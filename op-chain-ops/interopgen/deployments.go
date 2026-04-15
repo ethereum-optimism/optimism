@@ -23,7 +23,6 @@ type Implementations struct {
 	OpcmContainer                    common.Address `json:"OPCMContainer"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
-	OptimismPortalInteropImpl        common.Address `json:"OptimismPortalInteropImpl"`
 	ETHLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`
 	MipsSingleton                    common.Address `json:"MipsSingleton"`

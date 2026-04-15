@@ -9,7 +9,7 @@ import (
 // Development feature flag constants that mirror the solidity DevFeatures library.
 // These use a 32 byte bitmap for easy integration between op-deployer and contracts.
 var (
-	// OptimismPortalInteropDevFlag enables the OptimismPortalInterop contract.
+	// OptimismPortalInteropDevFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	// CannonKonaDevFlag enables Kona as the default cannon prover.

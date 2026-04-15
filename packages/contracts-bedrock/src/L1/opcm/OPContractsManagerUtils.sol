@@ -452,7 +452,7 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
-        } else if (_gcfg.gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
             return abi.encodePacked(
@@ -463,7 +463,7 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.challengerBond,
                 address(_anchorStateRegistry),
                 address(_delayedWETH),
-                _l2ChainId
+                chainId
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

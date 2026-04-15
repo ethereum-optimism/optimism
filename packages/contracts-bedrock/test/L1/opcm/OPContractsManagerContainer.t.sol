@@ -30,7 +30,6 @@ contract OPContractsManagerContainer_TestInit is Test {
             protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
             l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
             optimismPortalImpl: makeAddr("optimismPortalImpl"),
-            optimismPortalInteropImpl: makeAddr("optimismPortalInteropImpl"),
             ethLockboxImpl: makeAddr("ethLockboxImpl"),
             systemConfigImpl: makeAddr("systemConfigImpl"),
             optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),

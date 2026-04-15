@@ -247,11 +247,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismPortalInteropImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },

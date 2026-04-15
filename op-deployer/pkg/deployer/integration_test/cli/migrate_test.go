@@ -447,7 +447,6 @@ func TestCLIMigrateV2(t *testing.T) {
 			OpcmContainerImpl:                impls.OpcmContainer,
 			OpcmUtilsImpl:                    impls.OpcmUtils,
 			OpcmMigratorImpl:                 impls.OpcmMigrator,
-			OptimismPortalInteropImpl:        impls.OptimismPortalInteropImpl,
 			OptimismPortalImpl:               impls.OptimismPortalImpl,
 			DelayedWethImpl:                  impls.DelayedWETHImpl,
 			EthLockboxImpl:                   impls.ETHLockboxImpl,

@@ -106,7 +106,6 @@ outer:
 		OpcmContainerImpl:                dio.OpcmContainer,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
 		OptimismPortalImpl:               dio.OptimismPortalImpl,
-		OptimismPortalInteropImpl:        dio.OptimismPortalInteropImpl,
 		EthLockboxImpl:                   dio.ETHLockboxImpl,
 		PreimageOracleImpl:               dio.PreimageOracleSingleton,
 		MipsImpl:                         dio.MipsSingleton,
