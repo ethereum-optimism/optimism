@@ -267,7 +267,7 @@ mod tests {
     };
     use alloy_primitives::U256;
     use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileError};
+    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileHalt};
 
     use super::*;
 
@@ -281,24 +281,28 @@ mod tests {
         let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
 
         let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PrecompileError::Bn254PairLength));
+        assert!(result.is_halt());
+        assert!(matches!(result.halt_reason(), Some(&PrecompileHalt::Bn254PairLength)));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -314,6 +318,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -329,6 +334,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -352,6 +358,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -366,6 +373,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -380,6 +388,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -394,6 +403,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
