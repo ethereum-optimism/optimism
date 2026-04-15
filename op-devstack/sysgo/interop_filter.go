@@ -42,7 +42,7 @@ func (f *InteropFilter) Ready() bool {
 // WaitForReady blocks until all chain ingesters have backfilled or the timeout expires.
 // Call this after the supernode/CL layer has started so that blocks are being produced.
 func (f *InteropFilter) WaitForReady(t devtest.T, timeout time.Duration) {
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), timeout)
+	waitCtx, waitCancel := context.WithTimeout(t.Ctx(), timeout)
 	defer waitCancel()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()

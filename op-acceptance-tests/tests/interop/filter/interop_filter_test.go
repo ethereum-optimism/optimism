@@ -67,7 +67,7 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	// Send a transaction with the fabricated access list.
 	// The interop filter should reject this because the inbox entry doesn't
 	// correspond to any real cross-chain message.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 10*time.Second)
 	defer cancel()
 
 	bobAddr := bob.Address()
@@ -122,7 +122,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
 	sys.L2B.WaitForBlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 15*time.Second)
 	defer cancel()
 
 	// During failsafe, even valid access lists should be rejected
@@ -182,12 +182,12 @@ func TestInteropFilter_NonInteropUnaffected(gt *testing.T) {
 
 	// Send regular (non-interop) transfers on both chains — should succeed even during failsafe
 	txA := aliceA.Transfer(bobA.Address(), eth.GWei(1000))
-	receiptA, err := txA.Included.Eval(context.Background())
+	receiptA, err := txA.Included.Eval(gt.Context())
 	require.NoError(err, "regular transfer on chain A should succeed during failsafe")
 	require.Equal(types.ReceiptStatusSuccessful, receiptA.Status, "regular transfer on chain A should succeed")
 
 	txB := aliceB.Transfer(bobB.Address(), eth.GWei(1000))
-	receiptB, err := txB.Included.Eval(context.Background())
+	receiptB, err := txB.Included.Eval(gt.Context())
 	require.NoError(err, "regular transfer on chain B should succeed during failsafe")
 	require.Equal(types.ReceiptStatusSuccessful, receiptB.Status, "regular transfer on chain B should succeed")
 
