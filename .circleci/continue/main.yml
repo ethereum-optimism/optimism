@@ -3217,9 +3217,13 @@ workflows:
             - equal: ["develop", << pipeline.git.branch >>]
             - << pipeline.parameters.c-non_docs_changes >>
         # Merge queue (merge gate). Match checkout branch.
-        - matches:
-            pattern: "^gh-readonly-queue/.*"
-            value: << pipeline.git.branch >>
+        # Also require non-docs changes so docs-only PRs take the skip path
+        # (contracts-feature-tests-short) and produce the correct check name.
+        - and:
+            - matches:
+                pattern: "^gh-readonly-queue/.*"
+                value: << pipeline.git.branch >>
+            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -3400,9 +3404,13 @@ workflows:
               - equal: ["develop", << pipeline.git.branch >>]
               - << pipeline.parameters.c-non_docs_changes >>
           # Merge queue (merge gate). Match checkout branch.
-          - matches:
-              pattern: "^gh-readonly-queue/.*"
-              value: << pipeline.git.branch >>
+          # Also require non-docs changes so docs-only PRs take the skip path
+          # and produce the correct check name.
+          - and:
+              - matches:
+                  pattern: "^gh-readonly-queue/.*"
+                  value: << pipeline.git.branch >>
+              - << pipeline.parameters.c-non_docs_changes >>
           - and:
             - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
