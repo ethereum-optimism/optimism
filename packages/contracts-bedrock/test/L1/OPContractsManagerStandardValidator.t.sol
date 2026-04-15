@@ -2118,6 +2118,29 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             challenger = pddgArgs.challenger;
 
             cannonKonaPrestate = Claim.wrap(LibGameArgs.decode(dgf.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate);
+
+            // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as CANNON
+            // (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
+            bytes memory zkArgs = abi.encodePacked(
+                bytes32(keccak256("zkPrestate")),
+                address(0xBEEF),
+                uint64(7 days),
+                uint64(3 days),
+                uint256(0.08 ether),
+                cannonArgs.anchorStateRegistry,
+                cannonArgs.weth,
+                l2ChainId
+            );
+            vm.mockCall(
+                address(dgf),
+                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+                abi.encode(standardValidator.zkDisputeGameImpl())
+            );
+            vm.mockCall(
+                address(dgf),
+                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.ZK_DISPUTE_GAME)),
+                abi.encode(zkArgs)
+            );
         } else {
             l2ChainId = deploy.cfg().l2ChainID();
             cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
