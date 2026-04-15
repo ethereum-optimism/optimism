@@ -21,7 +21,7 @@ use std::sync::{
 };
 
 /// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
-const TRANSACTION_VALIDITY_WINDOW_SECS: u64 = 7200;
+pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
@@ -204,7 +204,7 @@ where
             Some(Ok(_)) => {
                 // valid interop tx
                 transaction.set_interop_deadline(
-                    self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
+                    self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS,
                 );
             }
             _ => {}
@@ -284,7 +284,7 @@ where
                 tx.access_list(),
                 tx.hash(),
                 self.block_info.timestamp.load(Ordering::Relaxed),
-                Some(TRANSACTION_VALIDITY_WINDOW_SECS),
+                Some(CHECK_ACCESS_LIST_TIMEOUT_SECS),
                 self.fork_tracker.is_interop_activated(),
             )
             .await

@@ -1,10 +1,5 @@
 //! Support for maintaining the state of the transaction pool
 
-/// Revalidation window: how long a successfully revalidated tx remains valid.
-/// Intentionally shorter than the ingress `TRANSACTION_VALIDITY_WINDOW_SECS` (7200s)
-/// because revalidation should be stricter — a tx valid now gets a 10-minute lease,
-/// forcing periodic re-checks against the supervisor rather than a single 2-hour window.
-const TRANSACTION_VALIDITY_WINDOW: u64 = 600;
 /// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
 /// Maximum number of supervisor requests at the same time
@@ -14,6 +9,7 @@ use crate::{
     conditional::MaybeConditionalTransaction,
     interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
     supervisor::SupervisorClient,
+    validator::CHECK_ACCESS_LIST_TIMEOUT_SECS,
 };
 use alloy_consensus::{BlockHeader, conditional::BlockConditionalAttributes};
 use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture};
@@ -216,7 +212,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 let revalidation_stream = supervisor_client.revalidate_interop_txs_stream(
                     to_revalidate,
                     timestamp,
-                    TRANSACTION_VALIDITY_WINDOW,
+                    CHECK_ACCESS_LIST_TIMEOUT_SECS,
                     MAX_SUPERVISOR_QUERIES,
                 );
 
@@ -228,7 +224,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                     match validation_result {
                         Some(Ok(())) => {
                             tx_item_from_stream
-                                .set_interop_deadline(timestamp + TRANSACTION_VALIDITY_WINDOW);
+                                .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
                         }
                         Some(Err(err)) => {
                             if err.is_bad_transaction() {
