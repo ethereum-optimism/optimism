@@ -267,7 +267,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
 	// Example error with kona-node:
 	//
