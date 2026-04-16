@@ -16,8 +16,19 @@ type Layer struct {
 }
 
 // ComputeSchedule builds a parallel execution schedule from execution items.
-// Items are grouped into layers based on prerequisites. Within a layer,
-// items run in parallel, so the layer's wall time is the max duration.
+// Items are grouped into layers by prerequisite depth: all items at the
+// same depth run concurrently in one layer.
+//
+// maxParallelism bounds how many items run at once on the executor. It
+// does *not* split a prereq-layer into serial sub-waves — the scheduler
+// models a slot-based dispatcher whose actual makespan (per layer) is
+// approximated by the LPT lower bound:
+//
+//	layerDuration = max(longest_item, total_cpu / slots)
+//
+// This bound is tight when durations are uniform and strictly under-
+// estimates otherwise, matching what a real slot-based runner would
+// achieve with list-scheduling.
 func ComputeSchedule(items []ExecutionItem, maxParallelism int) Schedule {
 	if maxParallelism <= 0 {
 		maxParallelism = 8
@@ -74,25 +85,27 @@ func ComputeSchedule(items []ExecutionItem, maxParallelism int) Schedule {
 
 	var layers []Layer
 	for _, ids := range layerItems {
-		for i := 0; i < len(ids); i += maxParallelism {
-			end := i + maxParallelism
-			if end > len(ids) {
-				end = len(ids)
-			}
-			batch := ids[i:end]
-
-			var maxDur float64
-			for _, id := range batch {
-				if duration[id] > maxDur {
-					maxDur = duration[id]
-				}
-			}
-
-			layers = append(layers, Layer{
-				ItemIDs:  batch,
-				Duration: maxDur,
-			})
+		if len(ids) == 0 {
+			continue
 		}
+		var totalDur, maxDur float64
+		for _, id := range ids {
+			d := duration[id]
+			totalDur += d
+			if d > maxDur {
+				maxDur = d
+			}
+		}
+		layerWall := maxDur
+		if slots := float64(maxParallelism); slots > 0 {
+			if packed := totalDur / slots; packed > layerWall {
+				layerWall = packed
+			}
+		}
+		layers = append(layers, Layer{
+			ItemIDs:  ids,
+			Duration: layerWall,
+		})
 	}
 
 	var wallClock, totalCPU float64

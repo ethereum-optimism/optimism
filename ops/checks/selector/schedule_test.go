@@ -39,6 +39,10 @@ func TestComputeSchedule_WithPrerequisites(t *testing.T) {
 }
 
 func TestComputeSchedule_ParallelismLimit(t *testing.T) {
+	// 4 independent items, all at the same prereq depth. A slot-limited
+	// dispatcher with 2 slots produces one scheduling layer whose
+	// makespan is bounded below by the LPT estimate:
+	//   max(longest_item, total_cpu / slots) = max(300, 750/2) = 375
 	items := []ExecutionItem{
 		{ID: "a", RunCost: 100},
 		{ID: "b", RunCost: 200},
@@ -46,8 +50,29 @@ func TestComputeSchedule_ParallelismLimit(t *testing.T) {
 		{ID: "d", RunCost: 300},
 	}
 	sched := ComputeSchedule(items, 2)
-	if len(sched.Layers) != 2 {
-		t.Errorf("expected 2 layers (parallelism=2), got %d", len(sched.Layers))
+	if len(sched.Layers) != 1 {
+		t.Errorf("expected 1 layer (no prereqs), got %d", len(sched.Layers))
+	}
+	if math.Abs(sched.WallClock-375) > 0.01 {
+		t.Errorf("expected wall clock 375 (LPT bound at parallelism=2), got %.2f", sched.WallClock)
+	}
+	if math.Abs(sched.TotalCPU-750) > 0.01 {
+		t.Errorf("expected total CPU 750, got %.2f", sched.TotalCPU)
+	}
+}
+
+func TestComputeSchedule_ParallelismSaturated(t *testing.T) {
+	// When one item dominates, wall clock = its duration regardless of
+	// parallelism. LPT bound: max(1000, 1300/4) = 1000.
+	items := []ExecutionItem{
+		{ID: "big", RunCost: 1000},
+		{ID: "a", RunCost: 100},
+		{ID: "b", RunCost: 100},
+		{ID: "c", RunCost: 100},
+	}
+	sched := ComputeSchedule(items, 4)
+	if math.Abs(sched.WallClock-1000) > 0.01 {
+		t.Errorf("expected wall clock 1000 (dominated by big), got %.2f", sched.WallClock)
 	}
 }
 
