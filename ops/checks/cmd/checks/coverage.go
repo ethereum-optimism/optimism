@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/coverage"
 )
 
@@ -28,6 +29,8 @@ func cmdCoverageCollect(args []string) error {
 	test := fs.String("test", "", "test path (file, package, or crate)")
 	root := fs.String("root", ".", "repository root")
 	output := fs.String("output", "", "output path for coverage report (default: stdout)")
+	profileName := fs.String("profile", "", "profile name from catalog (applies env vars during collection)")
+	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to catalog (needed if --profile is set)")
 	fs.Parse(args)
 
 	if *lang == "" || *test == "" {
@@ -46,7 +49,20 @@ func cmdCoverageCollect(args []string) error {
 		return fmt.Errorf("unknown language: %s (valid: solidity, go, rust)", *lang)
 	}
 
-	report, err := collector.Collect(*root, *test)
+	profile := coverage.Profile{}
+	if *profileName != "" {
+		cat, err := catalog.Load(*catalogPath)
+		if err != nil {
+			return fmt.Errorf("loading catalog for profile lookup: %w", err)
+		}
+		p := cat.ProfileByName(*profileName)
+		if p == nil {
+			return fmt.Errorf("profile %q not found in catalog", *profileName)
+		}
+		profile = coverage.Profile{Name: p.Name, Env: p.Env}
+	}
+
+	report, err := collector.Collect(*root, *test, profile)
 	if err != nil {
 		return fmt.Errorf("collecting coverage: %w", err)
 	}

@@ -24,17 +24,23 @@ func IngestReports(g *graph.Graph, reports []*Report) error {
 				continue
 			}
 
-			// Create a covers edge from test → source with line ranges
+			// Create a covers edge from test → source with line ranges.
+			// The profile is tagged on the edge so the optimizer can pick
+			// the right profile(s) when scoping tests.
+			props := map[string]any{
+				"line_ranges": ranges,
+			}
+			if r.Profile != "" {
+				props["profile"] = r.Profile
+			}
 			_ = g.AddEdge(&graph.Edge{
 				From:       testNodeID,
 				To:         sourceNodeID,
-				Kind:       graph.EdgeTestedBy, // reuse tested_by for now; could add EdgeCovers
+				Kind:       graph.EdgeTestedBy,
 				Source:     graph.SourceCoverage,
 				Confidence: 1.0,
 				Strength:   coverageStrength(ranges),
-				Properties: map[string]any{
-					"line_ranges": ranges,
-				},
+				Properties: props,
 			})
 		}
 	}

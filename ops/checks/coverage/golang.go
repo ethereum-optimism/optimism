@@ -19,7 +19,7 @@ func (c *GoCollector) Language() string { return "go" }
 
 // Collect runs go test with coverage for a single package and parses the profile.
 // testPath is a Go package path like "./op-node/rollup/derive/..."
-func (c *GoCollector) Collect(rootDir string, testPath string) (*Report, error) {
+func (c *GoCollector) Collect(rootDir string, testPath string, profile Profile) (*Report, error) {
 	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("checks-go-coverage-%d.prof", os.Getpid()))
 	defer os.Remove(tmpFile)
 
@@ -31,6 +31,11 @@ func (c *GoCollector) Collect(rootDir string, testPath string) (*Report, error) 
 	)
 	cmd.Dir = rootDir
 	cmd.Stderr = os.Stderr
+
+	cmd.Env = os.Environ()
+	for k, v := range profile.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 
 	// Tolerate test failures — coverage is still produced for passing tests
 	_ = cmd.Run()
@@ -45,6 +50,7 @@ func (c *GoCollector) Collect(rootDir string, testPath string) (*Report, error) 
 	return &Report{
 		Test:     testPath,
 		Language: "go",
+		Profile:  profile.Name,
 		Covers:   covers,
 	}, nil
 }

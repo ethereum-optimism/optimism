@@ -91,7 +91,7 @@ func printResultText(result *selector.Result, cat *catalog.Catalog) error {
 			for _, item := range result.Items {
 				if item.ID == itemID {
 					ct := cat.ByID(item.CheckTypeID)
-					cmd := item.ResolvedCommand(ct)
+					cmd := item.ResolvedCommandWithCatalog(ct, cat)
 					fmt.Printf("    %s  (signal=%.2f)\n", cmd, item.Signal)
 				}
 			}
@@ -109,7 +109,7 @@ func printResultText(result *selector.Result, cat *catalog.Catalog) error {
 		fmt.Printf("\nSkipped (%d):\n", len(result.Skipped))
 		for _, item := range result.Skipped {
 			ct := cat.ByID(item.CheckTypeID)
-			cmd := item.ResolvedCommand(ct)
+			cmd := item.ResolvedCommandWithCatalog(ct, cat)
 			fmt.Printf("  - %s  (signal=%.2f, cost=%.0fs)\n", cmd, item.Signal, item.RunCost)
 		}
 	}
@@ -125,7 +125,7 @@ func printResultJSON(result *selector.Result, cat *catalog.Catalog) error {
 	fmt.Println("  \"items\": [")
 	for i, item := range result.Items {
 		ct := cat.ByID(item.CheckTypeID)
-		cmd := item.ResolvedCommand(ct)
+		cmd := item.ResolvedCommandWithCatalog(ct, cat)
 		comma := ","
 		if i == len(result.Items)-1 {
 			comma = ""
@@ -141,7 +141,7 @@ func printResultJSON(result *selector.Result, cat *catalog.Catalog) error {
 	fmt.Println("  \"skipped\": [")
 	for i, item := range result.Skipped {
 		ct := cat.ByID(item.CheckTypeID)
-		cmd := item.ResolvedCommand(ct)
+		cmd := item.ResolvedCommandWithCatalog(ct, cat)
 		comma := ","
 		if i == len(result.Skipped)-1 {
 			comma = ""

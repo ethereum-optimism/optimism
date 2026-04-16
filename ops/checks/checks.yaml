@@ -1,3 +1,27 @@
+# Test profiles — named configurations for running tests under different
+# feature flag combinations. Matches the CI feature matrix for contracts-bedrock.
+profiles:
+  - name: main
+    env: {}
+  - name: custom_gas_token
+    env:
+      SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
+  - name: optimism_portal_interop
+    env:
+      DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true"
+  - name: zk_dispute_game
+    env:
+      DEV_FEATURE__ZK_DISPUTE_GAME: "true"
+  - name: cannon_kona
+    env:
+      DEV_FEATURE__CANNON_KONA: "true"
+  - name: super_root_games_migration
+    env:
+      DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION: "true"
+  - name: l2cm
+    env:
+      DEV_FEATURE__L2CM: "true"
+
 check_types:
   # === Build Steps ===
   - id: forge-build

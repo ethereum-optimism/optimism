@@ -38,10 +38,29 @@ type Knob struct {
 	Choices []string `yaml:"choices,omitempty"`
 }
 
+// TestProfile is a named configuration for running tests under different
+// feature flag combinations. Each profile sets a specific set of environment
+// variables before running the test command.
+type TestProfile struct {
+	Name string            `yaml:"name"`           // e.g. "main", "custom_gas_token"
+	Env  map[string]string `yaml:"env,omitempty"`  // environment variables
+}
+
 // Catalog is the top-level manifest of available check types.
 type Catalog struct {
-	CheckTypes []CheckType `yaml:"check_types"`
+	CheckTypes []CheckType   `yaml:"check_types"`
+	Profiles   []TestProfile `yaml:"profiles,omitempty"`
 	byID       map[string]*CheckType
+}
+
+// ProfileByName returns a profile by name, or nil if not found.
+func (c *Catalog) ProfileByName(name string) *TestProfile {
+	for i := range c.Profiles {
+		if c.Profiles[i].Name == name {
+			return &c.Profiles[i]
+		}
+	}
+	return nil
 }
 
 // Load reads a catalog from a YAML file.

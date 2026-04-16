@@ -110,7 +110,7 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 				continue
 			}
 
-			command := item.ResolvedCommand(ct)
+			command := item.ResolvedCommandWithCatalog(ct, cat)
 
 			if e.dryRun {
 				layerResults[i] = CheckResult{

@@ -7,11 +7,12 @@ import (
 )
 
 // Report is the language-agnostic coverage output format.
-// One report per test unit (file, package, or function).
+// One report per (test unit, profile) pair.
 type Report struct {
-	Test     string              `json:"test"`     // test identifier (file path, package, function)
-	Language string              `json:"language"`  // "solidity", "go", "rust"
-	Covers   map[string][][2]int `json:"covers"`   // source file → list of [startLine, endLine] ranges
+	Test     string              `json:"test"`              // test identifier (file path, package, function)
+	Language string              `json:"language"`           // "solidity", "go", "rust"
+	Profile  string              `json:"profile,omitempty"` // e.g. "main", "custom_gas_token". Empty = default.
+	Covers   map[string][][2]int `json:"covers"`             // source file → list of [startLine, endLine] ranges
 }
 
 // LoadReport reads a coverage report from a JSON file.
@@ -57,15 +58,20 @@ func SaveReport(r *Report, path string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// Profile is a named configuration for running tests.
+// Different profiles can produce different coverage for the same test
+// (feature flags gate different code paths).
+type Profile struct {
+	Name string            // e.g. "main", "custom_gas_token"
+	Env  map[string]string // environment variables to set
+}
+
 // Collector produces coverage reports for a given language.
 type Collector interface {
 	// Language returns the language this collector handles.
 	Language() string
 
-	// Collect runs coverage for a single test unit and returns a report.
-	// testPath is language-specific:
-	//   solidity: test file path (e.g. "test/L1/OptimismPortal2.t.sol")
-	//   go: package path (e.g. "./op-node/rollup/derive/...")
-	//   rust: crate or test name
-	Collect(rootDir string, testPath string) (*Report, error)
+	// Collect runs coverage for a single test unit under a profile.
+	// An empty Profile{} means default (no extra env vars).
+	Collect(rootDir string, testPath string, profile Profile) (*Report, error)
 }

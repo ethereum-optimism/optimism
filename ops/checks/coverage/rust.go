@@ -22,7 +22,7 @@ func (c *RustCollector) Language() string { return "rust" }
 
 // Collect runs cargo llvm-cov for a specific crate/test and parses LCOV output.
 // testPath is a crate name (e.g. "kona-derive") or test binary name.
-func (c *RustCollector) Collect(rootDir string, testPath string) (*Report, error) {
+func (c *RustCollector) Collect(rootDir string, testPath string, profile Profile) (*Report, error) {
 	workDir := filepath.Join(rootDir, c.WorkspaceDir)
 
 	// Check if cargo-llvm-cov is available
@@ -44,6 +44,9 @@ func (c *RustCollector) Collect(rootDir string, testPath string) (*Report, error
 	)
 	cmd.Dir = workDir
 	cmd.Env = os.Environ() // inherit PATH (needed for mise-managed toolchains)
+	for k, v := range profile.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	cmd.Stderr = os.Stderr
 
 	// Tolerate test failures
@@ -57,6 +60,7 @@ func (c *RustCollector) Collect(rootDir string, testPath string) (*Report, error
 	return &Report{
 		Test:     testPath,
 		Language: "rust",
+		Profile:  profile.Name,
 		Covers:   covers,
 	}, nil
 }

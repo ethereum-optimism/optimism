@@ -21,6 +21,7 @@ type ExecutionItem struct {
 	CheckTypeID   string         `json:"check_type_id"`   // "forge-test", "go-test", "golangci-lint"
 	Scope         []string       `json:"scope,omitempty"` // paths, packages, test names
 	Config        map[string]any `json:"config,omitempty"`
+	Profile       string         `json:"profile,omitempty"` // test profile (e.g. "custom_gas_token")
 	Signal        float64        `json:"signal"`
 	RunCost       float64        `json:"run_cost"`
 	SkipCost      float64        `json:"skip_cost"`
@@ -28,7 +29,14 @@ type ExecutionItem struct {
 }
 
 // ResolvedCommand builds the full shell command from the check type, scope, and config.
+// If the item specifies a profile, profile env vars are prepended via `cd ... && ENV=val command`.
 func (e *ExecutionItem) ResolvedCommand(ct *catalog.CheckType) string {
+	return e.ResolvedCommandWithCatalog(ct, nil)
+}
+
+// ResolvedCommandWithCatalog is like ResolvedCommand but takes a catalog to look
+// up profile env vars. If cat is nil or the profile isn't found, env vars are omitted.
+func (e *ExecutionItem) ResolvedCommandWithCatalog(ct *catalog.CheckType, cat *catalog.Catalog) string {
 	if ct == nil {
 		return ""
 	}
@@ -37,7 +45,7 @@ func (e *ExecutionItem) ResolvedCommand(ct *catalog.CheckType) string {
 
 	// For non-scopeable checks, return the base command
 	if !ct.Scopeable || len(e.Scope) == 0 {
-		return appendKnobFlags(cmd, ct, e.Config)
+		return prependEnv(appendKnobFlags(cmd, ct, e.Config), e.Profile, cat)
 	}
 
 	// Build scope args
@@ -53,12 +61,50 @@ func (e *ExecutionItem) ResolvedCommand(ct *catalog.CheckType) string {
 	// For positional scope (go test), knob flags come before scope
 	if ct.ScopeFlag == "" {
 		flagged := appendKnobFlags(cmd, ct, e.Config)
-		return flagged + " " + strings.Join(scopeParts, " ")
+		return prependEnv(flagged+" "+strings.Join(scopeParts, " "), e.Profile, cat)
 	}
 
 	// For flagged scope (forge test --match-path), scope comes after command, then knobs
 	cmd = cmd + " " + strings.Join(scopeParts, " ")
-	return appendKnobFlags(cmd, ct, e.Config)
+	return prependEnv(appendKnobFlags(cmd, ct, e.Config), e.Profile, cat)
+}
+
+// prependEnv prepends profile env vars to the command.
+// Handles commands with `cd X && <real command>` by injecting env vars after the &&.
+func prependEnv(cmd string, profileName string, cat *catalog.Catalog) string {
+	if profileName == "" || cat == nil {
+		return cmd
+	}
+	profile := cat.ProfileByName(profileName)
+	if profile == nil || len(profile.Env) == 0 {
+		return cmd
+	}
+
+	// Build "K1=v1 K2=v2" prefix (sorted for determinism)
+	keys := make([]string, 0, len(profile.Env))
+	for k := range profile.Env {
+		keys = append(keys, k)
+	}
+	sortStrings(keys)
+	var envParts []string
+	for _, k := range keys {
+		envParts = append(envParts, fmt.Sprintf("%s=%s", k, profile.Env[k]))
+	}
+	envPrefix := strings.Join(envParts, " ")
+
+	// If the command starts with "cd X && ", inject env vars after the &&
+	if idx := strings.Index(cmd, " && "); idx >= 0 && strings.HasPrefix(cmd, "cd ") {
+		return cmd[:idx+4] + envPrefix + " " + cmd[idx+4:]
+	}
+	return envPrefix + " " + cmd
+}
+
+func sortStrings(s []string) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j] < s[j-1]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
 }
 
 func appendKnobFlags(cmd string, ct *catalog.CheckType, config map[string]any) string {

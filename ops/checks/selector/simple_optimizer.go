@@ -138,7 +138,13 @@ func (o *SimpleOptimizer) optimizeScopeable(
 		return nil
 	}
 
-	// Group scopes by signal tier for different configs
+	// Group by profile first (each profile = a separate command run with different env).
+	// Within each profile, group by signal tier for different configs.
+	scopesByProfile := make(map[string][]scopeWithSignal)
+	for _, sw := range scopes {
+		scopesByProfile[sw.Profile] = append(scopesByProfile[sw.Profile], sw)
+	}
+
 	type tier struct {
 		minSignal float64
 		label     string
@@ -150,49 +156,55 @@ func (o *SimpleOptimizer) optimizeScopeable(
 	}
 
 	var items []ExecutionItem
-	used := make(map[string]bool)
-
-	for _, t := range tiers {
-		var tierScopes []string
-		var maxSignal float64
-		for _, sw := range scopes {
-			if sw.Signal >= t.minSignal && !used[sw.Scope] {
-				tierScopes = append(tierScopes, sw.Scope)
-				used[sw.Scope] = true
-				if sw.Signal > maxSignal {
-					maxSignal = sw.Signal
+	for profile, profileScopes := range scopesByProfile {
+		used := make(map[string]bool)
+		for _, t := range tiers {
+			var tierScopes []string
+			var maxSignal float64
+			for _, sw := range profileScopes {
+				if sw.Signal >= t.minSignal && !used[sw.Scope] {
+					tierScopes = append(tierScopes, sw.Scope)
+					used[sw.Scope] = true
+					if sw.Signal > maxSignal {
+						maxSignal = sw.Signal
+					}
 				}
 			}
-		}
-		if len(tierScopes) == 0 {
-			continue
-		}
+			if len(tierScopes) == 0 {
+				continue
+			}
 
-		config := mapSignalToConfig(ct, maxSignal, stage)
-		cost := estimateScopedRunCost(ct, len(tierScopes), config)
+			config := mapSignalToConfig(ct, maxSignal, stage)
+			cost := estimateScopedRunCost(ct, len(tierScopes), config)
 
-		prior := checkTypePrior(ct.Kind)
-		if maxSignal > 0.6 {
-			prior = 0.7
+			prior := checkTypePrior(ct.Kind)
+			if maxSignal > 0.6 {
+				prior = 0.7
+			}
+			pFail := maxSignal * prior
+
+			skipCost := pFail * stage.MissCost
+			if maxSignal > 0.6 {
+				skipCost = cost + 1
+			}
+
+			idSuffix := t.label
+			if profile != "" {
+				idSuffix = profile + ":" + t.label
+			}
+
+			items = append(items, ExecutionItem{
+				ID:            fmt.Sprintf("%s:%s", ct.ID, idSuffix),
+				CheckTypeID:   ct.ID,
+				Scope:         tierScopes,
+				Config:        config,
+				Profile:       profile,
+				Signal:        maxSignal,
+				RunCost:       cost,
+				SkipCost:      skipCost,
+				Prerequisites: prereqItemIDs(ct),
+			})
 		}
-		pFail := maxSignal * prior
-
-		skipCost := pFail * stage.MissCost
-		// Direct changes always run their tests
-		if maxSignal > 0.6 {
-			skipCost = cost + 1
-		}
-
-		items = append(items, ExecutionItem{
-			ID:            fmt.Sprintf("%s:%s", ct.ID, t.label),
-			CheckTypeID:   ct.ID,
-			Scope:         tierScopes,
-			Config:        config,
-			Signal:        maxSignal,
-			RunCost:       cost,
-			SkipCost:      skipCost,
-			Prerequisites: prereqItemIDs(ct),
-		})
 	}
 
 	return items
@@ -253,8 +265,9 @@ func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Cata
 // --- Helpers (Phase 2 / optimization concerns) ---
 
 type scopeWithSignal struct {
-	Scope  string
-	Signal float64
+	Scope   string
+	Signal  float64
+	Profile string // which profile's coverage produced this (empty = default/main)
 }
 
 // affectedScopes finds which test scopes are affected by changed source nodes.
@@ -284,6 +297,11 @@ func affectedScopes(
 // coverageBasedScopes finds test files that cover the *specific lines* that changed.
 // It intersects coverage line ranges (from coverage edges) with changed lines (from diff).
 // A test is only included if it covers at least one changed line.
+//
+// Results are grouped by (test, profile): if a test covers changed lines under
+// multiple profiles (e.g. main AND custom_gas_token), it produces multiple entries.
+// The optimizer then emits an ExecutionItem per (test, profile) pair so the test
+// gets run under each relevant profile.
 func coverageBasedScopes(
 	g *graph.Graph,
 	changedIDs []string,
@@ -294,60 +312,60 @@ func coverageBasedScopes(
 		return nil
 	}
 
-	// For each changed source node, find test nodes with coverage edges
-	// and check if their covered line ranges intersect with the changed lines.
-	testSignals := make(map[string]float64)
+	// Key: (test_node_id, profile) → max signal seen
+	type key struct {
+		testNode string
+		profile  string
+	}
+	testSignals := make(map[key]float64)
 
 	for _, changedID := range changedIDs {
-		// Get the source file path from the node ID to look up changed lines
 		sourceFile := nodeIDToSourceFile(changedID)
 		fileChangedLines := changedLines[sourceFile]
 		if len(fileChangedLines) == 0 {
-			// No line-level info for this file — fall back to file-level match
-			// (any test covering this file counts)
+			// No line-level info — file-level match
 			for _, edge := range g.EdgesTo(changedID) {
 				if edge.Source != graph.SourceCoverage {
 					continue
 				}
+				profile := profileFromEdge(edge)
 				signal := edge.Strength * edge.Confidence
-				if signal > testSignals[edge.From] {
-					testSignals[edge.From] = signal
+				k := key{edge.From, profile}
+				if signal > testSignals[k] {
+					testSignals[k] = signal
 				}
 			}
 			continue
 		}
 
-		// Line-level intersection: only include tests that cover changed lines
+		// Line-level intersection per (test, profile)
 		for _, edge := range g.EdgesTo(changedID) {
 			if edge.Source != graph.SourceCoverage {
 				continue
 			}
 
-			// Get the line ranges this test covers for this source file
+			profile := profileFromEdge(edge)
 			lineRanges, ok := edge.Properties["line_ranges"]
 			if !ok {
-				// No line data on edge — treat as file-level match
 				signal := edge.Strength * edge.Confidence
-				if signal > testSignals[edge.From] {
-					testSignals[edge.From] = signal
+				k := key{edge.From, profile}
+				if signal > testSignals[k] {
+					testSignals[k] = signal
 				}
 				continue
 			}
 
-			// Check if any covered ranges intersect with changed lines
 			hitCount := countLineHits(lineRanges, fileChangedLines)
 			if hitCount == 0 {
-				continue // this test doesn't cover any changed lines
+				continue
 			}
 
-			// Signal: if a test covers ANY changed lines, it's relevant.
-			// The fraction scales between 0.5 (covers some) and 1.0 (covers all).
-			// Even 1 hit out of 100 changed lines means the test exercises changed code.
 			totalChanged := len(fileChangedLines)
 			hitFraction := float64(hitCount) / float64(totalChanged)
 			signal := (0.5 + 0.5*hitFraction) * edge.Confidence
-			if signal > testSignals[edge.From] {
-				testSignals[edge.From] = signal
+			k := key{edge.From, profile}
+			if signal > testSignals[k] {
+				testSignals[k] = signal
 			}
 		}
 	}
@@ -357,18 +375,23 @@ func coverageBasedScopes(
 	}
 
 	var results []scopeWithSignal
-	seen := make(map[string]bool)
-	for testNodeID, signal := range testSignals {
-		// Coverage gives us precise test file IDs — use the file path directly
-		// instead of converting to directory globs via nodeIDToScope.
-		scope := nodeIDToTestPath(testNodeID)
-		if scope == "" {
-			// Fallback to directory-level scope
-			scope = nodeIDToScope(testNodeID, scopeType)
+	seen := make(map[key]bool)
+	for k, signal := range testSignals {
+		if seen[k] {
+			continue
 		}
-		if scope != "" && !seen[scope] {
-			results = append(results, scopeWithSignal{Scope: scope, Signal: signal})
-			seen[scope] = true
+		seen[k] = true
+
+		scope := nodeIDToTestPath(k.testNode)
+		if scope == "" {
+			scope = nodeIDToScope(k.testNode, scopeType)
+		}
+		if scope != "" {
+			results = append(results, scopeWithSignal{
+				Scope:   scope,
+				Signal:  signal,
+				Profile: k.profile,
+			})
 		}
 	}
 
@@ -377,6 +400,17 @@ func coverageBasedScopes(
 	})
 
 	return results
+}
+
+// profileFromEdge extracts the profile name from edge properties, or "" if none.
+func profileFromEdge(edge *graph.Edge) string {
+	if edge.Properties == nil {
+		return ""
+	}
+	if p, ok := edge.Properties["profile"].(string); ok {
+		return p
+	}
+	return ""
 }
 
 // nodeIDToTestPath converts a test node ID to a specific test file path for scoping.

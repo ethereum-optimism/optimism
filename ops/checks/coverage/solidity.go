@@ -33,7 +33,10 @@ func (c *SolidityCollector) Language() string { return "solidity" }
 //
 // The debug output shows all coverage items grouped by file path, with hit counts
 // per (source ID, line range). We merge hits by file path to get accurate coverage.
-func (c *SolidityCollector) Collect(rootDir string, testPath string) (*Report, error) {
+//
+// The profile argument sets environment variables (e.g. SYS_FEATURE__CUSTOM_GAS_TOKEN=true)
+// so we can collect coverage under different feature flag combinations.
+func (c *SolidityCollector) Collect(rootDir string, testPath string, profile Profile) (*Report, error) {
 	contractsDir := filepath.Join(rootDir, c.ContractsDir)
 
 	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("checks-coverage-%d.debug", os.Getpid()))
@@ -54,6 +57,13 @@ func (c *SolidityCollector) Collect(rootDir string, testPath string) (*Report, e
 	cmd.Dir = contractsDir
 	cmd.Stdout = out
 	cmd.Stderr = os.Stderr
+
+	// Set env vars for the profile (starts from current env so forge finds its tools)
+	cmd.Env = os.Environ()
+	for k, v := range profile.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
 	_ = cmd.Run() // tolerate test failures — coverage for passing tests is still valid
 
 	out.Close()
@@ -66,6 +76,7 @@ func (c *SolidityCollector) Collect(rootDir string, testPath string) (*Report, e
 	return &Report{
 		Test:     testPath,
 		Language: "solidity",
+		Profile:  profile.Name,
 		Covers:   covers,
 	}, nil
 }
