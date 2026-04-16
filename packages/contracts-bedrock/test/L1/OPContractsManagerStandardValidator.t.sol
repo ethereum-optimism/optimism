@@ -6,6 +6,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { SuperGameTestInit } from "test/setup/SuperGameTestInit.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
+import { OPContractsManagerMigrationValidator_TestInit } from
+    "test/L1/OPContractsManagerMigrationValidator.t.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -36,6 +38,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerMigrationValidator } from "interfaces/L1/IOPContractsManagerMigrationValidator.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -2279,5 +2282,31 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     function test_validate_zkDisputeGameWrongChainId_succeeds() public {
         DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId + 1);
         assertEq("ZKDG-60", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_ValidateMigratedChain_Test
+/// @notice Tests the validateMigratedChain entrypoint on the StandardValidator, which delegates to
+///         the MigrationValidator with SharedImplementations built from the StandardValidator's state.
+contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
+    OPContractsManagerMigrationValidator_TestInit
+{
+    /// @notice Tests that validateMigratedChain succeeds with no errors on a valid post-migration state.
+    function test_validateMigratedChain_succeeds() public view {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        string memory errors = standardValidator.validateMigratedChain(
+            IOPContractsManagerMigrationValidator.MigrationValidationInput({
+                dgf: sharedDGF,
+                chainSystemConfigs: chains,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                proposer: proposer,
+                challenger: challenger
+            }),
+            false
+        );
+        assertEq(errors, "");
     }
 }
