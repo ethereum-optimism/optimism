@@ -141,6 +141,9 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy versions are updated after upgrade.
     function test_l2ForkUpgrade_versionsUpdated_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade version state
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
@@ -245,6 +248,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all initialization configurations are preserved after upgrade.
     function test_l2ForkUpgrade_initializationPreserved_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade initialization state
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
@@ -622,6 +628,9 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
     function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Execute upgrade
         executeScript.execute();
 
@@ -671,6 +680,9 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 

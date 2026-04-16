@@ -611,6 +611,22 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
         );
     }
 
+    /// @notice Tests that upgrade succeeds when LiquidityController.owner() is address(0) on CGT networks.
+    ///         L2CM replays the live owner back into LiquidityController.initialize(), so a renounced
+    ///         ownership state must be preserved across upgrades rather than blocking them.
+    function test_upgrade_whenLiquidityControllerOwnerIsZero_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        vm.mockCall(
+            Predeploys.LIQUIDITY_CONTROLLER, abi.encodeCall(ILiquidityController.owner, ()), abi.encode(address(0))
+        );
+
+        // Upgrade must not revert even though owner is address(0)
+        _executeUpgrade();
+
+        assertEq(ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).owner(), address(0));
+    }
+
     /// @notice Tests that LiquidityController config is preserved after upgrade on CGT networks.
     function test_upgradePreservesLiquidityControllerConfig_onCGTNetwork_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
@@ -997,11 +1013,9 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
 contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
-    /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags has not been deployed by:
-    ///         1. Etching the current implementation to have no code.
-    ///         2. Pointing implementations.l2DevFeatureFlagsImpl to a fresh address with no code,
-    ///            so that after the upgrade sets the new impl pointer, the null-safe guard in
-    ///            _isDevFeatureEnabled fires and returns false.
+    /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags
+    ///         has not been deployed. Empties the current proxy implementation so that the
+    ///         null-safe guard in `_isDevFeatureEnabled` fires and returns false.
     function _simulateNoFlagsImpl() internal {
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
@@ -1010,9 +1024,6 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
             .checked_write(false);
-
-        implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
-        _deployL2CM();
     }
 
     /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
