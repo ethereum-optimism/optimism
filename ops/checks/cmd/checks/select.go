@@ -67,7 +67,7 @@ func cmdSelect(args []string) error {
 	}
 
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
-	fresh := freshness.New(findRepoRoot(), pol)
+	fresh := freshness.New(findRepoRoot(), pol, g)
 	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.

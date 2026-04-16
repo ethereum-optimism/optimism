@@ -65,7 +65,7 @@ func cmdRun(args []string) error {
 	diffs := diff.ParseUnifiedDiff(string(data))
 
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
-	fresh := freshness.New(*root, pol)
+	fresh := freshness.New(*root, pol, g)
 	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.

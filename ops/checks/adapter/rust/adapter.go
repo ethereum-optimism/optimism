@@ -1,15 +1,174 @@
+// Package rust provides a graph adapter for Rust workspaces.
+//
+// Crates are compilation units, analogous to Go packages. The adapter
+// emits:
+//   - `rs:<crate>` crate nodes (Granularity=crate) for every workspace
+//     member, with their manifest directory stored as a property so
+//     freshness can resolve file nodes to filesystem paths.
+//   - `rs:<crate>/<rel>.rs` file nodes (Granularity=file) for every
+//     .rs file under src/, tests/, benches/, examples/ in each crate.
+//
+// File nodes are coverage-target leaves: no import edges, no
+// containment edges — the ID shape and the crate's `dir` property are
+// sufficient to resolve back to disk. Matches the pattern established
+// for Go, which matches what Solidity already had.
+//
+// Intra-workspace crate import edges are not yet emitted. When we
+// start consuming Cargo.toml [dependencies] for reachability, they'll
+// drop in as `rs:<a> → rs:<b>` imports edges alongside external mod:
+// nodes, same shape as Go's internal/external split.
 package rust
 
-import "github.com/ethereum-optimism/optimism/ops/checks/graph"
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
-// RustAdapter is a placeholder for Rust crate dependency analysis.
-type RustAdapter struct{}
+	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+)
 
-// New returns a new RustAdapter.
-func New() *RustAdapter { return &RustAdapter{} }
+// RustAdapter builds crate + file nodes from cargo metadata output.
+type RustAdapter struct {
+	// WorkspaceDir is the path to the Rust workspace relative to rootDir.
+	// Default: "rust".
+	WorkspaceDir string
+
+	// CratesFor returns workspace members given an absolute workspace
+	// directory. Default shells to `cargo metadata --no-deps`; tests
+	// can substitute deterministic data.
+	CratesFor func(workDir string) ([]Crate, error)
+}
+
+// Crate is one workspace member.
+type Crate struct {
+	Name        string
+	ManifestDir string // absolute path to the directory containing Cargo.toml
+}
+
+// New returns a RustAdapter with default settings.
+func New() *RustAdapter {
+	return &RustAdapter{WorkspaceDir: "rust"}
+}
 
 // Name returns "rust".
 func (a *RustAdapter) Name() string { return "rust" }
 
-// Analyze is a no-op stub. Rust support is planned for a future iteration.
-func (a *RustAdapter) Analyze(_ *graph.Graph, _ string) error { return nil }
+// Analyze walks the Rust workspace at <rootDir>/<WorkspaceDir>,
+// enumerates workspace member crates, and emits a crate node plus one
+// file node per .rs file for each member. Silently no-ops if the
+// workspace directory is missing or cargo metadata fails — callers
+// with a Go-only repo shouldn't see errors.
+func (a *RustAdapter) Analyze(g *graph.Graph, rootDir string) error {
+	workDir := rootDir
+	if a.WorkspaceDir != "" {
+		workDir = filepath.Join(rootDir, a.WorkspaceDir)
+	}
+	if _, err := os.Stat(filepath.Join(workDir, "Cargo.toml")); err != nil {
+		return nil
+	}
+
+	cratesFor := a.CratesFor
+	if cratesFor == nil {
+		cratesFor = cratesFromCargoMetadata
+	}
+	crates, err := cratesFor(workDir)
+	if err != nil {
+		// Degrade: a missing cargo shouldn't fail graph construction.
+		return nil
+	}
+
+	for _, crate := range crates {
+		crateNodeID := "rs:" + crate.Name
+		_ = g.AddNode(&graph.Node{
+			ID:          crateNodeID,
+			Kind:        graph.KindSource,
+			Granularity: "crate",
+			Name:        crate.Name,
+			Properties: map[string]any{
+				"dir": crate.ManifestDir,
+			},
+		})
+
+		for _, rel := range findRustFiles(crate.ManifestDir) {
+			fileNodeID := crateNodeID + "/" + rel
+			_ = g.AddNode(&graph.Node{
+				ID:          fileNodeID,
+				Kind:        graph.KindSource,
+				Granularity: "file",
+				Name:        crate.Name + "/" + rel,
+				Properties: map[string]any{
+					"crate": crateNodeID,
+					"dir":   filepath.Dir(filepath.Join(crate.ManifestDir, rel)),
+				},
+			})
+		}
+	}
+	return nil
+}
+
+// cratesFromCargoMetadata runs `cargo metadata --no-deps --format-
+// version 1` in workDir and returns the workspace members. Only used
+// when RustAdapter.CratesFor is nil.
+func cratesFromCargoMetadata(workDir string) ([]Crate, error) {
+	cmd := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
+	cmd.Dir = workDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("cargo metadata: %w", err)
+	}
+	var meta struct {
+		Packages []struct {
+			Name         string `json:"name"`
+			ManifestPath string `json:"manifest_path"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(out, &meta); err != nil {
+		return nil, fmt.Errorf("parsing cargo metadata: %w", err)
+	}
+	crates := make([]Crate, 0, len(meta.Packages))
+	for _, p := range meta.Packages {
+		crates = append(crates, Crate{
+			Name:        p.Name,
+			ManifestDir: filepath.Dir(p.ManifestPath),
+		})
+	}
+	return crates, nil
+}
+
+// findRustFiles walks crateDir's conventional source directories and
+// returns .rs files as paths relative to crateDir. Skips hidden dirs
+// (.git, etc.) and the target/ build directory.
+func findRustFiles(crateDir string) []string {
+	var out []string
+	for _, sub := range []string{"src", "tests", "benches", "examples"} {
+		root := filepath.Join(crateDir, sub)
+		if _, err := os.Stat(root); err != nil {
+			continue
+		}
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				name := info.Name()
+				if name == "target" || strings.HasPrefix(name, ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".rs") {
+				return nil
+			}
+			rel, err := filepath.Rel(crateDir, path)
+			if err != nil {
+				return nil
+			}
+			out = append(out, rel)
+			return nil
+		})
+	}
+	return out
+}

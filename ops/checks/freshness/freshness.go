@@ -49,12 +49,19 @@ func (nopChecker) Assess(*graph.Edge) float64 { return 1.0 }
 
 // New returns a Checker that reads files under rootDir to compare
 // current content SHAs against stamps stored on edges. Settings come
-// from policy.Freshness. If a go.mod is present at rootDir, the
-// checker reads its module directive so it can resolve go:<import-
-// path>/<file>.go node IDs back to filesystem paths.
-func New(rootDir string, p *policy.Policy) Checker {
+// from policy.Freshness.
+//
+// If go.mod is present at rootDir, the checker reads its module
+// directive so it can resolve go:<module>/<rel>.go node IDs back to
+// filesystem paths. The optional graph enables rs:<crate>/<rel>.rs
+// resolution by looking up each Rust file node's containing crate
+// (which carries a manifest `dir` property from the Rust adapter).
+// Pass nil for the graph when Rust coverage isn't in scope (tests,
+// non-Rust repos).
+func New(rootDir string, p *policy.Policy, g *graph.Graph) Checker {
 	return &repoChecker{
 		rootDir:         rootDir,
+		graph:           g,
 		goModulePath:    readGoModulePath(rootDir),
 		staleMultiplier: p.Freshness.StaleMultiplier,
 		maxAge:          time.Duration(p.Freshness.MaxAgeDays) * 24 * time.Hour,
@@ -64,7 +71,8 @@ func New(rootDir string, p *policy.Policy) Checker {
 
 type repoChecker struct {
 	rootDir         string
-	goModulePath    string // module path from go.mod; "" if unavailable
+	graph           *graph.Graph // optional; used for rs: resolution
+	goModulePath    string       // module path from go.mod; "" if unavailable
 	staleMultiplier float64
 	maxAge          time.Duration
 
@@ -141,10 +149,14 @@ func (c *repoChecker) hashForNode(nodeID string) string {
 }
 
 // resolveNodeID maps a graph node ID to a repo-relative file path.
-// Handles Solidity file nodes via the package-level NodeIDToPath and
-// Go file nodes (go:<module>/<rel>.go) by stripping the module prefix.
+// Handles Solidity file nodes via the package-level NodeIDToPath,
+// Go file nodes (go:<module>/<rel>.go) by stripping the module prefix,
+// and Rust file nodes (rs:<crate>/<rel>.rs) by looking up the crate's
+// manifest dir in the graph and composing it with rootDir.
+//
 // Returns "" for nodes that don't identify a single file (package
-// nodes, module nodes, check nodes).
+// nodes, crate nodes, module nodes, check nodes) or when the required
+// resolver state (goModulePath, graph) is unavailable.
 func (c *repoChecker) resolveNodeID(nodeID string) string {
 	if rel := NodeIDToPath(nodeID); rel != "" {
 		return rel
@@ -153,6 +165,22 @@ func (c *repoChecker) resolveNodeID(nodeID string) string {
 		path := strings.TrimPrefix(nodeID, "go:")
 		if strings.HasPrefix(path, c.goModulePath+"/") {
 			return strings.TrimPrefix(path, c.goModulePath+"/")
+		}
+	}
+	if c.graph != nil && strings.HasPrefix(nodeID, "rs:") && strings.HasSuffix(nodeID, ".rs") {
+		trimmed := strings.TrimPrefix(nodeID, "rs:")
+		if slash := strings.Index(trimmed, "/"); slash > 0 {
+			crateName := trimmed[:slash]
+			rel := trimmed[slash+1:]
+			crateNode := c.graph.GetNode("rs:" + crateName)
+			if crateNode != nil {
+				if dir, ok := crateNode.Properties["dir"].(string); ok && dir != "" {
+					abs := filepath.Join(dir, rel)
+					if r, err := filepath.Rel(c.rootDir, abs); err == nil && !strings.HasPrefix(r, "..") {
+						return r
+					}
+				}
+			}
 		}
 	}
 	return ""

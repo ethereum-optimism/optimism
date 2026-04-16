@@ -187,7 +187,7 @@ func TestResolve_StaleCoverageDownweighted(t *testing.T) {
 	// match (no file at the expected path), so it's stale.
 	root := t.TempDir()
 	pol := testPolicy(t)
-	fresh := freshness.New(root, pol)
+	fresh := freshness.New(root, pol, g)
 
 	cands := Resolve(g, diffs, cat, pol, fresh)
 	if len(cands) != 1 {

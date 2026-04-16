@@ -37,7 +37,7 @@ func cmdExplain(args []string) error {
 	if err != nil {
 		return err
 	}
-	fresh := freshness.New(findRepoRoot(), pol)
+	fresh := freshness.New(findRepoRoot(), pol, g)
 
 	// Raw graph view — direct edges and reachable checks.
 	nodeIDs, unknown := diff.FilesToNodeIDs(g, []string{filePath})

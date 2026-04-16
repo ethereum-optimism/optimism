@@ -200,6 +200,56 @@ func TestFindOverlaps(t *testing.T) {
 	}
 }
 
+// TestRewriteCoversToCrateRelative — absolute LCOV paths become
+// <crate>/<rel> keys using longest-manifest-dir-first matching, and
+// the paired sourceAbsFor callback maps keys back to absolute paths
+// for SHA hashing.
+func TestRewriteCoversToCrateRelative(t *testing.T) {
+	crates := []rustCrate{
+		{Name: "alpha", ManifestDir: "/repo/rust/crates/alpha"},
+		{Name: "beta", ManifestDir: "/repo/rust/crates/beta"},
+		// Workspace-root crate that *contains* nested crates; it must
+		// lose the prefix match to the nested crate thanks to longest-
+		// first sorting.
+		{Name: "workspace-root", ManifestDir: "/repo/rust"},
+	}
+	raw := map[string][][2]int{
+		"/repo/rust/crates/alpha/src/lib.rs":   {{1, 3}},
+		"/repo/rust/crates/beta/src/lib.rs":    {{1, 5}},
+		"/repo/rust/examples/demo.rs":          {{1, 2}}, // belongs to workspace-root
+		"/elsewhere/stdlib/something/lib.rs":   {{1, 10}},  // outside every crate → dropped
+	}
+
+	out, absFor := rewriteCoversToCrateRelative(raw, crates)
+
+	// Nested crate wins over workspace-root despite being a substring.
+	if _, ok := out["alpha/src/lib.rs"]; !ok {
+		t.Errorf("expected alpha/src/lib.rs, got keys %v", keys(out))
+	}
+	if _, ok := out["workspace-root/crates/alpha/src/lib.rs"]; ok {
+		t.Error("nested crate should not be attributed to workspace-root")
+	}
+	// Unrelated absolute paths are dropped.
+	for k := range out {
+		if strings.HasPrefix(k, "stdlib/") {
+			t.Errorf("key %q should have been dropped (outside any crate)", k)
+		}
+	}
+	// sourceAbsFor round-trips back to the original absolute path.
+	if absFor("alpha/src/lib.rs") != "/repo/rust/crates/alpha/src/lib.rs" {
+		t.Errorf("sourceAbsFor = %q, want /repo/rust/crates/alpha/src/lib.rs",
+			absFor("alpha/src/lib.rs"))
+	}
+}
+
+func keys(m map[string][][2]int) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
+}
+
 // TestStampReport_GoModuleResolution — the Go collector's stamping
 // path maps coverprofile keys (import-path+filename) to filesystem
 // paths via go.mod's module directive, and populates SourceShas for

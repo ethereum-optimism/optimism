@@ -31,7 +31,7 @@ func TestNop(t *testing.T) {
 // TestAssess_NoStamps — legacy edge with no stamps returns 1.0.
 func TestAssess_NoStamps(t *testing.T) {
 	root := t.TempDir()
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	edge := &graph.Edge{}
 	if got := c.Assess(edge); got != 1.0 {
 		t.Errorf("unstamped edge: Assess = %f, want 1.0", got)
@@ -56,7 +56,7 @@ func TestAssess_ShaMatches(t *testing.T) {
 			"source_sha": sha,
 		},
 	}
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 1.0 {
 		t.Errorf("matching SHA: Assess = %f, want 1.0", got)
 	}
@@ -73,7 +73,7 @@ func TestAssess_ShaMismatch(t *testing.T) {
 			"source_sha": "1111111111111111111111111111111111111111",
 		},
 	}
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 0.3 {
 		t.Errorf("mismatched SHA: Assess = %f, want 0.3", got)
 	}
@@ -88,7 +88,7 @@ func TestAssess_SourceMissing(t *testing.T) {
 			"source_sha": "abc",
 		},
 	}
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 0.3 {
 		t.Errorf("missing file: Assess = %f, want 0.3 (stale)", got)
 	}
@@ -105,7 +105,7 @@ func TestAssess_TimeDecay(t *testing.T) {
 			"generated_at": old,
 		},
 	}
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 0.3 {
 		t.Errorf("old edge no shas: Assess = %f, want 0.3", got)
 	}
@@ -152,7 +152,7 @@ func TestAssess_GoFileNodeResolves(t *testing.T) {
 		},
 	}
 
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 1.0 {
 		t.Errorf("matching Go file SHA: Assess = %f, want 1.0", got)
 	}
@@ -161,7 +161,7 @@ func TestAssess_GoFileNodeResolves(t *testing.T) {
 	if err := os.WriteFile(filePath, []byte("package core\n\nvar X = 2\n"), 0o644); err != nil {
 		t.Fatalf("rewrite: %v", err)
 	}
-	c2 := New(root, testPolicy()) // fresh checker — avoid cache hit from prior hash
+	c2 := New(root, testPolicy(), nil) // fresh checker — avoid cache hit from prior hash
 	if got := c2.Assess(edge); got != 0.3 {
 		t.Errorf("mismatched Go file SHA: Assess = %f, want 0.3", got)
 	}
@@ -178,12 +178,78 @@ func TestAssess_GoFileNodeWithoutGoMod(t *testing.T) {
 			"source_sha": "abc",
 		},
 	}
-	c := New(root, testPolicy())
+	c := New(root, testPolicy(), nil)
 	// No go.mod means we can't resolve the Go file node to a path, so
 	// hashForNode returns "" → treated as "file missing/unreadable" →
 	// stale multiplier.
 	if got := c.Assess(edge); got != 0.3 {
 		t.Errorf("unresolvable Go file with stamped SHA: Assess = %f, want stale 0.3", got)
+	}
+}
+
+// TestAssess_RustFileNodeResolvesViaGraph — a rs:<crate>/<rel>.rs
+// node resolves to a filesystem path by looking up the crate's
+// manifest dir in the graph. SHA match/mismatch behaves identically
+// to Solidity and Go.
+func TestAssess_RustFileNodeResolvesViaGraph(t *testing.T) {
+	root := t.TempDir()
+
+	// Lay out a single-crate workspace: <root>/rust/crates/kona-derive/src/lib.rs
+	crateDir := filepath.Join(root, "rust", "crates", "kona-derive")
+	if err := os.MkdirAll(filepath.Join(crateDir, "src"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	filePath := filepath.Join(crateDir, "src", "lib.rs")
+	if err := os.WriteFile(filePath, []byte("pub fn hello() {}\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Build a graph with crate node carrying manifest dir, file node
+	// for lib.rs.
+	g := graph.NewGraph()
+	_ = g.AddNode(&graph.Node{
+		ID: "rs:kona-derive", Kind: graph.KindSource, Granularity: "crate",
+		Properties: map[string]any{"dir": crateDir},
+	})
+	_ = g.AddNode(&graph.Node{
+		ID: "rs:kona-derive/src/lib.rs", Kind: graph.KindSource, Granularity: "file",
+	})
+
+	// Stamp a matching SHA on an edge and verify.
+	sha, err := HashFile(filePath)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	edge := &graph.Edge{
+		From: "rs:kona-derive", To: "rs:kona-derive/src/lib.rs",
+		Properties: map[string]any{"source_sha": sha},
+	}
+	c := New(root, testPolicy(), g)
+	if got := c.Assess(edge); got != 1.0 {
+		t.Errorf("matching Rust file SHA: Assess = %f, want 1.0", got)
+	}
+
+	// Rewrite the file → SHA mismatches → stale multiplier.
+	if err := os.WriteFile(filePath, []byte("pub fn hello() { println!(\"hi\"); }\n"), 0o644); err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	c2 := New(root, testPolicy(), g)
+	if got := c2.Assess(edge); got != 0.3 {
+		t.Errorf("mismatched Rust file SHA: Assess = %f, want 0.3", got)
+	}
+}
+
+// TestAssess_RustFileNodeNoGraph — without a graph, rs: file nodes
+// can't resolve, so stamped edges fall through to the stale path.
+func TestAssess_RustFileNodeNoGraph(t *testing.T) {
+	root := t.TempDir()
+	edge := &graph.Edge{
+		To: "rs:kona-derive/src/lib.rs",
+		Properties: map[string]any{"source_sha": "abc"},
+	}
+	c := New(root, testPolicy(), nil)
+	if got := c.Assess(edge); got != 0.3 {
+		t.Errorf("rs: with nil graph and stamped SHA: Assess = %f, want stale 0.3", got)
 	}
 }
 
