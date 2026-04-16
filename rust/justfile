@@ -18,15 +18,18 @@ default:
 install-nightly:
   rustup toolchain install {{NIGHTLY}} --component rustfmt
 
+# Exclude pattern for workspace commands (e.g. "--exclude 'example-*'" to skip examples on PR CI).
+CARGO_WORKSPACE_EXCLUDE := env("CARGO_WORKSPACE_EXCLUDE", "")
+
 ############################### Build ###############################
 
 # Build the workspace
 build *args='':
-  cargo build --workspace {{args}}
+  cargo build --workspace {{CARGO_WORKSPACE_EXCLUDE}} {{args}}
 
 # Build the workspace in release mode
 build-release *args='':
-  cargo build --workspace --release {{args}}
+  cargo build --workspace --release {{CARGO_WORKSPACE_EXCLUDE}} {{args}}
 
 # Build kona-node
 build-kona-node:
@@ -53,7 +56,7 @@ test: test-unit test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
-  cargo nextest run --workspace --all-features {{args}}
+  cargo nextest run --workspace --all-features {{CARGO_WORKSPACE_EXCLUDE}} {{args}}
 
 # Run online tests only
 test-online:
@@ -61,7 +64,7 @@ test-online:
 
 # Run doc tests
 test-docs:
-  cargo test --doc --workspace --locked
+  cargo test --doc --workspace --locked {{CARGO_WORKSPACE_EXCLUDE}}
 
 ############################### Lint ################################
 

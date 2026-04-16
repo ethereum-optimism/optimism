@@ -447,7 +447,12 @@ jobs:
           no_output_timeout: 30m
           environment:
             RUSTFLAGS: -Dwarnings
-          command: <<parameters.command>>
+          command: |
+            EXCLUDE=""
+            if [ "$CIRCLE_BRANCH" != "develop" ] && [ "$CIRCLE_BRANCH" != "main" ]; then
+              EXCLUDE="--exclude example-*"
+            fi
+            <<parameters.command>> $EXCLUDE
       - rust-save-build-cache: *clippy-cache-args
 
   # Shared cargo deny job
@@ -624,7 +629,12 @@ jobs:
           name: Run doc tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
-          command: <<parameters.command>>
+          command: |
+            EXCLUDE=""
+            if [ "$CIRCLE_BRANCH" != "develop" ] && [ "$CIRCLE_BRANCH" != "main" ]; then
+              EXCLUDE="--exclude example-*"
+            fi
+            <<parameters.command>> $EXCLUDE
       - rust-save-build-cache: *doctest-cache-args
 
   # Shared cargo tests job
@@ -670,7 +680,11 @@ jobs:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: just <<parameters.command>> <<parameters.flags>>
+          command: |
+            if [ "$CIRCLE_BRANCH" != "develop" ] && [ "$CIRCLE_BRANCH" != "main" ]; then
+              export CARGO_WORKSPACE_EXCLUDE="--exclude example-*"
+            fi
+            just <<parameters.command>> <<parameters.flags>>
       - rust-save-build-cache: *tests-cache-args
 
   # Shared unused dependencies check job

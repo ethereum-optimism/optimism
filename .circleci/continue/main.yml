@@ -682,7 +682,14 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            # Skip example crates on feature branches to save ~1 min build time.
+            # They are still compiled on develop/main as a safety backstop.
+            export EXCLUDE=""
+            if [ "$CIRCLE_BRANCH" != "develop" ] && [ "$CIRCLE_BRANCH" != "main" ]; then
+              export EXCLUDE="--exclude 'example-*'"
+            fi
+
+            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY $EXCLUDE
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
