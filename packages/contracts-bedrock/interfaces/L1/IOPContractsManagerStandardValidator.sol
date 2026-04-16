@@ -22,6 +22,7 @@ interface IOPContractsManagerStandardValidator {
         address permissionedDisputeGameImpl;
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
+        address zkDisputeGameImpl;
     }
 
     struct ValidationInput {
@@ -61,6 +62,7 @@ interface IOPContractsManagerStandardValidator {
     function permissionedDisputeGameImpl() external view returns (address);
     function superFaultDisputeGameImpl() external view returns (address);
     function superPermissionedDisputeGameImpl() external view returns (address);
+    function zkDisputeGameImpl() external view returns (address);
     function optimismMintableERC20FactoryImpl() external view returns (address);
     function optimismPortalImpl() external view returns (address);
     function ethLockboxImpl() external view returns (address);

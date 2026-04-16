@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -575,6 +576,60 @@ func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
+	})
+	return tx.PlannedTx
+}
+
+// PrecomputeExecEventMessage computes the suptypes.Message that a CrossL2Inbox
+// ExecutingMessage event will produce when executing the given referenced message.
+// This allows precomputing exec-referencing-exec chains before any blocks are built.
+func PrecomputeExecEventMessage(
+	referencedMsg suptypes.Message,
+	execChainID eth.ChainID,
+	expectedBlockNum uint64,
+	expectedLogIdx uint32,
+	expectedTimestamp uint64,
+) suptypes.Message {
+	// Build ABI-encoded Identifier data (5 x 32-byte words)
+	id := referencedMsg.Identifier
+	data := make([]byte, 0, 32*5)
+	data = append(data, make([]byte, 12)...)
+	data = append(data, id.Origin.Bytes()...)
+	data = append(data, make([]byte, 32-8)...)
+	data = append(data, binary.BigEndian.AppendUint64(nil, id.BlockNumber)...)
+	data = append(data, make([]byte, 32-4)...)
+	data = append(data, binary.BigEndian.AppendUint32(nil, id.LogIndex)...)
+	data = append(data, make([]byte, 32-8)...)
+	data = append(data, binary.BigEndian.AppendUint64(nil, id.Timestamp)...)
+	b := id.ChainID.Bytes32()
+	data = append(data, b[:]...)
+
+	// payload = topics || data (per LogToMessagePayload)
+	payload := make([]byte, 0, 32+32+32*5)
+	payload = append(payload, suptypes.ExecutingMessageEventTopic.Bytes()...)
+	payload = append(payload, referencedMsg.PayloadHash.Bytes()...)
+	payload = append(payload, data...)
+
+	return suptypes.Message{
+		Identifier: suptypes.Identifier{
+			Origin:      predeploys.CrossL2InboxAddr,
+			BlockNumber: expectedBlockNum,
+			LogIndex:    expectedLogIdx,
+			Timestamp:   expectedTimestamp,
+			ChainID:     execChainID,
+		},
+		PayloadHash: crypto.Keccak256Hash(payload),
+	}
+}
+
+// SubmitExecForMessage returns a planned exec transaction referencing the given message.
+// Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
+// precomputed exec event messages for exec-referencing-exec chains.
+func SubmitExecForMessage(msg suptypes.Message, executor *EOA) *txplan.PlannedTx {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      msg,
 	})
 	return tx.PlannedTx
 }

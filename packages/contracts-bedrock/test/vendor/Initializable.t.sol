@@ -384,8 +384,6 @@ contract Initializer_Test is CommonTest {
         // Collect exclusions.
         uint256 j;
         string[] memory excludes = new string[](9);
-        // Contract is currently not being deployed as part of the standard deployment script.
-        excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
         excludes[j++] = "src/periphery/*";
         // TODO: Deployment script is currently "broken" in the sense that it doesn't properly

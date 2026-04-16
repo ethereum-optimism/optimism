@@ -239,9 +239,7 @@ rules:
         - /packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
         - /packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
         - /packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
-        - /packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
         - /packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
-        - /packages/contracts-bedrock/src/L2/L2StandardBridgeInterop.sol
         - /packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
         - /packages/contracts-bedrock/src/L1/ResourceMetering.sol
         - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol

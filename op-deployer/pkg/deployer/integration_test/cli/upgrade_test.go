@@ -59,8 +59,6 @@ func TestCLIUpgrade(t *testing.T) {
 			version:     "v5.0.0",
 			forkBlock:   9629972, // one block past the opcm deployment block
 		},
-		// v6.0.0-rc.2 test case removed: it deployed a v1 OPCM on Sepolia, and the
-		// embedded UpgradeOPChain.s.sol script no longer supports v1 OPCM upgrades.
 	}
 
 	for _, tc := range testCases {

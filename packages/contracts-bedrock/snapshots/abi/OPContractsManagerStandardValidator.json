@@ -77,6 +77,11 @@
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "zkDisputeGameImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.Implementations",
@@ -621,6 +626,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "zkDisputeGameImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
