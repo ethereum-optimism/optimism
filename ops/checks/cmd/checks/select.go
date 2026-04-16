@@ -60,12 +60,12 @@ func cmdSelect(args []string) error {
 		return nil
 	}
 
-	// Phase 1: Reachability — find all candidates
-	candidates := selector.FindCandidates(g, diffs, cat)
+	// Phase 1: Resolve — emit candidate items with per-source provenance.
+	candidates := selector.Resolve(g, diffs, cat)
 
-	// Phase 2: Optimization — produce execution plan
+	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer()
-	result, err := optimizer.Optimize(g, candidates, diffs, stage, cat)
+	result, err := optimizer.Optimize(candidates, stage, cat)
 	if err != nil {
 		return fmt.Errorf("optimizing: %w", err)
 	}
