@@ -45,18 +45,23 @@ contract RiscZeroAdapter_Verify_Test is RiscZeroAdapter_TestInit {
         adapter.verify(bytes32(uint256(1)), hex"aabb", hex"ccdd");
     }
 
-    /// @notice Tests that verify hashes publicValues and reorders arguments correctly.
-    function test_verify_forwardsArgs_succeeds() external {
-        bytes32 programId = bytes32(uint256(42));
-        bytes memory publicValues = hex"1234";
-        bytes memory proof = hex"5678";
-
-        bytes32 expectedJournalDigest = sha256(publicValues);
+    /// @notice Fuzz test: verify hashes publicValues using sha256 as expected and reorders arguments correctly.
+    /// @param _programId The program ID to pass to the adapter.
+    /// @param _publicValues The arbitrary public values to fuzz.
+    /// @param _proof The arbitrary proof bytes to fuzz.
+    function testFuzz_verify_forwardsArgs_succeeds(
+        bytes32 _programId,
+        bytes memory _publicValues,
+        bytes memory _proof
+    )
+        external
+    {
+        bytes32 expectedJournalDigest = sha256(_publicValues);
 
         vm.expectCall(
-            address(mockVerifier), abi.encodeCall(IRiscZeroVerifier.verify, (proof, programId, expectedJournalDigest))
+            address(mockVerifier), abi.encodeCall(IRiscZeroVerifier.verify, (_proof, _programId, expectedJournalDigest))
         );
-        adapter.verify(programId, publicValues, proof);
+        adapter.verify(_programId, _publicValues, _proof);
     }
 
     /// @notice Tests that verify reverts when the underlying verifier reverts.
