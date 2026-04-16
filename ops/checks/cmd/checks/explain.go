@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
+	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/selector"
 )
@@ -36,6 +37,7 @@ func cmdExplain(args []string) error {
 	if err != nil {
 		return err
 	}
+	fresh := freshness.New(findRepoRoot(), pol)
 
 	// Raw graph view — direct edges and reachable checks.
 	nodeIDs, unknown := diff.FilesToNodeIDs(g, []string{filePath})
@@ -52,8 +54,13 @@ func cmdExplain(args []string) error {
 		if len(edges) > 0 {
 			fmt.Println("Direct outgoing edges:")
 			for _, e := range edges {
-				fmt.Printf("  → %s (%s/%s, strength=%.2f, confidence=%.2f)\n",
-					e.To, e.Kind, e.Source, e.Strength, e.Confidence)
+				fr := fresh.Assess(e)
+				freshPart := ""
+				if fr < 1.0 {
+					freshPart = fmt.Sprintf(", freshness=%.2f", fr)
+				}
+				fmt.Printf("  → %s (%s/%s, strength=%.2f, confidence=%.2f%s)\n",
+					e.To, e.Kind, e.Source, e.Strength, e.Confidence, freshPart)
 			}
 			fmt.Println()
 		}
@@ -63,7 +70,7 @@ func cmdExplain(args []string) error {
 	// diff and print the resulting candidates with full provenance. This
 	// is what the selector would actually reason about.
 	diffs := []diff.FileDiff{{Path: filePath}}
-	candidates := selector.Resolve(g, diffs, cat, pol)
+	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
 	if len(candidates) == 0 {
 		fmt.Println("No candidates produced for this file.")
 		return nil

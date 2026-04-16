@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
+	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
@@ -32,7 +33,11 @@ func Resolve(
 	diffs []diff.FileDiff,
 	cat *catalog.Catalog,
 	pol *policy.Policy,
+	fresh freshness.Checker,
 ) []Candidate {
+	if fresh == nil {
+		fresh = freshness.Nop()
+	}
 	filePaths := extractPaths(diffs)
 	if len(filePaths) == 0 {
 		return nil
@@ -48,7 +53,7 @@ func Resolve(
 	var out []Candidate
 	for i := range cat.CheckTypes {
 		ct := &cat.CheckTypes[i]
-		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol)...)
+		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)...)
 	}
 	return out
 }
@@ -96,6 +101,7 @@ func candidatesForCheck(
 	changedIDs []string,
 	changedLines map[string]map[int]bool,
 	pol *policy.Policy,
+	fresh freshness.Checker,
 ) []Candidate {
 	// Trigger match: for non-scopeable checks, a glob hit makes it
 	// a candidate with signal=1.0 regardless of graph reachability.
@@ -116,7 +122,7 @@ func candidatesForCheck(
 	}
 
 	if ct.Scopeable {
-		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol); len(cands) > 0 {
+		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol, fresh); len(cands) > 0 {
 			return cands
 		}
 		return importScopeCandidates(g, ct, changedIDs)
@@ -137,6 +143,7 @@ func coverageCandidates(
 	changedIDs []string,
 	changedLines map[string]map[int]bool,
 	pol *policy.Policy,
+	fresh freshness.Checker,
 ) []Candidate {
 	floor := pol.Coverage.SignalFloor
 	if len(changedLines) == 0 {
@@ -151,8 +158,17 @@ func coverageCandidates(
 		signal     float64
 		hitLines   int
 		totalLines int
+		freshness  float64 // multiplier actually applied (1.0 = as-generated)
 	}
 	best := make(map[key]entry)
+
+	// update retains the highest-signal entry per (test, profile).
+	update := func(k key, raw entry) {
+		raw.signal *= raw.freshness
+		if e, ok := best[k]; !ok || raw.signal > e.signal {
+			best[k] = raw
+		}
+	}
 
 	for _, changedID := range changedIDs {
 		sourceFile := nodeIDToSourceFile(changedID)
@@ -163,24 +179,23 @@ func coverageCandidates(
 				continue
 			}
 			profile := profileFromEdge(edge)
+			fr := fresh.Assess(edge)
 
 			if len(fileChanged) == 0 {
 				// No line-level info from the diff — treat as a file-level match.
-				signal := edge.Strength * edge.Confidence
-				k := key{edge.From, profile}
-				if e, ok := best[k]; !ok || signal > e.signal {
-					best[k] = entry{signal: signal}
-				}
+				update(key{edge.From, profile}, entry{
+					signal:    edge.Strength * edge.Confidence,
+					freshness: fr,
+				})
 				continue
 			}
 
 			lineRanges, ok := edge.Properties["line_ranges"]
 			if !ok {
-				signal := edge.Strength * edge.Confidence
-				k := key{edge.From, profile}
-				if e, ok := best[k]; !ok || signal > e.signal {
-					best[k] = entry{signal: signal}
-				}
+				update(key{edge.From, profile}, entry{
+					signal:    edge.Strength * edge.Confidence,
+					freshness: fr,
+				})
 				continue
 			}
 
@@ -194,10 +209,12 @@ func coverageCandidates(
 			// Signal rises from `floor` (any hit) to `floor + (1-floor)*hitFraction`
 			// when every changed line is covered.
 			signal := (floor + (1-floor)*hitFraction) * edge.Confidence
-			k := key{edge.From, profile}
-			if e, ok := best[k]; !ok || signal > e.signal {
-				best[k] = entry{signal: signal, hitLines: hitCount, totalLines: totalChanged}
-			}
+			update(key{edge.From, profile}, entry{
+				signal:     signal,
+				hitLines:   hitCount,
+				totalLines: totalChanged,
+				freshness:  fr,
+			})
 		}
 	}
 
@@ -220,6 +237,9 @@ func coverageCandidates(
 		if e.hitLines > 0 {
 			raw["hit_lines"] = e.hitLines
 			raw["total_changed"] = e.totalLines
+		}
+		if e.freshness != 0 && e.freshness < 1.0 {
+			raw["freshness"] = e.freshness
 		}
 		out = append(out, Candidate{
 			CheckID: ct.ID,

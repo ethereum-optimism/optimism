@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
+	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
@@ -96,7 +97,7 @@ func TestResolve_CoverageBasedCandidate(t *testing.T) {
 		}},
 	}}
 
-	cands := Resolve(g, diffs, cat, testPolicy(t))
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
 	if len(cands) != 1 {
 		t.Fatalf("expected 1 candidate, got %d", len(cands))
 	}
@@ -133,7 +134,7 @@ func TestResolve_NoIntersectionNoCandidate(t *testing.T) {
 		}},
 	}}
 
-	cands := Resolve(g, diffs, cat, testPolicy(t))
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
 	// Coverage path returns nothing; import-fallback runs but won't find
 	// a scope for the source file (no src/ → test/ derivation hits).
 	for _, c := range cands {
@@ -149,7 +150,7 @@ func TestResolve_BlastRadius(t *testing.T) {
 	g, cat := testGraph(t)
 
 	diffs := []diff.FileDiff{{Path: "foundry.toml"}}
-	cands := Resolve(g, diffs, cat, testPolicy(t))
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
 	if len(cands) != len(cat.CheckTypes) {
 		t.Fatalf("expected 1 candidate per check type (%d), got %d", len(cat.CheckTypes), len(cands))
 	}
@@ -160,6 +161,52 @@ func TestResolve_BlastRadius(t *testing.T) {
 		if reason, ok := c.Provenance[0].Raw["reason"]; !ok || reason != "blast_radius" {
 			t.Errorf("expected blast_radius provenance, got %+v", c.Provenance[0].Raw)
 		}
+	}
+}
+
+// TestResolve_StaleCoverageDownweighted — a coverage edge whose
+// source_sha no longer matches the current file contributes only
+// stale_multiplier × raw_signal, and the provenance reflects that.
+func TestResolve_StaleCoverageDownweighted(t *testing.T) {
+	g, cat := testGraph(t)
+
+	// Stamp the coverage edge with a sha that definitely doesn't match
+	// anything on disk.
+	for _, e := range g.EdgesTo("sol:src/L1/OptimismPortal.sol") {
+		if e.Source == graph.SourceCoverage {
+			e.Properties["source_sha"] = "deadbeef0000000000000000000000000000dead"
+		}
+	}
+
+	diffs := []diff.FileDiff{{
+		Path: "packages/contracts-bedrock/src/L1/OptimismPortal.sol",
+		Hunks: []diff.Hunk{{NewStart: 45, NewCount: 3}},
+	}}
+
+	// Real freshness.Checker rooted at tempdir: the stamped sha won't
+	// match (no file at the expected path), so it's stale.
+	root := t.TempDir()
+	pol := testPolicy(t)
+	fresh := freshness.New(root, pol)
+
+	cands := Resolve(g, diffs, cat, pol, fresh)
+	if len(cands) != 1 {
+		t.Fatalf("expected 1 candidate, got %d", len(cands))
+	}
+	c := cands[0]
+
+	// Compare against fresh baseline to confirm downweighting actually
+	// occurred, rather than asserting an absolute number that would
+	// drift if the signal formula changes.
+	freshCands := Resolve(g, diffs, cat, pol, freshness.Nop())
+	if len(freshCands) != 1 {
+		t.Fatalf("fresh baseline: expected 1 candidate, got %d", len(freshCands))
+	}
+	if c.Signal >= freshCands[0].Signal {
+		t.Errorf("stale signal (%f) should be below fresh signal (%f)", c.Signal, freshCands[0].Signal)
+	}
+	if _, ok := c.Provenance[0].Raw["freshness"]; !ok {
+		t.Errorf("expected freshness in provenance.Raw, got %+v", c.Provenance[0].Raw)
 	}
 }
 

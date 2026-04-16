@@ -57,10 +57,14 @@ func (c *RustCollector) Collect(rootDir string, testPath string, profile Profile
 		return nil, fmt.Errorf("parsing LCOV output (cargo may have failed): %w", err)
 	}
 
-	return &Report{
+	report := &Report{
 		Test:     testPath,
 		Language: "rust",
 		Profile:  profile.Name,
 		Covers:   covers,
-	}, nil
+	}
+	// Rust testPath is a crate name, not a single file. LCOV paths are
+	// absolute and workspace-relative; skip SHA stamping for now.
+	stampReport(report, "", nil)
+	return report, nil
 }

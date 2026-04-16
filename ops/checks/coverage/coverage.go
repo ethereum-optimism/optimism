@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
 )
 
 // Report is the language-agnostic coverage output format.
@@ -13,6 +16,13 @@ type Report struct {
 	Language string              `json:"language"`           // "solidity", "go", "rust"
 	Profile  string              `json:"profile,omitempty"` // e.g. "main", "custom_gas_token". Empty = default.
 	Covers   map[string][][2]int `json:"covers"`             // source file → list of [startLine, endLine] ranges
+
+	// Freshness stamps — populated at collection, consumed at selection
+	// to detect when coverage predates the current file contents.
+	// Optional; legacy reports without these are treated as fresh.
+	GeneratedAt string            `json:"generated_at,omitempty"` // RFC3339 timestamp
+	TestSha     string            `json:"test_sha,omitempty"`    // git blob SHA of the test file at collection time
+	SourceShas  map[string]string `json:"source_shas,omitempty"`  // source file (relative) → git blob SHA
 }
 
 // LoadReport reads a coverage report from a JSON file.
@@ -74,4 +84,29 @@ type Collector interface {
 	// Collect runs coverage for a single test unit under a profile.
 	// An empty Profile{} means default (no extra env vars).
 	Collect(rootDir string, testPath string, profile Profile) (*Report, error)
+}
+
+// stampReport populates GeneratedAt + TestSha + SourceShas on a report.
+// testAbsPath and sourceAbs may return "" to skip SHAs for files the
+// collector can't map to a filesystem path (e.g. Go import paths).
+func stampReport(r *Report, testAbsPath string, sourceAbs func(string) string) {
+	r.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	if testAbsPath != "" {
+		if sha, err := freshness.HashFile(testAbsPath); err == nil {
+			r.TestSha = sha
+		}
+	}
+	if sourceAbs == nil || len(r.Covers) == 0 {
+		return
+	}
+	r.SourceShas = make(map[string]string, len(r.Covers))
+	for src := range r.Covers {
+		abs := sourceAbs(src)
+		if abs == "" {
+			continue
+		}
+		if sha, err := freshness.HashFile(abs); err == nil {
+			r.SourceShas[src] = sha
+		}
+	}
 }

@@ -33,6 +33,7 @@ type Policy struct {
 	Stages       []StageConfig                         `yaml:"stages"`
 	BlastRadius  []string                              `yaml:"blast_radius_patterns"`
 	Coverage     CoverageConfig                        `yaml:"coverage"`
+	Freshness    FreshnessConfig                       `yaml:"freshness"`
 	PriorsByKind map[string]float64                    `yaml:"priors_by_kind"`
 	HighSignal   HighSignalConfig                      `yaml:"high_signal"`
 	Tiers        []Tier                                `yaml:"tiers"`
@@ -49,6 +50,15 @@ type StageConfig struct {
 // CoverageConfig holds coverage-aggregation constants.
 type CoverageConfig struct {
 	SignalFloor float64 `yaml:"signal_floor"`
+}
+
+// FreshnessConfig controls how aggressively stale evidence is down-
+// weighted. StaleMultiplier applies when a stamped SHA does not match
+// the current file content. MaxAgeDays is the fallback time decay for
+// edges without content stamps.
+type FreshnessConfig struct {
+	StaleMultiplier float64 `yaml:"stale_multiplier"`
+	MaxAgeDays      int     `yaml:"max_age_days"`
 }
 
 // HighSignalConfig overrides the prior and forces run when aggregated
@@ -267,6 +277,12 @@ func merge(base, over *Policy) *Policy {
 	}
 	if over.Coverage.SignalFloor != 0 {
 		out.Coverage.SignalFloor = over.Coverage.SignalFloor
+	}
+	if over.Freshness.StaleMultiplier != 0 {
+		out.Freshness.StaleMultiplier = over.Freshness.StaleMultiplier
+	}
+	if over.Freshness.MaxAgeDays != 0 {
+		out.Freshness.MaxAgeDays = over.Freshness.MaxAgeDays
 	}
 	if over.HighSignal.Threshold != 0 {
 		out.HighSignal.Threshold = over.HighSignal.Threshold

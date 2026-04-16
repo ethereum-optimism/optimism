@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/executor"
+	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/selector"
 )
@@ -64,7 +65,8 @@ func cmdRun(args []string) error {
 	diffs := diff.ParseUnifiedDiff(string(data))
 
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
-	candidates := selector.Resolve(g, diffs, cat, pol)
+	fresh := freshness.New(*root, pol)
+	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer(pol)

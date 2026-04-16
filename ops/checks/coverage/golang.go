@@ -47,12 +47,17 @@ func (c *GoCollector) Collect(rootDir string, testPath string, profile Profile) 
 
 	covers := parseGoCoverprofile(string(data))
 
-	return &Report{
+	report := &Report{
 		Test:     testPath,
 		Language: "go",
 		Profile:  profile.Name,
 		Covers:   covers,
-	}, nil
+	}
+	// Go coverprofile keys are import paths, not filesystem paths, so
+	// we skip SHAs and rely on time-based staleness until we wire up
+	// module-path resolution via go.mod.
+	stampReport(report, "", nil)
+	return report, nil
 }
 
 // parseGoCoverprofile parses Go coverage profile format.

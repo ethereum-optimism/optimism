@@ -38,6 +38,16 @@ blast_radius_patterns:
 coverage:
   signal_floor: 0.5
 
+# Freshness: how aggressively to down-weight evidence whose stamped
+# content SHA no longer matches the current file. Coverage edges stamp
+# test_sha and source_sha at collection; the selector multiplies their
+# signal contribution by stale_multiplier when those SHAs diverge from
+# current content. Edges without SHAs fall back to max_age_days-based
+# decay. Setting stale_multiplier to 1.0 disables freshness entirely.
+freshness:
+  stale_multiplier: 0.3
+  max_age_days: 30
+
 # Per-kind prior probability of failure given relevance. Used as
 # prior × signal = p(fail). Falls back to `default` if kind is unknown.
 priors_by_kind:

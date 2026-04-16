@@ -73,12 +73,17 @@ func (c *SolidityCollector) Collect(rootDir string, testPath string, profile Pro
 		return nil, fmt.Errorf("parsing debug output (forge may have failed): %w", err)
 	}
 
-	return &Report{
+	report := &Report{
 		Test:     testPath,
 		Language: "solidity",
 		Profile:  profile.Name,
 		Covers:   covers,
-	}, nil
+	}
+	stampReport(report,
+		filepath.Join(contractsDir, testPath),
+		func(src string) string { return filepath.Join(contractsDir, src) },
+	)
+	return report, nil
 }
 
 // debugLineRegex matches a "- Line (location: (source ID: N, lines: A..B, ...), hits: X) -> ..." entry.

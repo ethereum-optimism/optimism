@@ -25,13 +25,24 @@ func IngestReports(g *graph.Graph, reports []*Report) error {
 			}
 
 			// Create a covers edge from test → source with line ranges.
-			// The profile is tagged on the edge so the optimizer can pick
-			// the right profile(s) when scoping tests.
+			// Profile lets the optimizer pick the right profile(s) when
+			// scoping tests. Freshness stamps (test_sha, source_sha,
+			// generated_at) let the selector down-weight this edge if
+			// the underlying content has changed since collection.
 			props := map[string]any{
 				"line_ranges": ranges,
 			}
 			if r.Profile != "" {
 				props["profile"] = r.Profile
+			}
+			if r.GeneratedAt != "" {
+				props["generated_at"] = r.GeneratedAt
+			}
+			if r.TestSha != "" {
+				props["test_sha"] = r.TestSha
+			}
+			if sha, ok := r.SourceShas[sourceFile]; ok && sha != "" {
+				props["source_sha"] = sha
 			}
 			_ = g.AddEdge(&graph.Edge{
 				From:       testNodeID,
