@@ -35,6 +35,7 @@ library PastUpgrades {
     /// @notice Dummy prestates used for testing (actual values don't matter for upgrade tests)
     bytes32 internal constant DUMMY_CANNON_PRESTATE = keccak256("CANNON");
     bytes32 internal constant DUMMY_CANNON_KONA_PRESTATE = keccak256("CANNON_KONA");
+    bytes32 internal constant DUMMY_ZK_PRESTATE = keccak256("ZK");
 
     /// @notice Struct representing an OPCM from the registry (returned by FFI).
     ///         Note: releaseVersion is NOT the OPCM semver - query opcm.version() on-chain for that.
@@ -189,7 +190,7 @@ library PastUpgrades {
         // Build dispute game configs with dummy prestates.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -246,6 +247,14 @@ library PastUpgrades {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: hex""
+        });
+
+        // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: hex""
         });
 

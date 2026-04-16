@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -50,227 +49,107 @@ func TestInteropMigration(t *testing.T) {
 	l1ChainID := big.NewInt(11155111) // Sepolia
 	l2ChainID := uint256.NewInt(12345)
 
-	tests := []struct {
-		name       string
-		devFeature common.Hash
-	}{
-		{"opcm-v2", devfeatures.OPCMV2Flag},
+	// Deploy a complete chain using ApplyPipeline
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
+
+	devBitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag)
+	intent.GlobalDeployOverrides = map[string]any{
+		"devFeatureBitmap": devBitmap,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Deploy a complete chain using ApplyPipeline - this ensures all addresses are properly connected
-			intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
+	// Since we are enabling Interop in the bitmap we enable the UseInterop flag
+	intent.UseInterop = true
 
-			// Set dev features for this test
-			devBitmap := devfeatures.EnableDevFeature(tt.devFeature, devfeatures.OptimismPortalInteropFlag)
-			intent.GlobalDeployOverrides = map[string]any{
-				"devFeatureBitmap": devBitmap,
-			}
+	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+		DeploymentTarget:   deployer.DeploymentTargetLive,
+		L1RPCUrl:           l1RPC,
+		DeployerPrivateKey: pk,
+		Intent:             intent,
+		State:              st,
+		Logger:             lgr,
+		StateWriter:        pipeline.NoopStateWriter(),
+		CacheDir:           testCacheDir,
+	})
+	require.NoError(t, err, "Failed to deploy chain")
 
-			// Since we are enabling Interop in the bitmap we enable the UseInterop flag
-			intent.UseInterop = true
+	// Get addresses from the deployed state
+	require.Len(t, st.Chains, 1, "Expected one chain to be deployed")
+	chainState := st.Chains[0]
+	systemConfigProxy := chainState.SystemConfigProxy
 
-			err := deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
-			})
-			require.NoError(t, err, "Failed to deploy chain")
+	// Get the L1ProxyAdminOwner from the intent
+	l1ProxyAdminOwner := intent.Chains[0].Roles.L1ProxyAdminOwner
 
-			// Get addresses from the deployed state
-			require.Len(t, st.Chains, 1, "Expected one chain to be deployed")
-			chainState := st.Chains[0]
-			systemConfigProxy := chainState.SystemConfigProxy
+	t.Logf("SystemConfigProxy: %s", systemConfigProxy.Hex())
+	t.Logf("L1ProxyAdminOwner: %s", l1ProxyAdminOwner.Hex())
 
-			// Get the L1ProxyAdminOwner from the intent
-			l1ProxyAdminOwner := intent.Chains[0].Roles.L1ProxyAdminOwner
+	rpcClient, err := rpc.Dial(l1RPC)
+	require.NoError(t, err)
 
-			t.Logf("SystemConfigProxy: %s", systemConfigProxy.Hex())
-			t.Logf("L1ProxyAdminOwner: %s", l1ProxyAdminOwner.Hex())
+	require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
+	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
+	t.Logf("OPCM V2: %s", opcmAddr.Hex())
 
-			rpcClient, err := rpc.Dial(l1RPC)
-			require.NoError(t, err)
+	// Deploy DummyCaller at l1ProxyAdminOwner for the OPCM
+	shared.DeployDummyCaller(t, rpcClient, afactsFS, l1ProxyAdminOwner, opcmAddr)
 
-			var opcmAddr common.Address
-			if devfeatures.IsDevFeatureEnabled(tt.devFeature, devfeatures.OPCMV2Flag) {
-				require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
-				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
-				t.Logf("OPCM V2: %s", opcmAddr.Hex())
-			} else {
-				require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
-				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
-				t.Logf("OPCM V2: %s", opcmAddr.Hex())
-			}
+	bcast := new(broadcaster.CalldataBroadcaster)
+	host, err := env.DefaultForkedScriptHost(
+		ctx,
+		bcast,
+		lgr,
+		l1ProxyAdminOwner,
+		afactsFS,
+		rpcClient,
+	)
+	require.NoError(t, err)
 
-			// Deploy DummyCaller at l1ProxyAdminOwner for the OPCM
-			shared.DeployDummyCaller(t, rpcClient, afactsFS, l1ProxyAdminOwner, opcmAddr)
+	// Prepare game args for V2 - ABI encode the prestate
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	require.NoError(t, err)
+	testPrestate := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc")
+	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
+	require.NoError(t, err)
 
-			bcast := new(broadcaster.CalldataBroadcaster)
-			host, err := env.DefaultForkedScriptHost(
-				ctx,
-				bcast,
-				lgr,
-				l1ProxyAdminOwner,
-				afactsFS,
-				rpcClient,
-			)
-			require.NoError(t, err)
+	// Define game type constants matching Solidity GameTypes library
+	const (
+		GameTypeCannon      = uint32(0)
+		GameTypeSuperCannon = uint32(4)
+	)
 
-			var input InteropMigrationInput
-
-			if devfeatures.IsDevFeatureEnabled(tt.devFeature, devfeatures.OPCMV2Flag) {
-				// OPCM V2 path
-				// Note: No need to call upgradeChainV2 since ApplyPipeline already deploys a fully initialized chain
-
-				// Prepare game args for V2 - ABI encode the prestate
-				bytes32Type, err := abi.NewType("bytes32", "", nil)
-				require.NoError(t, err)
-				testPrestate := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc")
-				gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
-				require.NoError(t, err)
-
-				// Define game type constants matching Solidity GameTypes library
-				const (
-					GameTypeCannon      = uint32(0)
-					GameTypeSuperCannon = uint32(4)
-				)
-
-				input = InteropMigrationInput{
-					Prank: l1ProxyAdminOwner,
-					Opcm:  opcmAddr,
-					MigrateInputV2: &MigrateInputV2{
-						ChainSystemConfigs: []common.Address{
-							systemConfigProxy,
-						},
-						DisputeGameConfigs: []DisputeGameConfig{
-							{
-								Enabled:  true,
-								InitBond: big.NewInt(1000000000000000000), // 1 ETH
-								GameType: GameTypeCannon,
-								GameArgs: gameArgs,
-							},
-						},
-						StartingAnchorRoot: Proposal{
-							Root:             common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"),
-							L2SequenceNumber: big.NewInt(1),
-						},
-						StartingRespectedGameType: GameTypeSuperCannon,
-					},
-				}
-			} else {
-				// OPCM V1 path
-				// Note: No need to call upgradeChainV1 since ApplyPipeline already deploys a fully initialized chain
-
-				// Get proposer and challenger from devkeys
-				proposer, err := dk.Address(devkeys.ProposerRole.Key(l1ChainID))
-				require.NoError(t, err)
-				challenger, err := dk.Address(devkeys.ChallengerRole.Key(l1ChainID))
-				require.NoError(t, err)
-
-				input = InteropMigrationInput{
-					Prank: l1ProxyAdminOwner,
-					Opcm:  opcmAddr,
-					MigrateInputV1: &MigrateInputV1{
-						UsePermissionlessGame: true,
-						StartingAnchorRoot: Proposal{
-							Root:             common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"),
-							L2SequenceNumber: big.NewInt(1),
-						},
-						GameParameters: GameParameters{
-							Proposer:         proposer,
-							Challenger:       challenger,
-							MaxGameDepth:     73,
-							SplitDepth:       30,
-							InitBond:         big.NewInt(1000000000000000000), // 1 ETH
-							ClockExtension:   10800,
-							MaxClockDuration: 302400,
-						},
-						OpChainConfigs: []OPChainConfig{
-							{
-								SystemConfigProxy:  systemConfigProxy,
-								CannonPrestate:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"),
-								CannonKonaPrestate: common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000fed"),
-							},
-						},
-					},
-				}
-			}
-
-			// Execute Migration
-			output, err := Migrate(host, input)
-			require.NoError(t, err)
-			require.NotEqual(t, common.Address{}, output.DisputeGameFactory)
-
-			dump, err := bcast.Dump()
-			require.NoError(t, err)
-			require.Len(t, dump, 1, "Should have one transaction (migration)")
-			require.True(t, dump[0].Value.ToInt().Cmp(common.Big0) == 0, "Transaction value should be zero")
-			require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
-		})
+	input := InteropMigrationInput{
+		Prank: l1ProxyAdminOwner,
+		Opcm:  opcmAddr,
+		MigrateInputV2: &MigrateInputV2{
+			ChainSystemConfigs: []common.Address{
+				systemConfigProxy,
+			},
+			DisputeGameConfigs: []DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(1000000000000000000), // 1 ETH
+					GameType: GameTypeCannon,
+					GameArgs: gameArgs,
+				},
+			},
+			StartingAnchorRoot: Proposal{
+				Root:             common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"),
+				L2SequenceNumber: big.NewInt(1),
+			},
+			StartingRespectedGameType: GameTypeSuperCannon,
+		},
 	}
-}
 
-func TestMigrateCLIV1Flags(t *testing.T) {
-	app := cli.NewApp()
-	flagSet := flag.NewFlagSet("test-migrate-v1", flag.ContinueOnError)
+	// Execute Migration
+	output, err := Migrate(host, input)
+	require.NoError(t, err)
+	require.NotEqual(t, common.Address{}, output.DisputeGameFactory)
 
-	// Set V1-specific flags
-	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-	flagSet.Bool(PermissionlessFlag.Name, true, "doc")
-	flagSet.String(ProposerFlag.Name, "0x1111111111111111111111111111111111111111", "doc")
-	flagSet.String(ChallengerFlag.Name, "0x2222222222222222222222222222222222222222", "doc")
-	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-	flagSet.Uint64(DisputeMaxGameDepthFlag.Name, 73, "doc")
-	flagSet.Uint64(DisputeSplitDepthFlag.Name, 30, "doc")
-	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-	flagSet.Uint64(DisputeClockExtensionFlag.Name, 10800, "doc")
-	flagSet.Uint64(DisputeMaxClockDurationFlag.Name, 302400, "doc")
-	flagSet.String(DisputeAbsolutePrestateCannonFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-	flagSet.String(DisputeAbsolutePrestateCannonKonaFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000fed", "doc")
-
-	ctx := cli.NewContext(app, flagSet, nil)
-
-	// Parse V1 flags
-	opcmAddr := common.HexToAddress(ctx.String(OPCMImplFlag.Name))
-	systemConfigProxy := common.HexToAddress(ctx.String(SystemConfigProxyFlag.Name))
-	permissionless := ctx.Bool(PermissionlessFlag.Name)
-	proposer := common.HexToAddress(ctx.String(ProposerFlag.Name))
-	challenger := common.HexToAddress(ctx.String(ChallengerFlag.Name))
-	startingAnchorRoot := common.HexToHash(ctx.String(StartingAnchorRootFlag.Name))
-	startingAnchorL2SeqNum := ctx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)
-	maxGameDepth := ctx.Uint64(DisputeMaxGameDepthFlag.Name)
-	splitDepth := ctx.Uint64(DisputeSplitDepthFlag.Name)
-	initBondStr := ctx.String(InitialBondFlag.Name)
-	initBond, ok := new(big.Int).SetString(initBondStr, 10)
-	require.True(t, ok)
-	clockExtension := ctx.Uint64(DisputeClockExtensionFlag.Name)
-	maxClockDuration := ctx.Uint64(DisputeMaxClockDurationFlag.Name)
-	cannonPrestate := common.HexToHash(ctx.String(DisputeAbsolutePrestateCannonFlag.Name))
-	cannonKonaPrestate := common.HexToHash(ctx.String(DisputeAbsolutePrestateCannonKonaFlag.Name))
-
-	// Verify values
-	require.Equal(t, common.HexToAddress("0xaf334f4537e87f5155d135392ff6d52f1866465e"), opcmAddr)
-	require.Equal(t, common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"), systemConfigProxy)
-	require.True(t, permissionless)
-	require.Equal(t, common.HexToAddress("0x1111111111111111111111111111111111111111"), proposer)
-	require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), challenger)
-	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"), startingAnchorRoot)
-	require.Equal(t, uint64(1), startingAnchorL2SeqNum)
-	require.Equal(t, uint64(73), maxGameDepth)
-	require.Equal(t, uint64(30), splitDepth)
-	require.Equal(t, big.NewInt(1000000000000000000), initBond)
-	require.Equal(t, uint64(10800), clockExtension)
-	require.Equal(t, uint64(302400), maxClockDuration)
-	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"), cannonPrestate)
-	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000fed"), cannonKonaPrestate)
+	dump, err := bcast.Dump()
+	require.NoError(t, err)
+	require.Len(t, dump, 1, "Should have one transaction (migration)")
+	require.True(t, dump[0].Value.ToInt().Cmp(common.Big0) == 0, "Transaction value should be zero")
+	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
 }
 
 func TestMigrateCLIV2Flags(t *testing.T) {
@@ -392,7 +271,7 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 			disputeGameTypeU64 := ctx.Uint64(DisputeGameTypeFlag.Name)
 			startingRespectedGameTypeU64 := ctx.Uint64(MigrateStartingRespectedGameTypeFlag.Name)
 
-			// Simulate the validation logic from MigrateCLIV2
+			// Simulate the validation logic from MigrateCLI
 			var validationErr error
 			if disputeGameTypeU64 > 0xFFFFFFFF {
 				validationErr = fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
@@ -414,59 +293,6 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestEncodedMigrateInputV1(t *testing.T) {
-	input := &InteropMigrationInput{
-		Prank: common.Address{0xaa},
-		Opcm:  common.Address{0xbb},
-		MigrateInputV1: &MigrateInputV1{
-			UsePermissionlessGame: true,
-			StartingAnchorRoot: Proposal{
-				Root:             common.Hash{0xde},
-				L2SequenceNumber: big.NewInt(100),
-			},
-			GameParameters: GameParameters{
-				Proposer:         common.Address{0x11},
-				Challenger:       common.Address{0x22},
-				MaxGameDepth:     73,
-				SplitDepth:       30,
-				InitBond:         big.NewInt(1000),
-				ClockExtension:   10800,
-				MaxClockDuration: 302400,
-			},
-			OpChainConfigs: []OPChainConfig{
-				{
-					SystemConfigProxy:  common.Address{0x01},
-					CannonPrestate:     common.Hash{0xab},
-					CannonKonaPrestate: common.Hash{0xcd},
-				},
-			},
-		},
-	}
-
-	data, err := input.EncodedMigrateInputV1()
-	require.NoError(t, err)
-	require.NotEmpty(t, data)
-
-	expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
-		"0000000000000000000000000000000000000000000000000000000000000001" + // usePermissionlessGame (true)
-		"de00000000000000000000000000000000000000000000000000000000000000" + // startingAnchorRoot.root
-		"0000000000000000000000000000000000000000000000000000000000000064" + // startingAnchorRoot.l2SequenceNumber (100)
-		"0000000000000000000000001100000000000000000000000000000000000000" + // gameParameters.proposer
-		"0000000000000000000000002200000000000000000000000000000000000000" + // gameParameters.challenger
-		"0000000000000000000000000000000000000000000000000000000000000049" + // gameParameters.maxGameDepth (73)
-		"000000000000000000000000000000000000000000000000000000000000001e" + // gameParameters.splitDepth (30)
-		"00000000000000000000000000000000000000000000000000000000000003e8" + // gameParameters.initBond (1000)
-		"0000000000000000000000000000000000000000000000000000000000002a30" + // gameParameters.clockExtension (10800)
-		"0000000000000000000000000000000000000000000000000000000000049d40" + // gameParameters.maxClockDuration (302400)
-		"0000000000000000000000000000000000000000000000000000000000000160" + // offset to opChainConfigs (11 words * 32 = 352 = 0x160)
-		"0000000000000000000000000000000000000000000000000000000000000001" + // opChainConfigs.length (1)
-		"0000000000000000000000000100000000000000000000000000000000000000" + // opChainConfigs[0].systemConfigProxy
-		"ab00000000000000000000000000000000000000000000000000000000000000" + // opChainConfigs[0].cannonPrestate
-		"cd00000000000000000000000000000000000000000000000000000000000000" // opChainConfigs[0].cannonKonaPrestate
-
-	require.Equal(t, expected, hex.EncodeToString(data))
 }
 
 func TestEncodedMigrateInputV2(t *testing.T) {

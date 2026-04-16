@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -118,7 +117,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 			expDeployment := &addresses.SuperchainContracts{
 				SuperchainProxyAdminImpl: proxyAdmin,
-				// OPCMv1 removed — ProtocolVersions fields are no longer populated.
+				// ProtocolVersions fields are not populated.
 				ProtocolVersionsProxy: common.Address{},
 				ProtocolVersionsImpl:  common.Address{},
 				SuperchainConfigProxy: superCfg.SuperchainConfigAddr,
@@ -131,7 +130,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.SuperchainRoles)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
 			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
-			// OPCMv1 removed — ProtocolVersionsOwner is no longer returned by the script.
+			// ProtocolVersionsOwner is not returned by the script.
 			// Check the fields that are still populated.
 			require.Equal(t, stdSuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
 			require.Equal(t, stdSuperchainRoles.SuperchainGuardian, st.SuperchainRoles.SuperchainGuardian)
@@ -288,7 +287,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 		require.NotEqual(t, common.Address{}, dep.SuperchainConfigImpl, "SuperchainConfigImpl should be populated")
 		require.NotEqual(t, dep.SuperchainConfigImpl, dep.SuperchainConfigProxy, "SuperchainConfigImpl should differ from proxy")
 
-		// ProtocolVersions fields are zero now that OPCMv1 is removed
+		// ProtocolVersions fields are not populated
 		require.Equal(t, common.Address{}, dep.ProtocolVersionsProxy, "ProtocolVersionsProxy should be zero")
 		require.Equal(t, common.Address{}, dep.ProtocolVersionsImpl, "ProtocolVersionsImpl should be zero")
 
@@ -353,13 +352,13 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 			SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 			SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 			SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-			// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
+			// ProtocolVersions fields are not populated
 			ProtocolVersionsProxy: common.Address{},
 			ProtocolVersionsImpl:  common.Address{},
 		}, *dep)
 		require.Equal(t, addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-			// TODO(#18612): Remove ProtocolVersions fields when OPCMv1 gets deprecated
+			// ProtocolVersions fields are not populated
 			ProtocolVersionsOwner: common.Address{},
 			SuperchainGuardian:    common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 		}, *roles)
@@ -449,17 +448,12 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
 		L1ContractsLocator:    artifacts.EmbeddedLocator,
 		L2ContractsLocator:    artifacts.EmbeddedLocator,
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
-		},
 	}
 
 	st := &state.State{
@@ -519,8 +513,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	superchain, err := standard.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
@@ -529,9 +521,6 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainGuardian: common.Address{0: 99},
-		},
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
 		},
 	}
 
@@ -788,17 +777,12 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Set opcmV2Enabled flag via devFeatureBitmap
-	opcmV2Flag := devfeatures.OPCMV2Flag
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
 		L1ContractsLocator:    artifacts.EmbeddedLocator,
 		L2ContractsLocator:    artifacts.EmbeddedLocator,
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
-		GlobalDeployOverrides: map[string]any{
-			"devFeatureBitmap": opcmV2Flag,
-		},
 	}
 
 	st := &state.State{
