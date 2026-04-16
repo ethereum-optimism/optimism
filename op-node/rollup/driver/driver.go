@@ -251,7 +251,7 @@ func (s *Driver) eventLoop() {
 		nextAction, ok := s.sequencer.NextAction()
 		if !ok {
 			if sequencerCh != nil {
-				s.log.Info("Sequencer paused until new events")
+				s.log.Debug("Sequencer paused until new events")
 			}
 			sequencerCh = nil
 			return
@@ -266,7 +266,7 @@ func (s *Driver) eventLoop() {
 			<-sequencerCh
 		}
 		delta := time.Until(nextAction)
-		s.log.Info("Scheduled sequencer action", "delta", delta)
+		s.log.Debug("Scheduled sequencer action", "delta", delta)
 		sequencerTimer.Reset(delta)
 	}
 

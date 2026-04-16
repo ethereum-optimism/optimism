@@ -1,12 +1,12 @@
 package engine
 
 import (
+	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 
-	"context"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type PayloadSuccessEvent struct {

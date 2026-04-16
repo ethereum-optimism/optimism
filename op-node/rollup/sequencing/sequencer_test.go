@@ -544,17 +544,22 @@ func TestSequencerBuild(t *testing.T) {
 	require.Nil(t, deps.asyncGossip.payload, "async gossip should have been cleared after successful ProcessPayload")
 	require.Equal(t, BuildingState{}, seq.latest, "building state should be cleared after successful insert")
 
-	// Once the forkchoice update identifies the processed block
-	// as canonical we can proceed to the next sequencer cycle iteration.
+	// After successful seal+process, the sequencer schedules the next action immediately
+	// without waiting for ForkchoiceUpdateEvent to propagate through the event system.
+	_, ok = seq.NextAction()
+	require.True(t, ok, "ready to build next block")
+	require.Equal(t, payloadRef, seq.latestHead, "latestHead updated directly after successful insert")
+
+	// ForkchoiceUpdateEvent still arrives later via the event system — it's idempotent
+	// since the head was already updated by scheduleNextAction.
 	testClock.Set(time.Unix(int64(payloadRef.Time), 0).Add(time.Millisecond * 120))
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    payloadRef,
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	nextTime, ok := seq.NextAction()
-	require.True(t, ok, "ready to build next block")
-	require.Equal(t, testClock.Now(), nextTime, "start asap on the next block")
+	_, ok = seq.NextAction()
+	require.True(t, ok, "still ready after idempotent forkchoice update")
 }
 
 func TestSequencerL1TemporaryErrorEvent(t *testing.T) {

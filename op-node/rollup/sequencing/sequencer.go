@@ -261,6 +261,7 @@ func (d *Sequencer) RunAction(ctx context.Context) {
 		}
 		d.latest = BuildingState{}
 		d.asyncGossip.Clear()
+		d.scheduleNextAction(ref)
 	} else {
 		if d.latest.Info != (eth.PayloadInfo{}) {
 			d.nextActionOK = false
@@ -292,6 +293,7 @@ func (d *Sequencer) RunAction(ctx context.Context) {
 			d.latest = BuildingState{}
 			d.log.Info("Sequencer inserted block", "block", sealResult.Ref)
 			d.asyncGossip.Clear()
+			d.scheduleNextAction(sealResult.Ref)
 		} else if d.latest == (BuildingState{}) {
 			d.startBuildingBlock()
 		}
@@ -364,20 +366,27 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		d.latest = BuildingState{}
 	}
 	if x.UnsafeL2Head.Number > d.latestHead.Number {
-		d.nextActionOK = true
-		now := d.timeNow()
-		blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
-		payloadTime := time.Unix(int64(x.UnsafeL2Head.Time+d.rollupCfg.BlockTime), 0)
-		remainingTime := payloadTime.Sub(now)
-		if remainingTime > blockTime {
-			// if we have too much time, then wait before starting the build
-			d.nextAction = payloadTime.Add(-blockTime)
-		} else {
-			// otherwise start instantly
-			d.nextAction = now
-		}
+		d.scheduleNextAction(x.UnsafeL2Head)
+	} else {
+		d.setLatestHead(x.UnsafeL2Head)
 	}
-	d.setLatestHead(x.UnsafeL2Head)
+}
+
+// scheduleNextAction updates the sequencer to build the next block on top of the given head.
+// Called after a block is successfully inserted, either from RunAction (direct call path)
+// or from onForkchoiceUpdate (event path).
+func (d *Sequencer) scheduleNextAction(newHead eth.L2BlockRef) {
+	d.nextActionOK = true
+	now := d.timeNow()
+	blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
+	payloadTime := time.Unix(int64(newHead.Time+d.rollupCfg.BlockTime), 0)
+	remainingTime := payloadTime.Sub(now)
+	if remainingTime > blockTime {
+		d.nextAction = payloadTime.Add(-blockTime)
+	} else {
+		d.nextAction = now
+	}
+	d.setLatestHead(newHead)
 }
 
 func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
