@@ -12,6 +12,12 @@ const (
 	KindSource   NodeKind = "source"
 	KindCheck    NodeKind = "check"
 	KindArtifact NodeKind = "artifact"
+	// KindModule represents an external dependency (e.g. a Go module)
+	// that packages in this repo import. Config-file changes like
+	// go.mod version bumps feed module IDs into Phase 1 so the reverse-
+	// walk discovers affected consumer packages via the normal
+	// transitiveConsumers path.
+	KindModule NodeKind = "module"
 )
 
 // EdgeKind classifies the relationship between two nodes.

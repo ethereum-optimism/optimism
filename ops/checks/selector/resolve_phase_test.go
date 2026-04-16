@@ -375,6 +375,138 @@ check_types:
 	}
 }
 
+// TestResolve_GoModAffectsImportingPackages — a go.mod version bump
+// for module M produces candidates only for the Go packages that
+// import M, not every package in the repo. End-to-end smoke of the
+// graph-based blast-radius replacement.
+func TestResolve_GoModAffectsImportingPackages(t *testing.T) {
+	g := graph.NewGraph()
+
+	// Three packages: uses-M, doesnt-use-M, and a bystander.
+	pkgUses := "go:github.com/op/repo/opnode/rollup"
+	pkgDoesnt := "go:github.com/op/repo/opbatcher/batcher"
+	bystander := "go:github.com/op/repo/opprogram/client"
+	modM := "mod:github.com/ethereum/go-ethereum"
+	modN := "mod:github.com/stretchr/testify"
+
+	for _, id := range []string{pkgUses, pkgDoesnt, bystander} {
+		_ = g.AddNode(&graph.Node{ID: id, Kind: graph.KindSource, Granularity: "package"})
+	}
+	for _, id := range []string{modM, modN} {
+		_ = g.AddNode(&graph.Node{ID: id, Kind: graph.KindModule, Granularity: "module"})
+	}
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
+
+	// pkgUses imports M; pkgDoesnt imports N only; bystander imports nothing external.
+	_ = g.AddEdge(&graph.Edge{From: pkgUses, To: modM, Kind: graph.EdgeImports, Strength: 0.8, Confidence: 1.0})
+	_ = g.AddEdge(&graph.Edge{From: pkgDoesnt, To: modN, Kind: graph.EdgeImports, Strength: 0.8, Confidence: 1.0})
+
+	// Every Go package has tested_by → go-test (builder convention).
+	for _, id := range []string{pkgUses, pkgDoesnt, bystander} {
+		_ = g.AddEdge(&graph.Edge{
+			From: id, To: "check:go-test",
+			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
+			Strength: 0.9, Confidence: 0.8,
+		})
+	}
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: go-test
+    name: go-test
+    kind: test
+    language: go
+    command: go test
+    scopeable: true
+    scope_flag: ""
+    scope_type: packages
+    avg_duration: 7200
+    per_unit_duration: 60
+`))
+
+	// Diff: go.mod bumps go-ethereum version.
+	diffs := []diff.FileDiff{{
+		Path: "go.mod",
+		Hunks: []diff.Hunk{{
+			Removed: []string{"	github.com/ethereum/go-ethereum v1.14.7"},
+			Added:   []string{"	github.com/ethereum/go-ethereum v1.14.8"},
+		}},
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	scopes := make(map[string]bool)
+	for _, c := range cands {
+		if c.CheckID == "go-test" {
+			scopes[c.Scope] = true
+		}
+	}
+
+	if !scopes["./opnode/rollup/..."] {
+		t.Errorf("expected opnode/rollup/... scope (importer of affected module); got %v", scopes)
+	}
+	if scopes["./opbatcher/batcher/..."] {
+		t.Errorf("opbatcher/batcher imports testify, not go-ethereum — should not be a scope")
+	}
+	if scopes["./opprogram/client/..."] {
+		t.Errorf("bystander package imports nothing external — should not be a scope")
+	}
+}
+
+// TestResolve_GoModForceBlastOnGoVersion — bumping the `go` directive
+// forces blast-radius (every check, not scoped).
+func TestResolve_GoModForceBlastOnGoVersion(t *testing.T) {
+	g := graph.NewGraph()
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
+	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck, Name: "forge-test"})
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: go-test
+    name: go-test
+    kind: test
+    language: go
+    command: go test
+    scopeable: true
+    scope_type: packages
+    avg_duration: 7200
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_type: paths
+    avg_duration: 3600
+`))
+
+	diffs := []diff.FileDiff{{
+		Path: "go.mod",
+		Hunks: []diff.Hunk{{
+			Removed: []string{"go 1.23.0"},
+			Added:   []string{"go 1.24.0"},
+		}},
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	// Blast-radius: every check type in the catalog gets a candidate,
+	// all with signal=1.0 and Scope="" (unscoped "run everything").
+	checkIDs := make(map[string]bool)
+	for _, c := range cands {
+		if c.Signal != 1.0 {
+			t.Errorf("blast-radius candidate %q has signal %f, want 1.0", c.CheckID, c.Signal)
+		}
+		if c.Scope != "" {
+			t.Errorf("blast-radius candidate %q should be unscoped, got %q", c.CheckID, c.Scope)
+		}
+		checkIDs[c.CheckID] = true
+	}
+	if !checkIDs["go-test"] || !checkIDs["forge-test"] {
+		t.Errorf("expected both checks in blast radius; got %v", checkIDs)
+	}
+}
+
 // TestResolve_CorrelationEdgeProducesBinaryCandidate — a CI-history
 // correlation edge on a binary check surfaces as a Candidate carrying
 // SourceCIHistory provenance, independent of coverage.

@@ -43,17 +43,59 @@ func Resolve(
 		return nil
 	}
 
+	// go.mod gets special handling: structural changes (go version,
+	// toolchain, module path) force blast radius; require-block changes
+	// become synthetic mod: changed nodes that feed the reverse-walk
+	// infrastructure the same way test-helper changes do.
+	modIDs, forceBlast := expandGoModDiffs(diffs)
+	if forceBlast {
+		return blastRadiusCandidates(cat, gomodPaths(diffs))
+	}
+
 	if isBlast, files := diff.BlastRadiusFiles(filePaths, pol.BlastRadius); isBlast {
 		return blastRadiusCandidates(cat, files)
 	}
 
 	changedLines := buildChangedLinesMap(diffs)
-	changedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
+	fileChangedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
+	changedIDs := make([]string, 0, len(fileChangedIDs)+len(modIDs))
+	changedIDs = append(changedIDs, fileChangedIDs...)
+	for _, id := range modIDs {
+		if g.GetNode(id) != nil {
+			changedIDs = append(changedIDs, id)
+		}
+	}
 
 	var out []Candidate
 	for i := range cat.CheckTypes {
 		ct := &cat.CheckTypes[i]
 		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)...)
+	}
+	return out
+}
+
+// expandGoModDiffs runs the go.mod analyzer on every go.mod file in
+// the diff set and returns the combined mod: node IDs plus a
+// ForceBlast summary (any single diff forcing blast propagates).
+func expandGoModDiffs(diffs []diff.FileDiff) (modIDs []string, forceBlast bool) {
+	for _, d := range diffs {
+		change := diff.AnalyzeGoModChange(d)
+		if change.ForceBlast {
+			forceBlast = true
+		}
+		for _, m := range change.AffectedModules {
+			modIDs = append(modIDs, "mod:"+m)
+		}
+	}
+	return modIDs, forceBlast
+}
+
+func gomodPaths(diffs []diff.FileDiff) []string {
+	var out []string
+	for _, d := range diffs {
+		if d.Path == "go.mod" || strings.HasSuffix(d.Path, "/go.mod") {
+			out = append(out, d.Path)
+		}
 	}
 	return out
 }
@@ -317,7 +359,7 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 	}
 	var hits []emit
 	for nodeID, signal := range consumers {
-		if !isTestFileNode(nodeID) {
+		if !isCandidateTestNode(nodeID, ct) {
 			continue
 		}
 		if !hasTestedByEdge(g, nodeID, checkNodeID) {
@@ -334,7 +376,7 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 	seen := make(map[string]bool)
 	out := make([]Candidate, 0, len(hits))
 	for _, h := range hits {
-		scope := nodeIDToTestPath(h.nodeID)
+		scope := scopeForCandidate(h.nodeID, ct)
 		if scope == "" || seen[scope] {
 			continue
 		}
@@ -355,6 +397,30 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 		})
 	}
 	return out
+}
+
+// isCandidateTestNode reports whether a node can be a scope candidate
+// for this check. Solidity: test files (test/…/*.t.sol). Go: any
+// package node — tests live inside packages, and `go test ./pkg/...`
+// handles packages without _test.go files gracefully.
+func isCandidateTestNode(nodeID string, ct *catalog.CheckType) bool {
+	switch ct.Language {
+	case "solidity":
+		return isTestFileNode(nodeID)
+	case "go":
+		return strings.HasPrefix(nodeID, "go:")
+	}
+	return false
+}
+
+// scopeForCandidate derives the command-line scope for a candidate.
+// Prefers the Solidity-specific test-path mapping; falls back to the
+// scope_type-driven derivation (Go packages, etc.).
+func scopeForCandidate(nodeID string, ct *catalog.CheckType) string {
+	if s := nodeIDToTestPath(nodeID); s != "" {
+		return s
+	}
+	return nodeIDToScope(nodeID, ct.ScopeType)
 }
 
 // transitiveConsumers performs reverse-BFS on incoming `imports` edges

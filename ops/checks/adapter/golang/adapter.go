@@ -6,12 +6,26 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+	"golang.org/x/mod/modfile"
 )
 
 // GoAdapter builds a package-level import graph using `go list -json ./...`.
+//
+// In addition to the intra-module package nodes and import edges, the
+// adapter emits `mod:<path>` nodes for every module declared in
+// go.mod's require block and `imports` edges from each intra-module
+// package to the external modules it imports (resolved via longest-
+// prefix match against the require list).
+//
+// This lets go.mod changes feed into Phase 1 as reverse-walk roots:
+// a go.mod version bump for module M becomes "changed node mod:M",
+// and transitiveConsumers(g, ["mod:M"]) finds every package that
+// imports M via the same incoming-edge walk that test-helper changes
+// use.
 type GoAdapter struct{}
 
 // New returns a new GoAdapter.
@@ -33,12 +47,20 @@ type goPackage struct {
 	} `json:"Module"`
 }
 
-// Analyze runs `go list -json ./...` from rootDir, creates a source node for
-// each package within the module, and creates import edges between packages.
+// modInfo holds parsed go.mod state used to classify imports.
+type modInfo struct {
+	ModulePath       string   // this repo's module path
+	RequiredModules  []string // direct + indirect requires, sorted longest-first
+}
+
+// Analyze runs `go list -json ./...` from rootDir, creates a source
+// node for each package within the module, creates import edges
+// between packages, and creates `mod:` nodes + external-import edges
+// for each required module.
 func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
-	modulePath, err := readModulePath(rootDir)
+	info, err := readGoMod(rootDir)
 	if err != nil {
-		return fmt.Errorf("reading module path: %w", err)
+		return fmt.Errorf("reading go.mod: %w", err)
 	}
 
 	packages, err := listPackages(rootDir)
@@ -46,20 +68,31 @@ func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		return fmt.Errorf("listing packages: %w", err)
 	}
 
-	// Track which packages exist in this module
+	// Emit mod: nodes for every required module. Having the node present
+	// means go.mod change handling can feed "mod:<path>" into Phase 1
+	// and the graph has a landing spot.
+	for _, mp := range info.RequiredModules {
+		_ = g.AddNode(&graph.Node{
+			ID:          "mod:" + mp,
+			Kind:        graph.KindModule,
+			Granularity: "module",
+			Name:        mp,
+		})
+	}
+
+	// Track which import paths belong to packages in our module.
 	modulePackages := make(map[string]bool)
 	for _, pkg := range packages {
-		if strings.HasPrefix(pkg.ImportPath, modulePath) {
+		if strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
 			modulePackages[pkg.ImportPath] = true
 		}
 	}
 
-	// Create nodes
+	// Create internal package nodes.
 	for _, pkg := range packages {
-		if !strings.HasPrefix(pkg.ImportPath, modulePath) {
+		if !strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
 			continue
 		}
-
 		nodeID := "go:" + pkg.ImportPath
 		err := g.AddNode(&graph.Node{
 			ID:          nodeID,
@@ -73,68 +106,113 @@ func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
 			},
 		})
 		if err != nil {
-			// Skip duplicate (already added)
-			continue
+			continue // duplicate; already added by an earlier entry
 		}
 	}
 
-	// Create import edges
+	// Emit edges.
 	for _, pkg := range packages {
-		if !strings.HasPrefix(pkg.ImportPath, modulePath) {
+		if !strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
 			continue
 		}
 		fromID := "go:" + pkg.ImportPath
 
-		// Regular imports
 		for _, imp := range pkg.Imports {
-			if !modulePackages[imp] {
-				continue
-			}
-			toID := "go:" + imp
-			_ = g.AddEdge(&graph.Edge{
-				From:       fromID,
-				To:         toID,
-				Kind:       graph.EdgeImports,
-				Source:     graph.SourceStatic,
-				Confidence: 1.0,
-				Strength:   0.8,
-			})
+			addImportEdge(g, fromID, imp, modulePackages, info, false)
 		}
-
-		// Test imports
 		for _, imp := range pkg.TestImports {
-			if !modulePackages[imp] {
-				continue
-			}
-			toID := "go:" + imp
-			_ = g.AddEdge(&graph.Edge{
-				From:       fromID,
-				To:         toID,
-				Kind:       graph.EdgeImports,
-				Source:     graph.SourceStatic,
-				Confidence: 1.0,
-				Strength:   0.7,
-				Properties: map[string]any{"test_import": true},
-			})
+			addImportEdge(g, fromID, imp, modulePackages, info, true)
 		}
 	}
 
 	return nil
 }
 
-func readModulePath(rootDir string) (string, error) {
+// addImportEdge classifies `imp` as internal, external-to-module, or
+// stdlib/unresolved and emits the appropriate edge (if any). Internal
+// imports go to `go:<pkg>`; external imports go to `mod:<module>`;
+// stdlib and unresolved imports are skipped.
+func addImportEdge(g *graph.Graph, fromID, imp string, modulePackages map[string]bool, info *modInfo, isTest bool) {
+	strength := 0.8
+	if isTest {
+		strength = 0.7
+	}
+
+	if modulePackages[imp] {
+		props := map[string]any{}
+		if isTest {
+			props["test_import"] = true
+		}
+		var ePropsPtr map[string]any
+		if len(props) > 0 {
+			ePropsPtr = props
+		}
+		_ = g.AddEdge(&graph.Edge{
+			From:       fromID,
+			To:         "go:" + imp,
+			Kind:       graph.EdgeImports,
+			Source:     graph.SourceStatic,
+			Confidence: 1.0,
+			Strength:   strength,
+			Properties: ePropsPtr,
+		})
+		return
+	}
+
+	if mod := resolveExternalModule(imp, info.RequiredModules); mod != "" {
+		props := map[string]any{"import_path": imp}
+		if isTest {
+			props["test_import"] = true
+		}
+		_ = g.AddEdge(&graph.Edge{
+			From:       fromID,
+			To:         "mod:" + mod,
+			Kind:       graph.EdgeImports,
+			Source:     graph.SourceStatic,
+			Confidence: 1.0,
+			Strength:   strength,
+			Properties: props,
+		})
+	}
+	// else: stdlib or transitive-only dep not listed in go.mod; skip.
+}
+
+// resolveExternalModule maps an import path to the module that owns
+// it via longest-prefix match against go.mod's require list. Returns
+// "" for stdlib or unresolved imports.
+func resolveExternalModule(importPath string, requiredModules []string) string {
+	for _, m := range requiredModules {
+		if importPath == m || strings.HasPrefix(importPath, m+"/") {
+			return m
+		}
+	}
+	return ""
+}
+
+// readGoMod parses go.mod with x/mod/modfile and returns the module
+// path plus the require list sorted longest-first (so resolveExternal
+// Module's first match is the most specific).
+func readGoMod(rootDir string) (*modInfo, error) {
 	modFile := filepath.Join(rootDir, "go.mod")
 	data, err := os.ReadFile(modFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimPrefix(line, "module "), nil
-		}
+	f, err := modfile.Parse("go.mod", data, nil)
+	if err != nil {
+		return nil, fmt.Errorf("parsing go.mod: %w", err)
 	}
-	return "", fmt.Errorf("module directive not found in go.mod")
+	info := &modInfo{}
+	if f.Module != nil {
+		info.ModulePath = f.Module.Mod.Path
+	}
+	for _, r := range f.Require {
+		info.RequiredModules = append(info.RequiredModules, r.Mod.Path)
+	}
+	sort.Slice(info.RequiredModules, func(i, j int) bool {
+		return len(info.RequiredModules[i]) > len(info.RequiredModules[j])
+	})
+	return info, nil
 }
 
 func listPackages(rootDir string) ([]goPackage, error) {

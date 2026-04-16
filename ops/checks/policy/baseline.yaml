@@ -19,15 +19,20 @@ stages:
   - { name: develop,     miss_cost: 86400 }
 
 # Files whose change force every check to run. Upstream-of-everything
-# paths: CI config, toolchains, lockfiles, build system.
+# paths: CI config, toolchains, build system.
+#
+# go.mod is handled specially via the module-level graph (see the
+# Go adapter's mod: nodes). Require-block changes become graph-walk
+# roots; go/toolchain/module directive changes force blast from
+# within the analyzer. go.sum is elided because it's derivative of
+# go.mod — if go.mod didn't change meaningfully, go.sum changes alone
+# don't warrant re-running everything.
 blast_radius_patterns:
   - .circleci/
   - .github/
   - package.json
   - mise.toml
   - ops/check-changed/
-  - go.mod
-  - go.sum
   - foundry.toml
   - Dockerfile
 
