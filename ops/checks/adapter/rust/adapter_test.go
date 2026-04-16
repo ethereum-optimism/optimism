@@ -143,3 +143,60 @@ func TestName(t *testing.T) {
 		t.Errorf("Name() = %q, want rust", New().Name())
 	}
 }
+
+// TestAnalyze_CrateDepEdges — internal deps emit crate-to-crate
+// edges, external deps emit mod: nodes + crate-to-mod edges. Same
+// pattern Go uses for go.mod requires.
+func TestAnalyze_CrateDepEdges(t *testing.T) {
+	root, workDir := createTestRustWorkspace(t)
+
+	g := graph.NewGraph()
+	a := &RustAdapter{
+		WorkspaceDir: "rust",
+		CratesFor: func(wd string) ([]Crate, error) {
+			return []Crate{
+				{
+					Name:        "alpha",
+					ManifestDir: filepath.Join(wd, "crates", "alpha"),
+					// alpha depends on beta (internal) and serde (external)
+					Dependencies: []string{"beta", "serde"},
+				},
+				{
+					Name:         "beta",
+					ManifestDir:  filepath.Join(wd, "crates", "beta"),
+					Dependencies: nil,
+				},
+			}, nil
+		},
+	}
+	if err := a.Analyze(g, root); err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+
+	// Internal dep: rs:alpha → rs:beta.
+	foundInternal := false
+	for _, e := range g.EdgesFrom("rs:alpha") {
+		if e.Kind == graph.EdgeImports && e.To == "rs:beta" {
+			foundInternal = true
+		}
+	}
+	if !foundInternal {
+		t.Error("expected rs:alpha → rs:beta imports edge (internal dep)")
+	}
+
+	// External dep: rs:alpha → mod:serde, and mod:serde node exists.
+	if g.GetNode("mod:serde") == nil {
+		t.Error("expected mod:serde node for external dep")
+	}
+	foundExternal := false
+	for _, e := range g.EdgesFrom("rs:alpha") {
+		if e.Kind == graph.EdgeImports && e.To == "mod:serde" {
+			foundExternal = true
+		}
+	}
+	if !foundExternal {
+		t.Error("expected rs:alpha → mod:serde imports edge (external dep)")
+	}
+
+	_ = workDir
+}

@@ -2,6 +2,9 @@ package rustmeta
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
 	"sync/atomic"
 	"testing"
 )
@@ -51,6 +54,80 @@ func TestLoader_CachesPerWorkDir(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 2 {
 		t.Errorf("fetcher invoked %d times, want 2 (once per distinct workDir)", got)
+	}
+}
+
+// TestParseCargoDependencies_UnionsAllTables — [dependencies],
+// [dev-dependencies], and [build-dependencies] all contribute to the
+// dep list; results are sorted + deduplicated.
+func TestParseCargoDependencies_UnionsAllTables(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Cargo.toml")
+	contents := `
+[package]
+name = "x"
+version = "0.1.0"
+
+[dependencies]
+serde = "1"
+alloy-primitives = { version = "0.8" }
+
+[dev-dependencies]
+proptest = "1"
+serde = { workspace = true }
+
+[build-dependencies]
+cc = "1"
+`
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := parseCargoDependencies(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	want := []string{"alloy-primitives", "cc", "proptest", "serde"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v", got, want)
+	}
+}
+
+// TestParseCargoDependencies_AliasRespected — `alloy = { package =
+// "alloy-primitives" }` records the real package name, not the alias.
+func TestParseCargoDependencies_AliasRespected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Cargo.toml")
+	contents := `
+[package]
+name = "x"
+
+[dependencies]
+alloy = { package = "alloy-primitives", version = "0.8" }
+`
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, _ := parseCargoDependencies(path)
+	want := []string{"alloy-primitives"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("deps = %v, want %v (alias should map to real package)", got, want)
+	}
+}
+
+// TestParseCargoDependencies_NoDeps — a manifest with no dep tables
+// returns empty, not error.
+func TestParseCargoDependencies_NoDeps(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Cargo.toml")
+	if err := os.WriteFile(path, []byte("[package]\nname = \"x\"\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := parseCargoDependencies(path)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("deps = %v, want empty", got)
 	}
 }
 

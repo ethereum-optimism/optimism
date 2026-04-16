@@ -77,6 +77,11 @@ func (a *RustAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		return nil
 	}
 
+	workspaceMembers := make(map[string]bool, len(crates))
+	for _, crate := range crates {
+		workspaceMembers[crate.Name] = true
+	}
+
 	for _, crate := range crates {
 		crateNodeID := "rs:" + crate.Name
 		_ = g.AddNode(&graph.Node{
@@ -100,6 +105,42 @@ func (a *RustAdapter) Analyze(g *graph.Graph, rootDir string) error {
 					"crate": crateNodeID,
 					"dir":   filepath.Dir(filepath.Join(crate.ManifestDir, rel)),
 				},
+			})
+		}
+	}
+
+	// Second pass: emit import edges now that all crate + mod nodes exist.
+	// Internal deps → crate-to-crate; external deps → mod: nodes (same
+	// pattern Go uses for require-block entries).
+	for _, crate := range crates {
+		fromID := "rs:" + crate.Name
+		for _, dep := range crate.Dependencies {
+			if workspaceMembers[dep] {
+				_ = g.AddEdge(&graph.Edge{
+					From:       fromID,
+					To:         "rs:" + dep,
+					Kind:       graph.EdgeImports,
+					Source:     graph.SourceStatic,
+					Confidence: 1.0,
+					Strength:   0.8,
+				})
+				continue
+			}
+			// External dep — ensure a mod: node exists, then edge.
+			modID := "mod:" + dep
+			_ = g.AddNode(&graph.Node{
+				ID:          modID,
+				Kind:        graph.KindModule,
+				Granularity: "module",
+				Name:        dep,
+			})
+			_ = g.AddEdge(&graph.Edge{
+				From:       fromID,
+				To:         modID,
+				Kind:       graph.EdgeImports,
+				Source:     graph.SourceStatic,
+				Confidence: 1.0,
+				Strength:   0.7,
 			})
 		}
 	}
