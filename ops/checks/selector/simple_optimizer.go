@@ -104,6 +104,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 	for _, tier := range o.policy.Tiers {
 		var tierScopes []string
 		var maxSignal float64
+		var tierProvenance []SignalContribution
 		for _, c := range cands {
 			if c.Scope == "" || used[c.Scope] {
 				continue
@@ -114,6 +115,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 				if c.Signal > maxSignal {
 					maxSignal = c.Signal
 				}
+				tierProvenance = append(tierProvenance, c.Provenance...)
 			}
 		}
 		if len(tierScopes) == 0 {
@@ -139,6 +141,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 			RunCost:       cost,
 			SkipCost:      skipCost,
 			Prerequisites: prereqItemIDs(ct),
+			Provenance:    tierProvenance,
 		})
 	}
 	return items
@@ -154,6 +157,7 @@ func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage S
 		RunCost:       float64(ct.AvgDuration),
 		SkipCost:      pFail * stage.MissCost,
 		Prerequisites: prereqItemIDs(ct),
+		Provenance:    c.Provenance,
 	}
 }
 
@@ -183,6 +187,7 @@ func (o *SimpleOptimizer) scopeableAllItem(
 		RunCost:       cost,
 		SkipCost:      cost + 1,
 		Prerequisites: prereqItemIDs(ct),
+		Provenance:    c.Provenance,
 	}
 }
 

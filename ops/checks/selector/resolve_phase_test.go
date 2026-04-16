@@ -590,6 +590,63 @@ profiles:
 	}
 }
 
+// TestOptimize_PreservesProvenance — provenance attached to Candidates
+// flows onto the emitted ExecutionItems so downstream consumers
+// (explain, JSON output) can see *why* each item is in the plan.
+func TestOptimize_PreservesProvenance(t *testing.T) {
+	_, cat := testGraph(t)
+
+	cands := []Candidate{{
+		CheckID: "forge-test",
+		Scope:   "./test/L1/A.t.sol",
+		Profile: "main",
+		Signal:  0.95,
+		Provenance: []SignalContribution{{
+			Source:       graph.SourceCoverage,
+			EdgeKind:     graph.EdgeTestedBy,
+			Contribution: 0.95,
+			Raw:          map[string]any{"hit_lines": 4, "total_changed": 5},
+		}},
+	}, {
+		CheckID: "forge-test",
+		Scope:   "./test/L1/B.t.sol",
+		Profile: "main",
+		Signal:  0.85,
+		Provenance: []SignalContribution{{
+			Source:       graph.SourceCoverage,
+			EdgeKind:     graph.EdgeTestedBy,
+			Contribution: 0.85,
+			Raw:          map[string]any{"hit_lines": 3, "total_changed": 5},
+		}},
+	}}
+
+	pol := testPolicy(t)
+	prStage, _ := pol.Stage("pr")
+	res, err := NewSimpleOptimizer(pol).Optimize(cands, prStage, cat)
+	if err != nil {
+		t.Fatalf("Optimize: %v", err)
+	}
+	if len(res.Items) == 0 {
+		t.Fatal("expected at least one item")
+	}
+
+	// Both candidates were in the very_high tier; their provenance
+	// should be unioned onto the emitted item.
+	item := res.Items[0]
+	if len(item.Provenance) != 2 {
+		t.Errorf("expected 2 provenance entries (one per contributing candidate), got %d: %+v",
+			len(item.Provenance), item.Provenance)
+	}
+	for _, p := range item.Provenance {
+		if p.Source != graph.SourceCoverage {
+			t.Errorf("provenance Source=%q, want coverage", p.Source)
+		}
+		if p.Raw["hit_lines"] == nil {
+			t.Errorf("provenance missing hit_lines: %+v", p.Raw)
+		}
+	}
+}
+
 // TestOptimize_PureFromCandidates — Optimizer should produce items
 // without reaching for a graph. We pass a synthetic candidate list.
 func TestOptimize_PureFromCandidates(t *testing.T) {

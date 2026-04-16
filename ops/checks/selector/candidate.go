@@ -9,10 +9,10 @@ import (
 // command surface *why* a check was selected, and lets the optimizer
 // reason about evidence quality later (e.g. down-weight stale sources).
 type SignalContribution struct {
-	Source       graph.EdgeSource // coverage, static, ci_history, ai, manual
-	EdgeKind     graph.EdgeKind   // tested_by, imports, observed_correlation, ...
-	Contribution float64          // signal this source contributed before aggregation
-	Raw          map[string]any   // source-specific detail (hit_lines, total_changed, trigger, ...)
+	Source       graph.EdgeSource `json:"source"`                 // coverage, static, ci_history, ai, manual
+	EdgeKind     graph.EdgeKind   `json:"edge_kind,omitempty"`    // tested_by, imports, observed_correlation, ...
+	Contribution float64          `json:"contribution"`           // signal this source contributed before aggregation
+	Raw          map[string]any   `json:"raw,omitempty"`          // source-specific detail (hit_lines, total_changed, trigger, ...)
 }
 
 // Candidate is a single thing the selector *could* run — a (check, scope,

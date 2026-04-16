@@ -1,11 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
@@ -124,39 +124,67 @@ func printResultText(result *selector.Result, cat *catalog.Catalog) error {
 	return nil
 }
 
+// jsonItem is the wire format for an ExecutionItem in --format=json.
+// Mirrors ExecutionItem's JSON tags and adds the resolved command for
+// consumers that don't want to re-materialize it from check_type_id +
+// config + profile.
+type jsonItem struct {
+	ID            string                        `json:"id"`
+	CheckTypeID   string                        `json:"check_type_id"`
+	Command       string                        `json:"command"`
+	Scope         []string                      `json:"scope,omitempty"`
+	Config        map[string]any                `json:"config,omitempty"`
+	Profile       string                        `json:"profile,omitempty"`
+	Signal        float64                       `json:"signal"`
+	RunCost       float64                       `json:"run_cost"`
+	SkipCost      float64                       `json:"skip_cost"`
+	Prerequisites []string                      `json:"prerequisites,omitempty"`
+	Provenance    []selector.SignalContribution `json:"provenance,omitempty"`
+}
+
+type jsonResult struct {
+	Stage     string     `json:"stage"`
+	WallClock float64    `json:"wall_clock"`
+	TotalCPU  float64    `json:"total_cpu"`
+	Items     []jsonItem `json:"items"`
+	Skipped   []jsonItem `json:"skipped"`
+}
+
 func printResultJSON(result *selector.Result, cat *catalog.Catalog) error {
-	fmt.Println("{")
-	fmt.Printf("  \"stage\": %q,\n", result.Stage)
-	fmt.Printf("  \"wall_clock\": %.0f,\n", result.WallClock)
-	fmt.Printf("  \"total_cpu\": %.0f,\n", result.TotalCPU)
-	fmt.Println("  \"items\": [")
+	out := jsonResult{
+		Stage:     result.Stage,
+		WallClock: result.WallClock,
+		TotalCPU:  result.TotalCPU,
+		Items:     make([]jsonItem, len(result.Items)),
+		Skipped:   make([]jsonItem, len(result.Skipped)),
+	}
 	for i, item := range result.Items {
-		ct := cat.ByID(item.CheckTypeID)
-		cmd := item.ResolvedCommandWithCatalog(ct, cat)
-		comma := ","
-		if i == len(result.Items)-1 {
-			comma = ""
-		}
-		scope := "null"
-		if len(item.Scope) > 0 {
-			scope = fmt.Sprintf("[%q]", strings.Join(item.Scope, "\", \""))
-		}
-		fmt.Printf("    {\"id\": %q, \"command\": %q, \"scope\": %s, \"signal\": %.3f, \"run_cost\": %.0f}%s\n",
-			item.ID, cmd, scope, item.Signal, item.RunCost, comma)
+		out.Items[i] = toJSONItem(item, cat)
 	}
-	fmt.Println("  ],")
-	fmt.Println("  \"skipped\": [")
 	for i, item := range result.Skipped {
-		ct := cat.ByID(item.CheckTypeID)
-		cmd := item.ResolvedCommandWithCatalog(ct, cat)
-		comma := ","
-		if i == len(result.Skipped)-1 {
-			comma = ""
-		}
-		fmt.Printf("    {\"id\": %q, \"command\": %q, \"signal\": %.3f, \"run_cost\": %.0f}%s\n",
-			item.ID, cmd, item.Signal, item.RunCost, comma)
+		out.Skipped[i] = toJSONItem(item, cat)
 	}
-	fmt.Println("  ]")
-	fmt.Println("}")
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling result: %w", err)
+	}
+	fmt.Println(string(data))
 	return nil
+}
+
+func toJSONItem(item selector.ExecutionItem, cat *catalog.Catalog) jsonItem {
+	ct := cat.ByID(item.CheckTypeID)
+	return jsonItem{
+		ID:            item.ID,
+		CheckTypeID:   item.CheckTypeID,
+		Command:       item.ResolvedCommandWithCatalog(ct, cat),
+		Scope:         item.Scope,
+		Config:        item.Config,
+		Profile:       item.Profile,
+		Signal:        item.Signal,
+		RunCost:       item.RunCost,
+		SkipCost:      item.SkipCost,
+		Prerequisites: item.Prerequisites,
+		Provenance:    item.Provenance,
+	}
 }

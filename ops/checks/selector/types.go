@@ -9,15 +9,16 @@ import (
 
 // ExecutionItem is a single thing to run — a command with scope and config.
 type ExecutionItem struct {
-	ID            string         `json:"id"`              // unique: "forge-test:L1" or "snapshots-check"
-	CheckTypeID   string         `json:"check_type_id"`   // "forge-test", "go-test", "golangci-lint"
-	Scope         []string       `json:"scope,omitempty"` // paths, packages, test names
-	Config        map[string]any `json:"config,omitempty"`
-	Profile       string         `json:"profile,omitempty"` // test profile (e.g. "custom_gas_token")
-	Signal        float64        `json:"signal"`
-	RunCost       float64        `json:"run_cost"`
-	SkipCost      float64        `json:"skip_cost"`
-	Prerequisites []string       `json:"prerequisites,omitempty"` // item IDs
+	ID            string               `json:"id"`              // unique: "forge-test:L1" or "snapshots-check"
+	CheckTypeID   string               `json:"check_type_id"`   // "forge-test", "go-test", "golangci-lint"
+	Scope         []string             `json:"scope,omitempty"` // paths, packages, test names
+	Config        map[string]any       `json:"config,omitempty"`
+	Profile       string               `json:"profile,omitempty"` // test profile (e.g. "custom_gas_token")
+	Signal        float64              `json:"signal"`
+	RunCost       float64              `json:"run_cost"`
+	SkipCost      float64              `json:"skip_cost"`
+	Prerequisites []string             `json:"prerequisites,omitempty"` // item IDs
+	Provenance    []SignalContribution `json:"provenance,omitempty"`    // unioned from contributing Candidates
 }
 
 // ResolvedCommand builds the full shell command from the check type, scope, and config.
