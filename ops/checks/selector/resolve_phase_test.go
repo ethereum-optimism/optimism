@@ -210,6 +210,171 @@ func TestResolve_StaleCoverageDownweighted(t *testing.T) {
 	}
 }
 
+// TestResolve_TestHelperChangeFindsConsumers — changing a Solidity
+// test helper must surface every test file that imports it (directly
+// or transitively) as a scope candidate. This is the regression test
+// for the reverse-walk fix: the old forward-walk returned junk scopes
+// (./test/helpers/*) that ran no tests.
+func TestResolve_TestHelperChangeFindsConsumers(t *testing.T) {
+	g := graph.NewGraph()
+
+	// Graph topology:
+	//   test/L1/OptimismPortal.t.sol ─imports─> test/helpers/Helper.sol
+	//   test/L2/Bridge.t.sol         ─imports─> test/helpers/Helper.sol
+	//   test/L1/Other.t.sol          (no import of Helper; should not fire)
+	nodes := []string{
+		"sol:test/helpers/Helper.sol",
+		"sol:test/L1/OptimismPortal.t.sol",
+		"sol:test/L2/Bridge.t.sol",
+		"sol:test/L1/Other.t.sol",
+	}
+	for _, id := range nodes {
+		if err := g.AddNode(&graph.Node{ID: id, Kind: graph.KindSource}); err != nil {
+			t.Fatalf("add %s: %v", id, err)
+		}
+	}
+	if err := g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck}); err != nil {
+		t.Fatalf("add check: %v", err)
+	}
+
+	// importer → imported (Solidity adapter's convention)
+	imports := [][2]string{
+		{"sol:test/L1/OptimismPortal.t.sol", "sol:test/helpers/Helper.sol"},
+		{"sol:test/L2/Bridge.t.sol", "sol:test/helpers/Helper.sol"},
+	}
+	for _, ie := range imports {
+		if err := g.AddEdge(&graph.Edge{
+			From: ie[0], To: ie[1],
+			Kind:       graph.EdgeImports,
+			Source:     graph.SourceStatic,
+			Strength:   0.9, Confidence: 1.0,
+		}); err != nil {
+			t.Fatalf("add edge: %v", err)
+		}
+	}
+
+	// tested_by from every source node to forge-test (like the builder wires it)
+	for _, id := range nodes {
+		if err := g.AddEdge(&graph.Edge{
+			From: id, To: "check:forge-test",
+			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
+			Strength: 0.9, Confidence: 0.8,
+		}); err != nil {
+			t.Fatalf("add tested_by: %v", err)
+		}
+	}
+
+	cat, err := catalog.Parse([]byte(`
+check_types:
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_flag: "--match-path"
+    scope_type: paths
+    avg_duration: 3600
+    per_unit_duration: 60
+`))
+	if err != nil {
+		t.Fatalf("parse catalog: %v", err)
+	}
+
+	// Diff changes the helper. No hunks → no line-level info, and no
+	// coverage edges point at the helper, so Phase 1 must use the
+	// reverse-walk import fallback.
+	diffs := []diff.FileDiff{{
+		Path: "packages/contracts-bedrock/test/helpers/Helper.sol",
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	scopes := make(map[string]bool)
+	for _, c := range cands {
+		if c.CheckID != "forge-test" {
+			continue
+		}
+		scopes[c.Scope] = true
+	}
+
+	if !scopes["./test/L1/OptimismPortal.t.sol"] {
+		t.Errorf("expected OptimismPortal.t.sol as scope; got %v", scopes)
+	}
+	if !scopes["./test/L2/Bridge.t.sol"] {
+		t.Errorf("expected Bridge.t.sol as scope; got %v", scopes)
+	}
+	if scopes["./test/L1/Other.t.sol"] {
+		t.Errorf("Other.t.sol does not import Helper; should not be a scope")
+	}
+	if scopes["./test/helpers/*"] || scopes["./test/helpers/Helper.sol"] {
+		t.Errorf("the helper file itself should not be a scope; got %v", scopes)
+	}
+}
+
+// TestResolve_TransitiveHelperChain — H1 imports H2; tests import H1.
+// Changing H2 must still reach the tests via the two-hop chain.
+func TestResolve_TransitiveHelperChain(t *testing.T) {
+	g := graph.NewGraph()
+
+	for _, id := range []string{
+		"sol:test/helpers/Base.sol",
+		"sol:test/helpers/Derived.sol",
+		"sol:test/L1/X.t.sol",
+	} {
+		_ = g.AddNode(&graph.Node{ID: id, Kind: graph.KindSource})
+	}
+	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck})
+
+	// Derived imports Base; X.t.sol imports Derived.
+	_ = g.AddEdge(&graph.Edge{
+		From: "sol:test/helpers/Derived.sol", To: "sol:test/helpers/Base.sol",
+		Kind: graph.EdgeImports, Strength: 0.9, Confidence: 1.0,
+	})
+	_ = g.AddEdge(&graph.Edge{
+		From: "sol:test/L1/X.t.sol", To: "sol:test/helpers/Derived.sol",
+		Kind: graph.EdgeImports, Strength: 0.9, Confidence: 1.0,
+	})
+	for _, id := range []string{
+		"sol:test/helpers/Base.sol",
+		"sol:test/helpers/Derived.sol",
+		"sol:test/L1/X.t.sol",
+	} {
+		_ = g.AddEdge(&graph.Edge{
+			From: id, To: "check:forge-test",
+			Kind: graph.EdgeTestedBy, Strength: 0.9, Confidence: 0.8,
+		})
+	}
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_flag: "--match-path"
+    scope_type: paths
+    avg_duration: 3600
+    per_unit_duration: 60
+`))
+
+	// Change Base — two hops away from X.t.sol.
+	diffs := []diff.FileDiff{{Path: "packages/contracts-bedrock/test/helpers/Base.sol"}}
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	found := false
+	for _, c := range cands {
+		if c.Scope == "./test/L1/X.t.sol" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("transitive walk should reach X.t.sol via Derived → Base; got candidates: %+v", cands)
+	}
+}
+
 // TestResolve_CorrelationEdgeProducesBinaryCandidate — a CI-history
 // correlation edge on a binary check surfaces as a Candidate carrying
 // SourceCIHistory provenance, independent of coverage.

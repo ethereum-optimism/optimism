@@ -284,73 +284,57 @@ func coverageCandidates(
 }
 
 // importScopeCandidates is the fallback for scopeable checks when no
-// coverage edges point at the changed files. It walks from changed
-// nodes through non-test, non-prereq edges (i.e. through imports) and
-// collects source nodes that have a tested_by edge to this check type.
+// coverage edges point at the changed files. Reverse-BFS walks *incoming*
+// import edges from the changed nodes to find everything that
+// transitively imports them — the set of files whose compilation or
+// behavior could break when the changed file changes.
+//
+// This catches cases coverage misses:
+//   - Test helper changes (test/helpers/Foo.sol has no tested_by edge
+//     pointing at it, so coverage finds nothing; but test files that
+//     import it must re-run because their compilation can break).
+//   - Source changes in modules where coverage hasn't been collected.
+//
+// Edge direction: the Solidity adapter writes `importer → imported`,
+// so to find consumers of a changed node we walk `EdgesTo(cur)` and
+// propagate from edge.From (the importer).
+//
+// Only consumers that are themselves test files, and that have a
+// tested_by edge to this check, become scope candidates; the scope is
+// the specific test file path (e.g. `./test/L1/X.t.sol`), not a
+// directory glob.
 func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []string) []Candidate {
 	checkNodeID := "check:" + ct.ID
 
-	// Cheap check: if Dijkstra doesn't reach this check at all, skip the walk.
-	reachable := false
-	for _, r := range graph.ReachableChecks(g, changedIDs, 0.01) {
-		if r.CheckID == checkNodeID {
-			reachable = true
-			break
-		}
-	}
-	if !reachable {
+	consumers := transitiveConsumers(g, changedIDs, 0.01)
+	if len(consumers) == 0 {
 		return nil
 	}
 
-	type nodeSignal struct {
-		id     string
+	type emit struct {
+		nodeID string
 		signal float64
 	}
-	best := make(map[string]float64)
-	queue := make([]nodeSignal, 0, len(changedIDs))
-	for _, id := range changedIDs {
-		best[id] = 1.0
-		queue = append(queue, nodeSignal{id, 1.0})
-	}
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if cur.signal < best[cur.id] {
+	var hits []emit
+	for nodeID, signal := range consumers {
+		if !isTestFileNode(nodeID) {
 			continue
 		}
-		for _, edge := range g.EdgesFrom(cur.id) {
-			if edge.Kind == graph.EdgeTestedBy || edge.Kind == graph.EdgePrerequisite {
-				continue
-			}
-			s := cur.signal * edge.Strength * edge.Confidence
-			if s < 0.01 {
-				continue
-			}
-			if existing, ok := best[edge.To]; !ok || s > existing {
-				best[edge.To] = s
-				queue = append(queue, nodeSignal{edge.To, s})
-			}
+		if !hasTestedByEdge(g, nodeID, checkNodeID) {
+			continue
 		}
+		hits = append(hits, emit{nodeID, signal})
+	}
+	if len(hits) == 0 {
+		return nil
 	}
 
+	sort.Slice(hits, func(i, j int) bool { return hits[i].signal > hits[j].signal })
+
 	seen := make(map[string]bool)
-	var out []Candidate
-	for nodeID, signal := range best {
-		node := g.GetNode(nodeID)
-		if node == nil || node.Kind != graph.KindSource {
-			continue
-		}
-		tested := false
-		for _, edge := range g.EdgesFrom(nodeID) {
-			if edge.Kind == graph.EdgeTestedBy && edge.To == checkNodeID {
-				tested = true
-				break
-			}
-		}
-		if !tested {
-			continue
-		}
-		scope := nodeIDToScope(nodeID, ct.ScopeType)
+	out := make([]Candidate, 0, len(hits))
+	for _, h := range hits {
+		scope := nodeIDToTestPath(h.nodeID)
 		if scope == "" || seen[scope] {
 			continue
 		}
@@ -358,20 +342,83 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 		out = append(out, Candidate{
 			CheckID: ct.ID,
 			Scope:   scope,
-			Signal:  signal,
+			Signal:  h.signal,
 			Provenance: []SignalContribution{{
 				Source:       graph.SourceStatic,
 				EdgeKind:     graph.EdgeImports,
-				Contribution: signal,
+				Contribution: h.signal,
 				Raw: map[string]any{
-					"via_node": nodeID,
+					"via_node": h.nodeID,
+					"reason":   "transitive_importer",
 				},
 			}},
 		})
 	}
-
-	sort.Slice(out, func(i, j int) bool { return out[i].Signal > out[j].Signal })
 	return out
+}
+
+// transitiveConsumers performs reverse-BFS on incoming `imports` edges
+// from each changed node. Returns node ID → accumulated signal for
+// every node that (transitively) imports a changed node. Signal
+// attenuates by edge.Strength * edge.Confidence per hop.
+func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64) map[string]float64 {
+	best := make(map[string]float64)
+	type item struct {
+		id     string
+		signal float64
+	}
+	queue := make([]item, 0, len(changedIDs))
+	for _, id := range changedIDs {
+		if g.GetNode(id) == nil {
+			continue
+		}
+		best[id] = 1.0
+		queue = append(queue, item{id, 1.0})
+	}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur.signal < best[cur.id] {
+			continue
+		}
+		for _, edge := range g.EdgesTo(cur.id) {
+			if edge.Kind != graph.EdgeImports {
+				continue
+			}
+			s := cur.signal * edge.Strength * edge.Confidence
+			if s < minSignal {
+				continue
+			}
+			importer := edge.From
+			if existing, ok := best[importer]; !ok || s > existing {
+				best[importer] = s
+				queue = append(queue, item{importer, s})
+			}
+		}
+	}
+	return best
+}
+
+// isTestFileNode reports whether a node ID identifies a Solidity
+// test file (path starts with test/ and ends with .t.sol).
+func isTestFileNode(nodeID string) bool {
+	if !strings.HasPrefix(nodeID, "sol:") {
+		return false
+	}
+	path := strings.TrimPrefix(nodeID, "sol:")
+	return strings.HasPrefix(path, "test/") && strings.HasSuffix(path, ".t.sol")
+}
+
+// hasTestedByEdge reports whether nodeID has a tested_by edge to
+// checkNodeID. Used to filter scope candidates to checks that actually
+// apply to a given test file's language.
+func hasTestedByEdge(g *graph.Graph, nodeID, checkNodeID string) bool {
+	for _, edge := range g.EdgesFrom(nodeID) {
+		if edge.Kind == graph.EdgeTestedBy && edge.To == checkNodeID {
+			return true
+		}
+	}
+	return false
 }
 
 // importBinaryCandidates emits a single Candidate for a non-scopeable
