@@ -135,6 +135,11 @@ contract L2Genesis is Script {
 
     /// @notice Alias for `runWithStateDump` so that no `--sig` needs to be specified.
     function run(Input memory _input) public {
+        require(
+            _input.useInterop
+                == DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP),
+            "L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree"
+        );
         address deployer = makeAddr("deployer");
         vm.startPrank(deployer);
         vm.chainId(_input.l2ChainID);
@@ -553,27 +558,6 @@ contract L2Genesis is Script {
     ///         This contract has no initializer.
     function setSuperchainETHBridge() internal {
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
-    }
-
-    /// @notice This predeploy is following the safety invariant #1.
-    ///         This contract has no initializer.
-    function setOptimismSuperchainERC20Factory() internal {
-        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
-    }
-
-    /// @notice This predeploy is following the safety invariant #1.
-    ///         This contract has no initializer.
-    function setOptimismSuperchainERC20Beacon() internal {
-        address superchainERC20Impl = Predeploys.OPTIMISM_SUPERCHAIN_ERC20;
-        vm.etch(superchainERC20Impl, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
-
-        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-    }
-
-    /// @notice This predeploy is following the safety invariant #1.
-    ///         This contract has no initializer.
-    function setSuperchainTokenBridge() internal {
-        _setImplementationCode(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

@@ -7,7 +7,7 @@ use alloy_consensus::{
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Sealed, Signature};
 use alloy_rlp::BufMut;
-use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit, TxPostExec};
 use reth_codecs::{
     Compact,
     alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
@@ -100,6 +100,13 @@ impl OpTransaction for CustomTransaction {
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
         match self {
             CustomTransaction::Op(op) => op.as_deposit(),
+            CustomTransaction::Payment(_) => None,
+        }
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        match self {
+            CustomTransaction::Op(op) => op.as_post_exec(),
             CustomTransaction::Payment(_) => None,
         }
     }

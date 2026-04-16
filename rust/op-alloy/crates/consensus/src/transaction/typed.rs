@@ -1,5 +1,5 @@
 pub use crate::transaction::envelope::OpTypedTransaction;
-use crate::{OpTxEnvelope, OpTxType, TxDeposit};
+use crate::{OpTxEnvelope, OpTxType, TxDeposit, TxPostExec};
 use alloy_consensus::{
     EthereumTypedTransaction, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702,
     TxLegacy, Typed2718, TypedTransaction, error::ValueError, transaction::RlpEcdsaEncodableTx,
@@ -37,6 +37,12 @@ impl From<TxDeposit> for OpTypedTransaction {
     }
 }
 
+impl From<TxPostExec> for OpTypedTransaction {
+    fn from(tx: TxPostExec) -> Self {
+        Self::PostExec(tx)
+    }
+}
+
 impl From<OpTxEnvelope> for OpTypedTransaction {
     fn from(envelope: OpTxEnvelope) -> Self {
         match envelope {
@@ -45,6 +51,7 @@ impl From<OpTxEnvelope> for OpTypedTransaction {
             OpTxEnvelope::Eip1559(tx) => Self::Eip1559(tx.strip_signature()),
             OpTxEnvelope::Eip7702(tx) => Self::Eip7702(tx.strip_signature()),
             OpTxEnvelope::Deposit(tx) => Self::Deposit(tx.into_inner()),
+            OpTxEnvelope::PostExec(tx) => Self::PostExec(tx.into_inner()),
         }
     }
 }
@@ -66,6 +73,7 @@ impl From<OpTypedTransaction> for alloy_rpc_types_eth::TransactionRequest {
             OpTypedTransaction::Eip1559(tx) => tx.into(),
             OpTypedTransaction::Eip7702(tx) => tx.into(),
             OpTypedTransaction::Deposit(tx) => tx.into(),
+            OpTypedTransaction::PostExec(tx) => tx.into(),
         }
     }
 }
@@ -79,19 +87,21 @@ impl OpTypedTransaction {
             Self::Eip1559(_) => OpTxType::Eip1559,
             Self::Eip7702(_) => OpTxType::Eip7702,
             Self::Deposit(_) => OpTxType::Deposit,
+            Self::PostExec(_) => OpTxType::PostExec,
         }
     }
 
     /// Calculates the signing hash for the transaction.
     ///
-    /// Returns `None` if the tx is a deposit transaction.
+    /// Returns `None` for unsigned transaction variants: [`TxDeposit`] and [`TxPostExec`].
     pub fn checked_signature_hash(&self) -> Option<B256> {
         match self {
             Self::Legacy(tx) => Some(tx.signature_hash()),
             Self::Eip2930(tx) => Some(tx.signature_hash()),
             Self::Eip1559(tx) => Some(tx.signature_hash()),
             Self::Eip7702(tx) => Some(tx.signature_hash()),
-            Self::Deposit(_) => None,
+            // Deposit and PostExec are unsigned synthetic transactions with no signature hash.
+            Self::Deposit(_) | Self::PostExec(_) => None,
         }
     }
 
@@ -127,6 +137,14 @@ impl OpTypedTransaction {
         }
     }
 
+    /// Return the inner post-exec transaction if it exists.
+    pub const fn post_exec(&self) -> Option<&TxPostExec> {
+        match self {
+            Self::PostExec(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if transaction is deposit transaction.
     pub const fn is_deposit(&self) -> bool {
         matches!(self, Self::Deposit(_))
@@ -134,7 +152,8 @@ impl OpTypedTransaction {
 
     /// Calculate the transaction hash for the given signature.
     ///
-    /// Note: Returns the regular tx hash if this is a deposit variant
+    /// Note: returns the regular transaction hash for unsigned variants: [`TxDeposit`] and
+    /// [`TxPostExec`]. In those cases the provided signature is ignored.
     pub fn tx_hash(&self, signature: &Signature) -> TxHash {
         match self {
             Self::Legacy(tx) => tx.tx_hash(signature),
@@ -142,28 +161,30 @@ impl OpTypedTransaction {
             Self::Eip1559(tx) => tx.tx_hash(signature),
             Self::Eip7702(tx) => tx.tx_hash(signature),
             Self::Deposit(tx) => tx.tx_hash(),
+            Self::PostExec(tx) => tx.tx_hash(),
         }
     }
 
     /// Convenience function to convert this typed transaction into an [`OpTxEnvelope`].
     ///
-    /// Note: If this is a [`OpTypedTransaction::Deposit`] variant, the signature will be ignored.
+    /// Note: for unsigned variants ([`OpTypedTransaction::Deposit`] and
+    /// [`OpTypedTransaction::PostExec`]), the provided signature is ignored.
     pub fn into_envelope(self, signature: Signature) -> OpTxEnvelope {
         self.into_signed(signature).into()
     }
 
     /// Attempts to convert the optimism variant into an ethereum [`TypedTransaction`].
     ///
-    /// Returns the typed transaction as error if it is a variant unsupported on ethereum:
-    /// [`TxDeposit`]
+    /// Returns the typed transaction as an error if it is a variant unsupported on ethereum:
+    /// [`TxDeposit`] or [`TxPostExec`].
     pub fn try_into_eth(self) -> Result<TypedTransaction, ValueError<Self>> {
         self.try_into_eth_variant()
     }
 
     /// Attempts to convert the optimism variant into an ethereum [`TypedTransaction`].
     ///
-    /// Returns the typed transaction as error if it is a variant unsupported on ethereum:
-    /// [`TxDeposit`]
+    /// Returns the typed transaction as an error if it is a variant unsupported on ethereum:
+    /// [`TxDeposit`] or [`TxPostExec`].
     pub fn try_into_eth_variant<Eip4844>(
         self,
     ) -> Result<EthereumTypedTransaction<Eip4844>, ValueError<Self>> {
@@ -175,6 +196,10 @@ impl OpTypedTransaction {
             tx @ Self::Deposit(_) => Err(ValueError::new(
                 tx,
                 "Deposit transactions cannot be converted to ethereum transaction",
+            )),
+            tx @ Self::PostExec(_) => Err(ValueError::new(
+                tx,
+                "PostExec transactions cannot be converted to ethereum transaction",
             )),
         }
     }
@@ -188,6 +213,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.rlp_encoded_fields_length(),
             Self::Eip7702(tx) => tx.rlp_encoded_fields_length(),
             Self::Deposit(tx) => tx.rlp_encoded_fields_length(),
+            Self::PostExec(tx) => tx.rlp_encoded_fields_length(),
         }
     }
 
@@ -198,6 +224,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.rlp_encode_fields(out),
             Self::Eip7702(tx) => tx.rlp_encode_fields(out),
             Self::Deposit(tx) => tx.rlp_encode_fields(out),
+            Self::PostExec(tx) => tx.rlp_encode_fields(out),
         }
     }
 
@@ -208,6 +235,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Eip7702(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Deposit(tx) => tx.encode_2718(out),
+            Self::PostExec(tx) => tx.encode_2718(out),
         }
     }
 
@@ -218,6 +246,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.eip2718_encode(signature, out),
             Self::Eip7702(tx) => tx.eip2718_encode(signature, out),
             Self::Deposit(tx) => tx.encode_2718(out),
+            Self::PostExec(tx) => tx.encode_2718(out),
         }
     }
 
@@ -228,6 +257,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Eip7702(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Deposit(tx) => tx.network_encode(out),
+            Self::PostExec(tx) => tx.network_encode(out),
         }
     }
 
@@ -238,6 +268,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.network_encode(signature, out),
             Self::Eip7702(tx) => tx.network_encode(signature, out),
             Self::Deposit(tx) => tx.network_encode(out),
+            Self::PostExec(tx) => tx.network_encode(out),
         }
     }
 
@@ -248,6 +279,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Eip7702(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Deposit(tx) => tx.tx_hash(),
+            Self::PostExec(tx) => tx.tx_hash(),
         }
     }
 
@@ -258,6 +290,7 @@ impl RlpEcdsaEncodableTx for OpTypedTransaction {
             Self::Eip1559(tx) => tx.tx_hash(signature),
             Self::Eip7702(tx) => tx.tx_hash(signature),
             Self::Deposit(tx) => tx.tx_hash(),
+            Self::PostExec(tx) => tx.tx_hash(),
         }
     }
 }
@@ -269,7 +302,7 @@ impl SignableTransaction<Signature> for OpTypedTransaction {
             Self::Eip2930(tx) => tx.set_chain_id(chain_id),
             Self::Eip1559(tx) => tx.set_chain_id(chain_id),
             Self::Eip7702(tx) => tx.set_chain_id(chain_id),
-            Self::Deposit(_) => {}
+            Self::Deposit(_) | Self::PostExec(_) => {}
         }
     }
 
@@ -279,7 +312,7 @@ impl SignableTransaction<Signature> for OpTypedTransaction {
             Self::Eip2930(tx) => tx.encode_for_signing(out),
             Self::Eip1559(tx) => tx.encode_for_signing(out),
             Self::Eip7702(tx) => tx.encode_for_signing(out),
-            Self::Deposit(_) => {}
+            Self::Deposit(_) | Self::PostExec(_) => {}
         }
     }
 
@@ -289,7 +322,7 @@ impl SignableTransaction<Signature> for OpTypedTransaction {
             Self::Eip2930(tx) => tx.payload_len_for_signature(),
             Self::Eip1559(tx) => tx.payload_len_for_signature(),
             Self::Eip7702(tx) => tx.payload_len_for_signature(),
-            Self::Deposit(_) => 0,
+            Self::Deposit(_) | Self::PostExec(_) => 0,
         }
     }
 

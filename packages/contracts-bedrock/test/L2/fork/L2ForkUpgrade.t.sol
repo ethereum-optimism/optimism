@@ -31,6 +31,9 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
@@ -138,6 +141,9 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy versions are updated after upgrade.
     function test_l2ForkUpgrade_versionsUpdated_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade version state
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
@@ -218,6 +224,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         address liquidityControllerOwner;
         string liquidityControllerGasPayingTokenName;
         string liquidityControllerGasPayingTokenSymbol;
+        // L1Block feature state
+        string l1BlockGasPayingTokenName;
+        string l1BlockGasPayingTokenSymbol;
         // FeeSplitter configuration
         address feeSplitterSharesCalculator;
         // Fee vault configuration
@@ -239,6 +248,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all initialization configurations are preserved after upgrade.
     function test_l2ForkUpgrade_initializationPreserved_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade initialization state
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
@@ -274,6 +286,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.liquidityControllerOwner = liquidityController.owner();
             state_.liquidityControllerGasPayingTokenName = liquidityController.gasPayingTokenName();
             state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
+            // Capture L1Block gas paying token metadata for post-upgrade verification.
+            state_.l1BlockGasPayingTokenName = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+            state_.l1BlockGasPayingTokenSymbol = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
         }
 
         // Capture FeeSplitter configuration
@@ -346,6 +361,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyLiquidityControllerConfiguration(_preState);
         _verifyFeeSplitterConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
+        _verifyL1BlockFeatureState(_preState);
 
         // OpenZeppelin v4 Initializable contracts - slot varies by contract
         _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
@@ -526,6 +542,33 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         );
     }
 
+    /// @notice Verifies that L1Block feature flags match the expected post-upgrade state.
+    ///         Catches regressions where the setFeature migration step is missing or reordered.
+    function _verifyL1BlockFeatureState(PreUpgradeInitializationState memory _preState) internal view {
+        if (commonState.isCustomGasToken) {
+            assertTrue(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken(),
+                "L1Block.isCustomGasToken() must be true after upgrade on CGT chains"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName(),
+                _preState.l1BlockGasPayingTokenName,
+                "L1Block.gasPayingTokenName() not preserved after upgrade"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol(),
+                _preState.l1BlockGasPayingTokenSymbol,
+                "L1Block.gasPayingTokenSymbol() not preserved after upgrade"
+            );
+        }
+        if (commonState.isInteropEnabled) {
+            assertTrue(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                "L1Block.isFeatureEnabled(INTEROP) must be true after upgrade on interop chains"
+            );
+        }
+    }
+
     /// @notice Helper to verify OpenZeppelin v4 initialization state.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _slot The storage slot where the initialized value is located.
@@ -585,6 +628,9 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
     function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Execute upgrade
         executeScript.execute();
 
@@ -634,6 +680,9 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 

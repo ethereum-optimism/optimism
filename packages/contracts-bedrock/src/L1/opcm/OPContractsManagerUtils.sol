@@ -397,6 +397,8 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -449,6 +451,19 @@ contract OPContractsManagerUtils {
                 chainId,
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
+            );
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                parsedInputArgs.verifier,
+                parsedInputArgs.maxChallengeDuration,
+                parsedInputArgs.maxProveDuration,
+                parsedInputArgs.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                chainId
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

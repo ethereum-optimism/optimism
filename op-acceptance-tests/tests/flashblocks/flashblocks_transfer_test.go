@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -16,17 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFlashblocksTransfer checks that a transfer gets reflected in a flashblock before the transaction is confirmed in a block
+// TestFlashblocksTransfer checks that a transfer is reflected in the op-rbuilder
+// flashblock stream for the same block that eventually includes the transaction.
+//
+// Because flashblocks are speculative, the tx may first appear in a flashblock for
+// block N whose payload is later superseded (e.g. the sequencer calls getPayload
+// before the builder updates best_payload). The test therefore collects all matching
+// flashblocks and verifies the one whose block number equals the final on-chain
+// inclusion block.
 //
 // Expectations:
 //
-//   - There must have been a Flashblock containing a new_account_balance corresponding to Bob's
-//     account. This flashblock would be representative of the flashblock including Alice-to-Bob
-//     transaction.
-//   - The flashblock's time (in seconds) must be less than or equal to the Transaction's block
-//     time (in seconds). (Can't check the block time beyond the granularity of seconds)
-//   - That Flashblock's time in nanoseconds must be before the approximated transaction
-//     confirmation time recorded previously.
+//   - There must be a flashblock whose metadata.receipts contains Alice's tx hash
+//     and whose block_number equals the confirmed inclusion block.
+//   - Bob's balance in new_account_balances for that flashblock must match the
+//     on-chain balance at the inclusion block.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Example error with kona-node:
@@ -51,62 +54,71 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	// Drive a couple blocks on the test sequencer so the faucet L2 funding tx has a chance to land before we rely on it.
 	driveViaTestSequencer(t, sys, 2)
 
+	// Subscribe directly to op-rbuilder here: rollup-boost may intentionally drop
+	// flashblocks, but this test needs to observe the flashblock carrying Alice's
+	// transfer to Bob.
 	fbClient := sources.NewFlashblockClient(
-		sys.L2RollupBoost.FlashblocksClient(),
-		t.Logger().With("stream_source", "rollup-boost"),
+		sys.L2OPRBuilder.FlashblocksClient(),
+		t.Logger().With("stream_source", "op-rbuilder"),
 		100,
 	)
 	startClient(t, fbClient)
 
 	bob := sys.Wallet.NewEOA(sys.L2EL)
-	txCh := make(chan *txplan.PlannedTx)
+	alice := sys.FunderL2.NewFundedEOA(eth.ThreeHundredthsEther)
+	bobAddress := bob.Address()
+	tx := txplan.NewPlannedTx(alice.Plan(), txplan.WithTo(&bobAddress), txplan.WithValue(eth.OneHundredthEther))
+	signedTx, err := tx.Signed.Eval(t.Ctx())
+	t.Require().NoError(err)
+	txHash := strings.ToLower(signedTx.Hash().Hex())
+
+	// Buffer the result so cleanup cannot deadlock if we time out before reading it.
+	txCh := make(chan error, 1)
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		alice := sys.FunderL2.NewFundedEOA(eth.ThreeHundredthsEther)
-		bobAddress := bob.Address()
-		txCh <- alice.Transact(alice.Plan(), txplan.WithTo(&bobAddress), txplan.WithValue(eth.OneHundredthEther))
+		_, err := tx.Success.Eval(t.Ctx())
+		txCh <- err
 		close(txCh)
 	}()
 
-	var blockNumber int
-	var observedBalance *big.Int
-	var flashblockTime time.Time
+	// Accumulate flashblock receipts for the tx, keyed by block number.
+	// A speculative flashblock may carry the tx for block N, but if that block is
+	// rebuilt the tx surfaces again for a later block. We keep reading until the tx
+	// is confirmed on-chain and we have seen a flashblock for its inclusion block.
+	balancesByBlock := make(map[uint64]*big.Int)
+	var txBlock eth.BlockRef
+
 outer:
 	for {
 		select {
 		case fb, ok := <-fbClient.Next():
 			t.Require().True(ok, "client channel closed before we found the transaction")
-			balanceStr, found := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]
-			if found {
-				flashblockTime = time.Now()
-				blockNumber = fb.Metadata.BlockNumber
-				observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
-				t.Require().True(ok)
-				break outer
+			if _, found := fb.Metadata.Receipts[txHash]; found {
+				var observedBalance *big.Int
+				if balanceStr, ok := fb.Metadata.NewAccountBalances[strings.ToLower(bob.Address().Hex())]; ok {
+					observedBalance, ok = new(big.Int).SetString(balanceStr[2:], 16)
+					t.Require().True(ok)
+				}
+				balancesByBlock[uint64(fb.Metadata.BlockNumber)] = observedBalance
 			}
+		case err := <-txCh:
+			t.Require().NoError(err)
+			txBlock, err = tx.IncludedBlock.Eval(t.Ctx())
+			t.Require().NoError(err)
+			txCh = nil
 		case <-t.Ctx().Done():
-			t.Require().NoError(t.Ctx().Err(), "never found the transaction")
+			t.Require().NoError(t.Ctx().Err(), "never found the transaction in flashblock receipts for the confirmed block")
 		}
-	}
 
-	var txBlock eth.BlockRef
-	select {
-	case tx, ok := <-txCh:
-		t.Require().True(ok)
-		var err error
-		txBlock, err = tx.IncludedBlock.Eval(t.Ctx())
-		t.Require().NoError(err)
-	case <-t.Ctx().Done():
-		t.Require().NoError(t.Ctx().Err())
+		if _, ok := balancesByBlock[txBlock.Number]; txCh == nil && ok {
+			break outer
+		}
 	}
 
 	expectedBalance, err := sys.L2EL.EthClient().BalanceAt(t.Ctx(), bob.Address(), new(big.Int).SetUint64(txBlock.Number))
 	t.Require().NoError(err)
-	require.Equal(t, expectedBalance, observedBalance, "Bob's balance must be correct as per exactly what Alice transferred to them")
-
-	require.Equal(t, int(txBlock.Number), blockNumber, "the transaction's block number should be the same as the flashblock's parent block number")
-	require.LessOrEqual(t, flashblockTime.Unix(), int64(txBlock.Time), "the transaction's block time (in seconds) should be less than or equal to the flashblock's time (in seconds)")
+	require.Equal(t, expectedBalance, balancesByBlock[txBlock.Number], "Bob's balance must match the on-chain balance at the transaction inclusion block when reported in flashblock metadata")
 }

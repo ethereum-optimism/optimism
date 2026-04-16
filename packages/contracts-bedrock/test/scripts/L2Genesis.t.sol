@@ -486,4 +486,20 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testForks();
         testFeeSplitter();
     }
+
+    /// @notice Tests that run reverts when useInterop is true but the OPTIMISM_PORTAL_INTEROP dev bit is not set.
+    function test_run_useInteropWithoutDevBit_reverts() external {
+        input.useInterop = true;
+        // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
+        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that run reverts when the OPTIMISM_PORTAL_INTEROP dev bit is set but useInterop is false.
+    function test_run_devBitWithoutUseInterop_reverts() external {
+        input.useInterop = false;
+        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
 }

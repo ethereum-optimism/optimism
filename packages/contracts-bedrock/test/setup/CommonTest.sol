@@ -28,8 +28,6 @@ abstract contract CommonTest is Test, Setup, Events {
     address alice;
     address bob;
 
-    bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
-
     /// @notice The default initial bond value for dispute games.
     uint256 constant DEFAULT_DISPUTE_GAME_INIT_BOND = 0.08 ether;
 
@@ -55,7 +53,6 @@ abstract contract CommonTest is Test, Setup, Events {
     IOptimismMintableERC20Full L2Token;
     ILegacyMintableERC20Full LegacyL2Token;
     ERC20 NativeL2Token;
-    IOptimismMintableERC20Full RemoteL1Token;
 
     function setUp() public virtual override {
         // Setup.setup() may switch the tests over to a newly forked network. Therefore
@@ -188,14 +185,6 @@ abstract contract CommonTest is Test, Setup, Events {
         }
 
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
-
-        RemoteL1Token = IOptimismMintableERC20Full(
-            l1OptimismMintableERC20Factory.createStandardL2Token(
-                address(NativeL2Token),
-                string(abi.encodePacked("L1-", NativeL2Token.name())),
-                string(abi.encodePacked("L1-", NativeL2Token.symbol()))
-            )
-        );
 
         BadL1Token = ERC20(
             l1OptimismMintableERC20Factory.createStandardL2Token(

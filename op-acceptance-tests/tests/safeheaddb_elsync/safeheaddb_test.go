@@ -12,12 +12,22 @@ import (
 )
 
 func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
-	return presets.NewSingleChainMultiNode(t,
+	// Use WithoutCheck because the default preset sync check uses 30 attempts
+	// (60s) for CrossSafe matching, which is insufficient for EL Sync mode.
+	// EL Sync must complete the initial sync phase before derivation can start,
+	// so CrossSafe takes longer to advance than in CL Sync mode.
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t,
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.VerifierSyncMode = sync.ELSync
 			cfg.SafeDBPath = p.TempDir()
 		})),
 	)
+	// Run the initial sync check with 60 attempts (120s) to accommodate EL Sync.
+	dsl.CheckAll(t,
+		sys.L2CLB.MatchedFn(sys.L2CL, types.CrossSafe, 60),
+		sys.L2CLB.MatchedFn(sys.L2CL, types.LocalUnsafe, 60),
+	)
+	return sys
 }
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
@@ -53,10 +63,17 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	// Wait for the restarted EL to be ready to accept RPC/P2P connections
+	// before attempting to peer. Without this, PeerWith may waste its 30s
+	// timeout on a node whose P2P stack isn't fully initialized yet.
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
+	// EL Sync after a full database wipe requires more time than the initial sync:
+	// the EL must re-download all blocks via P2P before the CL can begin derivation,
+	// and node A keeps advancing LocalSafe in the meantime.
+	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 90)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 90) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 }
@@ -90,8 +107,8 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 
 	sys.L2CLB.Start()
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
+	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 60)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 }

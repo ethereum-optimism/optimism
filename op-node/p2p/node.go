@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -276,7 +275,7 @@ func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
 }
 
 func (n *NodeP2P) Close() error {
-	var result *multierror.Error
+	var result error
 	if n.peerMonitor != nil {
 		n.peerMonitor.Stop()
 	}
@@ -285,23 +284,23 @@ func (n *NodeP2P) Close() error {
 	}
 	if n.gsOut != nil {
 		if err := n.gsOut.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close gossip cleanly: %w", err))
 		}
 	}
 	if n.host != nil {
 		if err := n.host.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close p2p host cleanly: %w", err))
 		}
 		if n.syncCl != nil {
 			if err := n.syncCl.Close(); err != nil {
-				result = multierror.Append(result, fmt.Errorf("failed to close p2p sync client cleanly: %w", err))
+				result = errors.Join(result, fmt.Errorf("failed to close p2p sync client cleanly: %w", err))
 			}
 		}
 	}
 	if n.appScorer != nil {
 		n.appScorer.Stop()
 	}
-	return result.ErrorOrNil()
+	return result
 }
 
 func FindActiveTCPPort(h host.Host) (uint16, error) {

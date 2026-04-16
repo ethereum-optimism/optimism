@@ -9,11 +9,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	yaml "gopkg.in/yaml.v3"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -79,6 +81,8 @@ type OPRBuilderNodeConfig struct {
 	AuthRPCAddr    string
 	AuthRPCPort    int
 
+	ChainBlockTime time.Duration
+
 	// P2P
 	P2PPort       int
 	P2PAddr       string
@@ -118,6 +122,7 @@ func DefaultOPRbuilderNodeConfig() *OPRBuilderNodeConfig {
 		P2PAddr:           "127.0.0.1",
 		P2PPort:           0,
 		P2PNodeKeyHex:     "",
+		ChainBlockTime:    time.Second * 2,
 		StaticPeers:       nil,
 		TrustedPeers:      nil,
 		Full:              true,
@@ -245,6 +250,8 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.CommonT) (args []string, e
 		args = append(args, "--rules.config-path="+cfg.RulesConfigPath)
 	}
 
+	chainBlockTimeArg := "--rollup.chain-block-time=" + strconv.FormatInt(cfg.ChainBlockTime.Milliseconds(), 10)
+	args = append(args, chainBlockTimeArg)
 	args = append(args, cfg.ExtraArgs...)
 
 	return args, env
@@ -402,11 +409,11 @@ func (b *OPRBuilderNode) Start() {
 
 	b.sub = NewSubProcess(b.p, stdOut, stdErr)
 
-	execPath, err := EnsureRustBinary(b.p, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "op-rbuilder",
 		Package: "op-rbuilder",
 		Binary:  "op-rbuilder",
-	})
+	}.EnsureExists(b.p.Ctx(), b.p.Logger())
 	b.p.Require().NoError(err, "prepare op-rbuilder binary")
 	b.p.Require().NotEmpty(execPath, "op-rbuilder binary path resolved")
 

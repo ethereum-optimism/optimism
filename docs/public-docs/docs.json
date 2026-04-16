@@ -1920,6 +1920,7 @@
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
                   "chain-operators/guides/management/transaction-fees-101",
+                  "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
               }
@@ -2207,7 +2208,8 @@
                 "pages": [
                   "app-developers/reference/actions/integrating-wallets",
                   "app-developers/reference/actions/wallet-definitions",
-                  "app-developers/reference/actions/lend-documentation"
+                  "app-developers/reference/actions/lend-documentation",
+                  "app-developers/reference/actions/swap-documentation"
                 ]
               },
               {
@@ -2285,6 +2287,7 @@
             "group": "Transactions",
             "pages": [
               "/op-stack/transactions/fees",
+              "/op-stack/transactions/fee-vaults",
               "/op-stack/transactions/flashblocks",
               "/op-stack/transactions/forced-transaction",
               "/op-stack/transactions/transaction-finality",
@@ -2368,6 +2371,8 @@
           {
             "group": "Notices",
             "pages": [
+              "notices/stake-based-priority-ordering",
+              "notices/req-resp-cl-sync-deprecation",
               "notices/op-geth-deprecation",
               "notices/op-deployer-upgrade-deprecation",
               {
@@ -2718,6 +2723,12 @@
             "group": "op-alloy - Reference",
             "pages": [
               "rust/op-alloy/glossary"
+            ]
+          },
+          {
+            "group": "op-revm",
+            "pages": [
+              "rust/op-revm/index"
             ]
           }
         ]

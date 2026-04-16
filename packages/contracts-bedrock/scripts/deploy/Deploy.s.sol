@@ -53,6 +53,9 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 contract Deploy is Deployer {
     using stdJson for string;
 
+    /// @notice The default initial bond. Should match DeployOPChain.DEFAULT_INIT_BOND for consistency.
+    uint256 private constant DEFAULT_INIT_BOND = 0.08 ether;
+
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
     ////////////////////////////////////////////////////////////////
@@ -401,7 +404,7 @@ contract Deploy is Deployer {
 
     function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -447,6 +450,12 @@ contract Deploy is Deployer {
                     absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
                 })
             )
+        });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({
@@ -473,7 +482,7 @@ contract Deploy is Deployer {
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -486,7 +495,7 @@ contract Deploy is Deployer {
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0,
+            initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -522,6 +531,12 @@ contract Deploy is Deployer {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: bytes("")
         });
 

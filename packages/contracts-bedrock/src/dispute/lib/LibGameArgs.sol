@@ -93,4 +93,32 @@ library LibGameArgs {
     function isValidPermissionedArgs(bytes memory _args) internal pure returns (bool) {
         return _args.length == PERMISSIONED_ARGS_LENGTH;
     }
+
+    uint256 public constant ZK_ARGS_LENGTH = 172;
+
+    /// @notice Checks if the provided game arguments are valid for a ZK dispute game.
+    function isValidZKArgs(bytes memory _args) internal pure returns (bool) {
+        return _args.length == ZK_ARGS_LENGTH;
+    }
+
+    /// @notice Decodes the anchorStateRegistry, weth, and l2ChainId from packed ZK game template
+    ///         args as produced by OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
+    ///         Layout (abi.encodePacked, ZK_ARGS_LENGTH bytes):
+    ///           [0-31]   absolutePrestate (bytes32)
+    ///           [32-51]  verifier (address)
+    ///           [52-59]  maxChallengeDuration (uint64)
+    ///           [60-67]  maxProveDuration (uint64)
+    ///           [68-99]  challengerBond (uint256)
+    ///           [100-119] anchorStateRegistry (address)
+    ///           [120-139] weth (address)
+    ///           [140-171] l2ChainId (uint256)
+    function decodeZK(bytes memory _args) internal pure returns (address asr_, address weth_, uint256 l2ChainId_) {
+        if (_args.length != ZK_ARGS_LENGTH) revert InvalidGameArgsLength();
+        assembly {
+            let base := add(_args, 0x20)
+            asr_ := shr(96, mload(add(base, 100)))
+            weth_ := shr(96, mload(add(base, 120)))
+            l2ChainId_ := mload(add(base, 140))
+        }
+    }
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
@@ -876,8 +875,9 @@ func (s *OpConductorTestSuite) TestConductorRestart() {
 func (s *OpConductorTestSuite) TestHandleInitError() {
 	// This will cause an error in the init function, which should cause the conductor to stop successfully without issues.
 	_, err := New(s.ctx, &s.cfg, s.log, s.version)
-	_, ok := err.(*multierror.Error)
-	// error should not be a multierror, this means that init failed, but Stop() succeeded, which is what we expect.
+	// error should not be a joined error, this means that init failed, but Stop() succeeded, which is what we expect.
+	type multiUnwrap interface{ Unwrap() []error }
+	_, ok := err.(multiUnwrap)
 	s.False(ok)
 }
 
