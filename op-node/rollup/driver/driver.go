@@ -357,7 +357,7 @@ func (s *Driver) eventLoop() {
 			// naturally picks up the timer on the next iteration.
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
 				return len(sequencerCh) > 0
-			}, false); err != nil && err != io.EOF {
+			}, true); err != nil && err != io.EOF {
 				if s.driverCtx.Err() != nil {
 					return
 				} else {
