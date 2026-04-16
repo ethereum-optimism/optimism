@@ -203,9 +203,8 @@ where
             }
             Some(Ok(_)) => {
                 // valid interop tx
-                transaction.set_interop_deadline(
-                    self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS,
-                );
+                transaction
+                    .set_interop_deadline(self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS);
             }
             _ => {}
         }
