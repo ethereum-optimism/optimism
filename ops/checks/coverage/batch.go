@@ -18,26 +18,22 @@ type BatchResult struct {
 	Elapsed   time.Duration
 }
 
-// collectorForLanguage returns a collector for the given language.
-func collectorForLanguage(lang string) (Collector, error) {
-	switch lang {
-	case "solidity":
-		return NewSolidityCollector(), nil
-	case "go":
-		return NewGoCollector(), nil
-	case "rust":
-		return NewRustCollector(), nil
-	default:
-		return nil, fmt.Errorf("unknown language: %s", lang)
-	}
-}
-
 // RunBatch executes a list of coverage collection jobs sequentially.
 // Existing reports (by output filename) are skipped. Individual job failures
 // are tolerated — the batch continues and counts failures in the result.
+//
+// Collectors are instantiated once per language and reused across jobs
+// so stateful caches (e.g. RustCollector's rustmeta.Loader) don't get
+// thrown away between invocations.
 func RunBatch(rootDir string, jobs []Job, outputDir string, cat *catalog.Catalog) (*BatchResult, error) {
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating output dir: %w", err)
+	}
+
+	collectors := map[string]Collector{
+		"solidity": NewSolidityCollector(),
+		"go":       NewGoCollector(),
+		"rust":     NewRustCollector(),
 	}
 
 	res := &BatchResult{Total: len(jobs)}
@@ -67,10 +63,10 @@ func RunBatch(rootDir string, jobs []Job, outputDir string, cat *catalog.Catalog
 		}
 		ran++
 
-		collector, err := collectorForLanguage(job.Language)
-		if err != nil {
+		collector, ok := collectors[job.Language]
+		if !ok {
 			res.Failed++
-			fmt.Printf("  FAIL: %v\n", err)
+			fmt.Printf("  FAIL: unknown language: %s\n", job.Language)
 			continue
 		}
 

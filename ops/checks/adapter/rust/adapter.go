@@ -20,15 +20,18 @@
 package rust
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+	"github.com/ethereum-optimism/optimism/ops/checks/rustmeta"
 )
+
+// Crate is re-exported from rustmeta for backwards-compat with tests
+// that constructed crates inline. New callers should use rustmeta.Crate
+// directly.
+type Crate = rustmeta.Crate
 
 // RustAdapter builds crate + file nodes from cargo metadata output.
 type RustAdapter struct {
@@ -37,15 +40,9 @@ type RustAdapter struct {
 	WorkspaceDir string
 
 	// CratesFor returns workspace members given an absolute workspace
-	// directory. Default shells to `cargo metadata --no-deps`; tests
-	// can substitute deterministic data.
-	CratesFor func(workDir string) ([]Crate, error)
-}
-
-// Crate is one workspace member.
-type Crate struct {
-	Name        string
-	ManifestDir string // absolute path to the directory containing Cargo.toml
+	// directory. Default shells to `cargo metadata --no-deps` via
+	// rustmeta.Load; tests can substitute deterministic data.
+	CratesFor rustmeta.Fetcher
 }
 
 // New returns a RustAdapter with default settings.
@@ -72,7 +69,7 @@ func (a *RustAdapter) Analyze(g *graph.Graph, rootDir string) error {
 
 	cratesFor := a.CratesFor
 	if cratesFor == nil {
-		cratesFor = cratesFromCargoMetadata
+		cratesFor = rustmeta.Load
 	}
 	crates, err := cratesFor(workDir)
 	if err != nil {
@@ -107,35 +104,6 @@ func (a *RustAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		}
 	}
 	return nil
-}
-
-// cratesFromCargoMetadata runs `cargo metadata --no-deps --format-
-// version 1` in workDir and returns the workspace members. Only used
-// when RustAdapter.CratesFor is nil.
-func cratesFromCargoMetadata(workDir string) ([]Crate, error) {
-	cmd := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
-	cmd.Dir = workDir
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("cargo metadata: %w", err)
-	}
-	var meta struct {
-		Packages []struct {
-			Name         string `json:"name"`
-			ManifestPath string `json:"manifest_path"`
-		} `json:"packages"`
-	}
-	if err := json.Unmarshal(out, &meta); err != nil {
-		return nil, fmt.Errorf("parsing cargo metadata: %w", err)
-	}
-	crates := make([]Crate, 0, len(meta.Packages))
-	for _, p := range meta.Packages {
-		crates = append(crates, Crate{
-			Name:        p.Name,
-			ManifestDir: filepath.Dir(p.ManifestPath),
-		})
-	}
-	return crates, nil
 }
 
 // findRustFiles walks crateDir's conventional source directories and

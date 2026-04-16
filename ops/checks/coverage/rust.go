@@ -1,43 +1,48 @@
 package coverage
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/ops/checks/rustmeta"
 )
 
 // RustCollector collects coverage from Rust tests using cargo-llvm-cov.
 //
 // LCOV output from cargo-llvm-cov keys each source file by absolute
 // path. To fit the graph's rs:<crate>/<rel>.rs node schema, the
-// collector uses `cargo metadata` to get workspace crate boundaries
-// and rewrites each absolute path to <crate>/<rel-to-manifest>. Keys
+// collector uses cargo metadata to get workspace crate boundaries and
+// rewrites each absolute path to <crate>/<rel-to-manifest>. Keys
 // outside any workspace crate (stdlib, external deps) are dropped.
 // Source SHAs are stamped using the same path mapping.
+//
+// The metadata Loader is held on the collector, not fetched per call,
+// so batch coverage runs invoke cargo metadata once for the workspace
+// instead of once per test.
 type RustCollector struct {
 	// WorkspaceDir is the path to the Rust workspace relative to rootDir.
 	// Default: "rust".
 	WorkspaceDir string
 
-	// CratesFor returns workspace members given an absolute workspace
-	// directory. Default shells to `cargo metadata --no-deps`; tests
-	// can substitute.
-	CratesFor func(workDir string) ([]rustCrate, error)
+	// Loader is the crate metadata resolver. Defaults to the global
+	// cached loader backed by cargo metadata; tests can swap it for a
+	// deterministic fetcher via rustmeta.NewLoaderWith.
+	Loader *rustmeta.Loader
 }
 
-// rustCrate mirrors adapter/rust.Crate locally to avoid a cross-
-// package dependency. Name + absolute manifest dir.
-type rustCrate struct {
-	Name        string
-	ManifestDir string
-}
-
+// NewRustCollector returns a collector with a fresh cached Loader.
+// Callers that want metadata reuse across multiple collectors (e.g.
+// in a batch run) should share a single RustCollector instance
+// rather than constructing one per Collect call.
 func NewRustCollector() *RustCollector {
-	return &RustCollector{WorkspaceDir: "rust"}
+	return &RustCollector{
+		WorkspaceDir: "rust",
+		Loader:       rustmeta.NewLoader(),
+	}
 }
 
 func (c *RustCollector) Language() string { return "rust" }
@@ -75,7 +80,7 @@ func (c *RustCollector) Collect(rootDir string, testPath string, profile Profile
 		return nil, fmt.Errorf("parsing LCOV output (cargo may have failed): %w", err)
 	}
 
-	crateLookup, err := c.loadCrates(workDir)
+	crateLookup, err := c.Loader.Load(workDir)
 	if err != nil {
 		// Degrade: without crate boundaries we can't rewrite keys, so
 		// emit the report with LCOV absolute paths and no SHA stamps.
@@ -106,7 +111,7 @@ func (c *RustCollector) Collect(rootDir string, testPath string, profile Profile
 // Paths outside every crate's manifest dir are silently dropped.
 func rewriteCoversToCrateRelative(
 	raw map[string][][2]int,
-	crates []rustCrate,
+	crates []rustmeta.Crate,
 ) (map[string][][2]int, func(string) string) {
 	// Sort longest-manifest-dir-first so nested crates win over their
 	// workspace root when prefix-matching.
@@ -135,37 +140,3 @@ func rewriteCoversToCrateRelative(
 	}
 }
 
-// loadCrates resolves workspace members via the configured CratesFor
-// callback (default: cargo metadata).
-func (c *RustCollector) loadCrates(workDir string) ([]rustCrate, error) {
-	if c.CratesFor != nil {
-		return c.CratesFor(workDir)
-	}
-	return cargoMetadataCrates(workDir)
-}
-
-func cargoMetadataCrates(workDir string) ([]rustCrate, error) {
-	cmd := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
-	cmd.Dir = workDir
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("cargo metadata: %w", err)
-	}
-	var meta struct {
-		Packages []struct {
-			Name         string `json:"name"`
-			ManifestPath string `json:"manifest_path"`
-		} `json:"packages"`
-	}
-	if err := json.Unmarshal(out, &meta); err != nil {
-		return nil, fmt.Errorf("parsing cargo metadata: %w", err)
-	}
-	crates := make([]rustCrate, 0, len(meta.Packages))
-	for _, p := range meta.Packages {
-		crates = append(crates, rustCrate{
-			Name:        p.Name,
-			ManifestDir: filepath.Dir(p.ManifestPath),
-		})
-	}
-	return crates, nil
-}

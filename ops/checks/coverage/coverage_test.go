@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/ops/checks/rustmeta"
 )
 
 func TestReport_RoundTrip(t *testing.T) {
@@ -205,7 +207,7 @@ func TestFindOverlaps(t *testing.T) {
 // the paired sourceAbsFor callback maps keys back to absolute paths
 // for SHA hashing.
 func TestRewriteCoversToCrateRelative(t *testing.T) {
-	crates := []rustCrate{
+	crates := []rustmeta.Crate{
 		{Name: "alpha", ManifestDir: "/repo/rust/crates/alpha"},
 		{Name: "beta", ManifestDir: "/repo/rust/crates/beta"},
 		// Workspace-root crate that *contains* nested crates; it must
