@@ -186,7 +186,7 @@ inherits = "dev"
 panic = "abort"
 
 [profile.release]
-opt-level = 3
+opt-level = 0
 lto = "thin"
 debug = "none"
 strip = "symbols"

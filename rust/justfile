@@ -7,6 +7,7 @@ alias t := test
 alias l := lint
 alias f := fmt-fix
 alias b := build
+alias be := build-release-no-examples
 
 # default recipe to display help information
 default:
@@ -30,6 +31,10 @@ build *args='':
 # Build the workspace in release mode
 build-release *args='':
   cargo build --workspace --release {{CARGO_WORKSPACE_EXCLUDE}} {{args}}
+
+# Build the workspace in release mode (excluding examples)
+build-release-no-examples *args='':
+  cargo build --workspace --release --exclude 'example-*' --exclude execution-fixture {{args}}
 
 # Build kona-node
 build-kona-node:
