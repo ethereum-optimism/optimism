@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import {CommonTest} from "test/setup/CommonTest.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import {Predeploys} from "src/libraries/Predeploys.sol";
-import {SemverComp} from "src/libraries/SemverComp.sol";
-import {IBeacon} from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
-import {ISemver} from "interfaces/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
+import { IBeacon } from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title OptimismSuperchainERC20Beacon_TestInit
 /// @notice Reusable test initialization for `OptimismSuperchainERC20Beacon` tests.
