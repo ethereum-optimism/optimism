@@ -6,7 +6,9 @@ import {CommonTest} from "test/setup/CommonTest.sol";
 
 // Libraries
 import {Predeploys} from "src/libraries/Predeploys.sol";
+import {SemverComp} from "src/libraries/SemverComp.sol";
 import {IBeacon} from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
+import {ISemver} from "interfaces/universal/ISemver.sol";
 
 /// @title OptimismSuperchainERC20Beacon_TestInit
 /// @notice Reusable test initialization for `OptimismSuperchainERC20Beacon` tests.
@@ -30,5 +32,15 @@ contract OptimismSuperchainERC20Beacon_Implementation_Test is OptimismSuperchain
     function test_implementation_isCorrect_succeeds() public view {
         IBeacon beacon = IBeacon(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
         assertEq(beacon.implementation(), Predeploys.OPTIMISM_SUPERCHAIN_ERC20);
+    }
+}
+
+/// @title OptimismSuperchainERC20Beacon_Version_Test
+/// @notice Contract for testing the `version` function of the
+///         `OptimismSuperchainERC20Beacon` contract.
+contract OptimismSuperchainERC20Beacon_Version_Test is OptimismSuperchainERC20Beacon_TestInit {
+    /// @notice Tests that version returns a valid semver string.
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(ISemver(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON).version());
     }
 }
