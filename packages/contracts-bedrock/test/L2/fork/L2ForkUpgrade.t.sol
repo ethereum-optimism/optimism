@@ -38,6 +38,7 @@ import { Features } from "src/libraries/Features.sol";
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
 ///         Contains setup, helper functions, and verification logic.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Script used for bundle execution.
     ExecuteNUTBundle executeScript;
@@ -126,6 +127,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 
 /// @title L2ForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions are updated after the L2 fork upgrade.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
     /// @notice Struct to capture predeploy state for comparison.
     struct PredeployState {
@@ -207,6 +209,7 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
 
 /// @title L2ForkUpgrade_Initialization_Test
 /// @notice Tests that all initialization configurations are preserved after the L2 fork upgrade.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
     /// @notice Struct to capture pre-upgrade initialization state for comparison.
     struct PreUpgradeInitializationState {
@@ -616,6 +619,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
 
 /// @title L2ForkUpgrade_Implementations_Test
 /// @notice Tests that all predeploy implementations are correctly upgraded.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     /// @notice EIP-1967 implementation storage slot.
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
@@ -664,6 +668,7 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
 
 /// @title L2ForkUpgrade_Events_Test
 /// @notice Tests that all predeploy proxies emit the Upgraded event during the L2 fork upgrade.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     /// @notice EIP-1967 Upgraded event topic.
     /// @dev keccak256("Upgraded(address)")
@@ -737,6 +742,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
 /// @title L2ForkUpgrade_GasProfile_Test
 /// @notice Gas profiling test that measures actual gas consumption for each transaction in the upgrade bundle.
+/// forge-config: default.isolate = true
 contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     /// @notice Gas measurement for a single transaction.
     struct GasMeasurement {
