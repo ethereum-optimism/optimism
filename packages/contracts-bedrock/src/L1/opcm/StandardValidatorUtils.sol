@@ -23,6 +23,9 @@ uint256 constant EXPECTED_MAX_GAME_DEPTH = 73;
 uint256 constant EXPECTED_SPLIT_DEPTH = 30;
 uint256 constant EXPECTED_CLOCK_EXTENSION = 10800;
 uint256 constant EXPECTED_MAX_CLOCK_DURATION = 302400;
+string constant EXPECTED_PREIMAGE_ORACLE_VERSION = "1.1.4";
+uint256 constant EXPECTED_CHALLENGE_PERIOD = 86400;
+uint256 constant EXPECTED_MIN_PROPOSAL_SIZE = 126000;
 
 /// @title StandardValidatorUtils
 /// @notice StandardValidatorUtils is a contract that provides some validation logic
@@ -241,10 +244,16 @@ contract StandardValidatorUtils {
     {
         _errorPrefix = string.concat(_errorPrefix, "-PIMGO");
         _errors = internalRequire(
-            LibString.eq(ISemver(address(_oracle)).version(), "1.1.4"), string.concat(_errorPrefix, "-10"), _errors
+            LibString.eq(ISemver(address(_oracle)).version(), EXPECTED_PREIMAGE_ORACLE_VERSION),
+            string.concat(_errorPrefix, "-10"),
+            _errors
         );
-        _errors = internalRequire(_oracle.challengePeriod() == 86400, string.concat(_errorPrefix, "-20"), _errors);
-        _errors = internalRequire(_oracle.minProposalSize() == 126000, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(
+            _oracle.challengePeriod() == EXPECTED_CHALLENGE_PERIOD, string.concat(_errorPrefix, "-20"), _errors
+        );
+        _errors = internalRequire(
+            _oracle.minProposalSize() == EXPECTED_MIN_PROPOSAL_SIZE, string.concat(_errorPrefix, "-30"), _errors
+        );
         return _errors;
     }
 }
