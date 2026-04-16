@@ -2371,6 +2371,7 @@
           {
             "group": "Notices",
             "pages": [
+              "notices/upgrade-19",
               "notices/stake-based-priority-ordering",
               "notices/req-resp-cl-sync-deprecation",
               "notices/op-geth-deprecation",
