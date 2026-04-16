@@ -585,11 +585,9 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-1-10", _validateMigration(true));
     }
 
-    // NOTE: Per-chain DGF tests (-20 through -70) are not applicable here.
-    // After migration, systemConfig.disputeGameFactory() resolves through
-    // portal → shared ASR → shared DGF. The per-chain DGF IS the shared DGF,
-    // so the validator skips per-chain DGF clearing checks. The shared DGF's
-    // game type registration is validated by the DGF shape tests (MIG-DGF-*).
+    // NOTE: Per-chain DGF clearing checks (-20 through -70) are exercised in
+    // OPContractsManagerMigrationValidator_PerChainDGF_Test below, which mocks
+    // systemConfig.disputeGameFactory() to return a DGF that differs from the shared DGF.
 
     /// @notice MIG-CHAIN-0-80: Portal not authorized in shared lockbox.
     function test_validate_chain080PortalNotAuthorized_succeeds() public {
@@ -884,5 +882,108 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
         );
         vm.expectRevert(bytes("OPContractsManagerMigrationValidator: MIG-DGF-30,MIG-DGF-40"));
         migrationValidator.validateMigration(input, false, refs);
+    }
+}
+
+/// @title OPContractsManagerMigrationValidator_PerChainDGF_Test
+/// @notice Tests MIG-CHAIN-*-20 through MIG-CHAIN-*-70 by mocking systemConfig.disputeGameFactory()
+///         to return a DGF that differs from the shared DGF, exercising the per-chain clearing checks.
+contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice Address used as a fake per-chain DGF distinct from the shared DGF.
+    address fakeDGF = makeAddr("fakeDGF");
+
+    /// @notice Mocks chain 0's systemConfig.disputeGameFactory() to return the fake DGF,
+    ///         with all game types returning address(0) (cleared).
+    function _mockPerChainDGF() internal {
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.disputeGameFactory, ()),
+            abi.encode(fakeDGF)
+        );
+        // Default: all game types cleared (return address(0)).
+        vm.mockCall(fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0)));
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(address(0))
+        );
+        vm.mockCall(
+            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0))
+        );
+        vm.mockCall(
+            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)), abi.encode(address(0))
+        );
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0))
+        );
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0))
+        );
+    }
+
+    /// @notice MIG-CHAIN-0-20: Per-chain DGF has CANNON still registered.
+    function test_validate_chain020CannonNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-20", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-30: Per-chain DGF has PERMISSIONED_CANNON still registered.
+    function test_validate_chain030PermissionedCannonNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-30", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-40: Per-chain DGF has CANNON_KONA still registered.
+    function test_validate_chain040CannonKonaNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-40", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-50: Per-chain DGF has SUPER_CANNON still registered.
+    function test_validate_chain050SuperCannonNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-50", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-60: Per-chain DGF has SUPER_PERMISSIONED_CANNON still registered.
+    function test_validate_chain060SuperPermCannonNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-60", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-70: Per-chain DGF has SUPER_CANNON_KONA still registered.
+    function test_validate_chain070SuperCannonKonaNotCleared_succeeds() public {
+        _mockPerChainDGF();
+        vm.mockCall(
+            fakeDGF,
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("MIG-CHAIN-0-70", _validateMigration(true));
     }
 }
