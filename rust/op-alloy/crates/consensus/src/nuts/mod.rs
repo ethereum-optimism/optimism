@@ -11,7 +11,8 @@
 use alloc::{string::String, vec::Vec};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, TxKind, U256};
-use op_alloy_consensus::{TxDeposit, UpgradeDepositSource};
+
+use crate::{TxDeposit, UpgradeDepositSource};
 
 /// A single network upgrade transaction from a NUT bundle.
 #[derive(Debug, Clone)]
@@ -62,8 +63,7 @@ impl NutBundle {
                     return Err(NutBundleError::MissingIntent(i));
                 }
 
-                let qualified_intent =
-                    alloc::format!("{} {}: {}", self.fork_name, i, tx.intent);
+                let qualified_intent = alloc::format!("{} {}: {}", self.fork_name, i, tx.intent);
                 let source = UpgradeDepositSource { intent: qualified_intent };
 
                 Ok(TxDeposit {
@@ -82,41 +82,35 @@ impl NutBundle {
 
     /// Converts the bundle into EIP-2718 encoded deposit transaction bytes.
     ///
-    /// This is the format expected by [`crate::Hardfork::txs`].
+    /// This is the format expected by [`crate::Hardfork::txs`][hardfork-txs].
+    ///
+    /// [hardfork-txs]: https://docs.rs/kona-hardforks/latest/kona_hardforks/trait.Hardfork.html
     pub fn to_encoded_transactions(&self) -> Result<Vec<Bytes>, NutBundleError> {
-        self.to_deposit_transactions().map(|deposits| {
-            deposits
-                .into_iter()
-                .map(|tx| {
-                    let mut encoded = Vec::new();
-                    tx.encode_2718(&mut encoded);
-                    Bytes::from(encoded)
-                })
-                .collect()
-        })
+        Ok(self
+            .to_deposit_transactions()?
+            .into_iter()
+            .map(|tx| {
+                let mut encoded = Vec::new();
+                tx.encode_2718(&mut encoded);
+                Bytes::from(encoded)
+            })
+            .collect())
     }
 }
 
 /// Errors that can occur when processing a NUT bundle.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum NutBundleError {
     /// A transaction is missing an intent string.
+    #[error("tx {0}: missing intent")]
     MissingIntent(usize),
-}
-
-impl core::fmt::Display for NutBundleError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::MissingIntent(i) => write!(f, "tx {i}: missing intent"),
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use alloy_primitives::{address, hex};
+    use alloy_primitives::{address, b256, hex};
 
     fn test_bundle() -> NutBundle {
         NutBundle {
@@ -132,8 +126,8 @@ mod tests {
                 NetworkUpgradeTransaction {
                     intent: "Second Transaction".to_string(),
                     from: address!("000000000000000000000000000000000000abba"),
-                    to: Some(address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266")),
-                    data: Bytes::from_static(&hex!("abcdef")),
+                    to: Some(address!("4200000000000000000000000000000000000015")),
+                    data: Bytes::from_static(&hex!("feedface")),
                     gas_limit: 5_000_000,
                 },
             ],
@@ -157,6 +151,10 @@ mod tests {
         let expected_source_0 =
             UpgradeDepositSource { intent: "Test 0: First Transaction".to_string() };
         assert_eq!(deposits[0].source_hash, expected_source_0.source_hash());
+        assert_eq!(
+            deposits[0].source_hash,
+            b256!("c3ecdc70c81521aae81240518d3547f601bb33ec07b909e83544b2fe093c78bd")
+        );
         assert_eq!(deposits[0].from, Address::ZERO);
         assert_eq!(
             deposits[0].to,
@@ -173,12 +171,18 @@ mod tests {
             UpgradeDepositSource { intent: "Test 1: Second Transaction".to_string() };
         assert_eq!(deposits[1].source_hash, expected_source_1.source_hash());
         assert_eq!(
-            deposits[1].from,
-            address!("000000000000000000000000000000000000abba")
+            deposits[1].source_hash,
+            b256!("ac61fbb5e3d61e626f66c413c564d376e3b363b94a37aab323b860a2293b7c6c")
         );
+        assert_eq!(deposits[1].from, address!("000000000000000000000000000000000000abba"));
+        assert_eq!(
+            deposits[1].to,
+            TxKind::Call(address!("4200000000000000000000000000000000000015"))
+        );
+        assert_eq!(deposits[1].input.as_ref(), hex!("feedface").as_slice());
         assert_eq!(deposits[1].gas_limit, 5_000_000);
 
-        // Source hashes must be unique
+        // Source hashes must be unique.
         assert_ne!(deposits[0].source_hash, deposits[1].source_hash);
     }
 
@@ -188,9 +192,14 @@ mod tests {
         let encoded = bundle.to_encoded_transactions().unwrap();
 
         assert_eq!(encoded.len(), 2);
-        // Encoded deposit txs start with the deposit type byte (0x7e)
-        assert_eq!(encoded[0][0], 0x7e);
-        assert_eq!(encoded[1][0], 0x7e);
+        assert_eq!(
+            encoded[0].as_ref(),
+            hex!("7ef856a0c3ecdc70c81521aae81240518d3547f601bb33ec07b909e83544b2fe093c78bd94000000000000000000000000000000000000000094f39fd6e51aad88f6f4ce6ab8827279cfffb922668080830f42408083abcdef").as_slice()
+        );
+        assert_eq!(
+            encoded[1].as_ref(),
+            hex!("7ef857a0ac61fbb5e3d61e626f66c413c564d376e3b363b94a37aab323b860a2293b7c6c94000000000000000000000000000000000000abba9442000000000000000000000000000000000000158080834c4b408084feedface").as_slice()
+        );
     }
 
     #[test]
@@ -230,10 +239,7 @@ mod tests {
 
     #[test]
     fn test_empty_bundle() {
-        let bundle = NutBundle {
-            fork_name: "Test".to_string(),
-            transactions: alloc::vec![],
-        };
+        let bundle = NutBundle { fork_name: "Test".to_string(), transactions: alloc::vec![] };
 
         assert_eq!(bundle.total_gas(), 0);
         let deposits = bundle.to_deposit_transactions().unwrap();

@@ -46,6 +46,9 @@ pub use block::OpBlock;
 
 pub mod interop;
 
+pub mod nuts;
+pub use nuts::{NetworkUpgradeTransaction, NutBundle, NutBundleError};
+
 pub mod predeploys;
 pub use predeploys::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
 
