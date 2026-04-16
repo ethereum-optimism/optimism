@@ -26,12 +26,12 @@ jobs:
       - uses: ./.github/actions/docker-build-prep
         id: prep
       - name: Parse tag
-        uses: ethereum-optimism/factory/actions/parse-tag@240b16167a5f5aa789270fa9c0efbfa9f010b7e7
+        uses: ethereum-optimism/factory/actions/parse-tag@cc1794a8e99695971560f5354076fbe2ddca9f2e
         id: parse-tag
 
   release:
     needs: prep
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@4a6713dc9a56712c9150a8007aa1d33eba6f38ea
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@cc1794a8e99695971560f5354076fbe2ddca9f2e
     with:
       mode: bake
       image_name: ${{ needs.prep.outputs.image_name }}
