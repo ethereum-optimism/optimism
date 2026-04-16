@@ -6,8 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { SuperGameTestInit } from "test/setup/SuperGameTestInit.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
-import { OPContractsManagerMigrationValidator_TestInit } from
-    "test/L1/OPContractsManagerMigrationValidator.t.sol";
+import { OPContractsManagerMigrationValidator_TestInit } from "test/L1/OPContractsManagerMigrationValidator.t.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -1922,6 +1921,19 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
             abi.encode(address(0xdead))
         );
         assertEq("CKDG-SHAPE", _validate(true));
+    }
+
+    /// @notice Tests that enabling SUPER_CANNON in super mode triggers SCDG-SHAPE.
+    /// TODO(#20030): Once SUPER_CANNON is disabled in migrator and the SCDG-SHAPE check is re-added
+    ///               to assertValidSuperRootDisputeGames, unskip this test.
+    function test_validate_superCannonNotDisabled_succeeds() public {
+        vm.skip(true);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xdead))
+        );
+        assertEq("SCDG-SHAPE", _validate(true));
     }
 
     /// @notice Tests that disabling SUPER_PERMISSIONED_CANNON triggers SPDG-SHAPE.
