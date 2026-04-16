@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 func TestL1ToL2Deposit(gt *testing.T) {

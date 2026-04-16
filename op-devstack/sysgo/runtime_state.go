@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
 )
 
@@ -55,7 +55,6 @@ type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
 	FullConfigSet depset.FullConfigSetMerged
 	DependencySet depset.DependencySet
-	Supervisor    Supervisor
 }
 
 type SingleChainRuntime struct {
@@ -108,9 +107,7 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor   Supervisor
-	SecondarySupervisor Supervisor
-	Supernode           *SuperNode
+	Supernode *SuperNode
 
 	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock

@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -147,25 +146,6 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 	return superrootTime
 }
 
-func getSupervisorSuperRoot(t devtest.T, supervisor Supervisor, timestamp uint64) eth.Bytes32 {
-	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
-	t.Require().NoError(err)
-
-	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
-	err = wait.For(ctx, time.Second, func() (bool, error) {
-		status, err := client.SyncStatus(ctx)
-		if err != nil {
-			return false, err
-		}
-		return timestamp < status.MinSyncedL1.Time, nil
-	})
-	cancel()
-	t.Require().NoError(err, "waiting for supervisor to sync failed")
-
-	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
-	t.Require().NoError(err, "super root at timestamp failed")
-	return super.SuperRoot
-}
 
 func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())

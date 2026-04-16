@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // This test is known to be flaky

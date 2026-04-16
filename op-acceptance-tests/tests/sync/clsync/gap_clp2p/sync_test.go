@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.

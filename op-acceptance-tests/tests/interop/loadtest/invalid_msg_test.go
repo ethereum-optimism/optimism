@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 	"github.com/ethereum/go-ethereum/core"
 )
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 type messageSource interface {

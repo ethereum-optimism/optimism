@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // BlockBuilder helps txplan to be integrated with intra block building functionality.

@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/sync/errgroup"
 )
@@ -32,7 +32,6 @@ type SyncStatusProvider interface {
 }
 
 var _ SyncStatusProvider = (*L2CLNode)(nil)
-var _ SyncStatusProvider = (*Supervisor)(nil)
 
 // LaggedFn returns a lambda that checks the baseNode head with given safety level is lagged with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel

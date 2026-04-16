@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/processors"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 

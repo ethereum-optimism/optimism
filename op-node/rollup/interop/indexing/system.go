@@ -20,7 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // indexingEventStream abstracts the event stream functionality for testing

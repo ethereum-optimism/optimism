@@ -11,10 +11,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/processors"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/reads"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.

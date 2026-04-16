@@ -8,7 +8,7 @@ import (
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 type InteropAPI struct {

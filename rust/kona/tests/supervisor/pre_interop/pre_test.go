@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // Acceptance Test: https://github.com/ethereum-optimism/optimism/blob/develop/op-acceptance-tests/tests/interop/upgrade/pre_test.go

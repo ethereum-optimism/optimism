@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // TestInteropHappyTx is testing that a valid init message, followed by a valid exec message are correctly

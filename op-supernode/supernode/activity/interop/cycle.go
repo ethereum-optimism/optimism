@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // ErrCycle is returned when a cycle is detected in same-timestamp messages.

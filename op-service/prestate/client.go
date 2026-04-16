@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/depset"
 )
 
 // These constants should be in sync with op-program/chainconfig/chaincfg.go.

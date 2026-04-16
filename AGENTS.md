@@ -29,8 +29,6 @@ The rollup node software and associated services, including:
 - **op-proposer**: L2 output submitter
 - **op-challenger**: Dispute game challenge agent
 - **op-conductor**: High-availability sequencer service
-- **op-supervisor**: Cross-chain message safety monitor (DEPRECATED)
-
 ### Smart Contracts (`packages/contracts-bedrock`)
 
 Solidity smart contracts for the OP Stack, including the core protocol contracts deployed on L1 and L2.

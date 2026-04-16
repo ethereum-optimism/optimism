@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 func TestFullInterop(gt *testing.T) {

@@ -60,11 +60,6 @@
       "check": "go",
       "paths": ["op-alt-da/**"]
     },
-    "op-supervisor": {
-      "type": "go",
-      "check": "go",
-      "paths": ["op-supervisor/**"]
-    },
     "op-supernode": {
       "type": "go",
       "check": "go",

@@ -20,9 +20,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/processors"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // progressLogInterval is how often to log ingestion progress.

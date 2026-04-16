@@ -3,7 +3,7 @@ package interop
 import (
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/depset"
 )
 
 // getFullConfig creates a new depset.FullConfigSet using the boot-info config sources,

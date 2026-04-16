@@ -25,7 +25,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor-lib/depset"
 )
 
 func withSuperProofsDeployerFeature(cfg PresetConfig) PresetConfig {
@@ -47,56 +47,6 @@ func orderedRuntimeChains(runtime *MultiChainRuntime) []*MultiChainNodeRuntime {
 		chains = append(chains, runtime.Chains[key])
 	}
 	return chains
-}
-
-func attachSupervisorSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
-	chains := orderedRuntimeChains(runtime)
-	t.Require().NotEmpty(chains, "supervisor superproofs runtime must contain at least one chain")
-	t.Require().NotNil(runtime.PrimarySupervisor, "supervisor superproofs runtime must provide a supervisor")
-
-	proofChain := chains[0]
-	cls := make([]L2CLNode, 0, len(chains))
-	nets := make([]*L2Network, 0, len(chains))
-	els := make([]L2ELNode, 0, len(chains))
-	for _, chain := range chains {
-		t.Require().NotNil(chain, "runtime chain entry must not be nil")
-		cls = append(cls, chain.CL)
-		nets = append(nets, chain.Network)
-		els = append(els, chain.EL)
-	}
-
-	superrootTime := awaitSuperrootTime(t, cls...)
-	superRoot := getSupervisorSuperRoot(t, runtime.PrimarySupervisor, superrootTime)
-	migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
-
-	challenger := startInteropChallenger(
-		t,
-		runtime.Keys,
-		runtime.L1Network,
-		runtime.L1EL,
-		runtime.L1CL,
-		runtime.DependencySet,
-		runtime.PrimarySupervisor.UserRPC(),
-		false,
-		nets,
-		els,
-		cfg.EnableCannonKonaForChall,
-	)
-	runtime.L2ChallengerConfig = challenger.Config()
-
-	_ = startSuperProposer(
-		t,
-		runtime.Keys,
-		"main",
-		proofChain.Network.ChainID(),
-		runtime.L1EL,
-		proofChain.Network,
-		runtime.PrimarySupervisor.UserRPC(),
-		"",
-		cfg.ProposerOptions...,
-	)
-
-	return runtime
 }
 
 func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
@@ -147,11 +97,6 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	)
 
 	return runtime
-}
-
-func NewSimpleInteropSuperProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
-	cfg = withSuperProofsDeployerFeature(cfg)
-	return attachSupervisorSuperProofs(t, NewSimpleInteropRuntimeWithConfig(t, cfg), cfg)
 }
 
 func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {

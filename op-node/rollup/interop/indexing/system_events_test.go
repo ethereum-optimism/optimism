@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // mockEventStream implements ManagedEventStream for testing

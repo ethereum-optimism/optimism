@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	supTypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 

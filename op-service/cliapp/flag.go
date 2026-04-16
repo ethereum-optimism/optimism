@@ -28,8 +28,6 @@ func ProtectFlags(flags []cli.Flag) []cli.Flag {
 func cloneFlag(f cli.Flag) (cli.Flag, error) {
 	switch typedFlag := f.(type) {
 	case *cli.GenericFlag:
-		// We have to clone Generic, since it's an interface,
-		// and setting it causes the next use of the flag to have a different default value.
 		if genValue, ok := typedFlag.Value.(CloneableGeneric); ok {
 			cpy := *typedFlag
 			cpyVal, ok := genValue.Clone().(cli.Generic)
@@ -41,9 +39,58 @@ func cloneFlag(f cli.Flag) (cli.Flag, error) {
 		} else {
 			return nil, fmt.Errorf("cannot clone Generic value: %T", typedFlag)
 		}
+	case *cli.StringFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.BoolFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.IntFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.UintFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.Uint64Flag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.Float64Flag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.DurationFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.PathFlag:
+		cpy := *typedFlag
+		return &cpy, nil
+	case *cli.StringSliceFlag:
+		cpy := *typedFlag
+		if typedFlag.Value != nil {
+			orig := typedFlag.Value.Value()
+			vals := make([]string, len(orig))
+			copy(vals, orig)
+			cpy.Value = cli.NewStringSlice(vals...)
+		}
+		return &cpy, nil
+	case *cli.Uint64SliceFlag:
+		cpy := *typedFlag
+		if typedFlag.Value != nil {
+			orig := typedFlag.Value.Value()
+			vals := make([]uint64, len(orig))
+			copy(vals, orig)
+			cpy.Value = cli.NewUint64Slice(vals...)
+		}
+		return &cpy, nil
+	case *cli.IntSliceFlag:
+		cpy := *typedFlag
+		if typedFlag.Value != nil {
+			orig := typedFlag.Value.Value()
+			vals := make([]int, len(orig))
+			copy(vals, orig)
+			cpy.Value = cli.NewIntSlice(vals...)
+		}
+		return &cpy, nil
 	default:
-		// Other flag types are safe to re-use, although not strictly safe for concurrent use.
-		// urfave v3 hopefully fixes this.
 		return f, nil
 	}
 }

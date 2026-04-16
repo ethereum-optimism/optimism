@@ -26,7 +26,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor-lib/types"
 )
 
 // TestInitExecMsg tests basic interop messaging
