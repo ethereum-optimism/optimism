@@ -24,6 +24,12 @@ type CheckType struct {
 	Prerequisites   []string `yaml:"prerequisites,omitempty"`
 	AvgDuration     int      `yaml:"avg_duration"`
 	PerUnitDuration int      `yaml:"per_unit_duration,omitempty"`
+
+	// CIJobNames maps this check to one or more CircleCI job names.
+	// Profile-variant jobs (e.g. forge-test under custom_gas_token) all
+	// aggregate into this check's CI-history outcomes unless split
+	// into a dedicated check type. Empty means no CI-history mapping.
+	CIJobNames []string `yaml:"ci_job_names,omitempty"`
 }
 
 // Knob is a configurable parameter for a check type.

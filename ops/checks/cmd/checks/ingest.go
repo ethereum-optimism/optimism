@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -25,31 +27,45 @@ func cmdIngest(args []string) error {
 
 func cmdIngestCIHistory(args []string) error {
 	fs := flag.NewFlagSet("ingest ci-history", flag.ExitOnError)
-	eventsPath := fs.String("events", "", "path to events JSON (FileFetcher source) — required")
+	source := fs.String("source", "file", "event source: 'file' (local JSON) or 'circleci'")
+	eventsPath := fs.String("events", "", "path to events JSON (for --source=file)")
 	graphPath := fs.String("graph", "ops/checks/graph.json", "path to graph file to update")
 	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
 	learnedPath := fs.String("out-learned", "ops/checks/policy/learned.yaml", "path to write learned policy overrides")
-	root := fs.String("root", ".", "repository root (for stamping source_sha on correlation edges)")
+	root := fs.String("root", ".", "repository root (for stamping source_sha on correlation edges and resolving CircleCI file lists)")
 	windowDays := fs.Int("window-days", 0, "only consider events merged within the last N days (0 = all)")
 	minObs := fs.Int("min-observations", 3, "minimum per-(file,check) observations to emit a correlation edge")
 	minPrec := fs.Float64("min-precision", 0.1, "minimum precision to emit a correlation edge")
 	minPriorObs := fs.Int("min-prior-observations", 20, "minimum samples before learning a per-kind/per-check prior")
-	fs.Parse(args)
 
-	if *eventsPath == "" {
-		return fmt.Errorf("--events is required")
-	}
+	// CircleCI-specific flags
+	ccOrg := fs.String("circleci-org", "ethereum-optimism", "CircleCI VCS org (for --source=circleci)")
+	ccRepo := fs.String("circleci-repo", "optimism", "CircleCI VCS repo (for --source=circleci)")
+	ccBranch := fs.String("circleci-branch", "develop", "branch to scan (for --source=circleci)")
+	ccMaxPages := fs.Int("circleci-max-pages", 10, "pipeline pagination cap (for --source=circleci)")
+	ccTimeout := fs.Duration("circleci-timeout", 60*time.Second, "HTTP timeout per request (for --source=circleci)")
+
+	fs.Parse(args)
 
 	cat, err := catalog.Load(*catalogPath)
 	if err != nil {
 		return fmt.Errorf("loading catalog: %w", err)
 	}
 
-	fetcher := cihistory.NewFileFetcher(*eventsPath)
 	var since time.Time
 	if *windowDays > 0 {
 		since = time.Now().UTC().Add(-time.Duration(*windowDays) * 24 * time.Hour)
 	}
+
+	fetcher, err := buildFetcher(*source, *eventsPath, cat, ciOpts{
+		org: *ccOrg, repo: *ccRepo, branch: *ccBranch,
+		maxPages: *ccMaxPages, timeout: *ccTimeout,
+		repoRoot: *root,
+	})
+	if err != nil {
+		return err
+	}
+
 	events, err := fetcher.Fetch(since)
 	if err != nil {
 		return fmt.Errorf("fetch events: %w", err)
@@ -61,14 +77,13 @@ func cmdIngestCIHistory(args []string) error {
 		MinObservationsForPrior: *minPriorObs,
 	})
 
-	fmt.Printf("Events: %d; window: %s → %s\n",
-		len(events),
+	fmt.Printf("Source: %s; events: %d; window: %s → %s\n",
+		*source, len(events),
 		analysis.WindowStart.Format("2006-01-02"),
 		analysis.WindowEnd.Format("2006-01-02"))
 	fmt.Printf("Correlations: %d (MinObs=%d, MinPrec=%.2f)\n", len(analysis.Correlations), *minObs, *minPrec)
 	fmt.Printf("Learned priors: %d kinds, %d checks\n", len(analysis.PriorsByKind), len(analysis.PriorsByCheck))
 
-	// Load and update the graph with correlation edges.
 	g, err := graph.Load(*graphPath)
 	if err != nil {
 		return fmt.Errorf("loading graph: %w", err)
@@ -83,11 +98,52 @@ func cmdIngestCIHistory(args []string) error {
 	}
 	fmt.Printf("Added %d correlation edges to %s\n", added, *graphPath)
 
-	// Write learned policy.
 	if err := cihistory.WriteLearnedPolicy(*learnedPath, analysis); err != nil {
 		return fmt.Errorf("writing learned policy: %w", err)
 	}
 	fmt.Printf("Wrote learned priors to %s\n", *learnedPath)
 
 	return nil
+}
+
+type ciOpts struct {
+	org, repo, branch, repoRoot string
+	maxPages                    int
+	timeout                     time.Duration
+}
+
+func buildFetcher(source, eventsPath string, cat *catalog.Catalog, ci ciOpts) (cihistory.Fetcher, error) {
+	switch source {
+	case "file":
+		if eventsPath == "" {
+			return nil, fmt.Errorf("--source=file requires --events")
+		}
+		return cihistory.NewFileFetcher(eventsPath), nil
+
+	case "circleci":
+		jobMap := cihistory.JobMapFromCatalog(cat)
+		if len(jobMap) == 0 {
+			return nil, fmt.Errorf("no ci_job_names defined in catalog — nothing to ingest from CircleCI")
+		}
+		return cihistory.NewCircleCIFetcher(cihistory.CircleCIConfig{
+			Org:        ci.org,
+			Repo:       ci.repo,
+			Branch:     ci.branch,
+			Token:      resolveCircleCIToken(),
+			HTTPClient: &http.Client{Timeout: ci.timeout},
+			MaxPages:   ci.maxPages,
+			RepoRoot:   ci.repoRoot,
+		}, jobMap), nil
+
+	default:
+		return nil, fmt.Errorf("unknown --source: %s (valid: file, circleci)", source)
+	}
+}
+
+// resolveCircleCIToken follows the CLAUDE.md CI-credentials convention:
+// public CircleCI projects don't require a token, so an empty result
+// is acceptable. Only $CITOKEN is consulted — we deliberately do not
+// auto-source ~/.bash_aliases.
+func resolveCircleCIToken() string {
+	return os.Getenv("CITOKEN")
 }
