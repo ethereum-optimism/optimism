@@ -76,13 +76,8 @@
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-<<<<<<< HEAD
-    "initCodeHash": "0xcd272cb56cf76590c95f1bed50b529dd9bfdec357d725ebde89b3af17b9cf1bc",
-    "sourceCodeHash": "0x33260a4d76b12c0a59c1f5d39c7dd7e0f3aa3777e53495559e07f1560d86c184"
-=======
-    "initCodeHash": "0xfe407eb6042feeeccc234a15535ff63f8e7082f00e5433a86f06986908df1a32",
-    "sourceCodeHash": "0x70865896dad657eefedf49582f463fb8909d5a0d99791dcc22017580e4d05758"
->>>>>>> d920e942f9fb1cb7fb3072a2984b7e9fe23cb70e
+    "initCodeHash": "0xcdd15d96a0a09d402831f85185feb38965c028e652cb964ed1766ab6605b2f3e",
+    "sourceCodeHash": "0x32a643e52d73d47d7984fd8f4301c8cec47719bab66e64843ad3f72194eeb9cf"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -143,16 +138,6 @@
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
-  },
-<<<<<<< HEAD
-  "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
-    "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
-    "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
-=======
-  "src/L2/SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator": {
-    "initCodeHash": "0xdfff95660d2d470e198054bb1717a30a45a806d2eaa3720fb43acaa3356c9a3e",
-    "sourceCodeHash": "0x741d4fe13a88e0f2667ecb1c0c8a8550059800f8ef63241d6ffd14bf0a53ae5e"
->>>>>>> d920e942f9fb1cb7fb3072a2984b7e9fe23cb70e
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",

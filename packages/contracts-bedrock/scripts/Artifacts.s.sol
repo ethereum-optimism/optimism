@@ -122,17 +122,6 @@ contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
-<<<<<<< HEAD
-        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Factory"))) {
-            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
-        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Beacon"))) {
-            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-        } else if (digest == keccak256(bytes("SuperchainTokenBridge"))) {
-            return payable(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
-=======
-        } else if (digest == keccak256(bytes("FeeSplitter"))) {
-            return payable(Predeploys.FEE_SPLITTER);
->>>>>>> d920e942f9fb1cb7fb3072a2984b7e9fe23cb70e
         }
         return payable(address(0));
     }
