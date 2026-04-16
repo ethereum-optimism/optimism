@@ -408,7 +408,7 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 			t.Fatalf("No action scheduled, but also no events to change inputs left")
 		}
 		if ok && testClock.Now().After(nextTime) {
-			testEm.Emit(context.Background(), SequencerActionEvent{})
+			seq.RunAction(context.Background())
 		} else {
 			waitTime := nextTime.Sub(eng.clock.Now())
 			if drainErr == io.EOF {

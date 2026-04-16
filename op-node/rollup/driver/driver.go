@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -127,7 +128,7 @@ func NewDriver(
 		sequencer = sequencing.DisabledSequencer{}
 	}
 
-	driverEmitter := sys.Register("driver", nil, event.WithEmitPriority(event.High))
+	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
 		StatusTracker:        statusTracker,
 		Finalizer:            finalizer,
@@ -326,7 +327,7 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
+			s.sequencer.RunAction(s.driverCtx)
 		case <-altSyncTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
@@ -349,15 +350,14 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
-			// Safety net: if sequencer timer fired simultaneously with drain signal,
-			// service the sequencer first. The direct call completes before draining
-			// derivation events, preventing starvation of the seal phase.
-			select {
-			case <-sequencerCh:
-				s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
-			default:
-			}
-			if err := s.drain.Drain(); err != nil {
+			// DrainUntil processes events one at a time, checking between each
+			// whether the sequencer timer has fired. If so, it stops early so the
+			// main loop can service the sequencer action before resuming draining.
+			// len(sequencerCh) peeks without consuming, so the main loop's select
+			// naturally picks up the timer on the next iteration.
+			if err := s.drain.DrainUntil(func(ev event.Event) bool {
+				return len(sequencerCh) > 0
+			}, false); err != nil && err != io.EOF {
 				if s.driverCtx.Err() != nil {
 					return
 				} else {

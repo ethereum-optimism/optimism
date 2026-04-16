@@ -113,7 +113,7 @@ func (s *L2Sequencer) ActMaybeL2StartBlock(t Testing) error {
 		t.InvalidAction("already started building L2 block")
 		return nil
 	}
-	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
+	s.sequencer.RunAction(t.Ctx())
 	err := s.drainer.DrainUntil(event.Is[engine.ForkchoiceUpdateEvent], false)
 	if err != nil {
 		return err
@@ -130,7 +130,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) eth.L2BlockRef {
 	}
 	s.l2Building = false
 
-	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
+	s.sequencer.RunAction(t.Ctx())
 	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.UnsafeUpdateEvent], false),
 		"failed to complete block building")
 

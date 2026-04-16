@@ -11,6 +11,9 @@ import (
 
 type SequencerIface interface {
 	event.Deriver
+	// RunAction triggers the sequencer to start or seal a block.
+	// Called directly by the driver, bypassing the event system.
+	RunAction(ctx context.Context)
 	// NextAction returns when the sequencer needs to do the next change, and iff it should do so.
 	NextAction() (t time.Time, ok bool)
 	Active() bool

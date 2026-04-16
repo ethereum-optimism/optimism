@@ -334,8 +334,8 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		}, nil
 	}
 
-	// First SequencerActionEvent: start building. Direct call, no event emitted.
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	// First RunAction: start building. Direct call, no event emitted.
+	seq.RunAction(context.Background())
 	require.Equal(t, payloadInfo, seq.latest.Info, "must have recorded payload info from direct call")
 
 	_, ok = seq.NextAction()
@@ -375,7 +375,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	}
 
 	// Seal action: SealBuild succeeds, commits to conductor and gossip, ProcessPayload fails
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 	require.True(t, processPayloadCalled, "ProcessPayload must have been called")
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
 	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
@@ -430,7 +430,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 			Parent:       newHead,
 		}, nil
 	}
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 	// Verify the sequencer started building on the new head
 	require.Equal(t, newHead, seq.latest.Onto, "must build on new head")
 }
@@ -450,7 +450,7 @@ func TestSequencerBuild(t *testing.T) {
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 	emitter.AssertExpectations(t)
 
 	head := eth.L2BlockRef{
@@ -495,8 +495,8 @@ func TestSequencerBuild(t *testing.T) {
 		}, nil
 	}
 
-	// SequencerActionEvent triggers startBuildingBlock, which calls eng.StartBuild directly
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	// RunAction triggers startBuildingBlock, which calls eng.StartBuild directly
+	seq.RunAction(context.Background())
 	require.NotNil(t, sentAttributes, "StartBuild must have been called")
 
 	// The sealing should now be scheduled as next action.
@@ -539,7 +539,7 @@ func TestSequencerBuild(t *testing.T) {
 	}
 
 	// Seal action: calls SealBuild + ProcessPayload directly
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
 	require.Nil(t, deps.asyncGossip.payload, "async gossip should have been cleared after successful ProcessPayload")
 	require.Equal(t, BuildingState{}, seq.latest, "building state should be cleared after successful insert")
@@ -572,7 +572,7 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It needs the head before being able to build on top of it
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
 	head := eth.L2BlockRef{
@@ -598,7 +598,7 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	})
 
 	sealTargetTime1, ok1 := seq.NextAction()
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.RunAction(context.Background())
 	emitter.AssertExpectations(t)
 
 	// FindL1Origin error will updating d.nextAction

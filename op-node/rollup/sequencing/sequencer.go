@@ -53,17 +53,6 @@ type AsyncGossiper interface {
 	Start()
 }
 
-// SequencerActionEvent triggers the sequencer to start/seal a block, if active and ready to act.
-// This event is used to prioritize sequencer work over derivation work,
-// by emitting it before e.g. a derivation-pipeline step.
-// A future sequencer in an async world may manage its own execution.
-type SequencerActionEvent struct {
-}
-
-func (ev SequencerActionEvent) String() string {
-	return "sequencer-action"
-}
-
 type BuildingState struct {
 	Onto eth.L2BlockRef
 	Info eth.PayloadInfo
@@ -183,8 +172,6 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.onBuildStarted(x)
 	case engine.PayloadSuccessEvent:
 		d.onPayloadSuccess(x)
-	case SequencerActionEvent:
-		d.onSequencerAction(x)
 	case rollup.EngineTemporaryErrorEvent:
 		d.onEngineTemporaryError(x)
 	case rollup.ResetEvent:
@@ -234,7 +221,21 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	d.asyncGossip.Clear()
 }
 
-func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
+// RunAction triggers the sequencer to start/seal a block, if active and ready to act.
+// Called directly by the driver event loop, bypassing the event system.
+func (d *Sequencer) RunAction(ctx context.Context) {
+	d.l.Lock()
+	defer d.l.Unlock()
+
+	preTime := d.nextAction
+	preOk := d.nextActionOK
+	defer func() {
+		if d.nextActionOK != preOk || d.nextAction != preTime {
+			d.log.Debug("Sequencer action schedule changed",
+				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK)
+		}
+	}()
+
 	d.log.Debug("Sequencer action")
 	payload := d.asyncGossip.Get()
 	if payload != nil {
