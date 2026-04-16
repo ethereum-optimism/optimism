@@ -72,6 +72,12 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sfp.RunInvalidBlockTest(t, sys)
 }
 
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+}
+
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
