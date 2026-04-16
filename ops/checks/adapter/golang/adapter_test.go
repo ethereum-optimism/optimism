@@ -67,16 +67,25 @@ func TestAnalyze_SmallProject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have 3 package nodes
-	nodes := g.NodesOfKind(graph.KindSource)
-	if len(nodes) != 3 {
-		t.Errorf("expected 3 source nodes, got %d", len(nodes))
-		for _, n := range nodes {
-			t.Logf("  node: %s", n.ID)
+	var pkgs, files int
+	for _, n := range g.NodesOfKind(graph.KindSource) {
+		switch n.Granularity {
+		case "package":
+			pkgs++
+		case "file":
+			files++
 		}
 	}
+	// 3 packages (pkga, pkgb, pkgc).
+	if pkgs != 3 {
+		t.Errorf("expected 3 package nodes, got %d", pkgs)
+	}
+	// 4 .go files across the packages: a.go, b.go, c.go, c_test.go.
+	if files != 4 {
+		t.Errorf("expected 4 file nodes, got %d", files)
+	}
 
-	// pkga should have an import edge to pkgb
+	// pkga should have an import edge to pkgb (package-to-package).
 	edges := g.EdgesFrom("go:example.com/testmod/pkga")
 	found := false
 	for _, e := range edges {
@@ -86,6 +95,19 @@ func TestAnalyze_SmallProject(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected import edge from pkga to pkgb")
+	}
+
+	// Spot-check a file node exists with Granularity=file.
+	if n := g.GetNode("go:example.com/testmod/pkga/a.go"); n == nil {
+		t.Error("expected file node go:example.com/testmod/pkga/a.go")
+	} else if n.Granularity != "file" {
+		t.Errorf("file node has Granularity=%q, want 'file'", n.Granularity)
+	}
+
+	// File nodes must not have outgoing import edges — they're
+	// coverage-target leaves, not import participants.
+	if edges := g.EdgesFrom("go:example.com/testmod/pkga/a.go"); len(edges) != 0 {
+		t.Errorf("file node should have no outgoing edges from adapter, got %d", len(edges))
 	}
 }
 

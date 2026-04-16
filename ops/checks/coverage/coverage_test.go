@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -196,5 +197,62 @@ func TestFindOverlaps(t *testing.T) {
 	}
 	if !foundBA {
 		t.Error("expected overlap from B to A")
+	}
+}
+
+// TestStampReport_GoModuleResolution — the Go collector's stamping
+// path maps coverprofile keys (import-path+filename) to filesystem
+// paths via go.mod's module directive, and populates SourceShas for
+// files that resolve.
+func TestStampReport_GoModuleResolution(t *testing.T) {
+	root := t.TempDir()
+
+	// Write go.mod and a source file under the module prefix.
+	if err := os.WriteFile(filepath.Join(root, "go.mod"),
+		[]byte("module github.com/acme/widgets\n\ngo 1.24.0\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	srcDir := filepath.Join(root, "widget", "core")
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, "thing.go"),
+		[]byte("package core\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	modulePath, err := readCoverageGoModulePath(root)
+	if err != nil {
+		t.Fatalf("readCoverageGoModulePath: %v", err)
+	}
+	if modulePath != "github.com/acme/widgets" {
+		t.Errorf("modulePath = %q, want github.com/acme/widgets", modulePath)
+	}
+
+	report := &Report{
+		Test:     "./widget/core/...",
+		Language: "go",
+		Covers: map[string][][2]int{
+			"github.com/acme/widgets/widget/core/thing.go": {{1, 3}},
+			"github.com/stretchr/testify/assert/doc.go":    {{1, 10}}, // external; should be skipped
+		},
+	}
+
+	stampReport(report, "", func(key string) string {
+		if !strings.HasPrefix(key, modulePath+"/") {
+			return ""
+		}
+		return filepath.Join(root, strings.TrimPrefix(key, modulePath+"/"))
+	})
+
+	if report.GeneratedAt == "" {
+		t.Error("GeneratedAt should be stamped")
+	}
+	sha, ok := report.SourceShas["github.com/acme/widgets/widget/core/thing.go"]
+	if !ok || sha == "" {
+		t.Errorf("expected SourceShas entry for internal file, got %+v", report.SourceShas)
+	}
+	if _, ok := report.SourceShas["github.com/stretchr/testify/assert/doc.go"]; ok {
+		t.Error("external module file should not be in SourceShas (not under our module prefix)")
 	}
 }

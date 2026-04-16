@@ -53,11 +53,36 @@ func (c *GoCollector) Collect(rootDir string, testPath string, profile Profile) 
 		Profile:  profile.Name,
 		Covers:   covers,
 	}
-	// Go coverprofile keys are import paths, not filesystem paths, so
-	// we skip SHAs and rely on time-based staleness until we wire up
-	// module-path resolution via go.mod.
-	stampReport(report, "", nil)
+	// Stamp source SHAs by mapping coverprofile keys (import-path +
+	// filename) to filesystem paths via go.mod's module prefix. On
+	// failure — missing go.mod, unparseable, or key outside our module
+	// (stdlib, external) — the file is silently skipped, and freshness
+	// falls back to time-based decay for those edges.
+	modulePath, _ := readCoverageGoModulePath(rootDir)
+	stampReport(report, "", func(key string) string {
+		if modulePath == "" || !strings.HasPrefix(key, modulePath+"/") {
+			return ""
+		}
+		return filepath.Join(rootDir, strings.TrimPrefix(key, modulePath+"/"))
+	})
 	return report, nil
+}
+
+// readCoverageGoModulePath does a minimal go.mod read just for the
+// module directive. Duplicated from the Go adapter to avoid a
+// cross-package dependency on adapter from coverage.
+func readCoverageGoModulePath(rootDir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(rootDir, "go.mod"))
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		}
+	}
+	return "", fmt.Errorf("module directive not found")
 }
 
 // parseGoCoverprofile parses Go coverage profile format.

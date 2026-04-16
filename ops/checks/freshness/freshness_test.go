@@ -117,6 +117,76 @@ func TestAssess_TimeDecay(t *testing.T) {
 	}
 }
 
+// TestAssess_GoFileNodeResolves — a go:<module>/<rel>.go node ID
+// resolves to a filesystem path via the checker's go.mod-derived
+// module prefix, and SHA matching works the same as for Solidity.
+func TestAssess_GoFileNodeResolves(t *testing.T) {
+	root := t.TempDir()
+
+	// Write a go.mod establishing the module path.
+	goMod := "module github.com/acme/widgets\n\ngo 1.24.0\n"
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	// Write the source file under the module prefix.
+	dir := filepath.Join(root, "widget", "core")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	filePath := filepath.Join(dir, "thing.go")
+	if err := os.WriteFile(filePath, []byte("package core\n\nvar X = 1\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Stamp a matching SHA on an edge pointing at this file's node.
+	sha, err := HashFile(filePath)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	edge := &graph.Edge{
+		From: "go:github.com/acme/widgets/test/thingtest",
+		To:   "go:github.com/acme/widgets/widget/core/thing.go",
+		Properties: map[string]any{
+			"source_sha": sha,
+		},
+	}
+
+	c := New(root, testPolicy())
+	if got := c.Assess(edge); got != 1.0 {
+		t.Errorf("matching Go file SHA: Assess = %f, want 1.0", got)
+	}
+
+	// Mismatch: rewrite the file's content, SHA no longer matches stamp.
+	if err := os.WriteFile(filePath, []byte("package core\n\nvar X = 2\n"), 0o644); err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	c2 := New(root, testPolicy()) // fresh checker — avoid cache hit from prior hash
+	if got := c2.Assess(edge); got != 0.3 {
+		t.Errorf("mismatched Go file SHA: Assess = %f, want 0.3", got)
+	}
+}
+
+// TestAssess_GoFileNodeWithoutGoMod — if go.mod is missing, Go file
+// nodes return default (no resolution), so freshness falls back to
+// time-decay. Edges without SHA stamps are treated as fresh (1.0).
+func TestAssess_GoFileNodeWithoutGoMod(t *testing.T) {
+	root := t.TempDir()
+	edge := &graph.Edge{
+		To: "go:github.com/acme/widgets/widget/core/thing.go",
+		Properties: map[string]any{
+			"source_sha": "abc",
+		},
+	}
+	c := New(root, testPolicy())
+	// No go.mod means we can't resolve the Go file node to a path, so
+	// hashForNode returns "" → treated as "file missing/unreadable" →
+	// stale multiplier.
+	if got := c.Assess(edge); got != 0.3 {
+		t.Errorf("unresolvable Go file with stamped SHA: Assess = %f, want stale 0.3", got)
+	}
+}
+
 // TestHashFile_MatchesGit — our blob SHA matches git's algorithm.
 func TestHashFile_MatchesGit(t *testing.T) {
 	// Known git blob SHA for content "hello\n" is ce013625030ba8dba906f756967f9e9ca394464a

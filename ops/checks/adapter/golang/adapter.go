@@ -88,14 +88,20 @@ func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		}
 	}
 
-	// Create internal package nodes.
+	// Create internal package nodes plus one file node per .go file.
+	// File nodes are coverage-target leaves — they don't participate
+	// in import walks, but they anchor coverage edges written by the
+	// coverage ingestor (whose source IDs are go:<import-path>/<file>.go).
+	// This matches the granularity of the raw coverage data and keeps
+	// freshness edge-local (each edge carries a single source_sha for
+	// the specific file it covers).
 	for _, pkg := range packages {
 		if !strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
 			continue
 		}
-		nodeID := "go:" + pkg.ImportPath
-		err := g.AddNode(&graph.Node{
-			ID:          nodeID,
+		pkgNodeID := "go:" + pkg.ImportPath
+		_ = g.AddNode(&graph.Node{
+			ID:          pkgNodeID,
 			Kind:        graph.KindSource,
 			Granularity: "package",
 			Name:        pkg.ImportPath,
@@ -105,8 +111,21 @@ func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
 				"has_tests":  len(pkg.TestGoFiles) > 0,
 			},
 		})
-		if err != nil {
-			continue // duplicate; already added by an earlier entry
+
+		for _, files := range [][]string{pkg.GoFiles, pkg.TestGoFiles} {
+			for _, file := range files {
+				fileNodeID := pkgNodeID + "/" + file
+				_ = g.AddNode(&graph.Node{
+					ID:          fileNodeID,
+					Kind:        graph.KindSource,
+					Granularity: "file",
+					Name:        pkg.ImportPath + "/" + file,
+					Properties: map[string]any{
+						"package": pkgNodeID,
+						"dir":     pkg.Dir,
+					},
+				})
+			}
 		}
 	}
 

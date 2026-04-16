@@ -49,10 +49,13 @@ func (nopChecker) Assess(*graph.Edge) float64 { return 1.0 }
 
 // New returns a Checker that reads files under rootDir to compare
 // current content SHAs against stamps stored on edges. Settings come
-// from policy.Freshness.
+// from policy.Freshness. If a go.mod is present at rootDir, the
+// checker reads its module directive so it can resolve go:<import-
+// path>/<file>.go node IDs back to filesystem paths.
 func New(rootDir string, p *policy.Policy) Checker {
 	return &repoChecker{
 		rootDir:         rootDir,
+		goModulePath:    readGoModulePath(rootDir),
 		staleMultiplier: p.Freshness.StaleMultiplier,
 		maxAge:          time.Duration(p.Freshness.MaxAgeDays) * 24 * time.Hour,
 		cache:           make(map[string]string),
@@ -61,6 +64,7 @@ func New(rootDir string, p *policy.Policy) Checker {
 
 type repoChecker struct {
 	rootDir         string
+	goModulePath    string // module path from go.mod; "" if unavailable
 	staleMultiplier float64
 	maxAge          time.Duration
 
@@ -115,7 +119,7 @@ func (c *repoChecker) Assess(edge *graph.Edge) float64 {
 // hashForNode converts a node ID to a file path and returns its git
 // blob SHA. Empty string indicates the file cannot be read.
 func (c *repoChecker) hashForNode(nodeID string) string {
-	rel := NodeIDToPath(nodeID)
+	rel := c.resolveNodeID(nodeID)
 	if rel == "" {
 		return ""
 	}
@@ -134,6 +138,40 @@ func (c *repoChecker) hashForNode(nodeID string) string {
 	c.cache[abs] = h
 	c.mu.Unlock()
 	return h
+}
+
+// resolveNodeID maps a graph node ID to a repo-relative file path.
+// Handles Solidity file nodes via the package-level NodeIDToPath and
+// Go file nodes (go:<module>/<rel>.go) by stripping the module prefix.
+// Returns "" for nodes that don't identify a single file (package
+// nodes, module nodes, check nodes).
+func (c *repoChecker) resolveNodeID(nodeID string) string {
+	if rel := NodeIDToPath(nodeID); rel != "" {
+		return rel
+	}
+	if c.goModulePath != "" && strings.HasPrefix(nodeID, "go:") && strings.HasSuffix(nodeID, ".go") {
+		path := strings.TrimPrefix(nodeID, "go:")
+		if strings.HasPrefix(path, c.goModulePath+"/") {
+			return strings.TrimPrefix(path, c.goModulePath+"/")
+		}
+	}
+	return ""
+}
+
+// readGoModulePath returns the module directive from rootDir/go.mod,
+// or "" if the file is missing or malformed.
+func readGoModulePath(rootDir string) string {
+	data, err := os.ReadFile(filepath.Join(rootDir, "go.mod"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
+		}
+	}
+	return ""
 }
 
 // NodeIDToPath converts a selector graph node ID to a repo-relative
