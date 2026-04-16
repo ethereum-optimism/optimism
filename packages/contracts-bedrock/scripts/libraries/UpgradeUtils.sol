@@ -63,17 +63,7 @@ library UpgradeUtils {
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
-    /// @dev Gas limits are chosen to provide sufficient headroom while being
-    ///      conservative enough to fit within the upgrade block gas allocation.
-    ///      All values account for deposit intrinsic gas (21,000 base + calldata cost) which is
-    ///      deducted by op-geth before the contract body runs. Formula: body_gas + intrinsic_gas.
-    ///      Gas limits are set to the 1.5x recommended value from mainnet fork profiling.
-    ///      Rationale for each limit:
-    ///      - l2cmDeployment: body 2,997,817 + intrinsic 229,328 = 3,227,145 → 4,840,717 (1.5x)
-    ///      - upgradeExecution: body 1,413,673 + intrinsic 21,432 = 1,435,105 → 2,152,657 (1.5x)
-    ///      - conditionalDeployerDeployment: body 332,338 + intrinsic 43,252 = 375,590 → 563,385 (1.5x)
-    ///      - conditionalDeployerUpgrade: body 28,901 + intrinsic 21,432 = 50,333 → 75,499 (1.5x)
-    ///      - proxyAdminUpgrade: body 11,801 + intrinsic 21,432 = 33,233 → 49,849 (1.5x)
+    /// @dev Gas limits are set to the 1.5x recommended value from mainnet fork profiling.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({

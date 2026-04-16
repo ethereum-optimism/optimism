@@ -354,14 +354,12 @@ contract GenerateNUTBundle is Script {
     /// feature-specific variants (e.g. CGT).
     /// @dev Gas limits are based on actual gas profiling of mainnet fork execution with 1.5x safety margin.
     function _buildImplementationDeploymentConfigs() internal {
-        // Gas profiling: body 274,672 + intrinsic 38,868 = 313,540 → 470,310 (1.5x)
         implementationConfigs["StorageSetter"] = ImplementationConfig({
             name: "StorageSetter",
             artifactPath: "StorageSetter.sol:StorageSetter",
             deploymentGasLimit: 470_310,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("StorageSetter.sol:StorageSetter"), SALT)
         });
-        // Gas profiling: body 1,867,259 + intrinsic 147,892 = 2,015,151 → 3,022,726 (1.5x)
         implementationConfigs["L2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2CrossDomainMessenger",
             artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
@@ -370,7 +368,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2CrossDomainMessenger.sol:L2CrossDomainMessenger"), SALT
             )
         });
-        // Gas profiling: body 1,672,155 + intrinsic 132,996 = 1,805,151 → 2,707,726 (1.5x)
         implementationConfigs["GasPriceOracle"] = ImplementationConfig({
             name: "GasPriceOracle",
             artifactPath: "GasPriceOracle.sol:GasPriceOracle",
@@ -379,7 +376,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle"), SALT
             )
         });
-        // Gas profiling: body 2,530,729 + intrinsic 193,504 = 2,724,233 → 4,086,349 (1.5x)
         implementationConfigs["L2StandardBridge"] = ImplementationConfig({
             name: "L2StandardBridge",
             artifactPath: "L2StandardBridge.sol:L2StandardBridge",
@@ -388,7 +384,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2StandardBridge.sol:L2StandardBridge"), SALT
             )
         });
-        // Gas profiling: body 902,666 + intrinsic 82,236 = 984,902 → 1,477,353 (1.5x)
         implementationConfigs["SequencerFeeVault"] = ImplementationConfig({
             name: "SequencerFeeVault",
             artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
@@ -397,7 +392,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("SequencerFeeVault.sol:SequencerFeeVault"), SALT
             )
         });
-        // Gas profiling: body 2,328,831 + intrinsic 174,232 = 2,503,063 → 3,754,594 (1.5x)
         implementationConfigs["OptimismMintableERC20Factory"] = ImplementationConfig({
             name: "OptimismMintableERC20Factory",
             artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
@@ -406,7 +400,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"), SALT
             )
         });
-        // Gas profiling: body 1,435,159 + intrinsic 118,116 = 1,553,275 → 2,329,912 (1.5x)
         implementationConfigs["L2ERC721Bridge"] = ImplementationConfig({
             name: "L2ERC721Bridge",
             artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
@@ -415,21 +408,18 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
             )
         });
-        // Gas profiling: body 707,672 + intrinsic 68,788 = 776,460 → 1,164,690 (1.5x)
         implementationConfigs["L1Block"] = ImplementationConfig({
             name: "L1Block",
             artifactPath: "L1Block.sol:L1Block",
             deploymentGasLimit: 1_164_690,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
         });
-        // Gas profiling: body 921,439 + intrinsic 83,048 = 1,004,487 → 1,506,730 (1.5x)
         implementationConfigs["L1BlockCGT"] = ImplementationConfig({
             name: "L1BlockCGT",
             artifactPath: "L1BlockCGT.sol:L1BlockCGT",
             deploymentGasLimit: 1_506_730,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
         });
-        // Gas profiling: body 400,841 + intrinsic 47,444 = 448,285 → 672,427 (1.5x)
         implementationConfigs["L2ToL1MessagePasser"] = ImplementationConfig({
             name: "L2ToL1MessagePasser",
             artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
@@ -438,7 +428,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
             )
         });
-        // Gas profiling: body 479,260 + intrinsic 52,664 = 531,924 → 797,886 (1.5x)
         implementationConfigs["L2ToL1MessagePasserCGT"] = ImplementationConfig({
             name: "L2ToL1MessagePasserCGT",
             artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
@@ -447,8 +436,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
             )
         });
-
-        // Gas profiling: body 3,403,240 + intrinsic 249,104 = 3,652,344 → 5,478,516 (1.5x)
         implementationConfigs["OptimismMintableERC721Factory"] = ImplementationConfig({
             name: "OptimismMintableERC721Factory",
             artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
@@ -457,28 +444,24 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), SALT
             )
         });
-        // Gas profiling: body 1,560,795 + intrinsic 127,752 = 1,688,547 → 2,532,820 (1.5x)
         implementationConfigs["L2ProxyAdmin"] = ImplementationConfig({
             name: "L2ProxyAdmin",
             artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
             deploymentGasLimit: 2_532_820,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L2ProxyAdmin.sol:L2ProxyAdmin"), SALT)
         });
-        // Gas profiling: body 900,466 + intrinsic 82,080 = 982,546 → 1,473,819 (1.5x)
         implementationConfigs["BaseFeeVault"] = ImplementationConfig({
             name: "BaseFeeVault",
             artifactPath: "BaseFeeVault.sol:BaseFeeVault",
             deploymentGasLimit: 1_473_819,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("BaseFeeVault.sol:BaseFeeVault"), SALT)
         });
-        // Gas profiling: body 15,467 + intrinsic 82,080 = 97,547 → 146,320 (1.5x)
         implementationConfigs["L1FeeVault"] = ImplementationConfig({
             name: "L1FeeVault",
             artifactPath: "L1FeeVault.sol:L1FeeVault",
             deploymentGasLimit: 146_320,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1FeeVault.sol:L1FeeVault"), SALT)
         });
-        // Gas profiling: body 900,466 + intrinsic 82,080 = 982,546 → 1,473,819 (1.5x)
         implementationConfigs["OperatorFeeVault"] = ImplementationConfig({
             name: "OperatorFeeVault",
             artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
@@ -487,7 +470,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("OperatorFeeVault.sol:OperatorFeeVault"), SALT
             )
         });
-        // Gas profiling: body 464,911 + intrinsic 52,292 = 517,203 → 775,804 (1.5x)
         implementationConfigs["SchemaRegistry"] = ImplementationConfig({
             name: "SchemaRegistry",
             artifactPath: "SchemaRegistry.sol:SchemaRegistry",
@@ -496,21 +478,18 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("SchemaRegistry.sol:SchemaRegistry"), SALT
             )
         });
-        // Gas profiling: body 3,748,159 + intrinsic 284,356 = 4,032,515 → 6,048,772 (1.5x)
         implementationConfigs["EAS"] = ImplementationConfig({
             name: "EAS",
             artifactPath: "EAS.sol:EAS",
             deploymentGasLimit: 6_048_772,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("EAS.sol:EAS"), SALT)
         });
-        // Gas profiling: body 385,894 + intrinsic 45,632 = 431,526 → 647,289 (1.5x)
         implementationConfigs["CrossL2Inbox"] = ImplementationConfig({
             name: "CrossL2Inbox",
             artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
             deploymentGasLimit: 647_289,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("CrossL2Inbox.sol:CrossL2Inbox"), SALT)
         });
-        // Gas profiling: body 966,027 + intrinsic 87,916 = 1,053,943 → 1,580,914 (1.5x)
         implementationConfigs["L2ToL2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2ToL2CrossDomainMessenger",
             artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
@@ -519,7 +498,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"), SALT
             )
         });
-        // Gas profiling: body 441,151 + intrinsic 49,184 = 490,335 → 735,502 (1.5x)
         implementationConfigs["SuperchainETHBridge"] = ImplementationConfig({
             name: "SuperchainETHBridge",
             artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
@@ -528,14 +506,12 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("SuperchainETHBridge.sol:SuperchainETHBridge"), SALT
             )
         });
-        // Gas profiling: body 229,921 + intrinsic 34,840 = 264,761 → 397,141 (1.5x)
         implementationConfigs["ETHLiquidity"] = ImplementationConfig({
             name: "ETHLiquidity",
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
             deploymentGasLimit: 397_141,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT)
         });
-        // Gas profiling: body 215,421 + intrinsic 33,804 = 249,225 → 373,837 (1.5x)
         implementationConfigs["NativeAssetLiquidity"] = ImplementationConfig({
             name: "NativeAssetLiquidity",
             artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
@@ -544,7 +520,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("NativeAssetLiquidity.sol:NativeAssetLiquidity"), SALT
             )
         });
-        // Gas profiling: body 1,102,195 + intrinsic 97,256 = 1,199,451 → 1,799,176 (1.5x)
         implementationConfigs["LiquidityController"] = ImplementationConfig({
             name: "LiquidityController",
             artifactPath: "LiquidityController.sol:LiquidityController",
@@ -553,15 +528,12 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
             )
         });
-        // Gas profiling: body 1,260,547 + intrinsic 106,092 = 1,366,639 → 2,049,958 (1.5x)
         implementationConfigs["FeeSplitter"] = ImplementationConfig({
             name: "FeeSplitter",
             artifactPath: "FeeSplitter.sol:FeeSplitter",
             deploymentGasLimit: 2_049_958,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
         });
-        // Gas profiling: body 7,735 + intrinsic 43,640 = 51,375 → 77,062 (1.5x) — early return when already
-        // deployed by Karst txn
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
@@ -570,7 +542,6 @@ contract GenerateNUTBundle is Script {
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
             )
         });
-        // Gas profiling: body 166,869 + intrinsic 31,228 = 198,097 → 297,145 (1.5x)
         implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
