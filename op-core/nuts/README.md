@@ -14,7 +14,7 @@ Network Upgrade Transaction (NUT) bundles define the L2 deposit transactions tha
 ### Generating a bundle
 
 ```bash
-cd packages/contracts-bedrock
+cd op-contracts
 just generate-nut-bundle
 ```
 

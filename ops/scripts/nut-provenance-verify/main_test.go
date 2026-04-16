@@ -65,7 +65,7 @@ func TestVerifyFromCommit_MatchingBundle(t *testing.T) {
 	root, _ := initGitRepo(t)
 
 	bundleContent := []byte(`{"metadata":{"version":"1.0.0"},"transactions":[]}`)
-	bundlePath := "packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json"
+	bundlePath := "op-contracts/snapshots/upgrades/current-upgrade-bundle.json"
 	commit := writeFileInRepo(t, root, bundlePath, bundleContent)
 
 	// Write the "committed" bundle that verifyFromCommit compares against.
@@ -90,7 +90,7 @@ func TestVerifyFromCommit_MismatchedBundle(t *testing.T) {
 	root, _ := initGitRepo(t)
 
 	bundleContent := []byte(`{"metadata":{"version":"1.0.0"},"transactions":[]}`)
-	bundlePath := "packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json"
+	bundlePath := "op-contracts/snapshots/upgrades/current-upgrade-bundle.json"
 	commit := writeFileInRepo(t, root, bundlePath, bundleContent)
 
 	// Write a different bundle as the "committed" version.
@@ -115,7 +115,7 @@ func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
 
 	// Commit an initial bundle.
 	originalContent := []byte(`{"metadata":{"version":"1.0.0"},"transactions":[]}`)
-	bundlePath := "packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json"
+	bundlePath := "op-contracts/snapshots/upgrades/current-upgrade-bundle.json"
 	commit := writeFileInRepo(t, root, bundlePath, originalContent)
 
 	// The committed bundle matches what the generator will produce.

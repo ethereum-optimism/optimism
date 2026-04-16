@@ -110,7 +110,7 @@ func verifyFromCommit(root string, entry nuts.ForkLockEntry, generate bundleGene
 	}()
 
 	// Generate NUT bundle in the worktree.
-	contractsDir := filepath.Join(worktreeDir, "packages", "contracts-bedrock")
+	contractsDir := filepath.Join(worktreeDir, "op-contracts")
 	if err := generate(contractsDir); err != nil {
 		return fmt.Errorf("generating NUT bundle at commit %s: %w", entry.Commit[:12], err)
 	}

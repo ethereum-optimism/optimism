@@ -53,7 +53,7 @@ The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-g
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash
-   cd packages/contracts-bedrock
+   cd op-contracts
    mise exec -- just build-no-tests
    ```
 

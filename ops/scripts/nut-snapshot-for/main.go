@@ -39,10 +39,10 @@ func run(fork forks.Name) error {
 
 	// Copy current-upgrade-bundle.json → <fork>_nut_bundle.json.
 	// The caller is responsible for running `just generate-nut-bundle` first if needed.
-	srcPath := filepath.Join(root, "packages", "contracts-bedrock", "snapshots", "upgrades", "current-upgrade-bundle.json")
+	srcPath := filepath.Join(root, "op-contracts", "snapshots", "upgrades", "current-upgrade-bundle.json")
 	content, err := os.ReadFile(srcPath)
 	if err != nil {
-		return fmt.Errorf("reading bundle (run 'just generate-nut-bundle' in packages/contracts-bedrock/ first): %w", err)
+		return fmt.Errorf("reading bundle (run 'just generate-nut-bundle' in op-contracts/ first): %w", err)
 	}
 
 	bundleRel := filepath.Join("op-core", "nuts", "bundles", string(fork)+"_nut_bundle.json")
