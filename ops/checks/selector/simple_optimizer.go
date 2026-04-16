@@ -5,25 +5,32 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
+	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
 
-// SimpleOptimizer turns Candidates into ExecutionItems using a fixed
-// tier/cost model.
+// SimpleOptimizer turns Candidates into ExecutionItems using policy-
+// driven tier/cost/knob tables.
 //
 // For each (CheckID, Profile) group of Candidates:
-//   - Candidates are bucketed into signal tiers (high/med/low).
+//   - Candidates are bucketed into signal tiers (from policy.Tiers).
 //   - Each tier becomes one ExecutionItem whose Scope is the list of
 //     scopes in that tier. Binary candidates (Scope="") become one
 //     unscoped ExecutionItem per check.
-//   - Run/skip decision: keep the item if its SkipCost exceeds its
-//     RunCost, where SkipCost = signal × kindPrior × stage.MissCost.
+//   - Run/skip decision: keep the item if SkipCost > RunCost, where
+//     SkipCost = signal × kindPrior × stage.MissCost. At signals above
+//     policy.HighSignal.Threshold, the prior is overridden and the
+//     item is force-run.
 //
-// Prerequisites are then resolved transitively and the plan is ordered
-// into a parallel schedule.
-type SimpleOptimizer struct{}
+// Prerequisites are resolved transitively and the plan is ordered into
+// a parallel schedule bounded by policy.MaxParallelism.
+type SimpleOptimizer struct {
+	policy *policy.Policy
+}
 
-// NewSimpleOptimizer creates a SimpleOptimizer.
-func NewSimpleOptimizer() *SimpleOptimizer { return &SimpleOptimizer{} }
+// NewSimpleOptimizer creates a SimpleOptimizer bound to a policy.
+func NewSimpleOptimizer(p *policy.Policy) *SimpleOptimizer {
+	return &SimpleOptimizer{policy: p}
+}
 
 // Optimize implements Optimizer.
 func (o *SimpleOptimizer) Optimize(
@@ -67,7 +74,7 @@ func (o *SimpleOptimizer) Optimize(
 		return result.Items[i].SkipCost > result.Items[j].SkipCost
 	})
 
-	result.Schedule = ComputeSchedule(result.Items, 0)
+	result.Schedule = ComputeSchedule(result.Items, o.policy.MaxParallelism())
 	result.WallClock = result.Schedule.WallClock
 	result.TotalCPU = result.Schedule.TotalCPU
 
@@ -75,44 +82,33 @@ func (o *SimpleOptimizer) Optimize(
 }
 
 // itemsForGroup produces ExecutionItems for all Candidates sharing a
-// (CheckID, Profile). Scopeable candidates get tiered; binary candidates
-// become a single unscoped item.
+// (CheckID, Profile). Scopeable candidates get tiered per policy;
+// binary candidates become one unscoped item.
 func (o *SimpleOptimizer) itemsForGroup(
 	ct *catalog.CheckType,
 	profile string,
 	cands []Candidate,
 	stage Stage,
 ) []ExecutionItem {
-	// Binary check, or an unscoped (blast-radius / trigger) candidate.
-	// There should be at most one of these per group.
 	if !ct.Scopeable || (len(cands) == 1 && cands[0].Scope == "") {
 		c := cands[0]
 		if !ct.Scopeable {
 			return []ExecutionItem{o.binaryItem(ct, c, stage)}
 		}
-		// Scopeable but unscoped: "run everything" path (blast radius or trigger).
+		// Scopeable but unscoped: blast radius / trigger "run everything".
 		return []ExecutionItem{o.scopeableAllItem(ct, c, profile, stage)}
-	}
-
-	tiers := []struct {
-		minSignal float64
-		label     string
-	}{
-		{0.6, "high"},
-		{0.3, "med"},
-		{0.1, "low"},
 	}
 
 	used := make(map[string]bool)
 	var items []ExecutionItem
-	for _, t := range tiers {
+	for _, tier := range o.policy.Tiers {
 		var tierScopes []string
 		var maxSignal float64
 		for _, c := range cands {
 			if c.Scope == "" || used[c.Scope] {
 				continue
 			}
-			if c.Signal >= t.minSignal {
+			if c.Signal >= tier.MinSignal {
 				tierScopes = append(tierScopes, c.Scope)
 				used[c.Scope] = true
 				if c.Signal > maxSignal {
@@ -124,22 +120,13 @@ func (o *SimpleOptimizer) itemsForGroup(
 			continue
 		}
 
-		config := mapSignalToConfig(ct, maxSignal, stage)
-		cost := estimateScopedRunCost(ct, len(tierScopes), config)
+		config := o.policy.KnobConfig(ct, stage.Name, tier.Label)
+		cost := o.estimateScopedRunCost(ct, len(tierScopes), config)
+		skipCost := o.skipCostFor(ct, maxSignal, stage, cost)
 
-		prior := checkTypePrior(ct.Kind)
-		if maxSignal > 0.6 {
-			prior = 0.7
-		}
-		pFail := maxSignal * prior
-		skipCost := pFail * stage.MissCost
-		if maxSignal > 0.6 {
-			skipCost = cost + 1
-		}
-
-		idSuffix := t.label
+		idSuffix := tier.Label
 		if profile != "" {
-			idSuffix = profile + ":" + t.label
+			idSuffix = profile + ":" + tier.Label
 		}
 
 		items = append(items, ExecutionItem{
@@ -158,7 +145,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 }
 
 func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage Stage) ExecutionItem {
-	prior := checkTypePrior(ct.Kind)
+	prior := o.policy.Prior(ct.Kind)
 	pFail := prior * c.Signal
 	return ExecutionItem{
 		ID:            ct.ID,
@@ -176,7 +163,11 @@ func (o *SimpleOptimizer) scopeableAllItem(
 	profile string,
 	stage Stage,
 ) ExecutionItem {
-	config := mapSignalToConfig(ct, 1.0, stage)
+	tierLabel := ""
+	if t := o.policy.TierFor(1.0); t != nil {
+		tierLabel = t.Label
+	}
+	config := o.policy.KnobConfig(ct, stage.Name, tierLabel)
 	cost := float64(ct.AvgDuration)
 	id := ct.ID + ":all"
 	if profile != "" {
@@ -195,9 +186,24 @@ func (o *SimpleOptimizer) scopeableAllItem(
 	}
 }
 
+// skipCostFor computes the expected regret of skipping this item.
+// Above the high-signal threshold, the item is force-run by returning
+// a skip cost that exceeds RunCost by a hair.
+func (o *SimpleOptimizer) skipCostFor(
+	ct *catalog.CheckType,
+	signal float64,
+	stage Stage,
+	runCost float64,
+) float64 {
+	if signal > o.policy.HighSignal.Threshold {
+		return runCost + 1
+	}
+	prior := o.policy.Prior(ct.Kind)
+	return signal * prior * stage.MissCost
+}
+
 // resolvePrerequisites ensures prerequisite check types are included
-// as items, even if they weren't candidates themselves. Prerequisites
-// run ordering comes from ComputeSchedule.
+// as items, even if they weren't candidates themselves.
 func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Catalog) {
 	selected := make(map[string]bool)
 	for _, item := range result.Items {
@@ -230,74 +236,14 @@ func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Cata
 	}
 }
 
-// --- policy-ish helpers (will move to a policy module in tweak 2) ---
-
-func mapSignalToConfig(ct *catalog.CheckType, signal float64, stage Stage) map[string]any {
-	config := make(map[string]any)
-	for _, knob := range ct.Knobs {
-		switch knob.Name {
-		case "fuzz_runs":
-			config[knob.Name] = fuzzRunsForSignalStage(signal, stage)
-		case "short":
-			config[knob.Name] = signal < 0.8
-		case "race":
-			config[knob.Name] = signal > 0.8 && stage.MissCost >= StageOnPR.MissCost
-		case "timeout":
-			if signal > 0.8 {
-				config[knob.Name] = "30m"
-			} else {
-				config[knob.Name] = "10m"
-			}
-		case "count":
-			config[knob.Name] = 1
-		default:
-			config[knob.Name] = knob.Default
-		}
-	}
-	return config
-}
-
-func fuzzRunsForSignalStage(signal float64, stage Stage) int {
-	var high, med, low int
-	switch {
-	case stage.MissCost >= StageDevelop.MissCost:
-		high, med, low = 20000, 1024, 128
-	case stage.MissCost >= StageMergeQueue.MissCost:
-		high, med, low = 1024, 128, 64
-	case stage.MissCost >= StageOnPR.MissCost:
-		high, med, low = 128, 64, 8
-	case stage.MissCost >= StageOnCommit.MissCost:
-		high, med, low = 64, 8, 1
-	default:
-		high, med, low = 1, 1, 1
-	}
-
-	switch {
-	case signal > 0.6:
-		return high
-	case signal > 0.3:
-		return med
-	default:
-		return low
-	}
-}
-
-func checkTypePrior(kind string) float64 {
-	switch kind {
-	case "lint":
-		return 0.8
-	case "build":
-		return 0.5
-	case "test":
-		return 0.3
-	case "check":
-		return 0.4
-	default:
-		return 0.3
-	}
-}
-
-func estimateScopedRunCost(ct *catalog.CheckType, numScopes int, config map[string]any) float64 {
+// estimateScopedRunCost scales the per-unit duration by the number of
+// scopes and fuzz_runs. Marginal cost per extra scope is 30% of base
+// (amortized compile + loop overhead).
+func (o *SimpleOptimizer) estimateScopedRunCost(
+	ct *catalog.CheckType,
+	numScopes int,
+	config map[string]any,
+) float64 {
 	if ct.PerUnitDuration <= 0 {
 		return float64(ct.AvgDuration)
 	}

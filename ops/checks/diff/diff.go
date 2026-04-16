@@ -8,20 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
 
-// blastRadiusPatterns are file patterns that affect everything.
-// Aligned with ops/check-changed/main.py REBUILD_ALL_PATTERNS + GO_PATTERNS.
-var blastRadiusPatterns = []string{
-	".circleci/",
-	".github/",
-	"package.json",
-	"mise.toml",
-	"ops/check-changed/",
-	"go.mod",
-	"go.sum",
-	"foundry.toml",
-	"Dockerfile",
-}
-
 // Hunk represents a changed region within a file.
 type Hunk struct {
 	OldStart int
@@ -311,11 +297,13 @@ func FilesToNodeIDs(g *graph.Graph, files []string) (nodeIDs []string, unknown [
 	return
 }
 
-// BlastRadiusFiles returns true if any of the changed files are "blast radius everything" files.
-func BlastRadiusFiles(files []string) (bool, []string) {
+// BlastRadiusFiles returns the changed files that match any blast-radius pattern.
+// Patterns are provided by the caller (typically from policy). A pattern matches
+// when it is a path prefix (e.g. ".circleci/") or an exact path (e.g. "go.mod").
+func BlastRadiusFiles(files, patterns []string) (bool, []string) {
 	var matches []string
 	for _, f := range files {
-		for _, pattern := range blastRadiusPatterns {
+		for _, pattern := range patterns {
 			if strings.HasPrefix(f, pattern) || f == pattern || strings.TrimSuffix(pattern, "/") == f {
 				matches = append(matches, f)
 				break

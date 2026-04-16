@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
 
 // Resolve is Phase 1 of selection. Given the diff and the graph, it
@@ -26,13 +27,18 @@ import (
 //     the diff's changed lines.
 //  4. Import-based fallback (scopeable or binary): walk the static
 //     import graph from changed nodes.
-func Resolve(g *graph.Graph, diffs []diff.FileDiff, cat *catalog.Catalog) []Candidate {
+func Resolve(
+	g *graph.Graph,
+	diffs []diff.FileDiff,
+	cat *catalog.Catalog,
+	pol *policy.Policy,
+) []Candidate {
 	filePaths := extractPaths(diffs)
 	if len(filePaths) == 0 {
 		return nil
 	}
 
-	if isBlast, files := diff.BlastRadiusFiles(filePaths); isBlast {
+	if isBlast, files := diff.BlastRadiusFiles(filePaths, pol.BlastRadius); isBlast {
 		return blastRadiusCandidates(cat, files)
 	}
 
@@ -42,7 +48,7 @@ func Resolve(g *graph.Graph, diffs []diff.FileDiff, cat *catalog.Catalog) []Cand
 	var out []Candidate
 	for i := range cat.CheckTypes {
 		ct := &cat.CheckTypes[i]
-		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines)...)
+		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol)...)
 	}
 	return out
 }
@@ -89,6 +95,7 @@ func candidatesForCheck(
 	filePaths []string,
 	changedIDs []string,
 	changedLines map[string]map[int]bool,
+	pol *policy.Policy,
 ) []Candidate {
 	// Trigger match: for non-scopeable checks, a glob hit makes it
 	// a candidate with signal=1.0 regardless of graph reachability.
@@ -109,7 +116,7 @@ func candidatesForCheck(
 	}
 
 	if ct.Scopeable {
-		if cands := coverageCandidates(g, ct, changedIDs, changedLines); len(cands) > 0 {
+		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol); len(cands) > 0 {
 			return cands
 		}
 		return importScopeCandidates(g, ct, changedIDs)
@@ -121,15 +128,17 @@ func candidatesForCheck(
 
 // coverageCandidates emits one Candidate per (test, profile) whose
 // coverage line ranges intersect the diff's changed lines. Signal comes
-// from the fraction of changed lines the test touches, floored at 0.5
-// for any hit (rewards hit/no-hit discrimination over fine-grained
-// fractions — see 76967a8b5f).
+// from the fraction of changed lines the test touches, floored at
+// policy.Coverage.SignalFloor for any hit (rewards hit/no-hit
+// discrimination over fine-grained fractions — see 76967a8b5f).
 func coverageCandidates(
 	g *graph.Graph,
 	ct *catalog.CheckType,
 	changedIDs []string,
 	changedLines map[string]map[int]bool,
+	pol *policy.Policy,
 ) []Candidate {
+	floor := pol.Coverage.SignalFloor
 	if len(changedLines) == 0 {
 		return nil
 	}
@@ -182,7 +191,9 @@ func coverageCandidates(
 
 			totalChanged := len(fileChanged)
 			hitFraction := float64(hitCount) / float64(totalChanged)
-			signal := (0.5 + 0.5*hitFraction) * edge.Confidence
+			// Signal rises from `floor` (any hit) to `floor + (1-floor)*hitFraction`
+			// when every changed line is covered.
+			signal := (floor + (1-floor)*hitFraction) * edge.Confidence
 			k := key{edge.From, profile}
 			if e, ok := best[k]; !ok || signal > e.signal {
 				best[k] = entry{signal: signal, hitLines: hitCount, totalLines: totalChanged}

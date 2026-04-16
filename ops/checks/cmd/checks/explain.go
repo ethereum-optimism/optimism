@@ -15,6 +15,7 @@ func cmdExplain(args []string) error {
 	fs := flag.NewFlagSet("explain", flag.ExitOnError)
 	graphPath := fs.String("graph", "ops/checks/graph.json", "path to graph file")
 	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
+	policyPath := fs.String("policy", "", "optional policy override YAML")
 	fs.Parse(args)
 
 	if fs.NArg() == 0 {
@@ -30,6 +31,10 @@ func cmdExplain(args []string) error {
 	cat, err := catalog.Load(*catalogPath)
 	if err != nil {
 		return fmt.Errorf("loading catalog: %w", err)
+	}
+	pol, err := loadPolicy(*policyPath)
+	if err != nil {
+		return err
 	}
 
 	// Raw graph view — direct edges and reachable checks.
@@ -58,7 +63,7 @@ func cmdExplain(args []string) error {
 	// diff and print the resulting candidates with full provenance. This
 	// is what the selector would actually reason about.
 	diffs := []diff.FileDiff{{Path: filePath}}
-	candidates := selector.Resolve(g, diffs, cat)
+	candidates := selector.Resolve(g, diffs, cat, pol)
 	if len(candidates) == 0 {
 		fmt.Println("No candidates produced for this file.")
 		return nil

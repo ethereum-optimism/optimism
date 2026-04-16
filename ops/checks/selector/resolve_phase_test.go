@@ -7,7 +7,17 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
+
+func testPolicy(t *testing.T) *policy.Policy {
+	t.Helper()
+	p, err := policy.Load()
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	return p
+}
 
 // testGraph builds a minimal graph: one source file, one test file,
 // a coverage edge between them tagged with a profile, one check type
@@ -86,7 +96,7 @@ func TestResolve_CoverageBasedCandidate(t *testing.T) {
 		}},
 	}}
 
-	cands := Resolve(g, diffs, cat)
+	cands := Resolve(g, diffs, cat, testPolicy(t))
 	if len(cands) != 1 {
 		t.Fatalf("expected 1 candidate, got %d", len(cands))
 	}
@@ -123,7 +133,7 @@ func TestResolve_NoIntersectionNoCandidate(t *testing.T) {
 		}},
 	}}
 
-	cands := Resolve(g, diffs, cat)
+	cands := Resolve(g, diffs, cat, testPolicy(t))
 	// Coverage path returns nothing; import-fallback runs but won't find
 	// a scope for the source file (no src/ → test/ derivation hits).
 	for _, c := range cands {
@@ -139,7 +149,7 @@ func TestResolve_BlastRadius(t *testing.T) {
 	g, cat := testGraph(t)
 
 	diffs := []diff.FileDiff{{Path: "foundry.toml"}}
-	cands := Resolve(g, diffs, cat)
+	cands := Resolve(g, diffs, cat, testPolicy(t))
 	if len(cands) != len(cat.CheckTypes) {
 		t.Fatalf("expected 1 candidate per check type (%d), got %d", len(cat.CheckTypes), len(cands))
 	}
@@ -165,8 +175,13 @@ func TestOptimize_PureFromCandidates(t *testing.T) {
 		Signal:  0.95,
 	}}
 
-	opt := NewSimpleOptimizer()
-	res, err := opt.Optimize(cands, StageOnPR, cat)
+	pol := testPolicy(t)
+	prStage, err := pol.Stage("pr")
+	if err != nil {
+		t.Fatalf("pr stage: %v", err)
+	}
+	opt := NewSimpleOptimizer(pol)
+	res, err := opt.Optimize(cands, prStage, cat)
 	if err != nil {
 		t.Fatalf("Optimize: %v", err)
 	}

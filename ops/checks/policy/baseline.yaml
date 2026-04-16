@@ -1,0 +1,129 @@
+# baseline.yaml — canonical default policy for the checks engine.
+#
+# Every tunable the selector reasons about lives here. Values come from
+# operator judgment, not measurement; they are starting points to be
+# calibrated against CI history. Learned overrides land in
+# policy.learned.yaml (auto-generated) which deep-merges on top.
+#
+# Users can also pass an explicit --policy file that merges on top of
+# baseline (and, if present, learned).
+
+# Development lifecycle stages, ordered from cheapest-to-miss to most
+# expensive. miss_cost is the seconds of engineer time wasted when a
+# failure slips past this stage.
+stages:
+  - { name: save,        miss_cost: 10 }
+  - { name: commit,      miss_cost: 300 }
+  - { name: pr,          miss_cost: 1800 }
+  - { name: merge_queue, miss_cost: 7200 }
+  - { name: develop,     miss_cost: 86400 }
+
+# Files whose change force every check to run. Upstream-of-everything
+# paths: CI config, toolchains, lockfiles, build system.
+blast_radius_patterns:
+  - .circleci/
+  - .github/
+  - package.json
+  - mise.toml
+  - ops/check-changed/
+  - go.mod
+  - go.sum
+  - foundry.toml
+  - Dockerfile
+
+# Coverage-derived signal floor. A single covered line intersecting the
+# diff produces signal = signal_floor, scaling up toward 1.0 as hit
+# fraction grows. Prevents tiny-intersection tests from being skipped
+# when they still exercise relevant code.
+coverage:
+  signal_floor: 0.5
+
+# Per-kind prior probability of failure given relevance. Used as
+# prior × signal = p(fail). Falls back to `default` if kind is unknown.
+priors_by_kind:
+  lint:    0.8
+  build:   0.5
+  test:    0.3
+  check:   0.4
+  default: 0.3
+
+# High-signal override: when aggregated signal exceeds threshold, use
+# prior_override (a firmer "this will matter") and force-run the item
+# rather than weighing skip_cost vs run_cost.
+high_signal:
+  threshold:      0.6
+  prior_override: 0.7
+
+# Signal-tier bands. Used for grouping scopeable candidates into
+# ExecutionItems (one item per tier per profile) and for knob-policy
+# lookup. Tiers are evaluated in declaration order; first match wins,
+# so list highest min_signal first.
+tiers:
+  - { min_signal: 0.8, label: very_high }
+  - { min_signal: 0.6, label: high }
+  - { min_signal: 0.3, label: med }
+  - { min_signal: 0.1, label: low }
+
+# Scheduler concurrency cap. Bounds slot-based dispatch per layer.
+schedule:
+  max_parallelism: 8
+
+# Per-check knob policy. For each check's declared knob, the value is
+# looked up by (stage, tier_label); if unspecified, `default` applies.
+# Cells not listed fall through to default.
+knob_policies:
+  forge-test:
+    fuzz_runs:
+      default: 1
+      by_stage:
+        commit:
+          high: 64
+          med: 8
+          low: 1
+        pr:
+          very_high: 128
+          high: 128
+          med: 64
+          low: 8
+        merge_queue:
+          very_high: 1024
+          high: 1024
+          med: 128
+          low: 64
+        develop:
+          very_high: 20000
+          high: 20000
+          med: 1024
+          low: 128
+
+  go-test:
+    # -short defaults to true (cheap fast path). Disable at very_high
+    # signal everywhere: we want the full test body for likely-failing
+    # paths.
+    short:
+      default: true
+      by_stage:
+        save:        { very_high: false }
+        commit:      { very_high: false }
+        pr:          { very_high: false }
+        merge_queue: { very_high: false }
+        develop:     { very_high: false }
+
+    # -race is expensive; only worth it at very_high signal on pr+.
+    race:
+      default: false
+      by_stage:
+        pr:          { very_high: true }
+        merge_queue: { very_high: true }
+        develop:     { very_high: true }
+
+    # Longer timeout when we expect to exercise heavier paths.
+    timeout:
+      default: "10m"
+      by_stage:
+        pr:          { very_high: "30m" }
+        merge_queue: { very_high: "30m" }
+        develop:     { very_high: "30m" }
+
+    count:
+      default: 1

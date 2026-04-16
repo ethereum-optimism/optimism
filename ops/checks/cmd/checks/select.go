@@ -18,11 +18,16 @@ func cmdSelect(args []string) error {
 	stageName := fs.String("stage", "commit", "development stage (save, commit, pr, merge_queue, develop)")
 	graphPath := fs.String("graph", "ops/checks/graph.json", "path to graph file")
 	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
+	policyPath := fs.String("policy", "", "optional policy override YAML (stacks on embedded baseline + learned.yaml)")
 	diffFile := fs.String("diff", "", "path to diff file (default: stdin)")
 	format := fs.String("format", "text", "output format (text, json)")
 	fs.Parse(args)
 
-	stage, err := selector.StageByName(*stageName)
+	pol, err := loadPolicy(*policyPath)
+	if err != nil {
+		return err
+	}
+	stage, err := pol.Stage(*stageName)
 	if err != nil {
 		return err
 	}
@@ -61,10 +66,10 @@ func cmdSelect(args []string) error {
 	}
 
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
-	candidates := selector.Resolve(g, diffs, cat)
+	candidates := selector.Resolve(g, diffs, cat, pol)
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
-	optimizer := selector.NewSimpleOptimizer()
+	optimizer := selector.NewSimpleOptimizer(pol)
 	result, err := optimizer.Optimize(candidates, stage, cat)
 	if err != nil {
 		return fmt.Errorf("optimizing: %w", err)
