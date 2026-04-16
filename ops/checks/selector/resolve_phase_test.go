@@ -210,6 +210,89 @@ func TestResolve_StaleCoverageDownweighted(t *testing.T) {
 	}
 }
 
+// TestResolve_CorrelationEdgeProducesBinaryCandidate — a CI-history
+// correlation edge on a binary check surfaces as a Candidate carrying
+// SourceCIHistory provenance, independent of coverage.
+func TestResolve_CorrelationEdgeProducesBinaryCandidate(t *testing.T) {
+	g, _ := testGraph(t)
+
+	// Add a binary check and a correlation edge to it.
+	if err := g.AddNode(&graph.Node{ID: "check:snapshots-check", Kind: graph.KindCheck, Name: "snapshots-check"}); err != nil {
+		t.Fatalf("add check: %v", err)
+	}
+	if err := g.AddEdge(&graph.Edge{
+		From:       "sol:src/L1/OptimismPortal.sol",
+		To:         "check:snapshots-check",
+		Kind:       graph.EdgeObservedCorrelation,
+		Source:     graph.SourceCIHistory,
+		Strength:   0.8, // precision
+		Confidence: 1.0, // enough samples
+		Properties: map[string]any{
+			"observations": 25,
+			"failures":     20,
+			"precision":    0.8,
+		},
+	}); err != nil {
+		t.Fatalf("add correlation: %v", err)
+	}
+
+	// Extend the catalog with the binary check.
+	cat, err := catalog.Parse([]byte(`
+check_types:
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_flag: "--match-path"
+    scope_type: paths
+    avg_duration: 3600
+    per_unit_duration: 60
+  - id: snapshots-check
+    name: snapshots-check
+    kind: check
+    language: solidity
+    command: just snapshots-check
+    scopeable: false
+    avg_duration: 60
+profiles:
+  - name: main
+`))
+	if err != nil {
+		t.Fatalf("parse catalog: %v", err)
+	}
+
+	diffs := []diff.FileDiff{{
+		Path:  "packages/contracts-bedrock/src/L1/OptimismPortal.sol",
+		Hunks: []diff.Hunk{{NewStart: 45, NewCount: 1}},
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	var snap *Candidate
+	for i := range cands {
+		if cands[i].CheckID == "snapshots-check" {
+			snap = &cands[i]
+		}
+	}
+	if snap == nil {
+		t.Fatalf("expected snapshots-check candidate, got: %+v", cands)
+	}
+	if snap.Signal != 0.8 {
+		t.Errorf("signal = %f, want 0.8 (strength*confidence)", snap.Signal)
+	}
+	foundCI := false
+	for _, p := range snap.Provenance {
+		if p.Source == graph.SourceCIHistory {
+			foundCI = true
+		}
+	}
+	if !foundCI {
+		t.Errorf("expected SourceCIHistory in provenance, got: %+v", snap.Provenance)
+	}
+}
+
 // TestOptimize_PureFromCandidates — Optimizer should produce items
 // without reaching for a graph. We pass a synthetic candidate list.
 func TestOptimize_PureFromCandidates(t *testing.T) {

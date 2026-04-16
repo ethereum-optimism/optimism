@@ -42,6 +42,8 @@ func main() {
 		err = cmdInfo(os.Args[2:])
 	case "coverage":
 		err = cmdCoverage(os.Args[2:])
+	case "ingest":
+		err = cmdIngest(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -68,6 +70,7 @@ Commands:
   explain   Show which checks are affected by a file and why
   info      Print graph statistics
   coverage  Collect and ingest test coverage data
+  ingest    Ingest external signals (ci-history) into graph + learned policy
 
 Examples:
   checks build

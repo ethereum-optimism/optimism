@@ -128,8 +128,32 @@ func candidatesForCheck(
 		return importScopeCandidates(g, ct, changedIDs)
 	}
 
-	// Binary check: reachable via the import graph?
-	return importBinaryCandidates(g, ct, changedIDs)
+	// Binary check: aggregate historical correlation (if any) with
+	// structural import reachability, taking the stronger signal and
+	// union-ing their provenance.
+	imports := importBinaryCandidates(g, ct, changedIDs)
+	correlation := correlationCandidates(g, ct, changedIDs, fresh)
+	return mergeBinaryCandidates(imports, correlation)
+}
+
+// mergeBinaryCandidates combines at most one import-based and one
+// correlation-based candidate for the same check, taking max signal
+// and unioning provenance so both sources show up in `explain`.
+func mergeBinaryCandidates(imports, correlation []Candidate) []Candidate {
+	switch {
+	case len(imports) == 0 && len(correlation) == 0:
+		return nil
+	case len(imports) == 0:
+		return correlation
+	case len(correlation) == 0:
+		return imports
+	}
+	primary, secondary := imports[0], correlation[0]
+	if secondary.Signal > primary.Signal {
+		primary, secondary = secondary, primary
+	}
+	primary.Provenance = append(primary.Provenance, secondary.Provenance...)
+	return []Candidate{primary}
 }
 
 // coverageCandidates emits one Candidate per (test, profile) whose
@@ -372,6 +396,64 @@ func importBinaryCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []
 		}}
 	}
 	return nil
+}
+
+// correlationCandidates emits a Candidate whose signal comes from
+// EdgeObservedCorrelation edges written by CI-history ingestion. For
+// each changed node, the strongest outgoing correlation edge to this
+// check's node becomes the candidate's signal; freshness is applied
+// like it is for coverage.
+func correlationCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []string, fresh freshness.Checker) []Candidate {
+	checkNodeID := "check:" + ct.ID
+	var bestSignal float64
+	var bestProps map[string]any
+	var bestFreshness float64
+
+	for _, nodeID := range changedIDs {
+		for _, edge := range g.EdgesFrom(nodeID) {
+			if edge.Kind != graph.EdgeObservedCorrelation || edge.To != checkNodeID {
+				continue
+			}
+			fr := fresh.Assess(edge)
+			signal := edge.Strength * edge.Confidence * fr
+			if signal > bestSignal {
+				bestSignal = signal
+				bestProps = edge.Properties
+				bestFreshness = fr
+			}
+		}
+	}
+
+	if bestSignal == 0 {
+		return nil
+	}
+
+	raw := map[string]any{}
+	if bestProps != nil {
+		if v, ok := bestProps["observations"]; ok {
+			raw["observations"] = v
+		}
+		if v, ok := bestProps["failures"]; ok {
+			raw["failures"] = v
+		}
+		if v, ok := bestProps["precision"]; ok {
+			raw["precision"] = v
+		}
+	}
+	if bestFreshness < 1.0 {
+		raw["freshness"] = bestFreshness
+	}
+
+	return []Candidate{{
+		CheckID: ct.ID,
+		Signal:  bestSignal,
+		Provenance: []SignalContribution{{
+			Source:       graph.SourceCIHistory,
+			EdgeKind:     graph.EdgeObservedCorrelation,
+			Contribution: bestSignal,
+			Raw:          raw,
+		}},
+	}}
 }
 
 // --- helpers moved from simple_optimizer.go ---
