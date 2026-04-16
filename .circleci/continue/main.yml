@@ -2481,6 +2481,9 @@ workflows:
                 - OPCM_V2,ZK_DISPUTE_GAME
                 - OPCM_V2,CANNON_KONA
                 - OPCM_V2,SUPER_ROOT_GAMES_MIGRATION
+                - L2CM
+                - L2CM,CUSTOM_GAS_TOKEN
+                - L2CM,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3243,6 +3246,9 @@ workflows:
                 - OPCM_V2,ZK_DISPUTE_GAME
                 - OPCM_V2,CANNON_KONA
                 - OPCM_V2,SUPER_ROOT_GAMES_MIGRATION
+                - L2CM
+                - L2CM,CUSTOM_GAS_TOKEN
+                - L2CM,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3365,6 +3371,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - slack
       - contracts-bedrock-checks-fast:
+          name: contracts-bedrock-checks-fast-feature-tests
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3378,7 +3385,7 @@ workflows:
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
-            - contracts-bedrock-checks-fast: terminal
+            - contracts-bedrock-checks-fast-feature-tests: terminal
           context:
             - circleci-api-token
 

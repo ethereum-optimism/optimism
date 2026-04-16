@@ -88,8 +88,8 @@
     "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xf0e3dbf5a849fae137eec83487d781496edb59f8aa5ae8420f8cb5c805743196",
-    "sourceCodeHash": "0xc27daa6b6b4617d8c10aaed76fb26e623774639770242212b6174362351d2643"
+    "initCodeHash": "0xfe407eb6042feeeccc234a15535ff63f8e7082f00e5433a86f06986908df1a32",
+    "sourceCodeHash": "0x70865896dad657eefedf49582f463fb8909d5a0d99791dcc22017580e4d05758"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -128,8 +128,8 @@
     "sourceCodeHash": "0xbea4229c5c6988243dbc7cf5a086ddd412fe1f2903b8e20d56699fec8de0c2c9"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
-    "initCodeHash": "0x8f46415faeff0f507158e068e6435af548dd9324f49a3d988cbf157f2a992efd",
-    "sourceCodeHash": "0xce9e7edc12f65c4f307ebd3ce58d468b872ee61646a2a62cd891512839089ac2"
+    "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
+    "sourceCodeHash": "0xd5404e1e7ed6ea562f1fae8d1681e5eb487cee82923de73f759ba847000671da"
   },
   "src/L2/NativeAssetLiquidity.sol:NativeAssetLiquidity": {
     "initCodeHash": "0x04b176e5d484e54173a5644c833117c5fd9f055dce8678be9ec4cf07c0f01f00",
