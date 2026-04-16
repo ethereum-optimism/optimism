@@ -29,9 +29,6 @@ uint256 constant EXPECTED_MAX_CLOCK_DURATION = 302400;
 /// for the OPContractsManagerStandardValidator to split the bytecode across multiple
 /// contracts to meet the EIP-170 bytecode size limit
 contract StandardValidatorUtils {
-    constructor() { }
-
-    /// TODO: Duplicating for refactor
     function internalRequire(
         bool _condition,
         string memory _message,
