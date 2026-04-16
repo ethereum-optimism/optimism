@@ -223,10 +223,6 @@
     "initCodeHash": "0x42f82f347d7f1e118fcfa34bec6b717ed9f1287e77387974fca4597dca21ee4e",
     "sourceCodeHash": "0x77c185280c390308de0ada1cdd7022df44f3306a9c646c1c42aac1faecdd5245"
   },
-  "src/dispute/zk/SP1Adapter.sol:SP1Adapter": {
-    "initCodeHash": "0x86011bf7f4fdd47b9c259c2ce659729e5ae27fb2c1e0ad52ae3dd51506b74a1a",
-    "sourceCodeHash": "0x2c1964d7624ca4d1b84974ed60d2ab898e17ceb3add9013f61643fde90e9f18a"
-  },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
     "initCodeHash": "0x3bc850847e9972890c6a4695a47c2553a3095718504157b35875339ee7d7b19e",
     "sourceCodeHash": "0x0241cfb98cb01b65e7c882ee1d830c2d398b0ddbaa9aa98a45429668b91051ef"
