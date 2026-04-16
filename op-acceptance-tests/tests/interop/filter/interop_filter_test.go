@@ -94,6 +94,19 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 // TestInteropFilter_FailsafeLifecycle verifies the full failsafe lifecycle:
 // interop txs succeed normally, are blocked when failsafe is enabled,
 // and recover after failsafe is disabled.
+//
+// NOT TESTED: txpool eviction of pending interop txs on failsafe activation.
+// Both op-reth (poll_failsafe) and op-geth (startBackgroundInteropFailsafeDetection)
+// have background tasks that evict interop txs from the pool when failsafe
+// transitions from disabled to enabled. Testing this reliably is difficult because
+// it requires stopping the sequencer to prevent block inclusion, but StopSequencer
+// only stops the op-node from requesting new payloads — an already in-flight
+// engine API payload (forkchoiceUpdated → getPayload → newPayload) can still land
+// after StopSequencer returns. This creates a race where the tx may be included in
+// a block before failsafe eviction runs, causing flaky assertions. Reliably testing
+// eviction would require either a deterministic block builder that bypasses the
+// mempool (which defeats the purpose) or an engine API hook to block payload
+// completion (which doesn't exist in the test framework).
 func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := setupInteropFilterTest(t)
