@@ -4,11 +4,10 @@
 //!
 //! [specs]: https://specs.optimism.io/interop/derivation.html#network-upgrade-transactions
 
-use alloc::string::String;
 use alloy_eips::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, address, b256, hex};
 use kona_protocol::Predeploys;
-use op_alloy_consensus::{TxDeposit, UpgradeDepositSource};
+use op_alloy_consensus::{TxDeposit, upgrade_source_hash};
 
 use crate::Hardfork;
 
@@ -72,59 +71,47 @@ impl Interop {
 
     /// Returns the source hash for the `CrossL2Inbox` contract deployment transaction.
     pub fn deploy_cross_l2_inbox_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: CrossL2Inbox Deployment") }
-            .source_hash()
+        upgrade_source_hash("Interop: CrossL2Inbox Deployment")
     }
 
     /// Returns the source hash for the `CrossL2Inbox` proxy upgrade transaction.
     pub fn upgrade_cross_l2_inbox_proxy_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: CrossL2Inbox Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Interop: CrossL2Inbox Proxy Update")
     }
 
     /// Returns the source hash for the `L2ToL2CrossDomainMessenger` deployment transaction.
     pub fn deploy_l2_to_l2_xdm_source() -> B256 {
-        UpgradeDepositSource {
-            intent: String::from("Interop: L2ToL2CrossDomainMessenger Deployment"),
-        }
-        .source_hash()
+        upgrade_source_hash("Interop: L2ToL2CrossDomainMessenger Deployment")
     }
 
     /// Returns the source hash for the `L2ToL2CrossDomainMessenger` proxy upgrade transaction.
     pub fn upgrade_l2_to_l2_xdm_proxy_source() -> B256 {
-        UpgradeDepositSource {
-            intent: String::from("Interop: L2ToL2CrossDomainMessenger Proxy Update"),
-        }
-        .source_hash()
+        upgrade_source_hash("Interop: L2ToL2CrossDomainMessenger Proxy Update")
     }
 
     /// Returns the source hash for the `SuperchainETHBridge` deployment transaction.
     pub fn deploy_superchain_eth_bridge_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: SuperchainETHBridge Deployment") }
-            .source_hash()
+        upgrade_source_hash("Interop: SuperchainETHBridge Deployment")
     }
 
     /// Returns the source hash for the `SuperchainETHBridge` proxy upgrade transaction.
     pub fn upgrade_superchain_eth_bridge_proxy_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: SuperchainETHBridge Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Interop: SuperchainETHBridge Proxy Update")
     }
 
     /// Returns the source hash for the `ETHLiquidity` deployment transaction.
     pub fn deploy_eth_liquidity_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Deployment") }
-            .source_hash()
+        upgrade_source_hash("Interop: ETHLiquidity Deployment")
     }
 
     /// Returns the source hash for the `ETHLiquidity` proxy upgrade transaction.
     pub fn upgrade_eth_liquidity_proxy_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Interop: ETHLiquidity Proxy Update")
     }
 
     /// Returns the source hash for the `ETHLiquidity` funding transaction.
     pub fn fund_eth_liquidity_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Funding") }.source_hash()
+        upgrade_source_hash("Interop: ETHLiquidity Funding")
     }
 
     /// Returns the `CrossL2Inbox` deployment bytecode.

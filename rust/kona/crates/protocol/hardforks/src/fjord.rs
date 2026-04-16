@@ -1,10 +1,10 @@
 //! Module containing a [`TxDeposit`] builder for the Fjord network upgrade transactions.
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, address, hex};
 use kona_protocol::Predeploys;
-use op_alloy_consensus::{TxDeposit, UpgradeDepositSource};
+use op_alloy_consensus::{TxDeposit, upgrade_source_hash};
 
 use crate::Hardfork;
 
@@ -40,20 +40,17 @@ impl Fjord {
 
     /// Returns the source hash for the deployment of the Fjord Gas Price Oracle.
     pub fn deploy_fjord_gas_price_oracle_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Deployment") }
-            .source_hash()
+        upgrade_source_hash("Fjord: Gas Price Oracle Deployment")
     }
 
     /// Returns the source hash for the update of the Fjord Gas Price Oracle.
     pub fn update_fjord_gas_price_oracle_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Fjord: Gas Price Oracle Proxy Update")
     }
 
-    /// [`UpgradeDepositSource`] for setting the Fjord Gas Price Oracle.
+    /// Returns the source hash for the Fjord Gas Price Oracle activation.
     pub fn enable_fjord_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Set Fjord") }
-            .source_hash()
+        upgrade_source_hash("Fjord: Gas Price Oracle Set Fjord")
     }
 
     /// Returns the fjord gas price oracle deployment bytecode.

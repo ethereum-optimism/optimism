@@ -1,10 +1,10 @@
 //! Module containing a [`TxDeposit`] builder for the Ecotone network upgrade transactions.
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, address, hex};
 use kona_protocol::Predeploys;
-use op_alloy_consensus::{TxDeposit, UpgradeDepositSource};
+use op_alloy_consensus::{TxDeposit, upgrade_source_hash};
 
 use crate::Hardfork;
 
@@ -52,39 +52,32 @@ impl Ecotone {
 
     /// Returns the source hash for the deployment of the l1 block contract.
     pub fn deploy_l1_block_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Ecotone: L1 Block Deployment") }.source_hash()
+        upgrade_source_hash("Ecotone: L1 Block Deployment")
     }
 
     /// Returns the source hash for the deployment of the gas price oracle contract.
     pub fn deploy_gas_price_oracle_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Deployment") }
-            .source_hash()
+        upgrade_source_hash("Ecotone: Gas Price Oracle Deployment")
     }
 
     /// Returns the source hash for the update of the l1 block proxy.
     pub fn update_l1_block_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Ecotone: L1 Block Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Ecotone: L1 Block Proxy Update")
     }
 
     /// Returns the source hash for the update of the gas price oracle proxy.
     pub fn update_gas_price_oracle_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Proxy Update") }
-            .source_hash()
+        upgrade_source_hash("Ecotone: Gas Price Oracle Proxy Update")
     }
 
     /// Returns the source hash for the Ecotone Beacon Block Roots Contract deployment.
     pub fn beacon_roots_source() -> B256 {
-        UpgradeDepositSource {
-            intent: String::from("Ecotone: beacon block roots contract deployment"),
-        }
-        .source_hash()
+        upgrade_source_hash("Ecotone: beacon block roots contract deployment")
     }
 
     /// Returns the source hash for the Ecotone Gas Price Oracle activation.
     pub fn enable_ecotone_source() -> B256 {
-        UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Set Ecotone") }
-            .source_hash()
+        upgrade_source_hash("Ecotone: Gas Price Oracle Set Ecotone")
     }
 
     /// Returns the EIP-4788 creation data.

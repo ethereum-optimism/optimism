@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, Log, TxKind, U256, b256};
-use op_alloy_consensus::{TxDeposit, UserDepositSource};
+use op_alloy_consensus::{TxDeposit, user_deposit_source_hash};
 
 /// Deposit log event abi signature.
 pub const DEPOSIT_EVENT_ABI: &str = "TransactionDeposited(address,address,uint256,bytes)";
@@ -183,12 +183,10 @@ pub fn decode_deposit(block_hash: B256, index: usize, log: &Log) -> Result<Bytes
         )));
     }
 
-    let source = UserDepositSource::new(block_hash, index as u64);
-
     let mut deposit_tx = TxDeposit {
         from,
         is_system_transaction: false,
-        source_hash: source.source_hash(),
+        source_hash: user_deposit_source_hash(block_hash, index as u64),
         ..Default::default()
     };
 
