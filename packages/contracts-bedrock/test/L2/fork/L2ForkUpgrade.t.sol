@@ -822,6 +822,48 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         console.log(LibString.repeat("=", 100));
     }
 
+    /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
+    /// @param _i Transaction index (0-based).
+    /// @param _total Total number of transactions.
+    /// @param _txn The NUT bundle transaction.
+    /// @param _intrinsicGas Intrinsic gas for this transaction.
+    /// @param _bodyGasUsed Body gas consumed (net of refunds, callee frame only).
+    /// @param _showRecommended Whether to show the recommended limit in the log line.
+    function _buildMeasurement(
+        uint256 _i,
+        uint256 _total,
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn,
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        bool _showRecommended
+    )
+        internal
+        pure
+        returns (GasMeasurement memory measurement_)
+    {
+        uint64 gasUsed = _intrinsicGas + _bodyGasUsed;
+        uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
+        uint256 efficiency = (uint256(gasUsed) * 100) / uint256(_txn.gasLimit);
+        measurement_ = GasMeasurement({
+            index: _i,
+            intent: _txn.intent,
+            gasUsed: gasUsed,
+            gasLimit: _txn.gasLimit,
+            recommendedLimit: recommendedLimit,
+            efficiency: efficiency
+        });
+        _logTxnGas(
+            _i,
+            _total,
+            _txn.intent,
+            _intrinsicGas,
+            _bodyGasUsed,
+            gasUsed,
+            _txn.gasLimit,
+            _showRecommended ? recommendedLimit : 0
+        );
+    }
+
     /// @notice Gas profiling test for the NUT bundle upgrade transactions using manual intrinsic gas deduction.
     function test_l2ForkUpgrade_gasProfile_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
@@ -844,24 +886,9 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
                 string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
             );
 
-            uint64 gasUsed = intrinsicGas + bodyGasUsed;
-            uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
-            uint256 efficiency = (uint256(gasUsed) * 100) / uint256(txn.gasLimit);
-
-            // Store measurement
-            measurements[i] = GasMeasurement({
-                index: i,
-                intent: txn.intent,
-                gasUsed: gasUsed,
-                gasLimit: txn.gasLimit,
-                recommendedLimit: recommendedLimit,
-                efficiency: efficiency
-            });
-
-            totalGasUsed += gasUsed;
-            totalGasLimit += txn.gasLimit;
-
-            _logTxnGas(i, txns.length, txn.intent, intrinsicGas, bodyGasUsed, gasUsed, txn.gasLimit, recommendedLimit);
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
         }
 
         _logReportSummary(totalGasUsed, totalGasLimit);
@@ -883,18 +910,25 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         for (uint256 i = 0; i < txns.length; i++) {
             NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
 
+            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
+
             vm.deal(txn.from, 100 ether);
             vm.prank(txn.from);
-
-            uint256 gasBefore = gasleft();
 
             // Forward gasLimit - 21_000 so that transact_inner() sets tx.gas_limit =
             // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
             // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
             // exactly what op-geth gives it in production.
+            //
+            uint256 gasBefore = gasleft();
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
-
+            // gasleft() delta is used (not vm.lastCallGas()) because in isolated mode,
+            // transact_inner() records result_gas.used() (= intrinsic + body − refunds)
+            // against the original forwarded gas_limit, so gas.remaining() =
+            // forwarded − (intrinsic + body − refunds), and gasleft() delta =
+            // intrinsic + body − refunds = production total
             uint64 gasUsed = uint64(gasBefore - gasleft());
+            uint64 bodyGasUsed = gasUsed > intrinsicGas ? gasUsed - intrinsicGas : 0;
 
             require(
                 success,
@@ -910,24 +944,9 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
                 )
             );
 
-            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
-            uint64 bodyGasUsed = gasUsed > intrinsicGas ? gasUsed - intrinsicGas : 0;
-            uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
-            uint256 efficiency = (uint256(gasUsed) * 100) / uint256(txn.gasLimit);
-
-            measurements[i] = GasMeasurement({
-                index: i,
-                intent: txn.intent,
-                gasUsed: gasUsed,
-                gasLimit: txn.gasLimit,
-                recommendedLimit: recommendedLimit,
-                efficiency: efficiency
-            });
-
-            totalGasUsed += gasUsed;
-            totalGasLimit += txn.gasLimit;
-
-            _logTxnGas(i, txns.length, txn.intent, intrinsicGas, bodyGasUsed, gasUsed, txn.gasLimit, 0);
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, false);
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
         }
 
         _logReportSummary(totalGasUsed, totalGasLimit);
