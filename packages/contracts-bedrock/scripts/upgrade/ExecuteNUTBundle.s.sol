@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Scripts
 import { Script } from "forge-std/Script.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -27,10 +28,12 @@ contract ExecuteNUTBundle is Script {
     /// @notice Executes a single NUT bundle transaction with deposit-faithful gas semantics.
     /// @dev Models op-geth deposit transaction execution: intrinsic gas is deducted from the gas
     ///      limit before the contract body runs, matching production DepositTx behavior.
+    ///      Body gas is measured via vm.lastCallGas() (callee frame only, net post-refund),
+    ///      matching op-geth's usedGas - intrinsicGas without CALL opcode overhead.
     /// @param _txn The Network Upgrade Transaction to execute.
     /// @return success_ Whether the call succeeded.
     /// @return returnData_ The return data from the call.
-    /// @return bodyGasUsed_ Gas consumed by the contract body (excluding intrinsic gas).
+    /// @return bodyGasUsed_ Gas consumed by the contract body, net of refunds, excluding intrinsic.
     /// @return intrinsicGas_ Intrinsic gas cost for this transaction.
     function executeSingle(NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn)
         public
@@ -43,9 +46,9 @@ contract ExecuteNUTBundle is Script {
 
         vm.prank(_txn.from);
 
-        uint256 gasBefore = gasleft();
         (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
-        bodyGasUsed_ = uint64(gasBefore - gasleft());
+        VmSafe.Gas memory gasResult = vm.lastCallGas();
+        bodyGasUsed_ = uint64(int64(gasResult.gasTotalUsed) - gasResult.gasRefunded);
     }
 
     /// @notice Executes all transactions in the bundle sequentially.
