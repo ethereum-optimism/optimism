@@ -121,6 +121,10 @@ contract StandardValidatorUtils {
         );
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
+        _errors = internalRequire(
+            address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0), "PDDG-NOSHAPE", _errors
+        );
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON_KONA)) != address(0), "CKDG-NOSHAPE", _errors);
         return _errors;
     }
 

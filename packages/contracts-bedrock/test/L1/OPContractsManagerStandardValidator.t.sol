@@ -984,8 +984,9 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
             abi.encode(address(0))
         );
         // SUPER_PERMISSIONED_CANNON is not registered in non-super mode, so DF-50 fires.
+        // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
         // PDDG-10 also fires because PERMISSIONED_CANNON impl is null.
-        assertEq("DF-50,PDDG-10", _validate(true));
+        assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
     }
 
     /// @notice Tests that SCDG-NOSHAPE fires when SUPER_CANNON has a registered impl in non-super mode.
@@ -1053,7 +1054,8 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encode(address(0))
         );
         // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
-        assertEq("DF-50,PDDG-10", _validate(true));
+        // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
+        assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1418,7 +1420,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)),
             abi.encode(address(0))
         );
-        assertEq("CKDG-10", _validate(true));
+        assertEq("CKDG-NOSHAPE,CKDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the

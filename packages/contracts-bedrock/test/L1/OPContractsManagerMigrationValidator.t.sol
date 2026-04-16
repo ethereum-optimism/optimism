@@ -363,7 +363,6 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
         );
         assertEq("MIG-DGF-50", _validateMigration(true));
     }
-
 }
 
 /// @title OPContractsManagerMigrationValidator_SPDG_Test
