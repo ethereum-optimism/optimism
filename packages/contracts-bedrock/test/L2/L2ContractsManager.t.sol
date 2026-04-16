@@ -1109,10 +1109,18 @@ contract L2ContractsManager_Reverter_Harness {
 }
 
 /// @title L2ContractsManager_Upgrade_Atomicity_Test
-/// @notice Regression guard for issue #19392: ensures any per-predeploy upgrade failure in
+/// @notice Regression guard: ensures any per-predeploy upgrade failure in
 ///         `_apply()` aborts the whole upgrade, covering both the `upgradeToAndCall` and
 ///         `upgradeTo` paths.
 contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade_Test {
+    function _countUpgradeablePredeploys(bool _initializable) internal view returns (uint256 count_) {
+        address[] memory all = Predeploys.getUpgradeablePredeploys();
+        for (uint256 i; i < all.length; i++) {
+            if (_requiresInitialization(all[i]) == _initializable && _isPredeployUpgradeable(all[i])) count_++;
+        }
+    }
+
+    // TODO(#19260): Refactor this when we have a proper single source of truth for the predeploys.
     /// @dev Reverts when `_predeploy` is unmapped so new predeploys cannot slip past this test
     ///      without the helper being extended.
     function _getTargetImpl(address _predeploy) internal view returns (address) {
@@ -1170,7 +1178,6 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
         for (uint256 i = 0; i < allPredeploys.length; i++) {
             address predeploy = allPredeploys[i];
             if (!_requiresInitialization(predeploy)) continue;
-            // Skip predeploys not deployed on this chain (e.g., LIQUIDITY_CONTROLLER on non-CGT).
             if (!_isPredeployUpgradeable(predeploy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
@@ -1185,7 +1192,7 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
             coveredCount++;
         }
 
-        assertGt(coveredCount, 0, "atomicity test covered zero initializable predeploys");
+        assertEq(coveredCount, _countUpgradeablePredeploys(true));
     }
 
     /// @notice Forces each non-initializable predeploy's new implementation to be code-less and
@@ -1205,7 +1212,9 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
             vm.etch(targetImpl, hex"");
 
             vm.expectRevert(
-                abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, targetImpl)
+                abi.encodeWithSelector(
+                    L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, targetImpl
+                )
             );
             _executeUpgrade();
 
@@ -1213,6 +1222,6 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
             coveredCount++;
         }
 
-        assertGt(coveredCount, 0, "atomicity test covered zero non-initializable predeploys");
+        assertEq(coveredCount, _countUpgradeablePredeploys(false));
     }
 }

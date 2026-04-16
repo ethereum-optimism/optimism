@@ -52,8 +52,8 @@ contract OptimismMintableERC20Factory is ProxyAdminOwnedBase, ISemver, Initializ
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
     /// @notice Semantic version.
-    /// @custom:semver 1.10.3
-    string public constant version = "1.10.3";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice Constructs the OptimismMintableERC20Factory contract.
     constructor() {
