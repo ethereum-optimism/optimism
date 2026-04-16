@@ -42,8 +42,8 @@ type Knob struct {
 // feature flag combinations. Each profile sets a specific set of environment
 // variables before running the test command.
 type TestProfile struct {
-	Name string            `yaml:"name"`           // e.g. "main", "custom_gas_token"
-	Env  map[string]string `yaml:"env,omitempty"`  // environment variables
+	Name string            `yaml:"name"`          // e.g. "main", "custom_gas_token"
+	Env  map[string]string `yaml:"env,omitempty"` // environment variables
 }
 
 // Catalog is the top-level manifest of available check types.
