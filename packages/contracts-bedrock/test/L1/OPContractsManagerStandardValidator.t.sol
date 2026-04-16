@@ -2321,4 +2321,79 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         );
         assertEq(errors, "");
     }
+
+    /// @notice Helper to build migration input with 2 chains.
+    function _migrationInput()
+        internal
+        view
+        returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
+    {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        return IOPContractsManagerMigrationValidator.MigrationValidationInput({
+            dgf: sharedDGF,
+            chainSystemConfigs: chains,
+            cannonPrestate: cannonPrestate.raw(),
+            cannonKonaPrestate: cannonKonaPrestate.raw(),
+            proposer: proposer,
+            challenger: challenger
+        });
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override succeeds
+    ///         when DGF owner is mocked to match the overridden address.
+    function test_validateMigratedChainWithOverrides_l1PAOMultisigMatch_succeeds() public {
+        address overrideMultisig = makeAddr("overrideMultisig");
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.owner, ()),
+            abi.encode(overrideMultisig)
+        );
+        // ProxyAdmin.owner() must also match, otherwise MIG-SDGF-30 still fires via SharedContracts.
+        vm.mockCall(
+            sharedProxyAdmin,
+            abi.encodeCall(IProxyAdmin.owner, ()),
+            abi.encode(overrideMultisig)
+        );
+        // DelayedWETH proxyAdminOwner must also match overridden l1PAOMultisig.
+        vm.mockCall(
+            sharedWETH,
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(overrideMultisig)
+        );
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: overrideMultisig,
+                challenger: address(0)
+            });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(
+            _migrationInput(),
+            true,
+            overrides
+        );
+        assertEq(errors, "");
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override triggers
+    ///         MIG-SDGF-30 when DGF owner does not match the overridden address.
+    function test_validateMigratedChainWithOverrides_l1PAOMultisigMismatch_succeeds() public {
+        // Use a different address as override — DGF owner stays as the real l1PAOMultisig,
+        // so the override causes a mismatch.
+        address wrongMultisig = makeAddr("wrongMultisig");
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: wrongMultisig,
+                challenger: address(0)
+            });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(
+            _migrationInput(),
+            true,
+            overrides
+        );
+        // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and
+        // DelayedWETH proxyAdminOwner mismatch (MIG-SDWETH-30).
+        assertEq("MIG-SDGF-30,MIG-SDWETH-30", errors);
+    }
 }
