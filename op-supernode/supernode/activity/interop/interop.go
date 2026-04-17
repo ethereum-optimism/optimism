@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -74,6 +75,52 @@ const (
 	DecisionInvalidate
 	DecisionRewind
 )
+
+// Decision is serialized as a self-describing string in the WAL so that the
+// on-disk format survives enum re-ordering or the insertion of new variants.
+func (d Decision) String() string {
+	switch d {
+	case DecisionWait:
+		return "wait"
+	case DecisionAdvance:
+		return "advance"
+	case DecisionInvalidate:
+		return "invalidate"
+	case DecisionRewind:
+		return "rewind"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(d))
+	}
+}
+
+func (d Decision) MarshalJSON() ([]byte, error) {
+	switch d {
+	case DecisionWait, DecisionAdvance, DecisionInvalidate, DecisionRewind:
+		return json.Marshal(d.String())
+	default:
+		return nil, fmt.Errorf("marshal decision: unknown value %d", int(d))
+	}
+}
+
+func (d *Decision) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("unmarshal decision: expected string: %w", err)
+	}
+	switch s {
+	case "wait":
+		*d = DecisionWait
+	case "advance":
+		*d = DecisionAdvance
+	case "invalidate":
+		*d = DecisionInvalidate
+	case "rewind":
+		*d = DecisionRewind
+	default:
+		return fmt.Errorf("unmarshal decision: unknown value %q", s)
+	}
+	return nil
+}
 
 // StepOutput combines a decision with the verification result (if any).
 type StepOutput struct {
