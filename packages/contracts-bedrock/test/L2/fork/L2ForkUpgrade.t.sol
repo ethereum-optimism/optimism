@@ -938,4 +938,25 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         _logReportSummary(totalGasUsed, totalGasLimit);
         _logAdjustments(measurements);
     }
+
+    /// @notice Tests that the gas limit is greater than the recommended intrinsic gas limit.
+    /// @dev Recommended intrinsic gas limit = 1.5x the intrinsic gas cost
+    function test_l2ForkUpgrade_intrinsicGasLimit_succeeds() public view {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
+
+            uint64 recommendedIntrinsicGasLimit =
+                uint64((uint256(intrinsicGas) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
+
+            assertGt(
+                txn.gasLimit,
+                recommendedIntrinsicGasLimit,
+                string.concat("Gas limit <= recommended intrinsic gas limit for ", txn.intent)
+            );
+        }
+    }
 }
