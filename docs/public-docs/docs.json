@@ -2346,7 +2346,8 @@
             "pages": [
               "op-mainnet/network-information/connecting-to-op",
               "op-mainnet/network-information/op-addresses",
-              "op-mainnet/network-information/snapshots"
+              "op-mainnet/network-information/snapshots",
+              "op-mainnet/network-information/transaction-finality"
             ]
           }
         ]
