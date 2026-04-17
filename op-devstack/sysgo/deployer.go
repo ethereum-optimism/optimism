@@ -422,14 +422,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
-func WithRevenueShare(enabled bool, chainFeesRecipient common.Address) DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithRevenueShare(enabled, chainFeesRecipient)
-		}
-	}
-}
-
 func (wb *worldBuilder) buildFullConfigSet() {
 	// If no chain has interop active, the dep set will be nil here,
 	// so we should skip building the full config set.

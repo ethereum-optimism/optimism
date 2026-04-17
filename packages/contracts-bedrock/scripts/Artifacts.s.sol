@@ -122,8 +122,6 @@ contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
-        } else if (digest == keccak256(bytes("FeeSplitter"))) {
-            return payable(Predeploys.FEE_SPLITTER);
         }
         return payable(address(0));
     }
