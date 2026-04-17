@@ -77,9 +77,17 @@ func cmdIngestCIHistory(args []string) error {
 
 	fs.Parse(args)
 
-	cat, err := catalog.Load(*catalogPath)
+	resolvedCatalog := resolveFromRoot(*catalogPath)
+	resolvedGraph := resolveFromRoot(*graphPath)
+	resolvedLearned := resolveFromRoot(*learnedPath)
+	resolvedRoot := *root
+	if resolvedRoot == "." || resolvedRoot == "" {
+		resolvedRoot = findRepoRoot()
+	}
+
+	cat, err := catalog.Load(resolvedCatalog)
 	if err != nil {
-		return fmt.Errorf("loading catalog: %w", err)
+		return fmt.Errorf("loading catalog %s: %w", resolvedCatalog, err)
 	}
 
 	var since time.Time
@@ -90,7 +98,7 @@ func cmdIngestCIHistory(args []string) error {
 	fetcher, err := buildFetcher(*source, *eventsPath, cat, ciOpts{
 		org: *ccOrg, repo: *ccRepo, branch: *ccBranch,
 		maxPages: *ccMaxPages, timeout: *ccTimeout,
-		repoRoot: *root,
+		repoRoot: resolvedRoot,
 	})
 	if err != nil {
 		return err
@@ -133,24 +141,24 @@ func cmdIngestCIHistory(args []string) error {
 	fmt.Printf("Correlations: %d (MinObs=%d, MinPrec=%.2f)\n", len(analysis.Correlations), *minObs, *minPrec)
 	fmt.Printf("Learned priors: %d kinds, %d checks\n", len(analysis.PriorsByKind), len(analysis.PriorsByCheck))
 
-	g, err := graph.Load(*graphPath)
+	g, err := graph.Load(resolvedGraph)
 	if err != nil {
-		return fmt.Errorf("loading graph: %w", err)
+		return missingGraphError(resolvedGraph, err)
 	}
-	absRoot, _ := filepath.Abs(*root)
+	absRoot, _ := filepath.Abs(resolvedRoot)
 	added, err := cihistory.WriteEdges(g, analysis, absRoot)
 	if err != nil {
 		return fmt.Errorf("writing edges: %w", err)
 	}
-	if err := graph.Save(g, *graphPath); err != nil {
+	if err := graph.Save(g, resolvedGraph); err != nil {
 		return fmt.Errorf("saving graph: %w", err)
 	}
-	fmt.Printf("Added %d correlation edges to %s\n", added, *graphPath)
+	fmt.Printf("Added %d correlation edges to %s\n", added, resolvedGraph)
 
-	if err := cihistory.WriteLearnedPolicy(*learnedPath, analysis); err != nil {
+	if err := cihistory.WriteLearnedPolicy(resolvedLearned, analysis); err != nil {
 		return fmt.Errorf("writing learned policy: %w", err)
 	}
-	fmt.Printf("Wrote learned priors to %s\n", *learnedPath)
+	fmt.Printf("Wrote learned priors to %s\n", resolvedLearned)
 
 	return nil
 }

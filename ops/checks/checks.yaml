@@ -31,6 +31,8 @@ check_types:
     command: "cd packages/contracts-bedrock && mise exec -- forge build"
     scopeable: false
     avg_duration: 180
+    ci_job_names:
+      - contracts-bedrock-build
 
   - id: go-build
     name: "Go build"
@@ -52,6 +54,16 @@ check_types:
     avg_duration: 3600
     per_unit_duration: 60
     prerequisites: ["forge-build"]
+    # Variants all aggregate under "forge-test" for CI-history
+    # correlation / replay — we care whether forge-test failed at
+    # all, not under which matrix cell.
+    ci_job_names:
+      - contracts-bedrock-tests
+      - contracts-bedrock-tests-develop
+      - contracts-bedrock-tests-heavy
+      - contracts-bedrock-tests-l2-fork
+      - contracts-bedrock-tests-upgrade
+      - contracts-bedrock-heavy-fuzz-nightly
     knobs:
       - name: fuzz_runs
         type: int
@@ -79,6 +91,9 @@ check_types:
     avg_duration: 7200
     per_unit_duration: 60
     prerequisites: ["go-build"]
+    ci_job_names:
+      - go-tests
+      - go-tests-with-fault-proof-deps
     knobs:
       - name: short
         type: bool
@@ -107,6 +122,8 @@ check_types:
     command: "just lint-go"
     scopeable: false
     avg_duration: 300
+    ci_job_names:
+      - go-lint
 
   - id: semgrep
     name: "Semgrep scan"
@@ -115,6 +132,8 @@ check_types:
     command: "semgrep scan --config .semgrep/rules/"
     scopeable: false
     avg_duration: 600
+    ci_job_names:
+      - semgrep-scan
 
   - id: lint-forge-tests
     name: "Forge test naming lint"
@@ -134,6 +153,14 @@ check_types:
     triggers: ["packages/contracts-bedrock/src/**"]
     avg_duration: 60
     prerequisites: ["forge-build"]
+    # snapshots-check + interfaces-check + semver-check + validate-
+    # spacers + reinitializer-check all run inside the
+    # contracts-bedrock-checks-fast CI job. Multiple catalog checks
+    # mapping to the same CI job name means any of them failing flags
+    # that CI job as failed; for replay precision this is sufficient
+    # since these checks rarely fail independently.
+    ci_job_names:
+      - contracts-bedrock-checks-fast
 
   - id: interfaces-check
     name: "Interface ABI match"
