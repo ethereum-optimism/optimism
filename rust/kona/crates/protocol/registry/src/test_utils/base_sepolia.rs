@@ -8,9 +8,10 @@ use alloy_op_hardforks::{
     BASE_SEPOLIA_ISTHMUS_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP,
 };
 use alloy_primitives::{address, b256, uint};
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 use kona_genesis::{
-    BASE_SEPOLIA_BASE_FEE_CONFIG, ChainGenesis, DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
-    HardForkConfig, RollupConfig, SystemConfig,
+    BASE_SEPOLIA_BASE_FEE_CONFIG, ChainGenesis, HardForkConfig, RollupConfig, SystemConfig,
 };
 
 /// The [`RollupConfig`] for Base Sepolia.
@@ -45,6 +46,8 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600,
     channel_timeout: 300,
     granite_channel_timeout: 50,
+    #[cfg(feature = "rollup_config_override")]
+    fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 11155111,
     l2_chain_id: Chain::base_sepolia(),
     chain_op_config: BASE_SEPOLIA_BASE_FEE_CONFIG,
@@ -70,5 +73,4 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     superchain_config_address: Some(address!("C2Be75506d5724086DEB7245bd260Cc9753911Be")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,
-    interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
 };

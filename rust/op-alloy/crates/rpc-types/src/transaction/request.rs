@@ -6,7 +6,9 @@ use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::TransactionBuilder7702;
 use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
-use op_alloy_consensus::{OpTxEnvelope, OpTypedTransaction, TxDeposit};
+use op_alloy_consensus::{
+    OpTxEnvelope, OpTypedTransaction, POST_EXEC_TX_TYPE_ID, TxDeposit, TxPostExec,
+};
 use serde::{Deserialize, Serialize};
 
 /// Builder for [`OpTypedTransaction`].
@@ -156,6 +158,20 @@ impl From<Sealed<TxDeposit>> for OpTransactionRequest {
     }
 }
 
+impl From<TxPostExec> for OpTransactionRequest {
+    fn from(tx: TxPostExec) -> Self {
+        Self(TransactionRequest {
+            from: Some(tx.signer_address()),
+            transaction_type: Some(POST_EXEC_TX_TYPE_ID),
+            gas: Some(0),
+            nonce: Some(0),
+            value: Some(U256::ZERO),
+            input: tx.input.into(),
+            ..Default::default()
+        })
+    }
+}
+
 impl<T> From<Signed<T, Signature>> for OpTransactionRequest
 where
     T: SignableTransaction<Signature> + Into<TransactionRequest>,
@@ -181,6 +197,7 @@ impl From<OpTypedTransaction> for OpTransactionRequest {
             OpTypedTransaction::Eip1559(tx) => Self(tx.into()),
             OpTypedTransaction::Eip7702(tx) => Self(tx.into()),
             OpTypedTransaction::Deposit(tx) => tx.into(),
+            OpTypedTransaction::PostExec(tx) => tx.into(),
         }
     }
 }
@@ -192,6 +209,7 @@ impl From<OpTxEnvelope> for OpTransactionRequest {
             OpTxEnvelope::Eip1559(tx) => tx.into(),
             OpTxEnvelope::Eip7702(tx) => tx.into(),
             OpTxEnvelope::Deposit(tx) => tx.into(),
+            OpTxEnvelope::PostExec(tx) => tx.into_inner().into(),
             _ => Default::default(),
         }
     }

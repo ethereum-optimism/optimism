@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
@@ -28,9 +29,10 @@ var (
 
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
-	Name:  "interop.activation-timestamp",
-	Usage: "The timestamp at which interop should start",
-	Value: 0,
+	Name:    "interop.activation-timestamp",
+	Usage:   "Override the interop activation timestamp derived from rollup configs",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_ACTIVATION_TIMESTAMP"),
+	Value:   0,
 }
 
 func init() {
@@ -79,6 +81,8 @@ type Interop struct {
 	activationTimestamp uint64
 	dataDir             string
 
+	messageExpiryWindow uint64
+
 	verifiedDB *VerifiedDB
 	logsDBs    map[eth.ChainID]LogsDB
 
@@ -113,6 +117,7 @@ func (i *Interop) Name() string {
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
+	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
 	l1Source l1ByNumberSource,
@@ -139,6 +144,9 @@ func New(
 		logsDBs[chainID] = logsDB
 	}
 
+	if messageExpiryWindow == 0 {
+		messageExpiryWindow = defaultMessageExpiryWindow
+	}
 	i := &Interop{
 		log:                 log,
 		chains:              chains,
@@ -146,6 +154,7 @@ func New(
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
+		messageExpiryWindow: messageExpiryWindow,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -400,7 +409,7 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 
 	if len(cycleResult.InvalidHeads) > 0 {
 		if result.InvalidHeads == nil {
-			result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
+			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
 		}
 		for chainID, invalidBlock := range cycleResult.InvalidHeads {
 			result.InvalidHeads[chainID] = invalidBlock
@@ -408,6 +417,29 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 	}
 
 	return result, nil
+}
+
+// newInvalidHead constructs a fully-formed InvalidHead with the output preimage
+// fields already attached. Returns an error if the output cannot be computed —
+// at verification time the engine should always have the block, so failure
+// indicates a transient RPC issue or a serious invariant violation.
+func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (InvalidHead, error) {
+	head := InvalidHead{BlockID: blockID}
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return head, fmt.Errorf("chain %s not found", chainID)
+	}
+	outputV0, err := chain.OutputV0AtBlockNumber(i.ctx, blockID.Number)
+	if err != nil {
+		return head, fmt.Errorf("chain %s: failed to compute OutputV0 for block %d: %w", chainID, blockID.Number, err)
+	}
+	if outputV0.BlockHash != blockID.Hash {
+		return head, fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg",
+			chainID, blockID.Number, blockID.Hash, outputV0.BlockHash)
+	}
+	head.StateRoot = outputV0.StateRoot
+	head.MessagePasserStorageRoot = outputV0.MessagePasserStorageRoot
+	return head, nil
 }
 
 func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation) (PendingTransition, error) {
@@ -457,11 +489,13 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, nil
 		}
 		invalidations := make([]PendingInvalidation, 0, len(pending.Result.InvalidHeads))
-		for chainID, blockID := range pending.Result.InvalidHeads {
+		for chainID, invalidHead := range pending.Result.InvalidHeads {
 			invalidations = append(invalidations, PendingInvalidation{
-				ChainID:   chainID,
-				BlockID:   blockID,
-				Timestamp: pending.Result.Timestamp,
+				ChainID:                  chainID,
+				BlockID:                  invalidHead.BlockID,
+				Timestamp:                pending.Result.Timestamp,
+				StateRoot:                invalidHead.StateRoot,
+				MessagePasserStorageRoot: invalidHead.MessagePasserStorageRoot,
 			})
 		}
 		sort.Slice(invalidations, func(i, j int) bool {
@@ -482,7 +516,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		}
 		var failedAny bool
 		for _, p := range invalidations {
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp); err != nil {
+			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
@@ -795,11 +829,11 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 
 // invalidateBlock notifies the chain container to add the block to the denylist
 // and potentially rewind if the chain is currently using that block.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64) error {
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp)
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
 	return err
 }

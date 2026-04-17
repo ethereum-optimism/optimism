@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary as _;
+
 mod genesis;
 pub use genesis::{OpBaseFeeInfo, OpChainInfo, OpGenesisInfo};
 
@@ -20,3 +23,6 @@ pub use transaction::{OpTransactionFields, OpTransactionRequest, Transaction};
 
 pub mod error;
 pub use error::SuperchainDAError;
+
+#[cfg(feature = "reth")]
+mod reth_compat;

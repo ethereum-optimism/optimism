@@ -143,6 +143,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		GenesisTime:           genesisTime,
 		InteropActivationTime: genesisTime + runtime.DelaySeconds,
 		DelaySeconds:          runtime.DelaySeconds,
+		InteropFilter:         runtime.InteropFilter,
 		timeTravel:            runtime.TimeTravel,
 	}
 	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)

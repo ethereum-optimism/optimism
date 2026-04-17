@@ -1,4 +1,5 @@
 use bytes::{Buf, BufMut};
+use reth_codecs::DecompressError;
 use reth_db::{
     DatabaseError,
     table::{Compress, Decompress},
@@ -45,7 +46,7 @@ impl<T: Compress> Compress for MaybeDeleted<T> {
 }
 
 impl<T: Decompress> Decompress for MaybeDeleted<T> {
-    fn decompress(value: &[u8]) -> Result<Self, DatabaseError> {
+    fn decompress(value: &[u8]) -> Result<Self, DecompressError> {
         if value.is_empty() {
             // Empty = deleted
             Ok(Self(None))
@@ -96,9 +97,9 @@ impl<T: Compress> Compress for VersionedValue<T> {
 }
 
 impl<T: Decompress> Decompress for VersionedValue<T> {
-    fn decompress(value: &[u8]) -> Result<Self, DatabaseError> {
+    fn decompress(value: &[u8]) -> Result<Self, DecompressError> {
         if value.len() < 8 {
-            return Err(DatabaseError::Decode);
+            return Err(DecompressError::new(DatabaseError::Decode));
         }
 
         let mut buf: &[u8] = value;

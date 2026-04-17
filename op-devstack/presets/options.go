@@ -266,11 +266,35 @@ func WithMaxSequencingWindow(max uint64) Option {
 	}
 }
 
+// WithInteropFilter enables the in-process op-interop-filter for EL transaction
+// validation. Only supported on supernode interop presets.
+func WithInteropFilter() Option {
+	return option{
+		kinds: optionKindInteropFilter,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.UseInteropFilter = true
+		},
+	}
+}
+
 func WithRequireInteropNotAtGenesis() Option {
 	return option{
 		kinds: optionKindRequireInteropNotAtGen,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.RequireInteropNotAtGen = true
+		},
+	}
+}
+
+// WithMessageExpiryWindow configures the message expiry window (in seconds)
+// used by the dependency set. This controls how long cross-chain messages
+// remain valid before they expire.
+func WithMessageExpiryWindow(window uint64) Option {
+	return option{
+		kinds: optionKindMessageExpiryWindow,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			v := window
+			cfg.MessageExpiryWindow = &v
 		},
 	}
 }

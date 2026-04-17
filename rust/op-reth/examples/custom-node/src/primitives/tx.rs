@@ -7,13 +7,13 @@ use alloy_consensus::{
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Sealed, Signature};
 use alloy_rlp::BufMut;
-use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit, TxPostExec};
 use reth_codecs::{
     Compact,
     alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
 };
-use reth_ethereum::primitives::{InMemorySize, serde_bincode_compat::RlpBincode};
-use reth_op::{OpTransaction, primitives::SignedTransaction};
+use reth_op::OpTransaction;
+use reth_primitives_traits::InMemorySize;
 use revm_primitives::Address;
 
 /// Either [`OpTxEnvelope`] or [`TxPayment`].
@@ -27,8 +27,6 @@ pub enum CustomTransaction {
     #[envelope(ty = 42)]
     Payment(Signed<TxPayment>),
 }
-
-impl RlpBincode for CustomTransaction {}
 
 impl reth_codecs::alloy::transaction::Envelope for CustomTransaction {
     fn signature(&self) -> &Signature {
@@ -105,6 +103,13 @@ impl OpTransaction for CustomTransaction {
             CustomTransaction::Payment(_) => None,
         }
     }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        match self {
+            CustomTransaction::Op(op) => op.as_post_exec(),
+            CustomTransaction::Payment(_) => None,
+        }
+    }
 }
 
 impl SignerRecoverable for CustomTransaction {
@@ -131,8 +136,6 @@ impl TxHashRef for CustomTransaction {
         }
     }
 }
-
-impl SignedTransaction for CustomTransaction {}
 
 impl InMemorySize for CustomTransaction {
     fn size(&self) -> usize {

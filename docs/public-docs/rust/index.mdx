@@ -1,6 +1,6 @@
 ---
 title: "OP Stack Rust"
-description: "Documentation for Rust implementations of the OP Stack: Kona, op-reth, and op-alloy"
+description: "Documentation for Rust implementations of the OP Stack: Kona, op-reth, op-alloy, and op-revm"
 ---
 
 # OP Stack Rust
@@ -8,7 +8,7 @@ description: "Documentation for Rust implementations of the OP Stack: Kona, op-r
 Rust implementations for the OP Stack, built by [OP Labs](https://www.oplabs.co/).
 
 A unified documentation site for OP Stack Rust components: **Kona** (rollup node & fault proofs),
-**op-reth** (execution client), and **op-alloy** (types & providers).
+**op-reth** (execution client), **op-alloy** (types & providers), and **op-revm** (OP Stack EVM).
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ op-reth node --chain base
 
 ## Components
 
-<CardGroup cols={3}>
+<CardGroup cols={2}>
   <Card title="Kona" icon="lock" href="/rust/kona/intro/overview">
     Modular rollup node and fault proof system. Spec-compliant, performant, and extensible with `no_std` support.
   </Card>
@@ -41,6 +41,9 @@ op-reth node --chain base
   </Card>
   <Card title="op-alloy" icon="puzzle-piece" href="/rust/op-alloy/intro">
     OP Stack types and providers for the Alloy ecosystem. Consensus, RPC, and network crates.
+  </Card>
+  <Card title="op-revm" icon="microchip" href="/rust/op-revm">
+    Optimism variant of revm — deposit transactions, L1/operator fee accounting, and OP Stack precompiles.
   </Card>
 </CardGroup>
 

@@ -75,8 +75,8 @@ func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint6
 	return eth.Bytes32{}, nil
 }
 
-func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
-	return &eth.OutputResponse{}, nil
+func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{}, nil
 }
 
 func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
@@ -97,8 +97,14 @@ func (m *mockCC) ID() eth.ChainID {
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
 
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
+func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	return false, nil
+}
+func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	return &eth.OutputV0{}, nil
+}
+func (m *mockCC) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
 }
 
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {

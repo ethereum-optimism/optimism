@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -57,6 +58,20 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
 	})
+}
+
+func WithKarstAtOffset(offset *uint64) DeployerOption {
+	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtOffset(opforks.Karst, offset)
+		}
+	}
+}
+
+func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithForkAtGenesis(opforks.Karst)
+	}
 }
 
 func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
@@ -260,8 +275,8 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 		if currentValue != nil {
 			bitmap = currentValue.(common.Hash)
 		}
-		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
-		if flag == deployer.OptimismPortalInteropDevFlag {
+		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
+		if flag == devfeatures.OptimismPortalInteropFlag {
 			builder.WithUseInterop(true)
 		}
 	}

@@ -19,6 +19,11 @@ reth-rpc-api.workspace = true
 reth-engine-primitives.workspace = true
 reth-rpc-engine-api.workspace = true
 reth-ethereum = { workspace = true, features = ["node-api", "network", "evm", "pool", "trie", "storage-api", "provider"] }
+reth-node-api.workspace = true
+reth-payload-primitives.workspace = true
+reth-primitives-traits.workspace = true
+reth-provider.workspace = true
+reth-trie-common.workspace = true
 
 # revm
 revm.workspace = true
@@ -30,6 +35,7 @@ alloy-eips.workspace = true
 alloy-evm.workspace = true
 alloy-genesis.workspace = true
 alloy-op-evm.workspace = true
+reth-evm.workspace = true
 reth-optimism-evm.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
@@ -68,5 +74,8 @@ arbitrary = [
     "reth-db-api/arbitrary",
     "alloy-rpc-types-eth/arbitrary",
     "op-alloy-rpc-types/arbitrary",
+    "alloy-op-evm/arbitrary",
+    "reth-primitives-traits/arbitrary",
+    "reth-trie-common/arbitrary",
 ]
 default = []

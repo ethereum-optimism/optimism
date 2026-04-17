@@ -37,7 +37,7 @@ func NewSuperCannonGameHelper(t *testing.T, client *ethclient.Client, opts *bind
 	superGameHelper := NewSuperGameHelper(t, require.New(t), client, opts, key, game, factoryAddr, gameAddr, provider, system)
 	defaultChallengerOptions := func() []challenger.Option {
 		return []challenger.Option{
-			challenger.WithSuperCannon(t, system),
+			challenger.WithSuperCannonKona(t, system),
 			challenger.WithFactoryAddress(factoryAddr),
 			challenger.WithGameAddress(gameAddr),
 			challenger.WithDepset(t, system.DependencySet()),
@@ -72,13 +72,13 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 	accessor, err := super.NewSuperCannonTraceAccessor(
 		logger,
 		metrics.NoopMetrics,
-		cfg.Cannon,
-		vm.NewOpProgramServerExecutor(logger),
+		cfg.CannonKona,
+		vm.NewKonaSuperExecutor(),
 		prestateProvider,
 		supervisorClient,
 		nil,
 		false,
-		cfg.CannonAbsolutePreState,
+		cfg.CannonKonaAbsolutePreState,
 		dir,
 		l1Head,
 		splitDepth,
@@ -103,6 +103,7 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
+	g.t.Logf("FindStep returned targetTraceIndex=%d", targetTraceIndex)
 
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
@@ -110,17 +111,22 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 	g.require.EqualValues(splitDepth+1, topGameLeaf.Depth(), "supplied claim must be the root of an execution game")
 	g.require.EqualValues(execDepth%2, 0, "execution game depth must be even") // since we're supporting the execution root claim
 
+	// Verify the step actually has preimage data before proceeding with the game
+	_, _, verifyData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
+	g.require.NoError(err, "Failed to get step data at target trace index")
+	g.require.NotNil(verifyData, "Step at target trace index %d must have preimage data", targetTraceIndex)
+	g.t.Logf("Verified step %d has preimage: key=%x keyType=0x%02x", targetTraceIndex, verifyData.OracleKey, verifyData.OracleKey[0])
+
 	if preloadPreimage {
-		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
-		g.require.NoError(err)
-		g.UploadPreimage(ctx, preimageData)
-		g.WaitForPreimageInOracle(ctx, preimageData)
+		g.UploadPreimage(ctx, verifyData)
+		g.WaitForPreimageInOracle(ctx, verifyData)
 	}
 
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
 		return traceBisection(g.t, ctx, claim, splitDepth, execDepth, targetTraceIndex, provider)
 	}
 	leafClaim := g.splitGame.DefendClaim(ctx, topGameLeaf, bisectTraceIndex, WithoutWaitingForStep())
+	g.t.Logf("Leaf claim at depth=%d, claimIndex=%d (target was %d)", leafClaim.Depth(), leafClaim.Index, targetTraceIndex)
 
 	// Validate that the preimage was loaded correctly
 	g.require.NoError(preimageCheck(provider, targetTraceIndex))
@@ -173,7 +179,7 @@ func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Conte
 		localContext = split.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "super-cannon-trace")
 		subdir := filepath.Join(dir, localContext.Hex())
-		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics.ToTypedVmMetrics(gameTypes.SuperCannonGameType.String()), cfg, localInputs, subdir, g.splitGame.MaxDepth(ctx)-splitDepth-1), nil
+		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics.ToTypedVmMetrics(gameTypes.SuperCannonKonaGameType.String()), cfg.CannonKona, vm.NewKonaSuperExecutor(), cfg.CannonKonaAbsolutePreState, localInputs, subdir, g.splitGame.MaxDepth(ctx)-splitDepth-1), nil
 	})
 
 	claims, err := g.splitGame.Game.GetAllClaims(ctx, rpcblock.Latest)

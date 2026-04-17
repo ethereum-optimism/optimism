@@ -59,6 +59,7 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function totalBonds() external view returns (uint256);
 
+    function __constructor__() external;
     function initialize() external payable;
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function parentIndex() external pure returns (uint32 parentIndex_);

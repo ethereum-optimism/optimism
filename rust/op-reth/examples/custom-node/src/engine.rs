@@ -6,24 +6,27 @@ use crate::{
 };
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::Bytes;
+use alloy_rpc_types_engine::PayloadId;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
 use reth_engine_primitives::EngineApiValidator;
-use reth_ethereum::{
-    node::api::{
-        AddOnsContext, BuiltPayload, BuiltPayloadExecutedBlock, EngineApiMessageVersion,
-        EngineObjectValidationError, ExecutionPayload, FullNodeComponents, NewPayloadError,
-        NodePrimitives, PayloadAttributes, PayloadBuilderAttributes, PayloadOrAttributes,
-        PayloadTypes, PayloadValidator, validate_version_specific_fields,
+use reth_node_api::{
+    AddOnsContext, BuiltPayload, BuiltPayloadExecutedBlock, FullNodeComponents, NodePrimitives,
+    PayloadValidator,
+    payload::{
+        EngineApiMessageVersion, EngineObjectValidationError, ExecutionPayload, NewPayloadError,
+        PayloadOrAttributes, PayloadTypes,
     },
-    primitives::SealedBlock,
-    storage::StateProviderFactory,
-    trie::{KeccakKeyHasher, KeyHasher},
+    validate_version_specific_fields,
 };
 use reth_node_builder::{InvalidPayloadAttributesError, rpc::PayloadValidatorBuilder};
 use reth_op::node::{
     OpBuiltPayload, OpEngineTypes, OpPayloadAttributes, OpPayloadBuilderAttributes,
     engine::OpEngineValidator, payload::OpAttributes,
 };
+use reth_payload_builder::PayloadBuilderError;
+use reth_primitives_traits::SealedBlock;
+use reth_provider::StateProviderFactory;
+use reth_trie_common::{KeccakKeyHasher, KeyHasher};
 use revm_primitives::U256;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -64,11 +67,11 @@ impl ExecutionPayload for CustomExecutionData {
     }
 
     fn timestamp(&self) -> u64 {
-        self.inner.timestamp()
+        self.inner.payload.timestamp()
     }
 
     fn gas_used(&self) -> u64 {
-        self.inner.gas_used()
+        self.inner.payload.as_v1().gas_used
     }
 
     fn transaction_count(&self) -> usize {
@@ -90,22 +93,8 @@ impl TryFrom<&reth_optimism_flashblocks::FlashBlockCompleteSequence> for CustomE
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomPayloadAttributes {
     #[serde(flatten)]
-    inner: OpPayloadAttributes,
-    extension: u64,
-}
-
-impl PayloadAttributes for CustomPayloadAttributes {
-    fn timestamp(&self) -> u64 {
-        self.inner.timestamp()
-    }
-
-    fn withdrawals(&self) -> Option<&Vec<alloy_eips::eip4895::Withdrawal>> {
-        self.inner.withdrawals()
-    }
-
-    fn parent_beacon_block_root(&self) -> Option<revm_primitives::B256> {
-        self.inner.parent_beacon_block_root()
-    }
+    pub inner: OpPayloadAttributes,
+    pub extension: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -114,54 +103,34 @@ pub struct CustomPayloadBuilderAttributes {
     pub extension: u64,
 }
 
-impl PayloadBuilderAttributes for CustomPayloadBuilderAttributes {
+impl OpAttributes for CustomPayloadBuilderAttributes {
+    type Transaction = CustomTransaction;
     type RpcPayloadAttributes = CustomPayloadAttributes;
-    type Error = alloy_rlp::Error;
 
     fn try_new(
         parent: revm_primitives::B256,
-        rpc_payload_attributes: Self::RpcPayloadAttributes,
+        attributes: Self::RpcPayloadAttributes,
         version: u8,
-    ) -> Result<Self, Self::Error>
+    ) -> Result<Self, PayloadBuilderError>
     where
         Self: Sized,
     {
-        let CustomPayloadAttributes { inner, extension } = rpc_payload_attributes;
+        let CustomPayloadAttributes { inner, extension } = attributes;
 
-        Ok(Self { inner: OpPayloadBuilderAttributes::try_new(parent, inner, version)?, extension })
+        Ok(Self {
+            inner: OpPayloadBuilderAttributes::try_new(parent, inner, version)
+                .map_err(PayloadBuilderError::other)?,
+            extension,
+        })
     }
 
-    fn payload_id(&self) -> alloy_rpc_types_engine::PayloadId {
-        self.inner.payload_id()
-    }
-
-    fn parent(&self) -> revm_primitives::B256 {
-        self.inner.parent()
+    fn payload_id(&self) -> PayloadId {
+        self.inner.id
     }
 
     fn timestamp(&self) -> u64 {
-        self.inner.timestamp()
+        self.inner.timestamp
     }
-
-    fn parent_beacon_block_root(&self) -> Option<revm_primitives::B256> {
-        self.inner.parent_beacon_block_root()
-    }
-
-    fn suggested_fee_recipient(&self) -> revm_primitives::Address {
-        self.inner.suggested_fee_recipient()
-    }
-
-    fn prev_randao(&self) -> revm_primitives::B256 {
-        self.inner.prev_randao()
-    }
-
-    fn withdrawals(&self) -> &alloy_eips::eip4895::Withdrawals {
-        self.inner.withdrawals()
-    }
-}
-
-impl OpAttributes for CustomPayloadBuilderAttributes {
-    type Transaction = CustomTransaction;
 
     fn no_tx_pool(&self) -> bool {
         self.inner.no_tx_pool
@@ -206,8 +175,7 @@ impl From<CustomBuiltPayload>
 impl PayloadTypes for CustomPayloadTypes {
     type ExecutionData = CustomExecutionData;
     type BuiltPayload = OpBuiltPayload<CustomNodePrimitives>;
-    type PayloadAttributes = CustomPayloadAttributes;
-    type PayloadBuilderAttributes = CustomPayloadBuilderAttributes;
+    type PayloadAttributes = reth_op::node::payload::OpPayloadAttrs;
 
     fn block_to_payload(
         block: SealedBlock<
@@ -252,8 +220,8 @@ where
 
     fn validate_payload_attributes_against_header(
         &self,
-        _attr: &CustomPayloadAttributes,
-        _header: &<Self::Block as reth_ethereum::primitives::Block>::Header,
+        _attr: &reth_op::node::payload::OpPayloadAttrs,
+        _header: &<Self::Block as reth_primitives_traits::Block>::Header,
     ) -> Result<(), InvalidPayloadAttributesError> {
         // skip default timestamp validation
         Ok(())
@@ -265,7 +233,7 @@ where
     ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
         let sealed_block = PayloadValidator::<OpEngineTypes>::convert_payload_to_block(
             &self.inner,
-            payload.inner,
+            reth_op::node::payload::OpExecData(payload.inner),
         )?;
         let (header, body) = sealed_block.split_sealed_header_body();
         let header = CustomHeader { inner: header.into_header(), extension: payload.extension };
@@ -281,7 +249,11 @@ where
     fn validate_version_specific_fields(
         &self,
         version: EngineApiMessageVersion,
-        payload_or_attrs: PayloadOrAttributes<'_, CustomExecutionData, CustomPayloadAttributes>,
+        payload_or_attrs: PayloadOrAttributes<
+            '_,
+            CustomExecutionData,
+            reth_op::node::payload::OpPayloadAttrs,
+        >,
     ) -> Result<(), EngineObjectValidationError> {
         validate_version_specific_fields(self.chain_spec(), version, payload_or_attrs)
     }
@@ -289,7 +261,7 @@ where
     fn ensure_well_formed_attributes(
         &self,
         version: EngineApiMessageVersion,
-        attributes: &CustomPayloadAttributes,
+        attributes: &reth_op::node::payload::OpPayloadAttrs,
     ) -> Result<(), EngineObjectValidationError> {
         validate_version_specific_fields(
             self.chain_spec(),

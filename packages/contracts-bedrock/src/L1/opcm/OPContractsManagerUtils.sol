@@ -397,6 +397,8 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -419,10 +421,15 @@ contract OPContractsManagerUtils {
         returns (bytes memory)
     {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
+
+        // Super game types require l2ChainId=0 in game args because the chain ID is
+        // embedded in the super root proof extraData, not in the game args.
+        uint32 rawGT = _gcfg.gameType.raw();
+        uint256 chainId = GameTypes.isSuperGame(_gcfg.gameType) ? 0 : _l2ChainId;
+
         if (
-            _gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+            rawGT == GameTypes.CANNON.raw() || rawGT == GameTypes.CANNON_KONA.raw()
+                || rawGT == GameTypes.SUPER_CANNON.raw() || rawGT == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
@@ -431,12 +438,9 @@ contract OPContractsManagerUtils {
                 impls.mipsImpl,
                 address(_anchorStateRegistry),
                 address(_delayedWETH),
-                _l2ChainId
+                chainId
             );
-        } else if (
-            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-        ) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -444,9 +448,22 @@ contract OPContractsManagerUtils {
                 impls.mipsImpl,
                 address(_anchorStateRegistry),
                 address(_delayedWETH),
-                _l2ChainId,
+                chainId,
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
+            );
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                parsedInputArgs.verifier,
+                parsedInputArgs.maxChallengeDuration,
+                parsedInputArgs.maxProveDuration,
+                parsedInputArgs.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                chainId
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

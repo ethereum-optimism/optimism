@@ -12,18 +12,14 @@ use alloy_rpc_types_engine::PayloadError;
 use op_alloy_rpc_types_engine::flashblock::OpFlashblockPayloadBase;
 use op_revm::OpSpecId;
 use reth_engine_primitives::ExecutableTxIterator;
-use reth_ethereum::{
-    chainspec::EthChainSpec,
-    node::api::{BuildNextEnv, ConfigureEvm, PayloadBuilderError},
-    primitives::{SealedBlock, SealedHeader},
-};
+use reth_node_api::{BuildNextEnv, ConfigureEvm, PayloadBuilderError};
 use reth_node_builder::{ConfigureEngineEvm, NewPayloadError};
 use reth_op::{
-    chainspec::OpHardforks,
+    chainspec::{EthChainSpec, OpHardforks},
     evm::primitives::{EvmEnvFor, ExecutionCtxFor},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
-    primitives::SignedTransaction,
 };
+use reth_primitives_traits::{SealedBlock, SealedHeader, SignedTransaction};
 use reth_rpc_api::eth::helpers::pending_block::BuildPendingEnv;
 use revm_primitives::Bytes;
 use std::sync::Arc;
@@ -176,5 +172,23 @@ where
             OpNextBlockEnvAttributes::build_next_env(&attributes.inner, parent, chain_spec)?;
 
         Ok(CustomNextBlockEnvAttributes { inner, extension: attributes.extension })
+    }
+}
+
+impl<H, ChainSpec>
+    BuildNextEnv<reth_op::node::OpPayloadBuilderAttributes<CustomTransaction>, H, ChainSpec>
+    for CustomNextBlockEnvAttributes
+where
+    H: BlockHeader,
+    ChainSpec: EthChainSpec + OpHardforks,
+{
+    fn build_next_env(
+        attributes: &reth_op::node::OpPayloadBuilderAttributes<CustomTransaction>,
+        parent: &SealedHeader<H>,
+        chain_spec: &ChainSpec,
+    ) -> Result<Self, PayloadBuilderError> {
+        let inner = OpNextBlockEnvAttributes::build_next_env(attributes, parent, chain_spec)?;
+
+        Ok(CustomNextBlockEnvAttributes { inner, extension: 0 })
     }
 }

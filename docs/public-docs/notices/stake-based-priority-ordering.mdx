@@ -1,0 +1,203 @@
+---
+title: Stake-based priority ordering on OP Mainnet
+description: A four-week experiment letting OP stakers receive priority in transaction ordering on OP Mainnet.
+lang: en-US
+content_type: notice
+topic: stake-based-priority-ordering
+personas:
+  - app-developer
+  - chain-operator
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+---
+
+OP Mainnet is running a time-boxed experiment in stake-based transaction ordering. Participants who deposit OP into the `PolicyEngineStaking` contract can receive priority treatment in transaction ordering -- first via strict FIFO among eligible stakers (Phase 1), then via a stake-weighted multiplier on effective priority fees (Phase 2). The experiment will run for a **maximum of four weeks** on OP Mainnet, after which ordering will revert to standard PGA.
+
+This is the first stake-based transaction ordering mechanism deployed on an OP Stack chain and creates direct OP token utility beyond governance.
+
+<Warning>
+  This experiment is temporary. After four weeks, OP Mainnet will revert to standard PGA ordering regardless of outcomes. Any strategy that depends on stake-based priority should account for this hard stop.
+</Warning>
+
+## What this means
+
+*   **Phase 1 (up to 1 week):** Strict FIFO ordering among addresses with effective stake >= 100,000 OP. Additional stake beyond the minimum has no impact. Ineligible transactions fall back to standard PGA.
+*   **Phase 2 (up to 3 weeks):** Stake-weighted multiplier on effective priority fees replaces FIFO. A square-root curve enforces diminishing returns, capped at 3x advantage.
+*   **Staking is non-custodial.** No OP Labs or Optimism Foundation entity can access staked OP. Unstaking is instant with no lockups or cooldowns.
+*   **Ordering guarantees are best-effort.** Staking does not guarantee transaction inclusion, execution order, finality, or any particular economic outcome.
+
+## The PolicyEngineStaking contract
+
+The staking contract ([source](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17), [audit report](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf)), `PolicyEngineStaking`, lives at `packages/contracts-bedrock/src/periphery/staking/PolicyEngineStaking.sol` in the Optimism monorepo (the "Experimental Smart Contract"). It is intentionally non-upgradeable and classified as a periphery contract, not part of the core OP Stack.
+
+The Solidity interface exposes six primary functions:
+
+```solidity
+interface IPolicyEngineStaking {
+    function stake(uint256 _amount, address _beneficiary) external;
+    function unstake(uint256 _amount) external;
+    function changeBeneficiary(address _beneficiary) external;
+    function stakingData(address _account) external view returns (uint256 stakedAmount, address linkedTo);
+    function setAllowedStaker(address _staker, bool _allowed) external;
+    function setAllowedStakers(address[] calldata _stakers, bool _allowed) external;
+}
+```
+
+### Staking and delegation
+
+A user calls `stake(amount, beneficiary)` to deposit OP and to either, at its option, obtain priority for itself by designating the staking address as the beneficiary, or delegate priority to a separate transaction-sending address by designating the separate address as the beneficiary.
+
+The linking model is **one-to-one outgoing but many-to-one incoming**: a staker can designate only one beneficiary at a time (i.e., the staking address or a separate transaction-sending address), but a beneficiary can receive links from multiple stakers. When a staker links to another address, the staker's own address loses the benefit -- `effectiveStake(staker)` drops to zero and accrues entirely to the beneficiary.
+
+Beneficiaries must opt in to accept a staker's delegation by calling `setAllowedStaker()` or the batch variant `setAllowedStakers()`, or else the staker's delegation of priority to the beneficiary will not be effective.
+
+### No lockups or cooldowns
+
+Unstaking is instant and always available, even when the contract is paused. A full unstake automatically clears any active link. `changeBeneficiary()` allows atomic re-linking at zero cost. Calling `changeBeneficiary()` with the same address reverts (it is not a no-op).
+
+### Admin controls
+
+The only admin power is `pause()`/`unpause()`, held by a dedicated EOA controlled by OP Labs PBC ("OP Labs"). When paused, `stake()` is blocked but `unstake()`, `changeBeneficiary()`, and allowlist management remain fully functional. No OP Labs or Optimism Foundation entity has any ability to access staked OP.
+
+### Timestamp behavior
+
+Any operation that changes `effectiveStake` resets `lastUpdate` to `block.timestamp`. This is relevant for the Phase 2 time multiplier described below.
+
+### Sepolia deployment
+
+The contract is deployed on OP Sepolia at [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677#code) with owner address [`0xA895C24907D872bC05B58933205dD98090C07446`](https://sepolia-optimism.etherscan.io/address/0xA895C24907D872bC05B58933205dD98090C07446) and a mock ERC20 at [`0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C`](https://sepolia-optimism.etherscan.io/address/0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C#code).
+
+## Phase 1: FIFO ordering among eligible stakers
+
+Phase 1 implements strict first-in-first-out ordering among all addresses with effective stake >= 100,000 OP (the minimum eligibility threshold). Within this tier, additional stake beyond the minimum has no impact.
+
+Ineligible transactions fall back to standard PGA ordering. The overall sort order is: score descending, priority fee descending, insertion order ascending.
+
+<Info>
+  Phase 1 will run for up to one week on OP Mainnet.
+</Info>
+
+## Phase 2: bounded stake-weighted ordering
+
+Phase 2 replaces FIFO with a stake-weighted multiplier applied to effective priority fees:
+
+```
+effectivePriorityGas = priorityGas x m_total(S, t)
+```
+
+where `m_total(S, t) = min[m_stake(S) x m_time(age), M_cap]` for eligible addresses, and `m_total = 0` (falling back to standard PGA) for ineligible ones.
+
+### Stake multiplier
+
+The stake multiplier uses a square-root function to enforce diminishing returns:
+
+```
+m_stake(S) = min(1 + (M_cap - 1) x sqrt((S - S_min) / (S_cap - S_min)), M_cap)
+```
+
+The three governing parameters:
+
+| Parameter | Value | Meaning |
+| --- | --- | --- |
+| `M_cap` | 3x | Hard ceiling on any advantage |
+| `S_min` | 100,000 OP | Eligibility threshold |
+| `S_cap` | 1,000,000 OP | Stake level where maximum boost is fully reached |
+
+The square-root curve means doubling your stake will yield less than double the advantage.
+
+### Time multiplier
+
+`m_time(age)` adds a modest bonus for longer-duration stakers, capped at +10%:
+
+| Stake age | m\_time |
+| --- | --- |
+| < 7 days | 1.00x |
+| 7--15 days | 1.05x |
+| >= 15 days | 1.10x |
+
+Age resets to zero whenever a stake change alters the address's eligibility status.
+
+<Info>
+  Phase 2 will run for up to three weeks on OP Mainnet.
+</Info>
+
+## How staking signals feed into block building
+
+The staking signal feeds into the block builder through a rules-based scoring system. The engine runs as part of the block construction pipeline and assigns each transaction a score at ingress time.
+
+Key properties to be aware of:
+
+*   **Scores are computed once.** Transactions are scored when they enter the mempool and are not retroactively re-scored if ordering rules change mid-flight.
+*   **Fallback to PGA.** If the builder's scoring system fails for any reason, block construction automatically falls back to the default builder, ensuring zero downtime for the chain. Ordering in this fallback state is standard PGA.
+
+## Risks for participants
+
+This section is for market makers, searchers, and blockspace-intensive operators evaluating whether to participate.
+
+### Ordering guarantees are best-effort, not absolute
+
+Staking does not guarantee transaction inclusion, execution order, finality, or any particular economic outcome. The scoring system improves your position in the candidate set, but block construction is subject to gas limits, timing budgets, and sequencer health constraints. A high score is not a binding commitment from the sequencer. Transactions may still be delayed, reordered, deprioritized, dropped, or fail regardless of stake-based priority.
+
+### Monitor for inclusion delays and have a PGA fallback path
+
+The experiment changes ordering rules, not inclusion guarantees. If the scoring system degrades or enters an unexpected state, your transactions may experience elevated inclusion latency even while the chain itself is healthy. Participants should:
+
+*   Instrument their transaction pipelines to track inclusion time (delta between submission and onchain confirmation).
+*   Maintain an automated or manual fallback to standard PGA bidding if inclusion times exceed acceptable thresholds.
+
+Concretely, this means being prepared to bypass stake-based priority and compete on raw priority fees if you observe anomalies. OP Labs will revert to PGA ordering if systemic issues arise, but there is no guaranteed SLA on response time. During the window between an issue arising and OP Labs responding, your transactions are subject to whatever degraded ordering state exists.
+
+### Phase transitions create brief periods of ordering uncertainty
+
+When the sequencer transitions between ordering mechanisms (standard PGA -> Phase 1 -> Phase 2 -> revert to PGA), there is an expected lag of multiple blocks where newly submitted transactions may still be ordered under the previous mechanism. The exact lag duration cannot be predicted. If your strategy is sensitive to which ordering regime applies, avoid submitting transactions around announced transition times.
+
+The Optimism Foundation will endeavor to announce transitions at least 24 hours in advance via official channels and docs.optimism.io. Emergency reversions can happen without prior notice.
+
+### Beneficiary trust assumptions
+
+If you delegate your stake to a beneficiary address, that beneficiary can remove you from their allowlist at any time. This clears the link and resets the beneficiary's `lastUpdate`. The staker has no onchain recourse to prevent it.
+
+If you are using delegation between addresses you control (e.g., cold wallet to hot trading address), this is straightforward. If you are delegating to a third party's address, understand that they can unilaterally sever the link.
+
+### Additional staking resets your stake age
+
+Calling `stake()` to add more OP to an address that has already staked resets the `lastUpdate` timestamp. In Phase 2, your time multiplier drops back to 1.00x and you lose any accrued time bonus. If you are already in the >= 15 day bracket (1.10x), topping up your stake is a trade-off between a higher `m_stake` and losing your time bonus. Model both scenarios before depositing additional tokens.
+
+### Staking is publicly observable
+
+Staking activity is fully visible onchain, meaning competitors can observe your effective stake and adjust their strategies accordingly. This transparency cuts both ways -- it enables rational competitive response but also enables targeted competition. The experiment may also alter broader market dynamics (bidding behavior, congestion patterns, MEV extraction) in ways that are difficult to model in advance.
+
+### The experiment ends automatically
+
+The OP Mainnet experiment window is capped at four weeks total (up to 1 week Phase 1, up to 3 weeks Phase 2). At the end, OP Mainnet will revert to standard PGA ordering regardless of outcomes. Any strategy that depends on stake-based priority should account for this hard stop. Staked OP remains withdrawable at any time before, during, or after the experiment concludes.
+
+## Timeline and key links
+
+### Timeline
+
+| Network | Target deployment |
+| --- | --- |
+| OP Sepolia | April 16, 2026 |
+| OP Mainnet | TBD (pending governance approval) |
+
+### Key links
+
+| Resource | Link |
+| --- | --- |
+| Contract source | [PolicyEngineStaking.sol](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17) |
+| Audit report | [2026\_03-PolicyEngineStaking-Cantina.pdf](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf) |
+| Governance proposal | [Stake-based priority ordering experiment](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) |
+| Sepolia contract | [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677) |
+
+## Disclosures and disclaimers
+
+By participating in this experiment, you confirm that you have reviewed and understood the full <a href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf" target="_blank" rel="noopener noreferrer">Disclosures & Disclaimers</a> and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655). The Experimental Ordering Mechanism and Experimental Smart Contract are provided "AS-IS" without warranties of any kind. You assume all risks in connection with your use of OP Mainnet during the experiment, including the stake-based sequencer ordering mechanism and the Experimental Smart Contract. The Optimism Community Agreement and Terms of Service apply to the extent stated in the Disclosures & Disclaimers.
+
+<Card
+  title="Stake-based priority ordering disclosures (PDF)"
+  href="/public/disclosures/stake-based-priority-ordering-disclosure.pdf"
+  icon="file-pdf"
+/>

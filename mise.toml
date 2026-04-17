@@ -6,7 +6,7 @@ go = "1.24.13"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
 mockery = "2.53.3"
-rust = "1.92.0"
+rust = ["1.94.0", { version = "nightly-2026-02-20", components = "rustfmt" }]
 python = "3.12.0"
 uv = "0.5.5"
 jq = "1.7.1"
@@ -18,6 +18,7 @@ just = "1.46.0"
 make = "4.4.1"
 
 svm-rs = "0.5.19"
+"github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
@@ -61,7 +62,6 @@ gotestsum = "ubi:gotestyourself/gotestsum"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
 mockery = "ubi:vektra/mockery"
 svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
-
 # These are disabled, but latest mise versions error if they don't have a known
 # install source even though it won't ever actually use that source.
 kontrol = "ubi:ethereum-optimism/fake-kontrol"

@@ -119,9 +119,18 @@ var (
 	SyncModeReqRespFlag = &cli.BoolFlag{
 		Name:     "syncmode.req-resp",
 		Required: false,
-		Value:    true,
+		Value:    false,
 		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
+	}
+	SyncModeOffsetELSafeFlag = &cli.DurationFlag{
+		Name: "syncmode.offset-el-safe",
+		Usage: "After execution-layer sync completes, set safe and finalized heads to this duration behind the synced tip " +
+			"(converted to L2 blocks via rollup block time using ceiling division). Default 0 (safe/finalized stay at the tip). " +
+			"Set to e.g. 168h to force derivation of the most recent 7 days of blocks before they are considered safe.",
+		EnvVars:  prefixEnvVars("SYNCMODE_OFFSET_EL_SAFE"),
+		Category: RollupCategory,
+		Value:    0,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -477,6 +486,7 @@ var optionalFlags = []cli.Flag{
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
 	SyncModeReqRespFlag,
+	SyncModeOffsetELSafeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,

@@ -17,7 +17,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -240,7 +239,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         internal
     {
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
-        IOptimismPortalInterop portal = IOptimismPortalInterop(payable(_systemConfig.optimismPortal()));
+        IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
@@ -264,6 +263,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
+        existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
 
         // Enable the ETH lockbox feature on the SystemConfig if not already enabled.
         // This is needed for the SystemConfig's paused() function to use the correct identifier.
@@ -272,11 +272,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-        // This also sets superRootsActive = true.
         // NOTE: This requires the portal to already be upgraded to the interop version
-        // (OptimismPortalInterop). If the portal is not on the interop version, this call will
+        // (OptimismPortal2). And it requires the feature flag for INTEROP to be enabled
+        // If the portal is not on the interop version, this call will
         // fail.
-        portal.migrateToSuperRoots(_newLockbox, _newASR);
+        portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
 
     /// @notice Returns the contracts container.

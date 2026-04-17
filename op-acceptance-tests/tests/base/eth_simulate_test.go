@@ -35,7 +35,7 @@ func TestEthSimulateV1(gt *testing.T) {
 	}
 
 	// wait until the chain mines at least one block
-	sys.L1Network.WaitForBlock()
+	sys.L2Chain.WaitForBlock()
 
 	// Require the RPC call to succeed
 	rpcClient := sys.L2EL.Escape().EthClient().RPC()

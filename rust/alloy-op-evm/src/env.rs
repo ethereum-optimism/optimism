@@ -36,6 +36,7 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
     }
     check_forks! {
         is_interop_active_at_timestamp => INTEROP,
+        is_karst_active_at_timestamp => KARST,
         is_jovian_active_at_timestamp => JOVIAN,
         is_isthmus_active_at_timestamp => ISTHMUS,
         is_holocene_active_at_timestamp => HOLOCENE,
@@ -139,6 +140,9 @@ fn evm_env_for_op(
         basefee: input.base_fee_per_gas,
         // EIP-4844 excess blob gas of this block, introduced in Cancun
         blob_excess_gas_and_price,
+        // EIP-7843 slot number. Not yet used in the OP Stack.
+        // TODO(optimism#19853): populate from block header once EIP-7843 is enabled.
+        slot_num: 0,
     };
 
     EvmEnv::new(cfg_env, block_env)
@@ -201,6 +205,7 @@ mod tests {
     fake_hardfork_constructors! {
         timestamp:
             interop => Interop,
+            karst => Karst,
             jovian => Jovian,
             isthmus => Isthmus,
             holocene => Holocene,
@@ -226,6 +231,7 @@ mod tests {
     }
 
     #[test_case::test_case(FakeHardfork::interop(), OpSpecId::INTEROP; "Interop")]
+    #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
     #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]

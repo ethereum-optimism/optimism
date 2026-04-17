@@ -6,7 +6,7 @@ for the following:
 1. Keeping track of the canonical implementation contracts for each [contracts release][versioning].
 2. Deploying new L1 contracts for each OP Chain.
 3. Upgrading from one contract release to another.
-4. Maintaining the fault proof system by adding game types or updating prestates.
+4. Migrating chains to superproofs.
 
 All contract upgrades that touch live chains **must** be performed via the OPCM. This guide will walk you through
 the OPCM's architecture, and how to hook your contracts into it.
@@ -17,32 +17,27 @@ the OPCM's architecture, and how to hook your contracts into it.
 
 The OPCM consists of multiple contracts:
 
-1. `OPContractsManager`, which serves as the entry point.
-2. `OPContractsManagerGameTypeAdder`, which is used to add new game types and update prestates.
-3. `OPContractsManagerDeployer`, which is used to deploy new OP Chains.
-4. `OPContractsManagerUpgrader`, which is used to upgrade existing OP Chains.
-5. `OPContractsManagerContractsContainer`, which is a repository for contract implementations and blueprints.
+1. `OPContractsManagerV2`, which serves as the entry point for `deploy()`, `upgrade()`, `upgradeSuperchain()`, and `migrate()`.
+2. `OPContractsManagerUtils`, which contains shared helper logic used by deploy and upgrade operations.
+3. `OPContractsManagerContainer`, which is a repository for contract implementations and blueprints.
+4. `OPContractsManagerMigrator`, which handles migrating chains to superproofs (called via delegatecall from `migrate()`).
 
 They fit together like the diagram below:
 
 ```mermaid
 stateDiagram-v2
-    state OpContractsManager {
+    state OPContractsManagerV2 {
         direction LR
-        deploy() --> OpContractsManagerDeployer: staticcall
-        upgrade() --> OpContractsManagerUpgrader: delegatecall
-        addGameType() --> OpContractsManagerGameTypeAdder: delegatecall
-        updatePrestate() --> OpContractsManagerGameTypeAdder: delegatecall
+        deploy()
+        upgrade()
+        upgradeSuperchain()
+        migrate() --> OPContractsManagerMigrator: delegatecall
     }
 
-    state Logic {
-        OpContractsManagerDeployer --> OpContractsManagerContractsContainer: getImplementations()/getBlueprints()
-        OpContractsManagerUpgrader --> OpContractsManagerContractsContainer: getImplementations()/getBlueprints()
-        OpContractsManagerGameTypeAdder --> OpContractsManagerContractsContainer: getImplementations()/getBlueprints()
-    }
-
-    state Implementations {
-        OpContractsManagerContractsContainer
+    state Shared {
+        OPContractsManagerV2 --> OPContractsManagerUtils: shared helpers
+        OPContractsManagerV2 --> OPContractsManagerContainer: implementations & blueprints
+        OPContractsManagerMigrator --> OPContractsManagerContainer: implementations & blueprints
     }
 ```
 
@@ -68,18 +63,17 @@ to each method. This changes between releases, and will not be covered directly 
 Whenever you make updates to in-protocol contracts, you'll need to make corresponding changes inside the OPCM. While
 the details of each change will vary, we've included some general guidelines below.
 
-### Updating Logic Contracts
+### Updating OPContractsManagerV2
 
-As their name implies, the logic contracts contain the actual logic used to deploy or upgrade contracts. When
-modifying these contracts keep the following tips in mind:
+All deploy, upgrade, and migration logic lives directly in `OPContractsManagerV2` (with migration delegating to
+`OPContractsManagerMigrator`). When modifying these keep the following tips in mind:
 
 - The `deploy` method can typically be modified in-place since the deployment process doesn't change much from
   release to release. For example, most changes to the `deploy` method will involve either adding a new contract or
   modifying the constructor/initializer for existing contracts. You can use the existing implementation as a guide.
 - The `upgrade` method changes much more frequently. That said, you can still use the existing implementation as a
-  guide. Just make sure to delete any old upgrade code that is no longer needed. The `OPContractsManagerUpgrader`
-  logic contract also contains helpers for things like deploying new dispute games and upgrading proxies to new
-  implementations. See the `upgradeTo` method for an example.
+  guide. Just make sure to delete any old upgrade code that is no longer needed. `OPContractsManagerUtils` contains
+  helpers for things like deploying new dispute games and upgrading proxies to new implementations.
 - The `upgrade` method will _always_ set the RC on the OPCM to false when called by the upgrade controller. It will
   only sometimes (depending on your specific upgrade) upgrade Superchain contracts.
 
@@ -94,7 +88,7 @@ When multiple upgrades are in flight at the same time, the fork tests stack upgr
 tip of `develop` must contain the implementation for the latest upgrade only, fork tests that run upgrades prior to
 the latest one must use deployed instances of the OPCM. For example, as of this writing upgrades 13, 14, and 15 are
 all in flight. Therefore, the fork tests will use deployed versions of the OPCM for upgrades 13 and 14 and whatever
-is on `develop` for upgrade 15. See `OPContractsManager.t.sol` for the implementation of the fork tests.
+is on `develop` for upgrade 15. See `OPContractsManagerV2.t.sol` for the implementation of the fork tests.
 
 ## Modifying Contracts for Upgrade
 

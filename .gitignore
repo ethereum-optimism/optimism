@@ -7,6 +7,9 @@ coverage.json
 **/lcov-upgrade.info
 **/lcov-all.info
 
+# Rust files
+**/target
+
 yarn-error.log
 .yarn/*
 !.yarn/releases
@@ -51,3 +54,6 @@ crytic-export
 
 # ignore local asdf config
 .tool-versions
+
+# Rust files
+**/target
