@@ -113,7 +113,7 @@ func setupLoadTest(gt *testing.T) (devtest.T, *L2, *L2) {
 }
 
 func setupL2s(t devtest.T) (*L2, *L2) {
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
 	blockTimeA := time.Duration(sys.L2A.Escape().RollupConfig().BlockTime) * time.Second
 	blockTimeB := time.Duration(sys.L2B.Escape().RollupConfig().BlockTime) * time.Second
 
