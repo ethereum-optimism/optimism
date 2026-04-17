@@ -157,6 +157,7 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindChallengerCannonKona |
 	optionKindL1EL |
+	optionKindTimeTravel |
 	optionKindMessageExpiryWindow
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
