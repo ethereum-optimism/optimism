@@ -23,9 +23,6 @@ func coverageCandidates(
 	fresh freshness.Checker,
 ) []Candidate {
 	floor := pol.Coverage.SignalFloor
-	if len(changedLines) == 0 {
-		return nil
-	}
 
 	type key struct {
 		testNode string

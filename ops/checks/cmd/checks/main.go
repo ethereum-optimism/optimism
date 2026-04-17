@@ -46,6 +46,8 @@ func main() {
 		err = cmdIngest(os.Args[2:])
 	case "doctor":
 		err = cmdDoctor(os.Args[2:])
+	case "replay":
+		err = cmdReplay(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -74,6 +76,7 @@ Commands:
   coverage  Collect and ingest test coverage data
   ingest    Ingest external signals (ci-history) into graph + learned policy
   doctor    Diagnose environment, graph, catalog, policy, and coverage state
+  replay    Replay the selector against historical CI events; measure recall on failures
 
 Examples:
   checks build
