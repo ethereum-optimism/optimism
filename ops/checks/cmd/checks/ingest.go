@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -12,6 +13,34 @@ import (
 	"github.com/ethereum-optimism/optimism/ops/checks/cihistory"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 )
+
+// eventsWindowStart returns the earliest merged_at across events,
+// or zero time if none have a timestamp.
+func eventsWindowStart(events []cihistory.Event) time.Time {
+	var earliest time.Time
+	for _, e := range events {
+		if e.MergedAt.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || e.MergedAt.Before(earliest) {
+			earliest = e.MergedAt
+		}
+	}
+	return earliest
+}
+
+func eventsWindowEnd(events []cihistory.Event) time.Time {
+	var latest time.Time
+	for _, e := range events {
+		if e.MergedAt.IsZero() {
+			continue
+		}
+		if e.MergedAt.After(latest) {
+			latest = e.MergedAt
+		}
+	}
+	return latest
+}
 
 func cmdIngest(args []string) error {
 	if len(args) == 0 {
@@ -29,6 +58,7 @@ func cmdIngestCIHistory(args []string) error {
 	fs := flag.NewFlagSet("ingest ci-history", flag.ExitOnError)
 	source := fs.String("source", "file", "event source: 'file' (local JSON) or 'circleci'")
 	eventsPath := fs.String("events", "", "path to events JSON (for --source=file)")
+	dumpEvents := fs.String("dump-events", "", "if set, write fetched events to this JSON path and exit (skip analysis + ingest). Intended for `checks replay`.")
 	graphPath := fs.String("graph", "ops/checks/graph.json", "path to graph file to update")
 	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
 	learnedPath := fs.String("out-learned", "ops/checks/policy/learned.yaml", "path to write learned policy overrides")
@@ -69,6 +99,25 @@ func cmdIngestCIHistory(args []string) error {
 	events, err := fetcher.Fetch(since)
 	if err != nil {
 		return fmt.Errorf("fetch events: %w", err)
+	}
+
+	// Dump-only mode: write events to disk and stop. Used to produce
+	// the input for `checks replay` without mutating the graph or
+	// learned.yaml. The format is exactly what cihistory.LoadEvents
+	// reads, so the round-trip is lossless.
+	if *dumpEvents != "" {
+		data, err := json.MarshalIndent(events, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshaling events: %w", err)
+		}
+		if err := os.WriteFile(*dumpEvents, data, 0o644); err != nil {
+			return fmt.Errorf("writing events file: %w", err)
+		}
+		fmt.Printf("Wrote %d events to %s (window %s → %s)\n",
+			len(events), *dumpEvents,
+			eventsWindowStart(events).Format("2006-01-02"),
+			eventsWindowEnd(events).Format("2006-01-02"))
+		return nil
 	}
 
 	analysis := cihistory.Analyze(events, cat, cihistory.Options{
