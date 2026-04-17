@@ -21,6 +21,7 @@ type PresetConfig struct {
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
 	MessageExpiryWindow        *uint64
+	UseInteropFilter           bool
 }
 
 func NewPresetConfig() PresetConfig {

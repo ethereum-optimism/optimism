@@ -12,11 +12,10 @@ yanked = "warn"
 ignore = [
   # paste crate is no longer maintained.
   "RUSTSEC-2024-0436",
-  # https://rustsec.org/advisories/RUSTSEC-2024-0384 used by sse example
-  "RUSTSEC-2024-0384",
-  "RUSTSEC-2025-0012",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # rand is unsound with a custom logger using `rand::rng()`
+  "RUSTSEC-2026-0097",
 ]
 
 # This section is considered when running `cargo deny check bans`.

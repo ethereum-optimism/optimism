@@ -425,6 +425,19 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
+        // When the ZK dispute game dev feature is enabled but no ZK game is registered in the
+        // factory (post-upgrade), the validator will always produce a ZKDG-10 error. Append it
+        // automatically so callers don't have to repeat this everywhere.
+        bool zkFeature = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
+        bool zkGameDeployed = address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
+        if (zkFeature && !zkGameDeployed) {
+            if (bytes(_expectedValidatorErrors).length == 0) {
+                _expectedValidatorErrors = "ZKDG-10";
+            } else {
+                _expectedValidatorErrors = string.concat(_expectedValidatorErrors, ",ZKDG-10");
+            }
+        }
+
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
         if (bytes(_expectedValidatorErrors).length > 0) {
@@ -1739,7 +1752,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // In standard mode, CANNON and CANNON_KONA are disabled → PLDG-10,CKDG-10.
         // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-10.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
@@ -1876,9 +1891,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice PERMISSIONED_CANNON as respected game type succeeds during deploy.
     function test_deploy_permissionedCannonRespectedGameType_succeeds() public {
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.startingRespectedGameType = permType;
         string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
     }

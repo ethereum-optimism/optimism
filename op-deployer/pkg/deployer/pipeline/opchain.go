@@ -105,10 +105,6 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
 	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
-	st.ImplementationsDeployment.OpcmDeployerImpl = impls.OpcmDeployer
-	st.ImplementationsDeployment.OpcmGameTypeAdderImpl = impls.OpcmGameTypeAdder
-	st.ImplementationsDeployment.OpcmUpgraderImpl = impls.OpcmUpgrader
-	st.ImplementationsDeployment.OpcmInteropMigratorImpl = impls.OpcmInteropMigrator
 	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
 
 	return nil
