@@ -618,6 +618,76 @@ check_types:
 	}
 }
 
+// TestResolve_SolidityCoverageDoesNotTriggerGoTest — a Solidity
+// coverage edge (sol:test → sol:src) must never produce a go-test
+// candidate. Pre-fix, coverageCandidates iterated every coverage
+// edge regardless of check language and scopeForCandidate happily
+// used the sol: test path as the go-test scope, emitting commands
+// like `go test ./test/L1/X.t.sol` that don't parse.
+func TestResolve_SolidityCoverageDoesNotTriggerGoTest(t *testing.T) {
+	g := graph.NewGraph()
+
+	// Solidity source + test with a coverage edge.
+	_ = g.AddNode(&graph.Node{ID: "sol:src/L1/X.sol", Kind: graph.KindSource})
+	_ = g.AddNode(&graph.Node{ID: "sol:test/L1/X.t.sol", Kind: graph.KindSource})
+	_ = g.AddEdge(&graph.Edge{
+		From:     "sol:test/L1/X.t.sol",
+		To:       "sol:src/L1/X.sol",
+		Kind:     graph.EdgeTestedBy,
+		Source:   graph.SourceCoverage,
+		Strength: 0.9, Confidence: 1.0,
+		Properties: map[string]any{"line_ranges": [][2]int{{40, 50}}},
+	})
+	// Both forge-test and go-test exist as check nodes, and both
+	// get tested_by edges (mimicking what the builder does).
+	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck})
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck})
+	for _, check := range []string{"check:forge-test", "check:go-test"} {
+		_ = g.AddEdge(&graph.Edge{
+			From: "sol:test/L1/X.t.sol", To: check,
+			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
+			Strength: 0.9, Confidence: 0.8,
+		})
+	}
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_flag: "--match-path"
+    scope_type: paths
+    avg_duration: 3600
+  - id: go-test
+    name: go-test
+    kind: test
+    language: go
+    command: go test
+    scopeable: true
+    scope_type: packages
+    avg_duration: 7200
+`))
+
+	diffs := []diff.FileDiff{{
+		Path:  "packages/contracts-bedrock/src/L1/X.sol",
+		Hunks: []diff.Hunk{{NewStart: 45, NewCount: 3}},
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+
+	for _, c := range cands {
+		if c.CheckID == "go-test" {
+			t.Errorf("go-test should not receive a Solidity-coverage-derived candidate; got scope=%q", c.Scope)
+		}
+		if c.CheckID == "forge-test" && c.Scope != "./test/L1/X.t.sol" {
+			t.Errorf("forge-test scope = %q, want ./test/L1/X.t.sol", c.Scope)
+		}
+	}
+}
+
 // TestResolve_CorrelationEdgeProducesBinaryCandidate — a CI-history
 // correlation edge on a binary check surfaces as a Candidate carrying
 // SourceCIHistory provenance, independent of coverage.

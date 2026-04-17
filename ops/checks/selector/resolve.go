@@ -208,13 +208,33 @@ func isCandidateTestNode(nodeID string, ct *catalog.CheckType) bool {
 }
 
 // scopeForCandidate derives the command-line scope for a candidate.
-// Prefers the Solidity-specific test-path mapping; falls back to the
-// scope_type-driven derivation (Go packages, etc.).
+// The Solidity-specific test-path mapping is only honored when the
+// check itself is Solidity — otherwise we'd emit commands like
+// `go test ./test/L1/X.t.sol` that don't parse. For other languages
+// we use the scope_type-driven derivation.
 func scopeForCandidate(nodeID string, ct *catalog.CheckType) string {
-	if s := nodeIDToTestPath(nodeID); s != "" {
-		return s
+	if ct.Language == "solidity" {
+		if s := nodeIDToTestPath(nodeID); s != "" {
+			return s
+		}
 	}
 	return nodeIDToScope(nodeID, ct.ScopeType)
+}
+
+// testNodeMatchesLanguage reports whether nodeID's prefix is the one
+// the check's language uses for test-side nodes. Used to reject
+// cross-language coverage edges that would otherwise produce
+// nonsensical scopes.
+func testNodeMatchesLanguage(nodeID, language string) bool {
+	switch language {
+	case "solidity":
+		return strings.HasPrefix(nodeID, "sol:")
+	case "go":
+		return strings.HasPrefix(nodeID, "go:")
+	case "rust":
+		return strings.HasPrefix(nodeID, "rs:")
+	}
+	return false
 }
 
 // isTestFileNode reports whether a node ID identifies a Solidity

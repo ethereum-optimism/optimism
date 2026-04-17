@@ -54,6 +54,16 @@ func coverageCandidates(
 			if edge.Source != graph.SourceCoverage {
 				continue
 			}
+			// Coverage edges are language-typed by their endpoints.
+			// A Solidity coverage edge (sol:test → sol:src) must not
+			// produce a go-test or rust-test candidate — the scope
+			// derivation would use the Solidity test file path, and
+			// the resulting command (`go test ./test/X.t.sol`) is
+			// nonsense. Skip edges whose test-side node doesn't match
+			// this check's language.
+			if !testNodeMatchesLanguage(edge.From, ct.Language) {
+				continue
+			}
 			profile := profileFromEdge(edge)
 			fr := fresh.Assess(edge)
 
@@ -97,10 +107,7 @@ func coverageCandidates(
 
 	var out []Candidate
 	for k, e := range best {
-		scope := nodeIDToTestPath(k.testNode)
-		if scope == "" {
-			scope = nodeIDToScope(k.testNode, ct.ScopeType)
-		}
+		scope := scopeForCandidate(k.testNode, ct)
 		if scope == "" {
 			continue
 		}
