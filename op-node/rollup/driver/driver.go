@@ -350,39 +350,21 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
-			// Check the sequencer's next action time directly via time.Now()
-			// rather than peeking at the timer channel. In a CPU-bound event
-			// cascade (e.g. consolidating a large span batch), Go's runtime
-			// may fail to deliver the timer value to the channel until after
-			// the cascade yields — leading to sequencer starvation.
+			// Check the sequencer's next action deadline directly via time.Now()
+			// rather than peeking at the timer channel. During a CPU-bound event
+			// cascade (e.g. consolidating a large span batch with ~20000 events),
+			// Go's runtime may fail to deliver the timer value to the channel
+			// until the cascade completes — leading to sequencer starvation.
 			// time.Now() reads the monotonic clock directly, bypassing runtime
-			// scheduling entirely.
+			// timer delivery scheduling entirely.
 			sequencerDeadline, sequencerReady := s.sequencer.NextAction()
-			drainStart := time.Now()
-			callbackCount := 0
 			interrupted := false
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
-				callbackCount++
-				now := time.Now()
-				// Sampled logging: first call, every 1000th, to track progress
-				if callbackCount == 1 || callbackCount%1000 == 0 {
-					s.log.Info("DrainUntil callback",
-						"count", callbackCount,
-						"sequencerReady", sequencerReady,
-						"deadline", sequencerDeadline,
-						"now", now,
-						"delta", sequencerDeadline.Sub(now),
-						"chReady", len(sequencerCh) > 0)
-				}
 				if !sequencerReady {
 					return false
 				}
-				if now.After(sequencerDeadline) {
+				if time.Now().After(sequencerDeadline) {
 					interrupted = true
-					s.log.Info("DrainUntil interrupting for sequencer",
-						"count", callbackCount,
-						"pastDeadlineBy", now.Sub(sequencerDeadline),
-						"chReady", len(sequencerCh) > 0)
 					return true
 				}
 				return false
@@ -396,16 +378,15 @@ func (s *Driver) eventLoop() {
 					})
 				}
 			}
-			s.log.Info("DrainUntil returned",
-				"duration", time.Since(drainStart),
-				"callbacks", callbackCount,
-				"interrupted", interrupted,
-				"sequencerReady", sequencerReady,
-				"sequencerChReady", len(sequencerCh) > 0)
-			// If interrupted for the sequencer, run the action directly.
-			// Otherwise, let the main loop's select pick it up normally.
+			// If DrainUntil was interrupted because the sequencer deadline passed,
+			// run the action directly. We cannot defer to the main select loop
+			// because the timer channel may not have received the value yet (same
+			// runtime delivery issue), and planSequencerAction would see
+			// `nextAction == prevTime` and skip resetting the timer.
 			if interrupted {
-				// Drain any pending timer value so planSequencerAction doesn't see a stale one.
+				s.log.Info("Event-drain interrupted to service sequencer deadline",
+					"pastDeadlineBy", time.Since(sequencerDeadline))
+				// Drain any pending timer value to keep the channel state consistent.
 				if len(sequencerCh) > 0 {
 					<-sequencerCh
 				}
