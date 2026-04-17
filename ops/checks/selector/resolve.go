@@ -138,9 +138,26 @@ func candidatesForCheck(
 	pol *policy.Policy,
 	fresh freshness.Checker,
 ) []Candidate {
-	// Trigger match: for non-scopeable checks, a glob hit makes it
-	// a candidate with signal=1.0 regardless of graph reachability.
-	if len(ct.Triggers) > 0 && ct.MatchesTriggers(filePaths) {
+	triggerHit := len(ct.Triggers) > 0 && ct.MatchesTriggers(filePaths)
+
+	// Scopeable checks always try scoping first, even when a trigger hits.
+	// A trigger-only unscoped candidate (e.g. `rust-test:all`) is a last
+	// resort — if the graph can localize the work to specific packages or
+	// crates via coverage/import walks, those scoped Candidates carry the
+	// same signal=1.0 but let the optimizer split into tiers and emit
+	// targeted commands like `just test -p kona-derive`.
+	if ct.Scopeable {
+		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol, fresh); len(cands) > 0 {
+			return cands
+		}
+		if cands := importScopeCandidates(g, ct, changedIDs); len(cands) > 0 {
+			return cands
+		}
+		// Fall through to trigger-based unscoped candidate if graph gave
+		// us nothing — better to run the whole check than miss it.
+	}
+
+	if triggerHit {
 		return []Candidate{{
 			CheckID: ct.ID,
 			Signal:  1.0,
@@ -157,10 +174,7 @@ func candidatesForCheck(
 	}
 
 	if ct.Scopeable {
-		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol, fresh); len(cands) > 0 {
-			return cands
-		}
-		return importScopeCandidates(g, ct, changedIDs)
+		return nil
 	}
 
 	// Binary check: aggregate historical correlation (if any) with
@@ -259,13 +273,21 @@ func buildChangedLinesMap(diffs []diff.FileDiff) map[string]map[int]bool {
 // isCandidateTestNode reports whether a node can be a scope candidate
 // for this check. Solidity: test files (test/…/*.t.sol). Go: any
 // package node — tests live inside packages, and `go test ./pkg/...`
-// handles packages without _test.go files gracefully.
+// handles packages without _test.go files gracefully. Rust: any crate
+// node — `cargo test -p <crate>` is the scope unit.
 func isCandidateTestNode(nodeID string, ct *catalog.CheckType) bool {
 	switch ct.Language {
 	case "solidity":
 		return isTestFileNode(nodeID)
 	case "go":
 		return strings.HasPrefix(nodeID, "go:")
+	case "rust":
+		// Crate nodes only (no slash after the prefix) — file nodes
+		// would scope to a non-existent cargo target.
+		if !strings.HasPrefix(nodeID, "rs:") {
+			return false
+		}
+		return !strings.Contains(nodeID[3:], "/")
 	}
 	return false
 }
@@ -362,7 +384,7 @@ func countLineHits(lineRanges any, changedLines map[int]bool) int {
 }
 
 // nodeIDToSourceFile extracts the source file path component from a
-// sol:/go: node ID. Used when matching against changedLines.
+// sol:/go:/rs: node ID. Used when matching against changedLines.
 func nodeIDToSourceFile(nodeID string) string {
 	if strings.HasPrefix(nodeID, "sol:") {
 		return strings.TrimPrefix(nodeID, "sol:")
@@ -370,12 +392,16 @@ func nodeIDToSourceFile(nodeID string) string {
 	if strings.HasPrefix(nodeID, "go:") {
 		return strings.TrimPrefix(nodeID, "go:")
 	}
+	if strings.HasPrefix(nodeID, "rs:") {
+		return strings.TrimPrefix(nodeID, "rs:")
+	}
 	return nodeID
 }
 
 // nodeIDToScope converts a source node ID to a command-line scope
 // argument based on the check's scope_type. Solidity src/L1/X.sol
-// becomes ./test/L1/*; a Go package node becomes ./pkg/....
+// becomes ./test/L1/*; a Go package node becomes ./pkg/...; a Rust
+// crate node becomes the bare crate name (passed as `-p <crate>`).
 func nodeIDToScope(nodeID, scopeType string) string {
 	switch scopeType {
 	case "packages":
@@ -386,6 +412,13 @@ func nodeIDToScope(nodeID, scopeType string) string {
 				return "./" + parts[3] + "/..."
 			}
 			return "./" + path + "/..."
+		}
+		if strings.HasPrefix(nodeID, "rs:") {
+			path := strings.TrimPrefix(nodeID, "rs:")
+			// Crate-level nodes only (no slash after rs:).
+			if !strings.Contains(path, "/") {
+				return path
+			}
 		}
 	case "paths":
 		if strings.HasPrefix(nodeID, "sol:") {

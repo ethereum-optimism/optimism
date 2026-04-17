@@ -303,6 +303,46 @@ func FilesToNodeIDs(g *graph.Graph, files []string) (nodeIDs []string, unknown [
 			}
 		}
 
+		// Try Rust: map file to rs: file node AND its parent crate
+		// node. File nodes are coverage-target leaves with no outgoing
+		// import edges, so the import-walk can't start from them.
+		// Emitting the crate node makes the walk pick up every crate
+		// that transitively depends on this one, which drives
+		// per-crate rust-test scoping.
+		if strings.HasSuffix(f, ".rs") && !matched {
+			dir := filepath.Dir(f)
+			for _, node := range g.NodesOfKind(graph.KindSource) {
+				if !strings.HasPrefix(node.ID, "rs:") {
+					continue
+				}
+				nodeDir, _ := node.Properties["dir"].(string)
+				if nodeDir == "" {
+					continue
+				}
+				if !strings.HasSuffix(nodeDir, "/"+dir) {
+					continue
+				}
+				if !seen[node.ID] {
+					nodeIDs = append(nodeIDs, node.ID)
+					seen[node.ID] = true
+				}
+				// Also emit the owning crate node. Package prop on file
+				// nodes isn't carried today, so derive from ID prefix
+				// ("rs:<crate>/..." → "rs:<crate>").
+				if node.Granularity == "file" {
+					if idx := strings.Index(node.ID[3:], "/"); idx > 0 {
+						crateID := "rs:" + node.ID[3:3+idx]
+						if g.GetNode(crateID) != nil && !seen[crateID] {
+							nodeIDs = append(nodeIDs, crateID)
+							seen[crateID] = true
+						}
+					}
+				}
+				matched = true
+				break
+			}
+		}
+
 		if !matched {
 			unknown = append(unknown, f)
 		}
