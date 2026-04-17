@@ -117,7 +117,100 @@ func (b *Builder) Build(rootDir string) (*graph.Graph, error) {
 		}
 	}
 
+	// Step 6: pipeline-model dataflow edges. For each check declaring
+	// Inputs / Outputs / Tools, wire consumes/produces edges to source
+	// and artifact nodes. This runs in parallel with the legacy
+	// Triggers / Prerequisites / Produces wiring — checks that haven't
+	// migrated emit no edges here and stay on the legacy path.
+	for _, ct := range b.catalog.CheckTypes {
+		if len(ct.Inputs) == 0 && len(ct.Outputs) == 0 && len(ct.Tools) == 0 {
+			continue
+		}
+		b.emitDataflowEdges(g, ct)
+	}
+
 	return g, nil
+}
+
+// emitDataflowEdges wires pipeline-model edges for a single check.
+// It creates artifact: nodes on demand (toolchain artifacts from
+// Tools, output artifacts from Outputs that use artifact: refs),
+// matches source nodes against input globs, and creates consumes /
+// produces edges accordingly.
+func (b *Builder) emitDataflowEdges(g *graph.Graph, ct catalog.CheckType) {
+	checkID := "check:" + ct.ID
+
+	// Tools expand into consumes: [artifact:toolchain/<tool>].
+	toolInputs := make([]string, 0, len(ct.Tools))
+	for _, t := range ct.Tools {
+		toolInputs = append(toolInputs, "artifact:toolchain/"+t)
+	}
+	allInputs := append(append([]string{}, toolInputs...), ct.Inputs...)
+
+	for _, in := range allInputs {
+		if strings.HasPrefix(in, "artifact:") {
+			// Ensure the artifact node exists, then consumes edge.
+			ensureArtifactNode(g, in)
+			_ = g.AddEdge(&graph.Edge{
+				From: checkID, To: in, Kind: graph.EdgeConsumes,
+				Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+			})
+			continue
+		}
+		// Path glob: match against existing source nodes.
+		for _, node := range g.NodesOfKind(graph.KindSource) {
+			path := nodePath(node)
+			if path == "" || !matchesAnyGlob(path, []string{in}) {
+				continue
+			}
+			_ = g.AddEdge(&graph.Edge{
+				From: checkID, To: node.ID, Kind: graph.EdgeConsumes,
+				Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+			})
+		}
+	}
+
+	for _, out := range ct.Outputs {
+		if strings.HasPrefix(out, "artifact:") {
+			ensureArtifactNode(g, out)
+			_ = g.AddEdge(&graph.Edge{
+				From: checkID, To: out, Kind: graph.EdgeProduces,
+				Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+			})
+			continue
+		}
+		// Path-glob output: for checked-in generated files whose
+		// source nodes already exist, match as before. For
+		// transient outputs, the catalog author should use the
+		// artifact: ref form.
+		for _, node := range g.NodesOfKind(graph.KindSource) {
+			path := nodePath(node)
+			if path == "" || !matchesAnyGlob(path, []string{out}) {
+				continue
+			}
+			_ = g.AddEdge(&graph.Edge{
+				From: checkID, To: node.ID, Kind: graph.EdgeProduces,
+				Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+			})
+		}
+	}
+}
+
+// ensureArtifactNode creates an artifact: node if absent. Artifact
+// nodes are virtual — they may not correspond to any file on disk
+// (e.g. artifact:toolchain/forge represents the installed forge
+// binary, artifact:forge-artifacts/**/*.json is a path glob that
+// covers whatever forge-build emits).
+func ensureArtifactNode(g *graph.Graph, id string) {
+	if g.GetNode(id) != nil {
+		return
+	}
+	_ = g.AddNode(&graph.Node{
+		ID:          id,
+		Kind:        graph.KindArtifact,
+		Granularity: "artifact",
+		Name:        strings.TrimPrefix(id, "artifact:"),
+	})
 }
 
 // nodePath extracts the repo-relative path a source node represents,

@@ -27,6 +27,7 @@ const (
 	EdgeImports             EdgeKind = "imports"
 	EdgeGenerates           EdgeKind = "generates"
 	EdgeProduces            EdgeKind = "produces"
+	EdgeConsumes            EdgeKind = "consumes"
 	EdgeTestedBy            EdgeKind = "tested_by"
 	EdgePrerequisite        EdgeKind = "prerequisite"
 	EdgeObservedCorrelation EdgeKind = "observed_correlation"

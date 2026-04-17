@@ -27,6 +27,19 @@ type CheckType struct {
 	// prerequisite of the downstream consumer Candidates — separate from
 	// the coarse catalog-level Prerequisites.
 	Produces        []string `yaml:"produces,omitempty"`
+	// Inputs / Outputs / Tools: pipeline-model fields (see
+	// ops/checks/docs/pipeline-model.md). Optional during Phase A of
+	// the migration — when set, the builder emits consumes/produces
+	// edges to/from source and artifact nodes. Replace Triggers /
+	// Prerequisites / Produces during Phase B migration.
+	//
+	// Inputs and Outputs accept either path globs
+	// ("packages/contracts-bedrock/src/**/*.sol") or artifact refs
+	// ("artifact:forge-artifacts/**"). Tools is sugar: each entry
+	// expands into inputs: [artifact:toolchain/<tool>].
+	Inputs  []string `yaml:"inputs,omitempty"`
+	Outputs []string `yaml:"outputs,omitempty"`
+	Tools   []string `yaml:"tools,omitempty"`
 	Knobs           []Knob   `yaml:"knobs,omitempty"`
 	Prerequisites   []string `yaml:"prerequisites,omitempty"`
 	AvgDuration     int      `yaml:"avg_duration"`
