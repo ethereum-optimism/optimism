@@ -425,12 +425,16 @@ mod test {
         assert_eq!(cross_l2_inbox_tx.len(), 2);
 
         let expected_txs: Vec<Bytes> = vec![
-            hex::decode(include_str!("./bytecode/interop_cross_l2_inbox_tx_0.hex").replace('\n', ""))
-                .unwrap()
-                .into(),
-            hex::decode(include_str!("./bytecode/interop_cross_l2_inbox_tx_1.hex").replace('\n', ""))
-                .unwrap()
-                .into(),
+            hex::decode(
+                include_str!("./bytecode/interop_cross_l2_inbox_tx_0.hex").replace('\n', ""),
+            )
+            .unwrap()
+            .into(),
+            hex::decode(
+                include_str!("./bytecode/interop_cross_l2_inbox_tx_1.hex").replace('\n', ""),
+            )
+            .unwrap()
+            .into(),
         ];
         for (i, expected) in expected_txs.iter().enumerate() {
             assert_eq!(cross_l2_inbox_tx[i], *expected);
