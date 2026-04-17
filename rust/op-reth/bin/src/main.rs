@@ -15,6 +15,12 @@ static MALLOC_CONF: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 fn main() {
     reth_cli_util::sigsegv_handler::install();
 
+    // rustls 0.23+ requires an explicit crypto provider; install before any TLS use
+    // (e.g. flashblocks wss:// websocket connection).
+    let _ = rustls::crypto::CryptoProvider::install_default(
+        rustls::crypto::ring::default_provider(),
+    );
+
     // Enable backtraces unless a RUST_BACKTRACE value has already been explicitly provided.
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         unsafe {
