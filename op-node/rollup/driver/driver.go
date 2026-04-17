@@ -350,11 +350,7 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
-			// DrainUntil processes events one at a time, checking between each
-			// whether the sequencer timer has fired. If so, it stops early so the
-			// main loop can service the sequencer action before resuming draining.
-			// len(sequencerCh) peeks without consuming, so the main loop's select
-			// naturally picks up the timer on the next iteration.
+			drainStart := time.Now()
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
 				return len(sequencerCh) > 0
 			}, true); err != nil && err != io.EOF {
@@ -366,6 +362,17 @@ func (s *Driver) eventLoop() {
 						Err: fmt.Errorf("unexpected error: %w", err),
 					})
 				}
+			}
+			s.log.Info("DrainUntil returned",
+				"duration", time.Since(drainStart),
+				"sequencerChReady", len(sequencerCh) > 0,
+				"sequencerChNil", sequencerCh == nil)
+			// If the sequencer timer fired mid-drain, consume it and run the action
+			// directly. We cannot defer to the select loop because planSequencerAction
+			// may set sequencerCh = nil if derivation paused the sequencer mid-cascade.
+			if len(sequencerCh) > 0 {
+				<-sequencerCh
+				s.sequencer.RunAction(s.driverCtx)
 			}
 		case <-s.driverCtx.Done():
 			return
