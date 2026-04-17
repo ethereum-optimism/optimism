@@ -544,8 +544,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _predeploy == Predeploys.SEQUENCER_FEE_WALLET
             || _predeploy == Predeploys.BASE_FEE_VAULT || _predeploy == Predeploys.L1_FEE_VAULT
-            || _predeploy == Predeploys.OPERATOR_FEE_VAULT || _predeploy == Predeploys.FEE_SPLITTER
-            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _predeploy == Predeploys.OPERATOR_FEE_VAULT || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
     }
 
     /// @notice Checks if a predeploy is deployed and upgradeable.
@@ -939,28 +938,6 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         predeploys_[0] = Predeploys.LIQUIDITY_CONTROLLER;
     }
 
-<<<<<<< HEAD
-    /// @notice Checks if a predeploy requires initialization.
-    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
-    ///      This determines the upgrade method, not coverage.
-    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
-        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
-            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
-            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
-    }
-
-    /// @notice Checks if a predeploy is deployed and upgradeable.
-    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
-    ///      This avoids calling the proxy's implementation() function which may fail.
-    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
-        address impl = EIP1967Helper.getImplementation(_proxy);
-        return impl != address(0) && impl.code.length > 0;
-    }
-
-=======
->>>>>>> eb0f741d14670f370c8723f9908b0596d3a16a3b
     /// @notice Tests that all predeploys from Predeploys.sol receive the expected upgrade call.
     ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
     /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
@@ -1149,7 +1126,6 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
         if (_predeploy == Predeploys.BASE_FEE_VAULT) return implementations.baseFeeVaultImpl;
         if (_predeploy == Predeploys.L1_FEE_VAULT) return implementations.l1FeeVaultImpl;
         if (_predeploy == Predeploys.OPERATOR_FEE_VAULT) return implementations.operatorFeeVaultImpl;
-        if (_predeploy == Predeploys.FEE_SPLITTER) return implementations.feeSplitterImpl;
         if (_predeploy == Predeploys.LIQUIDITY_CONTROLLER) return implementations.liquidityControllerImpl;
 
         // Non-initializable predeploys (upgradeTo path).
