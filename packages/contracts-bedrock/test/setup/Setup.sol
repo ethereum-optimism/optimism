@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { console2 as console } from "forge-std/console2.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
@@ -240,6 +240,18 @@ abstract contract Setup is FeatureFlags {
     ///      bytecode verification tests, and any test sensitive to compiler output.
     function skipIfUnoptimized() public {
         if (Config.isUnoptimized()) {
+            vm.skip(true);
+        }
+    }
+
+    /// @dev Skips tests only under coverage mode, where Foundry injects instrumentation
+    ///      opcodes that change deployed bytecode relative to the compiled artifact.
+    ///      Prefer this over skipIfUnoptimized() for tests that compare locally-compiled
+    ///      bytecode to locally-compiled artifacts: both sides move together across
+    ///      optimized/unoptimized profiles, but coverage instrumentation breaks the
+    ///      comparison because the artifact on disk is not instrumented.
+    function skipIfCoverage() public {
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
             vm.skip(true);
         }
     }
