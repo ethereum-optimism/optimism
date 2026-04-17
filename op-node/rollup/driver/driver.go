@@ -292,6 +292,13 @@ func (s *Driver) eventLoop() {
 		altSyncTicker.Reset(syncCheckInterval)
 	}
 
+	// lastInterruptedDeadline tracks the last sequencer deadline we already interrupted
+	// a drain for and called RunAction. If RunAction doesn't advance the deadline
+	// (e.g. because the sequencer is stuck waiting for a forkchoice update), we must
+	// not keep interrupting on the same deadline — that would hot-loop, re-emitting
+	// events until we hit the event-queue sanity limit.
+	var lastInterruptedDeadline time.Time
+
 	// upstreamSyncTickerC drives the upstreamSyncTicker, which periodically reconciles
 	// the state against upstream sources when derivation is disabled (unsafeOnly).
 	//
@@ -358,9 +365,13 @@ func (s *Driver) eventLoop() {
 			// time.Now() reads the monotonic clock directly, bypassing runtime
 			// timer delivery scheduling entirely.
 			sequencerDeadline, sequencerReady := s.sequencer.NextAction()
+			// Skip interrupting for a deadline we already interrupted for.
+			// If RunAction couldn't advance the deadline (e.g. stuck awaiting a
+			// forkchoice update), we'd otherwise hot-loop re-emitting events.
+			canInterrupt := sequencerReady && !sequencerDeadline.Equal(lastInterruptedDeadline)
 			interrupted := false
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
-				if !sequencerReady {
+				if !canInterrupt {
 					return false
 				}
 				if time.Now().After(sequencerDeadline) {
@@ -384,6 +395,7 @@ func (s *Driver) eventLoop() {
 			// runtime delivery issue), and planSequencerAction would see
 			// `nextAction == prevTime` and skip resetting the timer.
 			if interrupted {
+				lastInterruptedDeadline = sequencerDeadline
 				s.log.Info("Event-drain interrupted to service sequencer deadline",
 					"pastDeadlineBy", time.Since(sequencerDeadline))
 				// Drain any pending timer value to keep the channel state consistent.
