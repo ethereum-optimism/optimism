@@ -404,7 +404,7 @@ contract Deploy is Deployer {
 
     function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -451,6 +451,12 @@ contract Deploy is Deployer {
                 })
             )
         });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: bytes("")
+        });
 
         return IOPContractsManagerV2.FullConfig({
             saltMixer: "salt mixer",
@@ -476,7 +482,7 @@ contract Deploy is Deployer {
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+            new IOPContractsManagerUtils.DisputeGameConfig[](7);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -525,6 +531,12 @@ contract Deploy is Deployer {
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: bytes("")
         });
 

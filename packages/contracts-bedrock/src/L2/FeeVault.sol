@@ -101,8 +101,6 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
     /// @notice Updates the minimum amount of funds the FeeVault contract must hold before they can be
     /// withdrawn.
     /// @param _newMinWithdrawalAmount The new minimum withdrawal amount.
-    /// @dev If integrating the FeeSplitter contract, the minimum withdrawal amount must be set to 0 to
-    /// avoid blocking withdrawals and disbursements for all vaults if one vault doesn't reach the threshold.
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external {
         _assertOnlyProxyAdminOwner();
 

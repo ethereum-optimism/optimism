@@ -68,6 +68,12 @@ func WithKarstAtOffset(offset *uint64) DeployerOption {
 	}
 }
 
+func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithForkAtGenesis(opforks.Karst)
+	}
+}
+
 func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Jovian)
@@ -413,14 +419,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	wb.outSuperchainDeployment = &SuperchainDeployment{
 		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxy,
 		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxy,
-	}
-}
-
-func WithRevenueShare(enabled bool, chainFeesRecipient common.Address) DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithRevenueShare(enabled, chainFeesRecipient)
-		}
 	}
 }
 

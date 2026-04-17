@@ -54,7 +54,6 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
-	WithRevenueShare(enabled bool, chainFeesRecipient common.Address)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -531,11 +530,6 @@ func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 		// The typing is important, or op-deployer merge-JSON tricks will fail
 		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 	}
-}
-
-func (c *l2Configurator) WithRevenueShare(enabled bool, chainFeesRecipient common.Address) {
-	c.builder.intent.Chains[c.chainIndex].UseRevenueShare = enabled
-	c.builder.intent.Chains[c.chainIndex].ChainFeesRecipient = chainFeesRecipient
 }
 
 func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
