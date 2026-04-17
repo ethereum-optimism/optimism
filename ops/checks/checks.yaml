@@ -357,6 +357,7 @@ check_types:
       - "op-core/nuts/**"
       - "op-node/rollup/derive/interop_nut_bundle.json"
       - "**/interop_nut_bundle.json"
+      - "op-supernode/supernode/activity/interop/**"
     avg_duration: 60
     prerequisites: ["forge-build"]
     ci_job_names:

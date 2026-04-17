@@ -81,21 +81,39 @@ func Resolve(
 	}
 
 	var out []Candidate
+	// Collect per-check candidates; also build a map from CheckID to its
+	// scope candidates so profile triggers can reuse the same scopes
+	// (same file → same tests, just under a different profile env).
+	byCheck := make(map[string][]Candidate)
 	for i := range cat.CheckTypes {
 		ct := &cat.CheckTypes[i]
-		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)...)
+		cands := candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)
+		out = append(out, cands...)
+		if ct.Scopeable {
+			byCheck[ct.ID] = cands
+		}
 	}
-	out = append(out, profileTriggerCandidates(cat, filePaths)...)
+	out = append(out, profileTriggerCandidates(cat, filePaths, byCheck)...)
 	return out
 }
 
-// profileTriggerCandidates emits one unscoped Candidate per scopeable
-// check × triggered profile, signal=1.0. Covers the case where a
-// feature-flag profile only runs if specific paths changed (e.g.
-// opcm_v2 profile → OPContractsManager files), and coverage data
-// wasn't collected under that profile so no coverage edge carries it.
-// Without this, such profiles stay at 0% recall on real diffs.
-func profileTriggerCandidates(cat *catalog.Catalog, filePaths []string) []Candidate {
+// profileTriggerCandidates emits per-profile candidates for every
+// scopeable check whose profile-matrix should run against this diff.
+//
+// Scopes are cloned from the same check's main-profile candidates
+// (computed from coverage/import walk): if only two test files import
+// the changed source, only those two files run — under every triggered
+// profile. Without this, profile triggers fire unscoped `:all`
+// candidates that run the entire test suite under each feature flag,
+// which wipes out the selector's savings on contracts diffs.
+//
+// If the main-profile scoping found nothing (e.g. the changed file has
+// no importers and no coverage edges), we fall back to a single
+// unscoped candidate per profile — there's no scope data to reuse but
+// the profile trigger still means "run this feature matrix as a safety
+// net". Callers that want to suppress that safety net can rely on the
+// optimizer's should_run math (miss_cost × prior vs run_cost).
+func profileTriggerCandidates(cat *catalog.Catalog, filePaths []string, byCheck map[string][]Candidate) []Candidate {
 	var out []Candidate
 	for i := range cat.Profiles {
 		p := &cat.Profiles[i]
@@ -107,21 +125,38 @@ func profileTriggerCandidates(cat *catalog.Catalog, filePaths []string) []Candid
 			if !ct.Scopeable {
 				continue
 			}
-			out = append(out, Candidate{
-				CheckID: ct.ID,
-				Profile: p.Name,
-				Signal:  1.0,
-				Provenance: []SignalContribution{{
+			mainCands := byCheck[ct.ID]
+			// Mirror whatever the main-profile candidate set looks like:
+			// if main is empty (no coverage, no importers, no trigger),
+			// there's nothing to test — profile triggers should NOT
+			// invent work. If main has scoped candidates, clone them.
+			// If main has only an unscoped trigger candidate, clone
+			// that as the per-profile safety net.
+			var mainProfileCands []Candidate
+			for _, c := range mainCands {
+				if c.Profile == "" {
+					mainProfileCands = append(mainProfileCands, c)
+				}
+			}
+			if len(mainProfileCands) == 0 {
+				continue
+			}
+			for _, c := range mainProfileCands {
+				clone := c
+				clone.Profile = p.Name
+				clone.Provenance = []SignalContribution{{
 					Source:       graph.SourceStatic,
 					EdgeKind:     graph.EdgeKind(""),
-					Contribution: 1.0,
+					Contribution: c.Signal,
 					Raw: map[string]any{
-						"reason":   "profile_trigger",
-						"profile":  p.Name,
-						"triggers": p.Triggers,
+						"reason":          "profile_trigger",
+						"profile":         p.Name,
+						"triggers":        p.Triggers,
+						"scope_from_main": true,
 					},
-				}},
-			})
+				}}
+				out = append(out, clone)
+			}
 		}
 	}
 	return out
