@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/diff"
@@ -22,6 +23,8 @@ func cmdSelect(args []string) error {
 	policyPath := fs.String("policy", "", "optional policy override YAML (stacks on embedded baseline + learned.yaml)")
 	diffFile := fs.String("diff", "", "path to diff file (default: stdin)")
 	format := fs.String("format", "text", "output format (text, json)")
+	whyFilter := fs.String("why", "", "substring match against item IDs; prints matching items with full provenance")
+	budget := fs.Duration("budget", 0, "max wall-clock budget (e.g. 30m). Lowest-value items are trimmed to fit; force-run items and their prerequisites are preserved")
 	fs.Parse(args)
 
 	pol, err := loadPolicy(*policyPath)
@@ -77,11 +80,117 @@ func cmdSelect(args []string) error {
 		return fmt.Errorf("optimizing: %w", err)
 	}
 
-	if *format == "json" {
-		return printResultJSON(result, cat)
+	if *budget > 0 {
+		selector.TrimToBudget(result, *budget, pol.MaxParallelism())
 	}
-	return printResultText(result, cat)
+
+	if *format == "json" {
+		if err := printResultJSON(result, cat); err != nil {
+			return err
+		}
+	} else {
+		if err := printResultText(result, cat); err != nil {
+			return err
+		}
+	}
+	if *whyFilter != "" {
+		printWhy(result, cat, *whyFilter)
+	}
+	return nil
 }
+
+// printWhy emits a focused provenance dump for every item whose ID
+// contains the given substring — items from both the plan and the
+// skipped list. Meant for "the selector did X, what was the
+// evidence?" debugging; complements `explain FILE` which starts from
+// the file side.
+func printWhy(result *selector.Result, cat *catalog.Catalog, pattern string) {
+	fmt.Printf("\n--- why=%q ---\n", pattern)
+	matches := 0
+	for _, item := range result.Items {
+		if containsFold(item.ID, pattern) {
+			printItemProvenance(item, cat, "plan")
+			matches++
+		}
+	}
+	for _, item := range result.Skipped {
+		if containsFold(item.ID, pattern) {
+			printItemProvenance(item, cat, "skipped")
+			matches++
+		}
+	}
+	if matches == 0 {
+		fmt.Printf("No items matched %q. Items in plan:\n", pattern)
+		for _, item := range result.Items {
+			fmt.Printf("  %s\n", item.ID)
+		}
+		fmt.Println("Skipped:")
+		for _, item := range result.Skipped {
+			fmt.Printf("  %s\n", item.ID)
+		}
+	}
+}
+
+func printItemProvenance(item selector.ExecutionItem, cat *catalog.Catalog, bucket string) {
+	ct := cat.ByID(item.CheckTypeID)
+	cmd := item.ResolvedCommandWithCatalog(ct, cat)
+
+	fmt.Printf("\n[%s] %s\n", bucket, item.ID)
+	fmt.Printf("  command:    %s\n", cmd)
+	if len(item.Scope) > 0 {
+		fmt.Printf("  scope:      %s\n", strings.Join(item.Scope, ", "))
+	}
+	if item.Profile != "" {
+		fmt.Printf("  profile:    %s\n", item.Profile)
+	}
+	fmt.Printf("  signal:     %.3f\n", item.Signal)
+	fmt.Printf("  run_cost:   %.1fs\n", item.RunCost)
+	fmt.Printf("  skip_cost:  %.1fs (= signal*prior*miss_cost; force-run if > run_cost)\n", item.SkipCost)
+	if len(item.Prerequisites) > 0 {
+		fmt.Printf("  prereqs:    %s\n", strings.Join(item.Prerequisites, ", "))
+	}
+	if len(item.Provenance) == 0 {
+		fmt.Println("  provenance: (none — prerequisite-only or synthetic)")
+		return
+	}
+	fmt.Println("  provenance:")
+	for _, p := range item.Provenance {
+		kind := string(p.EdgeKind)
+		if kind == "" {
+			kind = "-"
+		}
+		fmt.Printf("    - %s/%s  contribution=%.3f", p.Source, kind, p.Contribution)
+		if len(p.Raw) > 0 {
+			fmt.Printf("  %s", formatRawMap(p.Raw))
+		}
+		fmt.Println()
+	}
+}
+
+func containsFold(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+}
+
+func formatRawMap(raw map[string]any) string {
+	// Stable key order for deterministic output.
+	keys := make([]string, 0, len(raw))
+	for k := range raw {
+		keys = append(keys, k)
+	}
+	// Short insertion sort — raw maps typically have <5 entries.
+	for i := 1; i < len(keys); i++ {
+		for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
+			keys[j], keys[j-1] = keys[j-1], keys[j]
+		}
+	}
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, raw[k]))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+
 
 func printResultText(result *selector.Result, cat *catalog.Catalog) error {
 	fmt.Printf("Stage: %s\n\n", result.Stage)
