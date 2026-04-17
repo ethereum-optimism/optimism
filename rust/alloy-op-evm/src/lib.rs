@@ -27,12 +27,12 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use op_revm::{
-    DefaultOp, OpBuilder, OpContext, OpHaltReason, OpSpecId, OpTransaction,
+    DefaultOp, L1BlockInfo, OpBuilder, OpContext, OpHaltReason, OpSpecId, OpTransaction,
     precompiles::OpPrecompiles,
 };
 use revm::{
-    Context, ExecuteEvm, InspectEvm, Inspector, SystemCallEvm,
-    context::{BlockEnv, TxEnv},
+    Context, ExecuteEvm, InspectEvm, Inspector, Journal, SystemCallEvm,
+    context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::result::{EVMError, ResultAndState},
     handler::{PrecompileProvider, instructions::EthInstructions},
     inspector::NoOpInspector,
@@ -44,6 +44,9 @@ pub use tx::OpTx;
 
 pub mod block;
 pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory};
+
+/// The OP EVM context type.
+pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
 
 /// OP EVM implementation.
 ///

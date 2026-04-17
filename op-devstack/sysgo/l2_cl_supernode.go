@@ -53,7 +53,7 @@ func (n *SuperNode) Start() {
 	n.p.Require().NotNil(n.snCfg, "supernode CLI config required")
 
 	ctx, cancel := context.WithCancel(n.p.Ctx())
-	exitFn := func(err error) { n.p.Require().NoError(err, "supernode critical error") }
+	exitFn := func(err error) { n.p.Errorf("supernode critical error: %v", err) }
 	sn, err := supernode.New(ctx, n.logger, "devstack", exitFn, n.snCfg, n.vnCfgs)
 	n.p.Require().NoError(err, "supernode failed to create")
 	n.sn = sn

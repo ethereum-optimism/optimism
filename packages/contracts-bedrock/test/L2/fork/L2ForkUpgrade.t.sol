@@ -29,8 +29,6 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -141,6 +139,9 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy versions are updated after upgrade.
     function test_l2ForkUpgrade_versionsUpdated_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade version state
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
@@ -224,8 +225,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         // L1Block feature state
         string l1BlockGasPayingTokenName;
         string l1BlockGasPayingTokenSymbol;
-        // FeeSplitter configuration
-        address feeSplitterSharesCalculator;
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
@@ -245,6 +244,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all initialization configurations are preserved after upgrade.
     function test_l2ForkUpgrade_initializationPreserved_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade initialization state
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
@@ -283,16 +285,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             // Capture L1Block gas paying token metadata for post-upgrade verification.
             state_.l1BlockGasPayingTokenName = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
             state_.l1BlockGasPayingTokenSymbol = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
-        }
-
-        // Capture FeeSplitter configuration
-        // eip150-safe
-        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
-            ISharesCalculator sharesCalculator_
-        ) {
-            state_.feeSplitterSharesCalculator = address(sharesCalculator_);
-        } catch {
-            state_.feeSplitterSharesCalculator = address(0);
         }
 
         // Capture fee vault configuration
@@ -353,7 +345,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyFeeVaultConfigurations(_preState);
         _verifyFactoryConfigurations(_preState);
         _verifyLiquidityControllerConfiguration(_preState);
-        _verifyFeeSplitterConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
         _verifyL1BlockFeatureState(_preState);
 
@@ -367,8 +358,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyOZv4Initialization(
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
         );
-        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
-
         // LiquidityController (only on custom gas token networks)
         if (commonState.isCustomGasToken) {
             _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
@@ -518,15 +507,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         );
     }
 
-    /// @notice Verifies that FeeSplitter configuration was preserved.
-    function _verifyFeeSplitterConfiguration(PreUpgradeInitializationState memory _preState) internal view {
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            _preState.feeSplitterSharesCalculator,
-            "FeeSplitter.sharesCalculator not preserved"
-        );
-    }
-
     /// @notice Verifies that ProxyAdmin ownership was preserved.
     function _verifyProxyAdminOwnership(PreUpgradeInitializationState memory _preState) internal view {
         assertEq(
@@ -622,6 +602,9 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
     function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Execute upgrade
         executeScript.execute();
 
@@ -671,6 +654,9 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 

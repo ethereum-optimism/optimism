@@ -18,10 +18,32 @@ Wallet namespace that provides unified wallet operations
 
 | Function | Description |
 |----------|-------------|
+| **[hostedWalletProvider()](#hostedwalletprovider)** | Get direct access to the hosted wallet provider |
+| **[smartWalletProvider()](#smartwalletprovider)** | Get direct access to the smart wallet provider |
 | **[createSmartWallet()](#createsmartwallet)** | Create a new smart wallet |
 | **[createSigner()](#createsigner)** | Create a viem LocalAccount signer from the hosted wallet |
 | **[toActionsWallet()](#toactionswallet)** | Convert a hosted wallet to an Actions wallet |
 | **[getSmartWallet()](#getsmartwallet)** | Get an existing smart wallet with a provided signer |
+
+#### `hostedWalletProvider()`
+
+Get direct access to the hosted wallet provider
+
+**Returns:** Promise resolving to the configured hosted wallet provider instance
+
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L86)</sub>
+
+---
+
+#### `smartWalletProvider()`
+
+Get direct access to the smart wallet provider
+
+**Returns:** Promise resolving to the configured smart wallet provider instance
+
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L98)</sub>
+
+---
 
 #### `createSmartWallet()`
 
@@ -33,15 +55,14 @@ Create a new smart wallet
 | `params.signer` | `LocalAccount` | Primary local account used for signing transactions |
 | `params.signers` | `Signer[]` | Optional array of additional signers for the smart wallet |
 | `params.nonce` | `bigint` | Optional nonce for smart wallet address generation (defaults to 0) |
-| `params.deploymentChainIds` | `SupportedChainId[]` | Optional chain IDs to deploy the wallet to. If not provided, the wallet will be deployed to all supported chains. |
+| `params.deploymentChainIds` | `SupportedChainId[]` | Optional chain IDs to deploy the wallet to.
+If not provided, the wallet will be deployed to all supported chains. |
 
 **Returns:** Promise resolving to deployment result containing:
 - `wallet`: The created SmartWallet instance
 - `deployments`: Array of deployment results with chainId, receipt, success flag, and error
 
-**Throws:** Error if signer is not included in the signers array
-
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.1.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L72)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L120)</sub>
 
 ---
 
@@ -55,7 +76,7 @@ Create a viem LocalAccount signer from the hosted wallet
 
 **Returns:** Promise resolving to a viem `LocalAccount` with the hosted wallet as the signer backend
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.1.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L87)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L136)</sub>
 
 ---
 
@@ -71,7 +92,7 @@ Convert a hosted wallet to an Actions wallet
 
 **Returns:** Promise resolving to the Actions wallet instance
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.1.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L101)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L151)</sub>
 
 ---
 
@@ -90,9 +111,6 @@ Get an existing smart wallet with a provided signer
 
 **Returns:** Promise resolving to the smart wallet instance with the provided signer
 
-**Throws:** Error if neither walletAddress nor deploymentSigners provided
-
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.1.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L122)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/wallet/core/namespace/WalletNamespace.ts#L173)</sub>
 
 ---
-

@@ -1,16 +1,15 @@
 //! Support for maintaining the state of the transaction pool
 
-/// The interval for which we check transaction against supervisor, 10 min.
-const TRANSACTION_VALIDITY_WINDOW: u64 = 600;
-/// Interval in seconds at which the transaction should be revalidated.
+/// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
 /// Maximum number of supervisor requests at the same time
 const MAX_SUPERVISOR_QUERIES: usize = 10;
 
 use crate::{
     conditional::MaybeConditionalTransaction,
-    interop::{MaybeInteropTransaction, is_stale_interop, is_valid_interop},
+    interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
     supervisor::SupervisorClient,
+    validator::CHECK_ACCESS_LIST_TIMEOUT_SECS,
 };
 use alloy_consensus::{BlockHeader, conditional::BlockConditionalAttributes};
 use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture};
@@ -19,8 +18,8 @@ use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
 use reth_primitives_traits::NodePrimitives;
 use reth_transaction_pool::{PoolTransaction, TransactionPool, error::PoolTransactionError};
-use std::time::Instant;
-use tracing::warn;
+use std::time::{Duration, Instant};
+use tracing::{info, warn};
 
 /// Transaction pool maintenance metrics
 #[derive(Metrics)]
@@ -170,6 +169,28 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             let mut to_revalidate = Vec::new();
             let mut interop_count = 0;
 
+            // If failsafe is active, evict ALL interop txs and skip revalidation.
+            // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
+            // the ingress check or was added between poll_failsafe transition ticks.
+            if supervisor_client.is_failsafe_enabled() {
+                let interop_hashes: Vec<_> = pool
+                    .pooled_transactions()
+                    .iter()
+                    .filter(|tx| is_interop_tx(&tx.transaction))
+                    .map(|tx| *tx.hash())
+                    .collect();
+                if !interop_hashes.is_empty() {
+                    info!(
+                        target: "txpool::interop",
+                        count = interop_hashes.len(),
+                        "failsafe active on block event: evicting all interop transactions"
+                    );
+                    let removed = pool.remove_transactions(interop_hashes);
+                    metrics.inc_removed_tx_interop(removed.len());
+                }
+                continue;
+            }
+
             // scan all pooled interop transactions
             for pooled_tx in pool.pooled_transactions() {
                 if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {
@@ -191,7 +212,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 let revalidation_stream = supervisor_client.revalidate_interop_txs_stream(
                     to_revalidate,
                     timestamp,
-                    TRANSACTION_VALIDITY_WINDOW,
+                    CHECK_ACCESS_LIST_TIMEOUT_SECS,
                     MAX_SUPERVISOR_QUERIES,
                 );
 
@@ -203,7 +224,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                     match validation_result {
                         Some(Ok(())) => {
                             tx_item_from_stream
-                                .set_interop_deadline(timestamp + TRANSACTION_VALIDITY_WINDOW);
+                                .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
                         }
                         Some(Err(err)) => {
                             if err.is_bad_transaction() {
@@ -230,4 +251,63 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             }
         }
     }
+}
+
+/// Background task that polls the supervisor for failsafe state every second.
+/// When failsafe transitions from disabled to enabled, evicts all interop txs
+/// from the pool immediately (does not wait for the next block event).
+/// Matches op-geth's `startBackgroundInteropFailsafeDetection` (miner/miner.go:140-165).
+pub async fn poll_failsafe<Pool>(supervisor_client: SupervisorClient, pool: Pool)
+where
+    Pool: TransactionPool,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    let metrics = MaintainPoolInteropMetrics::default();
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut was_enabled = false;
+    loop {
+        interval.tick().await;
+        match supervisor_client.query_failsafe().await {
+            Ok(enabled) => {
+                // On transition to enabled: evict all interop txs immediately
+                if enabled && !was_enabled {
+                    let interop_hashes: Vec<_> = pool
+                        .pooled_transactions()
+                        .iter()
+                        .filter(|tx| is_interop_tx(&tx.transaction))
+                        .map(|tx| *tx.hash())
+                        .collect();
+                    if !interop_hashes.is_empty() {
+                        info!(
+                            target: "txpool::interop",
+                            count = interop_hashes.len(),
+                            "failsafe enabled: evicting all interop transactions"
+                        );
+                        let removed = pool.remove_transactions(interop_hashes);
+                        metrics.inc_removed_tx_interop(removed.len());
+                    }
+                }
+                was_enabled = enabled;
+            }
+            Err(err) => {
+                warn!(
+                    target: "txpool::interop",
+                    %err,
+                    "failed to query failsafe state"
+                );
+            }
+        }
+    }
+}
+
+/// Creates a boxed future for the failsafe polling task.
+pub fn poll_failsafe_future<Pool>(
+    supervisor_client: SupervisorClient,
+    pool: Pool,
+) -> BoxFuture<'static, ()>
+where
+    Pool: TransactionPool + 'static,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    Box::pin(poll_failsafe(supervisor_client, pool))
 }

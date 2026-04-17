@@ -71,3 +71,29 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
 }
+
+func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
+	for _, tc := range sfp.IntraBlockCases() {
+		gt.Run(tc.Name, func(gt *testing.T) {
+			t := devtest.SerialT(gt)
+			sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+			sfp.RunIntraBlockConsolidationTest(t, sys, tc)
+		})
+	}
+}
+
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+}
+
+func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithMessageExpiryWindow(messageExpiryWindow),
+	)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
+}

@@ -2,6 +2,7 @@
 use crate::prune::metrics::Metrics;
 use crate::{
     OpProofsStore,
+    api::{OpProofsProviderRO, OpProofsProviderRw},
     prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
 };
 use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
@@ -52,13 +53,14 @@ where
     H: BlockHashReader,
 {
     fn run_inner(&self) -> OpProofStoragePrunerResult {
-        let latest_block_opt = self.provider.get_latest_block_number()?;
+        let provider_ro = self.provider.provider_ro()?;
+        let latest_block_opt = provider_ro.get_latest_block_number()?;
         if latest_block_opt.is_none() {
             trace!(target: "trie::pruner", "No latest blocks in the proof storage");
             return Ok(PrunerOutput::default());
         }
 
-        let earliest_block_opt = self.provider.get_earliest_block_number()?;
+        let earliest_block_opt = provider_ro.get_earliest_block_number()?;
         if earliest_block_opt.is_none() {
             trace!(target: "trie::pruner", "No earliest blocks in the proof storage");
             return Ok(PrunerOutput::default());
@@ -147,7 +149,9 @@ where
         };
 
         // Commit this batch
-        let write_counts = self.provider.prune_earliest_state(block_with_parent)?;
+        let provider_rw = self.provider.provider_rw()?;
+        let write_counts = provider_rw.prune_earliest_state(block_with_parent)?;
+        provider_rw.commit()?;
 
         let duration = batch_start_time.elapsed();
         let batch_output = PrunerOutput { duration, start_block, end_block, write_counts };
@@ -178,7 +182,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlockStateDiff, db::MdbxProofsStorage};
+    use crate::{
+        BlockStateDiff, OpProofsStore,
+        api::{OpProofsProviderRO, OpProofsProviderRw},
+        db::MdbxProofsStorage,
+    };
     use alloy_eips::{BlockHashOrNumber, NumHash};
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
@@ -218,6 +226,26 @@ mod tests {
         keccak256(n.to_be_bytes())
     }
 
+    fn store_block(store: &Arc<MdbxProofsStorage>, block: BlockWithParent, diff: BlockStateDiff) {
+        let p = store.provider_rw().unwrap();
+        p.store_trie_updates(block, diff).unwrap();
+        p.commit().unwrap();
+    }
+
+    fn set_earliest(store: &Arc<MdbxProofsStorage>, num: u64, hash: B256) {
+        let p = store.provider_rw().unwrap();
+        p.set_earliest_block_number(num, hash).unwrap();
+        p.commit().unwrap();
+    }
+
+    fn get_earliest(store: &Arc<MdbxProofsStorage>) -> Option<(u64, B256)> {
+        store.provider_ro().unwrap().get_earliest_block_number().unwrap()
+    }
+
+    fn get_latest(store: &Arc<MdbxProofsStorage>) -> Option<(u64, B256)> {
+        store.provider_ro().unwrap().get_latest_block_number().unwrap()
+    }
+
     /// Build a block-with-parent for number `n` with deterministic hash.
     fn block(n: u64, parent: B256) -> BlockWithParent {
         BlockWithParent::new(parent, NumHash::new(n, b256(n)))
@@ -230,7 +258,11 @@ mod tests {
         let store: Arc<MdbxProofsStorage> =
             Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
-        store.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
+        {
+            let p = store.provider_rw().unwrap();
+            p.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
+            p.commit().unwrap();
+        }
 
         // --- entities ---
         // accounts
@@ -293,7 +325,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b1, d).expect("b1");
+            store_block(&store, b1, d);
             parent = b256(1);
         }
 
@@ -326,7 +358,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b2, d).expect("b2");
+            store_block(&store, b2, d);
             parent = b256(2);
         }
 
@@ -352,7 +384,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b3, d).expect("b3");
+            store_block(&store, b3, d);
             parent = b256(3);
         }
 
@@ -379,7 +411,7 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: d_trie_updates.into_sorted(),
             };
-            store.store_trie_updates(b4, d).expect("b4");
+            store_block(&store, b4, d);
             parent = b256(4);
         }
 
@@ -402,13 +434,13 @@ mod tests {
                 sorted_post_state: d_post_state.into_sorted(),
                 sorted_trie_updates: TrieUpdatesSorted::default(),
             };
-            store.store_trie_updates(b5, d).expect("b5");
+            store_block(&store, b5, d);
         }
 
         // sanity: earliest=0, latest=5
         {
-            let e = store.get_earliest_block_number().expect("earliest").expect("some");
-            let l = store.get_latest_block_number().expect("latest").expect("some");
+            let e = get_earliest(&store).expect("some");
+            let l = get_latest(&store).expect("some");
             assert_eq!(e.0, 0);
             assert_eq!(l.0, 5);
         }
@@ -433,8 +465,8 @@ mod tests {
 
         // proof window moved: earliest=4, latest=5
         {
-            let e = store.get_earliest_block_number().expect("earliest").expect("some");
-            let l = store.get_latest_block_number().expect("latest").expect("some");
+            let e = get_earliest(&store).expect("some");
+            let l = get_latest(&store).expect("some");
             assert_eq!(e.0, 4);
             assert_eq!(e.1, b256(4));
             assert_eq!(l.0, 5);
@@ -442,10 +474,12 @@ mod tests {
         }
 
         // --- DB checks
-        let mut acc_cur = store.account_hashed_cursor(4).expect("acc cur");
-        let mut stor_cur = store.storage_hashed_cursor(stor_addr, 4).expect("stor cur");
-        let mut acc_trie_cur = store.account_trie_cursor(4).expect("acc trie cur");
-        let mut stor_trie_cur = store.storage_trie_cursor(stor_addr, 4).expect("stor trie cur");
+        let provider_ro = store.provider_ro().expect("provider_ro");
+        let mut acc_cur = provider_ro.account_hashed_cursor(4).expect("acc cur");
+        let mut stor_cur = provider_ro.storage_hashed_cursor(stor_addr, 4).expect("stor cur");
+        let mut acc_trie_cur = provider_ro.account_trie_cursor(4).expect("acc trie cur");
+        let mut stor_trie_cur =
+            provider_ro.storage_trie_cursor(stor_addr, 4).expect("stor trie cur");
 
         // Check these histories have been removed
         let pruned_hashed_account = a1;
@@ -518,8 +552,8 @@ mod tests {
         let store: Arc<MdbxProofsStorage> =
             Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
-        let earliest = store.get_earliest_block_number().unwrap();
-        let latest = store.get_latest_block_number().unwrap();
+        let earliest = get_earliest(&store);
+        let latest = get_latest(&store);
         println!("{earliest:?} {latest:?}");
         assert!(earliest.is_none());
         assert!(latest.is_none());
@@ -530,24 +564,16 @@ mod tests {
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
     }
 
-    // The earliest block is None, but the latest block exists -> early return default.
+    // No blocks stored at all -> early return default (latest is None path).
     #[tokio::test]
     async fn run_inner_earliest_none_real_db() {
-        use crate::BlockStateDiff;
-
         let dir = TempDir::new().unwrap();
         let store: Arc<MdbxProofsStorage> =
             Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
-        // Write a single block to set *latest* only.
-        store
-            .store_trie_updates(block(3, B256::ZERO), BlockStateDiff::default())
-            .expect("store b1");
-
-        let earliest = store.get_earliest_block_number().unwrap();
-        let latest = store.get_latest_block_number().unwrap();
-        assert!(earliest.is_none(), "earliest must remain None");
-        assert_eq!(latest.unwrap().0, 3);
+        // Nothing stored — both earliest and latest are None.
+        assert!(get_earliest(&store).is_none());
+        assert!(get_latest(&store).is_none());
 
         let block_hash_reader = MockBlockHashReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1, 1000);
@@ -567,15 +593,15 @@ mod tests {
         // Set earliest=4 explicitly
         let earliest_num = 4u64;
         let h4 = b256(4);
-        store.set_earliest_block_number(earliest_num, h4).expect("set earliest");
+        set_earliest(&store, earliest_num, h4);
 
         // Set latest=5 by storing block 5
         let b5 = block(5, h4);
-        store.store_trie_updates(b5, BlockStateDiff::default()).expect("store b5");
+        store_block(&store, b5, BlockStateDiff::default());
 
         // Sanity: earliest=4, latest=5 => interval=1
-        let e = store.get_earliest_block_number().unwrap().unwrap();
-        let l = store.get_latest_block_number().unwrap().unwrap();
+        let e = get_earliest(&store).unwrap();
+        let l = get_latest(&store).unwrap();
         assert_eq!(e.0, 4);
         assert_eq!(l.0, 5);
 

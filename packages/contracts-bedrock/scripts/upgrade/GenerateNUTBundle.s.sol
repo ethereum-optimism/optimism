@@ -341,7 +341,6 @@ contract GenerateNUTBundle is Script {
             ethLiquidityImpl: implementationConfigs["ETHLiquidity"].implementation,
             nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
             liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
-            feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
             conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation,
             l2DevFeatureFlagsImpl: implementationConfigs["L2DevFeatureFlags"].implementation
         });
@@ -552,13 +551,6 @@ contract GenerateNUTBundle is Script {
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
             )
-        });
-        // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
-        implementationConfigs["FeeSplitter"] = ImplementationConfig({
-            name: "FeeSplitter",
-            artifactPath: "FeeSplitter.sol:FeeSplitter",
-            deploymentGasLimit: 1_700_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
         });
         // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({

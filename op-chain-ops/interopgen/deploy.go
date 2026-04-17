@@ -3,10 +3,10 @@ package interopgen
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
+	"slices"
 	"sort"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -271,7 +270,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 func MigrateInterop(
 	l1Host *script.Host, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
 ) (*InteropDeployment, error) {
-	l2ChainIDs := maps.Keys(l2Deployments)
+	l2ChainIDs := slices.Collect(maps.Keys(l2Deployments))
 	sort.Strings(l2ChainIDs)
 
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
@@ -365,9 +364,6 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
-		UseRevenueShare:                          cfg.UseRevenueShare,
-		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
-		L1FeesDepositor:                          standard.L1FeesDepositor,
 		UseCustomGasToken:                        cfg.UseCustomGasToken,
 		GasPayingTokenName:                       cfg.GasPayingTokenName,
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,

@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -53,6 +54,13 @@ const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
 )
+
+// SkipOnOpGeth skips the test when the L2 execution layer is op-geth
+func SkipOnOpGeth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpGeth {
+		t.Skipf("skipping on op-geth: %s", reason)
+	}
+}
 
 // SkipOnOpReth skips the test when the L2 execution layer is op-reth
 func SkipOnOpReth(t devtest.T, reason string) {
@@ -264,7 +272,9 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
-func startMixedOpRethNode(
+// buildMixedOpRethNode constructs an OpReth node without starting it.
+// Use this when you need to customize args (e.g. --rollup.supervisor-http) before starting.
+func buildMixedOpRethNode(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
@@ -287,11 +297,11 @@ func startMixedOpRethNode(
 
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust",
 		Package: "op-reth",
 		Binary:  "op-reth",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "op-reth binary not available (build with 'just build-rust-release' or set RUST_JIT_BUILD=1)")
 
 	args := []string{
@@ -358,7 +368,7 @@ func startMixedOpRethNode(
 		"--proofs-history.storage-path="+proofHistoryDir,
 	)
 
-	l2EL := &OpReth{
+	return &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -371,12 +381,45 @@ func startMixedOpRethNode(
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+}
 
+func startMixedOpRethNode(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+) *OpReth {
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
 	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
-	l2EL.Start()
-	t.Cleanup(l2EL.Stop)
-	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", l2EL.userRPC, "authRPC", l2EL.authRPC)
-	return l2EL
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
+}
+
+// startMixedOpRethNodeWithSupervisorURL builds and starts an OpReth node
+// with --rollup.supervisor-http pointing at the given URL.
+func startMixedOpRethNodeWithSupervisorURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+	supervisorURL string,
+) *OpReth {
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
+	if supervisorURL != "" {
+		node.args = append(node.args, "--rollup.supervisor-http="+supervisorURL)
+	}
+	t.Logger().Info("Starting op-reth with supervisor URL",
+		"name", key, "chain", l2Net.ChainID(), "supervisorURL", supervisorURL)
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
 }
 
 func startMixedKonaNode(
@@ -448,11 +491,11 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 
-	execPath, err := EnsureRustBinary(t, RustBinarySpec{
+	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",
 		Package: "kona-node",
 		Binary:  "kona-node",
-	})
+	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "prepare kona-node binary")
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 

@@ -289,6 +289,7 @@ func startInteropChallenger(
 		)
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
+		t.Ctx(),
 		t.TempDir(),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,

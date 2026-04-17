@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -190,7 +188,7 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Stop(ctx); closeErr != nil {
-			return nil, multierror.Append(err, closeErr)
+			return nil, errors.Join(err, closeErr)
 		}
 		return nil, err
 	}
@@ -858,11 +856,11 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		return ErrAlreadyClosed
 	}
 
-	var result *multierror.Error
+	var result error
 
 	if n.server != nil {
 		if err := n.server.Stop(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close RPC server: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close RPC server: %w", err))
 		}
 	}
 
@@ -876,14 +874,14 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		case err == nil:
 			n.log.Info("stopped sequencer", "latestHead", latestHead)
 		default:
-			result = multierror.Append(result, fmt.Errorf("error stopping sequencer: %w", err))
+			result = errors.Join(result, fmt.Errorf("error stopping sequencer: %w", err))
 		}
 	}
 
 	n.p2pMu.Lock()
 	if n.p2pNode != nil {
 		if err := n.p2pNode.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p node: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close p2p node: %w", err))
 		}
 		// Prevent further use of p2p.
 		n.p2pNode = nil
@@ -892,7 +890,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 
 	if n.p2pSigner != nil {
 		if err := n.p2pSigner.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p signer: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close p2p signer: %w", err))
 		}
 	}
 
@@ -916,14 +914,14 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// close L2 driver
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
 		}
 	}
 
 	// close the interop sub system
 	if n.interopSys != nil {
 		if err := n.interopSys.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close interop sub-system: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close interop sub-system: %w", err))
 		}
 	}
 
@@ -933,7 +931,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 
 	if n.safeDB != nil {
 		if err := n.safeDB.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close safe head db: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close safe head db: %w", err))
 		}
 	}
 
@@ -970,16 +968,16 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// Close metrics and pprof only after we are done idling
 	if n.pprofService != nil {
 		if err := n.pprofService.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close pprof server: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))
 		}
 	}
 	if n.metricsSrv != nil {
 		if err := n.metricsSrv.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close metrics server: %w", err))
 		}
 	}
 
-	return result.ErrorOrNil()
+	return result
 }
 
 func (n *OpNode) Stopped() bool {
