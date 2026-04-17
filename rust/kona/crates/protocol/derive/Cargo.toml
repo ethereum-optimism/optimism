@@ -18,6 +18,7 @@ kona-macros.workspace = true
 kona-genesis.workspace = true
 kona-protocol.workspace = true
 kona-hardforks.workspace = true
+kona-interop.workspace = true
 
 # Alloy
 alloy-eips.workspace = true

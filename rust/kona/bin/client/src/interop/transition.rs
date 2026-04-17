@@ -40,8 +40,8 @@ where
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
 {
     // Check if we can short-circuit the transition, if we are within padding.
-    if let PreState::TransitionState(ref transition_state) = boot.agreed_pre_state &&
-        transition_state.step >= transition_state.pre_state.output_roots.len() as u64
+    if let PreState::TransitionState(ref transition_state) = boot.agreed_pre_state
+        && transition_state.step >= transition_state.pre_state.output_roots.len() as u64
     {
         info!(
             target: "interop_client",
@@ -124,6 +124,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
+        // Interop fault proof: dependency set is part of the boot info.
+        // This is used to gate the CrossL2Inbox upgrade-tx pair
+        // (emitted only when `dependencies.len() > 1`).
+        Some(Arc::new(boot.dependency_set.clone())),
     )
     .await
     .map_err(Box::new)?;

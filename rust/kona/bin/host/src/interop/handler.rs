@@ -509,8 +509,19 @@ impl HintHandler for InteropHintHandler {
                     )
                     .start(),
                 );
+                // The host re-execution path mirrors the client's
+                // `sub_transition` fault-proof pipeline, so we must pass the same
+                // dependency set that the client will derive from BootInfo. Parse
+                // it from the same path the KV store uses (`--interop-dep-set-path`)
+                // here so the owned value can move into the spawned task.
+                let dependency_set = cfg
+                    .read_dependency_set()
+                    .transpose()
+                    .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
+                    .map(Arc::new);
                 let client_task = task::spawn({
                     let l1_head = cfg.l1_head;
+                    let dependency_set = dependency_set.clone();
 
                     async move {
                         let oracle = Arc::new(CachingOracle::new(
@@ -559,6 +570,7 @@ impl HintHandler for InteropHintHandler {
                             da_provider,
                             l1_provider,
                             l2_provider.clone(),
+                            dependency_set,
                         )
                         .await?;
                         let executor = KonaExecutor::new(
