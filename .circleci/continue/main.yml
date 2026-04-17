@@ -502,8 +502,15 @@ commands:
           condition: << parameters.needs_clang >>
           steps:
             - run:
-                name: Verify clang available (baked into c-rust_base_image)
-                command: command -v clang >/dev/null && command -v llvm-config >/dev/null
+                name: Ensure clang available
+                # Docker jobs use c-rust_base_image with clang pre-baked, so this is a no-op.
+                # Machine jobs run on bare Ubuntu VMs where clang must still be installed.
+                command: |
+                  if command -v clang >/dev/null; then
+                    exit 0
+                  fi
+                  sudo -E apt-get update --yes
+                  sudo -E apt-get install -y --no-install-recommends clang llvm-dev libclang-dev
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -875,8 +882,9 @@ jobs:
             # restore cannot make the submodule path non-empty (which breaks `git submodule update --init`).
             git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
 
-            if [ "<< parameters.needs_clang >>" = "true" ]; then
-              command -v clang >/dev/null
+            if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              sudo -E apt-get update --yes
+              sudo -E apt-get install -y --no-install-recommends clang
             fi
 
             cd << parameters.directory >> && << parameters.build_command >>
