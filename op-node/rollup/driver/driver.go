@@ -350,9 +350,27 @@ func (s *Driver) eventLoop() {
 			s.metrics.RecordPipelineReset()
 			close(respCh)
 		case <-s.drain.Await():
+			// Check the sequencer's next action time directly via time.Now()
+			// rather than peeking at the timer channel. In a CPU-bound event
+			// cascade (e.g. consolidating a large span batch), Go's runtime
+			// may fail to deliver the timer value to the channel until after
+			// the cascade yields — leading to sequencer starvation.
+			// time.Now() reads the monotonic clock directly, bypassing runtime
+			// scheduling entirely.
+			sequencerDeadline, sequencerReady := s.sequencer.NextAction()
 			drainStart := time.Now()
+			callbackCount := 0
+			interrupted := false
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
-				return len(sequencerCh) > 0
+				callbackCount++
+				if !sequencerReady {
+					return false
+				}
+				if time.Now().After(sequencerDeadline) {
+					interrupted = true
+					return true
+				}
+				return false
 			}, true); err != nil && err != io.EOF {
 				if s.driverCtx.Err() != nil {
 					return
@@ -365,13 +383,17 @@ func (s *Driver) eventLoop() {
 			}
 			s.log.Info("DrainUntil returned",
 				"duration", time.Since(drainStart),
-				"sequencerChReady", len(sequencerCh) > 0,
-				"sequencerChNil", sequencerCh == nil)
-			// If the sequencer timer fired mid-drain, consume it and run the action
-			// directly. We cannot defer to the select loop because planSequencerAction
-			// may set sequencerCh = nil if derivation paused the sequencer mid-cascade.
-			if len(sequencerCh) > 0 {
-				<-sequencerCh
+				"callbacks", callbackCount,
+				"interrupted", interrupted,
+				"sequencerReady", sequencerReady,
+				"sequencerChReady", len(sequencerCh) > 0)
+			// If interrupted for the sequencer, run the action directly.
+			// Otherwise, let the main loop's select pick it up normally.
+			if interrupted {
+				// Drain any pending timer value so planSequencerAction doesn't see a stale one.
+				if len(sequencerCh) > 0 {
+					<-sequencerCh
+				}
 				s.sequencer.RunAction(s.driverCtx)
 			}
 		case <-s.driverCtx.Done():
