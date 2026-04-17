@@ -37,6 +37,5 @@ pub fn map_op_err<DB>(err: EVMError<DB, OpTransactionError>) -> EVMError<DB, OpT
         EVMError::Database(e) => EVMError::Database(e),
         EVMError::Header(e) => EVMError::Header(e),
         EVMError::Custom(e) => EVMError::Custom(e),
-        EVMError::CustomAny(e) => EVMError::CustomAny(e),
     }
 }

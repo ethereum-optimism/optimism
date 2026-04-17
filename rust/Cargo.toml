@@ -49,6 +49,9 @@ members = [
 
   # Alloy OP Hardforks
   "alloy-op-hardforks/",
+
+  # Op-Revm
+  "op-revm/",
 ]
 default-members = [
   "kona/bin/host",
@@ -379,22 +382,22 @@ reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "552d896
 reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "552d896f9c4b75201def55969d3c23bcc990dd80" }
 
 # ==================== REVM (latest: op-reth versions) ====================
-revm = { version = "37.0.0", default-features = false }
-revm-bytecode = { version = "10.0.0", default-features = false }
-revm-database = { version = "13.0.0", default-features = false }
-revm-state = { version = "11.0.0", default-features = false }
-revm-primitives = { version = "23.0.0", default-features = false }
-revm-interpreter = { version = "35.0.0", default-features = false }
-revm-database-interface = { version = "11.0.0", default-features = false }
-op-revm = { version = "18.0.0", default-features = false }
-revm-inspectors = "0.38.1"
+revm = { version = "36.0.0", default-features = false }
+revm-bytecode = { version = "9.0.0", default-features = false }
+revm-database = { version = "12.0.0", default-features = false }
+revm-state = { version = "10.0.0", default-features = false }
+revm-primitives = { version = "22.1.0", default-features = false }
+revm-interpreter = { version = "34.0.0", default-features = false }
+revm-database-interface = { version = "10.0.0", default-features = false }
+op-revm = { version = "17.0.0", path = "op-revm/", default-features = false }
+revm-inspectors = "0.37.0"
 
 # ==================== ALLOY ====================
 alloy-chains = { version = "0.2.33", default-features = false }
 alloy-dyn-abi = "1.5.6"
 alloy-eip2124 = { version = "0.2.0", default-features = false }
 alloy-eip7928 = { version = "0.3.3", default-features = false }
-alloy-evm = { version = "0.32.0", default-features = false }
+alloy-evm = { version = "0.31.0", default-features = false }
 alloy-primitives = { version = "1.5.6", default-features = false, features = [
   "map-foldhash",
 ] }

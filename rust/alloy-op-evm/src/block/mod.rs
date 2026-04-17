@@ -8,7 +8,7 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, BlockValidationError, ExecutableTx, GasOutput, OnStateHook,
+        BlockExecutorFor, BlockValidationError, ExecutableTx, OnStateHook,
         StateChangePostBlockSource, StateChangeSource, StateDB, SystemCaller, TxResult,
         state_changes::{balance_increment_state, post_block_balance_increments},
     },
@@ -278,10 +278,7 @@ where
         })
     }
 
-    fn commit_transaction(
-        &mut self,
-        output: Self::Result,
-    ) -> Result<GasOutput, BlockExecutionError> {
+    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
         let OpTxResult {
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
@@ -299,7 +296,7 @@ where
 
         self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
 
-        let gas_used = result.tx_gas_used();
+        let gas_used = result.gas_used();
 
         // append gas used
         self.gas_used += gas_used;
@@ -350,7 +347,7 @@ where
 
         self.evm.db_mut().commit(state);
 
-        Ok(GasOutput::new(gas_used))
+        Ok(gas_used)
     }
 
     fn finish(
@@ -751,8 +748,7 @@ mod tests {
         let expected_da_footprint = executor.jovian_da_footprint_estimation(&tx_env, &tx).unwrap();
 
         // make sure we can use both `WithEncoded` and transaction itself as inputs.
-        let gas_used_tx =
-            executor.execute_transaction(&tx).expect("failed to execute transaction").tx_gas_used();
+        let gas_used_tx = executor.execute_transaction(&tx).expect("failed to execute transaction");
 
         // The gas used when executing the transaction should be the legacy value...
         assert!(gas_used_tx < expected_da_footprint);
