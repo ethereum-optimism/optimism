@@ -108,12 +108,6 @@ contract DeployConfig is Script {
     bool public useInterop;
     bytes32 public devFeatureBitmap;
 
-    bool public useRevenueShare;
-    address public chainFeesRecipient;
-    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
-    ///         for testing.
-    address public l1FeesDepositor;
-
     function read(string memory _path) public {
         // If no path provided, use hardcoded defaults only
         if (bytes(_path).length == 0) {
@@ -204,9 +198,7 @@ contract DeployConfig is Script {
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", uint256(0));
 
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", uint256(0)));
-        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
         useInterop = _readOr(_json, "$.useInterop", false);
-        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
@@ -264,24 +256,9 @@ contract DeployConfig is Script {
         useAltDA = _useAltDA;
     }
 
-    /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
-    function setUseRevenueShare(bool _useRevenueShare) public {
-        useRevenueShare = _useRevenueShare;
-    }
-
     /// @notice Allow the `useInterop` config to be overriden in testing environments
     function setUseInterop(bool _useInterop) public {
         useInterop = _useInterop;
-    }
-
-    /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
-    function setL1FeesDepositor(address _l1FeesDepositor) public {
-        l1FeesDepositor = _l1FeesDepositor;
-    }
-
-    /// @notice Allow the `chainFeesRecipient` config to be overridden in testing environments
-    function setChainFeesRecipient(address _chainFeesRecipient) public {
-        chainFeesRecipient = _chainFeesRecipient;
     }
 
     /// @notice Allow the `fundDevAccounts` config to be overridden.
@@ -423,8 +400,6 @@ contract DeployConfig is Script {
         useInterop = false;
         useUpgradedFork = false;
         devFeatureBitmap = bytes32(0);
-        useRevenueShare = false;
-        chainFeesRecipient = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

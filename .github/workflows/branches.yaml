@@ -255,7 +255,7 @@ jobs:
       fail-fast: false
       matrix:
         image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@4a6713dc9a56712c9150a8007aa1d33eba6f38ea
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@0df70b9f043d552377e641951fe72ca292086e85
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}
@@ -282,7 +282,7 @@ jobs:
       fail-fast: false
       matrix:
         image_name: ${{ fromJson(needs.detect-changes.outputs.images_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@4a6713dc9a56712c9150a8007aa1d33eba6f38ea
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@0df70b9f043d552377e641951fe72ca292086e85
     with:
       mode: bake
       image_name: ${{ matrix.image_name }}

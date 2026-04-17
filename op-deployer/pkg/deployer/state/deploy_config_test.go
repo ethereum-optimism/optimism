@@ -34,8 +34,6 @@ func TestCombineDeployConfig(t *testing.T) {
 			UnsafeBlockSigner: common.HexToAddress("0xabc"),
 			Batcher:           common.HexToAddress("0xdef"),
 		},
-		UseRevenueShare:    true,
-		ChainFeesRecipient: common.HexToAddress("0x123"),
 		// CustomGasToken defaults to disabled (all fields nil/empty)
 		CustomGasToken: CustomGasToken{},
 	}
