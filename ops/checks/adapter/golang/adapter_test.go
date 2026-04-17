@@ -208,6 +208,42 @@ func main() { fmt.Println("hi") }
 	}
 }
 
+// TestAnalyze_NestedModule — a repo with a nested go.mod (e.g. a
+// sub-tool living under ops/checks/) indexes packages from both
+// modules. Regression test: a single `go list ./...` at the root only
+// sees the root module, so nested-module packages were invisible and
+// their file paths produced no graph nodes.
+func TestAnalyze_NestedModule(t *testing.T) {
+	dir := t.TempDir()
+	// Root module
+	os.WriteFile(filepath.Join(dir, "go.mod"),
+		[]byte("module example.com/root\n\ngo 1.24.0\n"), 0644)
+	os.MkdirAll(filepath.Join(dir, "rootpkg"), 0755)
+	os.WriteFile(filepath.Join(dir, "rootpkg", "a.go"),
+		[]byte("package rootpkg\n\nvar X = 1\n"), 0644)
+
+	// Nested module
+	os.MkdirAll(filepath.Join(dir, "tools", "sub"), 0755)
+	os.WriteFile(filepath.Join(dir, "tools", "go.mod"),
+		[]byte("module example.com/tools\n\ngo 1.24.0\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "tools", "sub", "b.go"),
+		[]byte("package sub\n\nvar Y = 2\n"), 0644)
+
+	g := graph.NewGraph()
+	if err := New().Analyze(g, dir); err != nil {
+		t.Fatal(err)
+	}
+	if g.GetNode("go:example.com/root/rootpkg") == nil {
+		t.Error("expected root-module package node")
+	}
+	if g.GetNode("go:example.com/tools/sub") == nil {
+		t.Error("expected nested-module package node — nested go.mod was not indexed")
+	}
+	if g.GetNode("go:example.com/tools/sub/b.go") == nil {
+		t.Error("expected nested-module file node")
+	}
+}
+
 // TestAnalyze_ExternalImportEdge — a package that imports an external
 // module gets an edge from go:<pkg> to mod:<module>.
 func TestAnalyze_ExternalImportEdge(t *testing.T) {

@@ -14,7 +14,13 @@
 stages:
   - { name: save,        miss_cost: 10 }
   - { name: commit,      miss_cost: 300 }
-  - { name: pr,          miss_cost: 1800 }
+  # PR miss_cost reflects "if this slips through PR, it lands on
+  # develop and blocks the whole team". Calibration against 20 real
+  # develop failures showed 1800s (30 min) was far too cheap — expensive
+  # Rust jobs (cargo-hack, msrv, e2e) were being skipped at PR stage
+  # despite trigger signal=1.0 because run_cost > skip_cost. 7200s
+  # matches merge_queue since PR IS the pre-merge gate in practice.
+  - { name: pr,          miss_cost: 7200 }
   - { name: merge_queue, miss_cost: 7200 }
   - { name: develop,     miss_cost: 86400 }
 

@@ -85,6 +85,45 @@ func Resolve(
 		ct := &cat.CheckTypes[i]
 		out = append(out, candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)...)
 	}
+	out = append(out, profileTriggerCandidates(cat, filePaths)...)
+	return out
+}
+
+// profileTriggerCandidates emits one unscoped Candidate per scopeable
+// check × triggered profile, signal=1.0. Covers the case where a
+// feature-flag profile only runs if specific paths changed (e.g.
+// opcm_v2 profile → OPContractsManager files), and coverage data
+// wasn't collected under that profile so no coverage edge carries it.
+// Without this, such profiles stay at 0% recall on real diffs.
+func profileTriggerCandidates(cat *catalog.Catalog, filePaths []string) []Candidate {
+	var out []Candidate
+	for i := range cat.Profiles {
+		p := &cat.Profiles[i]
+		if !p.MatchesTriggers(filePaths) {
+			continue
+		}
+		for j := range cat.CheckTypes {
+			ct := &cat.CheckTypes[j]
+			if !ct.Scopeable {
+				continue
+			}
+			out = append(out, Candidate{
+				CheckID: ct.ID,
+				Profile: p.Name,
+				Signal:  1.0,
+				Provenance: []SignalContribution{{
+					Source:       graph.SourceStatic,
+					EdgeKind:     graph.EdgeKind(""),
+					Contribution: 1.0,
+					Raw: map[string]any{
+						"reason":   "profile_trigger",
+						"profile":  p.Name,
+						"triggers": p.Triggers,
+					},
+				}},
+			})
+		}
+	}
 	return out
 }
 
@@ -136,22 +175,46 @@ func candidatesForCheck(
 // with signal=1.0 and provenance pointing at the triggering blast-radius
 // files. Blast radius is the "something upstream of everything changed"
 // escape hatch — CI config, toolchain, go.mod, foundry.toml, etc.
+//
+// For scopeable checks with profiles (e.g. forge-test), emits one
+// candidate per profile so the full feature matrix runs. Otherwise a
+// .circleci/ change would only run forge-test:main, silently dropping
+// the feature-profile safety net.
 func blastRadiusCandidates(cat *catalog.Catalog, files []string) []Candidate {
 	out := make([]Candidate, 0, len(cat.CheckTypes))
-	for _, ct := range cat.CheckTypes {
+	mkProv := func() []SignalContribution {
+		return []SignalContribution{{
+			Source:       graph.SourceStatic,
+			EdgeKind:     graph.EdgeKind(""),
+			Contribution: 1.0,
+			Raw: map[string]any{
+				"reason": "blast_radius",
+				"files":  files,
+			},
+		}}
+	}
+	for i := range cat.CheckTypes {
+		ct := &cat.CheckTypes[i]
 		out = append(out, Candidate{
-			CheckID: ct.ID,
-			Signal:  1.0,
-			Provenance: []SignalContribution{{
-				Source:       graph.SourceStatic,
-				EdgeKind:     graph.EdgeKind(""),
-				Contribution: 1.0,
-				Raw: map[string]any{
-					"reason": "blast_radius",
-					"files":  files,
-				},
-			}},
+			CheckID:    ct.ID,
+			Signal:     1.0,
+			Provenance: mkProv(),
 		})
+		if !ct.Scopeable || len(cat.Profiles) == 0 {
+			continue
+		}
+		for j := range cat.Profiles {
+			p := &cat.Profiles[j]
+			if p.Name == "" || p.Name == "main" {
+				continue
+			}
+			out = append(out, Candidate{
+				CheckID:    ct.ID,
+				Profile:    p.Name,
+				Signal:     1.0,
+				Provenance: mkProv(),
+			})
+		}
 	}
 	return out
 }

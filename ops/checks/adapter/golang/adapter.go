@@ -53,98 +53,167 @@ type modInfo struct {
 	RequiredModules  []string // direct + indirect requires, sorted longest-first
 }
 
-// Analyze runs `go list -json ./...` from rootDir, creates a source
-// node for each package within the module, creates import edges
-// between packages, and creates `mod:` nodes + external-import edges
-// for each required module.
+// Analyze discovers every in-tree Go module (go.mod file) under
+// rootDir, then for each module runs `go list -json ./...`, creates a
+// source node per package within that module, and creates import edges
+// between packages plus `mod:` nodes + external-import edges per
+// required module.
+//
+// Multi-module repos (op-stack has a nested `ops/checks/go.mod`, plus
+// submodules) were previously invisible because a single
+// `go list ./...` at the root only sees packages in the root module.
+// Missing nodes meant triggers couldn't match ops/checks/ file paths,
+// so diffs under those sub-modules selected nothing. Walking once and
+// analyzing each module fixes that without requiring any cross-module
+// import resolution: internal/external classification uses the union
+// of every in-tree module's packages.
 func (a *GoAdapter) Analyze(g *graph.Graph, rootDir string) error {
-	info, err := readGoMod(rootDir)
+	modDirs, err := findGoModules(rootDir)
 	if err != nil {
-		return fmt.Errorf("reading go.mod: %w", err)
+		return fmt.Errorf("finding go.mod files: %w", err)
+	}
+	if len(modDirs) == 0 {
+		return fmt.Errorf("no go.mod found under %s", rootDir)
 	}
 
-	packages, err := listPackages(rootDir)
-	if err != nil {
-		return fmt.Errorf("listing packages: %w", err)
+	type moduleData struct {
+		dir      string
+		info     *modInfo
+		packages []goPackage
 	}
-
-	// Emit mod: nodes for every required module. Having the node present
-	// means go.mod change handling can feed "mod:<path>" into Phase 1
-	// and the graph has a landing spot.
-	for _, mp := range info.RequiredModules {
-		_ = g.AddNode(&graph.Node{
-			ID:          "mod:" + mp,
-			Kind:        graph.KindModule,
-			Granularity: "module",
-			Name:        mp,
-		})
-	}
-
-	// Track which import paths belong to packages in our module.
-	modulePackages := make(map[string]bool)
-	for _, pkg := range packages {
-		if strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
-			modulePackages[pkg.ImportPath] = true
+	var modules []moduleData
+	for _, dir := range modDirs {
+		info, err := readGoMod(dir)
+		if err != nil {
+			return fmt.Errorf("reading go.mod in %s: %w", dir, err)
 		}
+		pkgs, err := listPackages(dir)
+		if err != nil {
+			return fmt.Errorf("listing packages in %s: %w", dir, err)
+		}
+		modules = append(modules, moduleData{dir: dir, info: info, packages: pkgs})
 	}
 
-	// Create internal package nodes plus one file node per .go file.
-	// File nodes are coverage-target leaves — they don't participate
-	// in import walks, but they anchor coverage edges written by the
-	// coverage ingestor (whose source IDs are go:<import-path>/<file>.go).
-	// This matches the granularity of the raw coverage data and keeps
-	// freshness edge-local (each edge carries a single source_sha for
-	// the specific file it covers).
-	for _, pkg := range packages {
-		if !strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
-			continue
-		}
-		pkgNodeID := "go:" + pkg.ImportPath
-		_ = g.AddNode(&graph.Node{
-			ID:          pkgNodeID,
-			Kind:        graph.KindSource,
-			Granularity: "package",
-			Name:        pkg.ImportPath,
-			Properties: map[string]any{
-				"dir":        pkg.Dir,
-				"file_count": len(pkg.GoFiles),
-				"has_tests":  len(pkg.TestGoFiles) > 0,
-			},
-		})
-
-		for _, files := range [][]string{pkg.GoFiles, pkg.TestGoFiles} {
-			for _, file := range files {
-				fileNodeID := pkgNodeID + "/" + file
-				_ = g.AddNode(&graph.Node{
-					ID:          fileNodeID,
-					Kind:        graph.KindSource,
-					Granularity: "file",
-					Name:        pkg.ImportPath + "/" + file,
-					Properties: map[string]any{
-						"package": pkgNodeID,
-						"dir":     pkg.Dir,
-					},
-				})
+	// Union of internal package import paths across every in-tree
+	// module. Cross-module imports from one in-tree module to another
+	// resolve as internal.
+	allInternalPackages := make(map[string]bool)
+	for _, m := range modules {
+		for _, pkg := range m.packages {
+			if strings.HasPrefix(pkg.ImportPath, m.info.ModulePath) {
+				allInternalPackages[pkg.ImportPath] = true
 			}
 		}
 	}
 
-	// Emit edges.
-	for _, pkg := range packages {
-		if !strings.HasPrefix(pkg.ImportPath, info.ModulePath) {
-			continue
+	// Emit mod: nodes for each required external, deduped across modules.
+	modNodesEmitted := make(map[string]bool)
+	for _, m := range modules {
+		for _, mp := range m.info.RequiredModules {
+			if modNodesEmitted[mp] {
+				continue
+			}
+			modNodesEmitted[mp] = true
+			_ = g.AddNode(&graph.Node{
+				ID:          "mod:" + mp,
+				Kind:        graph.KindModule,
+				Granularity: "module",
+				Name:        mp,
+			})
 		}
-		fromID := "go:" + pkg.ImportPath
+	}
 
-		for _, imp := range pkg.Imports {
-			addImportEdge(g, fromID, imp, modulePackages, info, false)
+	// Emit package + file nodes per module.
+	for _, m := range modules {
+		for _, pkg := range m.packages {
+			if !strings.HasPrefix(pkg.ImportPath, m.info.ModulePath) {
+				continue
+			}
+			pkgNodeID := "go:" + pkg.ImportPath
+			_ = g.AddNode(&graph.Node{
+				ID:          pkgNodeID,
+				Kind:        graph.KindSource,
+				Granularity: "package",
+				Name:        pkg.ImportPath,
+				Properties: map[string]any{
+					"dir":        pkg.Dir,
+					"file_count": len(pkg.GoFiles),
+					"has_tests":  len(pkg.TestGoFiles) > 0,
+				},
+			})
+
+			for _, files := range [][]string{pkg.GoFiles, pkg.TestGoFiles} {
+				for _, file := range files {
+					_ = g.AddNode(&graph.Node{
+						ID:          pkgNodeID + "/" + file,
+						Kind:        graph.KindSource,
+						Granularity: "file",
+						Name:        pkg.ImportPath + "/" + file,
+						Properties: map[string]any{
+							"package": pkgNodeID,
+							"dir":     pkg.Dir,
+						},
+					})
+				}
+			}
 		}
-		for _, imp := range pkg.TestImports {
-			addImportEdge(g, fromID, imp, modulePackages, info, true)
+	}
+
+	// Emit edges per module. Imports are classified against the union
+	// of internal packages, so a cross-module internal import still
+	// produces a package-to-package edge.
+	for _, m := range modules {
+		for _, pkg := range m.packages {
+			if !strings.HasPrefix(pkg.ImportPath, m.info.ModulePath) {
+				continue
+			}
+			fromID := "go:" + pkg.ImportPath
+			for _, imp := range pkg.Imports {
+				addImportEdge(g, fromID, imp, allInternalPackages, m.info, false)
+			}
+			for _, imp := range pkg.TestImports {
+				addImportEdge(g, fromID, imp, allInternalPackages, m.info, true)
+			}
 		}
 	}
 
 	return nil
+}
+
+// findGoModules walks rootDir looking for go.mod files. Skips
+// testdata/, node_modules/, .git/, .bare/, and any path under lib/
+// (for git-submodule vendored code). Returns the parent directory
+// of each go.mod (i.e. the module root).
+func findGoModules(rootDir string) ([]string, error) {
+	var dirs []string
+	skipParts := map[string]bool{
+		"testdata": true, "node_modules": true, ".git": true, ".bare": true,
+	}
+	err := filepath.Walk(rootDir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			if skipParts[fi.Name()] {
+				return filepath.SkipDir
+			}
+			// Skip git-submodule areas and git-worktree internal bare clones.
+			// Both are independent repos that can have their own go.mod we don't own.
+			if fi.Name() == "lib" || fi.Name() == "worktrees" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if fi.Name() == "go.mod" {
+			dirs = append(dirs, filepath.Dir(path))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(dirs)
+	return dirs, nil
 }
 
 // addImportEdge classifies `imp` as internal, external-to-module, or

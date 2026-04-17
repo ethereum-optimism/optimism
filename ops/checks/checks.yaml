@@ -1,26 +1,52 @@
 # Test profiles — named configurations for running tests under different
-# feature flag combinations. Matches the CI feature matrix for contracts-bedrock.
+# feature flag combinations. Mirrors the CI feature matrix.
+#
+# Triggers force the profile into the candidate set when the diff
+# touches listed paths — needed because coverage data is collected
+# under `main` only, so no coverage edges carry non-main profile tags.
+#
+# The heuristic we use here is the same as CI's check_changed filter:
+# any contracts src or test change triggers every feature-flag profile.
+# This matches develop's behavior (where the full matrix runs
+# unconditionally) and empirically recovers the OPCM_V2 / cannon_kona /
+# srgm failures we observed on real merges where a shared library
+# change (e.g. Predeploys.sol) broke feature-gated code paths.
+# Targeted per-profile paths would miss transitive-library breakage.
 profiles:
   - name: main
     env: {}
   - name: custom_gas_token
     env:
       SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
+    triggers: &profile-triggers-contracts
+      - "packages/contracts-bedrock/src/**"
+      - "packages/contracts-bedrock/test/**"
+      - "packages/contracts-bedrock/scripts/**"
+      - "packages/contracts-bedrock/interfaces/**"
   - name: optimism_portal_interop
     env:
       DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true"
+    triggers: *profile-triggers-contracts
   - name: zk_dispute_game
     env:
       DEV_FEATURE__ZK_DISPUTE_GAME: "true"
+    triggers: *profile-triggers-contracts
   - name: cannon_kona
     env:
       DEV_FEATURE__CANNON_KONA: "true"
+    triggers: *profile-triggers-contracts
   - name: super_root_games_migration
     env:
       DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION: "true"
+    triggers: *profile-triggers-contracts
   - name: l2cm
     env:
       DEV_FEATURE__L2CM: "true"
+    triggers: *profile-triggers-contracts
+  - name: opcm_v2
+    env:
+      DEV_FEATURE__OPCM_V2: "true"
+    triggers: *profile-triggers-contracts
 
 check_types:
   # === Build Steps ===
@@ -61,9 +87,16 @@ check_types:
       - contracts-bedrock-tests
       - contracts-bedrock-tests-develop
       - contracts-bedrock-tests-heavy
+      - contracts-bedrock-tests-heavy-fuzz-modified
       - contracts-bedrock-tests-l2-fork
       - contracts-bedrock-tests-upgrade
+      - contracts-bedrock-tests-upgrade-develop
       - contracts-bedrock-heavy-fuzz-nightly
+      # Coverage + upgrade variants run the same test suite under
+      # different profiles/forks. Collapse under forge-test so a failure
+      # in any flags the selector's forge-test pick. Real discrimination
+      # would need separate check_types.
+      - contracts-bedrock-coverage
     knobs:
       - name: fuzz_runs
         type: int
@@ -93,7 +126,20 @@ check_types:
     prerequisites: ["go-build"]
     ci_job_names:
       - go-tests
+      - go-tests-short
+      - go-tests-full
       - go-tests-with-fault-proof-deps
+      # op-e2e-cannon-tests is the same job template (bedrock-go-tests)
+      # with cannon fault-proof deps. Treat as go-test for selector
+      # purposes — any go_test hit would include it.
+      - op-e2e-cannon-tests
+      - bedrock-go-tests
+      # Fuzz variants run via `go test -fuzz` under a specific package.
+      - fuzz-golang-op-chain-ops
+      - fuzz-golang-op-challenger
+      - fuzz-golang-op-node
+      - fuzz-golang-op-service
+      - cannon-fuzz
     knobs:
       - name: short
         type: bool
@@ -124,6 +170,10 @@ check_types:
     avg_duration: 300
     ci_job_names:
       - go-lint
+      - cannon-go-lint-and-test
+      - check-generated-mocks-op-node
+      - check-generated-mocks-op-service
+      - shell-check
 
   - id: semgrep
     name: "Semgrep scan"
@@ -210,3 +260,252 @@ check_types:
     scopeable: false
     triggers: ["go.mod", "go.sum"]
     avg_duration: 30
+
+  # === Fault proof / cannon ===
+  - id: cannon-stf-verify
+    name: "Cannon STF verification"
+    kind: check
+    language: go
+    command: "just cannon && just cannon-stf-verify"
+    scopeable: false
+    triggers:
+      - "cannon/**"
+      - "op-program/**"
+      - "op-service/**"
+      - "op-node/rollup/**"
+    avg_duration: 1800
+    ci_job_names:
+      - cannon-stf-verify
+
+  - id: op-program-compat
+    name: "op-program compatibility check"
+    kind: check
+    language: go
+    command: "just op-program-compat"
+    scopeable: false
+    triggers:
+      - "op-program/**"
+      - "cannon/**"
+      - "op-node/rollup/**"
+      - "op-node/chaincfg/**"
+      - "op-service/**"
+    avg_duration: 600
+    ci_job_names:
+      - op-program-compat
+
+  # === Docs ===
+  - id: docs-build
+    name: "Mintlify docs build"
+    kind: build
+    language: "*"
+    command: "cd docs && pnpm build"
+    scopeable: false
+    triggers:
+      - "docs/**"
+      - "specs/**"
+      - "**/*.md"
+    avg_duration: 300
+    ci_job_names:
+      - mintlify-docs-build
+
+  # === Kontrol (K framework formal verification) ===
+  - id: kontrol-build
+    name: "Kontrol K-proof build"
+    kind: build
+    language: solidity
+    command: "cd packages/contracts-bedrock && just kontrol-build"
+    scopeable: false
+    triggers:
+      - "packages/contracts-bedrock/src/L1/**"
+      - "packages/contracts-bedrock/test/kontrol/**"
+    avg_duration: 1800
+    prerequisites: ["forge-build"]
+    ci_job_names:
+      - check-kontrol-build
+
+  # === Cannon prestate / fault proof builds ===
+  - id: cannon-prestate
+    name: "Cannon prestate build"
+    kind: build
+    language: go
+    command: "just cannon-prestate"
+    scopeable: false
+    triggers:
+      - "cannon/**"
+      - "op-program/**"
+      - "op-service/**"
+      - "op-node/rollup/**"
+    avg_duration: 1200
+    ci_job_names:
+      - cannon-prestate
+      - analyze-op-program-client
+      - sanitize-op-program
+      - go-binaries-for-sysgo
+
+  # === NUT (Network Upgrade Task) locks ===
+  - id: check-nut-locks
+    name: "NUT lockfile verification"
+    kind: check
+    language: solidity
+    command: "cd packages/contracts-bedrock && just check-nut-locks"
+    scopeable: false
+    triggers:
+      - "packages/contracts-bedrock/src/L1/opcm/**"
+      - "packages/contracts-bedrock/scripts/upgrade/**"
+      - "packages/contracts-bedrock/snapshots/upgrades/**"
+      - "packages/contracts-bedrock/nuts/**"
+      - "op-core/nuts/**"
+      - "op-node/rollup/derive/interop_nut_bundle.json"
+      - "**/interop_nut_bundle.json"
+    avg_duration: 60
+    prerequisites: ["forge-build"]
+    ci_job_names:
+      - check-nut-locks
+      - nut-provenance-verify
+
+  # === op-geth version compatibility gate ===
+  - id: op-geth-version
+    name: "op-geth version check"
+    kind: check
+    language: go
+    command: "just check-op-geth-version"
+    scopeable: false
+    triggers:
+      - "go.mod"
+      - "go.sum"
+    avg_duration: 30
+    ci_job_names:
+      - check-op-geth-version
+      - l2-chains-sync-check
+
+  # === Rust ===
+  # Rust checks use triggers-on-rust/** as a blunt signal until coverage
+  # ingestion extends to Cargo workspaces. Every Rust diff picks these
+  # up; further refinement (per-crate scoping) comes later with coverage
+  # data.
+  - id: rust-build
+    name: "Rust workspace build"
+    kind: build
+    language: rust
+    command: "cd rust && cargo build --workspace"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 900
+    ci_job_names:
+      - rust-workspace-binaries
+      - rust-build
+      - rust-build-release
+      - op-reth-build
+      - cannon-kona-host
+      - kona-host-client-offline-cannon
+      - kona-build-fpvm-cannon-client
+      - kona-build-release
+      # go-binaries-for-sysgo moved to cannon-prestate
+
+  - id: rust-test
+    name: "Rust workspace tests"
+    kind: test
+    language: rust
+    command: "cd rust && just test"
+    scopeable: true
+    scope_flag: "-p"
+    scope_type: packages
+    triggers: ["rust/**"]
+    avg_duration: 1800
+    prerequisites: ["rust-build"]
+    ci_job_names:
+      - rust-tests
+      - rust-doctest
+
+  - id: rust-cargo-hack
+    name: "Rust cargo-hack feature matrix"
+    kind: check
+    language: rust
+    command: "cd rust && cargo hack --workspace check --each-feature"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 1800
+    ci_job_names:
+      - rust-cargo-hack
+      - rust-wasm-unknown
+      - rust-wasm-wasi
+
+  - id: rust-udeps
+    name: "Rust unused deps"
+    kind: lint
+    language: rust
+    command: "cd rust && just check-udeps"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 600
+    ci_job_names:
+      - rust-udeps
+
+  - id: rust-msrv
+    name: "Rust MSRV build"
+    kind: build
+    language: rust
+    command: "cd rust && cargo +1.94.0 build --workspace"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 900
+    ci_job_names:
+      - rust-msrv
+
+  - id: rust-no-std
+    name: "Rust no_std check"
+    kind: check
+    language: rust
+    command: "cd rust && just check-no-std"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 300
+    ci_job_names:
+      - rust-check-no-std
+
+  - id: rust-lint
+    name: "Rust linting"
+    kind: lint
+    language: rust
+    command: "cd rust && just lint"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 300
+    ci_job_names:
+      - rust-clippy
+      - rust-fmt
+      - rust-deny
+      - rust-typos
+      - rust-zepter
+      - rust-docs
+      - rust-doctest
+      - kona-lint-cannon
+
+  - id: rust-e2e
+    name: "Rust / Kona e2e"
+    kind: test
+    language: rust
+    command: "cd rust && just e2e"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 1800
+    prerequisites: ["rust-build"]
+    ci_job_names:
+      - rust-e2e-simple-kona
+      - rust-e2e-simple-kona-geth
+      - rust-e2e-simple-kona-sequencer
+      - kona-proof-action-single
+      - op-reth-e2e-sysgo-tests
+
+  - id: rust-memory
+    name: "Rust memory profile check"
+    kind: check
+    language: rust
+    command: "cd rust && just memory-check"
+    scopeable: false
+    triggers: ["rust/**"]
+    avg_duration: 600
+    prerequisites: ["rust-build"]
+    ci_job_names:
+      - memory-all-opn-op-reth
+      - memory-all-kona-op-reth

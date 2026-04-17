@@ -47,9 +47,38 @@ type Knob struct {
 // TestProfile is a named configuration for running tests under different
 // feature flag combinations. Each profile sets a specific set of environment
 // variables before running the test command.
+//
+// Triggers let a profile force itself into the candidate set when the
+// diff touches relevant paths. Covers the case where coverage data
+// wasn't collected under this profile (so no coverage edge carries the
+// profile tag) but the profile still needs to run — e.g. feature-flag
+// profiles that only activate specific code paths.
 type TestProfile struct {
-	Name string            `yaml:"name"`          // e.g. "main", "custom_gas_token"
-	Env  map[string]string `yaml:"env,omitempty"` // environment variables
+	Name     string            `yaml:"name"`
+	Env      map[string]string `yaml:"env,omitempty"`
+	Triggers []string          `yaml:"triggers,omitempty"`
+}
+
+// MatchesTriggers reports whether any of the given file paths match
+// this profile's triggers. Mirrors CheckType.MatchesTriggers.
+func (p *TestProfile) MatchesTriggers(filePaths []string) bool {
+	if len(p.Triggers) == 0 {
+		return false
+	}
+	for _, f := range filePaths {
+		for _, pattern := range p.Triggers {
+			if matched, _ := filepath.Match(pattern, f); matched {
+				return true
+			}
+			if strings.HasSuffix(pattern, "/**") {
+				prefix := strings.TrimSuffix(pattern, "/**")
+				if strings.HasPrefix(f, prefix) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // Catalog is the top-level manifest of available check types.

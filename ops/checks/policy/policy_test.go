@@ -37,8 +37,8 @@ func TestStage_Lookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stage(pr): %v", err)
 	}
-	if s.MissCost != 1800 {
-		t.Errorf("pr miss_cost = %f, want 1800", s.MissCost)
+	if s.MissCost != 7200 {
+		t.Errorf("pr miss_cost = %f, want 7200", s.MissCost)
 	}
 
 	if _, err := p.Stage("nonexistent"); err == nil {
