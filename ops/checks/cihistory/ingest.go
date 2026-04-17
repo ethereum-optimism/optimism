@@ -28,6 +28,13 @@ func WriteEdges(g *graph.Graph, a *Analysis, rootDir string) (int, error) {
 	windowStart := a.WindowStart.Format(time.RFC3339)
 	windowEnd := a.WindowEnd.Format(time.RFC3339)
 
+	// One resolver per run; reads go.mod once. Works for sol:/go:/rs:
+	// node IDs uniformly, unlike the previous Solidity-only helper.
+	var resolver *freshness.Resolver
+	if rootDir != "" {
+		resolver = freshness.NewResolver(rootDir, g)
+	}
+
 	added := 0
 	for _, c := range a.Correlations {
 		fromID := sourceFileToNodeID(c.File)
@@ -48,8 +55,8 @@ func WriteEdges(g *graph.Graph, a *Analysis, rootDir string) (int, error) {
 		if !a.WindowEnd.IsZero() {
 			props["window_end"] = windowEnd
 		}
-		if rootDir != "" {
-			if rel := freshness.NodeIDToPath(fromID); rel != "" {
+		if resolver != nil {
+			if rel := resolver.Resolve(fromID); rel != "" {
 				if sha, err := freshness.HashFile(rootDir + "/" + rel); err == nil {
 					props["source_sha"] = sha
 				}
