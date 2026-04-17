@@ -379,3 +379,19 @@ func (s *Service) AdminHTTPEndpoint() string {
 	}
 	return "http://" + s.adminRPCServer.Endpoint()
 }
+
+// Ready returns true if all chain ingesters have completed backfill.
+func (s *Service) Ready() bool {
+	return s.backend.Ready()
+}
+
+// SetFailsafeEnabled sets the manual failsafe override on the backend.
+// Used by tests to toggle failsafe mode without admin RPC/JWT.
+func (s *Service) SetFailsafeEnabled(enabled bool) {
+	s.backend.SetFailsafeEnabled(enabled)
+}
+
+// FailsafeEnabled returns whether failsafe is currently active.
+func (s *Service) FailsafeEnabled() bool {
+	return s.backend.FailsafeEnabled()
+}
