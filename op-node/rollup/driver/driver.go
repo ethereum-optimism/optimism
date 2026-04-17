@@ -363,11 +363,26 @@ func (s *Driver) eventLoop() {
 			interrupted := false
 			if err := s.drain.DrainUntil(func(ev event.Event) bool {
 				callbackCount++
+				now := time.Now()
+				// Sampled logging: first call, every 1000th, to track progress
+				if callbackCount == 1 || callbackCount%1000 == 0 {
+					s.log.Info("DrainUntil callback",
+						"count", callbackCount,
+						"sequencerReady", sequencerReady,
+						"deadline", sequencerDeadline,
+						"now", now,
+						"delta", sequencerDeadline.Sub(now),
+						"chReady", len(sequencerCh) > 0)
+				}
 				if !sequencerReady {
 					return false
 				}
-				if time.Now().After(sequencerDeadline) {
+				if now.After(sequencerDeadline) {
 					interrupted = true
+					s.log.Info("DrainUntil interrupting for sequencer",
+						"count", callbackCount,
+						"pastDeadlineBy", now.Sub(sequencerDeadline),
+						"chReady", len(sequencerCh) > 0)
 					return true
 				}
 				return false
