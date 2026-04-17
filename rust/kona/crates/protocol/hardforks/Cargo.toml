@@ -25,6 +25,10 @@ alloy-primitives = { workspace = true, features = ["rlp"] }
 # OP Alloy
 op-alloy-consensus.workspace = true
 
+[build-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
 revm.workspace = true
