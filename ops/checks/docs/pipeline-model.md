@@ -1,8 +1,10 @@
 # Pipeline model — design doc
 
-Status: draft / not yet implemented. Describes a future refactor of the
-graph + selector that treats CI as a uniform dataflow pipeline. See
-"Migration" below for the phased path from today's model.
+Status: design resolved, implementation not started. Describes a
+future refactor of the graph + selector that treats CI as a uniform
+dataflow pipeline. The open design questions from the initial draft
+are now resolved (see "Resolved decisions"). See "Migration" below
+for the phased path from today's model.
 
 ## Why
 
@@ -344,58 +346,122 @@ close:
 Each of these today requires special-case plumbing; in the new model
 they're just catalog entries.
 
-## Open questions
+## Resolved decisions
 
-1. **CI job model.** CI today runs jobs in parallel with job-level
-   `requires:`. Our per-file dataflow is finer than that. When we
-   generate an execution plan for a CI run, do we collapse back to
-   job granularity, or do we propose finer-grained CI orchestration?
-   Probably collapse for now; finer granularity is a later axis.
+Each item below was open during the initial design sketch and is now
+nailed down. The reasoning is captured so a future reader knows why
+the model looks the way it does.
 
-2. **Content-hash identity.** Artifact identity could be path-only
-   (what the refactor assumes) or content-hashed (enables skip-if-
-   unchanged caching). Start with path-only; content-hashing is a
-   separate future feature that layers on top.
+### 1. CI job granularity = check-type granularity
 
-3. **Nondeterministic outputs.** The pipeline model assumes a check's
-   outputs are a function of its inputs. Flaky tests or tests with
-   timestamp-dependent artifacts break that. For selection purposes,
-   this doesn't matter (we're not caching yet); but it would matter
-   later.
+**Decision:** the execution plan collapses to one logical unit per
+selected check_type. Scoping within a check (via `--match-path`, `-p`,
+etc.) gives fine granularity for free.
 
-4. **Multiple producers of the same artifact.** What if two checks
-   both declare `outputs: [artifact:X]`? Catalog validation should
-   reject this. But some artifacts are genuinely produced by multiple
-   checks (e.g. coverage reports might be produced by
-   `forge-test-coverage` and `go-test-coverage` under different
-   namespaces). Disambiguate via namespacing in the artifact ref.
+**Why:** a check's `scopeable` flag already says whether it can be
+narrowed. When a check is scopeable, the selector emits a scoped
+command; when it isn't, it runs whole. CI sees one job per check. As
+soon as a check becomes scopeable (gains a `-p` flag or similar), it
+automatically gets finer-grained execution — no separate CI-side
+orchestration work required.
 
-5. **Coverage reports as artifacts.** The selector reads coverage at
-   build time for scoping. If coverage is modeled as a pipeline
-   artifact, there's a cycle (forge-test consumes coverage to decide
-   what to run, but produces coverage to update it). In practice the
-   selector uses *past* coverage to decide present runs, so there's no
-   real cycle — but it's worth documenting that coverage sits slightly
-   outside the dataflow model (or on a lag of one pipeline).
+### 2. Artifact identity is path-only
 
-6. **`triggers:` as sugar or removal?** During migration, `triggers:`
-   entries translate directly to `inputs:` entries. Do we keep
-   `triggers:` as sugar post-migration for readability, or just use
-   `inputs:` everywhere? My instinct: one field is better than two.
+**Decision:** artifact node IDs are keyed by path. Content-hashing is
+explicitly out of scope.
 
-7. **Per-profile artifacts.** Today each Solidity feature profile
-   runs the same tests under different env vars. A profile doesn't
-   produce different files, but it does exercise different code paths
-   and produce different coverage. Does coverage-per-profile need to
-   be a different artifact node? Probably: `artifact:coverage/forge-
-   test:opcm_v2.json` vs `artifact:coverage/forge-test:main.json`.
+**Why:** content-hashing would enable "skip check when inputs haven't
+changed" caching, but the cost is non-trivial (hash every artifact,
+store input→output hash tuples across runs, require purity from every
+check). Path-only keeps the schema simple and preserves room for
+caching as a separate layer in front of the executor later. The graph
+schema doesn't change if/when caching lands.
 
-8. **External contract bindings.** `op-e2e/bindings/safe.go` etc. are
-   for external contracts whose src isn't in the repo. They have no
-   upstream `src/` node. In the pipeline model they're unsourced
-   artifacts — consumers still import them, but nothing invalidates
-   them from a diff. Probably fine; they'd only become relevant if
-   `lib/` submodule versions shifted.
+### 3. Nondeterministic outputs don't touch the model
+
+**Decision:** fuzz tests and other nondeterministic checks are modeled
+as ordinary consumers with `outputs: []`. No special handling.
+
+**Why:** nondeterminism only matters under content-hashing (deferred
+per #2). For selection, fuzz tests are pure consumers and their
+pass/fail signal lives outside the dataflow graph. If a check ever
+*does* produce a nondeterministic artifact that downstream consumers
+care about, that's a content-hashing problem to solve later.
+
+### 4. One artifact, one producer
+
+**Decision:** catalog validation rejects multiple `produces` edges
+pointing at the same artifact node. Per-profile / per-variant outputs
+must disambiguate via distinct artifact IDs.
+
+**Why:** two producers for one path means a race at CI time and
+undefined behavior in the walker. Forcing unique producers surfaces
+the conflict at catalog load time with a clear error. Legitimate
+cases where "the same kind of output" comes from multiple contexts
+(per-profile coverage, per-variant builds) are expressed by
+namespacing the artifact ref (see #7). External bindings and other
+orphan artifacts (see #8) are allowed — no producer ≠ multiple
+producers.
+
+### 5. Coverage collection lives in the pipeline; consumption is out of band
+
+**Decision:** coverage-collector checks (`checks-coverage-sol`,
+`checks-coverage-go`, `checks-coverage-rs`) are regular pipeline steps
+with declared inputs and outputs. The selector's *consumption* of
+their output files happens at graph-build time and is not modeled as
+a dataflow edge.
+
+**Why:** `forge-test` etc. don't produce the coverage data the
+selector uses — a separate coverage-collection pipeline does, typically
+run out of band and checked into `ops/checks/coverage-data/`. No cycle:
+`forge-test` is a pure consumer, the coverage collector is a producer,
+the selector reads the coverage output at its own leisure. Three
+distinct roles, no dataflow loop.
+
+### 6. `triggers:` removed entirely
+
+**Decision:** after migration, the only fields are `inputs`,
+`outputs`, `tools`, plus the existing executor-side bits (command,
+scopeable, knobs, etc.). `triggers:`, `prerequisites:`, and the
+current `produces:` field all fold into `inputs:` / `outputs:`.
+
+**Why:** the whole point of the refactor is one vocabulary. Keeping
+`triggers:` as sugar dilutes the model. Migration is mechanical; every
+`triggers: [path]` becomes `inputs: [path]`.
+
+### 7. Per-profile artifacts via placeholder expansion
+
+**Decision:** output patterns can include placeholders (`<profile>`,
+`<test>`, etc.) that expand at graph-build time into distinct artifact
+nodes, one per (placeholder tuple) instance.
+
+**Why:** per-variant outputs (coverage per profile, per-fork build
+variants) would otherwise collide under rule #4. Placeholders let the
+catalog declare the shape while the builder emits concrete distinct
+artifact nodes. Example:
+
+```yaml
+outputs:
+  - "artifact:ops/checks/coverage-data/test_<test>__<profile>.json"
+```
+
+expands into one artifact node per (test-file, profile) pair, each
+with exactly one producer at runtime.
+
+### 8. External / vendored artifacts are allowed to be orphans
+
+**Decision:** artifact nodes without any incoming `produces` edge are
+valid. They're consumed by downstream checks but nothing in the
+pipeline updates them — updates happen out of band (human runs a gen
+script, commits).
+
+**Why:** bindings for external contracts (`op-e2e/bindings/safe.go`,
+`create2deployer.go`, etc.) are generated from libraries whose source
+isn't part of our dataflow universe. Same pattern applies to any other
+vendored/generated-once content. The pipeline only models what our
+checks can select; everything else is a graph leaf. Validation only
+errors when something tries to `consume:` an artifact that doesn't
+exist anywhere.
 
 ## Sizing
 
