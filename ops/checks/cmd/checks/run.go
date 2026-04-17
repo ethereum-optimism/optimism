@@ -26,6 +26,13 @@ func cmdRun(args []string) error {
 	diffFile := fs.String("diff", "", "path to diff file (default: stdin)")
 	fs.Parse(args)
 
+	resolvedGraph := resolveFromRoot(*graphPath)
+	resolvedCatalog := resolveFromRoot(*catalogPath)
+	resolvedRoot := *root
+	if resolvedRoot == "." {
+		resolvedRoot = findRepoRoot()
+	}
+
 	pol, err := loadPolicy(*policyPath)
 	if err != nil {
 		return err
@@ -35,14 +42,15 @@ func cmdRun(args []string) error {
 		return err
 	}
 
-	g, err := graph.Load(*graphPath)
+	warnIfGraphStale(resolvedGraph, findRepoRoot())
+	g, err := graph.Load(resolvedGraph)
 	if err != nil {
-		return fmt.Errorf("loading graph: %w", err)
+		return missingGraphError(resolvedGraph, err)
 	}
 
-	cat, err := catalog.Load(*catalogPath)
+	cat, err := catalog.Load(resolvedCatalog)
 	if err != nil {
-		return fmt.Errorf("loading catalog: %w", err)
+		return fmt.Errorf("loading catalog %s: %w", resolvedCatalog, err)
 	}
 
 	var diffInput io.Reader
@@ -65,7 +73,7 @@ func cmdRun(args []string) error {
 	diffs := diff.ParseUnifiedDiff(string(data))
 
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
-	fresh := freshness.New(*root, pol, g)
+	fresh := freshness.New(resolvedRoot, pol, g)
 	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
@@ -83,7 +91,7 @@ func cmdRun(args []string) error {
 	fmt.Printf("Running %d items (stage: %s, est. %.0fs wall-clock, %d layers)...\n\n",
 		len(result.Items), stage.Name, result.WallClock, len(result.Schedule.Layers))
 
-	exec := executor.New(*root, *dryRun)
+	exec := executor.New(resolvedRoot, *dryRun)
 	runResult := exec.Run(result.Items, cat)
 
 	for _, r := range runResult.Results {

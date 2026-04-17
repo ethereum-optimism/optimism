@@ -25,13 +25,17 @@ func cmdExplain(args []string) error {
 
 	filePath := fs.Arg(0)
 
-	g, err := graph.Load(*graphPath)
+	resolvedGraph := resolveFromRoot(*graphPath)
+	resolvedCatalog := resolveFromRoot(*catalogPath)
+
+	warnIfGraphStale(resolvedGraph, findRepoRoot())
+	g, err := graph.Load(resolvedGraph)
 	if err != nil {
-		return fmt.Errorf("loading graph: %w", err)
+		return missingGraphError(resolvedGraph, err)
 	}
-	cat, err := catalog.Load(*catalogPath)
+	cat, err := catalog.Load(resolvedCatalog)
 	if err != nil {
-		return fmt.Errorf("loading catalog: %w", err)
+		return fmt.Errorf("loading catalog %s: %w", resolvedCatalog, err)
 	}
 	pol, err := loadPolicy(*policyPath)
 	if err != nil {

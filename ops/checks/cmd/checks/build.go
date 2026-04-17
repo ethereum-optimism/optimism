@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/adapter"
 	"github.com/ethereum-optimism/optimism/ops/checks/adapter/golang"
@@ -18,16 +17,23 @@ import (
 
 func cmdBuild(args []string) error {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
-	root := fs.String("root", ".", "repository root directory")
+	root := fs.String("root", "", "repository root directory (default: auto-discover via git)")
 	catalogPath := fs.String("catalog", "ops/checks/checks.yaml", "path to checks catalog")
 	output := fs.String("output", "ops/checks/graph.json", "output path for graph")
 	coverageDir := fs.String("coverage-dir", "ops/checks/coverage-data",
 		"coverage reports directory to auto-ingest (pass empty to skip)")
 	fs.Parse(args)
 
-	cat, err := catalog.Load(*catalogPath)
+	resolvedRoot := *root
+	if resolvedRoot == "" {
+		resolvedRoot = findRepoRoot()
+	}
+	resolvedCatalog := resolveFromRootDir(*catalogPath, resolvedRoot)
+	resolvedOutput := resolveFromRootDir(*output, resolvedRoot)
+
+	cat, err := catalog.Load(resolvedCatalog)
 	if err != nil {
-		return fmt.Errorf("loading catalog: %w", err)
+		return fmt.Errorf("loading catalog %s: %w", resolvedCatalog, err)
 	}
 	if err := cat.Validate(); err != nil {
 		return fmt.Errorf("validating catalog: %w", err)
@@ -40,7 +46,7 @@ func cmdBuild(args []string) error {
 	}
 
 	b := builder.New(adapters, cat)
-	g, err := b.Build(*root)
+	g, err := b.Build(resolvedRoot)
 	if err != nil {
 		return fmt.Errorf("building graph: %w", err)
 	}
@@ -52,10 +58,7 @@ func cmdBuild(args []string) error {
 	// scoping is the primary signal.
 	covIngested := 0
 	if *coverageDir != "" {
-		covPath := *coverageDir
-		if !filepath.IsAbs(covPath) {
-			covPath = filepath.Join(*root, covPath)
-		}
+		covPath := resolveFromRootDir(*coverageDir, resolvedRoot)
 		if _, err := os.Stat(covPath); err == nil {
 			reports, err := coverage.LoadReports(covPath)
 			if err != nil {
@@ -68,15 +71,15 @@ func cmdBuild(args []string) error {
 		}
 	}
 
-	if err := graph.Save(g, *output); err != nil {
+	if err := graph.Save(g, resolvedOutput); err != nil {
 		return fmt.Errorf("saving graph: %w", err)
 	}
 
 	if covIngested > 0 {
 		fmt.Printf("Graph built: %d nodes, %d edges (+%d coverage reports) → %s\n",
-			g.NodeCount(), g.EdgeCount(), covIngested, *output)
+			g.NodeCount(), g.EdgeCount(), covIngested, resolvedOutput)
 	} else {
-		fmt.Printf("Graph built: %d nodes, %d edges → %s\n", g.NodeCount(), g.EdgeCount(), *output)
+		fmt.Printf("Graph built: %d nodes, %d edges → %s\n", g.NodeCount(), g.EdgeCount(), resolvedOutput)
 	}
 	return nil
 }

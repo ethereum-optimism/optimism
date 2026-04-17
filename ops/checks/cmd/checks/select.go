@@ -28,6 +28,9 @@ func cmdSelect(args []string) error {
 	budget := fs.Duration("budget", 0, "max wall-clock budget (e.g. 30m). Lowest-value items are trimmed to fit; force-run items and their prerequisites are preserved")
 	fs.Parse(args)
 
+	resolvedGraph := resolveFromRoot(*graphPath)
+	resolvedCatalog := resolveFromRoot(*catalogPath)
+
 	pol, err := loadPolicy(*policyPath)
 	if err != nil {
 		return err
@@ -37,14 +40,15 @@ func cmdSelect(args []string) error {
 		return err
 	}
 
-	g, err := graph.Load(*graphPath)
+	warnIfGraphStale(resolvedGraph, findRepoRoot())
+	g, err := graph.Load(resolvedGraph)
 	if err != nil {
-		return fmt.Errorf("loading graph: %w", err)
+		return missingGraphError(resolvedGraph, err)
 	}
 
-	cat, err := catalog.Load(*catalogPath)
+	cat, err := catalog.Load(resolvedCatalog)
 	if err != nil {
-		return fmt.Errorf("loading catalog: %w", err)
+		return fmt.Errorf("loading catalog %s: %w", resolvedCatalog, err)
 	}
 
 	var diffInput io.Reader
