@@ -127,7 +127,9 @@ type Interop struct {
 	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
 	backfillCompleted atomic.Bool
 
-	l1Checker    *byNumberConsistencyChecker
+	// l1Checker must be non-nil whenever observeRound runs. Production sets it
+	// via New; tests inject noopL1Checker.
+	l1Checker    l1ConsistencyChecker
 	frontierView *frontierVerificationView
 
 	logBackfillDepth time.Duration
@@ -187,7 +189,7 @@ func New(
 	// (can be overridden by tests)
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
-	i.l1Checker = newByNumberConsistencyChecker(l1Source)
+	i.l1Checker = newL1ConsistencyChecker(l1Source)
 	return i
 }
 
@@ -395,21 +397,18 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.L1Heads = ready.l1Heads
 
 	// Check that all frontier L1 heads AND the accepted L1 head are on the same canonical fork.
-	obs.L1Consistent = true
-	if i.l1Checker != nil {
-		heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
-		if obs.LastVerified != nil {
-			heads = append(heads, obs.LastVerified.L1Inclusion)
-		}
-		for _, l1 := range obs.L1Heads {
-			heads = append(heads, l1)
-		}
-		same, err := i.l1Checker.SameL1Chain(i.ctx, heads)
-		if err != nil {
-			return obs, fmt.Errorf("L1 consistency check: %w", err)
-		}
-		obs.L1Consistent = same
+	heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
+	if obs.LastVerified != nil {
+		heads = append(heads, obs.LastVerified.L1Inclusion)
 	}
+	for _, l1 := range obs.L1Heads {
+		heads = append(heads, l1)
+	}
+	same, err := i.l1Checker.SameL1Chain(i.ctx, heads)
+	if err != nil {
+		return obs, fmt.Errorf("L1 consistency check: %w", err)
+	}
+	obs.L1Consistent = same
 
 	return obs, nil
 }

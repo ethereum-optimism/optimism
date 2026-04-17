@@ -98,6 +98,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	}
 	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth)
 	if h.interop != nil {
+		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
 	}
@@ -138,6 +139,7 @@ func TestNew(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
 				require.NotNil(t, interop)
+				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
 				require.Equal(t, uint64(1000), interop.activationTimestamp)
@@ -1154,6 +1156,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
 	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0)
 	require.NotNil(t, interop)
+	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
 
 	// Verify logsDB is empty initially
@@ -1773,7 +1776,7 @@ func TestL1CanonicalityCheckErrorPropagates(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up a failing L1 checker using a mock that returns errors for all lookups
-	h.interop.l1Checker = newByNumberConsistencyChecker(&errorL1Source{
+	h.interop.l1Checker = newL1ConsistencyChecker(&errorL1Source{
 		err: errors.New("L1 RPC unavailable"),
 	})
 
