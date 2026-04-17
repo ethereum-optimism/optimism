@@ -24,7 +24,9 @@ use revm::{
         EthFrame, EvmTr, FrameResult, Handler, MainnetHandler,
     },
     inspector::{Inspector, InspectorEvmTr, InspectorHandler},
-    interpreter::{interpreter::EthInterpreter, interpreter_action::FrameInit, Gas},
+    interpreter::{
+        interpreter::EthInterpreter, interpreter_action::FrameInit, Gas, InitialAndFloorGas,
+    },
     primitives::{hardfork::SpecId, U256},
 };
 use std::{boxed::Box, vec::Vec};
@@ -104,6 +106,7 @@ where
     fn validate_against_state_and_deduct_caller(
         &self,
         evm: &mut Self::Evm,
+        _init_and_floor_gas: &mut InitialAndFloorGas,
     ) -> Result<(), Self::Error> {
         let (block, tx, cfg, journal, chain, _) = evm.ctx().all_mut();
         let spec = cfg.spec();
@@ -626,7 +629,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         // Check the account balance is updated.
@@ -669,7 +672,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         // Check the account balance is updated.
@@ -736,7 +739,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert_eq!(
@@ -830,7 +833,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert_eq!(
@@ -890,7 +893,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert_eq!(
@@ -950,7 +953,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert_eq!(
@@ -1024,7 +1027,7 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert_eq!(
@@ -1081,7 +1084,7 @@ mod tests {
 
         // l1block cost is 1048 fee.
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         // Check the account balance is updated.
@@ -1123,7 +1126,7 @@ mod tests {
         // Under Isthmus the operator fee cost is operator_fee_scalar * gas_limit / 1e6 + operator_fee_constant
         // 10_000_000 * 10 / 1_000_000 + 50 = 150
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         // Check the account balance is updated.
@@ -1165,7 +1168,7 @@ mod tests {
         // Under Jovian the operator fee cost is operator_fee_scalar * gas_limit * 100 + operator_fee_constant
         // 2 * 10 * 100 + 50 = 2_050
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         let account = evm.ctx().journal_mut().load_account(caller).unwrap();
@@ -1204,7 +1207,7 @@ mod tests {
 
         // l1block cost is 1048 fee.
         assert_eq!(
-            handler.validate_against_state_and_deduct_caller(&mut evm),
+            handler.validate_against_state_and_deduct_caller(&mut evm, &mut Default::default()),
             Err(EVMError::Transaction(
                 InvalidTransaction::LackOfFundForMaxFee {
                     fee: Box::new(U256::from(1048)),
@@ -1329,7 +1332,7 @@ mod tests {
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
 
         handler
-            .validate_against_state_and_deduct_caller(&mut evm)
+            .validate_against_state_and_deduct_caller(&mut evm, &mut Default::default())
             .unwrap();
 
         assert!(evm
@@ -1428,7 +1431,8 @@ mod tests {
         let handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
 
-        let result = handler.validate_against_state_and_deduct_caller(&mut evm);
+        let result =
+            handler.validate_against_state_and_deduct_caller(&mut evm, &mut Default::default());
 
         assert!(matches!(
             result.err().unwrap(),
