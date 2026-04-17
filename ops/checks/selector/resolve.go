@@ -43,13 +43,15 @@ func Resolve(
 		return nil
 	}
 
-	// go.mod gets special handling: structural changes (go version,
-	// toolchain, module path) force blast radius; require-block changes
-	// become synthetic mod: changed nodes that feed the reverse-walk
-	// infrastructure the same way test-helper changes do.
-	modIDs, forceBlast := expandGoModDiffs(diffs)
-	if forceBlast {
-		return blastRadiusCandidates(cat, gomodPaths(diffs))
+	// go.mod and Cargo.toml get special handling: structural changes
+	// force blast radius; dep-table changes become synthetic changed
+	// nodes (mod: for external deps, go:/rs: for internal) that feed
+	// the reverse-walk infrastructure the same way test-helper
+	// changes do.
+	goModIDs, goForce := expandGoModDiffs(diffs)
+	cargoIDs, cargoForce := expandCargoTomlDiffs(diffs, g)
+	if goForce || cargoForce {
+		return blastRadiusCandidates(cat, configBlastPaths(diffs))
 	}
 
 	if isBlast, files := diff.BlastRadiusFiles(filePaths, pol.BlastRadius); isBlast {
@@ -58,9 +60,14 @@ func Resolve(
 
 	changedLines := buildChangedLinesMap(diffs)
 	fileChangedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
-	changedIDs := make([]string, 0, len(fileChangedIDs)+len(modIDs))
+	changedIDs := make([]string, 0, len(fileChangedIDs)+len(goModIDs)+len(cargoIDs))
 	changedIDs = append(changedIDs, fileChangedIDs...)
-	for _, id := range modIDs {
+	for _, id := range goModIDs {
+		if g.GetNode(id) != nil {
+			changedIDs = append(changedIDs, id)
+		}
+	}
+	for _, id := range cargoIDs {
 		if g.GetNode(id) != nil {
 			changedIDs = append(changedIDs, id)
 		}
@@ -90,10 +97,68 @@ func expandGoModDiffs(diffs []diff.FileDiff) (modIDs []string, forceBlast bool) 
 	return modIDs, forceBlast
 }
 
-func gomodPaths(diffs []diff.FileDiff) []string {
+// expandCargoTomlDiffs runs the Cargo.toml analyzer on each Cargo.toml
+// in the diff and returns synthetic changed-node IDs: rs:<crate> for
+// workspace members, mod:<crate> for external deps. The crate that
+// owns the changed Cargo.toml is also added to the changed set, since
+// feature-gate-adjacent edits (that the analyzer might not classify)
+// can still affect the crate's own behavior.
+func expandCargoTomlDiffs(diffs []diff.FileDiff, g *graph.Graph) (ids []string, forceBlast bool) {
+	for _, d := range diffs {
+		if d.Path != "Cargo.toml" && !strings.HasSuffix(d.Path, "/Cargo.toml") {
+			continue
+		}
+		change := diff.AnalyzeCargoTomlChange(d)
+		if change.ForceBlast {
+			forceBlast = true
+		}
+		for _, dep := range change.AffectedDeps {
+			// workspace member → rs:; otherwise external → mod:
+			if g.GetNode("rs:" + dep) != nil {
+				ids = append(ids, "rs:"+dep)
+			} else {
+				ids = append(ids, "mod:"+dep)
+			}
+		}
+		// Also add the crate that owns this Cargo.toml, if any.
+		if owner := findCrateForManifest(d.Path, g); owner != "" {
+			ids = append(ids, owner)
+		}
+	}
+	return ids, forceBlast
+}
+
+// findCrateForManifest finds the crate node whose `dir` matches the
+// directory of the given Cargo.toml path. Returns "" if no match
+// (e.g. a workspace-root Cargo.toml with no crate of its own, or the
+// crate node was never built).
+func findCrateForManifest(cargoTomlPath string, g *graph.Graph) string {
+	// cargoTomlPath is repo-relative; crate node `dir` is absolute.
+	// We compare by suffix to tolerate either form.
+	dir := strings.TrimSuffix(cargoTomlPath, "/Cargo.toml")
+	if dir == "Cargo.toml" {
+		dir = "."
+	}
+	for _, node := range g.NodesOfKind(graph.KindSource) {
+		if node.Granularity != "crate" {
+			continue
+		}
+		nodeDir, _ := node.Properties["dir"].(string)
+		if nodeDir == "" {
+			continue
+		}
+		if nodeDir == dir || strings.HasSuffix(nodeDir, "/"+dir) {
+			return node.ID
+		}
+	}
+	return ""
+}
+
+func configBlastPaths(diffs []diff.FileDiff) []string {
 	var out []string
 	for _, d := range diffs {
-		if d.Path == "go.mod" || strings.HasSuffix(d.Path, "/go.mod") {
+		if d.Path == "go.mod" || strings.HasSuffix(d.Path, "/go.mod") ||
+			d.Path == "Cargo.toml" || strings.HasSuffix(d.Path, "/Cargo.toml") {
 			out = append(out, d.Path)
 		}
 	}

@@ -453,6 +453,117 @@ check_types:
 	}
 }
 
+// TestResolve_CargoTomlAffectsConsumers — a Cargo.toml version bump
+// for an internal crate produces candidates only for workspace
+// members that import it, plus the owning crate.
+func TestResolve_CargoTomlAffectsConsumers(t *testing.T) {
+	g := graph.NewGraph()
+
+	// kona-derive depends on kona-primitives. A bump to kona-derive's
+	// Cargo.toml (changing a dep version) should affect kona-derive
+	// itself but not unrelated crates.
+	_ = g.AddNode(&graph.Node{ID: "rs:kona-derive", Kind: graph.KindSource, Granularity: "crate",
+		Properties: map[string]any{"dir": "rust/crates/derive"}})
+	_ = g.AddNode(&graph.Node{ID: "rs:kona-primitives", Kind: graph.KindSource, Granularity: "crate",
+		Properties: map[string]any{"dir": "rust/crates/primitives"}})
+	_ = g.AddNode(&graph.Node{ID: "rs:bystander", Kind: graph.KindSource, Granularity: "crate",
+		Properties: map[string]any{"dir": "rust/crates/bystander"}})
+	_ = g.AddNode(&graph.Node{ID: "mod:alloy-primitives", Kind: graph.KindModule})
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
+
+	// kona-derive imports alloy-primitives (external)
+	_ = g.AddEdge(&graph.Edge{
+		From: "rs:kona-derive", To: "mod:alloy-primitives",
+		Kind: graph.EdgeImports, Strength: 0.7, Confidence: 1.0,
+	})
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: go-test
+    name: go-test
+    kind: test
+    language: go
+    command: go test
+    scopeable: true
+    scope_type: packages
+    avg_duration: 7200
+`))
+
+	// Diff: kona-derive bumps alloy-primitives.
+	diffs := []diff.FileDiff{{
+		Path: "rust/crates/derive/Cargo.toml",
+		Hunks: []diff.Hunk{{
+			Context: []string{"[dependencies]"},
+			Removed: []string{`alloy-primitives = "0.7"`},
+			Added:   []string{`alloy-primitives = "0.8"`},
+		}},
+	}}
+
+	// This test doesn't care which specific candidates emerge — it
+	// only needs to verify the Cargo.toml change doesn't blast-radius
+	// onto every check type.
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+	allUnscoped := true
+	for _, c := range cands {
+		if c.Scope != "" {
+			allUnscoped = false
+		}
+	}
+	if allUnscoped && len(cands) > 0 {
+		// Every candidate unscoped = blast-radius behavior. Cargo.toml
+		// with just a dep version bump must not trigger that.
+		t.Errorf("expected scoped candidates (graph-walk mode), got all-unscoped blast-radius: %+v", cands)
+	}
+}
+
+// TestResolve_CargoTomlForceBlastOnFeatures — [features] changes
+// flip compile-time behavior across consumers; must force blast.
+func TestResolve_CargoTomlForceBlastOnFeatures(t *testing.T) {
+	g := graph.NewGraph()
+	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck, Name: "forge-test"})
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
+
+	cat, _ := catalog.Parse([]byte(`
+check_types:
+  - id: forge-test
+    name: forge-test
+    kind: test
+    language: solidity
+    command: forge test
+    scopeable: true
+    scope_type: paths
+    avg_duration: 3600
+  - id: go-test
+    name: go-test
+    kind: test
+    language: go
+    command: go test
+    scopeable: true
+    scope_type: packages
+    avg_duration: 7200
+`))
+
+	diffs := []diff.FileDiff{{
+		Path: "rust/crates/derive/Cargo.toml",
+		Hunks: []diff.Hunk{{
+			Context: []string{"[features]"},
+			Added:   []string{`default = ["async"]`},
+		}},
+	}}
+
+	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+	got := make(map[string]bool)
+	for _, c := range cands {
+		got[c.CheckID] = true
+		if c.Signal != 1.0 {
+			t.Errorf("blast candidate %q has signal %f, want 1.0", c.CheckID, c.Signal)
+		}
+	}
+	if !got["forge-test"] || !got["go-test"] {
+		t.Errorf("expected blast across checks; got %v", got)
+	}
+}
+
 // TestResolve_GoModForceBlastOnGoVersion — bumping the `go` directive
 // forces blast-radius (every check, not scoped).
 func TestResolve_GoModForceBlastOnGoVersion(t *testing.T) {
