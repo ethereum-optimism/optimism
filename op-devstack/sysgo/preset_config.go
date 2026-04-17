@@ -20,6 +20,8 @@ type PresetConfig struct {
 	EnableTimeTravel           bool
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
+	MessageExpiryWindow        *uint64
+	UseInteropFilter           bool
 }
 
 func NewPresetConfig() PresetConfig {

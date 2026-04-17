@@ -263,6 +263,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
+        existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
 
         // Enable the ETH lockbox feature on the SystemConfig if not already enabled.
         // This is needed for the SystemConfig's paused() function to use the correct identifier.

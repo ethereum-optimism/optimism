@@ -133,10 +133,17 @@
     "type": "address"
   },
   {
+    "bytes": "20",
+    "label": "zkDisputeGameImpl",
+    "offset": 0,
+    "slot": "19",
+    "type": "address"
+  },
+  {
     "bytes": "32",
     "label": "devFeatureBitmap",
     "offset": 0,
-    "slot": "19",
+    "slot": "20",
     "type": "bytes32"
   }
 ]

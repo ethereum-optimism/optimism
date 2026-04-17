@@ -122,6 +122,11 @@
           },
           {
             "internalType": "address",
+            "name": "zkDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
           }
@@ -281,6 +286,11 @@
           {
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "zkDisputeGameImpl",
             "type": "address"
           },
           {

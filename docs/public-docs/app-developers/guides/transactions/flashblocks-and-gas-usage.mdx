@@ -57,7 +57,7 @@ A transaction may be submitted with a gas limit lower than the total block gas l
 
 This happens because transaction acceptance and transaction inclusion are decided by different components.
 
-Genrally:
+Generally:
 - Incoming transactions first enter the Execution Layer txpool.
 - The EL checks whether `tx.gasLimit` exceeds the **full block gas limit**.
   - If it does, it rejects with `exceeds block gas limit`.

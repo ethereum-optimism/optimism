@@ -63,10 +63,17 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
+	// Wait for the restarted EL to be ready to accept RPC/P2P connections
+	// before attempting to peer. Without this, PeerWith may waste its 30s
+	// timeout on a node whose P2P stack isn't fully initialized yet.
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 60)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
+	// EL Sync after a full database wipe requires more time than the initial sync:
+	// the EL must re-download all blocks via P2P before the CL can begin derivation,
+	// and node A keeps advancing LocalSafe in the meantime.
+	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 90)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 90) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 }

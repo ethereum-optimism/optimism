@@ -92,6 +92,7 @@ library GameTypes {
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
 
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
     GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
 
     /// @notice Returns true if the game type uses super roots.

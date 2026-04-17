@@ -199,6 +199,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
+        fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -247,6 +248,7 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";

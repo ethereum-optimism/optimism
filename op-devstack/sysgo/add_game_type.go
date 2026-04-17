@@ -122,8 +122,8 @@ func addGameTypesForRuntime(
 
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	// OPCMv2 requires all 6 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA.
+	// OPCMv2 requires all 7 game configs in order:
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
@@ -168,6 +168,11 @@ func addGameTypesForRuntime(
 			Enabled:  false,
 			InitBond: new(big.Int),
 			GameType: embedded.GameTypeSuperCannonKona,
+		},
+		{
+			Enabled:  false,
+			InitBond: new(big.Int),
+			GameType: embedded.GameTypeZKDisputeGame,
 		},
 	}
 

@@ -225,7 +225,7 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 			msg := ethereum.CallMsg{
 				From:       tx.Sender.Value(),
 				To:         tx.To.Value(),
-				Gas:        0, // infinite gas, will be estimated
+				Gas:        params.MaxTxGas, // max gas, will be estimated
 				GasPrice:   nil,
 				GasFeeCap:  tx.GasFeeCap.Value(),
 				GasTipCap:  tx.GasTipCap.Value(),

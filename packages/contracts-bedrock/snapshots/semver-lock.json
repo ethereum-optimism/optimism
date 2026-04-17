@@ -7,10 +7,6 @@
     "initCodeHash": "0xb2ff8426ab2eb36352f790748963c8e1f7a91caf16bee6a035c2c41bac532836",
     "sourceCodeHash": "0x870004d5acc24a704277680f09ccca51a020a512e6c6d48cca583a23a0de43a2"
   },
-  "src/L1/FeesDepositor.sol:FeesDepositor": {
-    "initCodeHash": "0xe2ca240d728f711df438b7aeb3589c95ad11a97d742539a692ddafaf1365eb54",
-    "sourceCodeHash": "0xd80b4dcd088ee36f7593a84f934ce9ff1dea6725b6c94b9dd150720a7b6f284f"
-  },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
     "initCodeHash": "0xc1ec4cfb082f933ed4a705a6d6de874c0fe167683e1f8fcf792fdcfeb767ea0d",
     "sourceCodeHash": "0x7ebe9fe238b59fcabdc9feaff9a1302314071eab01d425d0a44365ff3d48f394"
@@ -24,8 +20,8 @@
     "sourceCodeHash": "0x9d16e900a764cd7f19db3656cf7a9e555b23b9c7e018641ed21566657847a314"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x7f91525e45ea13bd680259e061f15d1bdfbdef7d9fd6c72bc62827b7fa732efe",
-    "sourceCodeHash": "0x1a0e19b0b6ec15affdb6888267046ddcf3419b3053c77fb8fb8810470f2486a7"
+    "initCodeHash": "0x029a46237037de3323bfc60b148ebe7eeaa4306f97ea49d0563bc2725758dae6",
+    "sourceCodeHash": "0x90afce90a5d84c9ec696554ab40ae9d9f04e27ce3f3d758f4ac6001aef89b45e"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x1101a3124e60908ec3e7690b33389d835d0405416d107114edd1684528f39bee",
@@ -44,8 +40,8 @@
     "sourceCodeHash": "0xb09cb2f7cbde8585fad5c5beb6811fa9044b156b4203da8005d3f6a7a68c30b2"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0xd8b7a5e075e0fd404d8e0aed10b345bb6064c21ac110caf4cf9ee26a66cc9b86",
-    "sourceCodeHash": "0xbddd81f0a8091778052008a67735b46b9f788872b40562d1906b4a7cbe823649"
+    "initCodeHash": "0x397abf0952ec7a694ec98964cc6fb4b09f2bf7176e31e7e3a9f59426f0bef4c3",
+    "sourceCodeHash": "0xe74c4ce2ebd584e69a24a13b18d43569e2996da415b2f44ed54e44159a95c5dd"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0xf1fb169c6dd4eceb5cec6ed6dfa3affc45970e5a01e00827d06af1f9e8df026d",
@@ -63,10 +59,6 @@
     "initCodeHash": "0xd4a8b5b95e29bdad905637c4007af161b28224f350f54508e66299f56cffcef0",
     "sourceCodeHash": "0x6d137fef431d75a8bf818444915fc39c8b1d93434a9af9971d96fb3170bc72b7"
   },
-  "src/L2/FeeSplitter.sol:FeeSplitter": {
-    "initCodeHash": "0x2f7aede9f1754d4afb690ce0d64565fbdc58b7bb99a668660b0d0e27fb51502a",
-    "sourceCodeHash": "0xd12920a7ff18e68575dec4cc0221dba393353d7a281fc81f615a789f78b7cf03"
-  },
   "src/L2/GasPriceOracle.sol:GasPriceOracle": {
     "initCodeHash": "0xf72c23d9c3775afd7b645fde429d09800622d329116feb5ff9829634655123ca",
     "sourceCodeHash": "0xb4d1bf3669ba87bbeaf4373145c7e1490478c4a05ba4838a524aa6f0ce7348a6"
@@ -83,13 +75,9 @@
     "initCodeHash": "0xf1fb169c6dd4eceb5cec6ed6dfa3affc45970e5a01e00827d06af1f9e8df026d",
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
-  "src/L2/L1Withdrawer.sol:L1Withdrawer": {
-    "initCodeHash": "0x6efb9055142e90b408c6312074243769df0d365f6f984e226e0320bec55a45b8",
-    "sourceCodeHash": "0x7e438cbbe9a8248887b8c21f68c811f90a5cae4902cbbf7b0a1f6cd644dc42d9"
-  },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xf0e3dbf5a849fae137eec83487d781496edb59f8aa5ae8420f8cb5c805743196",
-    "sourceCodeHash": "0xc27daa6b6b4617d8c10aaed76fb26e623774639770242212b6174362351d2643"
+    "initCodeHash": "0xcdd15d96a0a09d402831f85185feb38965c028e652cb964ed1766ab6605b2f3e",
+    "sourceCodeHash": "0x32a643e52d73d47d7984fd8f4301c8cec47719bab66e64843ad3f72194eeb9cf"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -111,10 +99,6 @@
     "initCodeHash": "0xceccf652d13f2492b853c2ca2117538549259ce0ddfc085d75c5d5074cc5e80f",
     "sourceCodeHash": "0x00bf544cb76e2ee689de6cc9f1cd4cfdaae1ea63cd2edc16b3fde6357b04722e"
   },
-  "src/L2/L2StandardBridgeInterop.sol:L2StandardBridgeInterop": {
-    "initCodeHash": "0x29ddd562a5d4d63a7a7c6f68b3b08159cc60a2c49d453c5a171731fe78454479",
-    "sourceCodeHash": "0x929831a2f0569b1289a5704f28390e0626925f72780847c426c747bc1454b934"
-  },
   "src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser": {
     "initCodeHash": "0xe30675ea6623cd7390dd2cd1e9a523c92c66956dfab86d06e318eb410cd1989b",
     "sourceCodeHash": "0xdc7bd63134eeab163a635950f2afd16b59f40f9cf1306f2ed33ad661cc7b4962"
@@ -128,8 +112,8 @@
     "sourceCodeHash": "0xbea4229c5c6988243dbc7cf5a086ddd412fe1f2903b8e20d56699fec8de0c2c9"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
-    "initCodeHash": "0x8f46415faeff0f507158e068e6435af548dd9324f49a3d988cbf157f2a992efd",
-    "sourceCodeHash": "0xce9e7edc12f65c4f307ebd3ce58d468b872ee61646a2a62cd891512839089ac2"
+    "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
+    "sourceCodeHash": "0xd5404e1e7ed6ea562f1fae8d1681e5eb487cee82923de73f759ba847000671da"
   },
   "src/L2/NativeAssetLiquidity.sol:NativeAssetLiquidity": {
     "initCodeHash": "0x04b176e5d484e54173a5644c833117c5fd9f055dce8678be9ec4cf07c0f01f00",
@@ -147,37 +131,13 @@
     "initCodeHash": "0x50452b7514964a4c9cb75963ad5439d08d7b4e7908a41d555c9d380e17c85d55",
     "sourceCodeHash": "0x934698844664ca01b0898fc4fafd74d9685977dd141e71823c9ef7501cee505e"
   },
-  "src/L2/OptimismSuperchainERC20.sol:OptimismSuperchainERC20": {
-    "initCodeHash": "0x1ad4b7c19d10f80559bad15063ac1fd420f36d76853eb6d846b0acd52fb93acb",
-    "sourceCodeHash": "0xa135241cee15274eb07045674106becf8e830ddc55412ebf5d608c5c3da6313e"
-  },
-  "src/L2/OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon": {
-    "initCodeHash": "0x5d83dcdb91620e45fb32a32ad39ada98c5741e72d4ca668bb1a0933987098e59",
-    "sourceCodeHash": "0x4582c8b84fbe62e5b754ebf9683ae31217af3567398f7d3da196addaf8de2045"
-  },
-  "src/L2/OptimismSuperchainERC20Factory.sol:OptimismSuperchainERC20Factory": {
-    "initCodeHash": "0xb7d37397a326f752d06f7f0cecc3f49f4397f91b4f4d9c4bd1a9fd127480e9d0",
-    "sourceCodeHash": "0x11b6236911e909ed10d4f194fe7315c1f5533d21cbe69a8ff16248c827df2647"
-  },
   "src/L2/SequencerFeeVault.sol:SequencerFeeVault": {
     "initCodeHash": "0x5ac8f2c2c28baefb7e8987fcc44e5d18091d2ff38f3690f5a5d18eb6e26b9001",
     "sourceCodeHash": "0x13dacaa99aade98f438e957d2bd3b79c516ad71cd5c4374729f8076c871a8344"
   },
-  "src/L2/SuperchainERC20.sol:SuperchainERC20": {
-    "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-    "sourceCodeHash": "0x76eb2c7617e9b0b8dcd6b88470797cc946798a9ac067e3f195fff971fcabdbf5"
-  },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
-  },
-  "src/L2/SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator": {
-    "initCodeHash": "0xdfff95660d2d470e198054bb1717a30a45a806d2eaa3720fb43acaa3356c9a3e",
-    "sourceCodeHash": "0x741d4fe13a88e0f2667ecb1c0c8a8550059800f8ef63241d6ffd14bf0a53ae5e"
-  },
-  "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
-    "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
-    "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
@@ -260,8 +220,8 @@
     "sourceCodeHash": "0x7023665d461f173417d932b55010b8f6c34f2bbaf56cfe4e1b15862c08cbcaac"
   },
   "src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory": {
-    "initCodeHash": "0x747baf403205b900e1144038f2b807c84059229aedda8c91936798e1403eda39",
-    "sourceCodeHash": "0xf71e16aaad1ec2459040ab8c93b7188b2c04c671c21b4d43fba75cab80ed1b21"
+    "initCodeHash": "0x1236dfd39149aa82e58869b6a8c0b7a21351f5fa938f8147662fcd8a0d3829ea",
+    "sourceCodeHash": "0x15ff775876e725372448308c6b8aebdfce775e5e12f29399988c2a7d8f9acdaf"
   },
   "src/universal/StorageSetter.sol:StorageSetter": {
     "initCodeHash": "0x1fd4b84add5c5ed80205cea0bbca9115e98d0efb416d9cedc12ce0cff9919bda",

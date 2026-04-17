@@ -162,28 +162,6 @@ func TestSemverIsPrerelease(t *testing.T) {
 	}
 }
 
-func TestSemverIsV1OPCM(t *testing.T) {
-	tests := []struct {
-		version string
-		isV1    bool
-	}{
-		{"5.0.0", false},
-		{"6.0.0", true},
-		{"6.1.0", true},
-		{"6.99.99", true},
-		{"7.0.0", false},
-		{"8.0.0", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.version, func(t *testing.T) {
-			sv, err := ParseSemver(tt.version)
-			require.NoError(t, err)
-			require.Equal(t, tt.isV1, sv.IsV1OPCM())
-		})
-	}
-}
-
 func TestAddressUnmarshalText(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -398,9 +376,9 @@ func TestFilterByLastUsedOPCMVersion(t *testing.T) {
 	sv7, _ := ParseSemver("7.0.0")
 
 	opcms := []ResolvedOPCM{
-		{Address: common.HexToAddress("0x1"), OPCMVersion: sv6, IsV1: true},
-		{Address: common.HexToAddress("0x2"), OPCMVersion: sv61, IsV1: true},
-		{Address: common.HexToAddress("0x3"), OPCMVersion: sv7, IsV1: false},
+		{Address: common.HexToAddress("0x1"), OPCMVersion: sv6},
+		{Address: common.HexToAddress("0x2"), OPCMVersion: sv61},
+		{Address: common.HexToAddress("0x3"), OPCMVersion: sv7},
 	}
 
 	t.Run("empty lastVersion returns all", func(t *testing.T) {
@@ -496,13 +474,11 @@ func TestGetResolvedOPCMs(t *testing.T) {
 			resolved = append(resolved, ResolvedOPCM{
 				Address:     opcm.Address,
 				OPCMVersion: sv,
-				IsV1:        sv.IsV1OPCM(),
 			})
 		}
 
 		require.Len(t, resolved, 1)
 		require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), resolved[0].Address)
-		require.True(t, resolved[0].IsV1)
 	})
 
 	t.Run("filters out prerelease versions", func(t *testing.T) {

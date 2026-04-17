@@ -7,7 +7,8 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { Claim, GameType } from "src/dispute/lib/Types.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -32,6 +33,15 @@ interface IOPContractsManagerUtils {
         Claim absolutePrestate;
         address proposer;
         address challenger;
+    }
+
+    /// @notice Configuration struct for the ZKDisputeGame.
+    struct ZKDisputeGameConfig {
+        Claim absolutePrestate;
+        IZKVerifier verifier;
+        Duration maxChallengeDuration;
+        Duration maxProveDuration;
+        uint256 challengerBond;
     }
 
     /// @notice Generic dispute game configuration data.

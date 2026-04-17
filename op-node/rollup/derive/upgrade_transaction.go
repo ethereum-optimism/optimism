@@ -2,20 +2,17 @@ package derive
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
-
-//go:embed karst_nut_bundle.json
-var karstNUTBundleJSON []byte
 
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
@@ -103,7 +100,7 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	var bundleJSON []byte
 	switch fork {
 	case forks.Karst:
-		bundleJSON = karstNUTBundleJSON
+		bundleJSON = nuts.KarstNUTBundleJSON
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}

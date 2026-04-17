@@ -79,13 +79,12 @@ func main() {
 			return nil, fmt.Errorf("failed to create virtual node configs: %w", err)
 		}
 
-		// Populate config with interop activation timestamp from CLI context if set
-		// Only set the pointer if the flag is explicitly provided by the user
-		// If not set, leave as nil to disable interop
+		// Populate config with an explicit CLI or env override if one is set.
+		// Otherwise the supernode will derive interop activation from the loaded rollup configs.
 		if cliCtx != nil && cliCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
 			ts := cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
 			cfg.InteropActivationTimestamp = &ts
-			l.Info("interop activation timestamp set from CLI", "timestamp", ts)
+			l.Info("interop activation timestamp override set", "timestamp", ts)
 		}
 
 		// Create the supernode, supplying the logger, version, and close function
@@ -128,6 +127,12 @@ func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.
 		// Based on the top level L1 and Beacon addresses
 		vcli.WithStringOverride(opnodeflags.L1NodeAddr.Name, cfg.L1NodeAddr)
 		vcli.WithStringOverride(opnodeflags.BeaconAddr.Name, cfg.L1BeaconAddr)
+
+		// Warn if the user set any supernode-owned flags at the VN level.
+		// These flags control shared resources (e.g. L1 client) that the
+		// supernode manages -- per-VN values are silently ignored.
+		warnSupernodeOwnedFlags(vcli, chainID, l)
+
 		cfg, err := opnode.NewConfig(vcli, l)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node config: %w", err)
@@ -135,6 +140,18 @@ func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.
 		vnCfgs[eth.ChainIDFromUInt64(chainID)] = cfg
 	}
 	return vnCfgs, nil
+}
+
+// warnSupernodeOwnedFlags logs a warning for each flag in SupernodeOwnedFlags
+// that was set at the vn.all.* or vn.<id>.* level. These flags have no effect
+// because the supernode owns the underlying resource.
+func warnSupernodeOwnedFlags(vcli *flags.VirtualCLI, chainID uint64, l log.Logger) {
+	for _, name := range flags.SupernodeOwnedFlags {
+		if vcli.IsSet(name) {
+			l.Warn("virtual node flag is ignored -- supernode owns this resource; use the supernode-level flag instead",
+				"flag", name, "chain", chainID)
+		}
+	}
 }
 
 func withNoP2P(vcli *flags.VirtualCLI) error {

@@ -7,7 +7,7 @@ Network Upgrade Transaction (NUT) bundles define the L2 deposit transactions tha
 | File | Purpose |
 |------|---------|
 | `fork_lock.toml` | Lock file mapping fork names to bundle paths, sha256 hashes, and source commits |
-| `op-node/rollup/derive/<fork>_nut_bundle.json` | Embedded bundle consumed by op-node at fork activation |
+| `bundles/<fork>_nut_bundle.json` | Embedded bundle consumed by op-node and kona-node at fork activation |
 
 ## Workflow
 
@@ -24,7 +24,7 @@ just generate-nut-bundle
 just nut-snapshot-for <fork>
 ```
 
-This copies `current-upgrade-bundle.json` to `op-node/rollup/derive/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and the merge-base commit with `origin/develop`.
+This copies `current-upgrade-bundle.json` to `op-core/nuts/bundles/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and the merge-base commit with `origin/develop`.
 
 **Important:** The recorded commit is the merge-base with develop, not HEAD. This ensures the commit survives squash-merge. Contract changes must be merged to develop in a separate PR *before* snapshotting the bundle.
 
@@ -49,7 +49,7 @@ Requires `forge` for the provenance check (step 2).
 
 ```toml
 [<fork-name>]
-bundle = "op-node/rollup/derive/<fork>_nut_bundle.json"  # repo-relative path
+bundle = "op-core/nuts/bundles/<fork>_nut_bundle.json"  # repo-relative path
 hash = "sha256:<hex>"                                      # sha256 of bundle contents
 commit = "<full-sha>"                                      # commit that produced the bundle
 ```

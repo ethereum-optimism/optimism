@@ -200,9 +200,16 @@ impl OpChainSpecBuilder {
         self
     }
 
+    /// Enable Karst at genesis
+    pub fn karst_activated(mut self) -> Self {
+        self = self.jovian_activated();
+        self.inner = self.inner.with_fork(OpHardfork::Karst, ForkCondition::Timestamp(0));
+        self
+    }
+
     /// Enable Interop at genesis
     pub fn interop_activated(mut self) -> Self {
-        self = self.jovian_activated();
+        self = self.karst_activated();
         self.inner = self.inner.with_fork(OpHardfork::Interop, ForkCondition::Timestamp(0));
         self
     }
@@ -393,6 +400,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Holocene.boxed(), genesis_info.holocene_time),
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
             (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
+            (OpHardfork::Karst.boxed(), genesis_info.karst_time),
             (OpHardfork::Interop.boxed(), genesis_info.interop_time),
         ];
 
