@@ -76,6 +76,7 @@ std = [
 	"ark-ff/std",
 	"dep:tokio",
 	"kona-genesis/std",
+	"kona-interop/std",
 	"kona-preimage/std",
 	"kona-protocol/std",
 	"kona-registry/std",
