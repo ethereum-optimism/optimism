@@ -64,16 +64,20 @@ library UpgradeUtils {
 
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Gas limits are set to the 1.5x recommended value from mainnet fork profiling.
+    /// @dev `proxyAdminUpgrade` is the only NUT whose `gasLimit - 21_000` is below its intrinsic
+    ///      gas. This causes `transact_inner`'s outer `Gas` budget to overflow when recording
+    ///      tx_gas_used, so the isolated test under-reports its body as 0. This is the reason why
+    ///      the recommendation gas limit is lower than the actual gas limit.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: 4_840_717,
-            upgradeExecution: 2_152_657,
+            l2cmDeployment: 4_884_954,
+            upgradeExecution: 2_093_653,
             // Karst
-            conditionalDeployerDeployment: 563_385,
-            conditionalDeployerUpgrade: 75_499,
-            proxyAdminUpgrade: 49_849
+            conditionalDeployerDeployment: 573_471,
+            conditionalDeployerUpgrade: 75_508,
+            proxyAdminUpgrade: 45_117
         });
     }
 
@@ -131,6 +135,22 @@ library UpgradeUtils {
         for (uint256 i = 0; i < _data.length; i++) {
             gas_ += _data[i] == 0 ? 4 : 16;
         }
+    }
+
+    /// @notice Computes the recommended gas limit for a transaction.
+    /// @dev Recommended gas limit = 1.5x (the intrinsic gas cost + base gas limit).
+    /// @param _intrinsicGas The intrinsic gas cost.
+    /// @param _bodyGasUsed The body gas used.
+    /// @return gas_ The recommended gas limit.
+    function computeRecommendedGasLimit(
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed
+    )
+        internal
+        pure
+        returns (uint64 gas_)
+    {
+        gas_ = uint64((uint256(_intrinsicGas + _bodyGasUsed) * 150) / 100); // 1.5x
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.

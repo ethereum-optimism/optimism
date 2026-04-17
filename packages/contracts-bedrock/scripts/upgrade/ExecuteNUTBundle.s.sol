@@ -41,14 +41,14 @@ contract ExecuteNUTBundle is Script {
     {
         intrinsicGas_ = UpgradeUtils.computeIntrinsicGas(_txn.data);
         require(
-            _txn.gasLimit >= intrinsicGas_, string.concat("ExecuteNUTBundle: gasLimit < intrinsicGas for ", _txn.intent)
+            _txn.gasLimit > intrinsicGas_, string.concat("ExecuteNUTBundle: gasLimit < intrinsicGas for ", _txn.intent)
         );
 
         vm.prank(_txn.from);
 
         (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
         VmSafe.Gas memory gasResult = vm.lastCallGas();
-        bodyGasUsed_ = uint64(int64(gasResult.gasTotalUsed) - gasResult.gasRefunded);
+        bodyGasUsed_ = uint64(gasResult.gasTotalUsed);
     }
 
     /// @notice Executes all transactions in the bundle sequentially.

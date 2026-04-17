@@ -735,10 +735,6 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         uint256 efficiency; // gasUsed * 100 / gasLimit (percentage)
     }
 
-    /// @notice Safety margin multiplier (150% = 1.5x).
-    uint256 internal constant SAFETY_MARGIN_MULTIPLIER = 150;
-    uint256 internal constant PERCENTAGE_DENOMINATOR = 100;
-
     function _logReportHeader(string memory _title, uint256 _count) internal pure {
         console.log(LibString.repeat("=", 100));
         console.log(_title);
@@ -828,7 +824,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         returns (GasMeasurement memory measurement_)
     {
         uint64 gasUsed = _intrinsicGas + _bodyGasUsed;
-        uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
+        uint64 recommendedLimit = UpgradeUtils.computeRecommendedGasLimit(_intrinsicGas, _bodyGasUsed);
         uint256 efficiency = (uint256(gasUsed) * 100) / uint256(_txn.gasLimit);
         measurement_ = GasMeasurement({
             index: _i,
@@ -873,6 +869,13 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             );
 
             measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+            // This tests is not the final production reference for the gas limit, but this assertion should also pass
+            // because in isolated mode the gas is higher.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x (intrinsic+body) recommendation for ", txn.intent)
+            );
             totalGasUsed += measurements[i].gasUsed;
             totalGasLimit += measurements[i].gasLimit;
         }
@@ -930,33 +933,22 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
                 )
             );
 
-            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, false);
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+
+            // Verify the gas limit exceeds the recommended limit for the transaction.
+            // We take the isolated mode measurement because each transaction has a separate EVM context, and
+            // the called contracts start with cold storage.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x (intrinsic+body) recommendation for ", txn.intent)
+            );
+
             totalGasUsed += measurements[i].gasUsed;
             totalGasLimit += measurements[i].gasLimit;
         }
 
         _logReportSummary(totalGasUsed, totalGasLimit);
         _logAdjustments(measurements);
-    }
-
-    /// @notice Tests that the gas limit is greater than the recommended intrinsic gas limit.
-    /// @dev Recommended intrinsic gas limit = 1.5x the intrinsic gas cost
-    function test_l2ForkUpgrade_intrinsicGasLimit_succeeds() public view {
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
-
-        for (uint256 i = 0; i < txns.length; i++) {
-            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
-            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
-
-            uint64 recommendedIntrinsicGasLimit =
-                uint64((uint256(intrinsicGas) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
-
-            assertGt(
-                txn.gasLimit,
-                recommendedIntrinsicGasLimit,
-                string.concat("Gas limit <= recommended intrinsic gas limit for ", txn.intent)
-            );
-        }
     }
 }
