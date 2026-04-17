@@ -97,6 +97,45 @@ func Resolve(
 	return out
 }
 
+// mergeScopedCandidates unions two candidate sets by (scope, profile),
+// keeping the higher-signal candidate when both sides produce one for
+// the same key. Provenance from both sources is preserved on the kept
+// candidate so `explain --why` shows how each match was derived.
+func mergeScopedCandidates(a, b []Candidate) []Candidate {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	type key struct{ scope, profile string }
+	byKey := make(map[key]*Candidate, len(a)+len(b))
+	add := func(c Candidate) {
+		k := key{c.Scope, c.Profile}
+		cur, ok := byKey[k]
+		if !ok {
+			c2 := c
+			byKey[k] = &c2
+			return
+		}
+		if c.Signal > cur.Signal {
+			cur.Signal = c.Signal
+		}
+		cur.Provenance = append(cur.Provenance, c.Provenance...)
+	}
+	for _, c := range a {
+		add(c)
+	}
+	for _, c := range b {
+		add(c)
+	}
+	out := make([]Candidate, 0, len(byKey))
+	for _, c := range byKey {
+		out = append(out, *c)
+	}
+	return out
+}
+
 // profileTriggerCandidates emits per-profile candidates for every
 // scopeable check whose profile-matrix should run against this diff.
 //
@@ -182,11 +221,20 @@ func candidatesForCheck(
 	// same signal=1.0 but let the optimizer split into tiers and emit
 	// targeted commands like `just test -p kona-derive`.
 	if ct.Scopeable {
-		if cands := coverageCandidates(g, ct, changedIDs, changedLines, pol, fresh); len(cands) > 0 {
-			return cands
-		}
-		if cands := importScopeCandidates(g, ct, changedIDs); len(cands) > 0 {
-			return cands
+		// Union coverage and import-walk candidates. Coverage gives
+		// runtime evidence (which tests actually exercise the changed
+		// lines); import-walk gives compile-time evidence (which tests
+		// depend on the changed file for their build). Interface-only
+		// tests live in the second bucket: a test `import "IFoo.sol"`
+		// doesn't show up in coverage for src/Foo.sol unless it
+		// exercises the impl at runtime, but its build breaks if the
+		// interface shape shifts. The adapter emits src → interface
+		// `generates` edges and transitiveConsumers follows them, so
+		// import-walk surfaces these tests.
+		cov := coverageCandidates(g, ct, changedIDs, changedLines, pol, fresh)
+		imp := importScopeCandidates(g, ct, changedIDs)
+		if merged := mergeScopedCandidates(cov, imp); len(merged) > 0 {
+			return merged
 		}
 		// Fall through to trigger-based unscoped candidate if graph gave
 		// us nothing — better to run the whole check than miss it.

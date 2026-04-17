@@ -98,7 +98,53 @@ func (a *SolidityAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		}
 	}
 
+	// `generates` edges: src/X/Foo.sol → interfaces/X/IFoo.sol for every
+	// src/interface filename pair. The interface files are generated from
+	// their src counterparts by the `just interfaces-snapshots` tooling,
+	// but the import graph can't see the dependency: tests typically
+	// `import "interfaces/X/IFoo.sol"` without referencing src directly.
+	// Without these edges, changing src/Foo.sol fails to reverse-walk
+	// into tests that only touch the interface. 10% of contracts-bedrock
+	// test files import exclusively from interfaces/.
+	for _, path := range solFiles {
+		relPath, _ := filepath.Rel(solDir, path)
+		if !strings.HasPrefix(relPath, "src/") {
+			continue
+		}
+		ifaceRel := srcToInterface(relPath)
+		if ifaceRel == "" {
+			continue
+		}
+		ifaceID := "sol:" + ifaceRel
+		if g.GetNode(ifaceID) == nil {
+			continue
+		}
+		_ = g.AddEdge(&graph.Edge{
+			From:       "sol:" + relPath,
+			To:         ifaceID,
+			Kind:       graph.EdgeGenerates,
+			Source:     graph.SourceStatic,
+			Confidence: 1.0,
+			Strength:   1.0,
+		})
+	}
+
 	return nil
+}
+
+// srcToInterface maps src/X/Foo.sol → interfaces/X/IFoo.sol by the
+// repo's naming convention. Returns "" if relPath isn't under src/.
+func srcToInterface(relPath string) string {
+	if !strings.HasPrefix(relPath, "src/") {
+		return ""
+	}
+	trimmed := strings.TrimPrefix(relPath, "src/")
+	dir := filepath.Dir(trimmed)
+	base := filepath.Base(trimmed)
+	if dir == "." {
+		return filepath.Join("interfaces", "I"+base)
+	}
+	return filepath.Join("interfaces", dir, "I"+base)
 }
 
 // parseImports reads a Solidity file and extracts import paths.
@@ -124,11 +170,19 @@ func parseImports(path string) []string {
 }
 
 // resolveImport resolves an import path using remappings.
+//
+// Foundry remappings (e.g. `interfaces/=interfaces`,
+// `forge-std/=lib/forge-std/src`) have a prefix that usually ends in
+// `/` and a target that usually doesn't. Foundry resolves these as
+// directory joins, not string concatenation — so `interfaces/L1/IFoo`
+// with target `interfaces` becomes `interfaces/L1/IFoo`, not
+// `interfacesL1/IFoo`. filepath.Join handles the slash correctly.
 func resolveImport(importPath, fromFile string, remappings map[string]string) string {
 	// Try remappings first
 	for prefix, target := range remappings {
 		if strings.HasPrefix(importPath, prefix) {
-			return target + strings.TrimPrefix(importPath, prefix)
+			rest := strings.TrimPrefix(importPath, prefix)
+			return filepath.Join(target, rest)
 		}
 	}
 
