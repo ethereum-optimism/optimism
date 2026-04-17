@@ -12,20 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type checksFunc func(t devtest.T, sys *presets.SimpleInterop)
+type checksFunc func(t devtest.T, sys *presets.TwoL2SupernodeInterop)
 
 func TestL2ReorgAfterL1Reorg(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
-
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.SimpleInterop) {
-			ss := sys.Supervisor.FetchSyncStatus()
-			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
-			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
-			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
+			ss := sys.L2ACL.SyncStatus()
+			crossSafeRef = ss.SafeL2.ID()
+			localSafeRef = ss.LocalSafeL2.ID()
+			unsafeRef = ss.UnsafeL2.ID()
 		}
-		post := func(t devtest.T, sys *presets.SimpleInterop) {
+		post := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			require.True(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should still be canonical")
 			require.True(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should still be canonical")
 			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
@@ -35,14 +33,14 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 
 	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
 		var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.SimpleInterop) {
-			ss := sys.Supervisor.FetchSyncStatus()
-			crossUnsafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossUnsafe
-			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
-			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
-			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
+			ss := sys.L2ACL.SyncStatus()
+			crossUnsafeRef = ss.CrossUnsafeL2.ID()
+			crossSafeRef = ss.SafeL2.ID()
+			localSafeRef = ss.LocalSafeL2.ID()
+			unsafeRef = ss.UnsafeL2.ID()
 		}
-		post := func(t devtest.T, sys *presets.SimpleInterop) {
+		post := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
@@ -61,9 +59,14 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	sys.L1Network.WaitForBlock()
+
+	// Build a stable cross-safe foundation before we stop the L1 CL and manually sequence.
+	// This ensures the supernode has verified state that references canonical L1 blocks,
+	// so after the reorg it doesn't need to rewind all the way back to genesis.
+	sys.L2ACL.Advanced(types.CrossSafe, 20, 100)
 
 	sys.L1CL.Stop()
 
@@ -71,8 +74,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	for range n + 1 {
 		sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), common.Hash{})
 
-		sys.L2ChainA.WaitForBlock()
-		sys.L2ChainA.WaitForBlock()
+		sys.L2A.WaitForBlock()
+		sys.L2A.WaitForBlock()
 	}
 
 	// select a divergence block to reorg from
@@ -85,7 +88,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	}
 
 	// print the chains before sequencing an alternative L1 block
-	sys.L2ChainA.PrintChain()
+	sys.L2A.PrintChain()
 	sys.L1Network.PrintChain()
 
 	// pre reorg trigger validations and checks
@@ -102,8 +105,21 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
 
-	// wait until L2 chain A cross-safe ref caught up to where it was before the reorg
-	sys.L2CLA.Reached(types.CrossSafe, tipL2_preReorg.Number, 50)
+	// Wait until L2 chain A cross-safe ref caught up to where it was before the reorg.
+	// Use require.Eventually instead of sys.L2ACL.Reached because the supernode rewinds
+	// one timestamp at a time after an L1 reorg, stopping and restarting VNs each cycle.
+	// During these rewinds the CL RPC is temporarily unavailable, and Reached() would
+	// fatally fail via require.NoError on the transient RPC error.
+	require.Eventually(t, func() bool {
+		ss, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(ctx)
+		if err != nil {
+			sys.Log.Info("SyncStatus unavailable during rewind, retrying", "err", err)
+			return false
+		}
+		sys.Log.Info("waiting for cross-safe to reach pre-reorg tip",
+			"cross_safe", ss.SafeL2.Number, "target", tipL2_preReorg.Number)
+		return ss.SafeL2.Number >= tipL2_preReorg.Number
+	}, 10*time.Minute, 5*time.Second, "L2 chain A cross-safe should reach pre-reorg tip %d", tipL2_preReorg.Number)
 
 	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 	require.Eventually(t, func() bool {
@@ -118,7 +134,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 		sys.Log.Info("current unsafe ref", "tip", unsafe, "tip_origin", unsafe.L1Origin, "l1blk", eth.InfoToL1BlockRef(block))
 
 		// print the chains so we have information to debug if the test fails
-		sys.L2ChainA.PrintChain()
+		sys.L2A.PrintChain()
 		sys.L1Network.PrintChain()
 
 		return block.Hash() == unsafe.L1Origin.Hash
