@@ -5,14 +5,10 @@ description: "Detailed information about transaction finality on OP Mainnet."
 
 ## What is transaction finality?
 
-Transaction finality is the point at which a transaction becomes permanent under a blockchain's security model. Once a transaction is final, users can safely act on the resulting state without expecting it to be reverted or rolled back.
-
-On OP Mainnet, finality provides the guarantee that a transaction is irreversible and will not be lost.
-
-Finality works differently for normal transactions that modify OP Mainnet's L2 state than it does for transactions that withdraw funds from OP Mainnet L2 to Ethereum L1.
+Transaction finality is the point at which a transaction sent on OP Mainnet becomes permanent. This provides guarantees that the transaction will not be reverted or rolled back.
 
 <Note>
-  **Only transactions that withdraw funds from OP Mainnet to Ethereum must wait 7 days.** Regular transactions within OP Mainnet, such as swaps or sends or receives, **do not** have to wait 7 days.
+A common misconception is that transactions on OP Stack chains take 7 days to finalize. **This is incorrect.** Transactions on OP Stack chains become finalized when their data is included on Ethereum.
 </Note>
 
 ## Finality for OP Mainnet L2 Transactions
