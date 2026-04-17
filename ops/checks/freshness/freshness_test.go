@@ -2,7 +2,9 @@ package freshness
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,6 +252,161 @@ func TestAssess_RustFileNodeNoGraph(t *testing.T) {
 	c := New(root, testPolicy(), nil)
 	if got := c.Assess(edge); got != 0.3 {
 		t.Errorf("rs: with nil graph and stamped SHA: Assess = %f, want stale 0.3", got)
+	}
+}
+
+// TestAssess_PerHunkGradient_MostLinesStillPresent — SHA mismatch
+// but most covered lines are unchanged → gradient exceeds the stale
+// floor and is returned.
+func TestAssess_PerHunkGradient_MostLinesStillPresent(t *testing.T) {
+	root := initGitRepo(t)
+
+	// Commit original content with 6 lines, record its blob SHA.
+	original := "line1\nline2\nline3\nline4\nline5\nline6\n"
+	filePath := filepath.Join(root, "file.sol")
+	writeAndCommit(t, root, "file.sol", original, "initial")
+	oldSha := blobSha(t, root, "file.sol")
+
+	// Now rewrite only line6 on disk (uncommitted). Lines 1-5
+	// unchanged; line 6 replaced. Coverage stamped lines 1-4.
+	newContent := "line1\nline2\nline3\nline4\nline5\nline6_REPLACED\n"
+	if err := os.WriteFile(filePath, []byte(newContent), 0o644); err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+
+	edge := &graph.Edge{
+		To: "sol:file.sol",
+		Properties: map[string]any{
+			"source_sha":  oldSha,
+			"line_ranges": [][2]int{{1, 4}},
+		},
+	}
+
+	// The node resolver uses packages/contracts-bedrock/ prefix for
+	// sol: IDs. Our test file sits at root/file.sol; put it under
+	// that prefix for the resolver to find.
+	must(t, os.MkdirAll(filepath.Join(root, "packages/contracts-bedrock"), 0o755))
+	must(t, os.Rename(filePath, filepath.Join(root, "packages/contracts-bedrock/file.sol")))
+	// Re-commit at the new path so git cat-file still works on the
+	// stored sha (blobs are path-agnostic — same content, same sha).
+	// Nothing to do here — the blob is already in the object db.
+
+	pol := &policy.Policy{Freshness: policy.FreshnessConfig{StaleMultiplier: 0.3, MaxAgeDays: 30}}
+	c := New(root, pol, nil)
+	got := c.Assess(edge)
+	// 4 of 4 covered lines still present in new content → fraction 1.0.
+	// Actually exactly 4/4 since lines 1-4 all survived. Floor is
+	// 0.3; gradient lifts above it.
+	if got < 0.9 {
+		t.Errorf("per-hunk gradient: Assess = %f, want ≥ 0.9 (all covered lines still present)", got)
+	}
+}
+
+// TestAssess_PerHunkGradient_AllCoveredLinesGone — SHA mismatch and
+// none of the covered lines survive → gradient is 0, floor
+// (staleMultiplier) applies.
+func TestAssess_PerHunkGradient_AllCoveredLinesGone(t *testing.T) {
+	root := initGitRepo(t)
+	must(t, os.MkdirAll(filepath.Join(root, "packages/contracts-bedrock"), 0o755))
+
+	// Commit "A\nB\nC\n".
+	writeAndCommit(t, root, "packages/contracts-bedrock/file.sol", "A\nB\nC\n", "initial")
+	oldSha := blobSha(t, root, "packages/contracts-bedrock/file.sol")
+
+	// Rewrite to completely different lines.
+	must(t, os.WriteFile(filepath.Join(root, "packages/contracts-bedrock/file.sol"),
+		[]byte("X\nY\nZ\n"), 0o644))
+
+	edge := &graph.Edge{
+		To: "sol:file.sol",
+		Properties: map[string]any{
+			"source_sha":  oldSha,
+			"line_ranges": [][2]int{{1, 3}},
+		},
+	}
+	pol := &policy.Policy{Freshness: policy.FreshnessConfig{StaleMultiplier: 0.3, MaxAgeDays: 30}}
+	c := New(root, pol, nil)
+	got := c.Assess(edge)
+	if got != 0.3 {
+		t.Errorf("all covered lines gone: Assess = %f, want 0.3 (floor)", got)
+	}
+}
+
+// TestAssess_PerHunkGradient_UncommittedBlob — source_sha was never
+// committed (git cat-file fails) → fall back to binary stale.
+func TestAssess_PerHunkGradient_UncommittedBlob(t *testing.T) {
+	root := initGitRepo(t)
+	must(t, os.MkdirAll(filepath.Join(root, "packages/contracts-bedrock"), 0o755))
+	must(t, os.WriteFile(filepath.Join(root, "packages/contracts-bedrock/file.sol"),
+		[]byte("current content\n"), 0o644))
+
+	edge := &graph.Edge{
+		To: "sol:file.sol",
+		Properties: map[string]any{
+			"source_sha":  "deadbeef00000000000000000000000000000000",
+			"line_ranges": [][2]int{{1, 1}},
+		},
+	}
+	pol := &policy.Policy{Freshness: policy.FreshnessConfig{StaleMultiplier: 0.3, MaxAgeDays: 30}}
+	c := New(root, pol, nil)
+	got := c.Assess(edge)
+	if got != 0.3 {
+		t.Errorf("uncommitted old blob: Assess = %f, want 0.3 (binary stale)", got)
+	}
+}
+
+// --- helpers ---
+
+func initGitRepo(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test"},
+		{"config", "commit.gpgsign", "false"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return root
+}
+
+func writeAndCommit(t *testing.T, root, rel, content, msg string) {
+	t.Helper()
+	full := filepath.Join(root, rel)
+	must(t, os.MkdirAll(filepath.Dir(full), 0o755))
+	must(t, os.WriteFile(full, []byte(content), 0o644))
+	for _, args := range [][]string{
+		{"add", rel},
+		{"commit", "-m", msg, "--no-gpg-sign"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+}
+
+func blobSha(t *testing.T, root, rel string) string {
+	t.Helper()
+	cmd := exec.Command("git", "hash-object", rel)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git hash-object: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

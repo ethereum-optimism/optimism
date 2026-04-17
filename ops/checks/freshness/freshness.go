@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -106,6 +107,15 @@ func (c *repoChecker) Assess(edge *graph.Edge) float64 {
 				return c.staleMultiplier
 			}
 			if cur != sourceSha {
+				// SHA mismatch: before falling back to the stale
+				// multiplier, try to compute what fraction of the
+				// stamped line_ranges is still present in the current
+				// file. If most of the covered lines are unchanged,
+				// the evidence is partly valid — return that gradient,
+				// floored at staleMultiplier.
+				if frac, ok := c.perHunkFreshness(edge, sourceSha); ok && frac > c.staleMultiplier {
+					return frac
+				}
 				return c.staleMultiplier
 			}
 		}
@@ -216,6 +226,130 @@ func NodeIDToPath(nodeID string) string {
 	default:
 		return ""
 	}
+}
+
+// perHunkFreshness computes what fraction of the edge's stamped
+// line_ranges still exists, unchanged, in the current source file.
+// Returns (fraction, true) on success, (0, false) when old content
+// can't be retrieved — typical failure modes:
+//   - the stamped blob was never committed to git's object database
+//   - line_ranges is missing or malformed
+//   - the current file can't be resolved or read
+//
+// Caller is expected to fall back to the binary stale multiplier
+// when this returns (_, false) or when the fraction is below
+// staleMultiplier.
+func (c *repoChecker) perHunkFreshness(edge *graph.Edge, oldSha string) (float64, bool) {
+	lineRangesRaw, ok := edge.Properties["line_ranges"]
+	if !ok {
+		return 0, false
+	}
+	oldContent, err := gitCatBlob(c.rootDir, oldSha)
+	if err != nil {
+		return 0, false
+	}
+	currentRel := c.resolveNodeID(edge.To)
+	if currentRel == "" {
+		return 0, false
+	}
+	currentContent, err := os.ReadFile(filepath.Join(c.rootDir, currentRel))
+	if err != nil {
+		return 0, false
+	}
+	return computeLineOverlapFraction(oldContent, currentContent, lineRangesRaw), true
+}
+
+// gitCatBlob returns the raw content of a git blob by SHA. Uses
+// `git cat-file -p <sha>` which works for any blob in the repo's
+// object database, regardless of whether it's currently checked out
+// or part of a reachable ref.
+func gitCatBlob(rootDir, sha string) ([]byte, error) {
+	cmd := exec.Command("git", "cat-file", "-p", sha)
+	cmd.Dir = rootDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// computeLineOverlapFraction returns the fraction of lines in
+// line_ranges from oldContent that appear at least once in
+// newContent. Matching is exact string equality per line; the
+// implementation tracks how many times each new-content line is
+// available so one old line can't match the same new line twice.
+//
+// Blank lines, braces, and other high-multiplicity lines will
+// inflate the match rate — this is intentional: a strict diff
+// algorithm would be more accurate but far more complex, and the
+// failure mode here is "signal looks fresher than it is," which is
+// the right direction to err (over-run, not under-run).
+func computeLineOverlapFraction(oldContent, newContent []byte, lineRangesRaw interface{}) float64 {
+	oldLines := strings.Split(string(oldContent), "\n")
+
+	available := make(map[string]int)
+	for _, line := range strings.Split(string(newContent), "\n") {
+		available[line]++
+	}
+
+	var total, matched int
+	iterateLineRanges(lineRangesRaw, func(lineNum int) {
+		if lineNum < 1 || lineNum > len(oldLines) {
+			return
+		}
+		total++
+		line := oldLines[lineNum-1]
+		if available[line] > 0 {
+			matched++
+			available[line]--
+		}
+	})
+
+	if total == 0 {
+		return 1.0
+	}
+	return float64(matched) / float64(total)
+}
+
+// iterateLineRanges walks a line_ranges value (either [][2]int from
+// a just-built graph or []interface{} after a JSON round-trip) and
+// invokes fn for every line number inside any range.
+func iterateLineRanges(ranges interface{}, fn func(lineNum int)) {
+	switch rs := ranges.(type) {
+	case [][2]int:
+		for _, r := range rs {
+			for l := r[0]; l <= r[1]; l++ {
+				fn(l)
+			}
+		}
+	case []interface{}:
+		for _, r := range rs {
+			pair, ok := r.([]interface{})
+			if !ok || len(pair) != 2 {
+				continue
+			}
+			start, ok1 := toInt(pair[0])
+			end, ok2 := toInt(pair[1])
+			if !ok1 || !ok2 {
+				continue
+			}
+			for l := start; l <= end; l++ {
+				fn(l)
+			}
+		}
+	}
+}
+
+func toInt(v interface{}) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
 }
 
 // HashFile computes the git blob SHA of a file on disk. Matches
