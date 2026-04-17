@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/ops/checks/diff"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
@@ -293,7 +294,7 @@ func computeLineOverlapFraction(oldContent, newContent []byte, lineRangesRaw int
 	}
 
 	var total, matched int
-	iterateLineRanges(lineRangesRaw, func(lineNum int) {
+	diff.WalkLineRanges(lineRangesRaw, func(lineNum int) {
 		if lineNum < 1 || lineNum > len(oldLines) {
 			return
 		}
@@ -309,47 +310,6 @@ func computeLineOverlapFraction(oldContent, newContent []byte, lineRangesRaw int
 		return 1.0
 	}
 	return float64(matched) / float64(total)
-}
-
-// iterateLineRanges walks a line_ranges value (either [][2]int from
-// a just-built graph or []interface{} after a JSON round-trip) and
-// invokes fn for every line number inside any range.
-func iterateLineRanges(ranges interface{}, fn func(lineNum int)) {
-	switch rs := ranges.(type) {
-	case [][2]int:
-		for _, r := range rs {
-			for l := r[0]; l <= r[1]; l++ {
-				fn(l)
-			}
-		}
-	case []interface{}:
-		for _, r := range rs {
-			pair, ok := r.([]interface{})
-			if !ok || len(pair) != 2 {
-				continue
-			}
-			start, ok1 := toInt(pair[0])
-			end, ok2 := toInt(pair[1])
-			if !ok1 || !ok2 {
-				continue
-			}
-			for l := start; l <= end; l++ {
-				fn(l)
-			}
-		}
-	}
-}
-
-func toInt(v interface{}) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case float64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 // HashFile computes the git blob SHA of a file on disk. Matches

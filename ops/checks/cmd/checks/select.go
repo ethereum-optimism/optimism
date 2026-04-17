@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
@@ -172,17 +173,11 @@ func containsFold(haystack, needle string) bool {
 }
 
 func formatRawMap(raw map[string]any) string {
-	// Stable key order for deterministic output.
 	keys := make([]string, 0, len(raw))
 	for k := range raw {
 		keys = append(keys, k)
 	}
-	// Short insertion sort — raw maps typically have <5 entries.
-	for i := 1; i < len(keys); i++ {
-		for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
-			keys[j], keys[j-1] = keys[j-1], keys[j]
-		}
-	}
+	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
 		parts = append(parts, fmt.Sprintf("%s=%v", k, raw[k]))

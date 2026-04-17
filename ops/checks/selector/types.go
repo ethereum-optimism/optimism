@@ -2,6 +2,7 @@ package selector
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
@@ -78,7 +79,7 @@ func prependEnv(cmd string, profileName string, cat *catalog.Catalog) string {
 	for k := range profile.Env {
 		keys = append(keys, k)
 	}
-	sortStrings(keys)
+	sort.Strings(keys)
 	var envParts []string
 	for _, k := range keys {
 		envParts = append(envParts, fmt.Sprintf("%s=%s", k, profile.Env[k]))
@@ -90,14 +91,6 @@ func prependEnv(cmd string, profileName string, cat *catalog.Catalog) string {
 		return cmd[:idx+4] + envPrefix + " " + cmd[idx+4:]
 	}
 	return envPrefix + " " + cmd
-}
-
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
 }
 
 func appendKnobFlags(cmd string, ct *catalog.CheckType, config map[string]any) string {

@@ -2,6 +2,7 @@ package selector
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
@@ -140,7 +141,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 			Signal:        maxSignal,
 			RunCost:       cost,
 			SkipCost:      skipCost,
-			Prerequisites: prereqItemIDs(ct),
+			Prerequisites: ct.Prerequisites,
 			Provenance:    tierProvenance,
 		})
 	}
@@ -156,7 +157,7 @@ func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage S
 		Signal:        c.Signal,
 		RunCost:       float64(ct.AvgDuration),
 		SkipCost:      pFail * stage.MissCost,
-		Prerequisites: prereqItemIDs(ct),
+		Prerequisites: ct.Prerequisites,
 		Provenance:    c.Provenance,
 	}
 }
@@ -186,7 +187,7 @@ func (o *SimpleOptimizer) scopeableAllItem(
 		Signal:        1.0,
 		RunCost:       cost,
 		SkipCost:      cost + 1,
-		Prerequisites: prereqItemIDs(ct),
+		Prerequisites: ct.Prerequisites,
 		Provenance:    c.Provenance,
 	}
 }
@@ -268,29 +269,10 @@ func (o *SimpleOptimizer) estimateScopedRunCost(
 			fuzz = v
 		}
 		if fuzz > 8 {
-			fuzzMultiplier := 1.0 + 0.7*log2(fuzz/8)
+			fuzzMultiplier := 1.0 + 0.7*math.Log2(fuzz/8)
 			baseCost *= fuzzMultiplier
 		}
 	}
 
 	return baseCost
-}
-
-func log2(x float64) float64 {
-	if x <= 0 {
-		return 0
-	}
-	result := 0.0
-	for x >= 2 {
-		x /= 2
-		result++
-	}
-	if x > 1 {
-		result += x - 1
-	}
-	return result
-}
-
-func prereqItemIDs(ct *catalog.CheckType) []string {
-	return ct.Prerequisites
 }

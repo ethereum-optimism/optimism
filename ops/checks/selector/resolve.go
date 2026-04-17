@@ -658,46 +658,12 @@ func nodeIDToTestPath(nodeID string) string {
 
 func countLineHits(lineRanges any, changedLines map[int]bool) int {
 	hits := 0
-	switch ranges := lineRanges.(type) {
-	case [][2]int:
-		for _, r := range ranges {
-			for line := r[0]; line <= r[1]; line++ {
-				if changedLines[line] {
-					hits++
-				}
-			}
+	diff.WalkLineRanges(lineRanges, func(line int) {
+		if changedLines[line] {
+			hits++
 		}
-	case []interface{}:
-		for _, r := range ranges {
-			rSlice, ok := r.([]interface{})
-			if !ok || len(rSlice) != 2 {
-				continue
-			}
-			start, ok1 := toInt(rSlice[0])
-			end, ok2 := toInt(rSlice[1])
-			if !ok1 || !ok2 {
-				continue
-			}
-			for line := start; line <= end; line++ {
-				if changedLines[line] {
-					hits++
-				}
-			}
-		}
-	}
+	})
 	return hits
-}
-
-func toInt(v interface{}) (int, bool) {
-	switch n := v.(type) {
-	case float64:
-		return int(n), true
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 func nodeIDToSourceFile(nodeID string) string {
