@@ -4,6 +4,9 @@ parameters:
   c-default_docker_image:
     type: string
     default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   c-base_image:
     type: string
     default: default
@@ -89,6 +92,9 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -495,9 +501,9 @@ commands:
       - when:
           condition: << parameters.needs_clang >>
           steps:
-            - apt-install:
-                packages: "clang llvm-dev libclang-dev"
-                extra_flags: "--no-install-recommends"
+            - run:
+                name: Verify clang available (baked into c-rust_base_image)
+                command: command -v clang >/dev/null && command -v llvm-config >/dev/null
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -735,7 +741,7 @@ jobs:
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -806,7 +812,7 @@ jobs:
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -870,18 +876,7 @@ jobs:
             git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
 
             if [ "<< parameters.needs_clang >>" = "true" ]; then
-              for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
-                  break
-                fi
-                if [ "$i" = "3" ]; then
-                  echo "apt-get update failed after 3 attempts" >&2
-                  exit 1
-                fi
-                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-                sleep 10
-              done
-              sudo apt-get install -y --no-install-recommends clang
+              command -v clang >/dev/null
             fi
 
             cd << parameters.directory >> && << parameters.build_command >>

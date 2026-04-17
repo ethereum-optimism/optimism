@@ -12,6 +12,9 @@ parameters:
   c-default_docker_image:
     type: string
     default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   c-base_image:
     type: string
     default: default
@@ -34,6 +37,9 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -202,9 +208,9 @@ commands:
       - when:
           condition: << parameters.needs_clang >>
           steps:
-            - apt-install:
-                packages: "clang llvm-dev libclang-dev"
-                extra_flags: "--no-install-recommends"
+            - run:
+                name: Verify clang available (baked into c-rust_base_image)
+                command: command -v clang >/dev/null && command -v llvm-config >/dev/null
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -423,7 +429,7 @@ jobs:
         type: string
         default: "just fmt-check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -452,7 +458,7 @@ jobs:
         type: string
         default: "stable"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -485,7 +491,7 @@ jobs:
         type: string
         default: "cargo deny check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -515,7 +521,7 @@ jobs:
         type: string
         default: "zepter run check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -542,7 +548,7 @@ jobs:
         description: "Directory containing the Cargo workspace"
         type: string
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -580,7 +586,7 @@ jobs:
         type: string
         default: "just check-no-std"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -609,7 +615,7 @@ jobs:
         type: string
         default: "just lint-docs"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -636,7 +642,7 @@ jobs:
         type: string
         default: "cargo test --workspace --doc"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -674,7 +680,7 @@ jobs:
         type: string
         default: "release"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -708,7 +714,7 @@ jobs:
         type: string
         default: "just check-udeps"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -743,7 +749,7 @@ jobs:
         type: string
         default: "--workspace"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -771,7 +777,7 @@ jobs:
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parallelism: <<parameters.parallelism>>
     steps:
@@ -805,7 +811,7 @@ jobs:
   # OP-Reth compact codec backwards compatibility
   op-reth-compact-codec:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     # This job frequently gets killed for smaller resource_class
     resource_class: xlarge
     steps:
@@ -944,7 +950,7 @@ jobs:
   # Kona Coverage
   kona-coverage:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -981,7 +987,7 @@ jobs:
   # Kona Link Checker
   kona-link-checker:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -1051,7 +1057,7 @@ jobs:
 
   required-rust-ci:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: small
     steps:
       - run: echo "Required Rust CI checks passed"

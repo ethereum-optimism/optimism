@@ -10,6 +10,9 @@ parameters:
   c-default_docker_image:
     type: string
     default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   c-rust_e2e_dispatch:
     type: boolean
     default: false
@@ -29,6 +32,9 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -140,7 +146,7 @@ jobs:
         type: boolean
         default: false
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -186,7 +192,7 @@ jobs:
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -216,7 +222,7 @@ jobs:
   # op-reth E2E Sysgo Tests
   op-reth-e2e-sysgo-tests:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -251,7 +257,7 @@ jobs:
         description: The kind of action test (single or interop)
         type: string
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parallelism: 4
     steps:
@@ -282,7 +288,7 @@ jobs:
 
   required-rust-e2e:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: small
     steps:
       - run: echo "Required Rust E2E checks passed"

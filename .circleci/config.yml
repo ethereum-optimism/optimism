@@ -10,6 +10,11 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev) for Rust jobs.
+  # Provenance is verified by .github/workflows/verify-ci-base-clang-attestation.yml.
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -89,6 +94,7 @@ workflows:
           config-path: .circleci/continue/main.yml
           mapping: |
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/main.yml
+            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/main.yml
             .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/main.yml
             .* c-main_dispatch << pipeline.parameters.main_dispatch >> .circleci/continue/main.yml
             .* c-fault_proofs_dispatch << pipeline.parameters.fault_proofs_dispatch >> .circleci/continue/main.yml
@@ -117,6 +123,7 @@ workflows:
 
             # Rust CI — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
+            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-ci.yml
             .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
             .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
@@ -125,6 +132,7 @@ workflows:
 
             # Rust E2E — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
+            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-e2e.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
             .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
             (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
