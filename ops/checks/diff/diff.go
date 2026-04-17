@@ -255,32 +255,46 @@ func FilesToNodeIDs(g *graph.Graph, files []string) (nodeIDs []string, unknown [
 	for _, f := range files {
 		matched := false
 
-		// Try Go: map file to its package node
+		// Try Go: map file to its file node AND package node. Same
+		// reasoning as Rust: file nodes are coverage leaves with no
+		// outgoing import edges, so the import-walk must start from
+		// the package. Emitting both keeps coverage-edge matching
+		// (file granularity) working while also feeding transitive
+		// consumers (package granularity) into the scoping path.
 		if strings.HasSuffix(f, ".go") {
 			dir := filepath.Dir(f)
-			// Search for a go: node whose directory matches
+			// Collect every matching node, then emit package(s) first.
+			var matches []*graph.Node
 			for _, node := range g.NodesOfKind(graph.KindSource) {
 				if !strings.HasPrefix(node.ID, "go:") {
 					continue
 				}
 				nodeDir, _ := node.Properties["dir"].(string)
 				if nodeDir != "" && strings.HasSuffix(nodeDir, "/"+dir) {
-					if !seen[node.ID] {
-						nodeIDs = append(nodeIDs, node.ID)
-						seen[node.ID] = true
-					}
-					matched = true
-					break
+					matches = append(matches, node)
+					continue
 				}
-				// Fallback: match by package name in path
+				// Fallback: match by package name in path when dir prop is missing.
 				goPath := strings.TrimPrefix(node.ID, "go:")
 				if matchesPath(goPath, dir) {
-					if !seen[node.ID] {
-						nodeIDs = append(nodeIDs, node.ID)
-						seen[node.ID] = true
-					}
+					matches = append(matches, node)
+				}
+			}
+			// Package-or-unspecified granularity first so import-walk
+			// starts from the package node; file nodes come after and
+			// still anchor coverage-edge lookups.
+			for _, n := range matches {
+				if n.Granularity != "file" && !seen[n.ID] {
+					nodeIDs = append(nodeIDs, n.ID)
+					seen[n.ID] = true
 					matched = true
-					break
+				}
+			}
+			for _, n := range matches {
+				if n.Granularity == "file" && !seen[n.ID] {
+					nodeIDs = append(nodeIDs, n.ID)
+					seen[n.ID] = true
+					matched = true
 				}
 			}
 		}

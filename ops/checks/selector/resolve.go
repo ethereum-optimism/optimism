@@ -306,19 +306,21 @@ func buildChangedLinesMap(diffs []diff.FileDiff) map[string]map[int]bool {
 }
 
 // isCandidateTestNode reports whether a node can be a scope candidate
-// for this check. Solidity: test files (test/…/*.t.sol). Go: any
-// package node — tests live inside packages, and `go test ./pkg/...`
-// handles packages without _test.go files gracefully. Rust: any crate
-// node — `cargo test -p <crate>` is the scope unit.
+// for this check. Solidity: test files (test/…/*.t.sol). Go: package
+// nodes only (not .go file nodes — file paths don't form valid
+// `go test ./pkg/file.go/...` targets). Rust: crate nodes only (file
+// nodes would scope to non-existent cargo targets).
 func isCandidateTestNode(nodeID string, ct *catalog.CheckType) bool {
 	switch ct.Language {
 	case "solidity":
 		return isTestFileNode(nodeID)
 	case "go":
-		return strings.HasPrefix(nodeID, "go:")
+		if !strings.HasPrefix(nodeID, "go:") {
+			return false
+		}
+		// Reject file nodes (IDs ending in `.go`).
+		return !strings.HasSuffix(nodeID, ".go")
 	case "rust":
-		// Crate nodes only (no slash after the prefix) — file nodes
-		// would scope to a non-existent cargo target.
 		if !strings.HasPrefix(nodeID, "rs:") {
 			return false
 		}
