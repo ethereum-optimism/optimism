@@ -13,6 +13,9 @@ import { NoCreditToClaim } from "src/dispute/lib/Errors.sol";
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
+// Interfaces
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+
 /// @title ZKDisputeGame_Integration_Test
 /// @notice Integration tests that exercise the full ZK dispute game lifecycle.
 ///
@@ -42,10 +45,15 @@ import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 ///  6. Proposer recovers: Game F is created from anchor, goes unchallenged → DEFENDER_WINS.
 ///  7. Credits are claimed, anchor advances to F.
 ///
-/// Scenario 3 — Upgrade from a different game type to ZK dispute game (placeholder)
-/// ─────────────────────────────────────────────────────────────────────────────────
-///  This scenario requires OPCM changes that are not yet approved. A placeholder test is
-///  included so the upgrade flow can be implemented once the OPCM integration lands.
+/// Scenario 3 — Upgrade from a different game type to ZK dispute game
+/// ────────────────────────────────────────────────────────────────────
+///  1. Chain starts with PermissionedDisputeGame (PDG) as the respected game type.
+///  2. A PDG game is created, resolved unchallenged, and closed. The anchor advances under PDG.
+///  3. The respected game type is switched to ZK (simulating the OPCM upgrade result on ASR).
+///  4. A new ZK game is created from the anchor (parentIndex = uint32.max). It must inherit the
+///     PDG-established anchor root and sequence number.
+///  5. The ZK game runs through a full challenge → prove → resolve cycle.
+///  6. Credits are claimed and the anchor advances to the ZK game, crossing the game-type boundary.
 contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
@@ -245,19 +253,83 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  Scenario 3 — Upgrade from a different game type to ZK (placeholder)
+    //  Scenario 3 — Upgrade from a different game type to ZK
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Placeholder for the game type upgrade flow.
-    ///         Requires OPCM changes that are not yet approved. Once the OPCM integration
-    ///         lands, this test should exercise:
-    ///         1. Deploy a chain using the previous game type (e.g., PermissionedDisputeGame).
-    ///         2. Run the OPCM upgrade to switch to ZKDisputeGame.
-    ///         3. Create the first ZK game from anchor state (parentIndex = uint32.max).
-    ///         4. Verify the anchor state carries over and the new game type is respected.
-    ///         5. Complete a full challenge-prove-resolve cycle under the new type.
+    /// @notice Simulates the post-OPCM-upgrade dispute-game behavior: a chain running on
+    ///         PermissionedDisputeGame transitions to ZKDisputeGame. The anchor established
+    ///         under PDG must carry over to the first ZK game created from anchor state.
     function test_integration_upgradeToZKGameType_succeeds() public {
-        vm.skip(true);
+        GameType pdgType = GameTypes.PERMISSIONED_CANNON;
+
+        // ── Pre-upgrade state: register PDG and make it the respected game type ──
+        // setUp() wired up ZK as the respected game type. Flip the respected game type
+        // back to PDG so a PDG game created next will have wasRespectedGameTypeWhenCreated=true.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(pdgType);
+
+        Claim pdgPrestate = Claim.wrap(keccak256("pdgPrestate"));
+        setupPermissionedDisputeGame(pdgPrestate, proposer, challenger);
+
+        // Warp forward so any freshly-set retirement timestamp is in the past.
+        vm.warp(block.timestamp + 1000);
+
+        // ── Create and resolve a PDG game unchallenged ──
+        (, uint256 anchorSeqNumBefore) = anchorStateRegistry.getAnchorRoot();
+        uint256 pdgSeqNum = anchorSeqNumBefore + 1;
+        Claim pdgClaim = Claim.wrap(keccak256("pdgRootClaim"));
+        uint256 pdgBond = disputeGameFactory.initBonds(pdgType);
+
+        vm.prank(proposer, proposer);
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
+            payable(address(disputeGameFactory.create{ value: pdgBond }(pdgType, pdgClaim, abi.encode(pdgSeqNum))))
+        );
+        assertTrue(pdg.wasRespectedGameTypeWhenCreated());
+
+        // Unchallenged → defender wins once the game clock expires.
+        vm.warp(block.timestamp + pdg.maxClockDuration().raw() + 1);
+        pdg.resolveClaim(0, 0);
+        pdg.resolve();
+        assertEq(uint8(pdg.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // Wait for finality and close the game to advance the anchor under PDG.
+        vm.warp(pdg.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+        pdg.closeGame();
+        _assertAnchor(pdgClaim, pdgSeqNum);
+
+        // ── Simulate OPCM upgrade: switch the respected game type to ZK ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(gameType);
+        assertEq(anchorStateRegistry.respectedGameType().raw(), gameType.raw());
+
+        // ── Create the first ZK game from anchor (parentIndex = uint32.max) ──
+        // It must inherit the PDG-established anchor, not the original starting anchor.
+        uint256 zkSeqNum = pdgSeqNum + 1000;
+        Claim zkClaim = Claim.wrap(keccak256("zkRootClaimAfterUpgrade"));
+        (ZKDisputeGame zkGame,) = _createGame(zkClaim, zkSeqNum, type(uint32).max);
+
+        assertEq(zkGame.parentIndex(), type(uint32).max);
+        assertEq(zkGame.startingRootHash().raw(), pdgClaim.raw());
+        assertEq(zkGame.startingBlockNumber(), pdgSeqNum);
+        assertTrue(zkGame.wasRespectedGameTypeWhenCreated());
+
+        // ── Full challenge-prove-resolve cycle on the new ZK game ──
+        vm.prank(challenger);
+        zkGame.challenge{ value: bond }();
+        _assertProposalStatus(zkGame, ZKDisputeGame.ProposalStatus.Challenged);
+
+        vm.prank(prover);
+        zkGame.prove(bytes(""));
+        _assertProposalStatus(zkGame, ZKDisputeGame.ProposalStatus.ChallengedAndValidProofProvided);
+
+        zkGame.resolve();
+        assertEq(uint8(zkGame.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── Finalization: claim credit → anchor advances to the ZK game ──
+        _waitForFinality(zkGame);
+        _claimCreditTwoPhase(zkGame, prover);
+        _claimCreditAndAssert(zkGame, proposer, bond);
+        _assertAnchor(zkClaim, zkSeqNum);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
