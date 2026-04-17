@@ -243,4 +243,3 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	logger.Info("Verifier catches up sequencer unsafe chain with was unknown for verifier")
 	sys.L2CLA2.Matched(sys.L2CLA, types.LocalUnsafe, 5)
 }
-
