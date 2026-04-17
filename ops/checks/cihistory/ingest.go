@@ -3,6 +3,7 @@ package cihistory
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/freshness"
@@ -28,16 +29,17 @@ func WriteEdges(g *graph.Graph, a *Analysis, rootDir string) (int, error) {
 	windowStart := a.WindowStart.Format(time.RFC3339)
 	windowEnd := a.WindowEnd.Format(time.RFC3339)
 
-	// One resolver per run; reads go.mod once. Works for sol:/go:/rs:
-	// node IDs uniformly, unlike the previous Solidity-only helper.
-	var resolver *freshness.Resolver
-	if rootDir != "" {
-		resolver = freshness.NewResolver(rootDir, g)
-	}
+	// One resolver per run; reads go.mod once. Handles sol:/go:/rs:
+	// file paths uniformly. Always constructed — internal methods
+	// degrade gracefully when rootDir/graph/go.mod are unavailable.
+	resolver := freshness.NewResolver(rootDir, g)
 
 	added := 0
 	for _, c := range a.Correlations {
-		fromID := sourceFileToNodeID(c.File)
+		fromID := resolver.PathToNodeID(c.File)
+		if fromID == "" {
+			continue // path doesn't map to a known language
+		}
 		toID := "check:" + c.CheckID
 		if g.GetNode(fromID) == nil || g.GetNode(toID) == nil {
 			continue
@@ -57,7 +59,7 @@ func WriteEdges(g *graph.Graph, a *Analysis, rootDir string) (int, error) {
 		}
 		if resolver != nil {
 			if rel := resolver.Resolve(fromID); rel != "" {
-				if sha, err := freshness.HashFile(rootDir + "/" + rel); err == nil {
+				if sha, err := freshness.HashFile(filepath.Join(rootDir, rel)); err == nil {
 					props["source_sha"] = sha
 				}
 			}
@@ -135,18 +137,3 @@ func WriteLearnedPolicy(path string, a *Analysis) error {
 	return nil
 }
 
-// sourceFileToNodeID maps a repo-relative path to a graph node ID,
-// mirroring how adapters name source nodes.
-func sourceFileToNodeID(path string) string {
-	// Solidity: paths under packages/contracts-bedrock/ get stripped.
-	const solPrefix = "packages/contracts-bedrock/"
-	if len(path) > len(solPrefix) && path[:len(solPrefix)] == solPrefix {
-		return "sol:" + path[len(solPrefix):]
-	}
-	// Go: best-effort — the graph's Go node IDs are import paths
-	// (go:github.com/…). We can't derive those from a filesystem path
-	// without parsing go.mod, so for Go source files we fall back to a
-	// directory-level synthetic ID; the builder may not have such a
-	// node, in which case WriteEdges drops the correlation silently.
-	return "go:" + path
-}

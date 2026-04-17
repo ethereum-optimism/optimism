@@ -80,6 +80,47 @@ func (r *Resolver) Resolve(nodeID string) string {
 	return ""
 }
 
+// PathToNodeID is the inverse of Resolve: given a repo-relative file
+// path, returns the graph node ID that represents that file, or ""
+// if the path doesn't map to any known language or the required
+// resolver state is unavailable.
+//
+//	packages/contracts-bedrock/test/L1/X.t.sol  → sol:test/L1/X.t.sol
+//	op-node/rollup/derive/batch.go              → go:<module>/op-node/rollup/derive/batch.go
+//	rust/crates/alpha/src/lib.rs                → rs:alpha/src/lib.rs
+//
+// Used by cihistory to turn PR file-change paths into correlation-
+// edge source IDs that actually exist in the graph.
+func (r *Resolver) PathToNodeID(path string) string {
+	const solPrefix = "packages/contracts-bedrock/"
+	if strings.HasPrefix(path, solPrefix) {
+		return "sol:" + strings.TrimPrefix(path, solPrefix)
+	}
+	if r.goModulePath != "" && strings.HasSuffix(path, ".go") {
+		return "go:" + r.goModulePath + "/" + path
+	}
+	if r.graph != nil && strings.HasSuffix(path, ".rs") {
+		abs := filepath.Join(r.rootDir, path)
+		for _, node := range r.graph.NodesOfKind(graph.KindSource) {
+			if node.Granularity != "crate" {
+				continue
+			}
+			dir, _ := node.Properties["dir"].(string)
+			if dir == "" {
+				continue
+			}
+			if abs == dir || strings.HasPrefix(abs, dir+"/") {
+				rel, err := filepath.Rel(dir, abs)
+				if err != nil {
+					continue
+				}
+				return node.ID + "/" + rel
+			}
+		}
+	}
+	return ""
+}
+
 // readGoModulePath returns the module directive from rootDir/go.mod,
 // or "" if the file is missing or malformed.
 func readGoModulePath(rootDir string) string {

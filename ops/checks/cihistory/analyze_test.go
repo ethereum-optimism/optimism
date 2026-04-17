@@ -200,6 +200,49 @@ func TestWriteEdges_AddsCorrelationEdges(t *testing.T) {
 	}
 }
 
+// TestWriteEdges_GoCorrelationLands — previously, a Go source file
+// in a Correlation would silently drop because path→node-ID mapped
+// to go:<fs-path> which doesn't match the adapter's go:<import-path>
+// nodes. With the Resolver in place, Go correlations now land
+// against their correct file-level node.
+func TestWriteEdges_GoCorrelationLands(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"),
+		[]byte("module github.com/acme/widgets\n\ngo 1.24.0\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	g := graph.NewGraph()
+	// Adapter-shaped file node (matches what the Go adapter emits).
+	_ = g.AddNode(&graph.Node{
+		ID: "go:github.com/acme/widgets/foo/bar.go", Kind: graph.KindSource, Granularity: "file",
+	})
+	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck})
+
+	a := &Analysis{
+		Correlations: []Correlation{{
+			File:         "foo/bar.go",
+			CheckID:      "go-test",
+			Observations: 20,
+			Failures:     10,
+			Precision:    0.5,
+		}},
+	}
+
+	n, err := WriteEdges(g, a, root)
+	if err != nil {
+		t.Fatalf("WriteEdges: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 edge (Go correlation), got %d — Go paths should now land, not silently drop", n)
+	}
+
+	edges := g.EdgesFrom("go:github.com/acme/widgets/foo/bar.go")
+	if len(edges) != 1 {
+		t.Fatalf("expected 1 outgoing edge on go file node, got %d", len(edges))
+	}
+}
+
 // TestWriteLearnedPolicy — round-trips through the policy package as a
 // layered override.
 func TestWriteLearnedPolicy(t *testing.T) {
