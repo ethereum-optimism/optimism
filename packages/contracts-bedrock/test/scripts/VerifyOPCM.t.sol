@@ -142,6 +142,10 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
             || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
+
+    function zkDisputeGameEnabled() internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
 }
 
 /// @title VerifyOPCM_Run_Test
@@ -171,6 +175,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
                 // TODO(#17262): Remove this skip once Super dispute games are no longer behind a feature flag
                 if (_isSuperDisputeGameContractRef(ref)) {
+                    continue;
+                }
+
+                // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
+                if (_isZKDisputeGameContractRef(ref)) {
                     continue;
                 }
 
@@ -221,6 +230,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -288,6 +302,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -504,6 +523,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
+    }
+
+    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
+        return LibString.eq(ref.name, "ZKDisputeGame");
     }
 
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
