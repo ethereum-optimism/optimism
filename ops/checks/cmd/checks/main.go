@@ -44,6 +44,8 @@ func main() {
 		err = cmdCoverage(os.Args[2:])
 	case "ingest":
 		err = cmdIngest(os.Args[2:])
+	case "doctor":
+		err = cmdDoctor(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -71,6 +73,7 @@ Commands:
   info      Print graph statistics
   coverage  Collect and ingest test coverage data
   ingest    Ingest external signals (ci-history) into graph + learned policy
+  doctor    Diagnose environment, graph, catalog, policy, and coverage state
 
 Examples:
   checks build
