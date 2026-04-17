@@ -503,25 +503,7 @@ commands:
           steps:
             - run:
                 name: Ensure clang available
-                # Docker jobs use c-rust_base_image with clang pre-baked, so this is a no-op.
-                # Machine jobs run on bare Ubuntu VMs where clang must still be installed.
-                command: |
-                  if command -v clang >/dev/null; then
-                    exit 0
-                  fi
-                  export NEEDRESTART_MODE=a
-                  for i in 1 2 3; do
-                    if sudo -E apt-get -o Acquire::Retries=5 update; then
-                      break
-                    fi
-                    if [ "$i" = "3" ]; then
-                      echo "apt-get update failed after 3 attempts" >&2
-                      exit 1
-                    fi
-                    echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-                    sleep 10
-                  done
-                  sudo -E apt-get install -y --no-install-recommends clang llvm-dev libclang-dev
+                command: command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
