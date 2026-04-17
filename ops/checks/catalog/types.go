@@ -20,6 +20,13 @@ type CheckType struct {
 	ScopeFlag       string   `yaml:"scope_flag"`         // CLI flag for scope ("--match-path", "" for positional)
 	ScopeType       string   `yaml:"scope_type"`         // "packages", "paths", "tests"
 	Triggers        []string `yaml:"triggers,omitempty"` // file patterns that trigger this (for non-scopeable checks)
+	// Produces lists file globs whose freshness this check is responsible
+	// for. The builder emits `produces` edges from check:<id> to every
+	// matching source node. When the selector's reverse walk passes
+	// through one of those nodes, this check becomes a per-file
+	// prerequisite of the downstream consumer Candidates — separate from
+	// the coarse catalog-level Prerequisites.
+	Produces        []string `yaml:"produces,omitempty"`
 	Knobs           []Knob   `yaml:"knobs,omitempty"`
 	Prerequisites   []string `yaml:"prerequisites,omitempty"`
 	AvgDuration     int      `yaml:"avg_duration"`

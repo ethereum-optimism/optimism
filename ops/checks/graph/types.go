@@ -26,6 +26,7 @@ type EdgeKind string
 const (
 	EdgeImports             EdgeKind = "imports"
 	EdgeGenerates           EdgeKind = "generates"
+	EdgeProduces            EdgeKind = "produces"
 	EdgeTestedBy            EdgeKind = "tested_by"
 	EdgePrerequisite        EdgeKind = "prerequisite"
 	EdgeObservedCorrelation EdgeKind = "observed_correlation"

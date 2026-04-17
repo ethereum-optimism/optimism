@@ -2,6 +2,7 @@ package selector
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
@@ -27,11 +28,14 @@ import (
 // tested_by edge to this check, become scope candidates; the scope is
 // the specific test file path (e.g. `./test/L1/X.t.sol`), not a
 // directory glob.
+//
+// Producers discovered on the walk are attached to each Candidate's
+// Prerequisites so the scheduler knows to run them before the consumer.
 func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []string) []Candidate {
 	checkNodeID := "check:" + ct.ID
 
-	consumers := transitiveConsumers(g, changedIDs, 0.01)
-	if len(consumers) == 0 {
+	wr := walkForScope(g, changedIDs, 0.01)
+	if len(wr.consumers) == 0 {
 		return nil
 	}
 
@@ -40,7 +44,7 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 		signal float64
 	}
 	var hits []emit
-	for nodeID, signal := range consumers {
+	for nodeID, signal := range wr.consumers {
 		if !isCandidateTestNode(nodeID, ct) {
 			continue
 		}
@@ -54,6 +58,17 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 	}
 
 	sort.Slice(hits, func(i, j int) bool { return hits[i].signal > hits[j].signal })
+
+	producers := sortedKeys(wr.producers)
+	// Don't list a candidate as its own prerequisite (a walker can
+	// legitimately hit its own check via a tested_by edge; that's not
+	// a dep).
+	filteredProducers := make([]string, 0, len(producers))
+	for _, p := range producers {
+		if p != ct.ID {
+			filteredProducers = append(filteredProducers, p)
+		}
+	}
 
 	seen := make(map[string]bool)
 	out := make([]Candidate, 0, len(hits))
@@ -76,18 +91,37 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 					"reason":   "transitive_importer",
 				},
 			}},
+			Prerequisites: filteredProducers,
 		})
 	}
 	return out
 }
 
-// transitiveConsumers performs reverse-BFS from each changed node,
-// following incoming `imports` edges and outgoing `generates` edges.
-// Returns node ID → accumulated signal for every node reachable by
-// the walk. Signal attenuates by edge.Strength * edge.Confidence per
-// hop.
+// sortedKeys returns the map's keys in deterministic order.
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// walkResult carries everything the reverse-BFS discovers: per-node
+// signal (for later scope-candidate emission) and a set of check IDs
+// encountered as producers of nodes the walk passed through (for
+// Candidate.Prerequisites population).
+type walkResult struct {
+	consumers map[string]float64
+	producers map[string]bool
+}
+
+// walkForScope performs reverse-BFS from each changed node, following
+// incoming `imports` edges and outgoing `generates` edges. Whenever it
+// visits a node that some check `produces`, the producer is collected
+// so downstream consumers can declare it as a per-file prerequisite.
 //
-// Two edge kinds participate:
+// Three edge kinds participate:
 //   - imports (followed REVERSE): "Foo.sol imports Bar.sol" means
 //     changing Bar should re-run anything that imports Bar. Walk from
 //     Bar follows EdgesTo(Bar) where Kind=imports, landing on Foo.
@@ -97,8 +131,13 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 //     EdgesFrom(src/Foo) where Kind=generates, landing on IFoo —
 //     then the imports reverse-walk continues from IFoo into every
 //     test that imports the interface.
-func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64) map[string]float64 {
+//   - produces (passive, reverse-looked-up): if any node on the walk
+//     has an incoming `produces` edge from a check node, that check
+//     is recorded as a producer. The walk doesn't follow produces as
+//     a traversal edge — it's metadata about the node.
+func walkForScope(g *graph.Graph, changedIDs []string, minSignal float64) walkResult {
 	best := make(map[string]float64)
+	producers := make(map[string]bool)
 	type item struct {
 		id     string
 		signal float64
@@ -116,6 +155,16 @@ func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64)
 		queue = queue[1:]
 		if cur.signal < best[cur.id] {
 			continue
+		}
+		// Collect producers for this node (passive lookup; doesn't
+		// extend the walk).
+		for _, edge := range g.EdgesTo(cur.id) {
+			if edge.Kind != graph.EdgeProduces {
+				continue
+			}
+			if strings.HasPrefix(edge.From, "check:") {
+				producers[strings.TrimPrefix(edge.From, "check:")] = true
+			}
 		}
 		// Reverse walk on imports: find consumers of this node.
 		for _, edge := range g.EdgesTo(cur.id) {
@@ -150,7 +199,14 @@ func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64)
 			}
 		}
 	}
-	return best
+	return walkResult{consumers: best, producers: producers}
+}
+
+// transitiveConsumers is the legacy entry point kept for
+// importBinaryCandidates and the scheduler's reachability queries,
+// which don't need producer info.
+func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64) map[string]float64 {
+	return walkForScope(g, changedIDs, minSignal).consumers
 }
 
 // importBinaryCandidates emits a single Candidate for a non-scopeable

@@ -219,6 +219,13 @@ check_types:
     command: "cd packages/contracts-bedrock && mise exec -- just interfaces-check-no-build"
     scopeable: false
     triggers: ["packages/contracts-bedrock/src/**", "packages/contracts-bedrock/interfaces/**"]
+    # interfaces/**/*.sol are regenerated from their src counterparts
+    # via just interfaces-snapshots. interfaces-check gates whether
+    # the on-disk interfaces still match. Declaring it here produces
+    # graph edges so the selector treats it as a per-file prereq of
+    # any test that reaches src through an interface node during its
+    # reverse walk.
+    produces: ["packages/contracts-bedrock/interfaces/**"]
     avg_duration: 60
     prerequisites: ["forge-build"]
 

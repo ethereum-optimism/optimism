@@ -106,6 +106,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 		var tierScopes []string
 		var maxSignal float64
 		var tierProvenance []SignalContribution
+		var tierPerCandPrereqs []string
 		for _, c := range cands {
 			if c.Scope == "" || used[c.Scope] {
 				continue
@@ -117,6 +118,7 @@ func (o *SimpleOptimizer) itemsForGroup(
 					maxSignal = c.Signal
 				}
 				tierProvenance = append(tierProvenance, c.Provenance...)
+				tierPerCandPrereqs = append(tierPerCandPrereqs, c.Prerequisites...)
 			}
 		}
 		if len(tierScopes) == 0 {
@@ -141,11 +143,35 @@ func (o *SimpleOptimizer) itemsForGroup(
 			Signal:        maxSignal,
 			RunCost:       cost,
 			SkipCost:      skipCost,
-			Prerequisites: ct.Prerequisites,
+			Prerequisites: mergePrereqs(ct.Prerequisites, tierPerCandPrereqs),
 			Provenance:    tierProvenance,
 		})
 	}
 	return items
+}
+
+// mergePrereqs unions catalog-level check prerequisites with per-
+// Candidate prerequisites discovered during the walk, deduplicating
+// by check ID. Order is stable (catalog first, then per-candidate).
+func mergePrereqs(catalog []string, perCand []string) []string {
+	if len(perCand) == 0 {
+		return catalog
+	}
+	seen := make(map[string]bool, len(catalog)+len(perCand))
+	out := make([]string, 0, len(catalog)+len(perCand))
+	for _, p := range catalog {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	for _, p := range perCand {
+		if !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage Stage) ExecutionItem {
@@ -157,7 +183,7 @@ func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage S
 		Signal:        c.Signal,
 		RunCost:       float64(ct.AvgDuration),
 		SkipCost:      pFail * stage.MissCost,
-		Prerequisites: ct.Prerequisites,
+		Prerequisites: mergePrereqs(ct.Prerequisites, c.Prerequisites),
 		Provenance:    c.Provenance,
 	}
 }
@@ -187,7 +213,7 @@ func (o *SimpleOptimizer) scopeableAllItem(
 		Signal:        1.0,
 		RunCost:       cost,
 		SkipCost:      cost + 1,
-		Prerequisites: ct.Prerequisites,
+		Prerequisites: mergePrereqs(ct.Prerequisites, c.Prerequisites),
 		Provenance:    c.Provenance,
 	}
 }

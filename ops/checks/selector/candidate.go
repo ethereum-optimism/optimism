@@ -33,4 +33,14 @@ type Candidate struct {
 	Profile    string               // catalog profile name ("" = no profile env)
 	Signal     float64              // aggregated relevance [0, 1]
 	Provenance []SignalContribution // evidence that produced Signal
+
+	// Prerequisites carries check IDs whose output this Candidate
+	// consumes — in addition to the catalog's check-level prereqs
+	// (e.g. forge-test always requires forge-build). These are
+	// discovered at walk time from `produces` edges: if the reverse
+	// walk from a changed source file passes through a node that
+	// some check produces, that producer must run first for the
+	// consumer's scope to be valid (e.g. gen-go-bindings must run
+	// before go-test on the bindings' consumers).
+	Prerequisites []string
 }
