@@ -1780,7 +1780,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
     }
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
-    function _enableSuperCannonKona() internal {
+    function _enableSuperCannonKona() internal override {
         address owner = proxyAdmin.owner();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
@@ -2345,34 +2345,15 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
     ///         when DGF owner is mocked to match the overridden address.
     function test_validateMigratedChainWithOverrides_l1PAOMultisigMatch_succeeds() public {
         address overrideMultisig = makeAddr("overrideMultisig");
-        vm.mockCall(
-            address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.owner, ()),
-            abi.encode(overrideMultisig)
-        );
+        vm.mockCall(address(sharedDGF), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(overrideMultisig));
         // ProxyAdmin.owner() must also match, otherwise MIG-SDGF-30 still fires via SharedContracts.
-        vm.mockCall(
-            sharedProxyAdmin,
-            abi.encodeCall(IProxyAdmin.owner, ()),
-            abi.encode(overrideMultisig)
-        );
+        vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrideMultisig));
         // DelayedWETH proxyAdminOwner must also match overridden l1PAOMultisig.
-        vm.mockCall(
-            sharedWETH,
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(overrideMultisig)
-        );
+        vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(overrideMultisig));
 
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
-            IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: overrideMultisig,
-                challenger: address(0)
-            });
-        string memory errors = standardValidator.validateMigratedChainWithOverrides(
-            _migrationInput(),
-            true,
-            overrides
-        );
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: overrideMultisig, challenger: address(0) });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
         assertEq(errors, "");
     }
 
@@ -2382,16 +2363,9 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         // Use a different address as override — DGF owner stays as the real l1PAOMultisig,
         // so the override causes a mismatch.
         address wrongMultisig = makeAddr("wrongMultisig");
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
-            IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: wrongMultisig,
-                challenger: address(0)
-            });
-        string memory errors = standardValidator.validateMigratedChainWithOverrides(
-            _migrationInput(),
-            true,
-            overrides
-        );
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: wrongMultisig, challenger: address(0) });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
         // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and
         // DelayedWETH proxyAdminOwner mismatch (MIG-SDWETH-30).
         assertEq("MIG-SDGF-30,MIG-SDWETH-30", errors);

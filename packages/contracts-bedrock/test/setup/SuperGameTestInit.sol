@@ -29,7 +29,7 @@ abstract contract SuperGameTestInit is CommonTest {
     address challenger;
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
-    function _enableSuperCannonKona() internal {
+    function _enableSuperCannonKona() internal virtual {
         address owner = proxyAdmin.owner();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
