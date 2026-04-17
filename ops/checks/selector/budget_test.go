@@ -64,30 +64,73 @@ func TestTrimToBudget_DropsLowestDensity(t *testing.T) {
 
 // TestTrimToBudget_ForceRunItemsProtected — items where
 // SkipCost = RunCost + 1 (the optimizer's force-run pattern) are
-// never dropped even when over budget.
+// never dropped. The companion item uses density < 1 so it clearly
+// qualifies for dropping under the current rule.
 func TestTrimToBudget_ForceRunItemsProtected(t *testing.T) {
 	result := &Result{
 		Items: []ExecutionItem{
 			// Force-run: SkipCost barely exceeds RunCost.
 			{ID: "force", RunCost: 1000, SkipCost: 1001},
-			// Normal item, lower density.
-			{ID: "normal", RunCost: 100, SkipCost: 200},
+			// Low-density: SkipCost < RunCost, trimmable.
+			{ID: "low-density", RunCost: 200, SkipCost: 50},
 		},
 	}
 	result.Schedule = ComputeSchedule(result.Items, 1)
 	result.WallClock = result.Schedule.WallClock
 
-	TrimToBudget(result, 10*time.Second, 1) // way under budget
+	TrimToBudget(result, 10*time.Second, 1) // impossibly tight
 
 	kept := make(map[string]bool)
 	for _, item := range result.Items {
 		kept[item.ID] = true
 	}
 	if !kept["force"] {
-		t.Error("force-run item must not be dropped")
+		t.Error("force-run item must not be dropped, even under an impossible budget")
 	}
-	if kept["normal"] {
-		t.Error("normal item should have been dropped to fit budget")
+	if kept["low-density"] {
+		t.Error("low-density item should be dropped when we need to free runtime")
+	}
+}
+
+// TestTrimToBudget_PrereqOfNormalItemProtected — regression for a
+// real-world bug: a --budget 200s on a real optimism diff dropped
+// forge-build (SkipCost=0, prereq of multiple kept trigger checks),
+// producing a plan that would fail at execution time because
+// snapshots-check et al. couldn't find built contracts.
+//
+// Even though the consumer checks here are not force-run
+// (SkipCost = signal*prior*miss_cost, well below RunCost+1), their
+// prerequisites must still be preserved.
+func TestTrimToBudget_PrereqOfNormalItemProtected(t *testing.T) {
+	result := &Result{
+		Items: []ExecutionItem{
+			// Normal trigger-based check with a prereq.
+			{ID: "snapshots-check", RunCost: 60, SkipCost: 720, Prerequisites: []string{"forge-build"}},
+			// The prereq itself — SkipCost=0 because it has no
+			// standalone failure-mode regret.
+			{ID: "forge-build", RunCost: 180, SkipCost: 0},
+			// An expensive standalone item.
+			{ID: "semgrep", RunCost: 600, SkipCost: 400},
+		},
+	}
+	result.Schedule = ComputeSchedule(result.Items, 4)
+	result.WallClock = result.Schedule.WallClock
+
+	TrimToBudget(result, 200*time.Second, 4)
+
+	kept := make(map[string]bool)
+	for _, item := range result.Items {
+		kept[item.ID] = true
+	}
+	if !kept["forge-build"] {
+		t.Error("forge-build (prerequisite of kept snapshots-check) must not be dropped")
+	}
+	if !kept["snapshots-check"] {
+		t.Error("snapshots-check was the highest-density item; should be kept")
+	}
+	// semgrep is the expensive low-density item — should be dropped.
+	if kept["semgrep"] {
+		t.Error("semgrep should be dropped first (lowest density)")
 	}
 }
 

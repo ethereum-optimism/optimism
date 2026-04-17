@@ -29,17 +29,31 @@ type FileDiff struct {
 	Hunks   []Hunk
 }
 
-// ParseUnifiedDiff parses standard unified diff output (from `git diff`)
-// into structured FileDiff entries. Also works with `git diff --name-only`
-// (falls back to simple file list parsing).
+// ParseUnifiedDiff parses standard unified diff output (from `git diff`,
+// `git show`, `git log -p`, etc.) into structured FileDiff entries. Also
+// works with `git diff --name-only` (falls back to bare file-list
+// parsing when no `diff --git` line is found).
+//
+// Commit-message preamble (from `git show` / `git log -p`) is tolerated:
+// the parser scans for the first `diff --git` block and starts there.
 func ParseUnifiedDiff(input string) []FileDiff {
 	lines := strings.Split(input, "\n")
 
-	// Detect format: unified diff starts with "diff --git", name-only is just paths
-	if len(lines) > 0 && !strings.HasPrefix(lines[0], "diff ") {
-		// Looks like --name-only output: fall back to simple parsing
+	// Scan for the first unified-diff block. `git show` and `git log -p`
+	// both prefix the diff with a commit header + message, which would
+	// otherwise trigger the name-only fallback.
+	start := -1
+	for i, l := range lines {
+		if strings.HasPrefix(l, "diff --git ") {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		// No unified-diff block anywhere — treat as a bare file list.
 		return nameOnlyToDiffs(lines)
 	}
+	lines = lines[start:]
 
 	var diffs []FileDiff
 	var current *FileDiff

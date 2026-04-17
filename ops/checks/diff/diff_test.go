@@ -141,6 +141,47 @@ func TestParseUnifiedDiff_DeletedFile(t *testing.T) {
 	}
 }
 
+// TestParseUnifiedDiff_GitShowPreamble — git show and git log -p
+// prefix the diff with a commit header. The parser should skip past
+// that and start at the first `diff --git` block, not fall back to
+// name-only mode.
+func TestParseUnifiedDiff_GitShowPreamble(t *testing.T) {
+	input := `commit abc123
+Author: Someone <someone@example.com>
+Date:   Wed Apr 8 09:42:54 2026 -0400
+
+    fix: some change
+
+    This is a multi-line commit message describing what changed
+    and why it matters to the project.
+
+diff --git a/pkg/foo.go b/pkg/foo.go
+--- a/pkg/foo.go
++++ b/pkg/foo.go
+@@ -1,3 +1,3 @@
+-old line
++new line
+ context
+`
+	diffs := ParseUnifiedDiff(input)
+	if len(diffs) != 1 {
+		t.Fatalf("expected 1 file diff past the commit header, got %d: %+v", len(diffs), diffs)
+	}
+	if diffs[0].Path != "pkg/foo.go" {
+		t.Errorf("Path = %q, want pkg/foo.go", diffs[0].Path)
+	}
+	if len(diffs[0].Hunks) != 1 {
+		t.Fatalf("expected 1 hunk, got %d", len(diffs[0].Hunks))
+	}
+	h := diffs[0].Hunks[0]
+	if len(h.Added) != 1 || h.Added[0] != "new line" {
+		t.Errorf("Added = %v, want [new line]", h.Added)
+	}
+	if len(h.Removed) != 1 || h.Removed[0] != "old line" {
+		t.Errorf("Removed = %v, want [old line]", h.Removed)
+	}
+}
+
 func TestChangedFiles_UnifiedDiff(t *testing.T) {
 	files := ChangedFiles(sampleUnifiedDiff)
 	if len(files) != 2 {

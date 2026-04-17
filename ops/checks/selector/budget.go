@@ -5,60 +5,96 @@ import (
 	"time"
 )
 
-// TrimToBudget drops the lowest-value items from a Result until the
-// schedule's wall-clock estimate fits under budget. Value density is
-// SkipCost / RunCost — the regret-per-second-of-execution. Items are
-// removed lowest-density-first; force-run items (SkipCost > RunCost)
-// and items with RunCost=0 (pure prerequisites) are preserved.
+// TrimToBudget drops low-value items from a Result until the
+// schedule fits under budget. "Low-value" is defined strictly:
+// density < 1.0, i.e. SkipCost < RunCost — the optimizer's own
+// "this is worth running" threshold inverted. Items above that
+// threshold are never trimmed; the optimizer already said they're
+// worth the cost. If the budget can't be met by dropping only
+// low-value items, the plan is returned over budget — correctness
+// and regret-minimization beat hard budget compliance.
 //
-// Prerequisites of a kept item also stay, even if they'd normally be
-// below the budget line.
+// Three invariants, checked each iteration:
 //
-// This is a post-optimization operation: the optimizer decides WHAT
-// is valuable, the budget decides HOW MUCH of that value fits. If
-// budget is zero or negative, or the plan already fits, the result
-// is unchanged.
+//   - Force-run items (SkipCost = RunCost + 1 pattern) are
+//     permanently protected.
+//   - Items where density ≥ 1 are never dropped. When the sorted
+//     scan reaches one, trimming stops.
+//   - Prerequisites of kept items are never dropped. `canDrop`
+//     evaluates this dynamically, and an orphan sweep runs after
+//     each drop so consumer+prereq pairs drop together when both
+//     qualify.
 //
-// Dropped items are moved to Skipped so explain/JSON output shows
-// them with their original cost metadata — they remain debuggable.
-// Schedule, WallClock, and TotalCPU are recomputed over the kept
-// items.
+// Dropped items move to Skipped — still visible to `select --why`
+// and JSON output. Schedule, WallClock, TotalCPU are recomputed
+// over the kept set.
 func TrimToBudget(result *Result, budget time.Duration, maxParallelism int) {
 	if result == nil || budget <= 0 || time.Duration(result.WallClock*float64(time.Second)) <= budget {
 		return
 	}
 
-	// Build the protected set: force-run items + any item whose id is
-	// reachable as a prerequisite of a force-run item.
-	protected := make(map[string]bool)
-	byID := make(map[string]*ExecutionItem, len(result.Items))
+	byID := make(map[string]int, len(result.Items))
 	for i := range result.Items {
-		byID[result.Items[i].ID] = &result.Items[i]
-		if isForceRun(result.Items[i]) || result.Items[i].RunCost == 0 {
-			protected[result.Items[i].ID] = true
+		byID[result.Items[i].ID] = i
+	}
+
+	protected := make(map[int]bool)
+	for i, item := range result.Items {
+		if isForceRun(item) {
+			protected[i] = true
 		}
 	}
-	// Transitively protect prerequisites of protected items.
-	changed := true
-	for changed {
-		changed = false
-		for id := range protected {
-			item, ok := byID[id]
-			if !ok {
+
+	drop := make(map[int]bool)
+
+	// canDrop: idx is safe to drop iff no currently-kept item has it
+	// as a prerequisite. Evaluated dynamically so that dropping a
+	// consumer enables later dropping its now-orphaned prereqs.
+	canDrop := func(idx int) bool {
+		if protected[idx] {
+			return false
+		}
+		id := result.Items[idx].ID
+		for i, item := range result.Items {
+			if i == idx || drop[i] {
 				continue
 			}
 			for _, p := range item.Prerequisites {
-				if !protected[p] {
-					protected[p] = true
+				if p == id {
+					return false
+				}
+			}
+		}
+		return true
+	}
+
+	// sweepOrphanedPrereqs: drop any pure-prereq item (SkipCost=0)
+	// whose consumers are all now dropped. Iterates until stable so
+	// a chain of prereqs all go together.
+	sweepOrphanedPrereqs := func() {
+		for {
+			changed := false
+			for i, item := range result.Items {
+				if drop[i] || protected[i] {
+					continue
+				}
+				if item.SkipCost != 0 {
+					continue
+				}
+				if canDrop(i) {
+					drop[i] = true
 					changed = true
 				}
+			}
+			if !changed {
+				break
 			}
 		}
 	}
 
-	// Sort non-protected items by value density ascending (lowest first
-	// — these are the drop candidates). Ties broken by RunCost
-	// descending (drop the expensive one first).
+	// Sort non-protected, non-zero-runcost items by value density
+	// ascending (cheapest-per-second-of-regret drops first). Ties
+	// broken by RunCost descending (drop the more expensive).
 	type scored struct {
 		idx     int
 		density float64
@@ -66,7 +102,7 @@ func TrimToBudget(result *Result, budget time.Duration, maxParallelism int) {
 	}
 	scores := make([]scored, 0, len(result.Items))
 	for i, item := range result.Items {
-		if protected[item.ID] {
+		if protected[i] {
 			continue
 		}
 		density := 0.0
@@ -83,22 +119,25 @@ func TrimToBudget(result *Result, budget time.Duration, maxParallelism int) {
 	})
 
 	budgetSecs := budget.Seconds()
-	drop := make(map[int]bool)
-
 	for _, s := range scores {
-		// Recompute schedule over remaining items to check fit.
-		remaining := make([]ExecutionItem, 0, len(result.Items))
-		for i, item := range result.Items {
-			if drop[i] {
-				continue
-			}
-			remaining = append(remaining, item)
+		if s.density >= 1.0 {
+			break // never drop items the optimizer committed to
 		}
+		if drop[s.idx] {
+			continue // already dropped by an earlier sweep
+		}
+		if !canDrop(s.idx) {
+			continue // would orphan a consumer
+		}
+
+		drop[s.idx] = true
+		sweepOrphanedPrereqs()
+
+		remaining := remainingItems(result.Items, drop)
 		sched := ComputeSchedule(remaining, maxParallelism)
 		if sched.WallClock <= budgetSecs {
 			break
 		}
-		drop[s.idx] = true
 	}
 
 	if len(drop) == 0 {
@@ -118,6 +157,18 @@ func TrimToBudget(result *Result, budget time.Duration, maxParallelism int) {
 	result.Schedule = ComputeSchedule(result.Items, maxParallelism)
 	result.WallClock = result.Schedule.WallClock
 	result.TotalCPU = result.Schedule.TotalCPU
+	_ = byID
+}
+
+func remainingItems(items []ExecutionItem, drop map[int]bool) []ExecutionItem {
+	out := make([]ExecutionItem, 0, len(items))
+	for i, item := range items {
+		if drop[i] {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 // isForceRun reports whether the optimizer classified this item as

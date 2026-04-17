@@ -83,6 +83,13 @@ func cmdSelect(args []string) error {
 
 	if *budget > 0 {
 		selector.TrimToBudget(result, *budget, pol.MaxParallelism())
+		if result.WallClock > budget.Seconds() {
+			fmt.Fprintf(os.Stderr,
+				"note: budget %s could not be met without dropping items where "+
+					"skipping costs more regret than it saves runtime. "+
+					"Plan estimated at %.0fs.\n",
+				*budget, result.WallClock)
+		}
 	}
 
 	if *format == "json" {
