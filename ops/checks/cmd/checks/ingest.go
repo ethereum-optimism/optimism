@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
@@ -71,7 +72,9 @@ func cmdIngestCIHistory(args []string) error {
 	// CircleCI-specific flags
 	ccOrg := fs.String("circleci-org", "ethereum-optimism", "CircleCI VCS org (for --source=circleci)")
 	ccRepo := fs.String("circleci-repo", "optimism", "CircleCI VCS repo (for --source=circleci)")
-	ccBranch := fs.String("circleci-branch", "develop", "branch to scan (for --source=circleci)")
+	ccBranch := fs.String("circleci-branch", "develop", "branch to scan (for --source=circleci). Pass '*' or empty to scan all branches — required for pre-merge failure data.")
+	ccExcludeBranches := fs.String("circleci-exclude-branches", "develop,main,master,release/",
+		"comma-separated branch prefixes to skip when --circleci-branch is '*' (default excludes post-merge trunks)")
 	ccMaxPages := fs.Int("circleci-max-pages", 10, "pipeline pagination cap (for --source=circleci)")
 	ccTimeout := fs.Duration("circleci-timeout", 60*time.Second, "HTTP timeout per request (for --source=circleci)")
 
@@ -95,8 +98,21 @@ func cmdIngestCIHistory(args []string) error {
 		since = time.Now().UTC().Add(-time.Duration(*windowDays) * 24 * time.Hour)
 	}
 
+	branchFilter := *ccBranch
+	if branchFilter == "*" {
+		branchFilter = "" // empty = all branches in fetcher
+	}
+	var excludeBranches []string
+	if *ccExcludeBranches != "" {
+		for _, p := range strings.Split(*ccExcludeBranches, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				excludeBranches = append(excludeBranches, p)
+			}
+		}
+	}
+
 	fetcher, err := buildFetcher(*source, *eventsPath, cat, ciOpts{
-		org: *ccOrg, repo: *ccRepo, branch: *ccBranch,
+		org: *ccOrg, repo: *ccRepo, branch: branchFilter, excludeBranches: excludeBranches,
 		maxPages: *ccMaxPages, timeout: *ccTimeout,
 		repoRoot: resolvedRoot,
 	})
@@ -165,6 +181,7 @@ func cmdIngestCIHistory(args []string) error {
 
 type ciOpts struct {
 	org, repo, branch, repoRoot string
+	excludeBranches             []string
 	maxPages                    int
 	timeout                     time.Duration
 }
@@ -183,13 +200,14 @@ func buildFetcher(source, eventsPath string, cat *catalog.Catalog, ci ciOpts) (c
 			return nil, fmt.Errorf("no ci_job_names defined in catalog — nothing to ingest from CircleCI")
 		}
 		return cihistory.NewCircleCIFetcher(cihistory.CircleCIConfig{
-			Org:        ci.org,
-			Repo:       ci.repo,
-			Branch:     ci.branch,
-			Token:      resolveCircleCIToken(),
-			HTTPClient: &http.Client{Timeout: ci.timeout},
-			MaxPages:   ci.maxPages,
-			RepoRoot:   ci.repoRoot,
+			Org:                   ci.org,
+			Repo:                  ci.repo,
+			Branch:                ci.branch,
+			ExcludeBranchPrefixes: ci.excludeBranches,
+			Token:                 resolveCircleCIToken(),
+			HTTPClient:            &http.Client{Timeout: ci.timeout},
+			MaxPages:              ci.maxPages,
+			RepoRoot:              ci.repoRoot,
 		}, jobMap), nil
 
 	default:

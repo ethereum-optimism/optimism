@@ -19,19 +19,29 @@ import (
 // don't require auth, and passing an empty token omits the Circle-Token
 // header entirely, matching the CI operations rule in CLAUDE.md.
 //
+// Branch semantics:
+//   - A non-empty Branch constrains the fetch to that specific branch
+//     (the typical "develop" case for post-merge outcomes).
+//   - An empty Branch fetches pipelines from all branches. Combine
+//     with ExcludeBranchPrefixes to filter out the branches whose
+//     outcomes you already have (e.g. develop) — the remainder are
+//     pre-merge pipelines where failures actually happen, which is
+//     the data the replay harness needs for recall measurement.
+//
 // FilesFor is the callback that returns the files changed in a given
 // revision. Default is ResolveFilesViaGit, which shells to `git diff-
 // tree` in RepoRoot; tests can substitute a deterministic function.
 type CircleCIConfig struct {
-	Org        string        // e.g. "ethereum-optimism"
-	Repo       string        // e.g. "optimism"
-	Branch     string        // e.g. "develop" (post-merge outcomes)
-	Token      string        // $CITOKEN; empty for public projects
-	BaseURL    string        // override for tests; default "https://circleci.com/api/v2"
-	HTTPClient *http.Client  // override for tests; default http.DefaultClient
-	MaxPages   int           // safety cap on pipeline pagination; 0 = 10
-	RepoRoot   string        // local checkout used by FilesFor's default
-	FilesFor   func(revision string) ([]string, error)
+	Org                   string        // e.g. "ethereum-optimism"
+	Repo                  string        // e.g. "optimism"
+	Branch                string        // non-empty = single branch; empty = all branches
+	ExcludeBranchPrefixes []string      // optional; skip pipelines whose branch starts with any of these
+	Token                 string        // $CITOKEN; empty for public projects
+	BaseURL               string        // override for tests; default "https://circleci.com/api/v2"
+	HTTPClient            *http.Client  // override for tests; default http.DefaultClient
+	MaxPages              int           // safety cap on pipeline pagination; 0 = 10
+	RepoRoot              string        // local checkout used by FilesFor's default
+	FilesFor              func(revision string) ([]string, error)
 }
 
 // CircleCIFetcher implements cihistory.Fetcher against CircleCI's v2 API.
@@ -87,7 +97,15 @@ func (f *CircleCIFetcher) Fetch(since time.Time) ([]Event, error) {
 
 	var events []Event
 	for _, p := range pipelines {
-		if p.VCS.Branch != f.cfg.Branch {
+		// Branch filter: if a specific branch is configured, only
+		// include its pipelines. Empty Branch means "all branches,"
+		// in which case we still want to skip branches the operator
+		// asked to exclude (typically the post-merge trunk they
+		// already fetched separately).
+		if f.cfg.Branch != "" && p.VCS.Branch != f.cfg.Branch {
+			continue
+		}
+		if hasBranchPrefix(p.VCS.Branch, f.cfg.ExcludeBranchPrefixes) {
 			continue
 		}
 		checks, err := f.fetchPipelineChecks(p.ID)
@@ -151,13 +169,15 @@ type ccJobPage struct {
 	NextPageToken string `json:"next_page_token"`
 }
 
-// walkPipelines paginates /project/.../pipeline filtered by branch.
-// Stops when page contains a pipeline older than `since` (pipelines
-// are returned newest-first).
+// walkPipelines paginates /project/.../pipeline, optionally filtered
+// by branch at the API layer. Stops when page contains a pipeline
+// older than `since` (pipelines are returned newest-first).
 func (f *CircleCIFetcher) walkPipelines(since time.Time) ([]ccPipeline, error) {
 	path := fmt.Sprintf("/project/github/%s/%s/pipeline", f.cfg.Org, f.cfg.Repo)
 	params := url.Values{}
-	params.Set("branch", f.cfg.Branch)
+	if f.cfg.Branch != "" {
+		params.Set("branch", f.cfg.Branch)
+	}
 
 	var out []ccPipeline
 	for page := 0; page < f.cfg.MaxPages; page++ {
@@ -323,6 +343,20 @@ func classifyStatus(s string) statusKind {
 		return statusSkip
 	}
 	return statusSkip
+}
+
+// hasBranchPrefix reports whether any prefix in the list is a prefix
+// of branch. Empty prefix list returns false.
+func hasBranchPrefix(branch string, prefixes []string) bool {
+	for _, p := range prefixes {
+		if p == "" {
+			continue
+		}
+		if strings.HasPrefix(branch, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveFilesViaGit returns the list of repo-relative paths changed

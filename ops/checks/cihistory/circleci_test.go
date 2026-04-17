@@ -422,6 +422,59 @@ func TestCircleCI_Fetch_SkipsPipelinesWithNoFiles(t *testing.T) {
 	}
 }
 
+// TestCircleCI_Fetch_AllBranches_ExcludeFilter — empty Branch means
+// fetch all, but ExcludeBranchPrefixes drops specific branches
+// (typically the post-merge trunk we already have).
+func TestCircleCI_Fetch_AllBranches_ExcludeFilter(t *testing.T) {
+	fc := &fakeCircleCI{
+		pipelines: map[string]ccPipelinePage{
+			"": {Items: []ccPipeline{
+				{ID: "p-develop", VCS: struct {
+					Revision string `json:"revision"`
+					Branch   string `json:"branch"`
+				}{Revision: "r1", Branch: "develop"}},
+				{ID: "p-feature", VCS: struct {
+					Revision string `json:"revision"`
+					Branch   string `json:"branch"`
+				}{Revision: "r2", Branch: "user/my-feature"}},
+				{ID: "p-release", VCS: struct {
+					Revision string `json:"revision"`
+					Branch   string `json:"branch"`
+				}{Revision: "r3", Branch: "release/v1.2"}},
+			}},
+		},
+		workflows: map[string]ccWorkflowPage{
+			"p-feature": {Items: []struct {
+				ID     string `json:"id"`
+				Name   string `json:"name"`
+				Status string `json:"status"`
+			}{{ID: "wf"}}},
+		},
+		jobs: map[string]ccJobPage{
+			"wf": {Items: []struct {
+				Name   string `json:"name"`
+				Status string `json:"status"`
+			}{{Name: "t", Status: "failed"}}},
+		},
+	}
+	srv := httptest.NewServer(fc.handler(t))
+	defer srv.Close()
+
+	f := NewCircleCIFetcher(CircleCIConfig{
+		Org: "o", Repo: "r", Branch: "",
+		ExcludeBranchPrefixes: []string{"develop", "release/"},
+		BaseURL:               srv.URL,
+		FilesFor:              func(string) ([]string, error) { return []string{"x"}, nil },
+	}, map[string]string{"t": "forge-test"})
+	events, err := f.Fetch(time.Time{})
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events = %d, want 1 (only the feature branch)", len(events))
+	}
+}
+
 // TestCircleCI_Auth_TokenSent — when Token is set, Circle-Token header
 // is present on every request; when empty, it's omitted.
 func TestCircleCI_Auth_TokenSent(t *testing.T) {
