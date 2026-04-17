@@ -228,6 +228,18 @@ func (s *SyncDeriver) SyncStep() {
 	s.tryBackupUnsafeReorg()
 
 	if s.Engine.IsEngineInitialELSyncing() {
+		// On startup in --syncmode=execution-layer, syncStatus is always
+		// syncStatusWillStartEL regardless of whether the engine is actually
+		// unsynced. Probe the engine's finalized head here so op-node can skip
+		// EL sync if the engine is already synced from a previous run
+		// (fixes #18468). Transitions out of syncStatusWillStartEL when
+		// applicable and triggers a head-initialization reset.
+		if err := s.Engine.MaybeSkipELSyncIfEngineAlreadySynced(s.Ctx); err != nil {
+			s.Log.Warn("Failed to probe engine finalized head on EL-sync startup", "err", err)
+		}
+	}
+
+	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing initial EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",
 			"unsafe_head", s.Engine.UnsafeL2Head())

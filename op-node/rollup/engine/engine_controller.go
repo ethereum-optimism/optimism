@@ -308,6 +308,74 @@ func (e *EngineController) isEngineInitialELSyncing() bool {
 		e.syncStatus == syncStatusFinishedELButNotFinalized
 }
 
+// checkEngineAlreadySynced queries the engine's finalized head to decide
+// whether EL sync should be skipped. synced=true means the engine has a
+// non-genesis finalized head and the operator did not opt into
+// post-finalization EL sync; in that case EL sync must be skipped. synced=false
+// indicates EL sync is needed (engine reports no finalized head, only genesis
+// is finalized, or SupportsPostFinalizationELSync is set).
+func (e *EngineController) checkEngineAlreadySynced(ctx context.Context) (synced bool, finalized eth.L2BlockRef, err error) {
+	finalized, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+	if errors.Is(err, ethereum.NotFound) {
+		return false, eth.L2BlockRef{}, nil
+	}
+	if err != nil {
+		return false, eth.L2BlockRef{}, err
+	}
+	if finalized.Hash == e.rollupCfg.Genesis.L2.Hash {
+		return false, finalized, nil
+	}
+	if e.syncCfg.SupportsPostFinalizationELSync {
+		return false, finalized, nil
+	}
+	return true, finalized, nil
+}
+
+// MaybeSkipELSyncIfEngineAlreadySynced is a startup guard for
+// --syncmode=execution-layer: if the engine is already synced (has a
+// non-genesis finalized head), transition syncStatus directly to
+// syncStatusFinishedEL and emit a ResetEngineRequestEvent so op-node's
+// in-memory heads are initialized from the engine via FindL2Heads.
+//
+// Without this, op-node restarted against an already-synced engine sits
+// in syncStatusWillStartEL indefinitely because SyncStep backs off on
+// isEngineInitialELSyncing() and the only place that transitions out of
+// syncStatusWillStartEL is insertUnsafePayload — which requires a fresh
+// unsafe payload that may never arrive (the sequencer's gossip is for
+// blocks the engine already has). See #18468.
+//
+// No-op when syncStatus is not syncStatusWillStartEL.
+func (e *EngineController) MaybeSkipELSyncIfEngineAlreadySynced(ctx context.Context) error {
+	// Emit must happen after releasing e.mu, because ResetEngineRequestEvent's
+	// handler re-acquires it via OnEvent.
+	shouldReset := false
+	err := func() error {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if e.syncStatus != syncStatusWillStartEL {
+			return nil
+		}
+		synced, finalized, err := e.checkEngineAlreadySynced(ctx)
+		if err != nil {
+			return err
+		}
+		if !synced {
+			return nil
+		}
+		e.syncStatus = syncStatusFinishedEL
+		e.log.Info("Skipping EL sync on startup because the engine is already synced", "finalized", finalized.ID())
+		shouldReset = true
+		return nil
+	}()
+	if err != nil {
+		return err
+	}
+	if shouldReset {
+		e.emitter.Emit(ctx, ResetEngineRequestEvent{})
+	}
+	return nil
+}
+
 // SetFinalizedHead implements LocalEngineControl.
 func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
@@ -571,22 +639,21 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 }
 
 func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
-	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
+	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync.
 	if e.syncStatus == syncStatusWillStartEL {
-		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
-		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.syncCfg.SupportsPostFinalizationELSync {
-			e.syncStatus = syncStatusStartedEL
-			e.log.Info("Starting EL sync")
-			e.elStart = e.clock.Now()
-			e.SyncDeriver.OnELSyncStarted()
-		} else if err == nil {
-			e.syncStatus = syncStatusFinishedEL
-			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
-			return nil
-		} else {
+		synced, finalized, err := e.checkEngineAlreadySynced(ctx)
+		if err != nil {
 			return derive.NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
 		}
+		if synced {
+			e.syncStatus = syncStatusFinishedEL
+			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", finalized.ID())
+			return nil
+		}
+		e.syncStatus = syncStatusStartedEL
+		e.log.Info("Starting EL sync")
+		e.elStart = e.clock.Now()
+		e.SyncDeriver.OnELSyncStarted()
 	}
 	// Insert the payload & then call FCU
 	newPayloadStart := time.Now()
