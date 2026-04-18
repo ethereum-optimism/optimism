@@ -1753,7 +1753,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-SHAPE,SCKDG-10.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
@@ -1894,7 +1894,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.startingRespectedGameType = permType;
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
