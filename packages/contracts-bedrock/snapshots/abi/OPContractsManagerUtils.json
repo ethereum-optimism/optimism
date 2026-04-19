@@ -247,11 +247,6 @@
           },
           {
             "internalType": "address",
-            "name": "optimismPortalInteropImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },
@@ -313,6 +308,11 @@
           {
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "zkDisputeGameImpl",
             "type": "address"
           },
           {
