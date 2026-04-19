@@ -30,11 +30,26 @@ build-deps:
     just build-rust-release
 
 # Run specific acceptance tests. Builds dependencies first, then passes all arguments to go test.
+# Defaults `-count=1` and `-timeout 30m` are applied only when not already set in args,
+# so callers can override either (e.g. `just test -count=10 -run TestFoo ./...`).
 # Examples:
 #   just test ./op-acceptance-tests/tests/base/...
 #   just test -run TestMyTest ./op-acceptance-tests/tests/base/
+#   just test -count=10 -run TestMyTest ./op-acceptance-tests/tests/base/
 test *args: build-deps
-    cd {{REPO_ROOT}} && go test -count=1 -timeout 30m {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{REPO_ROOT}}
+    flags=()
+    case " {{args}} " in
+        *" -count="*|*" -count "*) ;;
+        *) flags+=(-count=1) ;;
+    esac
+    case " {{args}} " in
+        *" -timeout="*|*" -timeout "*) ;;
+        *) flags+=(-timeout 30m) ;;
+    esac
+    exec go test "${flags[@]}" {{args}}
 
 # Run acceptance tests
 acceptance-test:
