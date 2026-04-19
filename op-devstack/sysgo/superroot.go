@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -40,10 +41,16 @@ type DisputeGameConfigV2 struct {
 	GameArgs []byte
 }
 
+// Proposal matches the Solidity Proposal struct: (bytes32 root, uint256 l2SequenceNumber)
+type Proposal struct {
+	Root             common.Hash
+	L2SequenceNumber *big.Int
+}
+
 type MigrateInputV2 struct {
 	ChainSystemConfigs        []common.Address
 	DisputeGameConfigs        []DisputeGameConfigV2
-	StartingAnchorRoot        bindings.Proposal
+	StartingAnchorRoot        Proposal
 	StartingRespectedGameType uint32
 }
 
@@ -105,7 +112,7 @@ func delegateCallWithSetCode(
 		// Use the EIP-7825 max transaction gas limit to give the migration maximum room.
 		txplan.WithGasLimit(params.MaxTxGas),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(client, 10, retry.Exponential()),
 	)
 
 	receipt, err := tx.Included.Eval(ctx)
@@ -203,9 +210,8 @@ func migrateSuperRoots(
 	client := ethclient.NewClient(rpcClient)
 	w3Client := w3.NewClient(rpcClient)
 
-	useV2 := isOPCMV2(t, w3Client, migration.opcmImpl)
 	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
-	absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
+	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
 	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
@@ -213,66 +219,57 @@ func migrateSuperRoots(
 	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
 	require.NoError(err, "must have configured challenger")
 
-	var opChainConfigs []bindings.OPContractsManagerOpChainConfig
+	var chainSystemConfigs []common.Address
 	for _, l2Deployment := range migration.l2Deployments {
-		opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
-			SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
-			CannonPrestate:     absoluteCannonPrestate,
-			CannonKonaPrestate: absoluteCannonKonaPrestate,
-		})
+		chainSystemConfigs = append(chainSystemConfigs, l2Deployment.SystemConfigProxyAddr())
 	}
 
-	opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
-	require.NoError(err, "invalid OPCM ABI")
-	contract := batching.NewBoundContract(opcmABI, migration.opcmImpl)
+	// Use the v2 migrator ABI directly (v1 OPCM is deleted, bindings are stale)
+	migratorABI, err := OPContractsManagerMigratorABI()
+	require.NoError(err, "invalid migrator ABI")
+	contract := batching.NewBoundContract(migratorABI, migration.opcmImpl)
 
-	var migrateCallData []byte
-	if useV2 {
-		var chainSystemConfigs []common.Address
-		for _, cfg := range opChainConfigs {
-			chainSystemConfigs = append(chainSystemConfigs, cfg.SystemConfigProxy)
-		}
-		migrateInputV2 := MigrateInputV2{
-			ChainSystemConfigs: chainSystemConfigs,
-			DisputeGameConfigs: []DisputeGameConfigV2{
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
-					GameType: superCannonGameType,
-					GameArgs: absoluteCannonPrestate[:],
-				},
+	// ABI-encode permissioned game args: (bytes32 absolutePrestate, address proposer, address challenger)
+	bytes32Ty, _ := abi.NewType("bytes32", "", nil)
+	addressTy, _ := abi.NewType("address", "", nil)
+	permGameArgs, err := abi.Arguments{
+		{Type: bytes32Ty},
+		{Type: addressTy},
+		{Type: addressTy},
+	}.Pack(absoluteCannonPrestate, proposer, challenger)
+	require.NoError(err, "failed to encode permissioned game args")
+
+	migrateInputV2 := MigrateInputV2{
+		ChainSystemConfigs: chainSystemConfigs,
+		DisputeGameConfigs: []DisputeGameConfigV2{
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superCannonGameType,
+				GameArgs: absoluteCannonPrestate[:],
 			},
-			StartingAnchorRoot: bindings.Proposal{
-				Root:             common.Hash(superRoot),
-				L2SequenceNumber: big.NewInt(int64(superrootTime)),
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superPermissionedCannonGameType,
+				GameArgs: permGameArgs,
 			},
-			StartingRespectedGameType: superCannonGameType,
-		}
-		migrateCall := contract.Call("migrate", migrateInputV2)
-		migrateCallData, err = migrateCall.Pack()
-		require.NoError(err)
-	} else {
-		migrateInputV1 := bindings.OPContractsManagerInteropMigratorMigrateInput{
-			UsePermissionlessGame: true,
-			StartingAnchorRoot: bindings.Proposal{
-				Root:             common.Hash(superRoot),
-				L2SequenceNumber: big.NewInt(int64(superrootTime)),
+			{
+				Enabled:  true,
+				InitBond: big.NewInt(0),
+				GameType: superCannonKonaGameType,
+				GameArgs: absoluteCannonKonaPrestate[:],
 			},
-			GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
-				Proposer:         proposer,
-				Challenger:       challenger,
-				MaxGameDepth:     big.NewInt(73),
-				SplitDepth:       big.NewInt(30),
-				InitBond:         big.NewInt(0),
-				ClockExtension:   10800,
-				MaxClockDuration: 302400,
-			},
-			OpChainConfigs: opChainConfigs,
-		}
-		migrateCall := contract.Call("migrate", migrateInputV1)
-		migrateCallData, err = migrateCall.Pack()
-		require.NoError(err)
+		},
+		StartingAnchorRoot: Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: big.NewInt(int64(superrootTime)),
+		},
+		StartingRespectedGameType: superCannonGameType,
 	}
+	migrateCall := contract.Call("migrate", migrateInputV2)
+	migrateCallData, err := migrateCall.Pack()
+	require.NoError(err)
 
 	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
 	require.NoError(err, "must have configured L1 proxy admin owner")
@@ -304,10 +301,6 @@ func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
 }
 
-func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json")
-}
-
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon/prestate-proof.json")
 }
@@ -327,26 +320,16 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superCannonGameType = 4
+	superCannonGameType             = 4
+	superPermissionedCannonGameType = 5
+	superCannonKonaGameType         = 9
 )
 
 var (
 	optimismPortalFn     = w3.MustNewFunc("optimismPortal()", "address")
 	disputeGameFactoryFn = w3.MustNewFunc("disputeGameFactory()", "address")
 	gameImplsFn          = w3.MustNewFunc("gameImpls(uint32)", "address")
-	versionFn            = w3.MustNewFunc("version()", "string")
 )
-
-// isOPCMV2 is a helper function that checks the OPCM version and returns true if it is at least 7.0.0
-func isOPCMV2(t devtest.CommonT, client *w3.Client, opcmAddr common.Address) bool {
-	var version string
-	err := client.Call(w3eth.CallFunc(opcmAddr, versionFn).Returns(&version))
-	t.Require().NoError(err, "failed to get OPCM version")
-
-	isVersionAtLeast, err := deployer.IsVersionAtLeast(version, 7, 0, 0)
-	t.Require().NoError(err, "failed to check OPCM version")
-	return isVersionAtLeast
-}
 
 func getOptimismPortal(t devtest.CommonT, client *w3.Client, systemConfigProxy common.Address) common.Address {
 	var addr common.Address
@@ -367,4 +350,30 @@ func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) 
 	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonGameType)).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
+}
+
+// OPContractsManagerMigratorABI loads the ABI for the OPContractsManagerMigrator contract
+// from the forge artifact file.
+func OPContractsManagerMigratorABI() (*abi.ABI, error) {
+	root, err := findMonorepoRoot("packages/contracts-bedrock/forge-artifacts")
+	if err != nil {
+		return nil, fmt.Errorf("failed to find monorepo root: %w", err)
+	}
+	artifactPath := path.Join(root, "packages", "contracts-bedrock", "forge-artifacts",
+		"OPContractsManagerMigrator.sol", "OPContractsManagerMigrator.json")
+	data, err := os.ReadFile(artifactPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read migrator artifact: %w", err)
+	}
+	var artifact struct {
+		ABI json.RawMessage `json:"abi"`
+	}
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return nil, fmt.Errorf("failed to parse migrator artifact: %w", err)
+	}
+	parsed, err := abi.JSON(strings.NewReader(string(artifact.ABI)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse migrator ABI: %w", err)
+	}
+	return &parsed, nil
 }

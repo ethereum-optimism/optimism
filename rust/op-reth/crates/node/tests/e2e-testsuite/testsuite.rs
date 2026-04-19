@@ -7,7 +7,7 @@ use reth_e2e_test_utils::testsuite::{
     setup::{NetworkSetup, Setup},
 };
 use reth_optimism_chainspec::{OP_MAINNET, OpChainSpecBuilder};
-use reth_optimism_node::{OpEngineTypes, OpNode};
+use reth_optimism_node::{OpEngineTypes, OpNode, payload::OpPayloadAttrs};
 use std::sync::Arc;
 
 #[tokio::test]
@@ -30,7 +30,7 @@ async fn test_testsuite_op_assert_mine_block() -> Result<()> {
             vec![],
             Some(B256::ZERO),
             // TODO: refactor once we have actions to generate payload attributes.
-            OpPayloadAttributes {
+            OpPayloadAttrs(OpPayloadAttributes {
                 payload_attributes: alloy_rpc_types_engine::PayloadAttributes {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -46,7 +46,7 @@ async fn test_testsuite_op_assert_mine_block() -> Result<()> {
                 eip_1559_params: None,
                 min_base_fee: None,
                 gas_limit: Some(30_000_000),
-            },
+            }),
         ));
 
     test.run::<OpNode>().await?;
@@ -75,7 +75,7 @@ async fn test_testsuite_op_assert_mine_block_isthmus_activated() -> Result<()> {
             vec![],
             Some(B256::ZERO),
             // TODO: refactor once we have actions to generate payload attributes.
-            OpPayloadAttributes {
+            OpPayloadAttrs(OpPayloadAttributes {
                 payload_attributes: alloy_rpc_types_engine::PayloadAttributes {
                     timestamp: std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -91,7 +91,7 @@ async fn test_testsuite_op_assert_mine_block_isthmus_activated() -> Result<()> {
                 eip_1559_params: Some(B64::ZERO),
                 min_base_fee: None,
                 gas_limit: Some(30_000_000),
-            },
+            }),
         ));
 
     test.run::<OpNode>().await?;

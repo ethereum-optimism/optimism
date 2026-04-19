@@ -1,13 +1,13 @@
-use crate::{OpBuiltPayload, OpNode as OtherOpNode, OpPayloadBuilderAttributes};
+use crate::{OpBuiltPayload, OpNode as OtherOpNode};
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256};
-use alloy_rpc_types_engine::PayloadAttributes;
+use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_e2e_test_utils::{
     NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
 };
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_payload_builder::EthPayloadBuilderAttributes;
+use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_provider::providers::BlockchainProvider;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -53,21 +53,19 @@ pub async fn advance_chain(
 }
 
 /// Helper function to create a new eth payload attributes
-pub fn optimism_payload_attributes<T>(timestamp: u64) -> OpPayloadBuilderAttributes<T> {
-    let attributes = PayloadAttributes {
-        timestamp,
-        prev_randao: B256::ZERO,
-        suggested_fee_recipient: Address::ZERO,
-        withdrawals: Some(vec![]),
-        parent_beacon_block_root: Some(B256::ZERO),
-    };
-
-    OpPayloadBuilderAttributes {
-        payload_attributes: EthPayloadBuilderAttributes::new(B256::ZERO, attributes),
-        transactions: vec![],
-        no_tx_pool: false,
+pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
+    OpPayloadAttrs(OpPayloadAttributes {
+        payload_attributes: alloy_rpc_types_engine::PayloadAttributes {
+            timestamp,
+            prev_randao: B256::ZERO,
+            suggested_fee_recipient: Address::ZERO,
+            withdrawals: Some(vec![]),
+            parent_beacon_block_root: Some(B256::ZERO),
+        },
+        transactions: None,
+        no_tx_pool: None,
         gas_limit: Some(30_000_000),
         eip_1559_params: None,
         min_base_fee: None,
-    }
+    })
 }

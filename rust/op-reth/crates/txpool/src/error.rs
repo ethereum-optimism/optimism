@@ -11,13 +11,16 @@ pub enum InvalidCrossTx {
     /// Error cause by cross chain tx during not active interop hardfork
     #[error("cross chain tx is invalid before interop")]
     CrossChainTxPreInterop,
+    /// Rejected because failsafe mode is active — all interop txs are blocked.
+    #[error("interop failsafe is active")]
+    FailsafeEnabled,
 }
 
 impl PoolTransactionError for InvalidCrossTx {
     fn is_bad_transaction(&self) -> bool {
         match self {
-            Self::ValidationError(_) => false,
             Self::CrossChainTxPreInterop => true,
+            Self::ValidationError(_) | Self::FailsafeEnabled => false,
         }
     }
 

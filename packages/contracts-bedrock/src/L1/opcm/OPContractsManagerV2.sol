@@ -24,7 +24,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -153,9 +152,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.0.14
+    /// @custom:semver 7.1.16
     function version() public pure returns (string memory) {
-        return "7.0.14";
+        return "7.1.16";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -686,16 +685,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Validates the deployment/upgrade config.
     /// @param _cfg The full config.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
-    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal pure {
+    function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
         // All valid game types. StandardValidator is responsible for rejecting game types that
         // should not be used in a given mode (e.g., legacy types in super root mode).
-        GameType[] memory validGameTypes = new GameType[](6);
+        GameType[] memory validGameTypes = new GameType[](7);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
         validGameTypes[3] = GameTypes.SUPER_CANNON;
         validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
         validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
+        validGameTypes[6] = GameTypes.ZK_DISPUTE_GAME;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -722,6 +722,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // During initial deployment, only permissioned types can be enabled, because no
             // prestate exists for permissionless games.
             if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
+            if (
+                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
+                    && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
+            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }
@@ -783,13 +791,20 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Update the OptimismPortal.
+        // When interop is enabled, the ETH_LOCKBOX feature must be set on SystemConfig before
+        // upgrading the portal. OptimismPortal2.initialize() calls _assertValidLockboxState()
+        // which requires the ETH_LOCKBOX feature flag and ethLockbox address to be consistent.
+        // Otherwise we end up in a state where we have a lockbox and the feature flag is off.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
             _upgrade(
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
-                impls.optimismPortalInteropImpl,
+                impls.optimismPortalImpl,
                 abi.encodeCall(
-                    IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
                 )
             );
         } else {
@@ -797,7 +812,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.optimismPortal),
                 impls.optimismPortalImpl,
-                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
+                abi.encodeCall(
+                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, IETHLockbox(address(0)))
+                )
             );
         }
 
@@ -828,9 +845,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
                 _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
             }
+            if (!_cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                _cts.systemConfig.setFeature(Features.INTEROP, true);
+            }
 
             // Migrate any ETH into the ETHLockbox.
-            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
+            IOptimismPortal(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.

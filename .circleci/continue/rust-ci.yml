@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.25
+  utils: ethereum-optimism/circleci-utils@1.0.27
   gcp-cli: circleci/gcp-cli@3.0.1
   codecov: codecov/codecov@5.0.3
 
@@ -96,6 +96,34 @@ parameters:
 # COMMANDS
 # ============================================================================
 commands:
+  apt-install:
+    description: "apt-get update + install, with retries to tolerate transient Ubuntu mirror sync failures."
+    parameters:
+      packages:
+        description: "Space-separated list of apt packages to install."
+        type: string
+      extra_flags:
+        description: "Extra flags to pass to apt-get install (e.g. '--no-install-recommends')."
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: "apt install << parameters.packages >>"
+          command: |
+            export NEEDRESTART_MODE=a
+            for i in 1 2 3; do
+              if sudo -E apt-get -o Acquire::Retries=5 update; then
+                break
+              fi
+              if [ "$i" = "3" ]; then
+                echo "apt-get update failed after 3 attempts" >&2
+                exit 1
+              fi
+              echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
+              sleep 10
+            done
+            sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
+
   install-cargo-binstall:
     description: "Install cargo-binstall for fast binary installations"
     steps:
@@ -122,7 +150,7 @@ commands:
       toolchain_version:
         description: The specific toolchain version for stable channel
         type: string
-        default: "1.92.0"
+        default: "1.94.0"
       target:
         description: A custom target architecture to add to the toolchain
         type: string
@@ -174,12 +202,9 @@ commands:
       - when:
           condition: << parameters.needs_clang >>
           steps:
-            - run:
-                name: Install clang
-                command: |
-                  export NEEDRESTART_MODE=a
-                  sudo -E apt-get update --yes
-                  sudo -E apt-get install -y --no-install-recommends clang llvm-dev libclang-dev
+            - apt-install:
+                packages: "clang llvm-dev libclang-dev"
+                extra_flags: "--no-install-recommends"
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -339,9 +364,8 @@ commands:
   install-zstd:
     description: "Install zstd compression utility"
     steps:
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
+      - apt-install:
+          packages: "zstd=1.4.8*"
 
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -407,10 +431,6 @@ jobs:
       - rust-prepare-and-restore-cache: &fmt-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
-      - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
@@ -599,10 +619,6 @@ jobs:
           prefix: <<parameters.directory>>-docs
           features: "all"
       - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
-      - run:
           name: Build documentation
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
@@ -659,7 +675,7 @@ jobs:
         default: "release"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -701,10 +717,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - run:
-          name: Install nightly toolchain
-          working_directory: <<parameters.directory>>
-          command: just install-nightly
       - install-cargo-binstall
       - run:
           name: Install cargo-udeps
@@ -794,7 +806,8 @@ jobs:
   op-reth-compact-codec:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    # This job frequently gets killed for smaller resource_class
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1133,7 +1146,7 @@ workflows:
       - rust-build-binary:
           name: rust-msrv
           directory: rust
-          toolchain: "1.92.0"
+          toolchain: "1.94.0"
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
@@ -1144,7 +1157,7 @@ workflows:
           directory: rust
           command: |
             just check-no-std
-          toolchain: "1.92.0"
+          toolchain: "1.94.0"
           context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:
@@ -1171,14 +1184,6 @@ workflows:
           name: op-reth-integration-tests
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
-          cache_profile: debug
-          context: *rust-ci-context
-
-      - rust-ci-cargo-tests:
-          name: op-reth-tests-edge
-          directory: rust
-          command: "--justfile op-reth/justfile test"
-          flags: "edge"
           cache_profile: debug
           context: *rust-ci-context
 
@@ -1236,14 +1241,6 @@ workflows:
           cache_profile: debug
           context: *rust-ci-context
 
-      - rust-ci-cargo-tests:
-          name: op-reth-tests-edge
-          directory: rust
-          command: "--justfile op-reth/justfile test"
-          flags: "edge"
-          cache_profile: debug
-          context: *rust-ci-context
-
       - kona-build-fpvm:
           name: kona-build-fpvm-cannon-client
           target: "cannon-client"
@@ -1253,7 +1250,6 @@ workflows:
           requires:
             - rust-tests
             - op-reth-integration-tests
-            - op-reth-tests-edge
             - kona-build-fpvm-cannon-client
 
   # ==========================================================================

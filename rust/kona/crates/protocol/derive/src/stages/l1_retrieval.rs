@@ -1,12 +1,14 @@
 //! Contains the [`L1Retrieval`] stage of the derivation pipeline.
 
 use crate::{
-    ActivationSignal, DataAvailabilityProvider, FrameQueueProvider, OriginAdvancer, OriginProvider,
-    PipelineError, PipelineErrorKind, PipelineResult, ResetSignal, Signal, SignalReceiver,
+    DataAvailabilityProvider, FrameQueueProvider, OriginAdvancer, OriginProvider, PipelineError,
+    PipelineErrorKind, PipelineResult, Stage,
 };
 use alloc::boxed::Box;
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use async_trait::async_trait;
+use kona_genesis::SystemConfig;
 use kona_protocol::BlockInfo;
 
 /// Provides L1 blocks for the [`L1Retrieval`] stage.
@@ -36,7 +38,7 @@ pub trait L1RetrievalProvider {
 pub struct L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     /// The previous stage in the pipeline.
     pub prev: P,
@@ -49,7 +51,7 @@ where
 impl<DAP, P> L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     /// Creates a new [`L1Retrieval`] stage with the previous [`PollingTraversal`] stage and given
     /// [`DataAvailabilityProvider`].
@@ -64,7 +66,7 @@ where
 impl<DAP, P> OriginAdvancer for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
         self.prev.advance_origin().await
@@ -75,7 +77,7 @@ where
 impl<DAP, P> FrameQueueProvider for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
     type Item = DAP::Item;
 
@@ -107,7 +109,7 @@ where
 impl<DAP, P> OriginProvider for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage,
 {
     fn origin(&self) -> Option<BlockInfo> {
         self.prev.origin()
@@ -115,22 +117,34 @@ where
 }
 
 #[async_trait]
-impl<DAP, P> SignalReceiver for L1Retrieval<DAP, P>
+impl<DAP, P> Stage for L1Retrieval<DAP, P>
 where
     DAP: DataAvailabilityProvider + Send,
-    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send,
+    P: L1RetrievalProvider + OriginAdvancer + OriginProvider + Stage + Send,
 {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.prev.signal(signal).await?;
-        match signal {
-            Signal::Reset(ResetSignal { l1_origin, .. }) |
-            Signal::Activation(ActivationSignal { l1_origin, .. }) => {
-                self.provider.clear();
-                self.next = Some(l1_origin);
-            }
-            _ => {}
-        }
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        self.prev.reset(l1_origin, system_config).await?;
+        self.provider.clear();
+        self.next = self.prev.origin();
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        self.prev.activate().await?;
+        self.provider.clear();
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        self.prev.flush_channel().await
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        self.prev.provide_block(block).await
     }
 }
 
@@ -149,7 +163,7 @@ mod tests {
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
         retrieval.next = None;
-        retrieval.signal(Signal::FlushChannel).await.unwrap();
+        retrieval.flush_channel().await.unwrap();
         assert!(retrieval.next.is_none());
         assert!(retrieval.prev.block.is_none());
     }
@@ -159,18 +173,7 @@ mod tests {
         let traversal = TraversalTestHelper::new_populated();
         let dap = TestDAP { results: vec![Ok(Bytes::default())] };
         let mut retrieval = L1Retrieval::new(traversal, dap);
-        retrieval.prev.block = None;
-        assert!(retrieval.prev.block.is_none());
-        retrieval.next = None;
-        retrieval
-            .signal(
-                ActivationSignal { system_config: Some(Default::default()), ..Default::default() }
-                    .signal(),
-            )
-            .await
-            .unwrap();
-        assert!(retrieval.next.is_some());
-        assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
+        retrieval.activate().await.unwrap();
         // Provider must be cleared on activation to flush stale data.
         assert!(retrieval.provider.results.is_empty());
     }
@@ -183,13 +186,7 @@ mod tests {
         retrieval.prev.block = None;
         assert!(retrieval.prev.block.is_none());
         retrieval.next = None;
-        retrieval
-            .signal(
-                ResetSignal { system_config: Some(Default::default()), ..Default::default() }
-                    .signal(),
-            )
-            .await
-            .unwrap();
+        retrieval.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert!(retrieval.next.is_some());
         assert_eq!(retrieval.prev.block, Some(BlockInfo::default()));
         // Provider must be cleared on reset to flush stale data.
@@ -244,33 +241,28 @@ mod tests {
         assert!(retrieval.next.is_none());
     }
 
-    async fn test_l1_retrieval_clears_stale_data(signal: Signal) {
-        let traversal = TraversalTestHelper::new_populated();
-        // Pre-load a stale entry that should never be served after activation or reset.
-        let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
-        let mut retrieval = L1Retrieval::new(traversal, dap);
-        retrieval.next = Some(BlockInfo::default());
-        retrieval.signal(signal).await.unwrap();
-        // next_data must not return the stale bytes; the cleared provider yields EOF.
-        let err = retrieval.next_data().await.unwrap_err();
-        assert_eq!(err, PipelineError::Eof.temp());
-    }
-
     /// Regression test: stale DAP data loaded before a reset must not be returned after the reset.
     #[tokio::test]
     async fn test_l1_retrieval_reset_clears_stale_data() {
-        let reset_signal =
-            ResetSignal { system_config: Some(Default::default()), ..Default::default() }.signal();
-        test_l1_retrieval_clears_stale_data(reset_signal).await
+        let traversal = TraversalTestHelper::new_populated();
+        let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
+        let mut retrieval = L1Retrieval::new(traversal, dap);
+        retrieval.next = Some(BlockInfo::default());
+        retrieval.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
+        let err = retrieval.next_data().await.unwrap_err();
+        assert_eq!(err, PipelineError::Eof.temp());
     }
 
     /// Regression test: stale DAP data loaded before an activation must not be returned after it.
     #[tokio::test]
     async fn test_l1_retrieval_activation_clears_stale_data() {
-        let activation_signal =
-            ActivationSignal { system_config: Some(Default::default()), ..Default::default() }
-                .signal();
-        test_l1_retrieval_clears_stale_data(activation_signal).await
+        let traversal = TraversalTestHelper::new_populated();
+        let dap = TestDAP { results: vec![Ok(Bytes::from_static(b"stale"))] };
+        let mut retrieval = L1Retrieval::new(traversal, dap);
+        retrieval.next = Some(BlockInfo::default());
+        retrieval.activate().await.unwrap();
+        let err = retrieval.next_data().await.unwrap_err();
+        assert_eq!(err, PipelineError::Eof.temp());
     }
 
     #[tokio::test]

@@ -133,10 +133,10 @@ func (t *testingT) Error(args ...any) {
 		t.skipFlakyFailure(fmt.Sprintln(args...))
 		return
 	}
-	// Note: the test-logger catches panics when the test is logged to after test-end.
-	// Note: we do not use t.Error directly, to keep the log-formatting more consistent.
-	t.logger.Error(fmt.Sprintln(args...))
-	t.Fail()
+	// Write directly to testing.T, not the structured logger. The structured logger's
+	// terminal handler quotes messages containing '=' (via escapeMessage/strconv.Quote),
+	// which escapes all \n and \t, making testify's multi-line assertion diffs unreadable.
+	t.t.Error(args...)
 }
 
 func (t *testingT) Errorf(format string, args ...any) {
@@ -145,10 +145,10 @@ func (t *testingT) Errorf(format string, args ...any) {
 		t.skipFlakyFailure(fmt.Sprintf(format, args...))
 		return
 	}
-	// Note: the test-logger catches panics when the test is logged to after test-end.
-	// Note: we do not use t.Errorf directly, to keep the log-formatting more consistent.
-	t.logger.Error(fmt.Sprintf(format, args...))
-	t.Fail()
+	// Write directly to testing.T, not the structured logger. The structured logger's
+	// terminal handler quotes messages containing '=' (via escapeMessage/strconv.Quote),
+	// which escapes all \n and \t, making testify's multi-line assertion diffs unreadable.
+	t.t.Errorf(format, args...)
 }
 
 func (t *testingT) Fail() {

@@ -22,8 +22,8 @@ Thanks for taking the time to contribute! ❤️
 
 ## Overview
 
-Optimism's documentation is open-source and hosted on GitHub in the `ethereum-optimism/docs` repository. The documentation is rendered at [docs.optimism.io](https://docs.optimism.io). You can contribute either by:
-- Forking the `docs` repository and working locally
+Optimism's documentation is open-source and hosted on GitHub in the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo under [`docs/public-docs`](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs). The documentation is rendered at [docs.optimism.io](https://docs.optimism.io). You can contribute either by:
+- Forking the `optimism` repository and working locally
 - Using the "Suggest edits" button on any documentation page for smaller updates
 
 All contributions, pull requests, and issues should be in English at this time. 
@@ -67,10 +67,10 @@ Follow these [docs](https://www.mintlify.com/docs/installation) for local change
 - Fix any reported issues
 - Verify content accuracy
 - Test all links and references
-- Target the `mintlify` branch (`main` needs to be cleaned up)
+- Target the `develop` branch
 
 ### Submission Guidelines
-1. Create a [new pull request](https://github.com/ethereum-optimism/docs/issues/new/choose)
+1. Create a [new pull request](https://github.com/ethereum-optimism/optimism/compare)
 2. Choose appropriate PR type or use blank template
 3. Provide clear title and accurate description
 4. Add labels

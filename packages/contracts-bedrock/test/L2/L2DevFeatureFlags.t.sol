@@ -85,7 +85,7 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     }
 
     /// @notice Tests that `isDevFeatureEnabled` works correctly with the known OPTIMISM_PORTAL_INTEROP feature.
-    function test_isDevFeatureEnabled_optimismPortalInterop_succeeds() public {
+    function test_isDevFeatureEnabled_interop_succeeds() public {
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
@@ -102,6 +102,5 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
-        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPCM_V2));
     }
 }

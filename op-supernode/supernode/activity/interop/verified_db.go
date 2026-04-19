@@ -33,9 +33,11 @@ var pendingTransitionKey = []byte("pending")
 
 // PendingInvalidation records a chain invalidation that needs to be executed.
 type PendingInvalidation struct {
-	ChainID   eth.ChainID `json:"chainID"`
-	BlockID   eth.BlockID `json:"blockID"`
-	Timestamp uint64      `json:"timestamp"` // the interop decision timestamp
+	ChainID                  eth.ChainID `json:"chainID"`
+	BlockID                  eth.BlockID `json:"blockID"`
+	Timestamp                uint64      `json:"timestamp"` // the interop decision timestamp
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
 }
 
 // VerifiedDB provides persistence for verified timestamps using bbolt.

@@ -45,10 +45,10 @@ var (
 )
 
 const (
-	cannonGameType       uint32 = 0
-	permissionedGameType uint32 = 1
-	superCannonGameType  uint32 = 4
-	alphabetGameType     uint32 = 255
+	cannonKonaGameType      uint32 = 8
+	permissionedGameType    uint32 = 1
+	superCannonKonaGameType uint32 = 9
+	alphabetGameType        uint32 = 255
 )
 
 type GameCfg struct {
@@ -168,7 +168,7 @@ func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	caller := batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize)
 	dgf, err := contracts.NewDisputeGameFactoryContract(ctx, metrics.NoopContractMetrics, h.FactoryAddr, caller)
 	h.Require.NoError(err)
-	vm, err := dgf.GetGameVm(ctx, gameTypes.GameType(cannonGameType))
+	vm, err := dgf.GetGameVm(ctx, gameTypes.GameType(cannonKonaGameType))
 	h.Require.NoError(err)
 	oracle, err := vm.Oracle(ctx)
 	h.Require.NoError(err)
@@ -192,7 +192,7 @@ func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context
 }
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
-	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, cannonGameType, opts...)
+	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, cannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartPermissionedGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
@@ -209,6 +209,11 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
+
+	bond, err := h.Factory.InitBonds(nil, gameType)
+	h.Require.NoError(err, "get init bond for game type")
+	h.Opts.Value = bond
+	defer func() { h.Opts.Value = nil }()
 
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)
@@ -240,13 +245,13 @@ func (h *FactoryHelper) StartSuperCannonGameWithCorrectRoot(ctx context.Context,
 	require.NoError(h.T, err)
 	l2Timestamp := b.Time()
 	h.WaitForSuperTimestamp(l2Timestamp, cfg)
-	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartSuperCannonGameWithCorrectRootAtTimestamp(ctx context.Context, l2Timestamp uint64, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	h.WaitForSuperTimestamp(l2Timestamp, cfg)
-	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, l2Timestamp, superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, opts ...GameOpt) *SuperCannonGameHelper {
@@ -254,11 +259,11 @@ func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, opts ...GameOp
 	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
 	b, err := h.Client.BlockByNumber(ctx, nil)
 	require.NoError(h.T, err)
-	return h.startSuperCannonGameOfType(ctx, b.Time(), superCannonGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, b.Time(), superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) StartSuperCannonGameAtTimestamp(ctx context.Context, timestamp uint64, opts ...GameOpt) *SuperCannonGameHelper {
-	return h.startSuperCannonGameOfType(ctx, timestamp, superCannonGameType, opts...)
+	return h.startSuperCannonGameOfType(ctx, timestamp, superCannonKonaGameType, opts...)
 }
 
 func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestamp uint64, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
@@ -271,6 +276,11 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
+
+	bond, err := h.Factory.InitBonds(nil, gameType)
+	h.Require.NoError(err, "get init bond for game type")
+	h.Opts.Value = bond
+	defer func() { h.Opts.Value = nil }()
 
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)

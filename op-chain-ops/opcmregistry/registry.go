@@ -331,11 +331,6 @@ func (s Semver) Compare(other Semver) int {
 	return 0
 }
 
-// IsV1OPCM returns true if this version is a V1 OPCM (6.x.x)
-func (s Semver) IsV1OPCM() bool {
-	return s.Major == 6
-}
-
 // GetOPCMsForChain returns all OPCMs for a given chain ID by fetching from the superchain-registry GitHub.
 // Returns unique OPCMs sorted by release version ascending, deduplicated by address.
 // Note: ReleaseVersion (e.g., "1.6.0") is NOT the OPCM contract's semver (e.g., "6.0.0").
@@ -428,8 +423,7 @@ type OPCMVersionQuerier func(addr common.Address) (string, error)
 // ResolvedOPCM contains an OPCM with its on-chain version resolved via opcm.version().
 type ResolvedOPCM struct {
 	Address     common.Address
-	OPCMVersion Semver // The actual OPCM semver from opcm.version() (e.g., "6.0.0")
-	IsV1        bool   // true for 6.x.x, false for 7.x.x+
+	OPCMVersion Semver // The actual OPCM semver from opcm.version() (e.g., "7.0.0")
 }
 
 // GetResolvedOPCMs fetches OPCM addresses from the registry, queries their OPCM versions
@@ -469,7 +463,6 @@ func GetResolvedOPCMs(chainID uint64, queryOPCMVersion OPCMVersionQuerier) ([]Re
 		resolved = append(resolved, ResolvedOPCM{
 			Address:     opcm.Address,
 			OPCMVersion: sv,
-			IsV1:        sv.IsV1OPCM(),
 		})
 	}
 

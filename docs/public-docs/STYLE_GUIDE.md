@@ -6,7 +6,7 @@ This Style Guide aims to assist Optimists in writing technical content with a co
 
 This doc doesn't cover all questions or use-cases. Our guide is based on the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/). Please reference their guide for any use-case or situation we do not cover here.
 
-* For docs-related questions or comments, create an issue in the [docs repo](https://github.com/ethereum-optimism/docs/issues).
+* For docs-related questions or comments, create an issue in the [docs repo](https://github.com/ethereum-optimism/optimism/issues).
 * For support-related questions or comments, create an issue in the [developers repo](https://github.com/ethereum-optimism/developers/issues).
 
 ## Table of Contents
@@ -23,7 +23,7 @@ This doc doesn't cover all questions or use-cases. Our guide is based on the [Mi
 
 ### Folder structure
 
-The folder structure for the [docs.optimism.io](https://github.com/ethereum-optimism/docs) repository is organized into several high-level categories.
+The folder structure for the [docs.optimism.io](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs) repository is organized into several high-level categories.
 
 The left sidebar (side navigation) is managed in the `docs.json` file, which should be edited only for adding or deleting pages. Frequent edits may lead to merge conflicts due to ongoing content updates. Accept changes from others when committing a PR.
 
@@ -77,7 +77,7 @@ See below for when to use title or sentence case.
   > * Select the **Settings** tab.
 
 * Use sentence case for body content and short phrases, even when the content is a link. Sentence case means you only capitalize the first letter of the sentence.
-  **Example:** If you're trying to figure out how to do something specific as a node operator, you might search our collection of tutorials or [suggest a new one](https://github.com/ethereum-optimism/docs/issues).
+  **Example:** If you're trying to figure out how to do something specific as a node operator, you might search our collection of tutorials or [suggest a new one](https://github.com/ethereum-optimism/optimism/issues).
 
 * Use lowercase in code snippets by default, unless the code block uses capitalization (e.g., for the name of a function or variable) and you are referring to the function or variable elsewhere within the technical documentation.
   **Examples**: Run `git add` or Import `useState`

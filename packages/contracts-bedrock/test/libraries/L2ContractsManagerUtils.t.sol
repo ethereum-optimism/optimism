@@ -360,4 +360,45 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             0
         );
     }
+
+    /// @notice Tests that upgradeTo reverts when the implementation address has no code.
+    function test_upgradeTo_emptyImplementation_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeTo(Predeploys.L2_CROSS_DOMAIN_MESSENGER, empty);
+    }
+
+    /// @notice Tests that upgradeToAndCall reverts when the implementation address has no code.
+    function test_upgradeToAndCall_emptyImplementation_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeToAndCall(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            empty,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+    }
+
+    /// @notice Tests that upgradeToAndCall reverts when the storage setter address has no code.
+    function test_upgradeToAndCall_emptyStorageSetter_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeToAndCall(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            implV2,
+            empty,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+    }
 }

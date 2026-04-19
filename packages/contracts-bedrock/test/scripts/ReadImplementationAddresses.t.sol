@@ -8,12 +8,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { ReadImplementationAddresses } from "scripts/deploy/ReadImplementationAddresses.s.sol";
 
 // Interfaces
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
-
-// Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title ReadImplementationAddressesTest
 /// @notice Tests that ReadImplementationAddresses correctly reads implementation addresses
@@ -26,9 +23,9 @@ contract ReadImplementationAddressesTest is CommonTest {
         script = new ReadImplementationAddresses();
     }
 
-    /// @notice Returns the OPCM instance, handling V1 vs V2 feature flag.
-    function _opcm() internal view returns (IOPContractsManager) {
-        return isDevFeatureEnabled(DevFeatures.OPCM_V2) ? IOPContractsManager(address(opcmV2)) : opcm;
+    /// @notice Returns the OPCM instance.
+    function _opcm() internal view returns (IOPContractsManagerV2) {
+        return IOPContractsManagerV2(address(opcmV2));
     }
 
     /// @notice Builds the input struct from the deployed contracts.
@@ -49,8 +46,8 @@ contract ReadImplementationAddressesTest is CommonTest {
         ReadImplementationAddresses.Output memory output = script.run(input);
 
         // Get expected implementations from OPCM
-        IOPContractsManager opcm_ = _opcm();
-        IOPContractsManager.Implementations memory impls = opcm_.implementations();
+        IOPContractsManagerV2 opcm_ = _opcm();
+        IOPContractsManagerContainer.Implementations memory impls = opcm_.implementations();
 
         // Assert implementations from OPCM match output
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");
@@ -70,26 +67,7 @@ contract ReadImplementationAddressesTest is CommonTest {
             output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );
 
-        // Assert V1 vs V2 specific fields
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // V2: deployer/upgrader/gameTypeAdder are zero, migrator comes from opcmMigrator()
-            assertEq(output.opcmDeployer, address(0), "OPCM Deployer should be zero in V2");
-            assertEq(output.opcmUpgrader, address(0), "OPCM Upgrader should be zero in V2");
-            assertEq(output.opcmGameTypeAdder, address(0), "OPCM GameTypeAdder should be zero in V2");
-            assertEq(
-                output.opcmInteropMigrator,
-                address(IOPContractsManagerV2(address(opcm_)).opcmMigrator()),
-                "OPCM InteropMigrator should match"
-            );
-        } else {
-            // V1: all component addresses come from opcm getters
-            assertEq(output.opcmDeployer, address(opcm_.opcmDeployer()), "OPCM Deployer should match");
-            assertEq(output.opcmUpgrader, address(opcm_.opcmUpgrader()), "OPCM Upgrader should match");
-            assertEq(output.opcmGameTypeAdder, address(opcm_.opcmGameTypeAdder()), "OPCM GameTypeAdder should match");
-            assertEq(
-                output.opcmInteropMigrator, address(opcm_.opcmInteropMigrator()), "OPCM InteropMigrator should match"
-            );
-        }
+        assertEq(output.opcmInteropMigrator, address(opcm_.opcmMigrator()), "OPCM InteropMigrator should match");
     }
 
     /// @notice Tests that ReadImplementationAddresses.runWithBytes succeeds.
@@ -101,8 +79,8 @@ contract ReadImplementationAddressesTest is CommonTest {
         ReadImplementationAddresses.Output memory output = abi.decode(outputBytes, (ReadImplementationAddresses.Output));
 
         // Get expected implementations from OPCM
-        IOPContractsManager opcm_ = _opcm();
-        IOPContractsManager.Implementations memory impls = opcm_.implementations();
+        IOPContractsManagerV2 opcm_ = _opcm();
+        IOPContractsManagerContainer.Implementations memory impls = opcm_.implementations();
 
         // Assert key values match
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");

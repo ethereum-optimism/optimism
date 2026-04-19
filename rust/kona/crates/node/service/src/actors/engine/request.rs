@@ -1,7 +1,6 @@
 use alloy_rpc_types_engine::PayloadId;
 use kona_engine::{BuildTaskError, ConsolidateInput, EngineQueries, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
-use kona_rpc::{RollupBoostAdminQuery, RollupBoostHealthQuery};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -56,14 +55,7 @@ pub enum EngineActorRequest {
 
 /// RPC Request for the engine to handle.
 #[derive(Debug)]
-pub enum EngineRpcRequest {
-    /// Engine RPC query.
-    EngineQuery(Box<EngineQueries>),
-    /// Rollup boost admin request.
-    RollupBoostAdminRequest(Box<RollupBoostAdminQuery>),
-    /// Rollup boost health request.
-    RollupBoostHealthRequest(Box<RollupBoostHealthQuery>),
-}
+pub struct EngineRpcRequest(pub Box<EngineQueries>);
 
 /// A request to build a payload.
 /// Contains the attributes to build and a channel to send back the resulting `PayloadId`.

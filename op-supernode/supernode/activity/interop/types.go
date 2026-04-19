@@ -13,13 +13,22 @@ type VerifiedResult struct {
 	L2Heads     map[eth.ChainID]eth.BlockID `json:"l2Heads"`
 }
 
+// InvalidHead pairs a block identifier with the output preimage fields needed
+// for optimistic root computation in the superroot API. The full OutputV0 can
+// be reconstructed on demand via OutputV0() since BlockHash is already in BlockID.
+type InvalidHead struct {
+	eth.BlockID
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+}
+
 // Result represents the result of interop validation at a specific timestamp given current data.
 // it contains all the same information as VerifiedResult, but also contains a list of invalid heads.
 type Result struct {
 	Timestamp    uint64                      `json:"timestamp"`
 	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
 	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
-	InvalidHeads map[eth.ChainID]eth.BlockID `json:"invalidHeads"`
+	InvalidHeads map[eth.ChainID]InvalidHead `json:"invalidHeads"`
 }
 
 // PendingTransition is the generic write-ahead-log entry for an effectful

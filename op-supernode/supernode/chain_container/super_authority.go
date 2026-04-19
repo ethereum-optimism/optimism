@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -89,6 +90,22 @@ func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) 
 		return false, fmt.Errorf("deny list not initialized")
 	}
 	return c.denyList.Contains(height, payloadHash)
+}
+
+// GetDeniedOutput returns the reconstructed OutputV0 for a denied block.
+func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	if c.denyList == nil {
+		return nil, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.GetOutputV0(height, payloadHash)
+}
+
+// OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
+func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
 // Interface satisfaction static check

@@ -5,10 +5,9 @@ import { Types } from "src/libraries/Types.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
-
 /// @title L2ContractsManagerTypes
 /// @notice Type definitions for L2ContractsManager upgrade operations.
+
 library L2ContractsManagerTypes {
     /// @notice Configuration for L2CrossDomainMessenger.
     struct CrossDomainMessengerConfig {
@@ -50,11 +49,6 @@ library L2ContractsManagerTypes {
         string gasPayingTokenSymbol;
     }
 
-    /// @notice Configuration for FeeSplitter.
-    struct FeeSplitterConfig {
-        ISharesCalculator sharesCalculator;
-    }
-
     /// @notice Full network-specific configuration gathered from existing predeploys.
     ///         These values are read before upgrade and passed to initializers after.
     struct FullConfig {
@@ -68,7 +62,6 @@ library L2ContractsManagerTypes {
         FeeVaultConfig l1FeeVault;
         FeeVaultConfig operatorFeeVault;
         LiquidityControllerConfig liquidityController;
-        FeeSplitterConfig feeSplitter;
         bool isCustomGasToken;
         bool isInterop;
     }
@@ -99,7 +92,6 @@ library L2ContractsManagerTypes {
         address ethLiquidityImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
-        address feeSplitterImpl;
         address conditionalDeployerImpl;
         address l2DevFeatureFlagsImpl;
     }

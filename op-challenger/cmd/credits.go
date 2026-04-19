@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
@@ -17,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/maps"
 )
 
 func ListCredits(ctx *cli.Context) error {
@@ -72,7 +73,7 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 	if err != nil {
 		return fmt.Errorf("failed to get DelayedWETH info: %w", err)
 	}
-	claimants := maps.Keys(recipients)
+	claimants := slices.Collect(maps.Keys(recipients))
 	withdrawals, err := game.GetWithdrawals(ctx, rpcblock.Latest, claimants...)
 	if err != nil {
 		return fmt.Errorf("failed to get withdrawals: %w", err)
