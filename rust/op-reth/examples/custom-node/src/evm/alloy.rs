@@ -25,6 +25,29 @@ impl<DB: Database, I, P> CustomEvm<DB, I, P> {
     pub fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
         Self { inner: op }
     }
+
+    /// Begin post-exec tracking for the next transaction.
+    pub fn begin_post_exec_tx(&mut self, ctx: alloy_op_evm::post_exec::PostExecTxContext) {
+        self.inner.begin_post_exec_tx(ctx);
+    }
+
+    /// Take the extracted post-exec result for the most recently executed transaction.
+    pub fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
+        self.inner.take_last_post_exec_tx_result()
+    }
+}
+
+impl<DB: Database, I, P> alloy_op_evm::post_exec::PostExecEvm for CustomEvm<DB, I, P>
+where
+    Self: Evm,
+{
+    fn begin_post_exec_tx(&mut self, ctx: alloy_op_evm::post_exec::PostExecTxContext) {
+        Self::begin_post_exec_tx(self, ctx);
+    }
+
+    fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
+        Self::take_last_post_exec_tx_result(self)
+    }
 }
 
 impl<DB, I, P> Evm for CustomEvm<DB, I, P>

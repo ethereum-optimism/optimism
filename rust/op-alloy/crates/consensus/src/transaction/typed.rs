@@ -100,7 +100,7 @@ impl OpTypedTransaction {
             Self::Eip2930(tx) => Some(tx.signature_hash()),
             Self::Eip1559(tx) => Some(tx.signature_hash()),
             Self::Eip7702(tx) => Some(tx.signature_hash()),
-            // Deposit and PostExec are unsigned synthetic transactions with no signature hash.
+            // Deposit and PostExec are system transactions with no signature hash.
             Self::Deposit(_) | Self::PostExec(_) => None,
         }
     }

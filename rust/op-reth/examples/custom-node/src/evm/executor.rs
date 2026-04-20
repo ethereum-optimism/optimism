@@ -7,14 +7,19 @@ use crate::{
 };
 use alloy_consensus::transaction::Recovered;
 use alloy_evm::{
-    Evm, RecoveredTx,
+    RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
         BlockExecutorFor, ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
-use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext, block::OpTxResult};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext,
+    block::OpTxResult,
+    post_exec::{PostExecEvm, PostExecExecutorExt},
+};
+use op_alloy_consensus::SDMGasEntry;
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
 use revm::Inspector;
 use std::sync::Arc;
@@ -23,10 +28,16 @@ pub struct CustomBlockExecutor<Evm> {
     inner: OpBlockExecutor<Evm, OpRethReceiptBuilder, Arc<OpChainSpec>>,
 }
 
+impl<Evm> CustomBlockExecutor<Evm> {
+    pub const fn new(inner: OpBlockExecutor<Evm, OpRethReceiptBuilder, Arc<OpChainSpec>>) -> Self {
+        Self { inner }
+    }
+}
+
 impl<DB, E> BlockExecutor for CustomBlockExecutor<E>
 where
     DB: StateDB,
-    E: Evm<DB = DB, Tx = CustomTxEnv>,
+    E: PostExecEvm<DB = DB, Tx = CustomTxEnv>,
 {
     type Transaction = CustomTransaction;
     type Receipt = OpReceipt;
@@ -75,6 +86,15 @@ where
 
     fn evm(&self) -> &Self::Evm {
         self.inner.evm()
+    }
+}
+
+impl<E> PostExecExecutorExt for CustomBlockExecutor<E>
+where
+    E: alloy_evm::Evm,
+{
+    fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
+        self.inner.take_post_exec_entries()
     }
 }
 
