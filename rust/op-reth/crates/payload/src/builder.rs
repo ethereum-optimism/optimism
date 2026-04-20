@@ -3,11 +3,12 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
-use alloy_consensus::{BlockHeader, Transaction, Typed2718};
+use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_evm::Evm as AlloyEvm;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{Address, B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -19,8 +20,11 @@ use reth_evm::{
     },
 };
 use reth_execution_types::BlockExecutionOutput;
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, transaction::OpTransaction};
+use reth_optimism_primitives::{
+    L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransactionSigned, transaction::OpTransaction,
+};
 use reth_optimism_txpool::{
     OpPooledTx,
     estimated_da_size::DataAvailabilitySized,
@@ -41,6 +45,46 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+fn build_post_exec_recovered_tx(
+    block_number: u64,
+    entries: Vec<SDMGasEntry>,
+) -> Recovered<OpTransactionSigned> {
+    let post_exec_tx = build_post_exec_tx(block_number, entries);
+    let post_exec_signed = OpTransactionSigned::PostExec(post_exec_tx.seal_slow());
+    Recovered::new_unchecked(post_exec_signed, Address::ZERO)
+}
+
+/// Wraps refund entries in a synthetic post-exec transaction and executes it via `execute`.
+///
+/// Returns `true` if a synthetic transaction was executed, `false` if `entries` is empty.
+///
+/// The synthetic transaction MUST execute successfully: any error is surfaced as
+/// `PayloadBuilderError::EvmExecutionError` so the payload build aborts. A verifier
+/// replaying this block will expect the post-exec tx to match the refunds it observes,
+/// so dropping the tx (or returning an empty block) on failure would produce a payload
+/// that no honest verifier can reproduce.
+fn try_include_post_exec_tx<Err>(
+    block_number: u64,
+    entries: Vec<SDMGasEntry>,
+    execute: impl FnOnce(Recovered<OpTransactionSigned>) -> Result<u64, Err>,
+) -> Result<bool, PayloadBuilderError>
+where
+    Err: core::error::Error + Send + Sync + 'static,
+{
+    if entries.is_empty() {
+        return Ok(false);
+    }
+
+    let post_exec_recovered = build_post_exec_recovered_tx(block_number, entries);
+
+    execute(post_exec_recovered).map_err(|err| {
+        warn!(target: "payload_builder", %err, "post-exec tx execution failed, aborting payload");
+        PayloadBuilderError::evm(err)
+    })?;
+    debug!(target: "payload_builder", "post-exec tx included in block");
+    Ok(true)
+}
 
 /// Optimism's payload builder
 #[derive(Debug)]
@@ -155,8 +199,8 @@ impl<Pool, Client, Evm, N, T, Attrs> OpPayloadBuilder<Pool, Client, Evm, T, Attr
 where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks>,
-    N: OpPayloadPrimitives,
-    Evm: ConfigureEvm<
+    N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Client::ChainSpec>,
         >,
@@ -237,10 +281,10 @@ where
 impl<Pool, Client, Evm, N, Txs> PayloadBuilder
     for OpPayloadBuilder<Pool, Client, Evm, Txs, OpPayloadBuilderAttributes<N::SignedTx>>
 where
-    N: OpPayloadPrimitives,
+    N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<
                 OpPayloadBuilderAttributes<N::SignedTx>,
@@ -363,12 +407,12 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
-        N: OpPayloadPrimitives,
+        N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
@@ -406,6 +450,12 @@ impl<Txs> OpBuilder<'_, Txs> {
                 // can skip building the block
                 return Ok(BuildOutcomeKind::Aborted { fees: info.total_fees });
             }
+        }
+
+        if ctx.builder_config.sdm_enabled {
+            let block_number = builder.evm_mut().block().number().saturating_to();
+            let entries = builder.executor_mut().take_post_exec_entries();
+            try_include_post_exec_tx(block_number, entries, |tx| builder.execute_transaction(tx))?;
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
@@ -448,12 +498,12 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: &OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
-        N: OpPayloadPrimitives,
+        N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
@@ -597,7 +647,7 @@ pub struct OpPayloadBuilderCtx<
 
 impl<Evm, ChainSpec, Attrs> OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>
 where
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives: OpPayloadPrimitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, HeaderTy<Evm::Primitives>, ChainSpec>,
         >,
@@ -639,12 +689,13 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>,
+            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>
+                          + PostExecExecutorExt,
         > + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
-            .builder_for_next_block(
+            .post_exec_builder_for_next_block(
                 db,
                 self.parent(),
                 Evm::NextBlockEnvCtx::build_next_env(
@@ -653,6 +704,11 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
+                if self.builder_config.sdm_enabled {
+                    PostExecMode::Produce
+                } else {
+                    PostExecMode::Disabled
+                },
             )
             .map_err(PayloadBuilderError::other)
     }
@@ -811,5 +867,99 @@ where
         }
 
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_post_exec_recovered_tx, try_include_post_exec_tx};
+    use alloy_consensus::Typed2718;
+    use alloy_evm::RecoveredTx;
+    use alloy_primitives::Address;
+    use op_alloy_consensus::SDMGasEntry;
+    use reth_evm::execute::BlockExecutionError;
+    use reth_optimism_primitives::OpTransactionSigned;
+    use reth_payload_builder_primitives::PayloadBuilderError;
+    use std::cell::Cell;
+
+    #[test]
+    fn build_post_exec_recovered_tx_wraps_entries_in_post_exec_tx() {
+        let entries = vec![
+            SDMGasEntry { index: 3, gas_refund: 17 },
+            SDMGasEntry { index: 5, gas_refund: 23 },
+        ];
+
+        let block_number = 42;
+        let recovered = build_post_exec_recovered_tx(block_number, entries.clone());
+
+        assert_eq!(recovered.signer(), Address::ZERO);
+        assert_eq!(recovered.tx().ty(), op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
+
+        let OpTransactionSigned::PostExec(tx) = recovered.into_inner() else {
+            panic!("expected synthetic post-exec transaction");
+        };
+        assert_eq!(tx.inner().payload.block_number, block_number);
+        assert_eq!(tx.inner().payload.gas_refund_entries, entries);
+    }
+
+    #[test]
+    fn try_include_post_exec_tx_skips_when_no_entries() {
+        let called = Cell::new(false);
+        let result = try_include_post_exec_tx(1, Vec::new(), |_tx| {
+            called.set(true);
+            Ok::<_, BlockExecutionError>(0)
+        });
+        assert!(matches!(result, Ok(false)));
+        assert!(!called.get(), "execute must not run when there are no entries");
+    }
+
+    #[test]
+    fn try_include_post_exec_tx_executes_synthetic_tx_on_happy_path() {
+        let entries = vec![SDMGasEntry { index: 0, gas_refund: 7 }];
+        let block_number = 99;
+        let captured_ty = Cell::new(0u8);
+        let captured_block_number = Cell::new(0u64);
+        let captured_entries = Cell::new(Vec::<SDMGasEntry>::new());
+
+        let result = try_include_post_exec_tx(block_number, entries.clone(), |tx| {
+            captured_ty.set(tx.tx().ty());
+            let OpTransactionSigned::PostExec(signed) = tx.into_inner() else {
+                panic!("expected synthetic post-exec transaction");
+            };
+            captured_block_number.set(signed.inner().payload.block_number);
+            captured_entries.set(signed.inner().payload.gas_refund_entries.clone());
+            Ok::<_, BlockExecutionError>(21_000)
+        });
+
+        assert!(matches!(result, Ok(true)));
+        assert_eq!(captured_ty.get(), op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
+        assert_eq!(captured_block_number.get(), block_number);
+        assert_eq!(captured_entries.into_inner(), entries);
+    }
+
+    /// Consensus-critical: if the synthetic post-exec tx fails to execute, the payload build
+    /// MUST abort with an error. Returning `Ok(_)` (e.g. an empty block, or silently dropping
+    /// the tx) would diverge the producer from any honest verifier, because the verifier
+    /// observes refunds from the normal txs and expects a matching post-exec tx.
+    #[test]
+    fn try_include_post_exec_tx_aborts_when_execution_fails() {
+        let entries = vec![SDMGasEntry { index: 0, gas_refund: 7 }];
+        let called = Cell::new(false);
+
+        let result = try_include_post_exec_tx(1, entries, |_tx| {
+            called.set(true);
+            Err::<u64, _>(BlockExecutionError::msg("forced synthetic-tx failure"))
+        });
+
+        assert!(called.get(), "execute must be invoked so its error can propagate");
+        match result {
+            Err(PayloadBuilderError::EvmExecutionError(err)) => {
+                assert!(err.to_string().contains("forced synthetic-tx failure"));
+            }
+            Err(other) => panic!("expected EvmExecutionError, got: {other:?}"),
+            Ok(flag) => panic!(
+                "expected Err — returning Ok({flag}) would let a producer ship a payload no verifier can reproduce"
+            ),
+        }
     }
 }

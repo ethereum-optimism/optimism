@@ -35,20 +35,20 @@ use reth_node_builder::{
 };
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
     config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig},
 };
-use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
+use reth_optimism_primitives::{DepositReceipt, OpPrimitives, OpTransactionSigned};
 use reth_optimism_rpc::{
     SequencerClient,
     eth::{OpEthApiBuilder, ext::OpEthExtApi},
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
-    witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
+    witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
@@ -129,7 +129,6 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
         })
     }
 }
-
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
 pub trait OpNodeTypes:
     NodeTypes<Payload = OpEngineTypes, ChainSpec: OpHardforks + Hardforks, Primitives = OpPrimitives>
@@ -150,7 +149,7 @@ impl<N> OpNodeTypes for N where
 pub trait OpFullNodeTypes:
     NodeTypes<
         ChainSpec: OpHardforks,
-        Primitives: OpPayloadPrimitives,
+        Primitives: OpPayloadPrimitives<_TX = OpTransactionSigned>,
         Storage = OpStorage,
         Payload: EngineTypes<ExecutionData = OpExecData>,
     >
@@ -160,7 +159,7 @@ pub trait OpFullNodeTypes:
 impl<N> OpFullNodeTypes for N where
     N: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives: OpPayloadPrimitives,
+            Primitives: OpPayloadPrimitives<_TX = OpTransactionSigned>,
             Storage = OpStorage,
             Payload: EngineTypes<ExecutionData = OpExecData>,
         >
@@ -239,7 +238,8 @@ impl OpNode {
             .payload(BasicPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
-                    .with_gas_limit_config(self.gas_limit_config.clone()),
+                    .with_gas_limit_config(self.gas_limit_config.clone())
+                    .with_sdm_enabled(self.args.sdm_enabled),
             ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
@@ -590,8 +590,9 @@ impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
-            Evm: ConfigureEvm<
+            Types: NodeTypes<ChainSpec: OpHardforks, Primitives = OpPrimitives>,
+            Evm: ConfigurePostExecEvm<
+                Primitives = OpPrimitives,
                 NextBlockEnvCtx: BuildNextEnv<
                     OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
@@ -656,6 +657,7 @@ where
                 ctx.node.provider().clone(),
                 ctx.node.task_executor().clone(),
                 builder,
+                ctx.node.evm_config().clone(),
             );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
@@ -677,7 +679,14 @@ where
                     container;
 
                 debug!(target: "reth::cli", "Installing debug payload witness rpc endpoint");
-                modules.merge_if_module_configured(RethRpcModule::Debug, debug_ext.into_rpc())?;
+                modules.merge_if_module_configured(
+                    RethRpcModule::Debug,
+                    DebugExecutionWitnessApiServer::into_rpc(debug_ext.clone()),
+                )?;
+                modules.merge_if_module_configured(
+                    RethRpcModule::Debug,
+                    OpDebugPostExecApiServer::into_rpc(debug_ext.clone()),
+                )?;
 
                 // extend the miner namespace if configured in the regular http server
                 modules.add_or_replace_if_module_configured(
@@ -715,8 +724,9 @@ impl<N, EthB, PVB, EB, EVB, RpcMiddleware> RethRpcAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
-            Evm: ConfigureEvm<
+            Types: NodeTypes<ChainSpec: OpHardforks, Primitives = OpPrimitives>,
+            Evm: ConfigurePostExecEvm<
+                Primitives = OpPrimitives,
                 NextBlockEnvCtx: BuildNextEnv<
                     OpPayloadBuilderAttributes<TxTy<N::Types>>,
                     HeaderTy<N::Types>,
@@ -1188,6 +1198,8 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// Gas limit configuration for the OP builder.
     /// This is used to configure gas limit related constraints for the payload builder.
     pub gas_limit_config: OpGasLimitConfig,
+    /// Whether produced payloads should inject a synthetic post-exec transaction.
+    pub sdm_enabled: bool,
 }
 
 impl OpPayloadBuilder {
@@ -1199,6 +1211,7 @@ impl OpPayloadBuilder {
             best_transactions: (),
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
+            sdm_enabled: false,
         }
     }
 
@@ -1213,14 +1226,26 @@ impl OpPayloadBuilder {
         self.gas_limit_config = gas_limit_config;
         self
     }
+
+    /// Configure whether the OP payload builder should inject a synthetic post-exec tx.
+    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
+        self.sdm_enabled = sdm_enabled;
+        self
+    }
 }
 
 impl<Txs> OpPayloadBuilder<Txs> {
     /// Configures the type responsible for yielding the transactions that should be included in the
     /// payload.
     pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
-        let Self { compute_pending_block, da_config, gas_limit_config, .. } = self;
-        OpPayloadBuilder { compute_pending_block, best_transactions, da_config, gas_limit_config }
+        let Self { compute_pending_block, da_config, gas_limit_config, sdm_enabled, .. } = self;
+        OpPayloadBuilder {
+            compute_pending_block,
+            best_transactions,
+            da_config,
+            gas_limit_config,
+            sdm_enabled,
+        }
     }
 }
 
@@ -1229,14 +1254,14 @@ where
     Node: FullNodeTypes<
             Provider: ChainSpecProvider<ChainSpec: OpHardforks>,
             Types: NodeTypes<
-                Primitives: OpPayloadPrimitives,
+                Primitives: OpPayloadPrimitives<_TX = OpTransactionSigned>,
                 Payload: PayloadTypes<
                     BuiltPayload = OpBuiltPayload<PrimitivesTy<Node::Types>>,
                     PayloadAttributes = OpPayloadAttrs,
                 >,
             >,
         >,
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives = PrimitivesTy<Node::Types>,
             NextBlockEnvCtx: BuildNextEnv<
                 OpPayloadBuilderAttributes<TxTy<Node::Types>>,
@@ -1268,6 +1293,7 @@ where
             OpBuilderConfig {
                 da_config: self.da_config.clone(),
                 gas_limit_config: self.gas_limit_config.clone(),
+                sdm_enabled: self.sdm_enabled,
             },
         )
         .with_transactions(self.best_transactions.clone())

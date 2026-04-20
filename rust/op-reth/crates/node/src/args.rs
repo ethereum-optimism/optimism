@@ -38,6 +38,10 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
+    /// Enable SDM, which injects a synthetic post-exec transaction into produced blocks.
+    #[arg(long = "rollup.sdm-enabled", default_value = "false")]
+    pub sdm_enabled: bool,
+
     /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
     #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
     pub supervisor_http: Option<String>,
@@ -149,6 +153,7 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
+            sdm_enabled: false,
             supervisor_http: None,
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),

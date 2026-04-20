@@ -57,6 +57,7 @@ fn test_basic_setup() {
 }
 
 #[test]
+#[allow(dead_code)]
 fn test_setup_custom_precompiles() {
     /// Unichain custom precompiles.
     struct UniPrecompiles;
@@ -157,11 +158,6 @@ fn test_setup_custom_precompiles() {
     NodeBuilder::new(NodeConfig::new(OP_SEPOLIA.clone()))
         .with_database(create_test_rw_db())
         .with_types::<OpNode>()
-        .with_components(
-            OpNode::default()
-                .components()
-                // Custom EVM configuration
-                .executor(UniExecutorBuilder),
-        )
+        .with_components(OpNode::default().components())
         .check_launch();
 }

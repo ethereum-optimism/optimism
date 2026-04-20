@@ -9,12 +9,18 @@ pub struct OpBuilderConfig {
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
+    /// Whether synthetic post-exec transactions should be injected for produced payloads.
+    pub sdm_enabled: bool,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
-    pub const fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
-        Self { da_config, gas_limit_config }
+    pub const fn new(
+        da_config: OpDAConfig,
+        gas_limit_config: OpGasLimitConfig,
+        sdm_enabled: bool,
+    ) -> Self {
+        Self { da_config, gas_limit_config, sdm_enabled }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
