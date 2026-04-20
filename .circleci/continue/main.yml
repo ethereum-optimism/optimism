@@ -2768,18 +2768,10 @@ workflows:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-non_docs_changes >>
     jobs:
-      - ci-gate-skip:
-          name: check-kontrol-build
-      - ci-gate-skip:
-          name: shell-check
-      - ci-gate-skip:
-          name: go-lint
-      - ci-gate-skip:
-          name: semgrep-scan-local
-      - ci-gate-skip:
-          name: go-tests-short
-      - ci-gate-skip:
-          name: memory-all
+      - ci-gate:
+          always-succed: true
+          context:
+            - circleci-api-token
 
   go-release-op-deployer:
     jobs:
