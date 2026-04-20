@@ -108,6 +108,9 @@ type MixedSingleChainNodeSpec struct {
 	ELKind      MixedL2ELKind
 	CLKind      MixedL2CLKind
 	IsSequencer bool
+	// SDMEnabled enables the post-exec feature flag on op-reth sequencers.
+	// Kept for compatibility with existing SDM PoC acceptance tests.
+	SDMEnabled bool
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -168,7 +171,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nil, spec.SDMEnabled)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -281,6 +284,8 @@ func buildMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
+	elCfg *L2ELConfig,
+	postExecEnabled bool,
 ) *OpReth {
 	tempDir := t.TempDir()
 
@@ -339,6 +344,9 @@ func buildMixedOpRethNode(
 	if areMetricsEnabled() {
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
+	if postExecEnabled {
+		args = append(args, "--rollup.sdm-enabled")
+	}
 
 	initArgs := []string{
 		"init",
@@ -348,25 +356,27 @@ func buildMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	proofHistoryDir := filepath.Join(tempDir, "proof-history")
+	if elCfg == nil || elCfg.ProofHistory {
+		proofHistoryDir := filepath.Join(tempDir, "proof-history")
 
-	initProofsArgs := []string{
-		"proofs",
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-		"--proofs-history.storage-path=" + proofHistoryDir,
+		initProofsArgs := []string{
+			"proofs",
+			"init",
+			"--datadir=" + dataDirPath,
+			"--chain=" + chainConfigPath,
+			"--proofs-history.storage-path=" + proofHistoryDir,
+		}
+		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
+		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+
+		args = append(
+			args,
+			"--proofs-history",
+			"--proofs-history.window=10000",
+			"--proofs-history.prune-interval=1m",
+			"--proofs-history.storage-path="+proofHistoryDir,
+		)
 	}
-	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
-
-	args = append(
-		args,
-		"--proofs-history",
-		"--proofs-history.window=10000",
-		"--proofs-history.prune-interval=1m",
-		"--proofs-history.storage-path="+proofHistoryDir,
-	)
 
 	return &OpReth{
 		name:               key,
@@ -390,8 +400,10 @@ func startMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
+	elCfg *L2ELConfig,
+	postExecEnabled bool,
 ) *OpReth {
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, elCfg, postExecEnabled)
 	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
 	node.Start()
 	t.Cleanup(node.Stop)
@@ -410,7 +422,7 @@ func startMixedOpRethNodeWithSupervisorURL(
 	metricsRegistrar L2MetricsRegistrar,
 	supervisorURL string,
 ) *OpReth {
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, nil, false)
 	if supervisorURL != "" {
 		node.args = append(node.args, "--rollup.supervisor-http="+supervisorURL)
 	}
