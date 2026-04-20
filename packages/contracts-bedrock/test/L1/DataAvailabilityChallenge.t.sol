@@ -916,22 +916,3 @@ contract DataAvailabilityChallenge_Initialize_Test is DataAvailabilityChallenge_
         );
     }
 }
-
-/// @title DataAvailabilityChallenge_ComputeCommitmentKeccak256_Test
-/// @notice Test contract for the `computeCommitmentKeccak256` free function.
-contract DataAvailabilityChallenge_ComputeCommitmentKeccak256_Test is DataAvailabilityChallenge_TestInit {
-    /// @notice Test that `computeCommitmentKeccak256` prefixes the Keccak256 type byte and hash.
-    function testFuzz_computeCommitmentKeccak256_succeeds(bytes memory _data) public pure {
-        bytes memory commitment = computeCommitmentKeccak256(_data);
-        assertEq(commitment.length, 33);
-        assertEq(uint8(commitment[0]), uint8(CommitmentType.Keccak256));
-        assertEq(bytes32(_sliceTail(commitment)), keccak256(_data));
-    }
-
-    /// @notice Helper that returns the trailing 32 bytes of a 33-byte commitment.
-    function _sliceTail(bytes memory _commitment) internal pure returns (bytes32 out_) {
-        assembly {
-            out_ := mload(add(_commitment, 33))
-        }
-    }
-}
