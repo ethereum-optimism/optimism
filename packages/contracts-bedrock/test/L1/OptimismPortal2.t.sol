@@ -2322,6 +2322,18 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         optimismPortal2.depositTransaction({ _to: address(1), _value: 0, _gasLimit: 0, _isCreation: false, _data: hex"" });
     }
 
+    /// @notice Tests that `depositTransaction` reverts when the gas limit is too large.
+    function test_depositTransaction_largeGasLimit_reverts() external {
+        vm.expectRevert(IOptimismPortal.OptimismPortal_GasLimitTooHigh.selector);
+        optimismPortal2.depositTransaction({
+            _to: address(1),
+            _value: 0,
+            _gasLimit: Constants.L2_MAX_TX_GAS_LIMIT + 1,
+            _isCreation: false,
+            _data: hex""
+        });
+    }
+
     /// @notice Tests that `depositTransaction` reverts when the value is greater than 0 and the
     ///         custom gas token is active.
     function test_depositTransaction_withCustomGasTokenAndValue_reverts(bytes memory _data, uint256 _value) external {

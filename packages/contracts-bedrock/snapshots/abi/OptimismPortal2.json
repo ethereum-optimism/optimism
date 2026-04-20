@@ -861,6 +861,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_GasLimitTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_GasLimitTooLow",
     "type": "error"
   },
