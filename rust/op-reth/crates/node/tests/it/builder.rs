@@ -72,7 +72,9 @@ fn test_setup_custom_precompiles() {
                 let precompile = Precompile::new(
                     PrecompileId::custom("custom"),
                     address!("0x0000000000000000000000000000000000756e69"),
-                    |_, _| PrecompileResult::Ok(PrecompileOutput::new(0, Bytes::new())),
+                    |_, _, reservoir| {
+                        PrecompileResult::Ok(PrecompileOutput::new(0, Bytes::new(), reservoir))
+                    },
                 );
                 precompiles.extend([precompile]);
                 precompiles

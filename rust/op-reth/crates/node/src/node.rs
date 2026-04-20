@@ -941,6 +941,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                 EB::default(),
                 EVB::default(),
                 rpc_middleware,
+                reth_node_builder::rpc::Identity::new(),
             )
             .with_tokio_runtime(tokio_runtime),
             da_config.unwrap_or_default(),

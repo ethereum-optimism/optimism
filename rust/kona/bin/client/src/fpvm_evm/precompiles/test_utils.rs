@@ -48,7 +48,7 @@ pub(crate) fn execute_native_precompile<T: Into<Bytes>>(
     let Some(precompile) = precompiles.precompiles.get(&address) else {
         panic!("Precompile not found");
     };
-    precompile.execute(&input.into(), gas)
+    precompile.execute(&input.into(), gas, 0)
 }
 
 /// Starts a mock host thread that serves [`HintType::L1Precompile`] hints and preimages.
@@ -115,15 +115,15 @@ impl PreimageFetcher for PrecompilePreimageFetcher {
             let input = parsed_hint.data[28..].to_vec();
             let input_hash = keccak256(parsed_hint.data.as_ref());
 
-            let result = execute_native_precompile(address, input, gas).map_or_else(
-                |_| vec![0u8; 1],
-                |raw_res| {
+            let result = match execute_native_precompile(address, input, gas) {
+                Ok(raw_res) if raw_res.is_success() => {
                     let mut res = Vec::with_capacity(1 + raw_res.bytes.len());
                     res.push(0x01);
                     res.extend_from_slice(&raw_res.bytes);
                     res
-                },
-            );
+                }
+                _ => vec![0u8; 1],
+            };
 
             map_lock
                 .insert(PreimageKey::new(*input_hash, PreimageKeyType::Precompile), result.clone());

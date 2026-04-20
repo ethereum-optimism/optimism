@@ -4,7 +4,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use revm::precompile::{
-    PrecompileError, PrecompileOutput, PrecompileResult,
+    EthPrecompileOutput, EthPrecompileResult, PrecompileHalt,
     bn254::{
         PAIR_ELEMENT_LEN,
         pair::{self, ISTANBUL_PAIR_BASE, ISTANBUL_PAIR_PER_POINT},
@@ -20,7 +20,7 @@ pub(crate) fn fpvm_bn128_pair<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
@@ -29,11 +29,11 @@ where
         (input.len() / PAIR_ELEMENT_LEN) as u64 * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE;
 
     if gas_used > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     if !input.len().is_multiple_of(PAIR_ELEMENT_LEN) {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     let precompile = pair::ISTANBUL;
@@ -43,9 +43,9 @@ where
         oracle_reader,
         &[precompile.address().as_slice(), &gas_used.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(gas_used, result_data.into()))
+    Ok(EthPrecompileOutput::new(gas_used, result_data.into()))
 }
 
 /// Runs the FPVM-accelerated `ecpairing` precompile call, with the input size limited by the
@@ -55,13 +55,13 @@ pub(crate) fn fpvm_bn128_pair_granite<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BN256_MAX_PAIRING_SIZE_GRANITE {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     fpvm_bn128_pair(input, gas_limit, hint_writer, oracle_reader)
@@ -74,13 +74,13 @@ pub(crate) fn fpvm_bn128_pair_jovian<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BN256_MAX_PAIRING_SIZE_JOVIAN {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     fpvm_bn128_pair(input, gas_limit, hint_writer, oracle_reader)
@@ -140,7 +140,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair(&input, 0, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }
@@ -152,7 +152,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }
@@ -168,7 +168,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair_granite(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }
@@ -200,7 +200,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair_jovian(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }

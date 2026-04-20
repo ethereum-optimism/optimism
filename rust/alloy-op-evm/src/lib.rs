@@ -137,6 +137,10 @@ where
         &self.block
     }
 
+    fn cfg_env(&self) -> &CfgEnv<OpSpecId> {
+        &self.cfg
+    }
+
     fn chain_id(&self) -> u64 {
         self.cfg.chain_id
     }
@@ -162,7 +166,7 @@ where
         self.inner.system_call_with_caller(caller, contract, data).map_err(map_op_err)
     }
 
-    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
+    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec, Self::BlockEnv>) {
         let Context { block: block_env, cfg: cfg_env, journaled_state, .. } = self.inner.0.ctx;
 
         (journaled_state.database, EvmEnv { block_env, cfg_env })
@@ -227,7 +231,7 @@ where
     fn create_evm<DB: Database>(
         &self,
         db: DB,
-        input: EvmEnv<OpSpecId>,
+        input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
         let spec_id = input.cfg_env.spec;
         OpEvm {
@@ -250,7 +254,7 @@ where
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
         &self,
         db: DB,
-        input: EvmEnv<OpSpecId>,
+        input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
         let spec_id = input.cfg_env.spec;
@@ -274,14 +278,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::{string::ToString, vec};
+    use alloc::vec;
     use alloy_evm::{
         EvmInternals,
         precompiles::{Precompile, PrecompileInput},
     };
     use alloy_primitives::U256;
     use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileError};
+    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileHalt};
 
     use super::*;
 
@@ -295,64 +299,85 @@ mod tests {
         let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
 
         let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PrecompileError::Bn254PairLength));
+        assert!(result.is_halt());
+        assert!(matches!(result.halt_reason(), Some(&PrecompileHalt::Bn254PairLength)));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("G1MSM input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("G1MSM input length too long")
+        ));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("G2MSM input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("G2MSM input length too long")
+        ));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Pairing input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("Pairing input length too long")
+        ));
     }
 
     #[test]
@@ -366,6 +391,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -380,6 +406,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -394,6 +421,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -408,6 +436,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,

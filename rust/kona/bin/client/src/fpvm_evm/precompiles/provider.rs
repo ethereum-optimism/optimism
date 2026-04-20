@@ -8,13 +8,15 @@ use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
     OpSpecId,
-    precompiles::{fjord, granite, isthmus, jovian, karst},
+    precompiles::{fjord, granite, isthmus, jovian},
 };
 use revm::{
     context::{Cfg, ContextTr},
     handler::{EthPrecompiles, PrecompileProvider},
     interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult},
-    precompile::{PrecompileError, PrecompileResult, Precompiles, bls12_381_const, bn254},
+    precompile::{
+        EthPrecompileResult, PrecompileError, PrecompileOutput, Precompiles, bls12_381_const, bn254,
+    },
     primitives::{hardfork::SpecId, hash_map::HashMap},
 };
 
@@ -49,8 +51,7 @@ where
             OpSpecId::FJORD => fjord(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
-            OpSpecId::JOVIAN => jovian(),
-            OpSpecId::KARST | OpSpecId::INTEROP => karst(),
+            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => jovian(),
         };
 
         let accelerated_precompiles = match spec {
@@ -60,7 +61,7 @@ where
             OpSpecId::ECOTONE | OpSpecId::FJORD => accelerated_ecotone::<H, O>(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
             OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
-            OpSpecId::JOVIAN | OpSpecId::KARST | OpSpecId::INTEROP => accelerated_jovian::<H, O>(),
+            OpSpecId::JOVIAN | OpSpecId::INTEROP | OpSpecId::OSAKA => accelerated_jovian::<H, O>(),
         };
 
         Self {
@@ -121,28 +122,30 @@ where
         // 3. If the precompile is not found, return None.
         let output =
             if let Some(accelerated) = self.accelerated_precompiles.get(&inputs.bytecode_address) {
-                (accelerated)(&input, inputs.gas_limit, &self.hint_writer, &self.oracle_reader)
+                let eth_result =
+                    (accelerated)(&input, inputs.gas_limit, &self.hint_writer, &self.oracle_reader);
+                PrecompileOutput::from_eth_result(eth_result, inputs.reservoir)
             } else if let Some(precompile) = self.inner.precompiles.get(&inputs.bytecode_address) {
-                precompile.execute(&input, inputs.gas_limit)
+                match precompile.execute(&input, inputs.gas_limit, inputs.reservoir) {
+                    Ok(output) => output,
+                    Err(PrecompileError::Fatal(e)) => return Err(e),
+                    Err(PrecompileError::FatalAny(e)) => return Err(alloc::format!("{e:?}")),
+                }
             } else {
                 return Ok(None);
             };
 
-        match output {
-            Ok(output) => {
-                let underflow = result.gas.record_cost(output.gas_used);
-                assert!(underflow, "Gas underflow is not possible");
-                result.result = InstructionResult::Return;
-                result.output = output.bytes;
-            }
-            Err(PrecompileError::Fatal(e)) => return Err(e),
-            Err(e) => {
-                result.result = if e.is_oog() {
-                    InstructionResult::PrecompileOOG
-                } else {
-                    InstructionResult::PrecompileError
-                };
-            }
+        if output.is_halt() {
+            result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
+                InstructionResult::PrecompileOOG
+            } else {
+                InstructionResult::PrecompileError
+            };
+        } else {
+            let underflow = result.gas.record_regular_cost(output.gas_used);
+            assert!(underflow, "Gas underflow is not possible");
+            result.result = InstructionResult::Return;
+            result.output = output.bytes;
         }
 
         Ok(Some(result))
@@ -160,7 +163,7 @@ where
 }
 
 /// A precompile function that can be accelerated by the FPVM.
-type AcceleratedPrecompileFn<H, O> = fn(&[u8], u64, &H, &O) -> PrecompileResult;
+type AcceleratedPrecompileFn<H, O> = fn(&[u8], u64, &H, &O) -> EthPrecompileResult;
 
 /// A tuple type for accelerated precompiles with an associated [`Address`].
 struct AcceleratedPrecompile<H, O> {
@@ -310,15 +313,16 @@ mod test {
     fn create_call_inputs(address: Address, input: Bytes, gas_limit: u64) -> CallInputs {
         CallInputs {
             input: CallInput::Bytes(input),
+            return_memory_offset: 0..0,
             gas_limit,
+            reservoir: 0,
             bytecode_address: address,
+            known_bytecode: (revm::primitives::KECCAK_EMPTY, revm::bytecode::Bytecode::new()),
             target_address: Address::ZERO,
             caller: Address::ZERO,
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
-            return_memory_offset: 0..0,
-            known_bytecode: None,
         }
     }
 
@@ -336,12 +340,12 @@ mod test {
         gas_limit: u64,
         _hint_writer: &H,
         _oracle_reader: &O,
-    ) -> PrecompileResult
+    ) -> EthPrecompileResult
     where
         H: HintWriterClient + Send + Sync,
         O: PreimageOracleClient + Send + Sync,
     {
-        Ok(revm::precompile::PrecompileOutput::new(gas_limit / 2, Bytes::from_static(b"mock")))
+        Ok(revm::precompile::EthPrecompileOutput::new(gas_limit / 2, Bytes::from_static(b"mock")))
     }
 
     #[test]
@@ -465,8 +469,8 @@ mod test {
             hint_writer.clone(),
             oracle_reader.clone(),
         );
-        let karst_provider = OpFpvmPrecompiles::new_with_spec(
-            OpSpecId::KARST,
+        let osaka_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::OSAKA,
             hint_writer.clone(),
             oracle_reader.clone(),
         );
@@ -488,7 +492,7 @@ mod test {
         };
         let osaka_addrs: Vec<_> = {
             let mut addrs: Vec<_> =
-                karst_provider.accelerated_precompiles.keys().copied().collect();
+                osaka_provider.accelerated_precompiles.keys().copied().collect();
             addrs.sort();
             addrs
         };
@@ -508,12 +512,12 @@ mod test {
             "ISTHMUS should use isthmus() precompiles"
         );
         assert!(
-            core::ptr::eq(karst_provider.inner.precompiles, karst()),
-            "KARST should use karst() precompiles"
+            core::ptr::eq(osaka_provider.inner.precompiles, jovian()),
+            "OSAKA should use jovian() precompiles"
         );
         assert!(
-            core::ptr::eq(interop_provider.inner.precompiles, karst()),
-            "INTEROP should use karst() precompiles"
+            core::ptr::eq(interop_provider.inner.precompiles, jovian()),
+            "INTEROP should use jovian() precompiles"
         );
     }
 
@@ -535,15 +539,16 @@ mod test {
         let sha256_addr = revm::precompile::u64_to_address(2);
         let call_inputs = CallInputs {
             input: CallInput::SharedBuffer(0..0),
+            return_memory_offset: 0..0,
             gas_limit: u64::MAX,
+            reservoir: 0,
             bytecode_address: sha256_addr,
+            known_bytecode: (revm::primitives::KECCAK_EMPTY, revm::bytecode::Bytecode::new()),
             target_address: Address::ZERO,
             caller: Address::ZERO,
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
-            return_memory_offset: 0..0,
-            known_bytecode: None,
         };
 
         let result = precompiles.run(&mut ctx, &call_inputs).unwrap();

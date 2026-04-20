@@ -10,7 +10,7 @@ use alloy_evm::{
     Evm, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, ExecutableTx, OnStateHook, StateDB,
+        BlockExecutorFor, ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
@@ -54,7 +54,10 @@ where
         }
     }
 
-    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
+    fn commit_transaction(
+        &mut self,
+        output: Self::Result,
+    ) -> Result<GasOutput, BlockExecutionError> {
         self.inner.commit_transaction(output)
     }
 
