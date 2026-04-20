@@ -190,8 +190,6 @@ func (o *SimpleOptimizer) prereqsFor(ct *catalog.CheckType, perCand []string) []
 	var base []string
 	if o.graph != nil {
 		base = graph.CheckPrerequisites(o.graph, "check:"+ct.ID)
-	} else {
-		base = ct.Prerequisites
 	}
 	return mergePrereqs(base, perCand)
 }

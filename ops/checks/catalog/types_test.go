@@ -98,7 +98,7 @@ func TestValidate_EnumRequiresChoices(t *testing.T) {
 	}
 }
 
-func TestValidate_UnknownPrerequisite(t *testing.T) {
+func TestValidate_UnknownProfileActivation(t *testing.T) {
 	yaml := `check_types:
   - id: test
     name: "Test"
@@ -106,14 +106,16 @@ func TestValidate_UnknownPrerequisite(t *testing.T) {
     language: go
     command: "test"
     avg_duration: 10
-    prerequisites: ["nonexistent"]
+profiles:
+  - name: foo
+    active_when_selected: ["nonexistent"]
 `
 	c, err := Parse([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Validate(); err == nil {
-		t.Error("expected validation error for dangling prerequisite")
+		t.Error("expected validation error for dangling profile activation")
 	}
 }
 
@@ -161,18 +163,3 @@ func TestByID(t *testing.T) {
 	}
 }
 
-func TestMatchesTriggers(t *testing.T) {
-	ct := &CheckType{
-		Triggers: []string{"packages/contracts-bedrock/src/**", "go.mod"},
-	}
-
-	if !ct.MatchesTriggers([]string{"packages/contracts-bedrock/src/L1/Foo.sol"}) {
-		t.Error("expected match for src/ file")
-	}
-	if !ct.MatchesTriggers([]string{"go.mod"}) {
-		t.Error("expected match for go.mod")
-	}
-	if ct.MatchesTriggers([]string{"op-node/rollup/derive/foo.go"}) {
-		t.Error("expected no match for Go file")
-	}
-}

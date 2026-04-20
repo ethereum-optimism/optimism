@@ -15,38 +15,30 @@
 profiles:
   - name: main
     env: {}
+  # Feature-flag profiles: each activates on forge-test selection
+  # (coverage data is only collected under main; under the feature
+  # flag the profile runs against whatever tests the main scope picks).
   - name: custom_gas_token
-    env:
-      SYS_FEATURE__CUSTOM_GAS_TOKEN: "true"
-    triggers: &profile-triggers-contracts
-      - "packages/contracts-bedrock/src/**"
-      - "packages/contracts-bedrock/test/**"
-      - "packages/contracts-bedrock/scripts/**"
-      - "packages/contracts-bedrock/interfaces/**"
+    env: { SYS_FEATURE__CUSTOM_GAS_TOKEN: "true" }
+    active_when_selected: &profile-active-contracts [forge-test]
   - name: optimism_portal_interop
-    env:
-      DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__OPTIMISM_PORTAL_INTEROP: "true" }
+    active_when_selected: *profile-active-contracts
   - name: zk_dispute_game
-    env:
-      DEV_FEATURE__ZK_DISPUTE_GAME: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__ZK_DISPUTE_GAME: "true" }
+    active_when_selected: *profile-active-contracts
   - name: cannon_kona
-    env:
-      DEV_FEATURE__CANNON_KONA: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__CANNON_KONA: "true" }
+    active_when_selected: *profile-active-contracts
   - name: super_root_games_migration
-    env:
-      DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION: "true" }
+    active_when_selected: *profile-active-contracts
   - name: l2cm
-    env:
-      DEV_FEATURE__L2CM: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__L2CM: "true" }
+    active_when_selected: *profile-active-contracts
   - name: opcm_v2
-    env:
-      DEV_FEATURE__OPCM_V2: "true"
-    triggers: *profile-triggers-contracts
+    env: { DEV_FEATURE__OPCM_V2: "true" }
+    active_when_selected: *profile-active-contracts
 
 # Paths that every check implicitly consumes — CI config, github actions.
 # A diff touching these invalidates every check via the dataflow walker.
@@ -168,7 +160,6 @@ check_types:
     outputs: []
     avg_duration: 3600
     per_unit_duration: 60
-    prerequisites: ["forge-build"]
     # Variants all aggregate under "forge-test" for CI-history
     # correlation / replay — we care whether forge-test failed at
     # all, not under which matrix cell.
@@ -223,7 +214,6 @@ check_types:
     outputs: []
     avg_duration: 7200
     per_unit_duration: 60
-    prerequisites: ["go-build"]
     ci_job_names:
       - go-tests
       - go-tests-short
@@ -325,7 +315,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 60
-    prerequisites: ["forge-build"]
     # snapshots-check + interfaces-check + semver-check + validate-
     # spacers + reinitializer-check all run inside the
     # contracts-bedrock-checks-fast CI job. Multiple catalog checks
@@ -350,10 +339,8 @@ check_types:
     # Phase B — the dataflow walker covers new selection but the
     # produces-edge mechanism still drives the scheduler's per-file
     # ordering for forge-test consumers of interface files.
-    produces: ["packages/contracts-bedrock/interfaces/**"]
     outputs: []
     avg_duration: 60
-    prerequisites: ["forge-build"]
 
   - id: semver-check
     name: "Semver diff check"
@@ -368,7 +355,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 60
-    prerequisites: ["forge-build"]
 
   - id: validate-spacers
     name: "Storage spacer validation"
@@ -382,7 +368,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 30
-    prerequisites: ["forge-build"]
 
   - id: reinitializer-check
     name: "Reinitializer guard check"
@@ -396,7 +381,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 30
-    prerequisites: ["forge-build"]
 
   - id: go-mod-tidy
     name: "Go mod tidy check"
@@ -478,7 +462,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 1800
-    prerequisites: ["forge-build"]
     ci_job_names:
       - check-kontrol-build
 
@@ -528,7 +511,6 @@ check_types:
       - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 60
-    prerequisites: ["forge-build"]
     ci_job_names:
       - check-nut-locks
       - nut-provenance-verify
@@ -593,7 +575,6 @@ check_types:
       - "artifact:rust-target/**"
     outputs: []
     avg_duration: 1800
-    prerequisites: ["rust-build"]
     ci_job_names:
       - rust-tests
       - rust-doctest
@@ -689,7 +670,6 @@ check_types:
       - "artifact:rust-target/**"
     outputs: []
     avg_duration: 1800
-    prerequisites: ["rust-build"]
     ci_job_names:
       - rust-e2e-simple-kona
       - rust-e2e-simple-kona-geth
@@ -709,7 +689,6 @@ check_types:
       - "artifact:rust-target/**"
     outputs: []
     avg_duration: 600
-    prerequisites: ["rust-build"]
     ci_job_names:
       - memory-all-opn-op-reth
       - memory-all-kona-op-reth

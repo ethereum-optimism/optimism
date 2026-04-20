@@ -3,45 +3,35 @@ package catalog
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // CheckType describes a runnable check and its available configuration knobs.
+//
+// Kind conventions: "test", "lint", "build", "check" run in CI;
+// "gen" is a graph-only propagator (interfaces regen, go-bindings
+// regen, mise-setup) that the optimizer filters from the execution
+// plan by default.
+//
+// Inputs and Outputs accept either path globs
+// ("packages/contracts-bedrock/src/**/*.sol") or artifact refs
+// ("artifact:forge-artifacts/**"). Tools is sugar: each entry expands
+// into inputs: [artifact:toolchain/<tool>]. Selection and prereq
+// ordering are both derived from the inputs/outputs dataflow chain.
 type CheckType struct {
 	ID              string   `yaml:"id"`
 	Name            string   `yaml:"name"`
-	Kind            string   `yaml:"kind"`              // "test", "lint", "build", "check"
-	Language        string   `yaml:"language"`           // "go", "solidity", "rust", "*"
-	Command         string   `yaml:"command"`            // base command
-	Scopeable       bool     `yaml:"scopeable"`          // can this check be scoped to a subset?
-	ScopeFlag       string   `yaml:"scope_flag"`         // CLI flag for scope ("--match-path", "" for positional)
-	ScopeType       string   `yaml:"scope_type"`         // "packages", "paths", "tests"
-	Triggers        []string `yaml:"triggers,omitempty"` // file patterns that trigger this (for non-scopeable checks)
-	// Produces lists file globs whose freshness this check is responsible
-	// for. The builder emits `produces` edges from check:<id> to every
-	// matching source node. When the selector's reverse walk passes
-	// through one of those nodes, this check becomes a per-file
-	// prerequisite of the downstream consumer Candidates — separate from
-	// the coarse catalog-level Prerequisites.
-	Produces        []string `yaml:"produces,omitempty"`
-	// Inputs / Outputs / Tools: pipeline-model fields (see
-	// ops/checks/docs/pipeline-model.md). Optional during Phase A of
-	// the migration — when set, the builder emits consumes/produces
-	// edges to/from source and artifact nodes. Replace Triggers /
-	// Prerequisites / Produces during Phase B migration.
-	//
-	// Inputs and Outputs accept either path globs
-	// ("packages/contracts-bedrock/src/**/*.sol") or artifact refs
-	// ("artifact:forge-artifacts/**"). Tools is sugar: each entry
-	// expands into inputs: [artifact:toolchain/<tool>].
-	Inputs  []string `yaml:"inputs,omitempty"`
-	Outputs []string `yaml:"outputs,omitempty"`
-	Tools   []string `yaml:"tools,omitempty"`
+	Kind            string   `yaml:"kind"`
+	Language        string   `yaml:"language"`
+	Command         string   `yaml:"command"`
+	Scopeable       bool     `yaml:"scopeable"`
+	ScopeFlag       string   `yaml:"scope_flag"`
+	ScopeType       string   `yaml:"scope_type"`
+	Inputs          []string `yaml:"inputs,omitempty"`
+	Outputs         []string `yaml:"outputs,omitempty"`
+	Tools           []string `yaml:"tools,omitempty"`
 	Knobs           []Knob   `yaml:"knobs,omitempty"`
-	Prerequisites   []string `yaml:"prerequisites,omitempty"`
 	AvgDuration     int      `yaml:"avg_duration"`
 	PerUnitDuration int      `yaml:"per_unit_duration,omitempty"`
 
@@ -65,48 +55,16 @@ type Knob struct {
 }
 
 // TestProfile is a named configuration for running tests under different
-// feature flag combinations. Each profile sets a specific set of environment
-// variables before running the test command.
+// feature flag combinations. Each profile sets a specific set of
+// environment variables before running the test command.
 //
-// Triggers let a profile force itself into the candidate set when the
-// diff touches relevant paths. Covers the case where coverage data
-// wasn't collected under this profile (so no coverage edge carries the
-// profile tag) but the profile still needs to run — e.g. feature-flag
-// profiles that only activate specific code paths.
+// ActiveWhenSelected lists check IDs whose selection activates this
+// profile. profileTriggerExpand clones each activating check's main-
+// profile candidates under this profile.
 type TestProfile struct {
-	Name string            `yaml:"name"`
-	Env  map[string]string `yaml:"env,omitempty"`
-	// Triggers is the pre-cutover path-glob selector for this
-	// profile. Deprecated; ActiveWhenSelected is authoritative
-	// post-cutover. Kept for a brief transition so tests that load
-	// the old YAML shape still parse.
-	Triggers []string `yaml:"triggers,omitempty"`
-	// ActiveWhenSelected lists check IDs whose selection activates
-	// this profile. Each activating check is expanded under this
-	// profile by profileTriggerExpand. Replaces path-glob Triggers.
-	ActiveWhenSelected []string `yaml:"active_when_selected,omitempty"`
-}
-
-// MatchesTriggers reports whether any of the given file paths match
-// this profile's triggers. Mirrors CheckType.MatchesTriggers.
-func (p *TestProfile) MatchesTriggers(filePaths []string) bool {
-	if len(p.Triggers) == 0 {
-		return false
-	}
-	for _, f := range filePaths {
-		for _, pattern := range p.Triggers {
-			if matched, _ := filepath.Match(pattern, f); matched {
-				return true
-			}
-			if strings.HasSuffix(pattern, "/**") {
-				prefix := strings.TrimSuffix(pattern, "/**")
-				if strings.HasPrefix(f, prefix) {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	Name               string            `yaml:"name"`
+	Env                map[string]string `yaml:"env,omitempty"`
+	ActiveWhenSelected []string          `yaml:"active_when_selected,omitempty"`
 }
 
 // Catalog is the top-level manifest of available check types.
@@ -149,7 +107,10 @@ func Parse(data []byte) (*Catalog, error) {
 	return &c, nil
 }
 
-// Validate checks for unique IDs, valid prerequisites, non-empty commands, and knob bounds.
+// Validate checks for unique IDs, non-empty commands, and knob bounds.
+// Dataflow-derived validation (cycle detection) is handled post-build
+// by the graph package, not here, because Validate runs before the
+// graph exists.
 func (c *Catalog) Validate() error {
 	seen := make(map[string]bool)
 	for _, ct := range c.CheckTypes {
@@ -172,10 +133,10 @@ func (c *Catalog) Validate() error {
 			}
 		}
 	}
-	for _, ct := range c.CheckTypes {
-		for _, prereq := range ct.Prerequisites {
-			if !seen[prereq] {
-				return fmt.Errorf("check type %q has prerequisite %q which does not exist", ct.ID, prereq)
+	for _, p := range c.Profiles {
+		for _, id := range p.ActiveWhenSelected {
+			if !seen[id] {
+				return fmt.Errorf("profile %q references unknown check %q in active_when_selected", p.Name, id)
 			}
 		}
 	}
@@ -185,28 +146,6 @@ func (c *Catalog) Validate() error {
 // ByID returns a check type by ID, or nil if not found.
 func (c *Catalog) ByID(id string) *CheckType {
 	return c.byID[id]
-}
-
-// MatchesTriggers returns true if any of the given file paths match this check type's triggers.
-func (ct *CheckType) MatchesTriggers(filePaths []string) bool {
-	if len(ct.Triggers) == 0 {
-		return false
-	}
-	for _, f := range filePaths {
-		for _, pattern := range ct.Triggers {
-			if matched, _ := filepath.Match(pattern, f); matched {
-				return true
-			}
-			// Also try matching with ** prefix stripped for directory globs
-			if strings.HasSuffix(pattern, "/**") {
-				prefix := strings.TrimSuffix(pattern, "/**")
-				if strings.HasPrefix(f, prefix) {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (c *Catalog) buildIndex() {

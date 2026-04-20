@@ -30,15 +30,14 @@ var baselineYAML []byte
 
 // Policy holds every selector-tunable value.
 type Policy struct {
-	Stages       []StageConfig                         `yaml:"stages"`
-	BlastRadius  []string                              `yaml:"blast_radius_patterns"`
-	Coverage     CoverageConfig                        `yaml:"coverage"`
-	Freshness    FreshnessConfig                       `yaml:"freshness"`
-	PriorsByKind map[string]float64                    `yaml:"priors_by_kind"`
-	HighSignal   HighSignalConfig                      `yaml:"high_signal"`
-	Tiers        []Tier                                `yaml:"tiers"`
-	Schedule     ScheduleConfig                        `yaml:"schedule"`
-	KnobPolicies map[string]map[string]KnobMatrix      `yaml:"knob_policies"` // checkID → knobName → matrix
+	Stages       []StageConfig                    `yaml:"stages"`
+	Coverage     CoverageConfig                   `yaml:"coverage"`
+	Freshness    FreshnessConfig                  `yaml:"freshness"`
+	PriorsByKind map[string]float64               `yaml:"priors_by_kind"`
+	HighSignal   HighSignalConfig                 `yaml:"high_signal"`
+	Tiers        []Tier                           `yaml:"tiers"`
+	Schedule     ScheduleConfig                   `yaml:"schedule"`
+	KnobPolicies map[string]map[string]KnobMatrix `yaml:"knob_policies"` // checkID → knobName → matrix
 }
 
 // StageConfig is one development-lifecycle stage with its miss cost.
@@ -167,21 +166,6 @@ func (p *Policy) TierFor(signal float64) *Tier {
 	return nil
 }
 
-// BlastRadiusMatch reports whether any file matches a blast-radius
-// pattern, and returns the matching files.
-func (p *Policy) BlastRadiusMatch(files []string) (bool, []string) {
-	var hits []string
-	for _, f := range files {
-		for _, pattern := range p.BlastRadius {
-			if strings.HasPrefix(f, pattern) || f == pattern || strings.TrimSuffix(pattern, "/") == f {
-				hits = append(hits, f)
-				break
-			}
-		}
-	}
-	return len(hits) > 0, hits
-}
-
 // KnobValue looks up (checkID, knobName, stage, tierLabel) → value.
 // Returns (value, true) when an explicit cell is set, (default, true)
 // when only Default is set, or (nil, false) when no policy is declared.
@@ -271,9 +255,6 @@ func merge(base, over *Policy) *Policy {
 
 	if len(over.Stages) > 0 {
 		out.Stages = over.Stages
-	}
-	if len(over.BlastRadius) > 0 {
-		out.BlastRadius = over.BlastRadius
 	}
 	if over.Coverage.SignalFloor != 0 {
 		out.Coverage.SignalFloor = over.Coverage.SignalFloor

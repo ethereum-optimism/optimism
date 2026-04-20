@@ -1,149 +1,81 @@
 package graph
 
 import (
-	"math"
 	"testing"
 )
 
-func buildTestGraph(t *testing.T) *Graph {
-	t.Helper()
+// TestCheckPrerequisites_TransitiveViaArtifact — forge-build produces
+// forge-artifacts consumed by interfaces-check, which produces
+// interfaces consumed by forge-test. CheckPrerequisites(forge-test)
+// returns {forge-build, interfaces-check} in lex order.
+func TestCheckPrerequisites_TransitiveViaArtifact(t *testing.T) {
 	g := NewGraph()
+	_ = g.AddNode(&Node{ID: "check:forge-build", Kind: KindCheck})
+	_ = g.AddNode(&Node{ID: "check:interfaces-check", Kind: KindCheck})
+	_ = g.AddNode(&Node{ID: "check:forge-test", Kind: KindCheck})
+	_ = g.AddNode(&Node{ID: "sol:src/Foo.sol", Kind: KindSource})
+	_ = g.AddNode(&Node{ID: "artifact:forge-artifacts", Kind: KindArtifact})
+	_ = g.AddNode(&Node{ID: "artifact:interfaces", Kind: KindArtifact})
 
-	// Source nodes: A -> B -> C
-	_ = g.AddNode(&Node{ID: "src-a", Kind: KindSource, Name: "package A"})
-	_ = g.AddNode(&Node{ID: "src-b", Kind: KindSource, Name: "package B"})
-	_ = g.AddNode(&Node{ID: "src-c", Kind: KindSource, Name: "package C"})
-
-	// Check nodes
-	_ = g.AddNode(&Node{ID: "chk-a", Kind: KindCheck, Name: "test A"})
-	_ = g.AddNode(&Node{ID: "chk-b", Kind: KindCheck, Name: "test B"})
-	_ = g.AddNode(&Node{ID: "chk-c", Kind: KindCheck, Name: "test C"})
-
-	// Prerequisite: build must run before chk-a
-	_ = g.AddNode(&Node{ID: "build", Kind: KindCheck, Name: "build"})
-	_ = g.AddEdge(&Edge{From: "build", To: "chk-a", Kind: EdgePrerequisite, Source: SourceManual, Confidence: 1, Strength: 1})
-
-	// Import edges: A imports B, B imports C
-	_ = g.AddEdge(&Edge{From: "src-a", To: "src-b", Kind: EdgeImports, Source: SourceStatic, Confidence: 1.0, Strength: 0.8})
-	_ = g.AddEdge(&Edge{From: "src-b", To: "src-c", Kind: EdgeImports, Source: SourceStatic, Confidence: 1.0, Strength: 0.5})
-
-	// tested_by edges
-	_ = g.AddEdge(&Edge{From: "src-a", To: "chk-a", Kind: EdgeTestedBy, Source: SourceStatic, Confidence: 1.0, Strength: 0.9})
-	_ = g.AddEdge(&Edge{From: "src-b", To: "chk-b", Kind: EdgeTestedBy, Source: SourceStatic, Confidence: 1.0, Strength: 0.9})
-	_ = g.AddEdge(&Edge{From: "src-c", To: "chk-c", Kind: EdgeTestedBy, Source: SourceStatic, Confidence: 1.0, Strength: 0.9})
-
-	return g
-}
-
-func TestReachableChecks_DirectDependency(t *testing.T) {
-	g := buildTestGraph(t)
-
-	results := ReachableChecks(g, []string{"src-a"}, 0.01)
-
-	found := make(map[string]float64)
-	for _, r := range results {
-		found[r.CheckID] = r.Signal
+	mk := func(from, to string, kind EdgeKind) {
+		_ = g.AddEdge(&Edge{From: from, To: to, Kind: kind, Source: SourceStatic, Confidence: 1, Strength: 1})
 	}
+	mk("check:forge-build", "sol:src/Foo.sol", EdgeConsumes)
+	mk("check:forge-build", "artifact:forge-artifacts", EdgeProduces)
+	mk("check:interfaces-check", "artifact:forge-artifacts", EdgeConsumes)
+	mk("check:interfaces-check", "artifact:interfaces", EdgeProduces)
+	mk("check:forge-test", "artifact:interfaces", EdgeConsumes)
+	mk("check:forge-test", "artifact:forge-artifacts", EdgeConsumes)
 
-	// Direct: src-a -> chk-a with strength 0.9
-	if signal, ok := found["chk-a"]; !ok {
-		t.Error("expected chk-a to be reachable")
-	} else if math.Abs(signal-0.9) > 0.001 {
-		t.Errorf("expected chk-a signal ~0.9, got %f", signal)
+	got := CheckPrerequisites(g, "check:forge-test")
+	if len(got) != 2 {
+		t.Fatalf("expected 2 prereqs, got %d: %v", len(got), got)
+	}
+	// Lex sort: forge-build < interfaces-check.
+	if got[0] != "forge-build" || got[1] != "interfaces-check" {
+		t.Errorf("expected [forge-build, interfaces-check], got %v", got)
 	}
 }
 
-func TestReachableChecks_TransitiveDependency(t *testing.T) {
-	g := buildTestGraph(t)
-
-	results := ReachableChecks(g, []string{"src-a"}, 0.01)
-
-	found := make(map[string]float64)
-	for _, r := range results {
-		found[r.CheckID] = r.Signal
-	}
-
-	// Transitive: src-a -> src-b (0.8) -> chk-b (0.9) = 0.72
-	if signal, ok := found["chk-b"]; !ok {
-		t.Error("expected chk-b to be reachable")
-	} else if math.Abs(signal-0.72) > 0.001 {
-		t.Errorf("expected chk-b signal ~0.72, got %f", signal)
-	}
-
-	// 2-hop transitive: src-a -> src-b (0.8) -> src-c (0.5) -> chk-c (0.9) = 0.36
-	if signal, ok := found["chk-c"]; !ok {
-		t.Error("expected chk-c to be reachable")
-	} else if math.Abs(signal-0.36) > 0.001 {
-		t.Errorf("expected chk-c signal ~0.36, got %f", signal)
-	}
-}
-
-func TestReachableChecks_MinSignalCutoff(t *testing.T) {
-	g := buildTestGraph(t)
-
-	// With high min signal, distant checks are excluded
-	results := ReachableChecks(g, []string{"src-a"}, 0.5)
-
-	found := make(map[string]bool)
-	for _, r := range results {
-		found[r.CheckID] = true
-	}
-
-	if !found["chk-a"] {
-		t.Error("expected chk-a (signal=0.9) to be reachable with minSignal=0.5")
-	}
-	if !found["chk-b"] {
-		t.Error("expected chk-b (signal=0.72) to be reachable with minSignal=0.5")
-	}
-	if found["chk-c"] {
-		t.Error("expected chk-c (signal=0.36) to be filtered with minSignal=0.5")
-	}
-}
-
-func TestReachableChecks_NonexistentNode(t *testing.T) {
-	g := buildTestGraph(t)
-	results := ReachableChecks(g, []string{"nonexistent"}, 0.01)
-	if len(results) != 0 {
-		t.Errorf("expected 0 results for nonexistent node, got %d", len(results))
-	}
-}
-
-func TestPrerequisites(t *testing.T) {
-	g := buildTestGraph(t)
-	prereqs := Prerequisites(g, "chk-a")
-	if len(prereqs) != 1 {
-		t.Fatalf("expected 1 prerequisite, got %d", len(prereqs))
-	}
-	if prereqs[0] != "build" {
-		t.Errorf("expected prerequisite 'build', got %q", prereqs[0])
-	}
-}
-
-func TestPrerequisites_TransitiveChain(t *testing.T) {
+func TestCheckPrerequisites_NoneFound(t *testing.T) {
 	g := NewGraph()
-	_ = g.AddNode(&Node{ID: "step1", Kind: KindCheck, Name: "step1"})
-	_ = g.AddNode(&Node{ID: "step2", Kind: KindCheck, Name: "step2"})
-	_ = g.AddNode(&Node{ID: "step3", Kind: KindCheck, Name: "step3"})
-
-	// step1 -> step2 -> step3 (prerequisite chain)
-	_ = g.AddEdge(&Edge{From: "step1", To: "step2", Kind: EdgePrerequisite, Source: SourceManual, Confidence: 1, Strength: 1})
-	_ = g.AddEdge(&Edge{From: "step2", To: "step3", Kind: EdgePrerequisite, Source: SourceManual, Confidence: 1, Strength: 1})
-
-	prereqs := Prerequisites(g, "step3")
-	if len(prereqs) != 2 {
-		t.Fatalf("expected 2 prerequisites, got %d: %v", len(prereqs), prereqs)
-	}
-	// Should be in topological order: step1 before step2
-	if prereqs[0] != "step1" || prereqs[1] != "step2" {
-		t.Errorf("expected [step1, step2], got %v", prereqs)
+	_ = g.AddNode(&Node{ID: "check:standalone", Kind: KindCheck})
+	got := CheckPrerequisites(g, "check:standalone")
+	if len(got) != 0 {
+		t.Errorf("expected 0 prereqs for a check with no consumes edges, got %v", got)
 	}
 }
 
-func TestPrerequisites_NoneFound(t *testing.T) {
+// TestCheckPrerequisites_DeterministicOrder — the same graph must
+// return the same order every call, regardless of map iteration
+// order.
+func TestCheckPrerequisites_DeterministicOrder(t *testing.T) {
 	g := NewGraph()
-	_ = g.AddNode(&Node{ID: "standalone", Kind: KindCheck, Name: "standalone"})
-	prereqs := Prerequisites(g, "standalone")
-	if len(prereqs) != 0 {
-		t.Errorf("expected 0 prerequisites, got %d", len(prereqs))
+	_ = g.AddNode(&Node{ID: "check:consumer", Kind: KindCheck})
+	_ = g.AddNode(&Node{ID: "artifact:a", Kind: KindArtifact})
+	for _, id := range []string{"zzz", "aaa", "mmm", "bbb"} {
+		_ = g.AddNode(&Node{ID: "check:" + id, Kind: KindCheck})
+		_ = g.AddEdge(&Edge{From: "check:" + id, To: "artifact:a", Kind: EdgeProduces, Source: SourceStatic, Confidence: 1, Strength: 1})
+	}
+	_ = g.AddEdge(&Edge{From: "check:consumer", To: "artifact:a", Kind: EdgeConsumes, Source: SourceStatic, Confidence: 1, Strength: 1})
+
+	first := CheckPrerequisites(g, "check:consumer")
+	want := []string{"aaa", "bbb", "mmm", "zzz"}
+	if len(first) != len(want) {
+		t.Fatalf("len mismatch: got %v, want %v", first, want)
+	}
+	for i := range want {
+		if first[i] != want[i] {
+			t.Errorf("[%d] got %q, want %q", i, first[i], want[i])
+		}
+	}
+	// Run 10 more times; order must be identical.
+	for i := 0; i < 10; i++ {
+		again := CheckPrerequisites(g, "check:consumer")
+		for j := range want {
+			if again[j] != want[j] {
+				t.Fatalf("run %d: non-deterministic order: got %v, want %v", i, again, want)
+			}
+		}
 	}
 }

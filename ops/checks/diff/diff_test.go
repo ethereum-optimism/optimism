@@ -244,33 +244,3 @@ func TestFilesToNodeIDs_UnknownFile(t *testing.T) {
 	}
 }
 
-var testBlastPatterns = []string{
-	".circleci/",
-	".github/",
-	"go.mod",
-	"foundry.toml",
-}
-
-func TestBlastRadiusFiles_GoMod(t *testing.T) {
-	blast, matches := BlastRadiusFiles([]string{"go.mod"}, testBlastPatterns)
-	if !blast {
-		t.Error("expected go.mod to be blast radius")
-	}
-	if len(matches) != 1 {
-		t.Errorf("expected 1 match, got %d", len(matches))
-	}
-}
-
-func TestBlastRadiusFiles_CircleCI(t *testing.T) {
-	blast, _ := BlastRadiusFiles([]string{".circleci/config.yml"}, testBlastPatterns)
-	if !blast {
-		t.Error("expected .circleci/ to be blast radius")
-	}
-}
-
-func TestBlastRadiusFiles_NormalFile(t *testing.T) {
-	blast, _ := BlastRadiusFiles([]string{"op-node/rollup/derive/batch_queue.go"}, testBlastPatterns)
-	if blast {
-		t.Error("expected normal Go file to NOT be blast radius")
-	}
-}

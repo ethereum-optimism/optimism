@@ -13,8 +13,8 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 		"avg_duration": 900,
 	}})
 	_ = g.AddEdge(&Edge{
-		From: "src", To: "chk", Kind: EdgeTestedBy,
-		Source: SourceStatic, Confidence: 1.0, Strength: 0.9,
+		From: "chk", To: "src", Kind: EdgeConsumes,
+		Source: SourceStatic, Confidence: 1.0, Strength: 1.0,
 	})
 
 	dir := t.TempDir()
@@ -52,14 +52,14 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 		t.Errorf("expected avg_duration=900, got %v", dur)
 	}
 
-	// Verify indexes rebuilt
-	edges := loaded.EdgesFrom("src")
+	// Verify indexes rebuilt (edge is chk → src; consumes direction).
+	edges := loaded.EdgesFrom("chk")
 	if len(edges) != 1 {
-		t.Errorf("expected 1 outgoing edge from 'src', got %d", len(edges))
+		t.Errorf("expected 1 outgoing edge from 'chk', got %d", len(edges))
 	}
-	edges = loaded.EdgesTo("chk")
+	edges = loaded.EdgesTo("src")
 	if len(edges) != 1 {
-		t.Errorf("expected 1 incoming edge to 'chk', got %d", len(edges))
+		t.Errorf("expected 1 incoming edge to 'src', got %d", len(edges))
 	}
 }
 

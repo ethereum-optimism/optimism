@@ -24,20 +24,27 @@ const (
 type EdgeKind string
 
 const (
-	EdgeImports             EdgeKind = "imports"
-	EdgeGenerates           EdgeKind = "generates"
-	EdgeProduces            EdgeKind = "produces"
-	EdgeConsumes            EdgeKind = "consumes"
-	EdgeTestedBy            EdgeKind = "tested_by"
-	EdgePrerequisite        EdgeKind = "prerequisite"
-	EdgeObservedCorrelation EdgeKind = "observed_correlation"
-	EdgeAIAnnotated         EdgeKind = "ai_annotated"
-	// EdgeCovers marks a coverage observation from a test-side node
-	// to a source-side node. Written by the coverage ingester; read
-	// by the scope-layer (resolve_coverage.go). Distinct from
-	// EdgeConsumes (which is check→source declared dataflow) and
-	// EdgeTestedBy (deleted post-cutover).
+	// EdgeImports — source → source/artifact. Structural code
+	// dependency. Written by adapters + the builder's bridge step
+	// (source → artifact). Used by the scope layer's reverse walk.
+	EdgeImports EdgeKind = "imports"
+	// EdgeProduces — check → artifact. Written by the builder from
+	// CheckType.Outputs. Selection + prereq ordering read this.
+	EdgeProduces EdgeKind = "produces"
+	// EdgeConsumes — check → source/artifact. Written by the builder
+	// from CheckType.Inputs/Tools and catalog.UniversalInputs.
+	// Selection reads this.
+	EdgeConsumes EdgeKind = "consumes"
+	// EdgeCovers — test-side source → source. Coverage observation.
+	// Written by the coverage ingester. Scope layer reads this.
 	EdgeCovers EdgeKind = "covers"
+	// EdgeObservedCorrelation — source → check. Historical CI-failure
+	// correlation. Written by cihistory ingest. Adjusts signal on
+	// already-selected candidates (does not create new ones).
+	EdgeObservedCorrelation EdgeKind = "observed_correlation"
+	// EdgeAIAnnotated — source → check. Hand/LLM-annotated hint;
+	// same role as correlation (signal-only).
+	EdgeAIAnnotated EdgeKind = "ai_annotated"
 )
 
 // EdgeSource records how an edge was discovered.

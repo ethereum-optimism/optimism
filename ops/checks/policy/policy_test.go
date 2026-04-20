@@ -140,26 +140,6 @@ func TestKnobConfig_CatalogFallback(t *testing.T) {
 	}
 }
 
-// TestBlastRadiusMatch — prefix and exact match both trigger.
-func TestBlastRadiusMatch(t *testing.T) {
-	p, _ := Load()
-
-	hit, files := p.BlastRadiusMatch([]string{"foundry.toml"})
-	if !hit || len(files) == 0 {
-		t.Error("expected foundry.toml to trigger blast radius")
-	}
-
-	hit, _ = p.BlastRadiusMatch([]string{".circleci/config.yml"})
-	if !hit {
-		t.Error("expected .circleci/ prefix to trigger blast radius")
-	}
-
-	hit, _ = p.BlastRadiusMatch([]string{"src/L1/OptimismPortal.sol"})
-	if hit {
-		t.Error("source file should not trigger blast radius")
-	}
-}
-
 // TestLoad_LayeredOverride — override file takes precedence on declared
 // scalars, leaves untouched fields intact.
 func TestLoad_LayeredOverride(t *testing.T) {

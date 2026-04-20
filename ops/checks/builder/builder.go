@@ -56,72 +56,10 @@ func (b *Builder) Build(rootDir string) (*graph.Graph, error) {
 		})
 	}
 
-	// Step 3: Wire source nodes to check type nodes by language
-	for _, ct := range b.catalog.CheckTypes {
-		checkID := "check:" + ct.ID
-		for _, node := range g.NodesOfKind(graph.KindSource) {
-			lang := nodeLanguage(node)
-			if ct.Language == "*" || lang == ct.Language {
-				_ = g.AddEdge(&graph.Edge{
-					From:       node.ID,
-					To:         checkID,
-					Kind:       graph.EdgeTestedBy,
-					Source:     graph.SourceStatic,
-					Confidence: 0.8,
-					Strength:   0.9,
-				})
-			}
-		}
-	}
-
-	// Step 4: Create prerequisite edges
-	for _, ct := range b.catalog.CheckTypes {
-		checkID := "check:" + ct.ID
-		for _, prereq := range ct.Prerequisites {
-			prereqID := "check:" + prereq
-			_ = g.AddEdge(&graph.Edge{
-				From:       prereqID,
-				To:         checkID,
-				Kind:       graph.EdgePrerequisite,
-				Source:     graph.SourceManual,
-				Confidence: 1.0,
-				Strength:   1.0,
-			})
-		}
-	}
-
-	// Step 5: Create `produces` edges from each check node to the
-	// source nodes whose freshness it's responsible for. The
-	// catalog declares this via the `produces:` field (list of
-	// file globs). During selection, a reverse walk that passes
-	// through a produced node records the check as a per-file
-	// prerequisite of downstream consumer Candidates.
-	for _, ct := range b.catalog.CheckTypes {
-		if len(ct.Produces) == 0 {
-			continue
-		}
-		checkID := "check:" + ct.ID
-		for _, node := range g.NodesOfKind(graph.KindSource) {
-			path := nodePath(node)
-			if path == "" || !matchesAnyGlob(path, ct.Produces) {
-				continue
-			}
-			_ = g.AddEdge(&graph.Edge{
-				From:       checkID,
-				To:         node.ID,
-				Kind:       graph.EdgeProduces,
-				Source:     graph.SourceStatic,
-				Confidence: 1.0,
-				Strength:   1.0,
-			})
-		}
-	}
-
-	// Step 6: pipeline-model dataflow edges. For each check declaring
-	// Inputs / Outputs / Tools, wire consumes/produces edges to source
-	// and artifact nodes. This runs in parallel with the legacy
-	// Triggers / Prerequisites / Produces wiring — checks that haven't
-	// migrated emit no edges here and stay on the legacy path.
+	// Step 3: pipeline-model dataflow edges. For each check, wire
+	// consumes/produces edges to source and artifact nodes based on
+	// the catalog's inputs/outputs/tools declarations. The dataflow
+	// walker uses these edges as the sole selection mechanism.
 	for _, ct := range b.catalog.CheckTypes {
 		if len(ct.Inputs) == 0 && len(ct.Outputs) == 0 && len(ct.Tools) == 0 && len(b.catalog.UniversalInputs) == 0 {
 			continue

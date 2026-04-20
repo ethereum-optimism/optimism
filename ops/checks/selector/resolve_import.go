@@ -183,74 +183,7 @@ func walkForScope(g *graph.Graph, changedIDs []string, minSignal float64) walkRe
 				queue = append(queue, item{importer, s})
 			}
 		}
-		// Forward walk on generates: propagate to artifacts derived
-		// from this node (e.g. src → interface). Their consumers then
-		// feed back into the reverse-walk loop above.
-		for _, edge := range g.EdgesFrom(cur.id) {
-			if edge.Kind != graph.EdgeGenerates {
-				continue
-			}
-			s := cur.signal * edge.Strength * edge.Confidence
-			if s < minSignal {
-				continue
-			}
-			artifact := edge.To
-			if existing, ok := best[artifact]; !ok || s > existing {
-				best[artifact] = s
-				queue = append(queue, item{artifact, s})
-			}
-		}
 	}
 	return walkResult{consumers: best, producers: producers}
 }
 
-// transitiveConsumers is the legacy entry point kept for
-// importBinaryCandidates and the scheduler's reachability queries,
-// which don't need producer info.
-func transitiveConsumers(g *graph.Graph, changedIDs []string, minSignal float64) map[string]float64 {
-	return walkForScope(g, changedIDs, minSignal).consumers
-}
-
-// importBinaryCandidates emits a single Candidate for a non-scopeable
-// check if it's reachable via the import graph.
-func importBinaryCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []string) []Candidate {
-	checkNodeID := "check:" + ct.ID
-	for _, r := range graph.ReachableChecks(g, changedIDs, 0.01) {
-		if r.CheckID != checkNodeID {
-			continue
-		}
-		return []Candidate{{
-			CheckID: ct.ID,
-			Signal:  r.Signal,
-			Provenance: []SignalContribution{{
-				Source:       graph.SourceStatic,
-				EdgeKind:     graph.EdgeTestedBy,
-				Contribution: r.Signal,
-				Raw: map[string]any{
-					"path": r.Path,
-				},
-			}},
-		}}
-	}
-	return nil
-}
-
-// mergeBinaryCandidates combines at most one import-based and one
-// correlation-based candidate for the same check, taking max signal
-// and unioning provenance so both sources show up in `explain`.
-func mergeBinaryCandidates(imports, correlation []Candidate) []Candidate {
-	switch {
-	case len(imports) == 0 && len(correlation) == 0:
-		return nil
-	case len(imports) == 0:
-		return correlation
-	case len(correlation) == 0:
-		return imports
-	}
-	primary, secondary := imports[0], correlation[0]
-	if secondary.Signal > primary.Signal {
-		primary, secondary = secondary, primary
-	}
-	primary.Provenance = append(primary.Provenance, secondary.Provenance...)
-	return []Candidate{primary}
-}

@@ -661,9 +661,9 @@ func TestResolve_SolidityCoverageDoesNotTriggerGoTest(t *testing.T) {
 	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck})
 	for _, check := range []string{"check:forge-test", "check:go-test"} {
 		_ = g.AddEdge(&graph.Edge{
-			From: "sol:test/L1/X.t.sol", To: check,
-			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-			Strength: 0.9, Confidence: 0.8,
+			From: check, To: "sol:test/L1/X.t.sol",
+			Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+			Strength: 1.0, Confidence: 1.0,
 		})
 	}
 

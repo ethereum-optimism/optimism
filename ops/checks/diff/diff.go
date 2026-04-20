@@ -365,22 +365,6 @@ func FilesToNodeIDs(g *graph.Graph, files []string) (nodeIDs []string, unknown [
 	return
 }
 
-// BlastRadiusFiles returns the changed files that match any blast-radius pattern.
-// Patterns are provided by the caller (typically from policy). A pattern matches
-// when it is a path prefix (e.g. ".circleci/") or an exact path (e.g. "go.mod").
-func BlastRadiusFiles(files, patterns []string) (bool, []string) {
-	var matches []string
-	for _, f := range files {
-		for _, pattern := range patterns {
-			if strings.HasPrefix(f, pattern) || f == pattern || strings.TrimSuffix(pattern, "/") == f {
-				matches = append(matches, f)
-				break
-			}
-		}
-	}
-	return len(matches) > 0, matches
-}
-
 func matchesPath(goImportPath, relDir string) bool {
 	// Check if the Go import path ends with the relative directory path
 	return strings.HasSuffix(goImportPath, "/"+relDir) || strings.HasSuffix(goImportPath, relDir)

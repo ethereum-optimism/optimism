@@ -25,22 +25,20 @@ func (m *mockAdapter) Analyze(g *graph.Graph, _ string) error {
 	return nil
 }
 
-func TestBuild_WiresGoSourceToGoTest(t *testing.T) {
+// TestBuild_WiresDataflowEdges — the builder's only wiring step emits
+// `consumes` edges from checks to the source/artifact nodes that match
+// their declared inputs. Replaces the pre-cutover tested_by / prereq /
+// check→source produces wiring.
+func TestBuild_WiresDataflowEdges(t *testing.T) {
 	goAdapter := &mockAdapter{
 		name: "go",
 		nodes: []*graph.Node{
-			{ID: "go:example.com/repo/op-node", Kind: graph.KindSource, Name: "op-node"},
-			{ID: "go:example.com/repo/op-batcher", Kind: graph.KindSource, Name: "op-batcher"},
+			{ID: "go:example.com/repo/op-node", Kind: graph.KindSource, Name: "op-node",
+				Properties: map[string]any{"language": "go"}},
 		},
 	}
 
 	cat, _ := catalog.Parse([]byte(`check_types:
-  - id: go-build
-    name: "Go build"
-    kind: build
-    language: go
-    command: "go build ./..."
-    avg_duration: 120
   - id: go-test
     name: "Go tests"
     kind: test
@@ -49,7 +47,8 @@ func TestBuild_WiresGoSourceToGoTest(t *testing.T) {
     scopeable: true
     scope_type: packages
     avg_duration: 600
-    prerequisites: ["go-build"]
+    inputs:
+      - "**/*.go"
 `))
 
 	b := New([]adapter.Adapter{goAdapter}, cat)
@@ -58,34 +57,22 @@ func TestBuild_WiresGoSourceToGoTest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Both Go packages should connect to check:go-test (not separate checks)
-	for _, nodeID := range []string{"go:example.com/repo/op-node", "go:example.com/repo/op-batcher"} {
-		edges := g.EdgesFrom(nodeID)
-		foundGoTest := false
-		for _, e := range edges {
-			if e.To == "check:go-test" && e.Kind == graph.EdgeTestedBy {
-				foundGoTest = true
-			}
-		}
-		if !foundGoTest {
-			t.Errorf("expected %s to have tested_by edge to check:go-test", nodeID)
+	edges := g.EdgesFrom("check:go-test")
+	foundConsumes := false
+	for _, e := range edges {
+		if e.To == "go:example.com/repo/op-node" && e.Kind == graph.EdgeConsumes {
+			foundConsumes = true
 		}
 	}
-
-	// Should NOT have check:go-test-op-node (old discrete style)
-	if g.GetNode("check:go-test-op-node") != nil {
-		t.Error("should not have discrete check nodes")
+	if !foundConsumes {
+		t.Errorf("expected check:go-test to have consumes edge to go:example.com/repo/op-node, got edges: %v", edges)
 	}
 }
 
-func TestBuild_WiresSolSourceToForgeTest(t *testing.T) {
-	solAdapter := &mockAdapter{
-		name: "solidity",
-		nodes: []*graph.Node{
-			{ID: "sol:src/L1/Foo.sol", Kind: graph.KindSource, Name: "Foo.sol", Properties: map[string]any{"language": "solidity"}},
-		},
-	}
-
+// TestBuild_DataflowGivesPrereqOrder — given a catalog where
+// forge-build produces forge-artifacts consumed by forge-test,
+// graph.CheckPrerequisites derives the prereq order.
+func TestBuild_DataflowGivesPrereqOrder(t *testing.T) {
 	cat, _ := catalog.Parse([]byte(`check_types:
   - id: forge-build
     name: "Forge build"
@@ -93,6 +80,8 @@ func TestBuild_WiresSolSourceToForgeTest(t *testing.T) {
     language: solidity
     command: "forge build"
     avg_duration: 180
+    outputs:
+      - "artifact:forge-artifacts/**"
   - id: forge-test
     name: "Forge tests"
     kind: test
@@ -101,42 +90,8 @@ func TestBuild_WiresSolSourceToForgeTest(t *testing.T) {
     scopeable: true
     scope_type: paths
     avg_duration: 3600
-    prerequisites: ["forge-build"]
-`))
-
-	b := New([]adapter.Adapter{solAdapter}, cat)
-	g, err := b.Build("/fake")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	edges := g.EdgesFrom("sol:src/L1/Foo.sol")
-	foundForgeTest := false
-	for _, e := range edges {
-		if e.To == "check:forge-test" && e.Kind == graph.EdgeTestedBy {
-			foundForgeTest = true
-		}
-	}
-	if !foundForgeTest {
-		t.Error("expected sol:src/L1/Foo.sol to have tested_by edge to check:forge-test")
-	}
-}
-
-func TestBuild_PrerequisiteEdges(t *testing.T) {
-	cat, _ := catalog.Parse([]byte(`check_types:
-  - id: go-build
-    name: "Go build"
-    kind: build
-    language: go
-    command: "go build"
-    avg_duration: 120
-  - id: go-test
-    name: "Go tests"
-    kind: test
-    language: go
-    command: "go test"
-    avg_duration: 600
-    prerequisites: ["go-build"]
+    inputs:
+      - "artifact:forge-artifacts/**"
 `))
 
 	b := New(nil, cat)
@@ -145,8 +100,58 @@ func TestBuild_PrerequisiteEdges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prereqs := graph.Prerequisites(g, "check:go-test")
-	if len(prereqs) != 1 || prereqs[0] != "check:go-build" {
-		t.Errorf("expected prerequisite [check:go-build], got %v", prereqs)
+	got := graph.CheckPrerequisites(g, "check:forge-test")
+	if len(got) != 1 || got[0] != "forge-build" {
+		t.Errorf("expected [forge-build], got %v", got)
+	}
+}
+
+// TestBuild_BridgeImportsGoPackageToArtifact — the builder's bridge
+// step emits `imports` edges from go: package nodes whose dir is
+// covered by an artifact path prefix to the artifact node itself.
+// Enables scoping-layer reverse-walks from invalidated bindings
+// artifacts back to the Go packages that consume them.
+func TestBuild_BridgeImportsGoPackageToArtifact(t *testing.T) {
+	goAdapter := &mockAdapter{
+		name: "go",
+		nodes: []*graph.Node{
+			{
+				ID:          "go:example.com/repo/op-e2e/bindings",
+				Kind:        graph.KindSource,
+				Granularity: "package",
+				Properties: map[string]any{
+					"language": "go",
+					"dir":      "/abs/repo/op-e2e/bindings",
+				},
+			},
+		},
+	}
+
+	cat, _ := catalog.Parse([]byte(`check_types:
+  - id: gen-go-bindings
+    name: "gen-go-bindings"
+    kind: gen
+    language: go
+    command: "gen"
+    avg_duration: 60
+    outputs:
+      - "artifact:op-e2e/bindings/**/*.go"
+`))
+
+	b := New([]adapter.Adapter{goAdapter}, cat)
+	g, err := b.Build("/fake")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	foundBridge := false
+	for _, e := range g.EdgesFrom("go:example.com/repo/op-e2e/bindings") {
+		if e.Kind == graph.EdgeImports && e.To == "artifact:op-e2e/bindings/**/*.go" {
+			foundBridge = true
+		}
+	}
+	if !foundBridge {
+		t.Errorf("expected imports edge from go:op-e2e/bindings to artifact node; edges: %v",
+			g.EdgesFrom("go:example.com/repo/op-e2e/bindings"))
 	}
 }
