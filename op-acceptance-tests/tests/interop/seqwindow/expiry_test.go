@@ -47,6 +47,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	require.Eventually(func() bool {
 		stat, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(t.Ctx())
 		if err != nil {
+			t.Logger().Error("Failed to fetch sync status", "err", err)
 			return false
 		}
 		return stat.SafeL2.Number > bigs.Uint64Strict(receipt1.BlockNumber)
@@ -124,6 +125,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	require.Eventually(func() bool {
 		stat, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(t.Ctx())
 		if err != nil {
+			t.Logger().Error("Failed to fetch sync status", "err", err)
 			return false
 		}
 		return stat.SafeL2.L1Origin.Number > estimatedExpiryNum
