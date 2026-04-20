@@ -1,7 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
-    error::OpPayloadBuilderError, payload::OpBuiltPayload,
+    error::OpPayloadBuilderError, metrics::SDMPayloadMetrics, payload::OpBuiltPayload,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_evm::Evm as AlloyEvm;
@@ -455,7 +455,12 @@ impl<Txs> OpBuilder<'_, Txs> {
         if ctx.builder_config.sdm_enabled {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
-            try_include_post_exec_tx(block_number, entries, |tx| builder.execute_transaction(tx))?;
+            let refund_gas_total: u64 = entries.iter().map(|e| e.gas_refund).sum();
+            let entry_count = entries.len();
+            let included = try_include_post_exec_tx(block_number, entries, |tx| {
+                builder.execute_transaction(tx)
+            })?;
+            SDMPayloadMetrics::default().record(included, refund_gas_total, entry_count);
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =

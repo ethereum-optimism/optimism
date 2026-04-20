@@ -29,6 +29,7 @@ pub mod validator;
 pub use validator::OpExecutionPayloadValidator;
 
 pub mod config;
+pub mod metrics;
 
 // Implement `ConfigureEngineEvm<OpExecData>` by delegating to the `OpExecutionData` implementation.
 // This must live here because `OpExecData` is defined in this crate (orphan rules).

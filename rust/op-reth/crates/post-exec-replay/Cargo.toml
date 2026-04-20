@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
+reth-metrics.workspace = true
 reth-optimism-evm = { workspace = true, features = ["std"] }
 reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
 reth-primitives-traits.workspace = true
@@ -25,6 +26,7 @@ alloy-eips.workspace = true
 alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
 
+metrics.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 thiserror.workspace = true

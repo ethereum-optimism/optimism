@@ -1,7 +1,11 @@
-use crate::types::{
-    PostExecReplayBlock, PostExecReplayConfig, PostExecReplayMismatch, PostExecReplayMismatchKind,
-    PostExecReplayMode, PostExecReplayPayload, PostExecReplayPayloadEntry,
-    PostExecReplayRefundEvent, PostExecReplayRefundKind, PostExecReplaySummary, PostExecReplayTx,
+use crate::{
+    metrics::SDMReplayMetrics,
+    types::{
+        PostExecReplayBlock, PostExecReplayConfig, PostExecReplayMismatch,
+        PostExecReplayMismatchKind, PostExecReplayMode, PostExecReplayPayload,
+        PostExecReplayPayloadEntry, PostExecReplayRefundEvent, PostExecReplayRefundKind,
+        PostExecReplaySummary, PostExecReplayTx,
+    },
 };
 use alloy_consensus::{Block as AlloyBlock, BlockBody, BlockHeader, TxReceipt, Typed2718};
 use op_alloy_consensus::{POST_EXEC_TX_TYPE_ID, PostExecPayload, SDMGasEntry, build_post_exec_tx};
@@ -271,7 +275,10 @@ where
     DB: Database,
     EvmConfig: ConfigurePostExecEvm<Primitives = OpPrimitives>,
 {
+    let metrics = SDMReplayMetrics::default();
+
     if config.mode != PostExecReplayMode::CounterfactualEnabled {
+        metrics.record_block(&[PostExecReplayMismatchKind::UnsupportedMode]);
         return Err(PostExecReplayError::UnsupportedMode(config.mode));
     }
 
@@ -388,6 +395,8 @@ where
         mismatch_count: mismatches.len(),
         replay_mode: config.mode,
     };
+
+    metrics.record_block(&mismatches.iter().map(|m| m.category.clone()).collect::<Vec<_>>());
 
     Ok(PostExecReplayBlock {
         config,
