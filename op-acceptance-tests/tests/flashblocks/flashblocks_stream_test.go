@@ -56,41 +56,21 @@ func TestFlashblocksStream(gt *testing.T) {
 	// flashblocks).
 }
 
-// ensureFlashblocksIncrease validates that the flashblock stream preserves the documented
-// ordering invariants:
-//
-//   - Each flashblock belongs to a "sequence" identified by its payload_id. A sequence is
-//     always anchored at index 0 and indices within a sequence increase monotonically.
-//   - A new payload_id starts a new sequence at index 0. This can happen for the SAME
-//     block_number when the sequencer rebuilds a block (e.g. a late FCU causes the builder
-//     to start a fresh flashblock sequence for the same block number but a different
-//     payload). See rust/op-reth/crates/flashblocks/src/sequence.rs which states that
-//     "A [`FlashBlock`] with index 0 resets the set."
-//   - Block numbers never decrease across sequences.
-//
-// The old assertion "within the same block_number indices strictly increase" was incorrect:
-// under CI load the sequencer can rebuild a block, producing multiple sequences of flashblocks
-// sharing the same block_number, which made the stream look like "index 1 then index 0".
+// ensureFlashblocksIncrease validates the flashblock stream protocol: sequences are keyed by
+// payload_id (not block_number); within a sequence, index strictly increases; a new sequence
+// starts at index 0 and may reuse a block_number when the sequencer rebuilds a block. See
+// rust/op-reth/crates/flashblocks/src/sequence.rs ("A [`FlashBlock`] with index 0 resets the
+// set.").
 func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger log.Logger) {
 	const numFlashblocks = 20
-	// Size the client's channel buffer to hold roughly 30 seconds of flashblock history.
-	// Flashblocks are emitted at a 200 ms cadence (see
-	// rust/op-reth/crates/flashblocks/src/cache.rs: FLASHBLOCK_BLOCK_TIME = 200), so
-	// 30 s ≈ 150 flashblocks. Under CI load the test goroutine can be stalled for a few
-	// seconds at a time while the builder, rollup-boost and sequencer all contend for CPU;
-	// a tight buffer risks the reader dropping messages (see flashblock_client.go's
-	// "channel full, dropping flashblock" path) before the test has validated
-	// numFlashblocks transitions. 30 s of headroom is generous enough to survive realistic
-	// stalls without growing memory meaningfully.
+	// ~30s of headroom at the 200ms flashblock cadence, so CI stalls don't cause the reader
+	// to drop messages (see flashblock_client.go's "channel full, dropping flashblock" path).
 	const flashblockBufferCapacity = 150
 	client := sources.NewFlashblockClient(wsClient, logger, flashblockBufferCapacity)
 	startClient(t, client)
 
-	// The WS connection is opened eagerly during devstack setup, so by the time this loop
-	// starts there may already be a backlog of messages from an in-progress sequence — the
-	// first message we read is not guaranteed to be index 0. We validate `numFlashblocks`
-	// consecutive transitions AFTER we observe an index=0 anchor so the assertions start
-	// from a deterministic point.
+	// Devstack dials the WS eagerly, so the first message may be mid-sequence. Wait for a
+	// clean index=0 anchor before counting transitions.
 	anchored := false
 	validated := 0
 	var lastPayloadID string
@@ -105,14 +85,11 @@ func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger lo
 			t.Require().NotNil(flashblock)
 
 			if !anchored {
-				// Skip mid-sequence flashblocks until we find a fresh sequence start.
 				if flashblock.Index != 0 {
 					continue
 				}
 				anchored = true
 			} else if flashblock.PayloadID == lastPayloadID {
-				// Continuation of the current sequence: block number is stable, index must
-				// strictly increase.
 				t.Require().Equal(lastBlockNumber, flashblock.Metadata.BlockNumber,
 					"block_number must be stable within a flashblock sequence (payload_id=%s)",
 					flashblock.PayloadID)
@@ -120,7 +97,6 @@ func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger lo
 					"flashblock index must strictly increase within a sequence (payload_id=%s)",
 					flashblock.PayloadID)
 			} else {
-				// New sequence: index must be 0, and the block_number must not go backwards.
 				t.Require().Zero(flashblock.Index,
 					"a new flashblock sequence (payload_id %s → %s) must start at index 0",
 					lastPayloadID, flashblock.PayloadID)
