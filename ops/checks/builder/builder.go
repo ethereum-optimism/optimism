@@ -132,6 +132,28 @@ func (b *Builder) Build(rootDir string) (*graph.Graph, error) {
 	return g, nil
 }
 
+// extToLang maps a path-glob extension to the adapter language key.
+// A catalog pattern like "**/*.go" is conceptually "all Go source";
+// go: nodes are import-path-keyed, not filesystem-keyed, so the glob
+// wouldn't match any node's dir. Special-case language matching.
+var extToLang = map[string]string{
+	".go":  "go",
+	".sol": "solidity",
+	".rs":  "rust",
+}
+
+// languageForGlob returns the language key if the pattern is a
+// language-wide glob like `**/*.go`, `**/*.sol`, `**/*.rs`. Returns ""
+// for any other pattern, signaling that path-keyed matching should
+// be used instead.
+func languageForGlob(pattern string) string {
+	if !strings.HasPrefix(pattern, "**/*") {
+		return ""
+	}
+	ext := strings.TrimPrefix(pattern, "**/*")
+	return extToLang[ext]
+}
+
 // emitDataflowEdges wires pipeline-model edges for a single check.
 // It creates artifact: nodes on demand (toolchain artifacts from
 // Tools, output artifacts from Outputs that use artifact: refs),
@@ -157,7 +179,21 @@ func (b *Builder) emitDataflowEdges(g *graph.Graph, ct catalog.CheckType) {
 			})
 			continue
 		}
-		// Path glob: match against existing source nodes.
+		// Language-wide globs like `**/*.go` match every node of that
+		// language (adapter-keyed), regardless of filesystem layout.
+		if lang := languageForGlob(in); lang != "" {
+			for _, node := range g.NodesOfKind(graph.KindSource) {
+				if nodeLanguage(node) != lang {
+					continue
+				}
+				_ = g.AddEdge(&graph.Edge{
+					From: checkID, To: node.ID, Kind: graph.EdgeConsumes,
+					Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+				})
+			}
+			continue
+		}
+		// Path glob: match against existing source nodes by filesystem path.
 		for _, node := range g.NodesOfKind(graph.KindSource) {
 			path := nodePath(node)
 			if path == "" || !matchesAnyGlob(path, []string{in}) {
@@ -237,26 +273,76 @@ func nodePath(n *graph.Node) string {
 }
 
 // matchesAnyGlob reports whether path matches any of the supplied
-// patterns. `**` suffix is stripped and treated as a prefix match.
+// glob patterns. Supports:
+//   - `prefix/**` — any path with this prefix
+//   - `**/*.ext` — any path with this extension (anywhere)
+//   - `prefix/**/*.ext` — any path under prefix/ with this extension
+//   - `**/basename` — any path whose basename matches
+//   - simple `*` globs via filepath.Match
+//   - exact literal match
 func matchesAnyGlob(path string, patterns []string) bool {
 	for _, p := range patterns {
-		if strings.HasSuffix(p, "/**") {
-			prefix := strings.TrimSuffix(p, "/**")
-			if strings.HasPrefix(path, prefix) || strings.Contains(path, "/"+prefix) {
+		if matchGlob(p, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchGlob(pattern, path string) bool {
+	// `prefix/**/*.ext` → under prefix AND has extension
+	if i := strings.Index(pattern, "/**/"); i != -1 {
+		prefix := pattern[:i]
+		rest := pattern[i+len("/**/"):]
+		if !(strings.HasPrefix(path, prefix+"/") || strings.Contains(path, "/"+prefix+"/")) {
+			return false
+		}
+		// Match `rest` against any segment tail.
+		return matchTail(rest, path)
+	}
+	// `**/<tail>` → match tail anywhere
+	if strings.HasPrefix(pattern, "**/") {
+		return matchTail(pattern[len("**/"):], path)
+	}
+	// `prefix/**` → any path with prefix
+	if strings.HasSuffix(pattern, "/**") {
+		prefix := strings.TrimSuffix(pattern, "/**")
+		return strings.HasPrefix(path, prefix) || strings.Contains(path, "/"+prefix)
+	}
+	// filepath.Match on the full path
+	if matched, _ := filepath.Match(pattern, path); matched {
+		return true
+	}
+	// Basename fallback for patterns like `*.go`
+	if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
+		return true
+	}
+	return false
+}
+
+// matchTail reports whether path ends with a segment that matches
+// `rest` (via filepath.Match, applied to the basename). For `*.ext`
+// patterns, this amounts to an extension check.
+func matchTail(rest, path string) bool {
+	if matched, _ := filepath.Match(rest, filepath.Base(path)); matched {
+		return true
+	}
+	// For patterns like `subdir/*.ext`, check if path ends in /subdir/...
+	if i := strings.Index(rest, "/"); i != -1 {
+		segment := rest[:i]
+		tail := rest[i+1:]
+		// Look for a slash-separated segment in path matching the prefix segment
+		idx := 0
+		for {
+			j := strings.Index(path[idx:], "/"+segment+"/")
+			if j == -1 {
+				break
+			}
+			sub := path[idx+j+len(segment)+2:]
+			if matched, _ := filepath.Match(tail, filepath.Base(sub)); matched {
 				return true
 			}
-			continue
-		}
-		if matched, _ := filepath.Match(p, path); matched {
-			return true
-		}
-		// Allow deep-suffix match: a glob "interfaces/**/*.sol"
-		// should match an absolute go: dir ending with
-		// "/interfaces/foo/bar.sol" too. The filesystem-path case
-		// handles it directly; for the contracts-bedrock-rooted
-		// case we also match without the prefix.
-		if matched, _ := filepath.Match(p, filepath.Base(path)); matched {
-			return true
+			idx += j + 1
 		}
 	}
 	return false

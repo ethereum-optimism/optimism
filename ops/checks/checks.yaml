@@ -48,6 +48,14 @@ profiles:
       DEV_FEATURE__OPCM_V2: "true"
     triggers: *profile-triggers-contracts
 
+# Each check_type declares:
+#   inputs:  files/artifacts it reads
+#   outputs: artifacts it writes (empty for validators)
+#   tools:   sugar for inputs: [artifact:toolchain/<tool>]
+#
+# Legacy fields (triggers, prerequisites, produces) are maintained
+# alongside inputs/outputs during Phase B. Once dataflow selection
+# replaces the legacy walks, the legacy fields are removed in Phase C.
 check_types:
   # === Build Steps ===
   - id: forge-build
@@ -56,6 +64,14 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- forge build"
     scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/interfaces/**/*.sol"
+      - "packages/contracts-bedrock/scripts/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+    outputs:
+      - "artifact:forge-artifacts/**"
     avg_duration: 180
     ci_job_names:
       - contracts-bedrock-build
@@ -66,6 +82,12 @@ check_types:
     language: go
     command: "go build ./..."
     scopeable: false
+    tools: [go]
+    inputs:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+    outputs: []
     avg_duration: 120
 
   # === Test Commands ===
@@ -77,6 +99,15 @@ check_types:
     scopeable: true
     scope_flag: "--match-path"
     scope_type: paths
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/test/**/*.sol"
+      - "packages/contracts-bedrock/interfaces/**/*.sol"
+      - "packages/contracts-bedrock/scripts/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 3600
     per_unit_duration: 60
     prerequisites: ["forge-build"]
@@ -121,6 +152,17 @@ check_types:
     scopeable: true
     scope_flag: ""
     scope_type: packages
+    tools: [go]
+    inputs:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      # op-e2e tests consume generated bindings
+      - "op-e2e/bindings/**"
+      - "op-service/txintent/bindings/**"
+      - "op-chain-ops/crossdomain/bindings/**"
+      - "op-node/bindings/**"
+    outputs: []
     avg_duration: 7200
     per_unit_duration: 60
     prerequisites: ["go-build"]
@@ -167,6 +209,13 @@ check_types:
     language: go
     command: "just lint-go"
     scopeable: false
+    tools: [go, mise]
+    inputs:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+    outputs: []
     avg_duration: 300
     ci_job_names:
       - go-lint
@@ -181,6 +230,13 @@ check_types:
     language: "*"
     command: "semgrep scan --config .semgrep/rules/"
     scopeable: false
+    tools: [semgrep]
+    inputs:
+      - ".semgrep/**"
+      - "**/*.go"
+      - "**/*.sol"
+      - "**/*.rs"
+    outputs: []
     avg_duration: 600
     ci_job_names:
       - semgrep-scan
@@ -191,6 +247,10 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just lint-forge-tests-check-no-build"
     scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/test/**/*.t.sol"
+    outputs: []
     avg_duration: 30
 
   # === Contract Checks ===
@@ -200,7 +260,12 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just snapshots-check-no-build"
     scopeable: false
-    triggers: ["packages/contracts-bedrock/src/**"]
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/snapshots/**"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 60
     prerequisites: ["forge-build"]
     # snapshots-check + interfaces-check + semver-check + validate-
@@ -218,14 +283,17 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just interfaces-check-no-build"
     scopeable: false
-    triggers: ["packages/contracts-bedrock/src/**", "packages/contracts-bedrock/interfaces/**"]
-    # interfaces/**/*.sol are regenerated from their src counterparts
-    # via just interfaces-snapshots. interfaces-check gates whether
-    # the on-disk interfaces still match. Declaring it here produces
-    # graph edges so the selector treats it as a per-file prereq of
-    # any test that reaches src through an interface node during its
-    # reverse walk.
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/interfaces/**/*.sol"
+      - "artifact:forge-artifacts/**"
+    # Legacy produces: for the per-file-prereq mechanism. Kept during
+    # Phase B — the dataflow walker covers new selection but the
+    # produces-edge mechanism still drives the scheduler's per-file
+    # ordering for forge-test consumers of interface files.
     produces: ["packages/contracts-bedrock/interfaces/**"]
+    outputs: []
     avg_duration: 60
     prerequisites: ["forge-build"]
 
@@ -235,7 +303,12 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just semver-diff-check-no-build"
     scopeable: false
-    triggers: ["packages/contracts-bedrock/src/**"]
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/snapshots/semver-lock.json"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 60
     prerequisites: ["forge-build"]
 
@@ -245,7 +318,11 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just validate-spacers-no-build"
     scopeable: false
-    triggers: ["packages/contracts-bedrock/src/**"]
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 30
     prerequisites: ["forge-build"]
 
@@ -255,7 +332,11 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just reinitializer-check-no-build"
     scopeable: false
-    triggers: ["packages/contracts-bedrock/src/**"]
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 30
     prerequisites: ["forge-build"]
 
@@ -265,7 +346,11 @@ check_types:
     language: go
     command: "go mod tidy && git diff --exit-code go.mod go.sum"
     scopeable: false
-    triggers: ["go.mod", "go.sum"]
+    tools: [go]
+    inputs:
+      - "go.mod"
+      - "go.sum"
+    outputs: []
     avg_duration: 30
 
   # === Fault proof / cannon ===
@@ -275,11 +360,13 @@ check_types:
     language: go
     command: "just cannon && just cannon-stf-verify"
     scopeable: false
-    triggers:
+    tools: [go, mise]
+    inputs:
       - "cannon/**"
       - "op-program/**"
       - "op-service/**"
       - "op-node/rollup/**"
+    outputs: []
     avg_duration: 1800
     ci_job_names:
       - cannon-stf-verify
@@ -290,12 +377,14 @@ check_types:
     language: go
     command: "just op-program-compat"
     scopeable: false
-    triggers:
+    tools: [go]
+    inputs:
       - "op-program/**"
       - "cannon/**"
       - "op-node/rollup/**"
       - "op-node/chaincfg/**"
       - "op-service/**"
+    outputs: []
     avg_duration: 600
     ci_job_names:
       - op-program-compat
@@ -307,10 +396,12 @@ check_types:
     language: "*"
     command: "cd docs && pnpm build"
     scopeable: false
-    triggers:
+    tools: [node, pnpm]
+    inputs:
       - "docs/**"
       - "specs/**"
       - "**/*.md"
+    outputs: []
     avg_duration: 300
     ci_job_names:
       - mintlify-docs-build
@@ -322,9 +413,12 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && just kontrol-build"
     scopeable: false
-    triggers:
+    tools: [forge, mise, kontrol]
+    inputs:
       - "packages/contracts-bedrock/src/L1/**"
       - "packages/contracts-bedrock/test/kontrol/**"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 1800
     prerequisites: ["forge-build"]
     ci_job_names:
@@ -337,11 +431,18 @@ check_types:
     language: go
     command: "just cannon-prestate"
     scopeable: false
-    triggers:
+    tools: [go, mise]
+    inputs:
       - "cannon/**"
       - "op-program/**"
       - "op-service/**"
       - "op-node/rollup/**"
+      - "op-devstack/**"
+      - "op-acceptance-tests/**"
+      - "go.mod"
+      - "go.sum"
+    outputs:
+      - "artifact:cannon-prestates/**"
     avg_duration: 1200
     ci_job_names:
       - cannon-prestate
@@ -356,7 +457,8 @@ check_types:
     language: solidity
     command: "cd packages/contracts-bedrock && just check-nut-locks"
     scopeable: false
-    triggers:
+    tools: [forge, mise]
+    inputs:
       - "packages/contracts-bedrock/src/L1/opcm/**"
       - "packages/contracts-bedrock/scripts/upgrade/**"
       - "packages/contracts-bedrock/snapshots/upgrades/**"
@@ -365,6 +467,8 @@ check_types:
       - "op-node/rollup/derive/interop_nut_bundle.json"
       - "**/interop_nut_bundle.json"
       - "op-supernode/supernode/activity/interop/**"
+      - "artifact:forge-artifacts/**"
+    outputs: []
     avg_duration: 60
     prerequisites: ["forge-build"]
     ci_job_names:
@@ -378,26 +482,34 @@ check_types:
     language: go
     command: "just check-op-geth-version"
     scopeable: false
-    triggers:
+    tools: [go]
+    inputs:
       - "go.mod"
       - "go.sum"
+      # Any Go source that resolves against go-ethereum transitively.
+      # In practice most of our Go code does; covering op-node/,
+      # op-service/, op-supernode/ catches the common case.
+      - "op-node/**"
+      - "op-service/**"
+      - "op-supernode/**"
+    outputs: []
     avg_duration: 30
     ci_job_names:
       - check-op-geth-version
       - l2-chains-sync-check
 
   # === Rust ===
-  # Rust checks use triggers-on-rust/** as a blunt signal until coverage
-  # ingestion extends to Cargo workspaces. Every Rust diff picks these
-  # up; further refinement (per-crate scoping) comes later with coverage
-  # data.
   - id: rust-build
     name: "Rust workspace build"
     kind: build
     language: rust
     command: "cd rust && cargo build --workspace"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs:
+      - "artifact:rust-target/**"
     avg_duration: 900
     ci_job_names:
       - rust-workspace-binaries
@@ -408,7 +520,6 @@ check_types:
       - kona-host-client-offline-cannon
       - kona-build-fpvm-cannon-client
       - kona-build-release
-      # go-binaries-for-sysgo moved to cannon-prestate
 
   - id: rust-test
     name: "Rust workspace tests"
@@ -418,7 +529,11 @@ check_types:
     scopeable: true
     scope_flag: "-p"
     scope_type: packages
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+      - "artifact:rust-target/**"
+    outputs: []
     avg_duration: 1800
     prerequisites: ["rust-build"]
     ci_job_names:
@@ -431,7 +546,10 @@ check_types:
     language: rust
     command: "cd rust && cargo hack --workspace check --each-feature"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs: []
     avg_duration: 1800
     ci_job_names:
       - rust-cargo-hack
@@ -444,7 +562,10 @@ check_types:
     language: rust
     command: "cd rust && just check-udeps"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs: []
     avg_duration: 600
     ci_job_names:
       - rust-udeps
@@ -455,7 +576,10 @@ check_types:
     language: rust
     command: "cd rust && cargo +1.94.0 build --workspace"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs: []
     avg_duration: 900
     ci_job_names:
       - rust-msrv
@@ -466,7 +590,10 @@ check_types:
     language: rust
     command: "cd rust && just check-no-std"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs: []
     avg_duration: 300
     ci_job_names:
       - rust-check-no-std
@@ -477,7 +604,10 @@ check_types:
     language: rust
     command: "cd rust && just lint"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+    outputs: []
     avg_duration: 300
     ci_job_names:
       - rust-clippy
@@ -495,7 +625,11 @@ check_types:
     language: rust
     command: "cd rust && just e2e"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+      - "artifact:rust-target/**"
+    outputs: []
     avg_duration: 1800
     prerequisites: ["rust-build"]
     ci_job_names:
@@ -511,7 +645,11 @@ check_types:
     language: rust
     command: "cd rust && just memory-check"
     scopeable: false
-    triggers: ["rust/**"]
+    tools: [cargo, rust]
+    inputs:
+      - "rust/**"
+      - "artifact:rust-target/**"
+    outputs: []
     avg_duration: 600
     prerequisites: ["rust-build"]
     ci_job_names:
