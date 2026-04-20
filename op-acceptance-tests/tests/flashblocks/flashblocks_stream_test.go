@@ -56,32 +56,75 @@ func TestFlashblocksStream(gt *testing.T) {
 	// flashblocks).
 }
 
+// ensureFlashblocksIncrease validates that the flashblock stream preserves the documented
+// ordering invariants:
+//
+//   - Each flashblock belongs to a "sequence" identified by its payload_id. A sequence is
+//     always anchored at index 0 and indices within a sequence increase monotonically.
+//   - A new payload_id starts a new sequence at index 0. This can happen for the SAME
+//     block_number when the sequencer rebuilds a block (e.g. a late FCU causes the builder
+//     to start a fresh flashblock sequence for the same block number but a different
+//     payload). See rust/op-reth/crates/flashblocks/src/sequence.rs which states that
+//     "A [`FlashBlock`] with index 0 resets the set."
+//   - Block numbers never decrease across sequences.
+//
+// The old assertion "within the same block_number indices strictly increase" was incorrect:
+// under CI load the sequencer can rebuild a block, producing multiple sequences of flashblocks
+// sharing the same block_number, which made the stream look like "index 1 then index 0".
 func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger log.Logger) {
 	const numFlashblocks = 20
-	client := sources.NewFlashblockClient(wsClient, logger, numFlashblocks)
+	// Give the client a larger buffer so the reader goroutine does not drop messages while
+	// the test is still scanning for its anchor flashblock.
+	client := sources.NewFlashblockClient(wsClient, logger, numFlashblocks*2)
 	startClient(t, client)
 
-	lastBlockNumber := -1
-	lastIndex := -1
-	for range numFlashblocks {
+	// The WS connection is opened eagerly during devstack setup, so by the time this loop
+	// starts there may already be a backlog of messages from an in-progress sequence — the
+	// first message we read is not guaranteed to be index 0. We validate `numFlashblocks`
+	// consecutive transitions AFTER we observe an index=0 anchor so the assertions start
+	// from a deterministic point.
+	anchored := false
+	validated := 0
+	var lastPayloadID string
+	var lastBlockNumber int
+	var lastIndex int
+	for validated < numFlashblocks {
 		select {
 		case <-t.Ctx().Done():
-			t.Require().NoError(t.Ctx().Err(), "before %d flashblocks were seen", numFlashblocks)
+			t.Require().NoError(t.Ctx().Err(), "before %d flashblocks were validated", numFlashblocks)
 		case flashblock, ok := <-client.Next():
-			t.Require().True(ok, "client channel closed before we saw %d flashblocks", numFlashblocks)
+			t.Require().True(ok, "client channel closed before we validated %d flashblocks", numFlashblocks)
 			t.Require().NotNil(flashblock)
-			currentBlockNumber := flashblock.Metadata.BlockNumber
-			currentIndex := flashblock.Index
 
-			if currentBlockNumber == lastBlockNumber {
-				t.Require().Greater(currentIndex, lastIndex)
+			if !anchored {
+				// Skip mid-sequence flashblocks until we find a fresh sequence start.
+				if flashblock.Index != 0 {
+					continue
+				}
+				anchored = true
+			} else if flashblock.PayloadID == lastPayloadID {
+				// Continuation of the current sequence: block number is stable, index must
+				// strictly increase.
+				t.Require().Equal(lastBlockNumber, flashblock.Metadata.BlockNumber,
+					"block_number must be stable within a flashblock sequence (payload_id=%s)",
+					flashblock.PayloadID)
+				t.Require().Greater(flashblock.Index, lastIndex,
+					"flashblock index must strictly increase within a sequence (payload_id=%s)",
+					flashblock.PayloadID)
 			} else {
-				t.Require().Greater(currentBlockNumber, lastBlockNumber)
-				t.Require().Zero(currentIndex)
+				// New sequence: index must be 0, and the block_number must not go backwards.
+				t.Require().Zero(flashblock.Index,
+					"a new flashblock sequence (payload_id %s → %s) must start at index 0",
+					lastPayloadID, flashblock.PayloadID)
+				t.Require().GreaterOrEqual(flashblock.Metadata.BlockNumber, lastBlockNumber,
+					"block_number must not decrease across flashblock sequences (payload_id %s → %s)",
+					lastPayloadID, flashblock.PayloadID)
 			}
 
-			lastBlockNumber = currentBlockNumber
-			lastIndex = currentIndex
+			lastPayloadID = flashblock.PayloadID
+			lastBlockNumber = flashblock.Metadata.BlockNumber
+			lastIndex = flashblock.Index
+			validated++
 		}
 	}
 }
