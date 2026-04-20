@@ -64,6 +64,13 @@ where
         &self.local_safe_heads
     }
 
+    /// Sets the chain ID for the current call context. This is used by the [`TrieHinter`]
+    /// implementation to annotate hints with the correct chain ID.
+    pub fn set_chain_id(&self, chain_id: u64) {
+        let mut lock = self.chain_id.write();
+        *lock = Some(chain_id);
+    }
+
     /// Replaces a local safe head with the given header.
     pub fn replace_local_safe_head(&mut self, chain_id: u64, header: Sealed<Header>) {
         self.local_safe_heads.insert(chain_id, header);
@@ -75,6 +82,8 @@ where
         chain_id: u64,
         block_hash: B256,
     ) -> Result<Header, <Self as InteropProvider>::Error> {
+        self.set_chain_id(chain_id);
+
         HintType::L2BlockHeader
             .with_data(&[block_hash.as_slice(), chain_id.to_be_bytes().as_ref()])
             .send(self.oracle.as_ref())
@@ -139,10 +148,8 @@ where
             return Err(OracleProviderError::BlockNumberPastHead(number, header.number));
         }
 
-        // Set the chain ID for the trie hints, and explicitly drop the lock.
-        let mut chain_id_lock = self.chain_id.write();
-        *chain_id_lock = Some(chain_id);
-        drop(chain_id_lock);
+        // Set the chain ID for the trie hints.
+        self.set_chain_id(chain_id);
 
         // Walk back the block headers to the desired block number.
         let rollup_config = self.boot.rollup_config(chain_id).ok_or_else(|| {
