@@ -11,10 +11,10 @@ parameters:
     type: string
     default: cimg/base:2026.03
   # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev) for Rust jobs.
-  # Provenance is verified by .github/workflows/verify-ci-base-clang-attestation.yml.
+  # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:00f641689576d7393d83f6fd49fe1592006148305999f1ba2fc4f1f9d2e8a342
   base_image:
     type: string
     default: default
