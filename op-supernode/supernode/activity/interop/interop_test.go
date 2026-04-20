@@ -1680,6 +1680,74 @@ func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	require.Equal(t, uint64(1000), mock.rewindEngineCalls[0])
 }
 
+// TestPendingTransition_RewindReplaysAfterFailure exercises the full recovery
+// loop for a rewind that fails mid-way: the WAL is preserved (existing
+// behavior), the failing chain is then "fixed", and progressAndRecord picks up
+// the pending transition on the next iteration and drives it to completion.
+func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithChain(10, nil).
+					WithChain(8453, func(m *mockChainContainer) {
+			m.rewindEngineErr = errors.New("chain B rewind failed")
+		}).
+		Build()
+
+	mockA := h.Mock(10)
+	mockB := h.Mock(8453)
+
+	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		Timestamp:   1000,
+		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			mockA.id: {Number: 100, Hash: common.HexToHash("0xa1")},
+			mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
+		},
+	}))
+	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		Timestamp:   1001,
+		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			mockA.id: {Number: 101, Hash: common.HexToHash("0xa2")},
+			mockB.id: {Number: 201, Hash: common.HexToHash("0xb2")},
+		},
+	}))
+
+	lastTS := uint64(1001)
+	pending, err := h.interop.buildPendingTransition(
+		StepOutput{Decision: DecisionRewind},
+		RoundObservation{LastVerifiedTS: &lastTS},
+	)
+	require.NoError(t, err)
+	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+
+	// First attempt: chain B's RewindEngine errors, WAL preserved.
+	_, err = h.interop.applyPendingTransition(pending)
+	require.EqualError(t, err, "apply rewind plan: chain 8453: reset chain engine on rewind: chain B rewind failed")
+
+	stored, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.NotNil(t, stored, "rewind transition should be preserved after partial failure")
+
+	// Fix chain B.
+	mockB.mu.Lock()
+	mockB.rewindEngineErr = nil
+	mockB.mu.Unlock()
+
+	// Second attempt: progressAndRecord discovers the WAL entry and re-applies
+	// it end-to-end via the normal recovery path.
+	_, err = h.interop.progressAndRecord()
+	require.NoError(t, err)
+
+	replayed, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, replayed, "replay should clear the pending transition")
+
+	require.Len(t, mockA.rewindEngineCalls, 2, "chain A engine rewound on both attempts")
+	require.Len(t, mockB.rewindEngineCalls, 2, "chain B engine rewound on both attempts")
+	require.Equal(t, uint64(1000), mockA.rewindEngineCalls[1])
+	require.Equal(t, uint64(1000), mockB.rewindEngineCalls[1])
+}
+
 func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
