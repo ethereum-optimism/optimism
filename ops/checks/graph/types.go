@@ -32,6 +32,12 @@ const (
 	EdgePrerequisite        EdgeKind = "prerequisite"
 	EdgeObservedCorrelation EdgeKind = "observed_correlation"
 	EdgeAIAnnotated         EdgeKind = "ai_annotated"
+	// EdgeCovers marks a coverage observation from a test-side node
+	// to a source-side node. Written by the coverage ingester; read
+	// by the scope-layer (resolve_coverage.go). Distinct from
+	// EdgeConsumes (which is check→source declared dataflow) and
+	// EdgeTestedBy (deleted post-cutover).
+	EdgeCovers EdgeKind = "covers"
 )
 
 // EdgeSource records how an edge was discovered.

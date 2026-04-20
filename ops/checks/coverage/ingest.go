@@ -56,7 +56,7 @@ func IngestReports(g *graph.Graph, reports []*Report) error {
 			_ = g.AddEdge(&graph.Edge{
 				From:       testNodeID,
 				To:         sourceNodeID,
-				Kind:       graph.EdgeTestedBy,
+				Kind:       graph.EdgeCovers,
 				Source:     graph.SourceCoverage,
 				Confidence: 1.0,
 				Strength:   coverageStrength(ranges),

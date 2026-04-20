@@ -31,15 +31,35 @@ type configSeeds struct {
 // Go source node — replacing the old blast-radius fanout.
 func expandGoModDiffs(diffs []diff.FileDiff, g *graph.Graph) configSeeds {
 	var out configSeeds
+	seen := make(map[string]bool)
 	for _, d := range diffs {
 		change := diff.AnalyzeGoModChange(d)
 		if change.ForceBlast {
 			out.forceAll = true
 		}
 		for _, m := range change.AffectedModules {
-			id := "mod:" + m
-			if g.GetNode(id) != nil {
-				out.sourceNodes = append(out.sourceNodes, id)
+			modID := "mod:" + m
+			if g.GetNode(modID) == nil {
+				continue
+			}
+			if !seen[modID] {
+				seen[modID] = true
+				out.sourceNodes = append(out.sourceNodes, modID)
+			}
+			// Reverse-walk imports to pre-seed packages that import
+			// the affected module — those packages are the ones whose
+			// dataflow consumers (go-test, go-build, …) must fire.
+			// Plain mod: seeds wouldn't propagate through consumes
+			// edges because no check declares a consumes to a module
+			// node.
+			for _, e := range g.EdgesTo(modID) {
+				if e.Kind != graph.EdgeImports {
+					continue
+				}
+				if !seen[e.From] {
+					seen[e.From] = true
+					out.sourceNodes = append(out.sourceNodes, e.From)
+				}
 			}
 		}
 	}
@@ -54,6 +74,14 @@ func expandGoModDiffs(diffs []diff.FileDiff, g *graph.Graph) configSeeds {
 // the analyzer doesn't classify.
 func expandCargoTomlDiffs(diffs []diff.FileDiff, g *graph.Graph) configSeeds {
 	var out configSeeds
+	seen := make(map[string]bool)
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out.sourceNodes = append(out.sourceNodes, id)
+	}
 	for _, d := range diffs {
 		if d.Path != "Cargo.toml" && !strings.HasSuffix(d.Path, "/Cargo.toml") {
 			continue
@@ -63,14 +91,26 @@ func expandCargoTomlDiffs(diffs []diff.FileDiff, g *graph.Graph) configSeeds {
 			out.forceAll = true
 		}
 		for _, dep := range change.AffectedDeps {
-			if g.GetNode("rs:" + dep) != nil {
-				out.sourceNodes = append(out.sourceNodes, "rs:"+dep)
-			} else if g.GetNode("mod:" + dep) != nil {
-				out.sourceNodes = append(out.sourceNodes, "mod:"+dep)
+			switch {
+			case g.GetNode("rs:"+dep) != nil:
+				add("rs:" + dep)
+				// Also seed crates that import this one.
+				for _, e := range g.EdgesTo("rs:" + dep) {
+					if e.Kind == graph.EdgeImports {
+						add(e.From)
+					}
+				}
+			case g.GetNode("mod:"+dep) != nil:
+				add("mod:" + dep)
+				for _, e := range g.EdgesTo("mod:" + dep) {
+					if e.Kind == graph.EdgeImports {
+						add(e.From)
+					}
+				}
 			}
 		}
 		if owner := findCrateForManifest(d.Path, g); owner != "" {
-			out.sourceNodes = append(out.sourceNodes, owner)
+			add(owner)
 		}
 	}
 	return out

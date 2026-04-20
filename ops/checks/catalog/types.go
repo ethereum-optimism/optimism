@@ -74,9 +74,17 @@ type Knob struct {
 // profile tag) but the profile still needs to run — e.g. feature-flag
 // profiles that only activate specific code paths.
 type TestProfile struct {
-	Name     string            `yaml:"name"`
-	Env      map[string]string `yaml:"env,omitempty"`
-	Triggers []string          `yaml:"triggers,omitempty"`
+	Name string            `yaml:"name"`
+	Env  map[string]string `yaml:"env,omitempty"`
+	// Triggers is the pre-cutover path-glob selector for this
+	// profile. Deprecated; ActiveWhenSelected is authoritative
+	// post-cutover. Kept for a brief transition so tests that load
+	// the old YAML shape still parse.
+	Triggers []string `yaml:"triggers,omitempty"`
+	// ActiveWhenSelected lists check IDs whose selection activates
+	// this profile. Each activating check is expanded under this
+	// profile by profileTriggerExpand. Replaces path-glob Triggers.
+	ActiveWhenSelected []string `yaml:"active_when_selected,omitempty"`
 }
 
 // MatchesTriggers reports whether any of the given file paths match

@@ -20,7 +20,7 @@ func TestDataflow_SingleCheckSingleInput(t *testing.T) {
 	})
 
 	diffs := []diff.FileDiff{{Path: "packages/contracts-bedrock/src/Foo.sol"}}
-	got := SelectViaDataflow(g, diffs)
+	got := dataflowForDiffsForTest(g, diffs)
 
 	if len(got) != 1 || got[0].CheckID != "forge-test" {
 		t.Fatalf("expected [forge-test], got %v", got)
@@ -44,7 +44,7 @@ func TestDataflow_TransitivePropagation(t *testing.T) {
 	_ = g.AddEdge(&graph.Edge{From: "check:forge-test", To: "artifact:forge-artifacts/Foo.json", Kind: graph.EdgeConsumes, Source: graph.SourceStatic, Confidence: 1, Strength: 1})
 
 	diffs := []diff.FileDiff{{Path: "packages/contracts-bedrock/src/Foo.sol"}}
-	got := SelectViaDataflow(g, diffs)
+	got := dataflowForDiffsForTest(g, diffs)
 
 	ids := checkIDs(got)
 	if !stringSetEq(ids, []string{"forge-build", "forge-test"}) {
@@ -136,6 +136,21 @@ func dataflowFromSeed(g *graph.Graph, seed map[string]bool) []string {
 	out := make([]string, 0, len(selected))
 	for id := range selected {
 		out = append(out, id)
+	}
+	return out
+}
+
+// dataflowForDiffsForTest is a package-internal shim that mirrors the
+// pre-cutover SelectViaDataflow signature for the existing test
+// fixtures. It extracts paths + source-node seeds from diffs and
+// returns the selected checks as Candidates.
+func dataflowForDiffsForTest(g *graph.Graph, diffs []diff.FileDiff) []Candidate {
+	filePaths := extractPaths(diffs)
+	seedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
+	sel := selectViaDataflow(g, seedIDs, filePaths, nil)
+	out := make([]Candidate, 0, len(sel))
+	for id := range sel {
+		out = append(out, Candidate{CheckID: id, Signal: 1.0})
 	}
 	return out
 }

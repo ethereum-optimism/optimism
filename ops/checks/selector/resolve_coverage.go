@@ -48,7 +48,7 @@ func coverageCandidates(
 		fileChanged := changedLines[sourceFile]
 
 		for _, edge := range g.EdgesTo(changedID) {
-			if edge.Source != graph.SourceCoverage {
+			if edge.Kind != graph.EdgeCovers {
 				continue
 			}
 			// Coverage edges are language-typed by their endpoints.
@@ -125,7 +125,7 @@ func coverageCandidates(
 			Signal:  e.signal,
 			Provenance: []SignalContribution{{
 				Source:       graph.SourceCoverage,
-				EdgeKind:     graph.EdgeTestedBy,
+				EdgeKind:     graph.EdgeCovers,
 				Contribution: e.signal,
 				Raw:          raw,
 			}},

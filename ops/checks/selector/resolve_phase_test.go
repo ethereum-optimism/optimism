@@ -42,7 +42,7 @@ func testGraph(t *testing.T) (*graph.Graph, *catalog.Catalog) {
 	if err := g.AddEdge(&graph.Edge{
 		From: "sol:test/L1/OptimismPortal.t.sol",
 		To:   "sol:src/L1/OptimismPortal.sol",
-		Kind: graph.EdgeTestedBy, Source: graph.SourceCoverage,
+		Kind: graph.EdgeCovers, Source: graph.SourceCoverage,
 		Strength: 0.9, Confidence: 1.0,
 		Properties: map[string]any{
 			"line_ranges": [][2]int{{42, 50}},
@@ -52,14 +52,15 @@ func testGraph(t *testing.T) (*graph.Graph, *catalog.Catalog) {
 		t.Fatalf("add coverage edge: %v", err)
 	}
 
-	// tested_by edge so import-fallback would see the test file.
-	if err := g.AddEdge(&graph.Edge{
-		From: "sol:test/L1/OptimismPortal.t.sol",
-		To:   "check:forge-test",
-		Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-		Strength: 0.9, Confidence: 0.8,
-	}); err != nil {
-		t.Fatalf("add tested_by: %v", err)
+	// consumes edges so dataflow selects forge-test on src/test diffs.
+	for _, id := range []string{"sol:src/L1/OptimismPortal.sol", "sol:test/L1/OptimismPortal.t.sol"} {
+		if err := g.AddEdge(&graph.Edge{
+			From: "check:forge-test", To: id,
+			Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+			Strength: 1.0, Confidence: 1.0,
+		}); err != nil {
+			t.Fatalf("add consumes: %v", err)
+		}
 	}
 
 	// Build the catalog through YAML Parse so the internal index is populated
@@ -144,22 +145,23 @@ func TestResolve_NoIntersectionNoCandidate(t *testing.T) {
 	}
 }
 
-// TestResolve_BlastRadius — changing foundry.toml produces one
-// candidate per check type with blast-radius provenance.
-func TestResolve_BlastRadius(t *testing.T) {
+// TestResolve_UniversalInputsFanout — a diff touching a path listed
+// in universal_inputs produces one candidate per check via the
+// dataflow walker's consumes-edge expansion. Replaces the pre-cutover
+// TestResolve_BlastRadius which tested the deleted
+// policy.blast_radius_patterns mechanism.
+func TestResolve_UniversalInputsFanout(t *testing.T) {
 	g, cat := testGraph(t)
+	cat.UniversalInputs = []string{".circleci/**"}
 
-	diffs := []diff.FileDiff{{Path: "foundry.toml"}}
+	diffs := []diff.FileDiff{{Path: ".circleci/config.yml"}}
 	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
-	if len(cands) != len(cat.CheckTypes) {
-		t.Fatalf("expected 1 candidate per check type (%d), got %d", len(cat.CheckTypes), len(cands))
+	if len(cands) == 0 {
+		t.Fatalf("expected at least 1 candidate from universal_inputs fanout; got 0")
 	}
 	for _, c := range cands {
 		if c.Signal != 1.0 {
-			t.Errorf("blast-radius candidate should have Signal=1.0, got %f", c.Signal)
-		}
-		if reason, ok := c.Provenance[0].Raw["reason"]; !ok || reason != "blast_radius" {
-			t.Errorf("expected blast_radius provenance, got %+v", c.Provenance[0].Raw)
+			t.Errorf("universal-inputs candidate should have Signal=1.0, got %f", c.Signal)
 		}
 	}
 }
@@ -253,14 +255,14 @@ func TestResolve_TestHelperChangeFindsConsumers(t *testing.T) {
 		}
 	}
 
-	// tested_by from every source node to forge-test (like the builder wires it)
+	// consumes from forge-test to every source node (dataflow wiring).
 	for _, id := range nodes {
 		if err := g.AddEdge(&graph.Edge{
-			From: id, To: "check:forge-test",
-			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-			Strength: 0.9, Confidence: 0.8,
+			From: "check:forge-test", To: id,
+			Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+			Strength: 1.0, Confidence: 1.0,
 		}); err != nil {
-			t.Fatalf("add tested_by: %v", err)
+			t.Fatalf("add consumes: %v", err)
 		}
 	}
 
@@ -341,8 +343,9 @@ func TestResolve_TransitiveHelperChain(t *testing.T) {
 		"sol:test/L1/X.t.sol",
 	} {
 		_ = g.AddEdge(&graph.Edge{
-			From: id, To: "check:forge-test",
-			Kind: graph.EdgeTestedBy, Strength: 0.9, Confidence: 0.8,
+			From: "check:forge-test", To: id,
+			Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+			Strength: 1.0, Confidence: 1.0,
 		})
 	}
 
@@ -401,12 +404,12 @@ func TestResolve_GoModAffectsImportingPackages(t *testing.T) {
 	_ = g.AddEdge(&graph.Edge{From: pkgUses, To: modM, Kind: graph.EdgeImports, Strength: 0.8, Confidence: 1.0})
 	_ = g.AddEdge(&graph.Edge{From: pkgDoesnt, To: modN, Kind: graph.EdgeImports, Strength: 0.8, Confidence: 1.0})
 
-	// Every Go package has tested_by → go-test (builder convention).
+	// go-test consumes every Go package (dataflow wiring).
 	for _, id := range []string{pkgUses, pkgDoesnt, bystander} {
 		_ = g.AddEdge(&graph.Edge{
-			From: id, To: "check:go-test",
-			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-			Strength: 0.9, Confidence: 0.8,
+			From: "check:go-test", To: id,
+			Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+			Strength: 1.0, Confidence: 1.0,
 		})
 	}
 
@@ -517,22 +520,30 @@ check_types:
 }
 
 // TestResolve_CargoTomlForceBlastOnFeatures — [features] changes
-// flip compile-time behavior across consumers; must force blast.
+// flip compile-time behavior across consumers; configSeeds.forceAll
+// fans out every rs: source node via dataflow consumes edges. Under
+// the cutover, only Rust-consuming checks fire — Go/Solidity checks
+// stay out (they don't consume rs: nodes).
 func TestResolve_CargoTomlForceBlastOnFeatures(t *testing.T) {
 	g := graph.NewGraph()
-	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck, Name: "forge-test"})
+	_ = g.AddNode(&graph.Node{ID: "check:rust-test", Kind: graph.KindCheck, Name: "rust-test"})
 	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
+	_ = g.AddNode(&graph.Node{ID: "rs:kona-derive", Kind: graph.KindSource, Granularity: "crate",
+		Properties: map[string]any{"dir": "rust/crates/derive"}})
+	_ = g.AddNode(&graph.Node{ID: "go:github.com/x/y", Kind: graph.KindSource, Granularity: "package"})
+	_ = g.AddEdge(&graph.Edge{From: "check:rust-test", To: "rs:kona-derive", Kind: graph.EdgeConsumes, Source: graph.SourceStatic, Strength: 1, Confidence: 1})
+	_ = g.AddEdge(&graph.Edge{From: "check:go-test", To: "go:github.com/x/y", Kind: graph.EdgeConsumes, Source: graph.SourceStatic, Strength: 1, Confidence: 1})
 
 	cat, _ := catalog.Parse([]byte(`
 check_types:
-  - id: forge-test
-    name: forge-test
+  - id: rust-test
+    name: rust-test
     kind: test
-    language: solidity
-    command: forge test
+    language: rust
+    command: cargo test
     scopeable: true
-    scope_type: paths
-    avg_duration: 3600
+    scope_type: packages
+    avg_duration: 1800
   - id: go-test
     name: go-test
     kind: test
@@ -555,21 +566,30 @@ check_types:
 	got := make(map[string]bool)
 	for _, c := range cands {
 		got[c.CheckID] = true
-		if c.Signal != 1.0 {
-			t.Errorf("blast candidate %q has signal %f, want 1.0", c.CheckID, c.Signal)
-		}
 	}
-	if !got["forge-test"] || !got["go-test"] {
-		t.Errorf("expected blast across checks; got %v", got)
+	if !got["rust-test"] {
+		t.Errorf("expected rust-test to fan out on forceAll; got %v", got)
+	}
+	if got["go-test"] {
+		t.Errorf("go-test should NOT fire on a Cargo-only structural change; got %v", got)
 	}
 }
 
 // TestResolve_GoModForceBlastOnGoVersion — bumping the `go` directive
-// forces blast-radius (every check, not scoped).
+// is a structural go.mod change: configSeeds.forceAll triggers, which
+// seeds every go: source node. Post-cutover semantics: Go checks fan
+// out (because their consumes edges reach every go: node), Solidity
+// checks stay out (their consumes don't point at go: nodes).
 func TestResolve_GoModForceBlastOnGoVersion(t *testing.T) {
 	g := graph.NewGraph()
 	_ = g.AddNode(&graph.Node{ID: "check:go-test", Kind: graph.KindCheck, Name: "go-test"})
 	_ = g.AddNode(&graph.Node{ID: "check:forge-test", Kind: graph.KindCheck, Name: "forge-test"})
+	// Minimal source nodes + consumes wiring so the dataflow walker
+	// has something to invalidate on forceAll.
+	_ = g.AddNode(&graph.Node{ID: "go:github.com/x/y", Kind: graph.KindSource, Granularity: "package"})
+	_ = g.AddNode(&graph.Node{ID: "sol:src/L1/Foo.sol", Kind: graph.KindSource})
+	_ = g.AddEdge(&graph.Edge{From: "check:go-test", To: "go:github.com/x/y", Kind: graph.EdgeConsumes, Source: graph.SourceStatic, Strength: 1, Confidence: 1})
+	_ = g.AddEdge(&graph.Edge{From: "check:forge-test", To: "sol:src/L1/Foo.sol", Kind: graph.EdgeConsumes, Source: graph.SourceStatic, Strength: 1, Confidence: 1})
 
 	cat, _ := catalog.Parse([]byte(`
 check_types:
@@ -601,20 +621,17 @@ check_types:
 
 	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
 
-	// Blast-radius: every check type in the catalog gets a candidate,
-	// all with signal=1.0 and Scope="" (unscoped "run everything").
+	// go.mod forceAll seeds every go: source node — go-test fires
+	// via its consumes edges. Solidity checks are unaffected.
 	checkIDs := make(map[string]bool)
 	for _, c := range cands {
-		if c.Signal != 1.0 {
-			t.Errorf("blast-radius candidate %q has signal %f, want 1.0", c.CheckID, c.Signal)
-		}
-		if c.Scope != "" {
-			t.Errorf("blast-radius candidate %q should be unscoped, got %q", c.CheckID, c.Scope)
-		}
 		checkIDs[c.CheckID] = true
 	}
-	if !checkIDs["go-test"] || !checkIDs["forge-test"] {
-		t.Errorf("expected both checks in blast radius; got %v", checkIDs)
+	if !checkIDs["go-test"] {
+		t.Errorf("expected go-test in dataflow fanout; got %v", checkIDs)
+	}
+	if checkIDs["forge-test"] {
+		t.Errorf("forge-test should NOT fire on a go.mod-only structural change; got %v", checkIDs)
 	}
 }
 
@@ -633,7 +650,7 @@ func TestResolve_SolidityCoverageDoesNotTriggerGoTest(t *testing.T) {
 	_ = g.AddEdge(&graph.Edge{
 		From:     "sol:test/L1/X.t.sol",
 		To:       "sol:src/L1/X.sol",
-		Kind:     graph.EdgeTestedBy,
+		Kind:     graph.EdgeCovers,
 		Source:   graph.SourceCoverage,
 		Strength: 0.9, Confidence: 1.0,
 		Properties: map[string]any{"line_ranges": [][2]int{{40, 50}}},
@@ -688,33 +705,29 @@ check_types:
 	}
 }
 
-// TestResolve_CorrelationEdgeProducesBinaryCandidate — a CI-history
-// correlation edge on a binary check surfaces as a Candidate carrying
-// SourceCIHistory provenance, independent of coverage.
-func TestResolve_CorrelationEdgeProducesBinaryCandidate(t *testing.T) {
+// TestResolve_CorrelationAdjustsSignalOnSelectedCandidate — post-
+// cutover, CI-history correlation edges do NOT create candidates
+// (dataflow is authoritative for selection). Correlation only lifts
+// signal on candidates already produced by dataflow selection.
+func TestResolve_CorrelationAdjustsSignalOnSelectedCandidate(t *testing.T) {
 	g, _ := testGraph(t)
 
-	// Add a binary check and a correlation edge to it.
 	if err := g.AddNode(&graph.Node{ID: "check:snapshots-check", Kind: graph.KindCheck, Name: "snapshots-check"}); err != nil {
 		t.Fatalf("add check: %v", err)
 	}
+	// Correlation edge alone — should NOT produce a snapshots-check
+	// candidate because there's no consumes edge from the check.
 	if err := g.AddEdge(&graph.Edge{
 		From:       "sol:src/L1/OptimismPortal.sol",
 		To:         "check:snapshots-check",
 		Kind:       graph.EdgeObservedCorrelation,
 		Source:     graph.SourceCIHistory,
-		Strength:   0.8, // precision
-		Confidence: 1.0, // enough samples
-		Properties: map[string]any{
-			"observations": 25,
-			"failures":     20,
-			"precision":    0.8,
-		},
+		Strength:   0.8,
+		Confidence: 1.0,
 	}); err != nil {
 		t.Fatalf("add correlation: %v", err)
 	}
 
-	// Extend the catalog with the binary check.
 	cat, err := catalog.Parse([]byte(`
 check_types:
   - id: forge-test
@@ -746,8 +759,24 @@ profiles:
 		Hunks: []diff.Hunk{{NewStart: 45, NewCount: 1}},
 	}}
 
+	// Without a consumes edge, correlation alone does not select.
 	cands := Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
+	for _, c := range cands {
+		if c.CheckID == "snapshots-check" {
+			t.Fatalf("correlation alone should not select snapshots-check, got: %+v", c)
+		}
+	}
 
+	// Now add a consumes edge: dataflow picks snapshots-check, and
+	// correlation should boost its signal.
+	if err := g.AddEdge(&graph.Edge{
+		From: "check:snapshots-check", To: "sol:src/L1/OptimismPortal.sol",
+		Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+		Strength: 1.0, Confidence: 1.0,
+	}); err != nil {
+		t.Fatalf("add consumes: %v", err)
+	}
+	cands = Resolve(g, diffs, cat, testPolicy(t), freshness.Nop())
 	var snap *Candidate
 	for i := range cands {
 		if cands[i].CheckID == "snapshots-check" {
@@ -755,10 +784,7 @@ profiles:
 		}
 	}
 	if snap == nil {
-		t.Fatalf("expected snapshots-check candidate, got: %+v", cands)
-	}
-	if snap.Signal != 0.8 {
-		t.Errorf("signal = %f, want 0.8 (strength*confidence)", snap.Signal)
+		t.Fatalf("expected snapshots-check candidate after adding consumes, got: %+v", cands)
 	}
 	foundCI := false
 	for _, p := range snap.Provenance {
@@ -767,7 +793,7 @@ profiles:
 		}
 	}
 	if !foundCI {
-		t.Errorf("expected SourceCIHistory in provenance, got: %+v", snap.Provenance)
+		t.Errorf("expected SourceCIHistory provenance after correlation boost, got: %+v", snap.Provenance)
 	}
 }
 
@@ -784,7 +810,7 @@ func TestOptimize_PreservesProvenance(t *testing.T) {
 		Signal:  0.95,
 		Provenance: []SignalContribution{{
 			Source:       graph.SourceCoverage,
-			EdgeKind:     graph.EdgeTestedBy,
+			EdgeKind:     graph.EdgeCovers,
 			Contribution: 0.95,
 			Raw:          map[string]any{"hit_lines": 4, "total_changed": 5},
 		}},
@@ -795,7 +821,7 @@ func TestOptimize_PreservesProvenance(t *testing.T) {
 		Signal:  0.85,
 		Provenance: []SignalContribution{{
 			Source:       graph.SourceCoverage,
-			EdgeKind:     graph.EdgeTestedBy,
+			EdgeKind:     graph.EdgeCovers,
 			Contribution: 0.85,
 			Raw:          map[string]any{"hit_lines": 3, "total_changed": 5},
 		}},

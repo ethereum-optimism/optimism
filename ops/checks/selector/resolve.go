@@ -50,52 +50,54 @@ func Resolve(
 		return nil
 	}
 
-	// go.mod and Cargo.toml get special handling: structural changes
-	// force blast radius; dep-table changes become synthetic changed
-	// nodes (mod: for external deps, go:/rs: for internal) that feed
-	// the reverse-walk infrastructure the same way test-helper
-	// changes do.
+	// Step 1: seed set. Direct path→node lookups + config-diff
+	// expansions (go.mod dep table → mod: nodes; structural changes
+	// seed every same-language node, replacing blast-radius fanout).
+	fileChangedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
 	goSeeds := expandGoModDiffs(diffs, g)
 	rsSeeds := expandCargoTomlDiffs(diffs, g)
-	if goSeeds.forceAll || rsSeeds.forceAll {
-		// Phase 1 transitional: forceAll still returns to the legacy
-		// blast-radius candidate set until Phase 2 rewrites Resolve to
-		// feed forceAll through the dataflow walker.
-		files := make([]string, 0)
-		for _, d := range diffs {
-			if d.Path == "go.mod" || strings.HasSuffix(d.Path, "/go.mod") ||
-				d.Path == "Cargo.toml" || strings.HasSuffix(d.Path, "/Cargo.toml") {
-				files = append(files, d.Path)
-			}
-		}
-		return blastRadiusCandidates(cat, files)
+	seedIDs := make([]string, 0, len(fileChangedIDs)+len(goSeeds.sourceNodes)+len(rsSeeds.sourceNodes))
+	seedIDs = append(seedIDs, fileChangedIDs...)
+	seedIDs = append(seedIDs, goSeeds.sourceNodes...)
+	seedIDs = append(seedIDs, rsSeeds.sourceNodes...)
+	if goSeeds.forceAll {
+		seedIDs = append(seedIDs, allGoSourceNodes(g)...)
+	}
+	if rsSeeds.forceAll {
+		seedIDs = append(seedIDs, allRustSourceNodes(g)...)
 	}
 
-	if isBlast, files := diff.BlastRadiusFiles(filePaths, pol.BlastRadius); isBlast {
-		return blastRadiusCandidates(cat, files)
+	// Step 2: dataflow walk picks check_types.
+	selected := selectViaDataflow(g, seedIDs, filePaths, cat)
+	if len(selected) == 0 {
+		return nil
 	}
 
+	// Step 3: expand selected check_types into per-scope per-profile
+	// Candidates. Coverage + import walks layer on top of the
+	// dataflow selection; profiles clone scopeable candidates.
 	changedLines := buildChangedLinesMap(diffs)
-	fileChangedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
-	changedIDs := make([]string, 0, len(fileChangedIDs)+len(goSeeds.sourceNodes)+len(rsSeeds.sourceNodes))
-	changedIDs = append(changedIDs, fileChangedIDs...)
-	changedIDs = append(changedIDs, goSeeds.sourceNodes...)
-	changedIDs = append(changedIDs, rsSeeds.sourceNodes...)
+	changedIDs := uniqueStrings(seedIDs)
+	cands := scopeSelectedChecks(g, cat, selected, changedIDs, changedLines, pol, fresh)
 
-	var out []Candidate
-	// Collect per-check candidates; also build a map from CheckID to its
-	// scope candidates so profile triggers can reuse the same scopes
-	// (same file → same tests, just under a different profile env).
-	byCheck := make(map[string][]Candidate)
-	for i := range cat.CheckTypes {
-		ct := &cat.CheckTypes[i]
-		cands := candidatesForCheck(g, ct, filePaths, changedIDs, changedLines, pol, fresh)
-		out = append(out, cands...)
-		if ct.Scopeable {
-			byCheck[ct.ID] = cands
+	// Step 4: correlation signal adjustment — does NOT create new
+	// candidates (dataflow is authoritative for selection); only
+	// lifts signal on already-selected candidates.
+	cands = applyCorrelationSignal(g, cands, changedIDs, fresh)
+
+	return cands
+}
+
+func uniqueStrings(in []string) []string {
+	seen := make(map[string]bool, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s == "" || seen[s] {
+			continue
 		}
+		seen[s] = true
+		out = append(out, s)
 	}
-	out = append(out, profileTriggerCandidates(cat, filePaths, byCheck)...)
 	return out
 }
 

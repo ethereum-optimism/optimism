@@ -28,26 +28,27 @@ func testFixture(t *testing.T) (*graph.Graph, *catalog.Catalog, *policy.Policy) 
 	// Coverage edge: X.t.sol covers X.sol
 	_ = g.AddEdge(&graph.Edge{
 		From: "sol:test/L1/X.t.sol", To: "sol:src/L1/X.sol",
-		Kind: graph.EdgeTestedBy, Source: graph.SourceCoverage,
+		Kind: graph.EdgeCovers, Source: graph.SourceCoverage,
 		Strength: 0.9, Confidence: 1.0,
 		Properties: map[string]any{},
 	})
-	// tested_by edges from test file to checks (builder convention)
-	for _, check := range []string{"check:forge-test"} {
-		_ = g.AddEdge(&graph.Edge{
-			From: "sol:test/L1/X.t.sol", To: check,
-			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-			Strength: 0.9, Confidence: 0.8,
-		})
-	}
-	// Also from the src file, so binary-check paths can reach it
-	for _, check := range []string{"check:forge-test", "check:snapshots-check"} {
-		_ = g.AddEdge(&graph.Edge{
-			From: "sol:src/L1/X.sol", To: check,
-			Kind: graph.EdgeTestedBy, Source: graph.SourceStatic,
-			Strength: 0.9, Confidence: 0.8,
-		})
-	}
+	// Dataflow consumes edges so selectViaDataflow picks the check
+	// when the relevant source node is invalidated.
+	_ = g.AddEdge(&graph.Edge{
+		From: "check:forge-test", To: "sol:src/L1/X.sol",
+		Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+		Strength: 1.0, Confidence: 1.0,
+	})
+	_ = g.AddEdge(&graph.Edge{
+		From: "check:forge-test", To: "sol:test/L1/X.t.sol",
+		Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+		Strength: 1.0, Confidence: 1.0,
+	})
+	_ = g.AddEdge(&graph.Edge{
+		From: "check:snapshots-check", To: "sol:src/L1/X.sol",
+		Kind: graph.EdgeConsumes, Source: graph.SourceStatic,
+		Strength: 1.0, Confidence: 1.0,
+	})
 
 	cat, err := catalog.Parse([]byte(`
 check_types:

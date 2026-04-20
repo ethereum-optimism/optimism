@@ -26,7 +26,6 @@ func cmdSelect(args []string) error {
 	format := fs.String("format", "text", "output format (text, json)")
 	whyFilter := fs.String("why", "", "substring match against item IDs; prints matching items with full provenance")
 	budget := fs.Duration("budget", 0, "max wall-clock budget (e.g. 30m). Lowest-value items are trimmed to fit; force-run items and their prerequisites are preserved")
-	compareDataflow := fs.Bool("compare-dataflow", false, "also run the pipeline-model dataflow selector and report which check_types each picks")
 	includeGen := fs.Bool("include-gen", false, "include kind:gen checks in the plan (off by default; CI never runs them)")
 	fs.Parse(args)
 
@@ -79,38 +78,6 @@ func cmdSelect(args []string) error {
 	// Phase 1: Resolve — emit candidate items with per-source provenance.
 	fresh := freshness.New(findRepoRoot(), pol, g)
 	candidates := selector.Resolve(g, diffs, cat, pol, fresh)
-
-	if *compareDataflow {
-		dfCands := selector.SelectViaDataflowWithCatalog(g, diffs, cat)
-		legacySet := make(map[string]bool)
-		for _, c := range candidates {
-			legacySet[c.CheckID] = true
-		}
-		dfSet := make(map[string]bool)
-		for _, c := range dfCands {
-			dfSet[c.CheckID] = true
-		}
-		both, onlyLegacy, onlyDataflow := []string{}, []string{}, []string{}
-		for k := range legacySet {
-			if dfSet[k] {
-				both = append(both, k)
-			} else {
-				onlyLegacy = append(onlyLegacy, k)
-			}
-		}
-		for k := range dfSet {
-			if !legacySet[k] {
-				onlyDataflow = append(onlyDataflow, k)
-			}
-		}
-		sort.Strings(both)
-		sort.Strings(onlyLegacy)
-		sort.Strings(onlyDataflow)
-		fmt.Fprintf(os.Stderr, "\n=== dataflow vs legacy ===\n")
-		fmt.Fprintf(os.Stderr, "both (%d):            %v\n", len(both), both)
-		fmt.Fprintf(os.Stderr, "only legacy (%d):     %v\n", len(onlyLegacy), onlyLegacy)
-		fmt.Fprintf(os.Stderr, "only dataflow (%d):   %v\n", len(onlyDataflow), onlyDataflow)
-	}
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer(pol)

@@ -45,14 +45,16 @@ func importScopeCandidates(g *graph.Graph, ct *catalog.CheckType, changedIDs []s
 	}
 	var hits []emit
 	for nodeID, signal := range wr.consumers {
+		// isCandidateTestNode enforces language AND granularity
+		// (test-file for Solidity; package for Go; crate for Rust) —
+		// strictly tighter than the deleted hasTestedByEdge filter,
+		// which only gated on a builder-emitted language match.
 		if !isCandidateTestNode(nodeID, ct) {
-			continue
-		}
-		if !hasTestedByEdge(g, nodeID, checkNodeID) {
 			continue
 		}
 		hits = append(hits, emit{nodeID, signal})
 	}
+	_ = checkNodeID // retained for signature stability; language-matching is now via isCandidateTestNode
 	if len(hits) == 0 {
 		return nil
 	}
