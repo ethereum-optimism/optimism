@@ -11,76 +11,13 @@ Boba supports multiple execution clients:
 | Compose file | Execution | Consensus | Status |
 |---|---|---|---|
 | `docker-compose-boba-{network}-reth.yml` | **op-reth** | **op-node** | Recommended |
-| `docker-compose-boba-{network}.yml` | op-erigon | op-node | Supported |
-| `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Legacy |
+| `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Deprecated (removal 2026-05-31) |
 
 > **Note:** The op-reth snapshots contain a pre-initialized reth database built from the op-geth state at the Bedrock migration block. Download, extract, and run — no manual `init-state` step is needed. To regenerate the database from scratch, see the [migration guide](scripts/geth-to-reth/README.md).
 
-### Get the data dir
+### Getting started
 
-1. Download the initial data for your execution client.
-
-- BOBA Sepolia
-
-  The **erigon** db can be downloaded from [boba sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz).
-
-  ```bash
-  curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
-  ```
-
-  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst).
-
-  ```bash
-  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
-  ```
-
-  > Check the [BOBA Snapshots](https://docs.boba.network/for-developers/node-operators/snapshot-downloads) page for the correct checksum for the snapshot you've downloaded.
-
-2. Extract the data Directory
-
-   Once you've downloaded the database snapshot, you'll need to extract it to a directory on your machine. This will take some time to complete.
-
-   ```bash
-   tar xvf data.tgz
-   ```
-
-3. Create a shared secret (JWT token)
-
-   ```bash
-   openssl rand -hex 32 > jwt-secret.txt
-   ```
-
-### Create a .env file
-
-Create a  `.env` file in `boba-community`.
-
-```
-ETH1_HTTP=
-ETH2_HTTP=
-ERIGON_VERSION=
-OP_NODE_VERSION=
-```
-
-> `ETH2_HTTP` is mandatory as it is the L1 beacon endpoint. The other variables are optional, but we recommend using the latest release images. Otherwise, it will pull the image with the `latest` tag.
-
-### Modify volume location
-
-The volumes of l2 should be modified to your data directory location.
-
-```yaml
-l2:
-  volumes:
-    - ./jwt-secret.txt:/config/jwt-secret.txt
-    - DATA_DIR:/db
-```
-
-### Start your replica node
-
-For erigon + op-node (recommended):
-
-```bash
-docker compose -f docker-compose-boba-sepolia.yml up -d
-```
+See the [running a node with Docker](../boba-docs/dev-docs/node-operators/1_run-node-docker.md) guide for full setup instructions including snapshot downloads, configuration, and starting the node.
 
 ### The initial synchronization
 

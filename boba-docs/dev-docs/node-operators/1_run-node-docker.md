@@ -9,8 +9,7 @@ Boba supports multiple execution clients. Pick the one that suits your needs:
 | Compose File | Execution Client | Consensus Client | Status |
 |---|---|---|---|
 | `docker-compose-boba-{network}-reth.yml` | **op-reth** | **op-node** | Recommended |
-| `docker-compose-boba-{network}.yml` | op-erigon | op-node | Supported |
-| `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Legacy |
+| `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Deprecated (removal 2026-05-31) |
 
 > **op-reth** is the recommended execution client for new deployments. It uses the upstream [op-reth](https://github.com/paradigmxyz/reth) image with Boba chains built-in — no custom build is required.
 
@@ -86,37 +85,13 @@ These snapshots contain a pre-initialized reth database built from the op-geth s
 
 Set the `DATA_DIR` in your `.env` to point to this directory (or leave it blank to use the default `./reth-data`).
 
-#### op-erigon / op-geth
+#### op-geth (Deprecated)
 
-* BOBA Mainnet
+> **Deprecated:** op-geth support ends 2026-05-31. Migrate to op-reth.
 
-  The **erigon** db can be downloaded from the [boba mainnet erigon db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz).
+See the [snapshot downloads](snapshot-downloads) page for available geth snapshots.
 
-  ```bash
-  curl -o boba-mainnet-erigon-db-1149019.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz
-  ```
-
-  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst)
-
-  ```bash
-  curl -o boba-mainnet-geth-db.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst
-  ```
-
-- BOBA Sepolia
-
-  The **erigon** db can be downloaded from the [boba sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz).
-
-  ```bash
-  curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
-  ```
-
-  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst).
-
-  ```bash
-  curl -o boba-sepolia-geth-db.tar.zst -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
-  ```
-
-Extract erigon/geth snapshots:
+Extract geth snapshots:
 
 ```bash
 tar xvf data.tgz
@@ -150,17 +125,7 @@ docker compose -f docker-compose-boba-mainnet-reth.yml up -d
 docker compose -f docker-compose-boba-sepolia-reth.yml up -d
 ```
 
-### op-erigon
-
-```bash
-# BOBA Sepolia
-docker compose -f docker-compose-boba-sepolia.yml up -d
-
-# BOBA Mainnet
-docker compose -f docker-compose-boba-mainnet.yml up -d
-```
-
-### op-geth (Legacy)
+### op-geth (Deprecated — removal 2026-05-31)
 
 ```bash
 # BOBA Sepolia

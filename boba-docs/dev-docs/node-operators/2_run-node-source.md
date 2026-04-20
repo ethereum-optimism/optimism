@@ -54,68 +54,29 @@ Build the `op-node`.
 make op-node
 ```
 
-## Build the Execution Engine
+## Build the Execution Engine (op-reth)
 
-### Clone the Erigon repo
-
-```bash
-git clone https://github.com/bobanetwork/op-erigon.git
-cd op-erigon
-```
-
-### Check out the required release branch
-
-Release branches are created when new versions of the `erigon` are created. Read through the [Releases page](https://github.com/bobanetwork/op-erigon/releases) to determine the correct branch to check out.
-
-```
-git checkout <name of release branch>
-```
-
-### Build erigon
-
-Build the `erigon`.
+The recommended execution client is op-reth. The upstream [op-reth](https://github.com/paradigmxyz/reth) includes Boba chains as built-in, so you can build directly from upstream.
 
 ```bash
-make erigon
+git clone https://github.com/paradigmxyz/reth.git
+cd reth
+cargo build --bin op-reth --release
 ```
+
+The binary will be at `target/release/op-reth`.
 
 ## Download Snapshots
 
-You can download the database snapshot for the client and network you wish to run.
+Download the database snapshot for your network from the [snapshot downloads](snapshot-downloads) page. Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on that page.
 
-Always verify snapshots by comparing the sha256sum of the downloaded file to the sha256sum listed on this [page](snapshot-downloads). Check the sha256sum of the downloaded file by running `sha256sum <filename>`in a terminal.
-
-* BOBA Mainnet
-
-  The **erigon** db can be downloaded from the [boba mainnet erigon db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz).
-
-  ```bash
-  curl -o boba-mainnet-erigon-db-1149019.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz
-  ```
-
-  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst)
-
-  ```bash
-  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst
-  ```
-
-- BOBA Sepolia
-
-  The **erigon** db can be downloaded from the [boba sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz).
-
-  ```bash
-  curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
-  ```
-
-  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst).
-
-  ```bash
-  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
-  ```
+```bash
+sha256sum <filename>
+```
 
 ## Create a JWT Secret
 
-`op-erigon` and `op-node` communicate over the engine API authrpc. This communication is secured using a shared secret. You will need to generate a shared secret and provide it to both `op-erigon` and `op-node` when you start them. In this case, the secret takes the form of a 32 byte hex string.
+`op-reth` and `op-node` communicate over the engine API authrpc. This communication is secured using a shared secret. You will need to generate a shared secret and provide it to both `op-reth` and `op-node` when you start them. In this case, the secret takes the form of a 32 byte hex string.
 
 Run the following command to generate a random 32 byte hex string:
 
@@ -123,63 +84,33 @@ Run the following command to generate a random 32 byte hex string:
 openssl rand -hex 32 > jwt.txt
 ```
 
-## Start `op-erigon`
+## Start `op-reth`
 
-It's usually simpler to begin with `op-erigon` before you start `op-node`. You can start `op-erigon` even if `op-node` isn't running yet, but `op-erigon` won't get any blocks until `op-node` starts.
+It's usually simpler to begin with `op-reth` before you start `op-node`. You can start `op-reth` even if `op-node` isn't running yet, but `op-reth` won't get any blocks until `op-node` starts.
 
-### Navigate to your op-erigon directory
-
-```bash
-cd op-erigon
-```
-
-### Copy in the JWT secret
-
-Copy the JWT secret you generated in the previous step into the `v3-erigon` directory.
+Using the following command to start `op-reth` in a default configuration. The JSON-RPC API will become available on port 9545.
 
 ```bash
-cp /path/to/jwt.txt .
+op-reth node \
+  --chain=boba-sepolia \
+  --datadir=./reth-data \
+  --http \
+  --http.addr=0.0.0.0 \
+  --http.port=9545 \
+  --http.corsdomain="*" \
+  --http.api=eth,debug,net,web3 \
+  --authrpc.addr=0.0.0.0 \
+  --authrpc.port=8551 \
+  --authrpc.jwtsecret=./jwt.txt \
+  --rollup.sequencer-http=https://sepolia.boba.network \
+  --rollup.disable-tx-pool-gossip
 ```
 
-### Start op-erigon
-
-Using the following command to start `op-erigon` in a default configuration. The JSON-RPC API will become available on port 9545.
-
-```bash
-./build/bin/erigon \
-	--datadir=$DBDIR_PATH \
-	--private.api.addr=localhost:9090 \
-	--http.addr=0.0.0.0 \
-	--http.port=9545 \
-	--http.corsdomain="*" \
-	--http.vhosts="*" \
-	--authrpc.addr=0.0.0.0 \
-	--authrpc.port=8551 \
-	--authrpc.vhosts="*" \
-	--authrpc.jwtsecret=./jwt.txt \
-	--chain=boba-sepolia \
-	--http.api=eth,debug,net,engine,web3 \
-	--rollup.sequencerhttp=https://mainnet.boba.network \
-	--db.size.limit=8TB
-```
+For mainnet, use `--chain=boba` and `--rollup.sequencer-http=https://mainnet.boba.network`.
 
 ## Start `op-node`
 
-Once you've started `op-erigon`, you can start `op-node`. `op-node` will connect to `op-erigon` and begin synchronizing the BOBA network. `op-node` will begin sending block payloads to `op-erigon` when it derives enough blocks from Ethereum.
-
-### Navigate to your op-node directory
-
-```bash
-cd op-node
-```
-
-### Copy in the JWT secret
-
-Copy the JWT secret you generated in the previous step into the `v3-erigon` directory.
-
-```bash
-cp /path/to/jwt.txt .
-```
+Once you've started `op-reth`, you can start `op-node`. `op-node` will connect to `op-reth` and begin synchronizing the BOBA network. `op-node` will begin sending block payloads to `op-reth` when it derives enough blocks from Ethereum.
 
 ### Set environment variables
 
@@ -203,15 +134,15 @@ Using the following command to start `op-node` in a default configuration. The J
   --rpc.port=8545
 ```
 
-## Synchornization
+## Synchronization
 
-During the initial synchonization, you get log messages from `op-node`, and nothing else appears to happen.
+During the initial synchronization, you get log messages from `op-node`, and nothing else appears to happen.
 
 ```bash
 INFO [08-04|16:36:07.150] Advancing bq origin                      origin=df76ff..48987e:8301316 originBehind=false
 ```
 
-After a few minutes, `op-node` finds the right batch and then it starts synchronizing. During this synchonization process, you get log messags from `op-node`.
+After a few minutes, `op-node` finds the right batch and then it starts synchronizing.
 
 ```bash
 INFO [08-04|16:36:01.204] Found next batch                         epoch=44e203..fef9a5:8301309 batch_epoch=8301309                batch_timestamp=1,673,567,518

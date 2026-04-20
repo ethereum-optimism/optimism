@@ -18,8 +18,7 @@ The Execution Client takes care of running the block information it gets from th
 
 Boba supports multiple execution clients:
 - **op-reth** (Recommended) — High-performance Rust-based client. Uses the upstream [op-reth](https://github.com/paradigmxyz/reth) image with Boba chains built-in.
-- **op-erigon** — Go-based client, currently supported for Boba Mainnet.
-- **op-geth** — The original Go-based client, now considered legacy.
+- **op-geth** — The original Go-based client. Deprecated — support ends 2026-05-31. Migrate to op-reth.
 
 ### Legacy Geth
 
@@ -29,7 +28,7 @@ You don't always need Legacy Geth, though. It's mainly for those who want to kee
 
 ### Diagram
 
-The diagram below explains how three parts - the Rollup Node, Execution Client, and Legacy Geth - fit together to make a full Boba node. It uses examples called `op-node` for the Rollup Node and `op-erigon` for the Execution Client, but this setup is similar for other versions too.
+The diagram below explains how three parts - the Rollup Node, Execution Client, and Legacy Geth - fit together to make a full Boba node. It uses examples called `op-node` for the Rollup Node and `op-reth` for the Execution Client.
 
 ![image](../../assets/diagrams/node-operator.png)
 
