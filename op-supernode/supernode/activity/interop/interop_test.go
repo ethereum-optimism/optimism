@@ -1202,6 +1202,111 @@ func TestInterop_FullCycle(t *testing.T) {
 }
 
 // =============================================================================
+// TestInterop_ProgressAndRecord_MultiAdvance
+// =============================================================================
+
+// TestInterop_ProgressAndRecord_MultiAdvance drives several advance cycles end
+// to end through progressAndRecord, exercising the real WAL write → apply →
+// clear path that the compat shims in TestInterop_FullCycle bypass.
+func TestInterop_ProgressAndRecord_MultiAdvance(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{}, nil
+	}
+
+	const cycles = 3
+	for i := 0; i < cycles; i++ {
+		made, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+		require.True(t, made, "cycle %d should advance", i)
+
+		pending, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, pending, "pending transition should be cleared after cycle %d", i)
+	}
+
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(100+cycles-1), lastTS)
+
+	for ts := uint64(100); ts <= lastTS; ts++ {
+		result, err := h.interop.verifiedDB.Get(ts)
+		require.NoError(t, err)
+		require.Equal(t, ts, result.Timestamp)
+		require.Contains(t, result.L2Heads, mock.id)
+	}
+
+	latestBlock, hasBlocks := h.interop.logsDBs[mock.id].LatestSealedBlock()
+	require.True(t, hasBlocks)
+	require.Equal(t, lastTS, latestBlock.Number)
+}
+
+// =============================================================================
+// TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind
+// =============================================================================
+
+// TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind advances twice
+// through progressAndRecord, flips the l1Checker so observeRound sees an
+// inconsistency, and asserts the next progressAndRecord drives a full rewind
+// end to end: verifiedDB trimmed, engines reset, WAL cleared.
+func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+		return Result{}, nil
+	}
+
+	for i := 0; i < 2; i++ {
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS)
+
+	// Flip the L1 checker so observeRound returns L1Consistent=false, which
+	// drives checkPreconditions into DecisionRewind.
+	h.interop.l1Checker = inconsistentL1Checker{}
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.False(t, made, "rewind does not advance the verified timestamp")
+
+	// Rewind removed the last-committed entry and left activation in place.
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(100), lastTS)
+
+	pending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, pending, "WAL cleared after successful rewind")
+
+	require.Len(t, mock.rewindEngineCalls, 1, "engine rewound exactly once on the recovering chain")
+	require.Equal(t, uint64(100), mock.rewindEngineCalls[0])
+}
+
+// =============================================================================
 // TestResult_IsEmpty
 // =============================================================================
 

@@ -30,6 +30,14 @@ func (noopL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
 	return true, nil
 }
 
+// inconsistentL1Checker always reports that heads disagree on the canonical L1
+// chain. Tests use it to drive observeRound into a rewind decision.
+type inconsistentL1Checker struct{}
+
+func (inconsistentL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
+	return false, nil
+}
+
 func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {
 	t.Parallel()
 
