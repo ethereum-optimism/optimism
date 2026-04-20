@@ -1,6 +1,10 @@
 # E2E Testing: op-wheel rewind-reth
 
-End-to-end test to verify `op-wheel engine rewind-reth` properly rewinds a reth node.
+End-to-end test to verify `op-wheel engine rewind-reth offline` properly rewinds a reth node.
+
+For the online variant (`rewind-reth online`), the node stays running and the rewind
+is driven through the Engine API via a synthetic-payload + forkchoice-update sequence —
+see the subcommand's `--help` for the flag set.
 
 ## Prerequisites
 
@@ -86,10 +90,10 @@ wait $RETH_PID 2>/dev/null
 echo "reth stopped"
 ```
 
-## 6. Run op-wheel rewind-reth
+## 6. Run op-wheel rewind-reth offline
 
 ```bash
-./op-wheel engine rewind-reth \
+./op-wheel engine rewind-reth offline \
   --to $REWIND_TO \
   --reth-binary $(which reth || echo ./target/debug/reth) \
   --reth-datadir "$DATADIR" \
