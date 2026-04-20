@@ -131,7 +131,7 @@ type StepOutput struct {
 // Interop is a VerificationActivity that can also run background work as a RunnableActivity.
 type Interop struct {
 	log                 log.Logger
-	chains              map[eth.ChainID]cc.ChainContainer
+	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
 	// runtimeActivationTimestamp is the effective activation timestamp used
@@ -190,7 +190,7 @@ func New(
 	log log.Logger,
 	activationTimestamp uint64,
 	messageExpiryWindow uint64,
-	chains map[eth.ChainID]cc.ChainContainer,
+	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
 	l1Source l1ByNumberSource,
 	logBackfillDepth time.Duration,

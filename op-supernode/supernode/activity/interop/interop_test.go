@@ -92,7 +92,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	if h.skipBuild {
 		return h
 	}
-	chains := make(map[eth.ChainID]cc.ChainContainer)
+	chains := make(map[eth.ChainID]cc.InteropChain)
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
@@ -106,8 +106,8 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 }
 
 // Chains returns the map of chain containers for use with New().
-func (h *interopTestHarness) Chains() map[eth.ChainID]cc.ChainContainer {
-	chains := make(map[eth.ChainID]cc.ChainContainer)
+func (h *interopTestHarness) Chains() map[eth.ChainID]cc.InteropChain {
+	chains := make(map[eth.ChainID]cc.InteropChain)
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
@@ -1153,7 +1153,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
-	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
+	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
 	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0)
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
