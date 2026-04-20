@@ -24,6 +24,7 @@ func cmdRun(args []string) error {
 	root := fs.String("root", ".", "repository root for execution")
 	dryRun := fs.Bool("dry-run", false, "print commands without executing")
 	diffFile := fs.String("diff", "", "path to diff file (default: stdin)")
+	includeGen := fs.Bool("include-gen", false, "include kind:gen checks (gen-solidity-interfaces, gen-go-bindings, mise-setup) in the plan. CI leaves this off; use locally to regenerate before testing.")
 	fs.Parse(args)
 
 	resolvedGraph := resolveFromRoot(*graphPath)
@@ -78,6 +79,7 @@ func cmdRun(args []string) error {
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer(pol)
+	optimizer.SetIncludeGen(*includeGen)
 	result, err := optimizer.Optimize(candidates, stage, cat)
 	if err != nil {
 		return fmt.Errorf("optimizing: %w", err)

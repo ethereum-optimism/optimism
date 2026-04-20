@@ -48,15 +48,74 @@ profiles:
       DEV_FEATURE__OPCM_V2: "true"
     triggers: *profile-triggers-contracts
 
+# Paths that every check implicitly consumes — CI config, github actions.
+# A diff touching these invalidates every check via the dataflow walker.
+# Replaces the former policy.blast_radius_patterns mechanism.
+universal_inputs:
+  - ".circleci/**"
+  - ".github/**"
+  - "package.json"
+  - "Dockerfile"
+
 # Each check_type declares:
 #   inputs:  files/artifacts it reads
 #   outputs: artifacts it writes (empty for validators)
 #   tools:   sugar for inputs: [artifact:toolchain/<tool>]
-#
-# Legacy fields (triggers, prerequisites, produces) are maintained
-# alongside inputs/outputs during Phase B. Once dataflow selection
-# replaces the legacy walks, the legacy fields are removed in Phase C.
 check_types:
+  # === Regenerator (kind: gen) — graph-only; not run in CI by default. ===
+  - id: mise-setup
+    name: "mise install toolchains"
+    kind: gen
+    language: "*"
+    command: "mise install"
+    scopeable: false
+    tools: []
+    inputs:
+      - "mise.toml"
+    outputs:
+      - "artifact:toolchain/forge"
+      - "artifact:toolchain/go"
+      - "artifact:toolchain/cargo"
+      - "artifact:toolchain/rust"
+      - "artifact:toolchain/node"
+      - "artifact:toolchain/pnpm"
+      - "artifact:toolchain/just"
+      - "artifact:toolchain/kontrol"
+      - "artifact:toolchain/semgrep"
+      - "artifact:toolchain/jq"
+    avg_duration: 120
+
+  - id: gen-solidity-interfaces
+    name: "Regenerate Solidity interfaces from forge artifacts"
+    kind: gen
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just interfaces-snapshots"
+    scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "artifact:forge-artifacts/**"
+      - "packages/contracts-bedrock/src/**/*.sol"
+    outputs:
+      - "packages/contracts-bedrock/interfaces/**/*.sol"
+    avg_duration: 60
+
+  - id: gen-go-bindings
+    name: "Regenerate Go bindings from forge artifacts"
+    kind: gen
+    language: go
+    command: "cd op-e2e && just gen-bindings-all"
+    scopeable: false
+    tools: [forge, go, jq, mise]
+    inputs:
+      - "artifact:forge-artifacts/**"
+      - "packages/contracts-bedrock/src/**/*.sol"
+    outputs:
+      - "op-e2e/bindings/**/*.go"
+      - "op-service/txintent/bindings/**/*.go"
+      - "op-chain-ops/crossdomain/bindings/**/*.go"
+      - "op-node/bindings/**/*.go"
+    avg_duration: 90
+
   # === Build Steps ===
   - id: forge-build
     name: "Forge build"

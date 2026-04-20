@@ -105,7 +105,11 @@ func (p *TestProfile) MatchesTriggers(filePaths []string) bool {
 type Catalog struct {
 	CheckTypes []CheckType   `yaml:"check_types"`
 	Profiles   []TestProfile `yaml:"profiles,omitempty"`
-	byID       map[string]*CheckType
+	// UniversalInputs is wired as consumes edges from every check_type
+	// at build time. Diffs touching these paths fan out to every check
+	// via dataflow, replacing the former policy.blast_radius_patterns.
+	UniversalInputs []string `yaml:"universal_inputs,omitempty"`
+	byID            map[string]*CheckType
 }
 
 // ProfileByName returns a profile by name, or nil if not found.

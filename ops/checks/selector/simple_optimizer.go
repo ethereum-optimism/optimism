@@ -25,13 +25,22 @@ import (
 // Prerequisites are resolved transitively and the plan is ordered into
 // a parallel schedule bounded by policy.MaxParallelism.
 type SimpleOptimizer struct {
-	policy *policy.Policy
+	policy     *policy.Policy
+	includeGen bool
 }
 
 // NewSimpleOptimizer creates a SimpleOptimizer bound to a policy.
 func NewSimpleOptimizer(p *policy.Policy) *SimpleOptimizer {
 	return &SimpleOptimizer{policy: p}
 }
+
+// SetIncludeGen controls whether kind:gen checks (interfaces-regen,
+// gen-go-bindings, mise-setup) appear in the execution plan. Default
+// false: gen checks exist in the graph only to propagate invalidation
+// to their consumers; CI should not run them. Set true when the user
+// wants to locally regenerate before testing (e.g. `checks run
+// --include-gen`).
+func (o *SimpleOptimizer) SetIncludeGen(v bool) { o.includeGen = v }
 
 // Optimize implements Optimizer.
 func (o *SimpleOptimizer) Optimize(
@@ -70,6 +79,19 @@ func (o *SimpleOptimizer) Optimize(
 	}
 
 	o.resolvePrerequisites(result, cat)
+
+	// Filter kind:gen checks before scheduling so the schedule's
+	// wall-clock estimate reflects what CI will actually run.
+	if !o.includeGen {
+		filtered := result.Items[:0]
+		for _, it := range result.Items {
+			if ct := cat.ByID(it.CheckTypeID); ct != nil && ct.Kind == "gen" {
+				continue
+			}
+			filtered = append(filtered, it)
+		}
+		result.Items = filtered
+	}
 
 	sort.Slice(result.Items, func(i, j int) bool {
 		return result.Items[i].SkipCost > result.Items[j].SkipCost

@@ -66,6 +66,11 @@ priors_by_kind:
   build:   0.5
   test:    0.3
   check:   0.4
+  # kind: gen checks are graph-only propagators (interfaces regen, go
+  # bindings regen, mise-setup). They're filtered out of the execution
+  # plan by the optimizer by default; the zero prior is a defense-in-
+  # depth fallback so they get skipped on cost if they ever slip past.
+  gen:     0.0
   default: 0.3
 
 # High-signal override: when aggregated signal exceeds threshold, use

@@ -123,13 +123,63 @@ func (b *Builder) Build(rootDir string) (*graph.Graph, error) {
 	// Triggers / Prerequisites / Produces wiring — checks that haven't
 	// migrated emit no edges here and stay on the legacy path.
 	for _, ct := range b.catalog.CheckTypes {
-		if len(ct.Inputs) == 0 && len(ct.Outputs) == 0 && len(ct.Tools) == 0 {
+		if len(ct.Inputs) == 0 && len(ct.Outputs) == 0 && len(ct.Tools) == 0 && len(b.catalog.UniversalInputs) == 0 {
 			continue
 		}
 		b.emitDataflowEdges(g, ct)
 	}
 
+	// Step 7: bridge-imports — for every artifact node produced by a
+	// check, emit `imports` edges from Go/Rust package/crate source
+	// nodes whose filesystem dir is covered by the artifact's path
+	// prefix. Lets the scope-walker's reverse-imports walk reach
+	// package consumers of generated bindings even though the bindings
+	// themselves are artifacts, not source nodes.
+	b.emitBridgeImportsEdges(g)
+
 	return g, nil
+}
+
+// emitBridgeImportsEdges wires scope-layer imports from source
+// packages to artifact nodes whose path covers them. Gen-go-bindings
+// outputs like artifact:op-e2e/bindings/**/*.go become reverse-walk
+// reachable from any Go package node whose dir starts with op-e2e/bindings/.
+// selectViaDataflow ignores EdgeImports — these edges are scoping-only.
+func (b *Builder) emitBridgeImportsEdges(g *graph.Graph) {
+	type artifactPrefix struct {
+		nodeID string
+		prefix string // filesystem-path prefix derived from the artifact path glob
+	}
+	var prefixes []artifactPrefix
+	for _, n := range g.NodesOfKind(graph.KindArtifact) {
+		p := strings.TrimPrefix(n.ID, "artifact:")
+		// Strip trailing glob segment: "op-e2e/bindings/**/*.go" → "op-e2e/bindings"
+		if i := strings.Index(p, "/**"); i >= 0 {
+			p = p[:i]
+		}
+		if p == "" || strings.HasPrefix(p, "toolchain/") || strings.HasPrefix(p, "forge-artifacts") {
+			continue
+		}
+		prefixes = append(prefixes, artifactPrefix{nodeID: n.ID, prefix: p})
+	}
+	if len(prefixes) == 0 {
+		return
+	}
+	for _, node := range g.NodesOfKind(graph.KindSource) {
+		dir := nodePath(node)
+		if dir == "" {
+			continue
+		}
+		for _, ap := range prefixes {
+			if !(dir == ap.prefix || strings.HasPrefix(dir, ap.prefix+"/") || strings.HasSuffix(dir, "/"+ap.prefix)) {
+				continue
+			}
+			_ = g.AddEdge(&graph.Edge{
+				From: node.ID, To: ap.nodeID, Kind: graph.EdgeImports,
+				Source: graph.SourceStatic, Confidence: 1.0, Strength: 1.0,
+			})
+		}
+	}
 }
 
 // extToLang maps a path-glob extension to the adapter language key.
@@ -168,6 +218,10 @@ func (b *Builder) emitDataflowEdges(g *graph.Graph, ct catalog.CheckType) {
 		toolInputs = append(toolInputs, "artifact:toolchain/"+t)
 	}
 	allInputs := append(append([]string{}, toolInputs...), ct.Inputs...)
+	// Universal inputs — paths every check implicitly consumes (CI
+	// config, github actions). Diffs touching these fan out to every
+	// check via dataflow, replacing the old blast_radius_patterns.
+	allInputs = append(allInputs, b.catalog.UniversalInputs...)
 
 	for _, in := range allInputs {
 		if strings.HasPrefix(in, "artifact:") {

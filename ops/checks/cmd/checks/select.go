@@ -27,6 +27,7 @@ func cmdSelect(args []string) error {
 	whyFilter := fs.String("why", "", "substring match against item IDs; prints matching items with full provenance")
 	budget := fs.Duration("budget", 0, "max wall-clock budget (e.g. 30m). Lowest-value items are trimmed to fit; force-run items and their prerequisites are preserved")
 	compareDataflow := fs.Bool("compare-dataflow", false, "also run the pipeline-model dataflow selector and report which check_types each picks")
+	includeGen := fs.Bool("include-gen", false, "include kind:gen checks in the plan (off by default; CI never runs them)")
 	fs.Parse(args)
 
 	resolvedGraph := resolveFromRoot(*graphPath)
@@ -113,6 +114,7 @@ func cmdSelect(args []string) error {
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer(pol)
+	optimizer.SetIncludeGen(*includeGen)
 	result, err := optimizer.Optimize(candidates, stage, cat)
 	if err != nil {
 		return fmt.Errorf("optimizing: %w", err)

@@ -55,10 +55,20 @@ func Resolve(
 	// nodes (mod: for external deps, go:/rs: for internal) that feed
 	// the reverse-walk infrastructure the same way test-helper
 	// changes do.
-	goModIDs, goForce := expandGoModDiffs(diffs)
-	cargoIDs, cargoForce := expandCargoTomlDiffs(diffs, g)
-	if goForce || cargoForce {
-		return blastRadiusCandidates(cat, configBlastPaths(diffs))
+	goSeeds := expandGoModDiffs(diffs, g)
+	rsSeeds := expandCargoTomlDiffs(diffs, g)
+	if goSeeds.forceAll || rsSeeds.forceAll {
+		// Phase 1 transitional: forceAll still returns to the legacy
+		// blast-radius candidate set until Phase 2 rewrites Resolve to
+		// feed forceAll through the dataflow walker.
+		files := make([]string, 0)
+		for _, d := range diffs {
+			if d.Path == "go.mod" || strings.HasSuffix(d.Path, "/go.mod") ||
+				d.Path == "Cargo.toml" || strings.HasSuffix(d.Path, "/Cargo.toml") {
+				files = append(files, d.Path)
+			}
+		}
+		return blastRadiusCandidates(cat, files)
 	}
 
 	if isBlast, files := diff.BlastRadiusFiles(filePaths, pol.BlastRadius); isBlast {
@@ -67,18 +77,10 @@ func Resolve(
 
 	changedLines := buildChangedLinesMap(diffs)
 	fileChangedIDs, _ := diff.FilesToNodeIDs(g, filePaths)
-	changedIDs := make([]string, 0, len(fileChangedIDs)+len(goModIDs)+len(cargoIDs))
+	changedIDs := make([]string, 0, len(fileChangedIDs)+len(goSeeds.sourceNodes)+len(rsSeeds.sourceNodes))
 	changedIDs = append(changedIDs, fileChangedIDs...)
-	for _, id := range goModIDs {
-		if g.GetNode(id) != nil {
-			changedIDs = append(changedIDs, id)
-		}
-	}
-	for _, id := range cargoIDs {
-		if g.GetNode(id) != nil {
-			changedIDs = append(changedIDs, id)
-		}
-	}
+	changedIDs = append(changedIDs, goSeeds.sourceNodes...)
+	changedIDs = append(changedIDs, rsSeeds.sourceNodes...)
 
 	var out []Candidate
 	// Collect per-check candidates; also build a map from CheckID to its
