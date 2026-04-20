@@ -19,7 +19,7 @@ func RethRewind(ctx context.Context, lgr log.Logger, rethBinary string, datadir 
 	if err != nil {
 		return err
 	}
-	return runRethCmd(ctx, lgr, cmd, "reth stage unwind")
+	return runRethCmd(lgr, cmd, "reth stage unwind")
 }
 
 // RethState runs `reth db state <address>` to inspect account state offline.
@@ -31,7 +31,7 @@ func RethState(ctx context.Context, lgr log.Logger, rethBinary string, datadir s
 	if block != "" {
 		cmd.Args = append(cmd.Args, "--block", block)
 	}
-	return runRethCmd(ctx, lgr, cmd, "reth db state")
+	return runRethCmd(lgr, cmd, "reth db state")
 }
 
 // RethHead runs `reth db stage-checkpoints get` to show the current head (stage checkpoints).
@@ -40,11 +40,12 @@ func RethHead(ctx context.Context, lgr log.Logger, rethBinary string, datadir st
 	if err != nil {
 		return err
 	}
-	return runRethCmd(ctx, lgr, cmd, "reth db stage-checkpoints")
+	return runRethCmd(lgr, cmd, "reth db stage-checkpoints")
 }
 
 // runRethCmd executes a reth command, streaming output and handling exit codes.
-func runRethCmd(_ context.Context, lgr log.Logger, cmd *exec.Cmd, label string) error {
+// Context cancellation is handled by cmd itself (built via exec.CommandContext).
+func runRethCmd(lgr log.Logger, cmd *exec.Cmd, label string) error {
 	lgr.Info("Executing "+label, "binary", cmd.Path, "args", cmd.Args[1:])
 
 	cmd.Stdout = os.Stdout
