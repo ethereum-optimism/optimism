@@ -80,6 +80,7 @@ impl ConfigureEvm for CustomEvmConfig {
                 parent_hash: block.header().parent_hash(),
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 extra_data: block.header().extra_data().clone(),
+                post_exec_mode: Default::default(),
             },
             extension: block.extension,
         })
@@ -95,6 +96,7 @@ impl ConfigureEvm for CustomEvmConfig {
                 parent_hash: parent.hash(),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data,
+                post_exec_mode: Default::default(),
             },
             extension: attributes.extension,
         })

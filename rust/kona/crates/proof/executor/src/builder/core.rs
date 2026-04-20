@@ -256,6 +256,7 @@ where
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             // This field is unused for individual block building jobs.
             extra_data: Default::default(),
+            post_exec_mode: Default::default(),
         };
         let executor = self.factory.create_executor(evm, ctx);
 
