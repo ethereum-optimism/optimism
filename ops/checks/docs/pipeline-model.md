@@ -1,10 +1,16 @@
 # Pipeline model — design doc
 
-Status: design resolved, implementation not started. Describes a
-future refactor of the graph + selector that treats CI as a uniform
-dataflow pipeline. The open design questions from the initial draft
-are now resolved (see "Resolved decisions"). See "Migration" below
-for the phased path from today's model.
+Status: Phases A, B, C complete as of 2026-04-20. Phase D (new
+gen-* check_types) landed alongside C for recall parity —
+`mise-setup`, `gen-solidity-interfaces`, `gen-go-bindings` are in
+`checks.yaml` as `kind: gen` (graph-only; the optimizer filters them
+from the execution plan by default). The legacy surface
+(`EdgePrerequisite`, `EdgeGenerates`, `EdgeTestedBy`, catalog
+`triggers:`/`prerequisites:`/`produces:`, `policy.blast_radius_patterns`,
+`ReachableChecks`, `Prerequisites`, etc.) is deleted. Dataflow is the
+sole selection mechanism; coverage + import walks layer on top as
+post-processing. See `plans/2026-04-20-refactor-checks-pipeline-model-cutover-plan.md`
+for the cutover sequence.
 
 ## Why
 
