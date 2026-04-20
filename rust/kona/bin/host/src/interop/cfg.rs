@@ -251,10 +251,10 @@ impl InteropHost {
 
     /// Returns `true` if the host is running in offline mode.
     pub const fn is_offline(&self) -> bool {
-        self.l1_node_address.is_none()
-            && self.l2_node_addresses.is_none()
-            && self.l1_beacon_address.is_none()
-            && self.data_dir.is_some()
+        self.l1_node_address.is_none() &&
+            self.l2_node_addresses.is_none() &&
+            self.l1_beacon_address.is_none() &&
+            self.data_dir.is_some()
     }
 
     /// Reads the [`RollupConfig`]s from the file system and returns a map of L2 chain ID ->
@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_without_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            [(10u64, rollup_config_with_interop_time(Some(42)))].into_iter().collect();
+            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
 
         let err = require_dependency_set_for_configs(&configs, &None).unwrap_err();
         match err {
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_with_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            [(10u64, rollup_config_with_interop_time(Some(42)))].into_iter().collect();
+            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
         let depset = Some(PathBuf::from("/tmp/depset.json"));
 
         assert!(require_dependency_set_for_configs(&configs, &depset).is_ok());
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_no_interop_no_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            [(10u64, rollup_config_with_interop_time(None))].into_iter().collect();
+            BTreeMap::from([(10u64, rollup_config_with_interop_time(None))]);
 
         assert!(require_dependency_set_for_configs(&configs, &None).is_ok());
     }
