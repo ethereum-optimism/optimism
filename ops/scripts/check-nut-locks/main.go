@@ -17,6 +17,43 @@ import (
 // Update this list when adding new bundle locations.
 var nutBundleGlobs = []string{
 	"op-core/nuts/bundles/*_nut_bundle.json",
+	"rust/kona/crates/protocol/hardforks/bundles/*_nut_bundle.json",
+}
+
+// konaBundleMirror returns the kona-hardforks crate path that mirrors a
+// locked op-core bundle entry.
+func konaBundleMirror(bundleRel string) string {
+	return filepath.Join(
+		"rust", "kona", "crates", "protocol", "hardforks", "bundles",
+		filepath.Base(bundleRel),
+	)
+}
+
+// checkKonaMirror verifies that the kona-hardforks crate's copy of the bundle
+// is byte-identical to the canonical op-core copy. Both copies are written by
+// `ops/scripts/nut-snapshot-for`; this guard catches hand-edits that would
+// cause kona and op-node to execute different upgrade transactions.
+func checkKonaMirror(root, fork string, canonical []byte, bundleRel string) error {
+	mirrorRel := konaBundleMirror(bundleRel)
+	mirrorPath := filepath.Join(root, mirrorRel)
+	mirror, err := os.ReadFile(mirrorPath)
+	if err != nil {
+		return fmt.Errorf(
+			"fork %s: reading kona bundle mirror %s: %w. "+
+				"Run 'just nut-snapshot-for %s' to regenerate both copies",
+			fork, mirrorRel, err, fork,
+		)
+	}
+	canonicalHash := sha256.Sum256(canonical)
+	mirrorHash := sha256.Sum256(mirror)
+	if canonicalHash != mirrorHash {
+		return fmt.Errorf(
+			"fork %s: kona bundle mirror %s differs from canonical %s. "+
+				"Re-run 'just nut-snapshot-for %s' to resync",
+			fork, mirrorRel, bundleRel, fork,
+		)
+	}
+	return nil
 }
 
 // checkAllBundlesLocked searches known paths for *_nut_bundle.json files and
@@ -96,6 +133,9 @@ func run(dir string) error {
 	lockedBundles := make(map[string]bool)
 	for fork, entry := range locks {
 		lockedBundles[entry.Bundle] = true
+		// The kona-hardforks mirror is an implicit dependent of each op-core
+		// entry; mark it locked so the reverse-check below doesn't flag it.
+		lockedBundles[konaBundleMirror(entry.Bundle)] = true
 
 		bundlePath := filepath.Join(root, entry.Bundle)
 		content, err := os.ReadFile(bundlePath)
@@ -104,6 +144,10 @@ func run(dir string) error {
 		}
 
 		if err := validateEntry(fork, entry, content); err != nil {
+			return err
+		}
+
+		if err := checkKonaMirror(root, fork, content, entry.Bundle); err != nil {
 			return err
 		}
 
