@@ -672,9 +672,9 @@ var (
 		}),
 	}
 
-	EngineRewindRethCmd = &cli.Command{
-		Name:        "rewind-reth",
-		Description: "Rewind a reth node offline by running 'reth stage unwind'. The reth node must be stopped.",
+	EngineRewindRethOfflineCmd = &cli.Command{
+		Name:        "offline",
+		Description: "Rewind a stopped reth node by running 'reth stage unwind' against its database.",
 		Flags: rethFlags(
 			&cli.Uint64Flag{
 				Name:     "to",
@@ -693,6 +693,39 @@ var (
 				ctx.String("reth-chain"),
 				ctx.Uint64("to"),
 			)
+		},
+	}
+
+	EngineRewindRethOnlineCmd = &cli.Command{
+		Name: "online",
+		Description: "Rewind a running reth node via the Engine API by inserting a synthetic " +
+			"payload on the target's parent and issuing forkchoice updates.",
+		Flags: withEngineFlags(
+			&cli.Uint64Flag{
+				Name:     "to",
+				Usage:    "Block number to rewind chain to",
+				Required: true,
+				EnvVars:  prefixEnvVars("REWIND_TO"),
+			},
+		),
+		Action: EngineAction(func(ctx *cli.Context, client *sources.EngineAPIClient, lgr log.Logger) error {
+			open, err := initOpenEngineRPC(ctx, lgr)
+			if err != nil {
+				return fmt.Errorf("failed to dial open RPC endpoint: %w", err)
+			}
+			return engine.RethRewindOnline(ctx.Context, lgr, client, open, ctx.Uint64("to"))
+		}),
+	}
+
+	EngineRewindRethCmd = &cli.Command{
+		Name:  "rewind-reth",
+		Usage: "Rewind a reth node by block number.",
+		Description: "Two modes are supported as subcommands: 'offline' (invokes 'reth stage unwind' " +
+			"against a stopped node's database) and 'online' (uses the Engine API to insert a " +
+			"synthetic payload + forkchoice updates against a running node).",
+		Subcommands: []*cli.Command{
+			EngineRewindRethOfflineCmd,
+			EngineRewindRethOnlineCmd,
 		},
 	}
 

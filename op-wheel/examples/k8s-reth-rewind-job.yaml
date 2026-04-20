@@ -64,6 +64,7 @@ spec:
           args:
             - engine
             - rewind-reth
+            - offline
             - --to
             - "12345678"          # <-- Set target block number
             - --reth-binary
