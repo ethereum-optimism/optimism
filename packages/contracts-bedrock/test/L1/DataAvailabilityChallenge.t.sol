@@ -68,13 +68,14 @@ contract DataAvailabilityChallenge_SetResolverRefundPercentage_Test is DataAvail
 
     /// @notice Test that the `setResolverRefundPercentage` function reverts if the resolver refund
     ///         percentage is invalid.
-    function test_setResolverRefundPercentage_invalidResolverRefundPercentage_reverts() public {
+    function testFuzz_setResolverRefundPercentage_invalidResolverRefundPercentage_reverts(uint256 _percentage) public {
+        _percentage = bound(_percentage, 101, type(uint256).max);
         address owner = dataAvailabilityChallenge.owner();
         vm.expectRevert(
-            abi.encodeWithSelector(IDataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, 101)
+            abi.encodeWithSelector(IDataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, _percentage)
         );
         vm.prank(owner);
-        dataAvailabilityChallenge.setResolverRefundPercentage(101);
+        dataAvailabilityChallenge.setResolverRefundPercentage(_percentage);
     }
 
     /// @notice Test that the `setResolverRefundPercentage` function reverts if sender is not owner.
@@ -145,7 +146,7 @@ contract DataAvailabilityChallenge_Withdraw_Test is DataAvailabilityChallenge_Te
 
     /// @notice Test that the `withdraw` function reverts if the withdrawal fails (e.g., sender is
     ///         a contract).
-    function test_withdraw_fails_reverts(address sender, uint256 amount) public {
+    function test_withdraw_withdrawalFailed_reverts(address sender, uint256 amount) public {
         assumePayable(sender);
         assumeNotPrecompile(sender);
         // EntryPoint will revert if using amount > type(uint112).max.
@@ -490,14 +491,13 @@ contract DataAvailabilityChallenge_Challenge_Test is DataAvailabilityChallenge_T
 
     /// @notice Test that the `challenge` function reverts if the current block number is before
     ///         the challenged block.
-    function test_challenge_beforeChallengeWindow_reverts() public {
-        uint256 challengedBlockNumber = 1;
+    function testFuzz_challenge_beforeChallengeWindow_reverts(uint256 _blocksBefore) public {
+        uint256 challengedBlockNumber = 1_000;
+        _blocksBefore = bound(_blocksBefore, 1, challengedBlockNumber);
         bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
 
-        // Move to challenged block
-        vm.roll(challengedBlockNumber - 1);
+        vm.roll(challengedBlockNumber - _blocksBefore);
 
-        // Challenge fails because the current block number must be after the challenged block
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
@@ -505,17 +505,28 @@ contract DataAvailabilityChallenge_Challenge_Test is DataAvailabilityChallenge_T
 
     /// @notice Test that the `challenge` function reverts if the current block number is after
     ///         the challenge window.
-    function test_challenge_afterChallengeWindow_reverts() public {
+    function testFuzz_challenge_afterChallengeWindow_reverts(uint256 _blocksAfter) public {
         uint256 challengedBlockNumber = 1;
+        _blocksAfter = bound(_blocksAfter, 1, type(uint128).max);
         bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
 
-        // Move to block after the challenge window
-        vm.roll(challengedBlockNumber + dataAvailabilityChallenge.challengeWindow() + 1);
+        vm.roll(challengedBlockNumber + dataAvailabilityChallenge.challengeWindow() + _blocksAfter);
 
-        // Challenge fails because the block number is after the challenge window
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
+    }
+
+    /// @notice Test that the `challenge` function reverts if the commitment has an unknown type.
+    function testFuzz_challenge_unknownCommitmentType_reverts(uint8 _unknownType, bytes32 _hash) public {
+        vm.assume(_unknownType != uint8(CommitmentType.Keccak256));
+        bytes memory unknownTypeCommitment = abi.encodePacked(_unknownType, _hash);
+
+        vm.roll(2);
+        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
+
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.UnknownCommitmentType.selector, _unknownType));
+        dataAvailabilityChallenge.challenge(0, unknownTypeCommitment);
     }
 }
 
@@ -734,22 +745,19 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
 
     /// @notice Test that the `resolve` function reverts if the challenge is after the resolve
     ///         window.
-    function test_resolve_afterResolveWindow_reverts() public {
+    function testFuzz_resolve_afterResolveWindow_reverts(uint256 _blocksAfter) public {
+        _blocksAfter = bound(_blocksAfter, 1, type(uint128).max);
         bytes memory preImage = "some preimage";
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
-        // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
 
-        // Challenge the hash
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
-        // Move to block after resolve window
-        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + _blocksAfter);
 
-        // Resolve the challenge
         vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotActive.selector));
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
@@ -842,7 +850,7 @@ contract DataAvailabilityChallenge_UnlockBond_Test is DataAvailabilityChallenge_
 
     /// @notice Test that the `unlockBond` function handles double-unlocking of expired challenges
     ///         correctly.
-    function test_unlockBond_expiredChallengeTwice_fails() public {
+    function test_unlockBond_expiredChallengeTwice_succeeds() public {
         bytes memory preImage = "some preimage";
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
@@ -868,22 +876,62 @@ contract DataAvailabilityChallenge_UnlockBond_Test is DataAvailabilityChallenge_
     }
 
     /// @notice Test that the `unlockBond` function reverts if the resolve window is not closed.
-    function test_unlockBond_resolveWindowNotClosed_reverts() public {
+    function testFuzz_unlockBond_resolveWindowNotClosed_reverts(uint256 _blocksBeforeExpiry) public {
         bytes memory preImage = "some preimage";
         bytes memory challengedCommitment = computeCommitmentKeccak256(preImage);
         uint256 challengedBlockNumber = 1;
 
-        // Move to block after challenged block
         vm.roll(challengedBlockNumber + 1);
 
-        // Challenge the hash
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
 
-        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() - 1);
+        uint256 resolveWindow = dataAvailabilityChallenge.resolveWindow();
+        _blocksBeforeExpiry = bound(_blocksBeforeExpiry, 0, resolveWindow - 1);
 
-        // Expiring the challenge before the resolve window closes fails
+        vm.roll(block.number + _blocksBeforeExpiry);
+
         vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotExpired.selector));
         dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
+    }
+}
+
+/// @title DataAvailabilityChallenge_Initialize_Test
+/// @notice Test contract for DataAvailabilityChallenge `initialize` function.
+contract DataAvailabilityChallenge_Initialize_Test is DataAvailabilityChallenge_TestInit {
+    /// @notice Test that `initialize` reverts when called again on an already initialized proxy.
+    function testFuzz_initialize_alreadyInitialized_reverts(
+        address _owner,
+        uint256 _challengeWindow,
+        uint256 _resolveWindow,
+        uint256 _bondSize,
+        uint256 _resolverRefundPercentage
+    )
+        public
+    {
+        _resolverRefundPercentage = bound(_resolverRefundPercentage, 0, 100);
+        vm.expectRevert("Initializable: contract is already initialized");
+        IDataAvailabilityChallenge(payable(address(dataAvailabilityChallenge))).initialize(
+            _owner, _challengeWindow, _resolveWindow, _bondSize, _resolverRefundPercentage
+        );
+    }
+}
+
+/// @title DataAvailabilityChallenge_ComputeCommitmentKeccak256_Test
+/// @notice Test contract for the `computeCommitmentKeccak256` free function.
+contract DataAvailabilityChallenge_ComputeCommitmentKeccak256_Test is DataAvailabilityChallenge_TestInit {
+    /// @notice Test that `computeCommitmentKeccak256` prefixes the Keccak256 type byte and hash.
+    function testFuzz_computeCommitmentKeccak256_succeeds(bytes memory _data) public pure {
+        bytes memory commitment = computeCommitmentKeccak256(_data);
+        assertEq(commitment.length, 33);
+        assertEq(uint8(commitment[0]), uint8(CommitmentType.Keccak256));
+        assertEq(bytes32(_sliceTail(commitment)), keccak256(_data));
+    }
+
+    /// @notice Helper that returns the trailing 32 bytes of a 33-byte commitment.
+    function _sliceTail(bytes memory _commitment) internal pure returns (bytes32 out) {
+        assembly {
+            out := mload(add(_commitment, 33))
+        }
     }
 }
