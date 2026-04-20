@@ -2,13 +2,19 @@ package engine
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 // newTestEnvelope builds a minimal ExecutionPayloadEnvelope whose BlockHash matches
@@ -105,4 +111,105 @@ func TestBuildSyntheticPayload_PreservesBeaconRoot(t *testing.T) {
 
 	require.NotNil(t, synth.ParentBeaconBlockRoot)
 	require.Equal(t, *original.ParentBeaconBlockRoot, *synth.ParentBeaconBlockRoot)
+}
+
+// expectGetHeaderByTag wires a MockRPC call for getHeader(tag), populating the
+// result pointer with the given header (or leaving it nil if hdr is nil).
+func expectGetHeaderByTag(rpc *testutils.MockRPC, tag string, hdr *types.Header, err error) {
+	rpc.Mock.On("CallContext", mock.Anything, mock.Anything, methodEthGetBlockByNumber, []any{tag, false}).
+		Run(func(args mock.Arguments) {
+			out := args.Get(1).(**types.Header)
+			*out = hdr
+		}).
+		Return(err).
+		Once()
+}
+
+func TestVerifyRewindState_AllMatch(t *testing.T) {
+	// Use distinct Nonces to make each header's hash unique.
+	head := &types.Header{Number: big.NewInt(100), Nonce: types.BlockNonce{0x01}}
+	safe := &types.Header{Number: big.NewInt(80), Nonce: types.BlockNonce{0x02}}
+	finalized := &types.Header{Number: big.NewInt(60), Nonce: types.BlockNonce{0x03}}
+
+	rpc := new(testutils.MockRPC)
+	expectGetHeaderByTag(rpc, "latest", head, nil)
+	expectGetHeaderByTag(rpc, "safe", safe, nil)
+	expectGetHeaderByTag(rpc, "finalized", finalized, nil)
+
+	err := verifyRewindState(context.Background(), rpc, head.Hash(), safe.Hash(), finalized.Hash())
+	require.NoError(t, err)
+	rpc.AssertExpectations(t)
+}
+
+func TestVerifyRewindState_LatestMismatch(t *testing.T) {
+	head := &types.Header{Number: big.NewInt(100), Nonce: types.BlockNonce{0x01}}
+	safe := &types.Header{Number: big.NewInt(80), Nonce: types.BlockNonce{0x02}}
+	finalized := &types.Header{Number: big.NewInt(60), Nonce: types.BlockNonce{0x03}}
+
+	rpc := new(testutils.MockRPC)
+	expectGetHeaderByTag(rpc, "latest", head, nil)
+	expectGetHeaderByTag(rpc, "safe", safe, nil)
+	expectGetHeaderByTag(rpc, "finalized", finalized, nil)
+
+	want := common.HexToHash("0xdead")
+	err := verifyRewindState(context.Background(), rpc, want, safe.Hash(), finalized.Hash())
+	require.ErrorContains(t, err, "unexpected latest")
+	require.ErrorContains(t, err, want.String())
+	require.ErrorContains(t, err, head.Hash().String())
+}
+
+func TestVerifyRewindState_SafeMismatch(t *testing.T) {
+	head := &types.Header{Number: big.NewInt(100), Nonce: types.BlockNonce{0x01}}
+	safe := &types.Header{Number: big.NewInt(80), Nonce: types.BlockNonce{0x02}}
+	finalized := &types.Header{Number: big.NewInt(60), Nonce: types.BlockNonce{0x03}}
+
+	rpc := new(testutils.MockRPC)
+	expectGetHeaderByTag(rpc, "latest", head, nil)
+	expectGetHeaderByTag(rpc, "safe", safe, nil)
+	expectGetHeaderByTag(rpc, "finalized", finalized, nil)
+
+	want := common.HexToHash("0xbeef")
+	err := verifyRewindState(context.Background(), rpc, head.Hash(), want, finalized.Hash())
+	require.ErrorContains(t, err, "unexpected safe")
+}
+
+func TestVerifyRewindState_FinalizedMismatch(t *testing.T) {
+	head := &types.Header{Number: big.NewInt(100), Nonce: types.BlockNonce{0x01}}
+	safe := &types.Header{Number: big.NewInt(80), Nonce: types.BlockNonce{0x02}}
+	finalized := &types.Header{Number: big.NewInt(60), Nonce: types.BlockNonce{0x03}}
+
+	rpc := new(testutils.MockRPC)
+	expectGetHeaderByTag(rpc, "latest", head, nil)
+	expectGetHeaderByTag(rpc, "safe", safe, nil)
+	expectGetHeaderByTag(rpc, "finalized", finalized, nil)
+
+	want := common.HexToHash("0xfa11")
+	err := verifyRewindState(context.Background(), rpc, head.Hash(), safe.Hash(), want)
+	require.ErrorContains(t, err, "unexpected finalized")
+}
+
+func TestVerifyRewindState_NilLabel(t *testing.T) {
+	head := &types.Header{Number: big.NewInt(100), Nonce: types.BlockNonce{0x01}}
+	finalized := &types.Header{Number: big.NewInt(60), Nonce: types.BlockNonce{0x03}}
+
+	rpc := new(testutils.MockRPC)
+	// headSafeFinalized issues all three RPCs before we check any result,
+	// so every tag needs an expectation even when `safe` is nil.
+	expectGetHeaderByTag(rpc, "latest", head, nil)
+	expectGetHeaderByTag(rpc, "safe", nil, nil) // engine hasn't advanced safe yet
+	expectGetHeaderByTag(rpc, "finalized", finalized, nil)
+
+	err := verifyRewindState(context.Background(), rpc,
+		head.Hash(), common.HexToHash("0xbbbb"), finalized.Hash())
+	require.ErrorContains(t, err, "unexpected safe: got nil")
+}
+
+func TestVerifyRewindState_RPCError(t *testing.T) {
+	rpc := new(testutils.MockRPC)
+	rpcErr := errors.New("connection refused")
+	expectGetHeaderByTag(rpc, "latest", nil, rpcErr)
+
+	err := verifyRewindState(context.Background(), rpc,
+		common.HexToHash("0xaaaa"), common.HexToHash("0xbbbb"), common.HexToHash("0xcccc"))
+	require.ErrorIs(t, err, rpcErr)
 }

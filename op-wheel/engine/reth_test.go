@@ -116,7 +116,7 @@ func rethCmdWithHelper(ctx context.Context, lgr log.Logger, testBinary string, e
 		"GO_TEST_HELPER_PROCESS=1",
 		fmt.Sprintf("GO_TEST_EXIT_CODE=%d", exitCode),
 	)
-	return runRethCmd(ctx, lgr, cmd, label)
+	return runRethCmd(lgr, cmd, label)
 }
 
 func assertArgs(t *testing.T, got, want []string) {
