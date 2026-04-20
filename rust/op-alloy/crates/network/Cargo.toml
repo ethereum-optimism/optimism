@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 # Workspace
 op-alloy-consensus = { workspace = true, features = ["alloy-compat"] }
-op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types = { workspace = true, features = ["std"] }
 
 # Alloy
 alloy-consensus.workspace = true

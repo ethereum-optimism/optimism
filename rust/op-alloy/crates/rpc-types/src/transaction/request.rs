@@ -4,7 +4,9 @@ use alloy_consensus::{
 };
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::TransactionBuilder7702;
-use alloy_primitives::{Address, Bytes, ChainId, Signature, TxKind, U256};
+use alloy_primitives::{Address, Signature, TxKind, U256};
+#[cfg(feature = "std")]
+use alloy_primitives::{Bytes, ChainId};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use op_alloy_consensus::{
     OpTxEnvelope, OpTypedTransaction, POST_EXEC_TX_TYPE_ID, TxDeposit, TxPostExec,
