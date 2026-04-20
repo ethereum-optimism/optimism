@@ -210,7 +210,7 @@ commands:
           steps:
             - run:
                 name: Ensure clang available
-                command: command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }
+                command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
