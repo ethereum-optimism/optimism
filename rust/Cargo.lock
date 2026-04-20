@@ -11133,6 +11133,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "derive_more",
  "either",
+ "metrics",
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
@@ -11140,6 +11141,7 @@ dependencies = [
  "reth-chainspec",
  "reth-evm",
  "reth-execution-types",
+ "reth-metrics",
  "reth-optimism-evm",
  "reth-optimism-forks",
  "reth-optimism-primitives",
@@ -11157,6 +11159,27 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "reth-optimism-post-exec-replay"
+version = "1.11.3"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "metrics",
+ "op-alloy-consensus",
+ "reth-evm",
+ "reth-execution-errors",
+ "reth-metrics",
+ "reth-optimism-evm",
+ "reth-optimism-primitives",
+ "reth-primitives-traits",
+ "revm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -11231,6 +11254,7 @@ dependencies = [
  "reth-optimism-flashblocks",
  "reth-optimism-forks",
  "reth-optimism-payload-builder",
+ "reth-optimism-post-exec-replay",
  "reth-optimism-primitives",
  "reth-optimism-trie",
  "reth-optimism-txpool",

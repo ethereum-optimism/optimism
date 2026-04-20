@@ -171,8 +171,8 @@ where
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
-    N: OpPayloadPrimitives,
-    EvmConfig: ConfigureEvm<
+    N: OpPayloadPrimitives<_TX = reth_optimism_primitives::OpTransactionSigned>,
+    EvmConfig: reth_optimism_evm::ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Provider::ChainSpec>,
         > + 'static,

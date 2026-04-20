@@ -1,25 +1,56 @@
 //! Support for optimism specific witness RPCs.
 
+use alloy_consensus::BlockHeader;
+use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_rpc_types_debug::ExecutionWitness;
+use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, async_trait};
 use reth_chainspec::ChainSpecProvider;
-use reth_evm::ConfigureEvm;
 use reth_node_api::{BuildNextEnv, NodePrimitives};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder, OpPayloadPrimitives};
+use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder};
+use reth_optimism_post_exec_replay::{
+    PostExecReplayBlock, PostExecReplayConfig, ReplayPostExecBlockOptions,
+    ReplayPostExecBlockRequest, replay_block,
+};
+use reth_optimism_primitives::{OpBlock, OpPrimitives};
 use reth_optimism_txpool::OpPooledTx;
-use reth_primitives_traits::{SealedHeader, TxTy};
+use reth_primitives_traits::{RecoveredBlock, SealedHeader, TxTy};
+use reth_revm::database::StateProviderDatabase;
 pub use reth_rpc_api::DebugExecutionWitnessApiServer;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
 use reth_storage_api::{
-    BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory,
+    BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory, TransactionVariant,
     errors::{ProviderError, ProviderResult},
 };
 use reth_tasks::Runtime;
 use reth_transaction_pool::TransactionPool;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{Semaphore, oneshot};
+
+/// An extension to the `debug_` namespace for post-exec replay.
+///
+/// This trait is registered under the `debug` namespace and is intended for operator and
+/// research tooling only. Do not expose the `debug` namespace on public RPC endpoints: each
+/// call replays an entire historical block against live state and is unbounded in cost, so
+/// an unauthenticated caller can trivially saturate the node.
+#[cfg_attr(not(test), rpc(server, namespace = "debug"))]
+#[cfg_attr(test, rpc(server, client, namespace = "debug"))]
+pub trait OpDebugPostExecApi {
+    /// Counterfactually replay a historical block with post-exec enabled.
+    ///
+    /// Replays one block per call; callers driving a block range are responsible for
+    /// their own pacing and cancellation. Requires historical state for the target block
+    /// (full/archive node); on a pruned node this will fail at state lookup.
+    #[method(name = "replaySDMBlock")]
+    async fn replay_post_exec_block(
+        &self,
+        block: ReplayPostExecBlockRequest,
+        options: Option<ReplayPostExecBlockOptions>,
+    ) -> RpcResult<PostExecReplayBlock>;
+}
 
 /// An extension to the `debug_` namespace of the RPC API.
 pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs> {
@@ -32,16 +63,18 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
         provider: Provider,
         task_spawner: Runtime,
         builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
+        evm_config: EvmConfig,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
-        let inner = OpDebugWitnessApiInner { provider, builder, task_spawner, semaphore };
+        let inner =
+            OpDebugWitnessApiInner { provider, builder, evm_config, task_spawner, semaphore };
         Self { inner: Arc::new(inner) }
     }
 }
 
 impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigurePostExecEvm,
     Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
         + BlockReaderIdExt,
 {
@@ -57,6 +90,31 @@ where
     }
 }
 
+impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+where
+    Provider: BlockReaderIdExt<Block = OpBlock, Header = <OpPrimitives as NodePrimitives>::BlockHeader>
+        + NodePrimitivesProvider<Primitives = OpPrimitives>
+        + Clone,
+{
+    fn replay_block_by_request(
+        &self,
+        request: ReplayPostExecBlockRequest,
+    ) -> ProviderResult<RecoveredBlock<OpBlock>> {
+        match request {
+            ReplayPostExecBlockRequest::Hash(hash) => self
+                .inner
+                .provider
+                .recovered_block(hash.into(), TransactionVariant::NoHash)?
+                .ok_or_else(|| ProviderError::HeaderNotFound(hash.into())),
+            ReplayPostExecBlockRequest::Number(block) => self
+                .inner
+                .provider
+                .block_with_senders_by_id(BlockId::Number(block), TransactionVariant::NoHash)?
+                .ok_or_else(|| ProviderError::HeaderNotFound(0_u64.into())),
+        }
+    }
+}
+
 #[async_trait]
 impl<Pool, Provider, EvmConfig, Attrs> DebugExecutionWitnessApiServer<Attrs::RpcPayloadAttributes>
     for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
@@ -64,15 +122,19 @@ where
     Pool: TransactionPool<
             Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
-    Provider: BlockReaderIdExt<Header = <Provider::Primitives as NodePrimitives>::BlockHeader>
-        + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
+    Provider: BlockReaderIdExt<Block = OpBlock, Header = <OpPrimitives as NodePrimitives>::BlockHeader>
+        + NodePrimitivesProvider<Primitives = OpPrimitives>
         + StateProviderFactory
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
-    EvmConfig: ConfigureEvm<
-            Primitives = Provider::Primitives,
-            NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
+    EvmConfig: ConfigurePostExecEvm<
+            Primitives = OpPrimitives,
+            NextBlockEnvCtx: BuildNextEnv<
+                Attrs,
+                <OpPrimitives as NodePrimitives>::BlockHeader,
+                Provider::ChainSpec,
+            >,
         > + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
 {
@@ -98,6 +160,66 @@ where
     }
 }
 
+#[async_trait]
+impl<Pool, Provider, EvmConfig, Attrs> OpDebugPostExecApiServer
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+where
+    Pool: TransactionPool<
+            Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
+        > + 'static,
+    Provider: BlockReaderIdExt<Block = OpBlock, Header = <OpPrimitives as NodePrimitives>::BlockHeader>
+        + NodePrimitivesProvider<Primitives = OpPrimitives>
+        + StateProviderFactory
+        + ChainSpecProvider<ChainSpec: OpHardforks>
+        + Clone
+        + 'static,
+    EvmConfig: ConfigurePostExecEvm<
+            Primitives = OpPrimitives,
+            NextBlockEnvCtx: BuildNextEnv<
+                Attrs,
+                <OpPrimitives as NodePrimitives>::BlockHeader,
+                Provider::ChainSpec,
+            >,
+        > + Clone
+        + 'static,
+    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
+{
+    async fn replay_post_exec_block(
+        &self,
+        request: ReplayPostExecBlockRequest,
+        options: Option<ReplayPostExecBlockOptions>,
+    ) -> RpcResult<PostExecReplayBlock> {
+        let _permit = self.inner.semaphore.acquire().await;
+        let block = self.replay_block_by_request(request).to_rpc_result()?;
+        let config = {
+            let options = options.unwrap_or_default();
+            PostExecReplayConfig {
+                compare_payload: options.compare_payload,
+                compare_receipts: options.compare_receipts,
+                ..Default::default()
+            }
+        };
+
+        let (tx, rx) = oneshot::channel();
+        let this = self.clone();
+        self.inner.task_spawner.spawn_blocking_task(Box::pin(async move {
+            let res = (|| {
+                let state_provider = this
+                    .inner
+                    .provider
+                    .state_by_block_hash(block.header().parent_hash())
+                    .map_err(|err| internal_rpc_err(err.to_string()))?;
+                let db = StateProviderDatabase::new(&state_provider);
+                replay_block(&this.inner.evm_config, db, &block, config)
+                    .map_err(|err| internal_rpc_err(err.to_string()))
+            })();
+            let _ = tx.send(res);
+        }));
+
+        rx.await.map_err(|err| internal_rpc_err(err.to_string()))?
+    }
+}
+
 impl<Pool, Provider, EvmConfig, Attrs> Clone
     for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 {
@@ -116,6 +238,7 @@ impl<Pool, Provider, EvmConfig, Attrs> Debug
 struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs> {
     provider: Provider,
     builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
+    evm_config: EvmConfig,
     task_spawner: Runtime,
     semaphore: Arc<Semaphore>,
 }
