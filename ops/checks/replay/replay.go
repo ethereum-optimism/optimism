@@ -86,6 +86,7 @@ func Run(
 		return nil, nil, err
 	}
 	optimizer := selector.NewSimpleOptimizer(pol)
+	optimizer.SetGraph(g)
 
 	summary := &Summary{
 		TotalEvents:    len(events),

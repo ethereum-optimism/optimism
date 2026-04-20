@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
+	"github.com/ethereum-optimism/optimism/ops/checks/graph"
 	"github.com/ethereum-optimism/optimism/ops/checks/policy"
 )
 
@@ -26,13 +27,21 @@ import (
 // a parallel schedule bounded by policy.MaxParallelism.
 type SimpleOptimizer struct {
 	policy     *policy.Policy
+	graph      *graph.Graph
 	includeGen bool
 }
 
 // NewSimpleOptimizer creates a SimpleOptimizer bound to a policy.
+// The graph, when non-nil, is used by resolvePrerequisites to derive
+// prereq ordering from dataflow consumes/produces chains. Callers
+// that construct the optimizer without a graph (tests, dry runs)
+// fall back to catalog-declared Prerequisites.
 func NewSimpleOptimizer(p *policy.Policy) *SimpleOptimizer {
 	return &SimpleOptimizer{policy: p}
 }
+
+// SetGraph binds a graph for dataflow-derived prereq resolution.
+func (o *SimpleOptimizer) SetGraph(g *graph.Graph) { o.graph = g }
 
 // SetIncludeGen controls whether kind:gen checks (interfaces-regen,
 // gen-go-bindings, mise-setup) appear in the execution plan. Default
@@ -165,23 +174,37 @@ func (o *SimpleOptimizer) itemsForGroup(
 			Signal:        maxSignal,
 			RunCost:       cost,
 			SkipCost:      skipCost,
-			Prerequisites: mergePrereqs(ct.Prerequisites, tierPerCandPrereqs),
+			Prerequisites: o.prereqsFor(ct, tierPerCandPrereqs),
 			Provenance:    tierProvenance,
 		})
 	}
 	return items
 }
 
-// mergePrereqs unions catalog-level check prerequisites with per-
-// Candidate prerequisites discovered during the walk, deduplicating
-// by check ID. Order is stable (catalog first, then per-candidate).
-func mergePrereqs(catalog []string, perCand []string) []string {
-	if len(perCand) == 0 {
-		return catalog
+// prereqsFor returns the union of dataflow-derived prerequisites
+// (graph.CheckPrerequisites on the check node) with per-Candidate
+// prerequisites discovered during the walk. If no graph is bound,
+// falls back to catalog-declared ct.Prerequisites for backward
+// compatibility with tests that don't set one up.
+func (o *SimpleOptimizer) prereqsFor(ct *catalog.CheckType, perCand []string) []string {
+	var base []string
+	if o.graph != nil {
+		base = graph.CheckPrerequisites(o.graph, "check:"+ct.ID)
+	} else {
+		base = ct.Prerequisites
 	}
-	seen := make(map[string]bool, len(catalog)+len(perCand))
-	out := make([]string, 0, len(catalog)+len(perCand))
-	for _, p := range catalog {
+	return mergePrereqs(base, perCand)
+}
+
+// mergePrereqs unions two prereq lists, deduplicating by check ID.
+// Order is stable (base first, then per-candidate).
+func mergePrereqs(base []string, perCand []string) []string {
+	if len(perCand) == 0 {
+		return base
+	}
+	seen := make(map[string]bool, len(base)+len(perCand))
+	out := make([]string, 0, len(base)+len(perCand))
+	for _, p := range base {
 		if !seen[p] {
 			seen[p] = true
 			out = append(out, p)
@@ -205,7 +228,7 @@ func (o *SimpleOptimizer) binaryItem(ct *catalog.CheckType, c Candidate, stage S
 		Signal:        c.Signal,
 		RunCost:       float64(ct.AvgDuration),
 		SkipCost:      pFail * stage.MissCost,
-		Prerequisites: mergePrereqs(ct.Prerequisites, c.Prerequisites),
+		Prerequisites: o.prereqsFor(ct, c.Prerequisites),
 		Provenance:    c.Provenance,
 	}
 }
@@ -235,7 +258,7 @@ func (o *SimpleOptimizer) scopeableAllItem(
 		Signal:        1.0,
 		RunCost:       cost,
 		SkipCost:      cost + 1,
-		Prerequisites: mergePrereqs(ct.Prerequisites, c.Prerequisites),
+		Prerequisites: o.prereqsFor(ct, c.Prerequisites),
 		Provenance:    c.Provenance,
 	}
 }

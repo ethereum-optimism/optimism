@@ -126,7 +126,6 @@ check_types:
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "packages/contracts-bedrock/interfaces/**/*.sol"
       - "packages/contracts-bedrock/scripts/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
     outputs:

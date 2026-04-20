@@ -79,6 +79,7 @@ func cmdRun(args []string) error {
 
 	// Phase 2: Optimize — pure candidates → plan, no graph access.
 	optimizer := selector.NewSimpleOptimizer(pol)
+	optimizer.SetGraph(g)
 	optimizer.SetIncludeGen(*includeGen)
 	result, err := optimizer.Optimize(candidates, stage, cat)
 	if err != nil {
