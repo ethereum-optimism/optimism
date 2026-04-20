@@ -73,9 +73,17 @@ func TestFlashblocksStream(gt *testing.T) {
 // sharing the same block_number, which made the stream look like "index 1 then index 0".
 func ensureFlashblocksIncrease(t devtest.T, wsClient *client.WSClient, logger log.Logger) {
 	const numFlashblocks = 20
-	// Give the client a larger buffer so the reader goroutine does not drop messages while
-	// the test is still scanning for its anchor flashblock.
-	client := sources.NewFlashblockClient(wsClient, logger, numFlashblocks*2)
+	// Size the client's channel buffer to hold roughly 30 seconds of flashblock history.
+	// Flashblocks are emitted at a 200 ms cadence (see
+	// rust/op-reth/crates/flashblocks/src/cache.rs: FLASHBLOCK_BLOCK_TIME = 200), so
+	// 30 s ≈ 150 flashblocks. Under CI load the test goroutine can be stalled for a few
+	// seconds at a time while the builder, rollup-boost and sequencer all contend for CPU;
+	// a tight buffer risks the reader dropping messages (see flashblock_client.go's
+	// "channel full, dropping flashblock" path) before the test has validated
+	// numFlashblocks transitions. 30 s of headroom is generous enough to survive realistic
+	// stalls without growing memory meaningfully.
+	const flashblockBufferCapacity = 150
+	client := sources.NewFlashblockClient(wsClient, logger, flashblockBufferCapacity)
 	startClient(t, client)
 
 	// The WS connection is opened eagerly during devstack setup, so by the time this loop
