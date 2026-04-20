@@ -929,9 +929,9 @@ contract DataAvailabilityChallenge_ComputeCommitmentKeccak256_Test is DataAvaila
     }
 
     /// @notice Helper that returns the trailing 32 bytes of a 33-byte commitment.
-    function _sliceTail(bytes memory _commitment) internal pure returns (bytes32 out) {
+    function _sliceTail(bytes memory _commitment) internal pure returns (bytes32 out_) {
         assembly {
-            out := mload(add(_commitment, 33))
+            out_ := mload(add(_commitment, 33))
         }
     }
 }
