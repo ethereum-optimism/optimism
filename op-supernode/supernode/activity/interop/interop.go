@@ -155,12 +155,12 @@ type Interop struct {
 
 	currentL1 eth.BlockID
 
-	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
 	// It is called after verifyFn in progressInterop, and its results are merged.
 	// Set to verifyCycleMessages by default in New().
-	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
@@ -176,8 +176,7 @@ type Interop struct {
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
-	l1Checker    l1ConsistencyChecker
-	frontierView *frontierVerificationView
+	l1Checker l1ConsistencyChecker
 
 	logBackfillDepth time.Duration
 }
@@ -466,17 +465,13 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve frontier verification view: %w", err)
 	}
-	i.frontierView = view
-	defer func() {
-		i.frontierView = nil
-	}()
 
-	result, err := i.verifyFn(ts, blocksAtTS)
+	result, err := i.verifyFn(ts, blocksAtTS, view)
 	if err != nil {
 		return Result{}, err
 	}
 
-	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS)
+	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS, view)
 	if err != nil {
 		return Result{}, fmt.Errorf("cycle verification failed: %w", err)
 	}
