@@ -5759,6 +5759,7 @@ version = "0.4.5"
 dependencies = [
  "alloy-eips 2.0.0",
  "alloy-primitives",
+ "anyhow",
  "kona-protocol",
  "op-alloy-consensus",
  "op-revm",

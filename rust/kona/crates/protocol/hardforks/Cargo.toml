@@ -26,13 +26,17 @@ alloy-primitives = { workspace = true, features = ["rlp"] }
 op-alloy-consensus.workspace = true
 
 [build-dependencies]
+anyhow.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
+anyhow.workspace = true
 revm.workspace = true
 op-revm.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 
 [features]
 default = []
