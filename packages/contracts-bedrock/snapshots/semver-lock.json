@@ -19,10 +19,6 @@
     "initCodeHash": "0x75b07cd638ef34349da3478aeab051472c1cba8c8074d3df48af3d7fbd97fd49",
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
-  "src/L1/OPContractsManagerMigrationValidator.sol:OPContractsManagerMigrationValidator": {
-    "initCodeHash": "0x49c1e539c3bb81d9695902cebce72ff67a44b1d3e42d06cb515077dd123dfe15",
-    "sourceCodeHash": "0x6422799db4a64afc4b10934d54b5ead0be6bba4ea93b055f7cddff426b0355b9"
-  },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0xe06033c6c8eebf530033fdd8886931ef7da379d4ccf779cc5cd1c26c42102e8b",
     "sourceCodeHash": "0x1ae4af543c99eee2e8f9c1917dc729dd3be2bdf1a01e08cd3f815c75850a03e8"

@@ -35,13 +35,7 @@ import {
 ///         roots, roles, VM, WETH), shared ASR configuration, shared lockbox proxy/impl, shared
 ///         DelayedWETH configuration, per-chain portal ASR migration, per-chain DGF clearing,
 ///         and lockbox authorization.
-///         It does NOT check: SuperchainConfig or SystemConfig values. Those checks belong in
-///         OPContractsManagerStandardValidator.
-contract OPContractsManagerMigrationValidator is ISemver {
-    /// @notice The semantic version of the OPContractsManagerMigrationValidator contract.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
-
+contract OPContractsManagerMigrationValidator {
     /// @notice Reference addresses and config for shared infrastructure validation.
     struct SharedImplementations {
         address disputeGameFactoryImpl;
@@ -82,8 +76,6 @@ contract OPContractsManagerMigrationValidator is ISemver {
         address mipsImpl;
         address discoveredWeth;
     }
-
-    constructor() { }
 
     /// @notice Validates the configuration of all L1 contracts after an interop migration.
     function validateMigration(
@@ -561,16 +553,15 @@ contract OPContractsManagerMigrationValidator is ISemver {
     )
         internal
         pure
-        returns (string memory)
+        returns (string memory errors_)
     {
         if (_condition) {
             return _errors;
         }
         if (bytes(_errors).length == 0) {
-            _errors = _message;
+            errors_ = _message;
         } else {
-            _errors = string.concat(_errors, ",", _message);
+            errors_ = string.concat(_errors, ",", _message);
         }
-        return _errors;
     }
 }

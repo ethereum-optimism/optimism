@@ -28,8 +28,6 @@ interface IOPContractsManagerMigrationValidator {
         uint256 withdrawalDelaySeconds;
     }
 
-    function version() external view returns (string memory);
-
     function validateMigration(
         MigrationValidationInput memory _input,
         bool _allowFailure,

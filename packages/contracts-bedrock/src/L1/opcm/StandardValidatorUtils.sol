@@ -41,23 +41,16 @@ contract StandardValidatorUtils {
     )
         internal
         pure
-        returns (string memory)
+        returns (string memory errors_)
     {
         if (_condition) {
             return _errors;
         }
         if (bytes(_errors).length == 0) {
-            _errors = _message;
+            errors_ = _message;
         } else {
-            _errors = string.concat(_errors, ",", _message);
+            errors_ = string.concat(_errors, ",", _message);
         }
-        return _errors;
-    }
-
-    /// @notice Struct containing override parameters for the validation process.
-    struct ValidationOverrides {
-        address l1PAOMultisig;
-        address challenger;
     }
 
     /// @notice Asserts that the SuperchainConfig contract is valid.
