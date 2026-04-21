@@ -105,13 +105,13 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want: optionKindOPRBuilder | optionKindAfterBuild | optionKindProofValidation,
 		},
 		{
-			name:      "supernode proofs only allow challenger toggle",
+			name:      "supernode proofs allow challenger and time travel toggles",
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(
 				WithChallengerCannonKonaEnabled(),
 				WithTimeTravelEnabled(),
 			),
-			want: optionKindTimeTravel,
+			want: 0,
 		},
 		{
 			name:      "two l2 supernode rejects time travel",

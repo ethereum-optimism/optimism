@@ -23,6 +23,7 @@ import (
 	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
 	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -35,6 +36,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
@@ -98,9 +100,42 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 }
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
-// respecting DEVSTACK_L2EL_KIND (defaults to op-geth when unset).
+// respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+}
+
+// startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
+// pointing at the given URL. Used by supernode interop presets to connect ELs
+// to the interop filter for tx pool validation.
+func startSupernodeELWithSupervisorURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	supervisorURL string,
+) L2ELNode {
+	switch devstackL2ELKind() {
+	case MixedL2ELOpGeth:
+		cfg := DefaultL2ELConfig()
+		l2EL := &OpGeth{
+			name:          key,
+			p:             t,
+			logger:        t.Logger().New("component", "l2el-"+key),
+			l2Net:         l2Net,
+			jwtPath:       jwtPath,
+			jwtSecret:     jwtSecret,
+			supervisorRPC: supervisorURL,
+			cfg:           cfg,
+		}
+		l2EL.Start()
+		t.Cleanup(l2EL.Stop)
+		return l2EL
+	default: // op-reth
+		return startMixedOpRethNodeWithSupervisorURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL)
+	}
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -178,7 +213,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -188,8 +223,38 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 
-	l2AEL := startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-	l2BEL := startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+	var l2AEL, l2BEL L2ELNode
+	var interopFilter *InteropFilter
+
+	if cfg.UseInteropFilter {
+		// Proxy pattern: allocate stable address before ELs start
+		filterProxy := tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
+		require.NoError(filterProxy.Start())
+		t.Cleanup(func() { filterProxy.Close() })
+		filterRPC := "http://" + filterProxy.Addr()
+
+		// Start ELs with filter proxy URL
+		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+
+		// Build rollup config map from L2 networks (Go structs, no file I/O)
+		rollupConfigs := map[eth.ChainID]*rollup.Config{
+			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID): l2ANet.RollupConfig(),
+			eth.ChainIDFromBig(l2BNet.RollupConfig().L2ChainID): l2BNet.RollupConfig(),
+		}
+
+		// Create and start interop filter in-process
+		interopFilter = startInteropFilter(t, "interop-filter",
+			[]string{l2AEL.UserRPC(), l2BEL.UserRPC()},
+			rollupConfigs)
+
+		// Connect proxy to the filter's actual RPC endpoint
+		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
+	} else {
+		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
+		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+	}
 
 	var activationTime uint64
 	var interopActivationTimestamp *uint64
@@ -223,6 +288,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l2BEL,
 		depSet,
 		interopActivationTimestamp,
+		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 	)
 
@@ -244,6 +310,12 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		runtimeDepSet = depSet
 	} else {
 		runtimeDepSet = wb.outFullCfgSet.DependencySet
+	}
+
+	// Wait for interop filter readiness now that the supernode and batchers are running.
+	// The filter needs blocks to be produced before its chain ingesters can backfill.
+	if interopFilter != nil {
+		interopFilter.WaitForReady(t, 120*time.Second)
 	}
 
 	return &MultiChainRuntime{
@@ -274,10 +346,11 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		Supernode:     supernode,
 		FaucetService: faucetService,
 		TimeTravel:    timeTravelClock,
+		InteropFilter: interopFilter,
 	}, activationTime
 }
 
-func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, delaySeconds uint64, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -295,7 +368,16 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			if delaySeconds > 0 {
+				// Set all forks up to but not including Interop at genesis,
+				// then set Interop at offset so the L2 chain starts in a
+				// pre-interop state. This matches the supernode's
+				// InteropActivationTimestamp and allows testing the fork transition.
+				l2Cfg.WithForkAtGenesis(opforks.Karst)
+				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+			} else {
+				l2Cfg.WithForkAtGenesis(opforks.Interop)
+			}
 		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
@@ -385,6 +467,7 @@ func startTwoL2SharedSupernode(
 	l2BEL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	interopActivationTimestamp *uint64,
+	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
@@ -447,9 +530,11 @@ func startTwoL2SharedSupernode(
 		Chains:                     chainIDs,
 		DataDir:                    t.TempDir(),
 		L1NodeAddr:                 l1EL.UserRPC(),
+		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: interopActivationTimestamp,
+		InteropLogBackfillDepth:    interopLogBackfillDepth,
 	}
 
 	supernode := &SuperNode{
@@ -562,6 +647,7 @@ func startSingleChainSharedSupernode(
 		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
 		DataDir:                    t.TempDir(),
 		L1NodeAddr:                 l1EL.UserRPC(),
+		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: interopActivationTimestamp,

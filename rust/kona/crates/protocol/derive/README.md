@@ -10,7 +10,7 @@ The intended way of working with `kona-derive` is to use the [`DerivationPipelin
 
 ```rust,ignore
 use std::sync::Arc;
-use kona_genesis::RollupConfig;
+use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_derive::EthereumDataSource;
 use kona_derive::PipelineBuilder;
 use kona_derive::StatefulAttributesBuilder;
@@ -19,12 +19,20 @@ let chain_provider = todo!();
 let l2_chain_provider = todo!();
 let blob_provider = todo!();
 let l1_origin = todo!();
+let l1_cfg: Arc<L1ChainConfig> = todo!();
 
 let cfg = Arc::new(RollupConfig::default());
+// `dependency_set` must be `Some` when the rollup uses interop.
+// The constructor panics at build time otherwise;
+// turning silent state divergence into a startup crash. Live-node
+// operators populate it from `--interop.dependency-set`.
+let dependency_set = None;
 let attributes = StatefulAttributesBuilder::new(
    cfg.clone(),
+   l1_cfg,
    l2_chain_provider.clone(),
    chain_provider.clone(),
+   dependency_set,
 );
 let dap = EthereumDataSource::new(
    chain_provider.clone(),

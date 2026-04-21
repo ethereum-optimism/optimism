@@ -31,9 +31,8 @@ import (
 
 // TestInitExecMsg tests basic interop messaging
 func TestInitExecMsg(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
@@ -41,17 +40,16 @@ func TestInitExecMsg(gt *testing.T) {
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
 	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
-	// Make sure supervisor indexes block which includes init message
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 	// Single event in tx so index is 0
 	bob.SendExecMessage(initMsg)
 }
 
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL
 func TestInitExecMsgWithDSL(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
@@ -81,7 +79,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	block, err := clientA.BlockRefByNumber(t.Ctx(), bigs.Uint64Strict(receipt.BlockNumber))
 	require.NoError(err)
 
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	sys.L2A.WaitForBlock()
 
 	// Manually build identifier, message, accesslist for executing message
 	// Single event in tx so index is 0
@@ -125,10 +123,9 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 // TestRandomDirectedGraph tests below scenario:
 // Construct random directed graph of messages.
 func TestRandomDirectedGraph(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	logger := sys.Log.With("Test", "TestRandomDirectedGraph")
 	rng := rand.New(rand.NewSource(1234))
 	require := sys.T.Require()
@@ -248,9 +245,8 @@ func TestRandomDirectedGraph(gt *testing.T) {
 // TestInitExecMultipleMsg tests below scenario:
 // Transaction initiates and executes multiple messages of self
 func TestInitExecMultipleMsg(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -272,8 +268,8 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(2, len(receiptA.Logs))
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -294,9 +290,8 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 // TestExecSameMsgTwice tests below scenario:
 // Transaction that executes the same message twice.
 func TestExecSameMsgTwice(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -315,8 +310,8 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	require.NoError(err)
 	logger.Info("Initiate message included", "block", receiptA.BlockHash)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to validate same message two times on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -339,9 +334,8 @@ func TestExecSameMsgTwice(gt *testing.T) {
 // TestExecDifferentTopicCount tests below scenario:
 // Execute message that links with initiating message with: 0, 1, 2, 3, or 4 topics in it
 func TestExecDifferentTopicCount(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -368,8 +362,8 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 		require.Equal(topicCnt, len(receiptA.Logs[topicCnt].Topics))
 	}
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to validate message on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -390,9 +384,8 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 // TestExecMsgOpaqueData tests below scenario:
 // Execute message that links with initiating message with: 0, 10KB of opaque event data in it
 func TestExecMsgOpaqueData(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -419,8 +412,8 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	require.Equal(emptyInitTrigger.OpaqueData, receiptA.Logs[0].Data)
 	require.Equal(largeInitTrigger.OpaqueData, receiptA.Logs[1].Data)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -441,9 +434,8 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 // TestExecMsgDifferEventIndexInSingleTx tests below scenario:
 // Execute message that links with initiating message with: first, random or last event of a tx.
 func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -468,8 +460,8 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(eventCnt, len(receiptA.Logs))
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init message
+	sys.L2A.WaitForBlock()
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -558,11 +550,12 @@ func executeIndexedFault(
 }
 
 // TestExecMessageInvalidAttributes tests below scenario:
-// Execute message, but with one or more invalid attributes inside identifiers
+// Execute message, but with one or more invalid attributes inside identifiers.
+// The interop filter rejects transactions with invalid cross-chain message
+// identifiers at the EL tx pool level.
 func TestExecMessageInvalidAttributes(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
 	require := sys.T.Require()
 	logger := t.Logger()
 
@@ -590,8 +583,8 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	require.NoError(err)
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for chain A to advance so supernode indexes the init messages
+	sys.L2A.WaitForBlock()
 
 	faultsLists := [][]invalidAttributeType{
 		// test each identifier attributes to be faulty for upper bound tests
@@ -612,14 +605,14 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		eventIdx := rng.Intn(len(initCalls))
 		txC.Content.Fn(executeIndexedFault(predeploys.CrossL2InboxAddr, &txA.Result, eventIdx, rng, faults, chuck.ChainID()))
 
-		// make sure that the transaction is not reverted by CrossL2Inbox...
+		// Gas estimation succeeds because the EVM simulation doesn't go through
+		// the interop filter — the CrossL2Inbox contract call itself doesn't revert.
 		gas, err := txC.PlannedTx.Gas.Eval(t.Ctx())
 		require.NoError(err)
 		require.Greater(gas, uint64(0))
 
-		// but rather not included at chain B because of supervisor check
-		// chain B L2 EL will query supervisor to check whether given message is valid
-		// supervisor will throw ErrConflict(conflicting data), and L2 EL will drop tx
+		// The interop filter rejects the tx at submission time because the
+		// access list contains invalid cross-chain message identifiers.
 		_, err = txC.PlannedTx.Included.Eval(t.Ctx())
 		require.Error(err)
 		logger.Info("Validate message not included")

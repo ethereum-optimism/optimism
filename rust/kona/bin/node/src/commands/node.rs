@@ -16,6 +16,7 @@ use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
 use kona_engine::{HyperAuthClient, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
@@ -106,6 +107,13 @@ pub struct NodeCommand {
     /// (overrides the default rollup configuration from the registry)
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
+    /// Path to a JSON file describing the interop dependency set for this
+    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
+    /// rollup config schedules the Interop hardfork; the inner
+    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
+    /// silent state-divergence bug into a startup crash.
+    #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
+    pub interop_dependency_set: Option<PathBuf>,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -125,6 +133,7 @@ impl Default for NodeCommand {
             derivation_delegate_args: DerivationDelegateArgs::default(),
             l2_config_file: None,
             l1_config_file: None,
+            interop_dependency_set: None,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
@@ -304,6 +313,8 @@ impl NodeCommand {
             mode: self.node_mode,
         };
 
+        let dependency_set = self.load_dependency_set(&cfg)?;
+
         RollupNodeBuilder::new(
             cfg,
             l1_config,
@@ -314,6 +325,7 @@ impl NodeCommand {
         )
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
+        .with_dependency_set(dependency_set)
         .build()
         .start()
         .await
@@ -323,6 +335,33 @@ impl NodeCommand {
         })?;
 
         Ok(())
+    }
+
+    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
+    ///
+    /// Enforces the invariant that when the rollup config schedules the
+    /// Interop hardfork, the operator must supply a dependency-set JSON file.
+    /// Errors rather than panicking so the operator sees a clear message.
+    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
+        match &self.interop_dependency_set {
+            Some(path) => {
+                let file = File::open(path).map_err(|e| {
+                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
+                })?;
+                let dep_set: DependencySet = from_reader(file).map_err(|e| {
+                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
+                })?;
+                Ok(Some(Arc::new(dep_set)))
+            }
+            None if cfg.hardforks.interop_time.is_some() => bail!(
+                "Interop is scheduled for this chain (interop_time = {:?}), but \
+                 --interop.dependency-set was not provided. Supply the dependency-set \
+                 JSON file matching op-node's --interop.dependency-set to avoid silent \
+                 state divergence on interop activation.",
+                cfg.hardforks.interop_time,
+            ),
+            None => Ok(None),
+        }
     }
 
     /// Get the L1 config, either from a file or the known chains.

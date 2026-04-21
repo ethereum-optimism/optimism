@@ -13,7 +13,7 @@
     "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@eth-optimism/actions-sdk": "^0.1.0",
+    "@eth-optimism/actions-sdk": "^0.4.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "ts-morph": "^21.0.0",

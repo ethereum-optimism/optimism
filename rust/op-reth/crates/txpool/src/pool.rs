@@ -26,7 +26,7 @@ use reth_transaction_pool::{
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
 
-use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
+use crate::interop::is_interop_tx;
 
 /// Duration after a reorg during which all interop transactions are filtered
 /// from `add_external_transactions`.
@@ -118,20 +118,6 @@ where
             .field("reorg_state", &self.reorg_state)
             .finish()
     }
-}
-
-/// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS`
-/// with at least one storage key.
-fn is_interop_tx<T>(tx: &T) -> bool
-where
-    T: PoolTransaction + Transaction,
-{
-    tx.access_list()
-        .map(|al| {
-            al.iter()
-                .any(|item| item.address == CROSS_L2_INBOX_ADDRESS && !item.storage_keys.is_empty())
-        })
-        .unwrap_or(false)
 }
 
 impl<P> OpPool<P>
@@ -393,6 +379,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::address;
     use reth_transaction_pool::test_utils::MockTransaction;
