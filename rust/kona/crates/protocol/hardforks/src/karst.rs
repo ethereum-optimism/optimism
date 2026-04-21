@@ -5,12 +5,6 @@
 //!
 //! [specs]: https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst
 
-use alloc::vec::Vec;
-use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::Bytes;
-
-use crate::Hardfork;
-
 // Include the build-script-generated NUT bundle constructor.
 include!(concat!(env!("OUT_DIR"), "/karst_nut_bundle.rs"));
 
@@ -18,44 +12,19 @@ include!(concat!(env!("OUT_DIR"), "/karst_nut_bundle.rs"));
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Karst;
 
-impl Karst {
-    /// Returns the parsed NUT bundle for Karst.
-    fn bundle() -> op_alloy_consensus::NutBundle {
-        karst_nut_bundle()
-    }
-}
-
-impl Hardfork for Karst {
-    /// Constructs the Karst network upgrade transactions from the NUT bundle.
-    fn txs(&self) -> impl Iterator<Item = Bytes> + '_ {
-        let bundle = Self::bundle();
-        let deposits = bundle
-            .to_deposit_transactions()
-            .expect("karst NUT bundle is invalid");
-        deposits
-            .into_iter()
-            .map(|tx| {
-                let mut encoded = Vec::new();
-                tx.encode_2718(&mut encoded);
-                Bytes::from(encoded)
-            })
-    }
-
-    /// Returns the total gas required by Karst upgrade transactions.
-    fn upgrade_gas(&self) -> u64 {
-        Self::bundle().total_gas()
-    }
-}
+impl_hardfork_from_bundle!(Karst, karst_nut_bundle);
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Hardfork;
     use alloc::vec::Vec;
+    use alloy_primitives::Bytes;
 
     #[test]
     fn test_karst_upgrade_txs() {
         let karst = Karst;
-        let txs: Vec<_> = karst.txs().collect();
+        let txs: Vec<Bytes> = karst.txs().collect();
         assert_eq!(txs.len(), 32);
 
         // All encoded deposit txs start with the deposit type byte (0x7e).
@@ -72,7 +41,7 @@ mod tests {
 
     #[test]
     fn test_karst_bundle_valid() {
-        let bundle = Karst::bundle();
+        let bundle = karst_nut_bundle();
         assert_eq!(bundle.fork_name, "Karst");
         assert_eq!(bundle.transactions.len(), 32);
 
