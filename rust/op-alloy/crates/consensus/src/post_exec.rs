@@ -15,7 +15,7 @@ use alloy_rlp::{BufMut, Decodable, Encodable, Header, RlpDecodable, RlpEncodable
 pub const POST_EXEC_TX_TYPE_ID: u8 = 0x7D;
 
 /// Current format version for [`PostExecPayload`].
-pub const POST_EXEC_PAYLOAD_VERSION: u64 = 1;
+pub const POST_EXEC_PAYLOAD_VERSION: u8 = 1;
 
 /// Per-transaction gas refund entry within a [`PostExecPayload`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, RlpEncodable, RlpDecodable)]
@@ -38,7 +38,7 @@ pub struct SDMGasEntry {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PostExecPayload {
     /// Format version.
-    pub version: u64,
+    pub version: u8,
     /// L2 block number this synthetic payload is anchored to.
     pub block_number: u64,
     /// Initial SDM gas refund entries keyed by transaction index.
