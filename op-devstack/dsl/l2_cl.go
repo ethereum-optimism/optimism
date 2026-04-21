@@ -135,32 +135,48 @@ func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
 	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
 }
 
-func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
+// syncStatus fetches the L2CL sync status and returns the RPC error, if any.
+// Internal callers in retry/eventually loops use this so a transient RPC timeout
+// counts as a retry rather than an instant FailNow.
+func (cl *L2CLNode) syncStatus() (*eth.SyncStatus, error) {
 	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
 	defer cancel()
-	syncStatus, err := cl.inner.RollupAPI().SyncStatus(ctx)
+	return cl.inner.RollupAPI().SyncStatus(ctx)
+}
+
+func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
+	syncStatus, err := cl.syncStatus()
 	cl.require.NoError(err)
 	return syncStatus
 }
 
-// HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
-func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
-	syncStatus := cl.SyncStatus()
-	var blockRef eth.L2BlockRef
+// headBlockRef is the error-returning variant of HeadBlockRef, for use inside
+// retry/eventually loops.
+func (cl *L2CLNode) headBlockRef(lvl types.SafetyLevel) (eth.L2BlockRef, error) {
+	syncStatus, err := cl.syncStatus()
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
 	switch lvl {
 	case types.Finalized:
-		blockRef = syncStatus.FinalizedL2
+		return syncStatus.FinalizedL2, nil
 	case types.CrossSafe:
-		blockRef = syncStatus.SafeL2
+		return syncStatus.SafeL2, nil
 	case types.LocalSafe:
-		blockRef = syncStatus.LocalSafeL2
+		return syncStatus.LocalSafeL2, nil
 	case types.CrossUnsafe:
-		blockRef = syncStatus.CrossUnsafeL2
+		return syncStatus.CrossUnsafeL2, nil
 	case types.LocalUnsafe:
-		blockRef = syncStatus.UnsafeL2
+		return syncStatus.UnsafeL2, nil
 	default:
-		cl.require.NoError(errors.New("invalid safety level"))
+		return eth.L2BlockRef{}, fmt.Errorf("invalid safety level: %v", lvl)
 	}
+}
+
+// HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
+func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
+	blockRef, err := cl.headBlockRef(lvl)
+	cl.require.NoError(err)
 	return blockRef
 }
 
@@ -173,7 +189,12 @@ func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
 	defer cancel()
 	// Wait for CurrentL1 to be at least one block _past_ minL1 since CurrentL1 may not yet be fully processed.
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		return cl.SyncStatus().CurrentL1.Number > minL1, nil
+		ss, err := cl.syncStatus()
+		if err != nil {
+			cl.log.Warn("SyncStatus RPC failed while awaiting L1 processed; will retry", "err", err)
+			return false, nil
+		}
+		return ss.CurrentL1.Number > minL1, nil
 	})
 	cl.require.NoErrorf(err, "CurrentL1 did not reach %v", minL1+1)
 }
@@ -196,7 +217,11 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 		logger.Info("Expecting chain not to advance")
 		for range attempts {
 			time.Sleep(2 * time.Second)
-			head := cl.HeadBlockRef(lvl)
+			head, err := cl.headBlockRef(lvl)
+			if err != nil {
+				logger.Warn("SyncStatus RPC failed; treating as no advance and retrying", "err", err)
+				continue
+			}
 			logger.Info("Chain sync status", "current", head.Number)
 			if head.Hash == initial.Hash {
 				continue
@@ -214,7 +239,12 @@ func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
 	var last eth.BlockID
 	var stableSince time.Time
 	cl.require.Eventuallyf(func() bool {
-		cur := cl.HeadBlockRef(lvl).ID()
+		head, err := cl.headBlockRef(lvl)
+		if err != nil {
+			cl.log.Warn("SyncStatus RPC failed while waiting for stall; will retry", "err", err)
+			return false
+		}
+		cur := head.ID()
 		if cur == last {
 			if stableSince.IsZero() {
 				stableSince = time.Now()
@@ -235,7 +265,11 @@ func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int
 		logger.Info("Expecting chain to reach")
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := cl.HeadBlockRef(lvl)
+				head, err := cl.headBlockRef(lvl)
+				if err != nil {
+					logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+					return err
+				}
 				if head.Number >= target {
 					logger.Info("Chain advanced", "target", target)
 					return nil
@@ -279,7 +313,11 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 		// check rewind more aggressively, in shorter interval
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 250 * time.Millisecond},
 			func() error {
-				head := cl.HeadBlockRef(lvl)
+				head, err := cl.headBlockRef(lvl)
+				if err != nil {
+					logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+					return err
+				}
 				if head.Number <= target {
 					logger.Info("Chain rewinded", "target", target)
 					return nil
