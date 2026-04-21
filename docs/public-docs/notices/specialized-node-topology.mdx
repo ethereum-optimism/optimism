@@ -57,7 +57,7 @@ Plan a migration from a homogeneous fleet of derivation-enabled `op-node` instan
 
 For production deployments, we recommend placing the derivation tier behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) and exposing light nodes to users through a separate RPC-serving tier:
 
-*   **Deriver tier** — a small, redundant set of derivation-enabled `op-node` instances (the sources). These sit behind a `proxyd` configured with consensus awareness, which aggregates the sources into a single highly available endpoint and hides individual failures or reorgs from downstream consumers.
+*   **Deriver tier** — a small, redundant set of derivation-enabled `op-node` instances (the sources). These sit behind a `proxyd` configured with routing strategy: `consensus_aware_consensus_layer`, which aggregates the mutiple op-node sources into a single highly available endpoint and hides individual failures or reorgs from downstream consumers. 
 *   **Light-node tier** — a horizontally scalable pool of light `op-node` instances started with `--l2.follow.source` pointed at the deriver-tier `proxyd` endpoint. This tier can be scaled up and down independently based on read traffic.
 *   **Edge tier** — an API gateway or user-facing `proxyd` that fronts the light-node tier and handles external RPC traffic, rate limiting, and routing.
 
