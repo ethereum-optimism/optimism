@@ -469,19 +469,34 @@ check_types:
     avg_duration: 30
 
   # === Contract Checks ===
-  - id: snapshots-check
-    name: "ABI + storage layout snapshots"
-    kind: check
+  #
+  # Some checks in this section are "regen" steps (kind: gen) that
+  # rewrite tracked files from current artifacts (snapshots/abi,
+  # snapshots/storageLayout, snapshots/semver-lock.json). Others are
+  # "verify" steps (kind: check) that read the regenerated files and
+  # assert invariants (e.g. semver version bumps). The regen must run
+  # first — the catalog wires this via consumes/produces edges on
+  # snapshots/semver-lock.json so the optimizer orders them correctly.
+
+  - id: regen-snapshots
+    name: "Regenerate ABI / storage / semver-lock snapshots"
+    kind: gen
     language: solidity
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just snapshots-check-no-build"
+    # just snapshots-no-build chains snapshots-abi-storage-no-build
+    # (ABI + storage layout) and semver-lock-no-build (semver-lock.json).
+    # Mutates tracked files under snapshots/; downstream tools git-diff
+    # to catch drift.
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just snapshots-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "packages/contracts-bedrock/snapshots/**"
       - "artifact:forge-artifacts-src-prod/**"
-    outputs: []
-    avg_duration: 60
+    outputs:
+      - "artifact:packages/contracts-bedrock/snapshots/semver-lock.json"
+      - "artifact:packages/contracts-bedrock/snapshots/abi/**"
+      - "artifact:packages/contracts-bedrock/snapshots/storageLayout/**"
+    avg_duration: 30
     # snapshots-check + interfaces-check + semver-check + validate-
     # spacers + reinitializer-check all run inside the
     # contracts-bedrock-checks-fast CI job. Multiple catalog checks
@@ -518,15 +533,20 @@ check_types:
     # drift silently if this check didn't fire. Runs on every source
     # change regardless of semantic impact.
     concern: text
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just semver-diff-check-no-build"
+    # Verifies that every contract whose semver-lock.json entry
+    # changed between HEAD and upstream also bumped its @custom:semver
+    # version. The check reads the local semver-lock.json, so the
+    # regen-snapshots step (which produces it) must have run first;
+    # that ordering is enforced by consuming the regen's output
+    # artifact below.
+    command: "cd packages/contracts-bedrock && mise exec -- just semver-diff-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "packages/contracts-bedrock/snapshots/semver-lock.json"
-      - "artifact:forge-artifacts-src-prod/**"
+      - "artifact:packages/contracts-bedrock/snapshots/semver-lock.json"
     outputs: []
-    avg_duration: 60
+    avg_duration: 5
 
   - id: validate-spacers
     name: "Storage spacer validation"
