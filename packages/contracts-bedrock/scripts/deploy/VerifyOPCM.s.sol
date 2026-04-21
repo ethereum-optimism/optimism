@@ -158,6 +158,14 @@ contract VerifyOPCM is Script {
     /// @notice Setup flag.
     bool internal ready;
 
+    /// @notice Forge `out` directory, cached from `forge config` at setUp().
+    ///         Read from the active Foundry profile so that verification
+    ///         always inspects the same artifact tree the live deploys were
+    ///         compiled into — running under FOUNDRY_PROFILE=lite means both
+    ///         the deployed bytecode and the artifact come from
+    ///         forge-artifacts-lite/, not the hardcoded default.
+    string internal artifactOutDir;
+
     /// @notice Returns whether to skip security-critical value checks.
     ///         Public to allow tests to mock via vm.mockCall.
     function skipSecurityValueChecks() public view virtual returns (bool) {
@@ -262,6 +270,11 @@ contract VerifyOPCM is Script {
         // Skip - no security relevance or verified elsewhere
         validatorGetterChecks["version"] = "SKIP";
         validatorGetterChecks["preimageOracleVersion"] = "SKIP";
+
+        // Cache the active profile's `out` directory. Done here (non-view
+        // entry point) because Process.bash requires ffi, which view
+        // functions can't invoke.
+        artifactOutDir = LibString.replace(Process.bash("forge config --json | jq -r .out"), "\n", "");
 
         // Mark as ready.
         ready = true;
@@ -1164,7 +1177,10 @@ contract VerifyOPCM is Script {
         }
 
         // Return computed path, relative to the contracts-bedrock directory.
-        return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
+        // artifactOutDir is cached from `forge config` at setUp() so the
+        // path tracks whichever Foundry profile is active (forge-artifacts/
+        // under default, forge-artifacts-lite/ under lite, etc.).
+        return string.concat(artifactOutDir, "/", sourceName, ".sol/", _contractName, ".json");
     }
 
     /// @notice Checks if a field name represents an OPCM component contract that has contractsContainer().
