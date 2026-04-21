@@ -2,6 +2,7 @@ package broadcaster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -19,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -128,7 +128,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 		)
 	}
 
-	var txErr *multierror.Error
+	var txErr error
 	var completed int
 	for i, fut := range futures {
 		bcastRes := <-fut
@@ -143,7 +143,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 
 			if bcastRes.Receipt.Status == 0 {
 				failErr := fmt.Errorf("transaction failed: %s", outRes.Receipt.TxHash.String())
-				txErr = multierror.Append(txErr, failErr)
+				txErr = errors.Join(txErr, failErr)
 				outRes.Err = failErr
 				t.lgr.Error(
 					"transaction failed on chain",
@@ -165,7 +165,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 				)
 			}
 		} else {
-			txErr = multierror.Append(txErr, bcastRes.Err)
+			txErr = errors.Join(txErr, bcastRes.Err)
 			outRes.Err = bcastRes.Err
 			t.lgr.Error(
 				"transaction failed",
@@ -178,7 +178,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 
 		results[i] = outRes
 	}
-	return results, txErr.ErrorOrNil()
+	return results, txErr
 }
 
 func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast, blockGasLimit uint64) (<-chan txmgr.SendResponse, common.Hash) {

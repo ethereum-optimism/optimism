@@ -29,8 +29,6 @@ src_validation = [
     "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
     "test/vendor/Initializable.t.sol",     # Tests external vendor code
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
-    "test/L2/LegacyFeeSplitter.t.sol",     # Tests legacy fee splitter with updated vaults interface
-    "test/L2/FeeSplitterVaults.t.sol",     # Tests FeeSplitter with vault-specific scenarios using test helper
     "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
     "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
 ]
@@ -59,7 +57,6 @@ contract_name_validation = [
     "test/L2/CrossDomainOwnable3.t.sol",                  # Contains contracts not matching CrossDomainOwnable3 base name
     "test/L2/GasPriceOracle.t.sol",                       # Contains contracts not matching GasPriceOracle base name
     "test/universal/StandardBridge.t.sol",                # Contains contracts not matching StandardBridge base name
-    "test/L2/RevenueSharingIntegration.t.sol",            # Contains contracts not matching RevenueSharingIntegration base name
     "test/libraries/Blueprint.t.sol",                     # Contains helper contracts (BlueprintHarness, ConstructorArgMock)
     "test/libraries/SafeCall.t.sol",                      # Contains helper contracts (SimpleSafeCaller)
 ]

@@ -291,10 +291,7 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
-	// Ensure we are using OPCM V2
-	intent.GlobalDeployOverrides = map[string]any{
-		"devFeatureBitmap": deployer.OPCMV2DevFlag,
-	}
+	intent.GlobalDeployOverrides = map[string]any{}
 
 	// Deploy using ApplyPipeline with live target
 	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{

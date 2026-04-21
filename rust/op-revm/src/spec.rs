@@ -1,6 +1,6 @@
 //! Contains the `[OpSpecId]` type and its implementation.
 use core::str::FromStr;
-use revm::primitives::hardfork::{SpecId, UnknownHardfork, name as eth_name};
+use revm::primitives::hardfork::{SpecId, UnknownHardfork};
 
 /// Optimism spec id.
 #[repr(u8)]
@@ -27,10 +27,10 @@ pub enum OpSpecId {
     /// Jovian spec id.
     #[default]
     JOVIAN,
+    /// Karst spec id.
+    KARST,
     /// Interop spec id.
     INTEROP,
-    /// Osaka spec id.
-    OSAKA,
 }
 
 impl OpSpecId {
@@ -41,7 +41,7 @@ impl OpSpecId {
             Self::CANYON => SpecId::SHANGHAI,
             Self::ECOTONE | Self::FJORD | Self::GRANITE | Self::HOLOCENE => SpecId::CANCUN,
             Self::ISTHMUS | Self::JOVIAN | Self::INTEROP => SpecId::PRAGUE,
-            Self::OSAKA => SpecId::OSAKA,
+            Self::KARST => SpecId::OSAKA,
         }
     }
 
@@ -71,8 +71,8 @@ impl FromStr for OpSpecId {
             name::HOLOCENE => Ok(Self::HOLOCENE),
             name::ISTHMUS => Ok(Self::ISTHMUS),
             name::JOVIAN => Ok(Self::JOVIAN),
+            name::KARST => Ok(Self::KARST),
             name::INTEROP => Ok(Self::INTEROP),
-            eth_name::OSAKA => Ok(Self::OSAKA),
             _ => Err(UnknownHardfork),
         }
     }
@@ -90,8 +90,8 @@ impl From<OpSpecId> for &'static str {
             OpSpecId::HOLOCENE => name::HOLOCENE,
             OpSpecId::ISTHMUS => name::ISTHMUS,
             OpSpecId::JOVIAN => name::JOVIAN,
+            OpSpecId::KARST => name::KARST,
             OpSpecId::INTEROP => name::INTEROP,
-            OpSpecId::OSAKA => eth_name::OSAKA,
         }
     }
 }
@@ -116,6 +116,8 @@ pub mod name {
     pub const ISTHMUS: &str = "Isthmus";
     /// Jovian spec name.
     pub const JOVIAN: &str = "Jovian";
+    /// Karst spec name.
+    pub const KARST: &str = "Karst";
     /// Interop spec name.
     pub const INTEROP: &str = "Interop";
 }

@@ -82,6 +82,10 @@ type TwoL2SupernodeInterop struct {
 	// DelaySeconds is the delay from genesis to interop activation
 	DelaySeconds uint64
 
+	// InteropFilter provides direct access to the in-process interop filter.
+	// nil if not using interop filter (WithInteropFilter() not set).
+	InteropFilter *sysgo.InteropFilter
+
 	timeTravel *clock.AdvancingClock
 }
 

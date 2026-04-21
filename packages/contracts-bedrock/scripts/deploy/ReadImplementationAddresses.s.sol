@@ -38,10 +38,13 @@ contract ReadImplementationAddresses is Script {
         address permissionedDisputeGame;
         address superFaultDisputeGame;
         address superPermissionedDisputeGame;
+<<<<<<< HEAD
         address zkDisputeGame;
         address opcmDeployer;
         address opcmUpgrader;
         address opcmGameTypeAdder;
+=======
+>>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
         address opcmStandardValidator;
         address opcmInteropMigrator;
     }
@@ -60,10 +63,6 @@ contract ReadImplementationAddresses is Script {
 
         require(address(_input.opcm).code.length > 0, "ReadImplementationAddresses: OPCM address has no code");
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
-
-        output_.opcmGameTypeAdder = address(0);
-        output_.opcmDeployer = address(0);
-        output_.opcmUpgrader = address(0);
 
         output_.opcmInteropMigrator = address(opcmV2.opcmMigrator());
         output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());

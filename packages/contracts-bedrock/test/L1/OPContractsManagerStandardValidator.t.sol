@@ -2263,4 +2263,22 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         );
         assertEq("ZKDG-10", _validate(true));
     }
+<<<<<<< HEAD
+=======
+
+    /// @notice Tests ZKDG-20 when the ZK game implementation version does not match the expected.
+    function test_validate_zkDisputeGameInvalidVersion_succeeds() public {
+        address zkImpl = address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME));
+        BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(zkImpl), "0.0.0");
+        bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
+        vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
+        assertEq("ZKDG-20", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-60 when the l2ChainId encoded in the ZK game args does not match.
+    function test_validate_zkDisputeGameWrongChainId_succeeds() public {
+        DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId + 1);
+        assertEq("ZKDG-60", _validate(true));
+    }
+>>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
 }

@@ -68,8 +68,11 @@ where
                 MAX_RLP_BYTES_PER_CHANNEL_BEDROCK
             };
 
-            self.next_batch =
-                Some(BatchReader::new(&channel[..], max_rlp_bytes_per_channel as usize));
+            self.next_batch = Some(BatchReader::new(
+                &channel[..],
+                max_rlp_bytes_per_channel as usize,
+                origin.timestamp,
+            ));
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 1);
         }
         Ok(())
@@ -227,6 +230,7 @@ mod test {
         reader.next_batch = Some(BatchReader::new(
             new_compressed_batch_data(),
             MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize,
+            0,
         ));
         reader.flush_channel().await.unwrap();
         assert!(reader.next_batch.is_none());
@@ -239,6 +243,7 @@ mod test {
         reader.next_batch = Some(BatchReader::new(
             vec![0x00, 0x01, 0x02],
             MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize,
+            0,
         ));
         assert!(!reader.prev.reset);
         reader.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();

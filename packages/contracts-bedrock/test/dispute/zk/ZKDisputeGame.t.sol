@@ -78,7 +78,6 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     function setUp() public virtual override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        skipIfForkTest("Skip not supported yet");
 
         // Get anchor state to calculate valid sequence numbers
         (, anchorL2SequenceNumber) = anchorStateRegistry.getAnchorRoot();

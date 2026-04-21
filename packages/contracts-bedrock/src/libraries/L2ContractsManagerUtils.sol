@@ -35,11 +35,16 @@ library L2ContractsManagerUtils {
     /// @notice Thrown when a v5 slot is passed with a non-zero offset.
     error L2ContractsManager_InvalidV5Offset();
 
+    /// @notice Thrown when an address has no runtime code.
+    /// @param _target The address that has no code.
+    error L2ContractsManager_EmptyImplementation(address _target);
+
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
     ///         Reverts if the predeploy is not upgradeable.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
     function upgradeTo(address _proxy, address _implementation) internal {
+        if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
@@ -65,7 +70,6 @@ library L2ContractsManagerUtils {
         view
         returns (L2ContractsManagerTypes.FeeVaultConfig memory config_)
     {
-        // TODO(#19600): Remove withdrawalNetwork reading as part of revenue sharing deprecation.
         // Try to read the withdrawal network from the FeeVault. If it fails, use the default value.
         Types.WithdrawalNetwork withdrawalNetwork;
         // eip150-safe
@@ -110,6 +114,9 @@ library L2ContractsManagerUtils {
         internal
     {
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
+
+        if (_storageSetterImpl.code.length == 0) revert L2ContractsManager_EmptyImplementation(_storageSetterImpl);
+        if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.

@@ -6,7 +6,7 @@ use alloy_consensus::{
     transaction::{SignerRecoverable, TxHashRef},
 };
 use alloy_primitives::{Address, B256, Sealed};
-use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxDeposit};
+use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxDeposit, TxPostExec};
 use reth_primitives_traits::InMemorySize;
 
 #[derive(Clone, Debug, TransactionEnvelope)]
@@ -48,6 +48,10 @@ impl OpTransaction for CustomPooledTransaction {
     }
 
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
+        None
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
         None
     }
 }

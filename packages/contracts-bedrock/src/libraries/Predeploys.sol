@@ -102,27 +102,11 @@ library Predeploys {
     /// @notice Address of the ETHLiquidity predeploy.
     address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
 
-    /// @notice Address of the OptimismSuperchainERC20Factory predeploy.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20_FACTORY = 0x4200000000000000000000000000000000000026;
-
-    /// @notice Address of the OptimismSuperchainERC20Beacon predeploy.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20_BEACON = 0x4200000000000000000000000000000000000027;
-
-    // TODO: Precalculate the address of the implementation contract
-    /// @notice Arbitrary address of the OptimismSuperchainERC20 implementation contract.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20 = 0xB9415c6cA93bdC545D4c5177512FCC22EFa38F28;
-
-    /// @notice Address of the SuperchainTokenBridge predeploy.
-    address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
-
     /// @notice Address of the NativeAssetLiquidity predeploy.
     address internal constant NATIVE_ASSET_LIQUIDITY = 0x4200000000000000000000000000000000000029;
 
     /// @notice Address of the LiquidityController predeploy.
     address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
-
-    /// @notice Address of the FeeSplitter predeploy.
-    address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
     /// @notice Address of the ConditionalDeployer predeploy.
     address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002C;
@@ -159,12 +143,8 @@ library Predeploys {
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
         if (_addr == SUPERCHAIN_ETH_BRIDGE) return "SuperchainETHBridge";
         if (_addr == ETH_LIQUIDITY) return "ETHLiquidity";
-        if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
-        if (_addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON) return "OptimismSuperchainERC20Beacon";
-        if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
         if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
         if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
-        if (_addr == FEE_SPLITTER) return "FeeSplitter";
         if (_addr == CONDITIONAL_DEPLOYER) return "ConditionalDeployer";
         if (_addr == L2_DEV_FEATURE_FLAGS) return "L2DevFeatureFlags";
         revert("Predeploys: unnamed predeploy");
@@ -205,7 +185,7 @@ library Predeploys {
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
+            || _addr == GOVERNANCE_TOKEN
             || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == CROSS_L2_INBOX)
             || (
                 _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
@@ -253,7 +233,7 @@ library Predeploys {
     ///      Predeploys library should be listed here.
     ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
     function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](24);
+        predeploys_ = new address[](23);
         // Core predeploys
         predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
@@ -270,17 +250,16 @@ library Predeploys {
         predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
         predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
         predeploys_[14] = Predeploys.EAS;
-        predeploys_[15] = Predeploys.FEE_SPLITTER;
-        predeploys_[16] = Predeploys.CONDITIONAL_DEPLOYER;
+        predeploys_[15] = Predeploys.CONDITIONAL_DEPLOYER;
         // Interop predeploys
-        predeploys_[17] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[18] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[19] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[20] = Predeploys.ETH_LIQUIDITY;
+        predeploys_[16] = Predeploys.CROSS_L2_INBOX;
+        predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+        predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
+        predeploys_[19] = Predeploys.ETH_LIQUIDITY;
         // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[21] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[22] = Predeploys.LIQUIDITY_CONTROLLER;
+        predeploys_[20] = Predeploys.NATIVE_ASSET_LIQUIDITY;
+        predeploys_[21] = Predeploys.LIQUIDITY_CONTROLLER;
         // Dev feature flags bitmap
-        predeploys_[23] = Predeploys.L2_DEV_FEATURE_FLAGS;
+        predeploys_[22] = Predeploys.L2_DEV_FEATURE_FLAGS;
     }
 }

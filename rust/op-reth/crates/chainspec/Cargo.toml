@@ -20,7 +20,7 @@ reth-network-peers.workspace = true
 
 # op-reth
 reth-optimism-forks.workspace = true
-reth-optimism-primitives.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
 
 # ethereum
 alloy-chains.workspace = true

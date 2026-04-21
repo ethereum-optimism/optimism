@@ -239,8 +239,14 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 		testCfg.Custom.RequireExpectedProgressAndLogs(t, l2SafeHead, isHolocene, env.Engine, env.Logs)
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
-		if safeHeadNumber := l2SafeHead.Number; safeHeadNumber > 0 {
-			env.RunFaultProofProgram(t, safeHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
+		// Run the fault proof program on a non-trivial block. When safe head is 0 due to
+		// intentionally invalid block contents (e.g. over-advanced L1 origin, sequencer drift breach),
+		// rebatching produces the same invalid result, so skip the proof in those cases.
+		// The Holocene variants of these tests DO advance the safe head and run the proof.
+		if l2SafeHead.Number > 0 {
+			env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		} else {
+			t.Log("Skipping fault proof program: safe head is at genesis due to intentionally invalid block contents")
 		}
 	}
 

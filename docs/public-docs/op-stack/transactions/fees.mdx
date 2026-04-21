@@ -66,6 +66,10 @@ However, while EIP-1559 does not define a minimum priority fee, certain wallets 
 If transaction speed is important to your application, you may want to set a higher priority fee to ensure that your transaction is included more quickly.
 The [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) RPC method can be used to estimate a priority fee that will get your transaction included quickly.
 
+<Info>
+OP Mainnet is running a time-boxed experiment in **stake-based priority ordering**. While the experiment is active, priority fee is no longer the sole factor in transaction ordering — stake held in the `PolicyEngineStaking` contract also influences inclusion order. See the [stake-based priority ordering notice](/notices/stake-based-priority-ordering) and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) for details.
+</Info>
+
 ## L1 data fee
 
 The L1 Data Fee is the only part of the OP Mainnet transaction fee that differs from the Ethereum transaction fee.
