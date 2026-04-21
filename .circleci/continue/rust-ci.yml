@@ -882,18 +882,6 @@ jobs:
             echo 'export L2_HEAD=0xc5fa07d52e83f7a2e68de356e7a7bfc9306a9b28666ec6c9cc6e4f8e1b268278' >> $BASH_ENV
             echo 'export L1_HEAD=0xab33322985684f2c6fbcf375bdcb69cc0f10547e58cb5a7b889172ee9ea77aef' >> $BASH_ENV
             echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
-            echo 'export WITNESS_TAR_NAME=op-sepolia-42427365-witness.tar.zst' >> $BASH_ENV
-            echo 'export WITNESS_TAR_URL=https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-04-21' >> $BASH_ENV
-      - run:
-          name: Fetch witness data
-          working_directory: rust/kona/bin/client
-          command: |
-            ./scripts/fetch-witness-tar.sh "$WITNESS_TAR_NAME" "$WITNESS_TAR_URL"
-      - run:
-          name: Decompress witness data
-          working_directory: rust/kona
-          command: |
-            tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
       - run:
           name: Run host + client offline
           working_directory: rust/kona/bin/client
