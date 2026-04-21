@@ -32,6 +32,8 @@ uint256 constant EXPECTED_MIN_PROPOSAL_SIZE = 126000;
 /// for the OPContractsManagerStandardValidator to split the bytecode across multiple
 /// contracts to meet the EIP-170 bytecode size limit
 contract StandardValidatorUtils {
+    /// @notice Appends `_message` to `_errors` when `_condition` is false; otherwise returns
+    ///         `_errors` unchanged. Used to accumulate validation failures without reverting.
     function internalRequire(
         bool _condition,
         string memory _message,
