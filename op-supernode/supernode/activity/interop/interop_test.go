@@ -2112,6 +2112,93 @@ func TestResetIsNoOp(t *testing.T) {
 }
 
 // =============================================================================
+// TestLatestVerifiedL2Block
+// =============================================================================
+
+// TestLatestVerifiedL2Block pins the contract that LatestVerifiedL2Block
+// falls through to the pre-activation boundary block when verifiedDB is
+// empty, and preserves verified-entry behaviour otherwise.
+func TestLatestVerifiedL2Block(t *testing.T) {
+	const activationTS = uint64(1000)
+	chainID := eth.ChainIDFromUInt64(10)
+
+	t.Run("empty DB, boundary lookup succeeds, returns boundary block", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		boundaryL1 := eth.BlockID{Hash: common.HexToHash("0xL1BDY"), Number: 7777}
+		h := newInteropTestHarness(t).
+			WithActivation(activationTS).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+				m.optimisticL1 = boundaryL1
+			}).
+			Build()
+
+		blockID, ts := h.interop.LatestVerifiedL2Block(chainID)
+		require.Equal(t, boundaryL2, blockID, "must return pre-activation boundary block")
+		require.Equal(t, activationTS-1, ts, "timestamp must be activationTS-1")
+	})
+
+	t.Run("empty DB, boundary lookup fails, returns empty", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(activationTS).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticAtErr = errors.New("not ready")
+			}).
+			Build()
+
+		blockID, ts := h.interop.LatestVerifiedL2Block(chainID)
+		require.Equal(t, eth.BlockID{}, blockID, "lookup failure falls back to empty")
+		require.Equal(t, uint64(0), ts)
+	})
+
+	t.Run("empty DB, activation zero, returns empty", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		h := newInteropTestHarness(t).
+			WithActivation(0).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+			}).
+			Build()
+
+		blockID, ts := h.interop.LatestVerifiedL2Block(chainID)
+		require.Equal(t, eth.BlockID{}, blockID, "activation=0 has no pre-activation range")
+		require.Equal(t, uint64(0), ts)
+	})
+
+	t.Run("empty DB, unknown chain, returns empty", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(activationTS).
+			WithChain(10, nil).
+			Build()
+
+		blockID, ts := h.interop.LatestVerifiedL2Block(eth.ChainIDFromUInt64(99))
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
+	})
+
+	t.Run("non-empty DB, returns verified block (boundary not consulted)", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		verifiedL2 := eth.BlockID{Hash: common.HexToHash("0xVER"), Number: 1050}
+		h := newInteropTestHarness(t).
+			WithActivation(activationTS).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+			}).
+			Build()
+
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   activationTS + 10,
+			L1Inclusion: eth.BlockID{Number: 20000},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: verifiedL2},
+		}))
+
+		blockID, ts := h.interop.LatestVerifiedL2Block(chainID)
+		require.Equal(t, verifiedL2, blockID, "must prefer actual verifiedDB entry")
+		require.Equal(t, activationTS+10, ts)
+	})
+}
+
+// =============================================================================
 // TestVerifiedBlockAtL1
 // =============================================================================
 
@@ -2167,14 +2254,71 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		require.Equal(t, uint64(1005), ts)
 	})
 
-	t.Run("empty DB returns empty", func(t *testing.T) {
+	t.Run("empty DB, boundary lookup fails, returns empty", func(t *testing.T) {
 		h := newInteropTestHarness(t).
-			WithChain(10, nil).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticAtErr = errors.New("not ready")
+			}).
 			Build()
 
 		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
 		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
-		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, eth.BlockID{}, blockID, "lookup failure falls back to empty")
+		require.Equal(t, uint64(0), ts)
+	})
+
+	// Boundary-fallback cases: when verifiedDB is empty, VerifiedBlockAtL1
+	// returns the pre-activation boundary block iff its L1 inclusion is at
+	// or below l1Block. Finalization stays strictly L1-gated.
+
+	t.Run("empty DB, boundary L1 <= finalizedL1, returns boundary", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		boundaryL1 := eth.BlockID{Hash: common.HexToHash("0xL1BDY"), Number: 7000}
+		h := newInteropTestHarness(t).
+			WithActivation(1000).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+				m.optimisticL1 = boundaryL1
+			}).
+			Build()
+
+		finalizedL1 := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 7500, Time: 999}
+		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, finalizedL1)
+		require.Equal(t, boundaryL2, blockID, "boundary finalized by L1: returns boundary")
+		require.Equal(t, uint64(999), ts, "timestamp must be activationTS-1")
+	})
+
+	t.Run("empty DB, boundary L1 > finalizedL1, returns empty", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		boundaryL1 := eth.BlockID{Hash: common.HexToHash("0xL1BDY"), Number: 9000}
+		h := newInteropTestHarness(t).
+			WithActivation(1000).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+				m.optimisticL1 = boundaryL1
+			}).
+			Build()
+
+		// finalizedL1.Number (7500) < boundaryL1.Number (9000): boundary is not
+		// yet L1-finalized, so finalized head must remain empty.
+		finalizedL1 := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 7500, Time: 999}
+		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, finalizedL1)
+		require.Equal(t, eth.BlockID{}, blockID, "boundary not yet L1-finalized: empty")
+		require.Equal(t, uint64(0), ts)
+	})
+
+	t.Run("empty DB, activation zero, returns empty", func(t *testing.T) {
+		boundaryL2 := eth.BlockID{Hash: common.HexToHash("0xBDY"), Number: 499}
+		h := newInteropTestHarness(t).
+			WithActivation(0).
+			WithChain(10, func(m *mockChainContainer) {
+				m.optimisticL2 = boundaryL2
+			}).
+			Build()
+
+		finalizedL1 := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
+		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, finalizedL1)
+		require.Equal(t, eth.BlockID{}, blockID, "activation=0 has no pre-activation range")
 		require.Equal(t, uint64(0), ts)
 	})
 }

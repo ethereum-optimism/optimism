@@ -794,13 +794,45 @@ func (i *Interop) IsActiveAt(ts uint64) bool {
 	return ts >= i.activationTimestamp
 }
 
+// preActivationBoundaryBlock returns the L2 block at activationTimestamp-1
+// for the given chain, along with the L1 block at which it became locally
+// safe. Pre-activation L2 content is verified by consensus, so this block
+// is treated as the implicit "verified" floor when verifiedDB has no entries.
+//
+// Returns ok=false when activation is zero, the chain is unknown, or the
+// engine has not yet reached the boundary timestamp.
+func (i *Interop) preActivationBoundaryBlock(chainID eth.ChainID) (l2 eth.BlockID, boundaryL1 eth.BlockID, boundaryTS uint64, ok bool) {
+	if i.activationTimestamp == 0 {
+		return eth.BlockID{}, eth.BlockID{}, 0, false
+	}
+	chain, known := i.chains[chainID]
+	if !known {
+		return eth.BlockID{}, eth.BlockID{}, 0, false
+	}
+	boundaryTS = i.activationTimestamp - 1
+	// context.Background(): these methods may be invoked from op-node's
+	// EngineController before Interop.Start has populated i.ctx.
+	l2, boundaryL1, err := chain.OptimisticAt(context.Background(), boundaryTS)
+	if err != nil {
+		return eth.BlockID{}, eth.BlockID{}, 0, false
+	}
+	return l2, boundaryL1, boundaryTS, true
+}
+
 // LatestVerifiedL2Block returns the latest L2 block which has been verified,
 // along with the timestamp at which it was verified.
+//
+// When verifiedDB is empty, falls through to the pre-activation boundary
+// block (verified by consensus).
 func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
 	emptyBlock := eth.BlockID{}
 	ts, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return emptyBlock, 0
+		l2, _, boundaryTS, ok := i.preActivationBoundaryBlock(chainID)
+		if !ok {
+			return emptyBlock, 0
+		}
+		return l2, boundaryTS
 	}
 	res, err := i.verifiedDB.Get(ts)
 	if err != nil {
@@ -816,6 +848,10 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 // VerifiedBlockAtL1 returns the verified L2 block and timestamp
 // which guarantees that the verified data at that timestamp
 // originates from or before the supplied L1 block.
+//
+// When verifiedDB is empty, falls through to the pre-activation boundary
+// block iff its L1 inclusion is at or below l1Block; finalization remains
+// strictly L1-gated.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
 	// If L1 block is empty/zero (e.g. during startup before FinalizedL1 is set),
 	// no verified result can match, so return early.
@@ -826,7 +862,14 @@ func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef)
 	// Get the last verified timestamp
 	lastTs, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return eth.BlockID{}, 0
+		l2, boundaryL1, boundaryTS, ok := i.preActivationBoundaryBlock(chainID)
+		if !ok {
+			return eth.BlockID{}, 0
+		}
+		if boundaryL1.Number > l1Block.Number {
+			return eth.BlockID{}, 0
+		}
+		return l2, boundaryTS
 	}
 
 	// Search backwards from the last timestamp to find the latest result
