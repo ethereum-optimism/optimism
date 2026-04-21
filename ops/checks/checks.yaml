@@ -195,7 +195,6 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-src-prod/**"
     avg_duration: 60
-    tags: [profile:prod]
 
   - id: forge-build-src-dev
     name: "Forge build (lite, src-only)"
@@ -412,7 +411,11 @@ check_types:
       - "**/*.sol"
       - "**/*.rs"
     outputs: []
-    avg_duration: 600
+    # Measured ~5s wall-clock on a full monorepo scan (29 rules,
+    # 5146 tracked files) — tiny compared to its signal. Previous
+    # 600s estimate caused the commit-stage optimizer to skip it
+    # (run_cost > skip_cost) even though it's nearly free to run.
+    avg_duration: 10
     ci_job_names:
       - semgrep-scan
 
@@ -442,7 +445,6 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
-    tags: [profile:prod]
     # snapshots-check + interfaces-check + semver-check + validate-
     # spacers + reinitializer-check all run inside the
     # contracts-bedrock-checks-fast CI job. Multiple catalog checks
@@ -483,7 +485,6 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
-    tags: [profile:prod]
 
   - id: validate-spacers
     name: "Storage spacer validation"
