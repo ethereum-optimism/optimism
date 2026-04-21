@@ -115,6 +115,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Bitmap of development features, verification may depend on these features.
     bytes32 public devFeatureBitmap;
 
+    /// @notice Helper contract providing validation utilities (split for EIP-170 bytecode size).
     IStandardValidatorUtils public standardValidatorUtils;
 
     /// @notice The migration validator contract for post-interop-migration validation.
