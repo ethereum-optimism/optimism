@@ -84,7 +84,7 @@ contract GenerateNUTBundle is Script {
         setUp();
 
         // Build implementation deployment configurations
-        _buildImplementationDeploymentConfigs();
+        buildImplementationDeploymentConfigs();
 
         // Phase 1: Pre-implementation deployments
         // Add fork-specific deployment or upgrade txns that must occur prior to the implementation deployments
@@ -322,7 +322,7 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Looks up an implementation address by contract name.
     /// @dev Iterates implementationConfigs linearly; acceptable cost for a script.
-    /// @param _name The human-readable name used in _buildImplementationDeploymentConfigs.
+    /// @param _name The human-readable name used in buildImplementationDeploymentConfigs.
     /// @return impl_ The implementation address, or reverts if not found.
     function findImplByName(string memory _name) public view returns (address impl_) {
         for (uint256 i = 0; i < _implementationConfigs.length; i++) {
@@ -377,7 +377,7 @@ contract GenerateNUTBundle is Script {
     /// @dev Iterates the predeploy registry as the single source of truth.
     ///      All records are deployed unconditionally. L2CM selects the correct variant at runtime.
     ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
-    function _buildImplementationDeploymentConfigs() public {
+    function buildImplementationDeploymentConfigs() public {
         _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 500_000));
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();

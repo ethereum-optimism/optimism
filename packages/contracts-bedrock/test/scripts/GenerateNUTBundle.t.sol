@@ -137,7 +137,7 @@ contract GenerateNUTBundleTest is Test {
         L2ContractsManagerTypes.Implementations memory emptyImpl;
         uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
 
-        script._buildImplementationDeploymentConfigs();
+        script.buildImplementationDeploymentConfigs();
 
         assertEq(
             script.implementationConfigs().length,
@@ -149,7 +149,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that the registry record count matches the implementation config count.
     /// @dev registry records + 1 StorageSetter = total implementation configs.
     function test_registryRecordCount_matchesImplementationConfigs_succeeds() public {
-        script._buildImplementationDeploymentConfigs();
+        script.buildImplementationDeploymentConfigs();
         // Only proxied non-deprecated records appear in the bundle.
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
         uint256 proxiedCount = 0;
