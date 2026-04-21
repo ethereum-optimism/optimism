@@ -164,7 +164,13 @@ library Predeploys {
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr) {
+                return !records[i].isProxied;
+            }
+        }
+        return false;
     }
 
     /// @notice Returns true if the address is in the predeploy namespace.
