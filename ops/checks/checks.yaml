@@ -152,6 +152,8 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-prod/**"
     avg_duration: 180
+    assertion: contracts-built-full
+    tags: [profile:prod]
     ci_job_names:
       - contracts-bedrock-build
 
@@ -170,6 +172,8 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-dev/**"
     avg_duration: 45
+    assertion: contracts-built-full
+    tags: [profile:dev]
 
   # Src-only builds (skip scripts + test) for checks that only scan
   # src/ artifacts. Much faster (~1min vs ~3min) and unblocks the
@@ -191,6 +195,7 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-src-prod/**"
     avg_duration: 60
+    tags: [profile:prod]
 
   - id: forge-build-src-dev
     name: "Forge build (lite, src-only)"
@@ -243,6 +248,8 @@ check_types:
     outputs: []
     avg_duration: 3600
     per_unit_duration: 60
+    assertion: contracts-tests-pass
+    tags: [profile:prod]
     # Variants all aggregate under "forge-test" for CI-history
     # correlation / replay — we care whether forge-test failed at
     # all, not under which matrix cell.
@@ -300,6 +307,8 @@ check_types:
     outputs: []
     avg_duration: 900
     per_unit_duration: 30
+    assertion: contracts-tests-pass
+    tags: [profile:dev]
     ci_job_names: []
     knobs:
       - name: match_test
@@ -433,6 +442,7 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
+    tags: [profile:prod]
     # snapshots-check + interfaces-check + semver-check + validate-
     # spacers + reinitializer-check all run inside the
     # contracts-bedrock-checks-fast CI job. Multiple catalog checks
@@ -473,6 +483,7 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
+    tags: [profile:prod]
 
   - id: validate-spacers
     name: "Storage spacer validation"
@@ -580,6 +591,7 @@ check_types:
       - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 1800
+    tags: [profile:prod]
     ci_job_names:
       - check-kontrol-build
 
@@ -671,6 +683,7 @@ check_types:
       - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 60
+    tags: [profile:prod]
     ci_job_names:
       - check-nut-locks
       - nut-provenance-verify

@@ -48,6 +48,12 @@ func (o *SimpleOptimizer) Optimize(
 	stage Stage,
 	cat *catalog.Catalog,
 ) (*Result, error) {
+	// Apply stage policy before fan-out: drop check types whose tags
+	// aren't accepted at this stage, and collapse each assertion group
+	// to a single discharger. Losers disappear before per-tier /
+	// per-profile expansion, so their candidates never become items.
+	candidates = applyStagePolicy(candidates, cat, stage)
+
 	result := &Result{Stage: stage.Name}
 	if len(candidates) == 0 {
 		return result, nil

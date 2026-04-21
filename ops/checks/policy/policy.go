@@ -41,9 +41,50 @@ type Policy struct {
 }
 
 // StageConfig is one development-lifecycle stage with its miss cost.
+//
+// AcceptTags is an ordered preference list over catalog check Tags.
+// A check type is accepted at this stage when either:
+//   - AcceptTags is empty (the stage accepts every tag), or
+//   - the check has no tags (the check is universal), or
+//   - at least one of the check's tags appears in AcceptTags.
+//
+// Order in AcceptTags is the preference order used to collapse
+// assertion groups: when several checks share a CheckType.Assertion,
+// the survivor is the one whose best-ranked tag appears earliest in
+// AcceptTags; ties break on catalog cost (lower AvgDuration wins).
 type StageConfig struct {
-	Name     string  `yaml:"name"`
-	MissCost float64 `yaml:"miss_cost"`
+	Name       string   `yaml:"name"`
+	MissCost   float64  `yaml:"miss_cost"`
+	AcceptTags []string `yaml:"accept_tags,omitempty"`
+}
+
+// AcceptsTags reports whether this stage accepts a check with the
+// given tag list. A stage with no accept_tags accepts every check.
+// A check with no tags is always accepted.
+func (s StageConfig) AcceptsTags(tags []string) bool {
+	if len(s.AcceptTags) == 0 || len(tags) == 0 {
+		return true
+	}
+	for _, t := range tags {
+		for _, a := range s.AcceptTags {
+			if t == a {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// TagPreference returns the position of tag in AcceptTags (0 = most
+// preferred), or len(AcceptTags) for a tag that isn't in the list.
+// Used to rank alternative dischargers within an assertion group.
+func (s StageConfig) TagPreference(tag string) int {
+	for i, a := range s.AcceptTags {
+		if a == tag {
+			return i
+		}
+	}
+	return len(s.AcceptTags)
 }
 
 // CoverageConfig holds coverage-aggregation constants.

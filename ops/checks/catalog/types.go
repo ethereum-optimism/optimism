@@ -43,6 +43,36 @@ type CheckType struct {
 	// aggregate into this check's CI-history outcomes unless split
 	// into a dedicated check type. Empty means no CI-history mapping.
 	CIJobNames []string `yaml:"ci_job_names,omitempty"`
+
+	// Assertion names the high-level claim this check discharges.
+	// When multiple check types share an Assertion, they are
+	// alternative dischargers — the selector keeps one per run,
+	// chosen by stage accept_tags + check cost. Empty means the
+	// check is not an alternative to anything and always runs when
+	// dataflow-selected (subject to tag filtering).
+	//
+	// Canonical assertions currently in use:
+	//   contracts-built-full — full contracts build (src+scripts+test)
+	//   contracts-tests-pass — contracts test suite passed
+	// Src-only builds (forge-build-src / forge-build-src-dev) are NOT
+	// alternatives — they produce different artifact dirs consumed by
+	// different downstream checks, so both run in parallel when needed.
+	Assertion string `yaml:"assertion,omitempty"`
+
+	// Tags classify the check for stage-level acceptance filtering.
+	// Canonical tags:
+	//   profile:prod — the CI-fidelity implementation; optimized
+	//                  bytecode, full feature matrix. Required in PR+
+	//                  stages because CI produces prod artifacts and
+	//                  merge gates demand prod confidence.
+	//   profile:dev  — the fast local substitute. Unoptimized build,
+	//                  AST-only validators, trimmed matrix. Accepted
+	//                  pre-PR for fast iteration.
+	// A check is accepted at a stage iff the stage's accept_tags is
+	// empty (default: accept all) OR at least one of the check's tags
+	// is in the stage's accept_tags list. Untagged checks are always
+	// accepted.
+	Tags []string `yaml:"tags,omitempty"`
 }
 
 // Knob is a configurable parameter for a check type.
