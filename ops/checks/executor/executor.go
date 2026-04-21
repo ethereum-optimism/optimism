@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -26,7 +28,7 @@ type CheckResult struct {
 	Command  string
 	Status   Status
 	Duration time.Duration
-	Output   string
+	Output   string // full combined stdout+stderr; no truncation
 }
 
 // RunResult is the aggregate outcome.
@@ -49,7 +51,14 @@ func New(rootDir string, dryRun bool) *Executor {
 	return &Executor{rootDir: rootDir, dryRun: dryRun}
 }
 
-// Run executes items using the parallel schedule.
+// Run executes items using the parallel schedule. Each layer runs its
+// items concurrently; layers are strict barriers. A previous failure
+// propagates via item.Prerequisites: any downstream item whose prereq
+// failed is marked StatusSkipped and not executed.
+//
+// Per-item progress is printed to stderr as checks start and finish —
+// passing checks collapse to a single result line; failing checks get
+// their full output reproduced by the caller (see cmd/checks/run.go).
 func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *RunResult {
 	result := &RunResult{}
 	schedule := selector.ComputeSchedule(items, 0)
@@ -58,19 +67,22 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 	var mu sync.Mutex
 	wallStart := time.Now()
 
-	// Build prerequisite lookup
-	prereqsOf := make(map[string][]string)
-	for _, item := range items {
-		prereqsOf[item.ID] = item.Prerequisites
-	}
-
-	// Build item lookup
-	itemByID := make(map[string]*selector.ExecutionItem)
+	prereqsOf := make(map[string][]string, len(items))
+	itemByID := make(map[string]*selector.ExecutionItem, len(items))
 	for i := range items {
-		itemByID[items[i].ID] = &items[i]
+		it := &items[i]
+		prereqsOf[it.ID] = it.Prerequisites
+		itemByID[it.ID] = it
 	}
 
-	for _, layer := range schedule.Layers {
+	printMu := sync.Mutex{}
+	println := func(format string, a ...any) {
+		printMu.Lock()
+		defer printMu.Unlock()
+		fmt.Fprintf(os.Stderr, format, a...)
+	}
+
+	for layerIdx, layer := range schedule.Layers {
 		var wg sync.WaitGroup
 		layerResults := make([]CheckResult, len(layer.ItemIDs))
 
@@ -80,23 +92,26 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 				continue
 			}
 
-			// Check if any prerequisite failed
+			// Skip if any prerequisite failed.
 			mu.Lock()
-			skip := false
+			skipReason := ""
 			for _, prereq := range prereqsOf[itemID] {
 				if failed[prereq] {
-					skip = true
+					skipReason = prereq
 					break
 				}
 			}
 			mu.Unlock()
-
-			if skip {
-				layerResults[i] = CheckResult{ItemID: itemID, Status: StatusSkipped}
+			if skipReason != "" {
+				layerResults[i] = CheckResult{
+					ItemID: itemID,
+					Status: StatusSkipped,
+					Output: fmt.Sprintf("skipped: prerequisite %q failed", skipReason),
+				}
+				println("  → %s  (skipped: prereq %s failed)\n", itemID, skipReason)
 				continue
 			}
 
-			// Resolve command
 			ct := cat.ByID(item.CheckTypeID)
 			if ct == nil {
 				layerResults[i] = CheckResult{
@@ -109,7 +124,6 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 				mu.Unlock()
 				continue
 			}
-
 			command := item.ResolvedCommandWithCatalog(ct, cat)
 
 			if e.dryRun {
@@ -119,8 +133,11 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 					Status:  StatusPassed,
 					Output:  fmt.Sprintf("[dry-run] %s", command),
 				}
+				println("  • %s  [dry-run] %s\n", itemID, truncateRight(command, 100))
 				continue
 			}
+
+			println("  ▶ %s  (layer %d, starting)\n", itemID, layerIdx+1)
 
 			wg.Add(1)
 			go func(idx int, id, cmd string) {
@@ -131,6 +148,9 @@ func (e *Executor) Run(items []selector.ExecutionItem, cat *catalog.Catalog) *Ru
 					mu.Lock()
 					failed[id] = true
 					mu.Unlock()
+					println("  ✗ %s  (%s) FAILED\n", id, cr.Duration.Round(100*time.Millisecond))
+				} else {
+					println("  ✓ %s  (%s)\n", id, cr.Duration.Round(100*time.Millisecond))
 				}
 			}(i, itemID, command)
 		}
@@ -162,26 +182,29 @@ func (e *Executor) execute(itemID, command string) CheckResult {
 
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = e.rootDir
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 
-	out, err := cmd.CombinedOutput()
+	err := cmd.Run()
 	duration := time.Since(start)
-
-	output := string(out)
-	const maxOutput = 4096
-	if len(output) > maxOutput {
-		output = output[:maxOutput] + "\n... (truncated)"
-	}
 
 	status := StatusPassed
 	if err != nil {
 		status = StatusFailed
 	}
-
 	return CheckResult{
 		ItemID:   itemID,
 		Command:  command,
 		Status:   status,
 		Duration: duration,
-		Output:   output,
+		Output:   buf.String(),
 	}
+}
+
+func truncateRight(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
 }

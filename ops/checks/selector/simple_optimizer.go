@@ -26,9 +26,8 @@ import (
 // Prerequisites are resolved transitively and the plan is ordered into
 // a parallel schedule bounded by policy.MaxParallelism.
 type SimpleOptimizer struct {
-	policy     *policy.Policy
-	graph      *graph.Graph
-	includeGen bool
+	policy *policy.Policy
+	graph  *graph.Graph
 }
 
 // NewSimpleOptimizer creates a SimpleOptimizer bound to a policy.
@@ -42,14 +41,6 @@ func NewSimpleOptimizer(p *policy.Policy) *SimpleOptimizer {
 
 // SetGraph binds a graph for dataflow-derived prereq resolution.
 func (o *SimpleOptimizer) SetGraph(g *graph.Graph) { o.graph = g }
-
-// SetIncludeGen controls whether kind:gen checks (interfaces-regen,
-// gen-go-bindings, mise-setup) appear in the execution plan. Default
-// false: gen checks exist in the graph only to propagate invalidation
-// to their consumers; CI should not run them. Set true when the user
-// wants to locally regenerate before testing (e.g. `checks run
-// --include-gen`).
-func (o *SimpleOptimizer) SetIncludeGen(v bool) { o.includeGen = v }
 
 // Optimize implements Optimizer.
 func (o *SimpleOptimizer) Optimize(
@@ -89,18 +80,18 @@ func (o *SimpleOptimizer) Optimize(
 
 	o.resolvePrerequisites(result, cat)
 
-	// Filter kind:gen checks before scheduling so the schedule's
-	// wall-clock estimate reflects what CI will actually run.
-	if !o.includeGen {
-		filtered := result.Items[:0]
-		for _, it := range result.Items {
-			if ct := cat.ByID(it.CheckTypeID); ct != nil && ct.Kind == "gen" {
-				continue
-			}
-			filtered = append(filtered, it)
+	// Drop kind:gen items from the execution plan. They exist in the
+	// graph only to propagate invalidation through artifact chains;
+	// they are never executed (no CI job runs them, and locally users
+	// regenerate via the source justfile recipes directly).
+	filtered := result.Items[:0]
+	for _, it := range result.Items {
+		if ct := cat.ByID(it.CheckTypeID); ct != nil && ct.Kind == "gen" {
+			continue
 		}
-		result.Items = filtered
+		filtered = append(filtered, it)
 	}
+	result.Items = filtered
 
 	sort.Slice(result.Items, func(i, j int) bool {
 		return result.Items[i].SkipCost > result.Items[j].SkipCost
