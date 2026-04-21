@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -41,6 +42,17 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	)
 	if err != nil {
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+
+	// Auto-enable ZKDisputeGameFlag if any chain has a ZK dispute game in AdditionalDisputeGames.
+outer:
+	for _, chain := range intent.Chains {
+		for _, game := range chain.AdditionalDisputeGames {
+			if game.VMType == state.VMTypeZK {
+				proofParams.DevFeatureBitmap = devfeatures.EnableDevFeature(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
+				break outer
+			}
+		}
 	}
 
 	var dio opcm.DeployImplementationsOutput
@@ -100,6 +112,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
 		FaultDisputeGameImpl:             dio.FaultDisputeGameImpl,
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
+		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
 	}
 
@@ -109,3 +122,4 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {
 	return st.ImplementationsDeployment == nil
 }
+

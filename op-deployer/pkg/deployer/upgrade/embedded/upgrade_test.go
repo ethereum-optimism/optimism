@@ -177,6 +177,17 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
+			name: "ZK_DISPUTE_GAME requires ZKDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				// Missing ZKDisputeGameConfig
+			},
+			errorContains: fmt.Sprintf("zkDisputeGameConfig is required for game type %d", GameTypeZKDisputeGame),
+			shouldPass:    false,
+		},
+		{
 			name: "invalid game type returns error",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
@@ -220,6 +231,22 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 					AbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Proposer:         common.HexToAddress("0x1111111111111111111111111111111111111111"),
 					Challenger:       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				},
+			},
+			shouldPass: true,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with correct ZKDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
 				},
 			},
 			shouldPass: true,
@@ -321,6 +348,18 @@ func TestEncodedUpgradeInputV2_DisabledGames(t *testing.T) {
 				},
 			},
 			description: "Mix of enabled and disabled games should encode successfully",
+		},
+		{
+			name: "disabled ZK game with empty config",
+			gameConfigs: []DisputeGameConfig{
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeZKDisputeGame,
+					// No ZKDisputeGameConfig needed when disabled
+				},
+			},
+			description: "Disabled ZK game should encode successfully with no config",
 		},
 		{
 			name: "all games disabled",
@@ -448,6 +487,61 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // gameArgs data (absolutePrestate)
 			"0000000000000000000000001111111111111111111111111111111111111111" + // gameArgs data (proposer)
 			"0000000000000000000000002222222222222222222222222222222222222222" + // gameArgs data (challenger)
+			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
+
+		require.Equal(t, expected, hex.EncodeToString(data))
+	})
+
+	t.Run("ZKDisputeGameConfig encodes correctly", func(t *testing.T) {
+		absolutePrestate := common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
+		verifier := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		// maxChallengeDuration = 3600 = 0xe10
+		// maxProveDuration = 7200 = 0x1c20
+		// challengerBond = 1e18 = 0xde0b6b3a7640000
+		challengerBond, _ := new(big.Int).SetString("1000000000000000000", 10)
+
+		input := &UpgradeOPChainInput{
+			Prank: common.Address{0xaa},
+			Opcm:  common.Address{0xbb},
+			UpgradeInputV2: &UpgradeInputV2{
+				SystemConfig: common.Address{0x01},
+				DisputeGameConfigs: []DisputeGameConfig{
+					{
+						Enabled:  true,
+						InitBond: big.NewInt(1000),
+						GameType: GameTypeZKDisputeGame,
+						ZKDisputeGameConfig: &ZKDisputeGameConfig{
+							AbsolutePrestate:     absolutePrestate,
+							Verifier:             verifier,
+							MaxChallengeDuration: 3600,
+							MaxProveDuration:     7200,
+							ChallengerBond:       challengerBond,
+						},
+					},
+				},
+			},
+		}
+
+		data, err := input.EncodedUpgradeInputV2()
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
+			"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfig
+			"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
+			"00000000000000000000000000000000000000000000000000000000000001e0" + // offset to extraInstructions
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs.length
+			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to disputeGameConfigs[0]
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs[0].enabled
+			"00000000000000000000000000000000000000000000000000000000000003e8" + // disputeGameConfigs[0].initBond (1000)
+			"000000000000000000000000000000000000000000000000000000000000000a" + // disputeGameConfigs[0].gameType (10)
+			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+			"00000000000000000000000000000000000000000000000000000000000000a0" + // gameArgs.length (160 bytes)
+			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // absolutePrestate
+			"0000000000000000000000003333333333333333333333333333333333333333" + // verifier
+			"0000000000000000000000000000000000000000000000000000000000000e10" + // maxChallengeDuration (3600)
+			"0000000000000000000000000000000000000000000000000000000000001c20" + // maxProveDuration (7200)
+			"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // challengerBond (1e18)
 			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
 
 		require.Equal(t, expected, hex.EncodeToString(data))
