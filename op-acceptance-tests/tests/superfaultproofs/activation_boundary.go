@@ -29,10 +29,6 @@ func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop) {
 	activationTimestamp := *interopTime
 	t.Require().NotZero(activationTimestamp, "interop must not activate at genesis for this test")
 
-	// startTimestamp is the activation timestamp itself (the first interop block).
-	// endTimestamp is one block later — the first full interop transition.
-	// The supernode only tracks super roots from the activation timestamp onward,
-	// so both timestamps must be at or after activation.
 	startTimestamp := activationTimestamp - 1
 	endTimestamp := activationTimestamp
 	t.Require().False(chains[0].Cfg.IsInterop(startTimestamp), "startTimestamp must not be interop-active")
