@@ -156,6 +156,16 @@ generate-witness-tar block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc ou
   echo "  L2_HEAD=$AGREED_L2_HEAD_HASH"
   echo "  L1_HEAD=$L1_HEAD"
   echo "  L2_CHAIN_ID=$L2_CHAIN_ID"
+  echo ""
+  echo "Upload the new tar to chain-test-data (tag format: kona-YYYY-MM-DD):"
+  echo "  TAG=kona-$(date +%Y-%m-%d)"
+  echo "  gh release create \"\$TAG\" --repo ethereum-optimism/chain-test-data \\"
+  echo "    --title \"kona offline witness \$TAG\" \\"
+  echo "    --notes \"op-sepolia block $CLAIMED_L2_BLOCK_NUMBER\" \\"
+  echo "    \"$OUTPUT_TAR\""
+  echo ""
+  echo "Then bump WITNESS_TAR_URL in .circleci/continue/rust-ci.yml and the"
+  echo "default BASE_URL in bin/client/scripts/fetch-witness-tar.sh to \$TAG."
 
 # Run the client program on cannon with the host in detached server mode.
 run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollup_config_path='' verbosity='':
