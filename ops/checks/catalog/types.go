@@ -7,12 +7,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// CheckType describes a runnable check and its available configuration knobs.
+// CheckType describes a runnable pipeline step.
 //
-// Kind conventions: "test", "lint", "build", "check" run in CI;
-// "gen" is a graph-only propagator (interfaces regen, go-bindings
-// regen, mise-setup) that the optimizer filters from the execution
-// plan by default.
+// Kinds ("test", "lint", "build", "check", "gen") are advisory — they
+// bias policy priors and display, but the selector and executor treat
+// every kind the same: if inputs/outputs say you're affected, you
+// run, in dataflow-derived prereq order. "gen" is kept as a distinct
+// kind because regenerators (mise-setup, gen-solidity-interfaces,
+// gen-go-bindings) mutate the working tree; tooling can surface that
+// distinction without it changing execution.
 //
 // Inputs and Outputs accept either path globs
 // ("packages/contracts-bedrock/src/**/*.sol") or artifact refs

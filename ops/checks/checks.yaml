@@ -54,7 +54,10 @@ universal_inputs:
 #   outputs: artifacts it writes (empty for validators)
 #   tools:   sugar for inputs: [artifact:toolchain/<tool>]
 check_types:
-  # === Regenerator (kind: gen) — graph-only; not run in CI by default. ===
+  # === Regenerators (kind: gen) — produce derived artifacts on disk.
+  # Run as first-class pipeline steps: when their inputs change, they
+  # run before downstream consumers. Note these mutate the working
+  # tree (write to interfaces/, bindings/, toolchain state). ===
   - id: mise-setup
     name: "mise install toolchains"
     kind: gen
@@ -95,7 +98,16 @@ check_types:
     name: "Regenerate Go bindings from forge artifacts"
     kind: gen
     language: go
-    command: "cd op-e2e && just gen-bindings-all"
+    # No repo-level gen-bindings-all recipe exists today (`gen-binding`
+    # takes one CONTRACT at a time — see op-e2e/justfile:75). When the
+    # pipeline reaches here it means src or artifacts changed and some
+    # bound contract may be stale; print guidance and fail loudly so
+    # the engineer regenerates specifically. Replace with a real
+    # gen-all recipe when it lands.
+    command: |
+      echo "gen-go-bindings: no gen-bindings-all recipe yet." >&2
+      echo "Regenerate specific bindings with: cd op-e2e && just gen-binding <Contract>" >&2
+      exit 1
     scopeable: false
     tools: [forge, go, jq, mise]
     inputs:

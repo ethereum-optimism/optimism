@@ -80,19 +80,6 @@ func (o *SimpleOptimizer) Optimize(
 
 	o.resolvePrerequisites(result, cat)
 
-	// Drop kind:gen items from the execution plan. They exist in the
-	// graph only to propagate invalidation through artifact chains;
-	// they are never executed (no CI job runs them, and locally users
-	// regenerate via the source justfile recipes directly).
-	filtered := result.Items[:0]
-	for _, it := range result.Items {
-		if ct := cat.ByID(it.CheckTypeID); ct != nil && ct.Kind == "gen" {
-			continue
-		}
-		filtered = append(filtered, it)
-	}
-	result.Items = filtered
-
 	sort.Slice(result.Items, func(i, j int) bool {
 		return result.Items[i].SkipCost > result.Items[j].SkipCost
 	})
@@ -269,7 +256,11 @@ func (o *SimpleOptimizer) skipCostFor(
 }
 
 // resolvePrerequisites ensures prerequisite check types are included
-// as items, even if they weren't candidates themselves.
+// as items, even if they weren't candidates themselves. Pulled-in
+// prereq items carry their OWN prereqs (derived from the dataflow
+// graph) so the scheduler places them in the right layer — otherwise
+// every add-on prereq would get layer 0 and the topological ordering
+// from consumes/produces chains would be lost.
 func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Catalog) {
 	selected := make(map[string]bool)
 	for _, item := range result.Items {
@@ -288,13 +279,17 @@ func (o *SimpleOptimizer) resolvePrerequisites(result *Result, cat *catalog.Cata
 				if ct == nil {
 					continue
 				}
-				result.Items = append(result.Items, ExecutionItem{
+				newItem := ExecutionItem{
 					ID:          prereqID,
 					CheckTypeID: prereqID,
 					Signal:      0,
 					RunCost:     float64(ct.AvgDuration),
 					SkipCost:    0,
-				})
+				}
+				if o.graph != nil {
+					newItem.Prerequisites = graph.CheckPrerequisites(o.graph, "check:"+prereqID)
+				}
+				result.Items = append(result.Items, newItem)
 				selected[prereqID] = true
 				changed = true
 			}
