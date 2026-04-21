@@ -13,24 +13,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestActivationBlockNUTBundle verifies that, for every fork that embeds a NUT
-// bundle, the fork's activation block contains exactly the bundle's deposit
-// transactions in order.
+// TestActivationBlockNUTBundle verifies that, for every fork from Karst onward,
+// the fork's activation block contains exactly the bundle's deposit transactions
+// in order and that every upgrade tx executes successfully.
 //
-// The test is generic across forks: discovery runs through [forks.All] and
-// [derive.UpgradeTransactions], so any future fork that registers a bundle is
-// picked up automatically. The only per-fork requirement is that the fork
-// immediately preceding it is already registered in [helpers.Hardforks] — a
-// one-line entry that is needed for any fork-parametrized test in this package.
+// Discovery runs through [forks.From]([forks.Karst]), so any future fork is
+// covered automatically — and required to have a NUT bundle registered with
+// [derive.UpgradeTransactions]. The only per-fork requirement beyond that is
+// that the fork immediately preceding it is registered in [helpers.Hardforks]
+// — a one-line entry needed for any fork-parametrized test in this package.
 func TestActivationBlockNUTBundle(gt *testing.T) {
 	matrix := helpers.NewMatrix[forks.Name]()
 
-	for i, fork := range forks.All {
-		if _, _, err := derive.UpgradeTransactions(fork); err != nil {
-			continue
+	// Resolve Karst's index in forks.All so we can reach the immediately preceding
+	// fork for each entry yielded by forks.From(Karst).
+	karstIdx := -1
+	for i, f := range forks.All {
+		if f == forks.Karst {
+			karstIdx = i
+			break
 		}
-		require.Greater(gt, i, 0, "fork %s has a NUT bundle but is first in forks.All; no pre-fork available", fork)
-		preFork := forks.All[i-1]
+	}
+	require.Greater(gt, karstIdx, 0, "Karst must not be first in forks.All")
+
+	for i, fork := range forks.From(forks.Karst) {
+		_, _, err := derive.UpgradeTransactions(fork)
+		require.NoError(gt, err, "fork %s from Karst onward must have a NUT bundle", fork)
+
+		preFork := forks.All[karstIdx+i-1]
 		preHelper := lookupHardforkHelper(preFork)
 		require.NotNil(gt, preHelper,
 			"no pre-fork helper registered for NUT-bundle fork %s (prior fork: %s); add %s to helpers.Hardforks",
@@ -92,6 +102,16 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		totalUpgradeGas += expected.Gas()
 	}
 	require.Equal(t, expectedGas, totalUpgradeGas, "total NUT gas must equal bundle total")
+
+	// Every tx in the activation block — the L1 info deposit and all NUT upgrade
+	// deposits — must execute successfully. A reverted upgrade tx would leave the
+	// chain in a broken fork-activation state.
+	receipts := engine.L2Chain().GetReceiptsByHash(actHeader.Hash())
+	require.Len(t, receipts, len(txs), "receipt count must match tx count")
+	for i, r := range receipts {
+		require.Equal(t, types.ReceiptStatusSuccessful, r.Status,
+			"activation-block tx %d reverted", i)
+	}
 }
 
 // lookupHardforkHelper resolves a fork name to its [helpers.Hardfork] entry by
