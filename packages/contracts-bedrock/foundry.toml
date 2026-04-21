@@ -12,11 +12,13 @@ build_info_path = 'artifacts/build-info'
 optimizer = true
 optimizer_runs = 999999
 
-# IMPORTANT:
-# When adding any new compiler profiles or compilation restrictions, you must
-# also update the restrictions in the "LITE" profile to match. This guarantees
-# that builds will fully overwrite one another without needing to clean the
-# entire build directory.
+# NOTE:
+# Keep the LITE profile's additional_compiler_profiles /
+# compilation_restrictions roughly in sync with DEFAULT so that the
+# same source tree compiles cleanly under both profiles. The profiles
+# write to separate `out` directories (see [profile.lite].out) so
+# artifacts can coexist without clobbering — any pair of profiles can
+# build in parallel.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 5000 },
   { name = "validator", optimizer_runs = 200 },
@@ -206,8 +208,15 @@ depth = 32
 optimizer = false
 optimizer_runs = 0
 
-# IMPORTANT:
-# See the info in the "DEFAULT" profile to understand this section.
+# Separate output directories so lite and default can build in
+# parallel without clobbering each other's artifacts. Tools that
+# hardcode `forge-artifacts/` (snapshots/semver-lock generators,
+# NUT-bundle script, etc.) continue to see the default (prod) output;
+# tools that set FOUNDRY_PROFILE=lite (forge test, forge build) pick
+# up forge-artifacts-lite/ automatically.
+out = 'forge-artifacts-lite'
+build_info_path = 'artifacts/build-info-lite'
+
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 0 },
 ]

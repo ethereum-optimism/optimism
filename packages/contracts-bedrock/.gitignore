@@ -1,6 +1,7 @@
 # Artifacts and Cache
 artifacts
 forge-artifacts
+forge-artifacts-lite
 cache
 broadcast
 kout-proofs
