@@ -243,11 +243,17 @@ where
 
             // Execute the block and take the new header. At this point, the block is guaranteed to
             // be canonical.
-            let new_header = executor.build_block(deposit_only_payload)?.header;
+            let block_outcome = executor.build_block(deposit_only_payload)?;
             let new_output_root = executor.compute_output_root()?;
+            let new_header = block_outcome.header;
+            let new_receipts = block_outcome.execution_result.receipts;
 
             // Replace the original optimistic block with the deposit only block.
             *original_optimistic_block = OptimisticBlock::new(new_header.hash(), new_output_root);
+
+            // Record the locally built replacement block before replacing the head so later
+            // validation passes can reuse its receipts without depending on oracle preimages.
+            self.interop_provider.remember_known_block(*chain_id, new_header.clone(), new_receipts);
 
             // Replace the original header with the new header and mark the chain as replaced.
             self.interop_provider.replace_local_safe_head(*chain_id, new_header);

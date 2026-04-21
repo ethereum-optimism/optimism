@@ -15,6 +15,12 @@ use kona_registry::HashMap;
 use op_alloy_consensus::OpReceiptEnvelope;
 use spin::RwLock;
 
+#[derive(Debug, Clone)]
+struct KnownBlock {
+    header: Sealed<Header>,
+    receipts: Vec<OpReceiptEnvelope>,
+}
+
 /// A [`CommsClient`] backed [`InteropProvider`] implementation.
 #[derive(Debug, Clone)]
 pub struct OracleInteropProvider<C> {
@@ -24,6 +30,8 @@ pub struct OracleInteropProvider<C> {
     boot: BootInfo,
     /// The local safe head block header cache.
     local_safe_heads: HashMap<u64, Sealed<Header>>,
+    /// Blocks built locally during consolidation, keyed by chain ID and block hash.
+    known_blocks: HashMap<u64, HashMap<B256, KnownBlock>>,
     /// The chain ID for the current call context. Used to declare the chain ID for the trie hints.
     chain_id: Arc<RwLock<Option<u64>>>,
 }
@@ -42,6 +50,7 @@ where
             oracle,
             boot,
             local_safe_heads: local_safe_headers,
+            known_blocks: HashMap::default(),
             chain_id: Arc::new(RwLock::new(None)),
         }
     }
@@ -69,12 +78,43 @@ where
         self.local_safe_heads.insert(chain_id, header);
     }
 
+    /// Records a block that was built locally so future lookups can avoid the oracle.
+    pub fn remember_known_block(
+        &mut self,
+        chain_id: u64,
+        header: Sealed<Header>,
+        receipts: Vec<OpReceiptEnvelope>,
+    ) {
+        self.known_blocks
+            .entry(chain_id)
+            .or_default()
+            .insert(header.hash(), KnownBlock { header, receipts });
+    }
+
+    fn known_block_by_hash(&self, chain_id: u64, block_hash: B256) -> Option<&KnownBlock> {
+        self.known_blocks.get(&chain_id)?.get(&block_hash)
+    }
+
+    fn known_head_block_by_number(&self, chain_id: u64, number: u64) -> Option<&KnownBlock> {
+        let head = self.local_safe_heads.get(&chain_id)?;
+        (head.number == number).then(|| self.known_block_by_hash(chain_id, head.hash()))?
+    }
+
     /// Fetch the [Header] for the block with the given hash.
     pub async fn header_by_hash(
         &self,
         chain_id: u64,
         block_hash: B256,
     ) -> Result<Header, <Self as InteropProvider>::Error> {
+        if let Some(block) = self.known_block_by_hash(chain_id, block_hash) {
+            return Ok(block.header.clone().into_inner());
+        }
+        if let Some(head) =
+            self.local_safe_heads.get(&chain_id).filter(|head| head.hash() == block_hash)
+        {
+            return Ok(head.clone().into_inner());
+        }
+
         HintType::L2BlockHeader
             .with_data(&[block_hash.as_slice(), chain_id.to_be_bytes().as_ref()])
             .send(self.oracle.as_ref())
@@ -96,6 +136,10 @@ where
         block_hash: B256,
         header: &Header,
     ) -> Result<Vec<OpReceiptEnvelope>, <Self as InteropProvider>::Error> {
+        if let Some(block) = self.known_block_by_hash(chain_id, block_hash) {
+            return Ok(block.receipts.clone());
+        }
+
         // Send a hint for the block's receipts, and walk through the receipts trie in the header to
         // verify them.
         HintType::L2Receipts
@@ -191,6 +235,10 @@ where
         chain_id: u64,
         number: u64,
     ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
+        if let Some(block) = self.known_head_block_by_number(chain_id, number) {
+            return Ok(block.receipts.clone());
+        }
+
         let header = self.header_by_number(chain_id, number).await?;
         self.derive_receipts(chain_id, header.hash_slow(), &header).await
     }
@@ -295,18 +343,25 @@ impl<C: CommsClient> TrieHinter for OracleInteropProvider<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
-    use alloy_consensus::Header;
-    use alloy_primitives::{B256, Sealable, keccak256};
-    use alloy_rlp::Decodable;
+    use alloc::{collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
+    use alloy_consensus::{Header, Receipt, ReceiptWithBloom};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Address, B256, Log, LogData, Sealable, U256, keccak256};
+    use alloy_rlp::{Decodable, Encodable};
+    use alloy_sol_types::SolEvent;
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
-    use kona_interop::{DependencySet, SuperRoot};
+    use kona_interop::{
+        DependencySet, ExecutingMessage, MESSAGE_EXPIRY_WINDOW, MessageGraph, MessageIdentifier,
+        RawMessagePayload, SuperRoot,
+    };
+    use kona_mpt::ordered_trie_with_encoder;
     use kona_preimage::{
         HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
         errors::PreimageOracleResult,
     };
     use kona_proof::errors::OracleProviderError;
+    use kona_protocol::Predeploys;
     use kona_registry::HashMap;
 
     use crate::{BootInfo, PreState};
@@ -435,16 +490,23 @@ mod tests {
             Header::decode(&mut safe_head_rlp.as_ref()).expect("valid safe head header RLP");
         assert_eq!(safe_head_header.number, fixture.safe_head_number);
 
-        let sealed_safe_head = safe_head_header.seal_slow();
-
-        let mut local_safe_heads = HashMap::default();
-        local_safe_heads.insert(fixture.chain_id, sealed_safe_head);
-
         let mut rollup_config = RollupConfig::default();
         rollup_config.hardforks.isthmus_time = Some(1746806401);
 
+        build_provider_with_safe_head(client, fixture.chain_id, safe_head_header, rollup_config)
+    }
+
+    fn build_provider_with_safe_head(
+        client: MockCommsClient,
+        chain_id: u64,
+        safe_head_header: Header,
+        rollup_config: RollupConfig,
+    ) -> OracleInteropProvider<MockCommsClient> {
+        let mut local_safe_heads = HashMap::default();
+        local_safe_heads.insert(chain_id, safe_head_header.seal_slow());
+
         let mut rollup_configs = HashMap::default();
-        rollup_configs.insert(fixture.chain_id, rollup_config);
+        rollup_configs.insert(chain_id, rollup_config);
 
         let boot = BootInfo {
             l1_head: B256::ZERO,
@@ -461,6 +523,97 @@ mod tests {
         };
 
         OracleInteropProvider::new(Arc::new(client), boot, local_safe_heads)
+    }
+
+    fn build_provider_with_heads(
+        client: MockCommsClient,
+        local_safe_heads: HashMap<u64, Sealed<Header>>,
+        rollup_configs: HashMap<u64, RollupConfig>,
+    ) -> OracleInteropProvider<MockCommsClient> {
+        let boot = BootInfo {
+            l1_head: B256::ZERO,
+            agreed_pre_state_commitment: B256::ZERO,
+            agreed_pre_state: PreState::SuperRoot(SuperRoot::new(0, Vec::new())),
+            claimed_post_state: B256::ZERO,
+            claimed_l2_timestamp: 0,
+            rollup_configs,
+            dependency_set: DependencySet {
+                dependencies: Default::default(),
+                override_message_expiry_window: None,
+            },
+            l1_config: Default::default(),
+        };
+
+        OracleInteropProvider::new(Arc::new(client), boot, local_safe_heads)
+    }
+
+    fn interop_rollup_config() -> RollupConfig {
+        RollupConfig {
+            block_time: 1,
+            hardforks: kona_genesis::HardForkConfig { interop_time: Some(0), ..Default::default() },
+            ..Default::default()
+        }
+    }
+
+    fn insert_header_preimage(preimages: &mut BTreeMap<[u8; 32], Vec<u8>>, header: &Header) {
+        let mut header_rlp = Vec::new();
+        header.encode(&mut header_rlp);
+        let key: [u8; 32] =
+            PreimageKey::new(*header.hash_slow(), PreimageKeyType::Keccak256).into();
+        preimages.insert(key, header_rlp);
+    }
+
+    fn insert_receipt_trie_preimages(
+        preimages: &mut BTreeMap<[u8; 32], Vec<u8>>,
+        receipts: &[OpReceiptEnvelope],
+    ) -> B256 {
+        let mut trie = ordered_trie_with_encoder(receipts, |receipt, buf| receipt.encode_2718(buf));
+        let root = trie.root();
+
+        for (_, value) in trie.take_proof_nodes().into_inner() {
+            let node_hash = keccak256(value.as_ref());
+            let key: [u8; 32] = PreimageKey::new(*node_hash, PreimageKeyType::Keccak256).into();
+            preimages.insert(key, value.to_vec());
+        }
+
+        root
+    }
+
+    fn origin_log(origin_address: Address) -> Log {
+        Log {
+            address: origin_address,
+            data: LogData::new(vec![B256::repeat_byte(0x11)], b"remote-origin".to_vec().into())
+                .expect("valid origin log"),
+        }
+    }
+
+    fn remote_origin_receipt(
+        origin_chain_id: u64,
+        origin_block_number: u64,
+        origin_timestamp: u64,
+        payload_hash: B256,
+    ) -> OpReceiptEnvelope {
+        let event = ExecutingMessage {
+            payloadHash: payload_hash,
+            identifier: MessageIdentifier {
+                origin: Address::repeat_byte(0x77),
+                blockNumber: U256::from(origin_block_number),
+                logIndex: U256::ZERO,
+                timestamp: U256::from(origin_timestamp),
+                chainId: U256::from(origin_chain_id),
+            },
+        };
+
+        OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
+            receipt: Receipt {
+                logs: vec![Log {
+                    address: Predeploys::CROSS_L2_INBOX,
+                    data: ExecutingMessage::encode_log_data(&event),
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
     }
 
     /// Tests the EIP-2935 fast path: looking up a block at the boundary of the 8,191-block
@@ -543,5 +696,86 @@ mod tests {
 
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_message_graph_resolve_succeeds_when_remote_origin_is_only_known_locally() {
+        let origin_chain_id = 10;
+        let executing_chain_id = 11;
+        let origin_block_number = 42;
+        let origin_timestamp = 100;
+        let executing_timestamp = 101;
+        let origin_address = Address::repeat_byte(0x77);
+
+        let origin_head = Header {
+            number: origin_block_number,
+            timestamp: origin_timestamp,
+            receipts_root: keccak256(b"origin-receipts-not-in-oracle"),
+            ..Default::default()
+        };
+
+        let origin_receipt = OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
+            receipt: Receipt { logs: vec![origin_log(origin_address)], ..Default::default() },
+            ..Default::default()
+        });
+        let payload_hash = keccak256(RawMessagePayload::from(&origin_receipt.logs()[0]).as_ref());
+        let executing_receipt = remote_origin_receipt(
+            origin_chain_id,
+            origin_block_number,
+            origin_timestamp,
+            payload_hash,
+        );
+        let mut preimages = BTreeMap::default();
+        let receipts_root = insert_receipt_trie_preimages(
+            &mut preimages,
+            core::slice::from_ref(&executing_receipt),
+        );
+
+        let executing_head = Header {
+            number: 7,
+            timestamp: executing_timestamp,
+            receipts_root,
+            ..Default::default()
+        };
+        insert_header_preimage(&mut preimages, &executing_head);
+
+        let provider = build_provider_with_heads(
+            MockCommsClient { preimages },
+            HashMap::from_iter([
+                (origin_chain_id, origin_head.clone().seal_slow()),
+                (executing_chain_id, executing_head.clone().seal_slow()),
+            ]),
+            HashMap::from_iter([
+                (origin_chain_id, interop_rollup_config()),
+                (executing_chain_id, interop_rollup_config()),
+            ]),
+        );
+        let mut provider = provider;
+        provider.remember_known_block(
+            origin_chain_id,
+            origin_head.clone().seal_slow(),
+            vec![origin_receipt],
+        );
+
+        let heads_to_check =
+            HashMap::from_iter([(executing_chain_id, executing_head.clone().seal_slow())]);
+        let rollup_configs = HashMap::from_iter([
+            (origin_chain_id, interop_rollup_config()),
+            (executing_chain_id, interop_rollup_config()),
+        ]);
+
+        let graph = MessageGraph::derive(
+            &heads_to_check,
+            &provider,
+            &rollup_configs,
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .expect("graph derivation should succeed using the executing chain oracle data");
+
+        graph.resolve().await.expect(
+            "once locally built replacement blocks are treated as known, remote-origin \
+                 resolution should not require oracle receipt preimages for them",
+        );
     }
 }

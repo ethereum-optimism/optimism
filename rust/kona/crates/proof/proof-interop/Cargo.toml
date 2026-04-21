@@ -52,6 +52,7 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
+alloy-sol-types.workspace = true
 kona-interop = { workspace = true, features = ["arbitrary"] }
 arbitrary = { workspace = true, features = ["derive"] }
 rand.workspace = true

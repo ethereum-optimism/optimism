@@ -6052,6 +6052,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types-engine",
+ "alloy-sol-types",
  "arbitrary",
  "async-trait",
  "kona-executor",
