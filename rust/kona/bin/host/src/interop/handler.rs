@@ -369,25 +369,26 @@ impl HintHandler for InteropHintHandler {
                 kv_write_lock.set(PreimageKey::new_keccak256(*hash).into(), preimage.into())?;
             }
             HintType::L2AccountProof => {
-                // Backwards compatibility: accept both old (8+20+8=36 byte) and new
-                // (32+20+8=60 byte) formats. Old prestates send an 8-byte block number;
-                // new prestates send a 32-byte block hash. A single kona-host version
-                // serves all games.
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 8;
                 let (block_id, address, chain_id) = match hint.data.len() {
-                    36 => {
+                    BLOCK_NUMBER_HINT_LEN => {
                         let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
                         let address = Address::from_slice(&hint.data.as_ref()[8..28]);
                         let chain_id = u64::from_be_bytes(hint.data.as_ref()[28..36].try_into()?);
                         (block_number.into(), address, chain_id)
                     }
-                    60 => {
+                    BLOCK_HASH_HINT_LEN => {
                         let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
                         let address = Address::from_slice(&hint.data.as_ref()[32..52]);
                         let chain_id = u64::from_be_bytes(hint.data.as_ref()[52..60].try_into()?);
                         (block_hash.into(), address, chain_id)
                     }
                     other => anyhow::bail!(
-                        "Invalid L2AccountProof hint length: expected 36 or 60, got {other}"
+                        "Invalid L2AccountProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
                     ),
                 };
 
@@ -407,17 +408,20 @@ impl HintHandler for InteropHintHandler {
                 })?;
             }
             HintType::L2AccountStorageProof => {
-                // Backwards compatibility: accept both old (8+20+32+8=68 byte) and new
-                // (32+20+32+8=92 byte) formats. See L2AccountProof for details.
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 32 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 32 + 8;
                 let (block_id, address, slot, chain_id) = match hint.data.len() {
-                    68 => {
+                    BLOCK_NUMBER_HINT_LEN => {
                         let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
                         let address = Address::from_slice(&hint.data.as_ref()[8..28]);
                         let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
                         let chain_id = u64::from_be_bytes(hint.data.as_ref()[60..68].try_into()?);
                         (block_number.into(), address, slot, chain_id)
                     }
-                    92 => {
+                    BLOCK_HASH_HINT_LEN => {
                         let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
                         let address = Address::from_slice(&hint.data.as_ref()[32..52]);
                         let slot = B256::from_slice(&hint.data.as_ref()[52..84]);
@@ -425,7 +429,7 @@ impl HintHandler for InteropHintHandler {
                         (block_hash.into(), address, slot, chain_id)
                     }
                     other => anyhow::bail!(
-                        "Invalid L2AccountStorageProof hint length: expected 68 or 92, got {other}"
+                        "Invalid L2AccountStorageProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
                     ),
                 };
 

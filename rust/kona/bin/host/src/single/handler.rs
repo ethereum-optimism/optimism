@@ -316,22 +316,24 @@ impl HintHandler for SingleChainHintHandler {
                 kv_write_lock.set(PreimageKey::new_keccak256(*hash).into(), preimage.into())?;
             }
             HintType::L2AccountProof => {
-                // Backwards compatibility: accept both old (8+20=28 byte) and new (32+20=52
-                // byte) formats. Old prestates send an 8-byte block number; new prestates
-                // send a 32-byte block hash. A single kona-host version serves all games.
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20;
                 let block_id = match hint.data.len() {
-                    28 => {
+                    BLOCK_NUMBER_HINT_LEN => {
                         let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
                         let address = Address::from_slice(&hint.data.as_ref()[8..28]);
                         (block_number.into(), address)
                     }
-                    52 => {
+                    BLOCK_HASH_HINT_LEN => {
                         let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
                         let address = Address::from_slice(&hint.data.as_ref()[32..52]);
                         (block_hash.into(), address)
                     }
                     other => anyhow::bail!(
-                        "Invalid L2AccountProof hint length: expected 28 or 52, got {other}"
+                        "Invalid L2AccountProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
                     ),
                 };
 
@@ -351,23 +353,26 @@ impl HintHandler for SingleChainHintHandler {
                 })?;
             }
             HintType::L2AccountStorageProof => {
-                // Backwards compatibility: accept both old (8+20+32=60 byte) and new
-                // (32+20+32=84 byte) formats. See L2AccountProof for details.
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 32;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 32;
                 let (block_id, address, slot) = match hint.data.len() {
-                    60 => {
+                    BLOCK_NUMBER_HINT_LEN => {
                         let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
                         let address = Address::from_slice(&hint.data.as_ref()[8..28]);
                         let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
                         (block_number.into(), address, slot)
                     }
-                    84 => {
+                    BLOCK_HASH_HINT_LEN => {
                         let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
                         let address = Address::from_slice(&hint.data.as_ref()[32..52]);
                         let slot = B256::from_slice(&hint.data.as_ref()[52..84]);
                         (block_hash.into(), address, slot)
                     }
                     other => anyhow::bail!(
-                        "Invalid L2AccountStorageProof hint length: expected 60 or 84, got {other}"
+                        "Invalid L2AccountStorageProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
                     ),
                 };
 
