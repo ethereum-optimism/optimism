@@ -394,7 +394,7 @@ check_types:
     name: "Semgrep scan"
     kind: lint
     language: "*"
-    command: "semgrep scan --config .semgrep/rules/"
+    command: "mise exec -- semgrep scan --timeout=100 --config .semgrep/rules/ --error ."
     scopeable: false
     tools: [semgrep]
     inputs:
@@ -571,7 +571,7 @@ check_types:
     name: "Kontrol K-proof build"
     kind: build
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just kontrol-build"
+    command: "cd packages/contracts-bedrock && mise exec -- just kontrol-summary-full && mise exec -- just forge-build ./test/kontrol/proofs"
     scopeable: false
     tools: [forge, mise, kontrol]
     inputs:
@@ -644,7 +644,7 @@ check_types:
     name: "NUT lockfile verification"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just check-nut-locks"
+    command: "cd packages/contracts-bedrock && mise exec -- just nut-bundle-check"
     scopeable: false
     tools: [forge, mise]
     # check-nut-locks runs GenerateNUTBundle.s.sol, which ONLY reads
