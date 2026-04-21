@@ -378,7 +378,6 @@ contract GenerateNUTBundle is Script {
     ///      All records are deployed unconditionally. L2CM selects the correct variant at runtime.
     ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
     function _buildImplementationDeploymentConfigs() public {
-        // Gas profiling: 280,600 gas used → 420,900 recommended → 500K with safety margin
         _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 500_000));
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();

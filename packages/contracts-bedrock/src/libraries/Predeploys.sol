@@ -204,7 +204,6 @@ library Predeploys {
         records_ = new PredeployRecord[](30);
 
         // ── Core predeploys ────────────────────────────────────────────────────────────────
-        // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
         records_[0] = PredeployRecord({
             proxy: L2_CROSS_DOMAIN_MESSENGER,
             name: "L2CrossDomainMessenger",
@@ -217,7 +216,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 1,681,024 gas used → 2,521,536 recommended → 2.6M with safety margin
         records_[1] = PredeployRecord({
             proxy: GAS_PRICE_ORACLE,
             name: "GasPriceOracle",
@@ -230,7 +228,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 2,358,092 gas used → 3,537,138 recommended → 3.6M with safety margin
         records_[2] = PredeployRecord({
             proxy: L2_STANDARD_BRIDGE,
             name: "L2StandardBridge",
@@ -243,7 +240,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 841,152 gas used → 1,261,728 recommended → 1.3M with safety margin
         records_[3] = PredeployRecord({
             proxy: SEQUENCER_FEE_WALLET,
             name: "SequencerFeeVault",
@@ -256,7 +252,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 2,347,504 gas used → 3,521,256 recommended → 3.6M with safety margin
         records_[4] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
             name: "OptimismMintableERC20Factory",
@@ -269,7 +264,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 1,242,108 gas used → 1,863,162 recommended → 1.9M with safety margin
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
             name: "L2ERC721Bridge",
@@ -282,8 +276,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 707,557 gas used → 1,061,335 recommended → 1.1M with safety margin
-        // Standard variant — used on non-CGT chains. CGT variant follows immediately after.
         records_[6] = PredeployRecord({
             proxy: L1_BLOCK_ATTRIBUTES,
             name: "L1Block",
@@ -296,8 +288,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin
-        // CGT variant — used on custom gas token chains. Same proxy as L1Block.
         records_[7] = PredeployRecord({
             proxy: L1_BLOCK_ATTRIBUTES,
             name: "L1BlockCGT",
@@ -310,8 +300,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: true
         });
-        // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
-        // Standard variant — used on non-CGT chains. CGT variant follows immediately after.
         records_[8] = PredeployRecord({
             proxy: L2_TO_L1_MESSAGE_PASSER,
             name: "L2ToL1MessagePasser",
@@ -324,8 +312,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
-        // CGT variant — used on custom gas token chains. Same proxy as L2ToL1MessagePasser.
         records_[9] = PredeployRecord({
             proxy: L2_TO_L1_MESSAGE_PASSER,
             name: "L2ToL1MessagePasserCGT",
@@ -338,7 +324,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: true
         });
-        // Gas profiling: 3,248,395 gas used → 4,872,592 recommended → 4.9M with safety margin
         records_[10] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC721_FACTORY,
             name: "OptimismMintableERC721Factory",
@@ -351,7 +336,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 1,538,265 gas used → 2,307,397 recommended → 2.4M with safety margin
         records_[11] = PredeployRecord({
             proxy: PROXY_ADMIN,
             name: "L2ProxyAdmin",
@@ -364,7 +348,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         records_[12] = PredeployRecord({
             proxy: BASE_FEE_VAULT,
             name: "BaseFeeVault",
@@ -377,7 +360,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 14,439 gas used → 21,658 recommended → 50K with safety margin
         records_[13] = PredeployRecord({
             proxy: L1_FEE_VAULT,
             name: "L1FeeVault",
@@ -390,7 +372,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
         records_[14] = PredeployRecord({
             proxy: OPERATOR_FEE_VAULT,
             name: "OperatorFeeVault",
@@ -403,7 +384,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 464,947 gas used → 697,420 recommended → 700K with safety margin
         records_[15] = PredeployRecord({
             proxy: SCHEMA_REGISTRY,
             name: "SchemaRegistry",
@@ -416,7 +396,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 3,820,943 gas used → 5,731,414 recommended → 5.8M with safety margin
         records_[16] = PredeployRecord({
             proxy: EAS,
             name: "EAS",
@@ -433,7 +412,6 @@ library Predeploys {
         // ── Interop predeploys ─────────────────────────────────────────────────────────────
         // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
         // feature. Both gates mirror the full condition checked in L2Genesis.
-        // Gas profiling: 385,975 gas used → 578,962 recommended → 600K with safety margin
         records_[17] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
             name: "CrossL2Inbox",
@@ -446,7 +424,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
         records_[18] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             name: "L2ToL2CrossDomainMessenger",
@@ -459,7 +436,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
         records_[19] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
             name: "SuperchainETHBridge",
@@ -472,7 +448,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
         records_[20] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
             name: "ETHLiquidity",
@@ -487,7 +462,6 @@ library Predeploys {
         });
 
         // ── CGT predeploys ─────────────────────────────────────────────────────────────────
-        // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
         records_[21] = PredeployRecord({
             proxy: NATIVE_ASSET_LIQUIDITY,
             name: "NativeAssetLiquidity",
@@ -500,7 +474,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
         records_[22] = PredeployRecord({
             proxy: LIQUIDITY_CONTROLLER,
             name: "LiquidityController",
@@ -514,8 +487,6 @@ library Predeploys {
             isVariant: false
         });
 
-        // ── L2CM predeploys ────────────────────────────────────────────────────────────────
-        // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
         records_[23] = PredeployRecord({
             proxy: CONDITIONAL_DEPLOYER,
             name: "ConditionalDeployer",
@@ -528,7 +499,6 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 167,063 gas used → 250,594 recommended → 260K with safety margin
         records_[24] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
             name: "L2DevFeatureFlags",
