@@ -1,0 +1,54 @@
+name: security
+
+on:
+  push:
+    branches:
+      - 'develop'
+    paths:
+      - '.circleci/config.yml'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches:
+      - 'develop'
+    paths:
+      - '.circleci/config.yml'
+      - '.github/workflows/security.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: verify provenance ci-base-clang
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+      - name: Extract pinned image reference
+        id: extract
+        run: |
+          set -euo pipefail
+          IMAGE_REF=$(grep -A2 '^  rust_base_image:' .circleci/config.yml \
+            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:[0-9a-f]{64}' \
+            | head -n1)
+          if [[ -z "${IMAGE_REF}" ]]; then
+            echo "Could not extract ci-base-clang image reference from .circleci/config.yml" >&2
+            exit 1
+          fi
+          echo "image=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+          echo "Pinned image: ${IMAGE_REF}"
+      - name: Verify provenance attestation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ${{ steps.extract.outputs.image }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "oci://${IMAGE_REF}" \
+            --bundle-from-oci \
+            --owner ethereum-optimism \
+            --signer-repo ethereum-optimism/factory \
+            --source-ref refs/heads/develop
