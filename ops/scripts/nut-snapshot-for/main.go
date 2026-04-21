@@ -52,17 +52,6 @@ func run(fork forks.Name) error {
 	}
 	fmt.Printf("Copied bundle to %s\n", bundleRel)
 
-	// Also keep a byte-identical copy inside the kona-hardforks crate. The Docker
-	// build context for kona targets is scoped to `rust/`, so the canonical op-core
-	// path is not reachable from the crate's build.rs. check-nut-locks verifies
-	// these two copies stay in sync.
-	konaBundleRel := filepath.Join("rust", "kona", "crates", "protocol", "hardforks", "bundles", string(fork)+"_nut_bundle.json")
-	konaDstPath := filepath.Join(root, konaBundleRel)
-	if err := os.WriteFile(konaDstPath, content, 0600); err != nil {
-		return fmt.Errorf("writing kona bundle copy to %s: %w", konaBundleRel, err)
-	}
-	fmt.Printf("Copied bundle to %s\n", konaBundleRel)
-
 	// Compute sha256 of the bundle.
 	hash := sha256.Sum256(content)
 	hashStr := "sha256:" + hex.EncodeToString(hash[:])
