@@ -20,7 +20,10 @@ use reth_optimism_trie::{
 };
 use reth_provider::{BlockNumReader, BlockReader, TransactionVariant};
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::{sync::watch, task, time};
 use tracing::{debug, error, info};
 
@@ -101,6 +104,7 @@ where
             proofs_history_window: self.proofs_history_window,
             proofs_history_prune_interval: self.proofs_history_prune_interval,
             verification_interval: self.verification_interval,
+            write_lock: Arc::new(Mutex::new(())),
         }
     }
 }
@@ -190,6 +194,14 @@ where
     /// If 0, verification is disabled (always use fast path when available).
     /// If 1, verification is always enabled (always execute blocks).
     verification_interval: u64,
+    /// Serializes write critical sections between the main notification loop and the background
+    /// sync task. Both writers must hold this lock while reading the current `latest_stored`
+    /// block and committing new updates so their decisions cannot be invalidated by an
+    /// interleaved write from the other task. Without it, both writers can independently snapshot
+    /// the same `latest_stored`, decide to append the next block, and the second commit fails the
+    /// storage layer's append-only parent-hash check, which previously crashed the ExEx and the
+    /// node along with it.
+    write_lock: Arc<Mutex<()>>,
 }
 
 impl<Node, Storage> OpProofsExEx<Node, Storage>
@@ -304,6 +316,7 @@ where
         let task_storage = self.storage.clone();
         let task_provider = self.ctx.provider().clone();
         let task_evm_config = self.ctx.evm_config().clone();
+        let task_write_lock = self.write_lock.clone();
 
         self.ctx.task_executor().spawn_critical_task(
             "optimism::exex::proofs_storage_sync_loop",
@@ -311,7 +324,14 @@ where
                 let storage = task_storage.clone();
                 let task_collector =
                     LiveTrieCollector::new(task_evm_config, task_provider.clone(), &storage);
-                Self::sync_loop(sync_target_rx, task_storage, task_provider, &task_collector).await;
+                Self::sync_loop(
+                    sync_target_rx,
+                    task_storage,
+                    task_provider,
+                    &task_collector,
+                    task_write_lock,
+                )
+                .await;
             },
         );
 
@@ -324,11 +344,16 @@ where
         storage: OpProofsStorage<Storage>,
         provider: Node::Provider,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
+        write_lock: Arc<Mutex<()>>,
     ) {
         debug!(target: "optimism::exex", "Starting proofs storage sync loop");
 
         loop {
             let target = *sync_target_rx.borrow_and_update();
+
+            // Snapshot `latest` outside the write lock — the lock is reacquired per-block inside
+            // `process_batch` to keep each block's read-and-write atomic against the main task
+            // without holding the lock for the entire batch.
             let latest = match storage.provider_ro().and_then(|p| p.get_latest_block_number()) {
                 Ok(Some((n, _))) => n,
                 Ok(None) => {
@@ -347,9 +372,14 @@ where
             }
 
             // Process one batch
-            if let Err(e) =
-                Self::process_batch(latest, target, &provider, collector, SYNC_BLOCKS_BATCH_SIZE)
-            {
+            if let Err(e) = Self::process_batch(
+                latest,
+                target,
+                &provider,
+                collector,
+                SYNC_BLOCKS_BATCH_SIZE,
+                &write_lock,
+            ) {
                 error!(target: "optimism::exex", error = ?e, "Batch processing failed");
             }
 
@@ -359,13 +389,17 @@ where
         }
     }
 
-    /// Process a batch of blocks from start to target (up to `batch_size`)
+    /// Process a batch of blocks from start to target (up to `batch_size`).
+    ///
+    /// `write_lock` is acquired around each block's execute-and-store so the main notification
+    /// task can interleave between blocks without observing or producing a torn state.
     fn process_batch(
         start: u64,
         target: u64,
         provider: &Node::Provider,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         batch_size: usize,
+        write_lock: &Mutex<()>,
     ) -> eyre::Result<()> {
         let end = (start + batch_size as u64).min(target);
         debug!(
@@ -380,6 +414,10 @@ where
                 .recovered_block(block_num.into(), TransactionVariant::NoHash)?
                 .ok_or_else(|| eyre::eyre!("Missing block {}", block_num))?;
 
+            let _guard = match write_lock.lock() {
+                Ok(g) => g,
+                Err(poisoned) => poisoned.into_inner(),
+            };
             collector.execute_and_store_block_updates(&block)?;
         }
 
@@ -392,6 +430,17 @@ where
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         sync_target_tx: &watch::Sender<u64>,
     ) -> eyre::Result<()> {
+        // Hold the write lock for the entire read-and-write critical section: the
+        // `latest_stored` snapshot we read here drives every storage decision in the handlers
+        // below, and the storage layer's append-only check uses the same value at commit time.
+        // Without the lock, the background sync task can interleave writes between this read and
+        // our commit, causing the append-only check to reject our write with `OutOfOrder` —
+        // which previously crashed the ExEx and brought the node down.
+        let _write_guard = match self.write_lock.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
         let latest_stored = match self.storage.provider_ro()?.get_latest_block_number()? {
             Some((n, _)) => n,
             None => {
