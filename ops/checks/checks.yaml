@@ -84,11 +84,11 @@ check_types:
     name: "Regenerate Solidity interfaces from forge artifacts"
     kind: gen
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just interfaces-snapshots"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just interfaces-snapshots"
     scopeable: false
     tools: [forge, mise]
     inputs:
-      - "artifact:forge-artifacts-dev/**"
+      - "artifact:forge-artifacts-src-dev/**"
       - "packages/contracts-bedrock/src/**/*.sol"
     outputs:
       - "packages/contracts-bedrock/interfaces/**/*.sol"
@@ -111,7 +111,7 @@ check_types:
     scopeable: false
     tools: [forge, go, jq, mise]
     inputs:
-      - "artifact:forge-artifacts-prod/**"
+      - "artifact:forge-artifacts-src-prod/**"
       - "packages/contracts-bedrock/src/**/*.sol"
     outputs:
       - "op-e2e/bindings/**/*.go"
@@ -121,23 +121,32 @@ check_types:
     avg_duration: 90
 
   # === Build Steps ===
-  # Two forge-build variants with distinct outputs so they can run in
-  # parallel without clobbering each other (per foundry.toml's
-  # [profile.lite].out = 'forge-artifacts-lite').
+  # Four forge-build variants along two orthogonal axes:
   #
-  # forge-build (prod) feeds bytecode-dependent consumers: forge-test
-  # (CI-parity run), snapshots-check, semver-check, check-nut-locks,
-  # gen-go-bindings, kontrol-build. These compare against CI-committed
-  # bytecode hashes, embed bytecode directly, or need gas-cost parity
-  # with CI, so the optimizer profile must match.
+  #   axis 1: profile     → prod (CI-optimized) vs dev (FOUNDRY_PROFILE=lite)
+  #   axis 2: compile set → full (src + scripts + test) vs src-only
   #
-  # forge-build-dev (lite) feeds profile-independent consumers:
-  # forge-test-dev (fast local iteration), interfaces-check,
-  # reinitializer-check, validate-spacers, gen-solidity-interfaces.
-  # These scan ASTs / ABI / storage layout — none of which change
-  # with the optimizer — and benefit from the faster lite build.
+  # Each variant writes to its own output directory so they can build
+  # in parallel without clobbering.
+  #
+  # Routing:
+  #                    bytecode-dependent       AST / ABI / layout
+  #                    (prod profile)           (dev profile OK)
+  #   needs scripts:   kontrol-build,           —
+  #                    check-nut-locks          (all AST checks are
+  #                                             src-only)
+  #   src-only:        gen-go-bindings,         gen-solidity-interfaces,
+  #                    snapshots-check,         interfaces-check,
+  #                    semver-check             reinitializer-check,
+  #                                             validate-spacers
+  #   needs full:      forge-test               forge-test-dev
+  #
+  # Check scripts that hardcode `forge-artifacts/` (generate-snapshots,
+  # generate-semver-lock, interfaces-check, etc.) now honor
+  # FOUNDRY_ARTIFACTS from the environment. The catalog commands set
+  # that env var so each script reads from the correct build output.
   - id: forge-build
-    name: "Forge build (prod)"
+    name: "Forge build (prod, full)"
     kind: build
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just build"
@@ -146,6 +155,7 @@ check_types:
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/scripts/**/*.sol"
+      - "packages/contracts-bedrock/test/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
     outputs:
       - "artifact:forge-artifacts-prod/**"
@@ -154,7 +164,7 @@ check_types:
       - contracts-bedrock-build
 
   - id: forge-build-dev
-    name: "Forge build (lite)"
+    name: "Forge build (lite, full)"
     kind: build
     language: solidity
     command: "cd packages/contracts-bedrock && mise exec -- just build-dev"
@@ -168,6 +178,44 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-dev/**"
     avg_duration: 45
+
+  # Src-only builds (skip scripts + test) for checks that only scan
+  # src/ artifacts. Much faster (~1min vs ~3min) and unblocks the
+  # layer-3 validators sooner. Writes to separate output dirs so it
+  # can run in parallel with the full builds.
+  - id: forge-build-src
+    name: "Forge build (prod, src-only)"
+    kind: build
+    language: solidity
+    command: |
+      cd packages/contracts-bedrock && mise exec -- forge build \
+        --skip '/**/test/**' --skip '/**/scripts/**' \
+        --out forge-artifacts-src-prod
+    scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+    outputs:
+      - "artifact:forge-artifacts-src-prod/**"
+    avg_duration: 60
+
+  - id: forge-build-src-dev
+    name: "Forge build (lite, src-only)"
+    kind: build
+    language: solidity
+    command: |
+      cd packages/contracts-bedrock && FOUNDRY_PROFILE=lite mise exec -- forge build \
+        --skip '/**/test/**' --skip '/**/scripts/**' \
+        --out forge-artifacts-src-dev
+    scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+    outputs:
+      - "artifact:forge-artifacts-src-dev/**"
+    avg_duration: 20
 
   - id: go-build
     name: "Go build"
@@ -384,13 +432,13 @@ check_types:
     name: "ABI + storage layout snapshots"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just snapshots-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just snapshots-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/snapshots/**"
-      - "artifact:forge-artifacts-prod/**"
+      - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
     # snapshots-check + interfaces-check + semver-check + validate-
@@ -406,13 +454,13 @@ check_types:
     name: "Interface ABI match"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just interfaces-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just interfaces-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/interfaces/**/*.sol"
-      - "artifact:forge-artifacts-dev/**"
+      - "artifact:forge-artifacts-src-dev/**"
     # Legacy produces: for the per-file-prereq mechanism. Kept during
     # Phase B — the dataflow walker covers new selection but the
     # produces-edge mechanism still drives the scheduler's per-file
@@ -424,13 +472,13 @@ check_types:
     name: "Semver diff check"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just semver-diff-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just semver-diff-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/snapshots/semver-lock.json"
-      - "artifact:forge-artifacts-prod/**"
+      - "artifact:forge-artifacts-src-prod/**"
     outputs: []
     avg_duration: 60
 
@@ -438,12 +486,12 @@ check_types:
     name: "Storage spacer validation"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just validate-spacers-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just validate-spacers-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts-dev/**"
+      - "artifact:forge-artifacts-src-dev/**"
     outputs: []
     avg_duration: 30
 
@@ -451,12 +499,12 @@ check_types:
     name: "Reinitializer guard check"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just reinitializer-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just reinitializer-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts-dev/**"
+      - "artifact:forge-artifacts-src-dev/**"
     outputs: []
     avg_duration: 30
 

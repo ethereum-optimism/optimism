@@ -89,7 +89,7 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	if err != nil {
 		return nil, []error{fmt.Errorf("failed to get current working directory: %w", err)}
 	}
-	artifactsDir := filepath.Join(cwd, "forge-artifacts")
+	artifactsDir := filepath.Join(cwd, common.ArtifactsDir())
 
 	// Check if this is an excluded contract, skip if so
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]

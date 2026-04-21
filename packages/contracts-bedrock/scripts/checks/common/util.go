@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -13,6 +14,37 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"golang.org/x/sync/errgroup"
 )
+
+// ArtifactsDir returns the forge artifacts directory to read from.
+// Defaults to "forge-artifacts" (the foundry.toml [profile.default]
+// out-dir) but is overridable via FOUNDRY_ARTIFACTS for callers that
+// want to scan a different build (e.g. a lite-profile build at
+// forge-artifacts-lite/, or a src-only build at
+// forge-artifacts-src-prod/). The ProcessFilesGlob helper rewrites
+// any glob pattern whose first segment is "forge-artifacts" to use
+// this directory instead, so existing callers don't need to change.
+func ArtifactsDir() string {
+	if dir := os.Getenv("FOUNDRY_ARTIFACTS"); dir != "" {
+		return dir
+	}
+	return "forge-artifacts"
+}
+
+func rewriteArtifactsPatterns(patterns []string) []string {
+	dir := ArtifactsDir()
+	if dir == "forge-artifacts" {
+		return patterns
+	}
+	out := make([]string, len(patterns))
+	for i, p := range patterns {
+		if strings.HasPrefix(p, "forge-artifacts/") {
+			out[i] = dir + strings.TrimPrefix(p, "forge-artifacts")
+		} else {
+			out[i] = p
+		}
+	}
+	return out
+}
 
 type ErrorReporter struct {
 	hasErr atomic.Bool
@@ -82,6 +114,12 @@ func ProcessFiles[T any](files map[string]string, processor FileProcessor[T]) (m
 }
 
 func ProcessFilesGlob[T any](includes, excludes []string, processor FileProcessor[T]) (map[string]T, error) {
+	// Transparently rewrite forge-artifacts/ patterns to honor
+	// FOUNDRY_ARTIFACTS. Callers keep writing patterns against the
+	// canonical "forge-artifacts/" prefix; at runtime those become
+	// whatever directory the caller is inspecting.
+	includes = rewriteArtifactsPatterns(includes)
+	excludes = rewriteArtifactsPatterns(excludes)
 	files, err := FindFiles(includes, excludes)
 	if err != nil {
 		return nil, err
