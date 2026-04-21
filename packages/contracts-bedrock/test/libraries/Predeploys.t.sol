@@ -173,6 +173,17 @@ contract Predeploys_PredeployToCodeNamespace_Test is Predeploys_TestInit {
     }
 }
 
+/// @title Predeploys_GetName_Test
+/// @notice Tests the `getName` function of the `Predeploys` library.
+contract Predeploys_GetName_Test is Predeploys_TestInit {
+    /// @notice Tests that for addresses with CGT variants which share their proxy address with a primary
+    ///         record getName always return the primary name.
+    function test_getName_forVariantProxy_succeeds() external pure {
+        assertEq(Predeploys.getName(Predeploys.L1_BLOCK_ATTRIBUTES), "L1Block");
+        assertEq(Predeploys.getName(Predeploys.L2_TO_L1_MESSAGE_PASSER), "L2ToL1MessagePasser");
+    }
+}
+
 /// @title Predeploys_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once.
