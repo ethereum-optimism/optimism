@@ -80,19 +80,11 @@ check_types:
       - "artifact:toolchain/jq"
     avg_duration: 120
 
-  - id: gen-solidity-interfaces
-    name: "Regenerate Solidity interfaces from forge artifacts"
-    kind: gen
-    language: solidity
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just interfaces-snapshots"
-    scopeable: false
-    tools: [forge, mise]
-    inputs:
-      - "artifact:forge-artifacts-src-dev/**"
-      - "packages/contracts-bedrock/src/**/*.sol"
-    outputs:
-      - "packages/contracts-bedrock/interfaces/**/*.sol"
-    avg_duration: 60
+  # (No gen-solidity-interfaces: interfaces/ are hand-maintained.
+  # interfaces-check validates that every src/ contract has a matching
+  # interfaces/I<Name>.sol on disk; drift is fixed manually. src →
+  # interfaces propagation isn't needed — interfaces-check fires
+  # directly on src changes via artifact:forge-artifacts-src-dev.)
 
   - id: gen-go-bindings
     name: "Regenerate Go bindings from forge artifacts"
@@ -579,7 +571,7 @@ check_types:
     name: "Kontrol K-proof build"
     kind: build
     language: solidity
-    command: "cd packages/contracts-bedrock && just kontrol-build"
+    command: "cd packages/contracts-bedrock && mise exec -- just kontrol-build"
     scopeable: false
     tools: [forge, mise, kontrol]
     inputs:
@@ -652,7 +644,7 @@ check_types:
     name: "NUT lockfile verification"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && just check-nut-locks"
+    command: "cd packages/contracts-bedrock && mise exec -- just check-nut-locks"
     scopeable: false
     tools: [forge, mise]
     # check-nut-locks runs GenerateNUTBundle.s.sol, which ONLY reads
