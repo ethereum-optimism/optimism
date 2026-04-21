@@ -35,8 +35,15 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Value:   0,
 }
 
+// InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
+var InteropLogBackfillDepthFlag = &cli.DurationFlag{
+	Name:  "interop.log-backfill-depth",
+	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	Value: 0,
+}
+
 func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag)
+	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag)
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
@@ -78,8 +85,16 @@ type StepOutput struct {
 type Interop struct {
 	log                 log.Logger
 	chains              map[eth.ChainID]cc.ChainContainer
-	activationTimestamp uint64
-	dataDir             string
+	activationTimestamp uint64 // immutable protocol activation timestamp
+
+	// runtimeActivationTimestamp is the effective activation timestamp used
+	// by the main loop and backfill. It starts equal to activationTimestamp
+	// and is advanced past the backfilled range after log backfill completes.
+	// Protocol-facing queries (VerifiedAtTimestamp, VerifiedBlockAtL1, etc.)
+	// always use the original activationTimestamp.
+	runtimeActivationTimestamp uint64
+
+	dataDir string
 
 	messageExpiryWindow uint64
 
@@ -105,8 +120,17 @@ type Interop struct {
 	// if the next timestamp to process is >= this value.
 	pauseAtTimestamp atomic.Uint64
 
+	// backfillAttempts counts the number of times runLogBackfill was invoked
+	// since Start. Read by integration tests to confirm the retry loop is engaged.
+	backfillAttempts atomic.Int32
+	// backfillCompleted is set to true once runLogBackfill returns nil (or was skipped
+	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
+	backfillCompleted atomic.Bool
+
 	l1Checker    *byNumberConsistencyChecker
 	frontierView *frontierVerificationView
+
+	logBackfillDepth time.Duration
 }
 
 func (i *Interop) Name() string {
@@ -121,6 +145,7 @@ func New(
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
 	l1Source l1ByNumberSource,
+	logBackfillDepth time.Duration,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -148,13 +173,15 @@ func New(
 		messageExpiryWindow = defaultMessageExpiryWindow
 	}
 	i := &Interop{
-		log:                 log,
-		chains:              chains,
-		verifiedDB:          verifiedDB,
-		logsDBs:             logsDBs,
-		dataDir:             dataDir,
-		activationTimestamp: activationTimestamp,
-		messageExpiryWindow: messageExpiryWindow,
+		log:                        log,
+		chains:                     chains,
+		verifiedDB:                 verifiedDB,
+		logsDBs:                    logsDBs,
+		dataDir:                    dataDir,
+		activationTimestamp:        activationTimestamp,
+		runtimeActivationTimestamp: activationTimestamp,
+		messageExpiryWindow:        messageExpiryWindow,
+		logBackfillDepth:           logBackfillDepth,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -175,6 +202,24 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.ctx, i.cancel = context.WithCancel(ctx)
 	i.started = true
 	i.mu.Unlock()
+
+	if i.logBackfillDepth > 0 {
+		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
+		for {
+			i.backfillAttempts.Add(1)
+			err := i.runLogBackfill()
+			if err == nil {
+				break
+			}
+			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("log backfill interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.backfillCompleted.Store(true)
 
 	for {
 		select {
@@ -214,23 +259,6 @@ func (i *Interop) Stop(ctx context.Context) error {
 		return i.verifiedDB.Close()
 	}
 	return nil
-}
-
-// PauseAt sets a timestamp at which the interop activity should pause.
-// When progressInterop encounters this timestamp or any later timestamp, it returns early without processing.
-// Uses >= check so that if the activity is already beyond the pause point, it will still stop.
-// This function is for integration test control only.
-// Pass 0 to clear the pause (equivalent to calling Resume).
-func (i *Interop) PauseAt(ts uint64) {
-	i.pauseAtTimestamp.Store(ts)
-	i.log.Info("interop pause set", "pauseAtTimestamp", ts)
-}
-
-// Resume clears any pause timestamp, allowing normal processing to continue.
-// This function is for integration test control only.
-func (i *Interop) Resume() {
-	i.pauseAtTimestamp.Store(0)
-	i.log.Info("interop pause cleared")
 }
 
 // checkPreconditions determines whether observation alone already implies an
@@ -346,7 +374,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.activationTimestamp
+		obs.NextTimestamp = i.runtimeActivationTimestamp
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -582,7 +610,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.activationTimestamp {
+	if lastTS <= i.runtimeActivationTimestamp {
 		return plan, nil
 	}
 

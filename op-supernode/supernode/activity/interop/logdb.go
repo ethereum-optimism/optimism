@@ -101,62 +101,94 @@ var (
 // transition apply — verification itself is read-only.
 func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) error {
 	for chainID, blockID := range blocksAtTS {
-		chain, ok := i.chains[chainID]
-		if !ok {
-			continue
-		}
-		db := i.logsDBs[chainID]
-
-		latestBlock, hasBlocks, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime())
-		if err != nil {
+		if err := i.sealFetchedBlockIntoLogsDB(chainID, blockID, ts); err != nil {
 			return err
 		}
-
-		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)
-		if err != nil {
-			return fmt.Errorf("chain %s: failed to fetch receipts for block %v: %w", chainID, blockID, err)
-		}
-
-		if hasBlocks {
-			if latestBlock.Number > blockID.Number {
-				seal, err := db.FindSealedBlock(blockID.Number)
-				if err == nil && seal.Hash == blockID.Hash {
-					continue
-				}
-				return fmt.Errorf("chain %s: logsDB has stale data at height %d: %w",
-					chainID, blockID.Number, ErrStaleLogsDB)
-			}
-			if latestBlock.Number == blockID.Number {
-				if latestBlock.Hash == blockID.Hash {
-					continue
-				}
-				return fmt.Errorf("chain %s: logsDB has block %s at height %d, expected %s: %w",
-					chainID, latestBlock.Hash, latestBlock.Number, blockID.Hash, ErrStaleLogsDB)
-			}
-
-			if blockInfo.ParentHash() != latestBlock.Hash {
-				return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB last sealed block hash %s: %w",
-					chainID, blockID.Number, blockInfo.ParentHash(), latestBlock.Hash, ErrParentHashMismatch)
-			}
-		}
-
-		isFirstBlock := !hasBlocks
-		if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
-			return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, blockID.Number, err)
-		}
 	}
-
 	return nil
 }
 
-func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64) (eth.BlockID, bool, error) {
+// sealFetchedBlockIntoLogsDB fetches receipts for blockID and seals logs using ts for monotonicity checks
+// (typically the interop round timestamp, or the block timestamp during backfill).
+func (i *Interop) sealFetchedBlockIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, ts uint64) error {
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return nil
+	}
+	blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)
+	if err != nil {
+		return fmt.Errorf("chain %s: failed to fetch receipts for block %v: %w", chainID, blockID, err)
+	}
+	return i.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, receipts, ts, false)
+}
+
+// sealBlockDataIntoLogsDB seals logs for an already-fetched block using ts for verifyCanAddTimestamp.
+// isBackfill relaxes the first-seal check to allow any ts >= activation (not just ts == activation).
+func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, ts uint64, isBackfill bool) error {
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return nil
+	}
+	db := i.logsDBs[chainID]
+
+	latestBlock, hasBlocks, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime(), isBackfill)
+	if err != nil {
+		return err
+	}
+
+	if hasBlocks {
+		if latestBlock.Number > blockID.Number {
+			seal, err := db.FindSealedBlock(blockID.Number)
+			if err == nil && seal.Hash == blockID.Hash {
+				return nil
+			}
+			return fmt.Errorf("chain %s: logsDB has stale data at height %d: %w",
+				chainID, blockID.Number, ErrStaleLogsDB)
+		}
+		if latestBlock.Number == blockID.Number {
+			if latestBlock.Hash == blockID.Hash {
+				return nil
+			}
+			return fmt.Errorf("chain %s: logsDB has block %s at height %d, expected %s: %w",
+				chainID, latestBlock.Hash, latestBlock.Number, blockID.Hash, ErrStaleLogsDB)
+		}
+
+		if blockInfo.ParentHash() != latestBlock.Hash {
+			return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB last sealed block hash %s: %w",
+				chainID, blockID.Number, blockInfo.ParentHash(), latestBlock.Hash, ErrParentHashMismatch)
+		}
+	}
+
+	isFirstBlock := !hasBlocks
+	if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
+		return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, blockID.Number, err)
+	}
+	return nil
+}
+
+func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64, isBackfill bool) (eth.BlockID, bool, error) {
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
-	// If no blocks in DB:
-	// - At activation timestamp: OK, proceed to load the first block
-	// - Not at activation timestamp: ERROR, we're missing data
 	if !hasBlocks {
-		if ts == i.activationTimestamp {
+		// The main loop starts at runtimeActivationTimestamp (which may have been
+		// advanced past the protocol activation by backfill). If the DB is empty,
+		// this is the only timestamp the main loop would legitimately seal first.
+		if ts == i.runtimeActivationTimestamp {
+			return eth.BlockID{}, hasBlocks, nil
+		}
+		// Backfill's first block is TargetBlockNumber(T_lo), which floors the
+		// T_lo->blockNumber mapping. When T_lo clamps to activationTimestamp and
+		// activation is not aligned to (genesis + k*blockTime), the floored block
+		// has Time() < activationTimestamp — it is the block representing the
+		// chain state as of activation (the last block whose header is in force
+		// when the fork takes effect), and is the correct pairing anchor for the
+		// first post-activation block. Accept any ts within one blockTime before
+		// activation; strictly earlier seals still error. The ts+blockTime form
+		// underflow-protects (ts, blockTime both uint64) and generalises cleanly
+		// to chains whose activation happens to land on a block boundary
+		// (ts == activationTimestamp), in which case the condition is trivially
+		// satisfied.
+		if isBackfill && ts+blockTime > i.activationTimestamp {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",

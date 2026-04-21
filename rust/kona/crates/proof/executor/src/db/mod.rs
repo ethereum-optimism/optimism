@@ -175,14 +175,10 @@ where
     /// - `Ok(Some(TrieAccount))`: The [`TrieAccount`] of the account.
     /// - `Ok(None)`: If the account does not exist in the trie.
     /// - `Err(_)`: If the account could not be fetched.
-    pub fn get_trie_account(
-        &mut self,
-        address: &Address,
-        block_number: u64,
-    ) -> TrieDBResult<Option<TrieAccount>> {
+    pub fn get_trie_account(&mut self, address: &Address) -> TrieDBResult<Option<TrieAccount>> {
         // Send a hint to the host to fetch the account proof.
         self.hinter
-            .hint_account_proof(*address, block_number)
+            .hint_account_proof(*address, self.parent_block_header.hash())
             .map_err(|e| TrieDBError::Provider(e.to_string()))?;
 
         // Fetch the account from the trie.
@@ -329,9 +325,7 @@ where
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         // Fetch the account from the trie.
-        let Some(trie_account) =
-            self.get_trie_account(&address, self.parent_block_header.number)?
-        else {
+        let Some(trie_account) = self.get_trie_account(&address)? else {
             // If the account does not exist in the trie, return `Ok(None)`.
             return Ok(None);
         };
@@ -360,7 +354,7 @@ where
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // Send a hint to the host to fetch the storage proof.
         self.hinter
-            .hint_storage_proof(address, index, self.parent_block_header.number)
+            .hint_storage_proof(address, index, self.parent_block_header.hash())
             .map_err(|e| TrieDBError::Provider(e.to_string()))?;
 
         // Fetch the account's storage root from the cache. If storage is being accessed, the

@@ -336,6 +336,11 @@ mod tx_serde {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::transaction::Recovered;
+    use alloy_primitives::Address;
+    use op_alloy_consensus::{
+        OpTxEnvelope, SDMGasEntry, build_post_exec_tx, transaction::OpTransactionInfo,
+    };
 
     #[test]
     fn can_deserialize_deposit() {
@@ -355,5 +360,26 @@ mod tests {
         let deserialized = serde_json::to_value(&tx).unwrap();
         let expected = serde_json::from_str::<serde_json::Value>(rpc_tx).unwrap();
         similar_asserts::assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    fn can_serialize_post_exec_rpc_transaction() {
+        let post_exec = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let expected_input = serde_json::to_value(post_exec.input.clone()).unwrap();
+        let expected_hash = serde_json::to_value(post_exec.tx_hash()).unwrap();
+
+        let tx = Transaction::from_transaction(
+            Recovered::new_unchecked(OpTxEnvelope::from(post_exec), Address::ZERO),
+            OpTransactionInfo::default(),
+        );
+
+        let value = serde_json::to_value(&tx).unwrap();
+
+        assert_eq!(value.get("type").unwrap(), "0x7d");
+        assert_eq!(value.get("input"), Some(&expected_input));
+        assert_eq!(value.get("hash"), Some(&expected_hash));
+        assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
+        assert!(value.get("gasRefundEntries").is_none());
+        assert!(value.get("version").is_none());
     }
 }

@@ -62,6 +62,7 @@ type L2Configurator interface {
 	L2HardforkConfigurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
 	WithDAFootprintGasScalar(scalar uint16)
+	WithGasLimit(v uint64)
 }
 
 type ContractsConfigurator interface {
@@ -543,6 +544,10 @@ func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
 	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l2Configurator) WithGasLimit(v uint64) {
+	c.builder.intent.Chains[c.chainIndex].GasLimit = v
 }
 
 func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) {

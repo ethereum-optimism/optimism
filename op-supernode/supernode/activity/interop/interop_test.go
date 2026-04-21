@@ -30,12 +30,13 @@ import (
 // It reduces boilerplate by handling common setup: temp directories, mock chains,
 // interop creation, context assignment, and cleanup.
 type interopTestHarness struct {
-	t              *testing.T
-	interop        *Interop
-	mocks          map[eth.ChainID]*mockChainContainer
-	activationTime uint64
-	dataDir        string
-	skipBuild      bool // for tests that need custom construction
+	t                *testing.T
+	interop          *Interop
+	mocks            map[eth.ChainID]*mockChainContainer
+	activationTime   uint64
+	logBackfillDepth time.Duration
+	dataDir          string
+	skipBuild        bool // for tests that need custom construction
 }
 
 // newInteropTestHarness creates a new test harness with sensible defaults.
@@ -53,6 +54,12 @@ func newInteropTestHarness(t *testing.T) *interopTestHarness {
 // WithActivation sets the interop activation timestamp.
 func (h *interopTestHarness) WithActivation(ts uint64) *interopTestHarness {
 	h.activationTime = ts
+	return h
+}
+
+// WithLogBackfillDepth sets op-supernode's --interop.log-backfill-depth for the built Interop.
+func (h *interopTestHarness) WithLogBackfillDepth(d time.Duration) *interopTestHarness {
+	h.logBackfillDepth = d
 	return h
 }
 
@@ -89,7 +96,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil)
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth)
 	if h.interop != nil {
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
@@ -129,7 +136,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
 				require.NotNil(t, interop)
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
@@ -152,7 +159,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
 				require.Nil(t, interop)
 			},
 		},
@@ -1145,7 +1152,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, 0, chains, dataDir, nil)
+	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -1307,12 +1314,35 @@ type mockChainContainer struct {
 	optimisticL1    eth.BlockID
 	optimisticAtErr error
 
+	// If set, SyncStatus returns this instead of synthesizing from currentL1 only.
+	syncStatusFull     *eth.SyncStatus
+	syncStatusOverride func() (*eth.SyncStatus, error)
+
 	// PauseAndStopVN / Resume tracking
 	pauseAndStopVNCalls int
 	pauseAndStopVNErr   error
 	resumeCalls         int
 	resumeErr           error
 	callLog             *callLog // shared ordered call log across mocks
+
+	outputV0Override func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+
+	// timestampToBlockNumberOverride lets tests decouple TimestampToBlockNumber
+	// from the default ts==blockNum identity. Used by
+	// TestLogBackfill_FailsWhenChainBehindLowerBound to simulate the
+	// inconsistent-SyncStatus case that runLogBackfill must reject.
+	timestampToBlockNumberOverride func(ctx context.Context, ts uint64) (uint64, error)
+
+	// blockTimeOverride, when >0, is returned by BlockTime(). Used by tests
+	// that exercise chains whose blockTime is not 1 (e.g. misaligned
+	// activation timestamps).
+	blockTimeOverride uint64
+
+	// blockInfoTimeFn, when non-nil, computes the timestamp reported by
+	// FetchReceipts' returned blockInfo for a given block number. Used
+	// together with timestampToBlockNumberOverride to simulate a chain with
+	// a blockTime > 1 and genesis-offset scheduling.
+	blockInfoTimeFn func(blockNum uint64) uint64
 }
 
 type invalidateBlockCall struct {
@@ -1415,10 +1445,20 @@ func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts
 func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	ts := m.lastRequestedTimestamp
+	ts := blockID.Number
+	if ts == 0 {
+		ts = m.lastRequestedTimestamp
+	}
+	if m.blockInfoTimeFn != nil {
+		ts = m.blockInfoTimeFn(blockID.Number)
+	}
+	// parentHash is derived from the parent block's number (matching how
+	// OutputV0AtBlockNumber produces block hashes), not from ts-1. When
+	// blockNum != ts (e.g. blockTime > 1), these diverge; using
+	// blockID.Number-1 keeps the chain linkage consistent.
 	var parentHash common.Hash
-	if ts > 0 {
-		parentHash = common.BigToHash(big.NewInt(int64(ts - 1)))
+	if blockID.Number > 0 {
+		parentHash = common.BigToHash(new(big.Int).SetUint64(blockID.Number - 1))
 	}
 	blockInfo := &mockBlockInfo{
 		hash:       blockID.Hash,
@@ -1431,10 +1471,22 @@ func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.Bloc
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.syncStatusOverride != nil {
+		return m.syncStatusOverride()
+	}
 	if m.currentL1Err != nil {
 		return nil, m.currentL1Err
 	}
+	if m.syncStatusFull != nil {
+		return m.syncStatusFull, nil
+	}
 	return &eth.SyncStatus{CurrentL1: m.currentL1}, nil
+}
+func (m *mockChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	if m.timestampToBlockNumberOverride != nil {
+		return m.timestampToBlockNumberOverride(ctx, ts)
+	}
+	return ts, nil
 }
 func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	m.mu.Lock()
@@ -1442,7 +1494,12 @@ func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64,
 	m.rewindEngineCalls = append(m.rewindEngineCalls, timestamp)
 	return m.rewindEngineErr
 }
-func (m *mockChainContainer) BlockTime() uint64 { return 1 }
+func (m *mockChainContainer) BlockTime() uint64 {
+	if m.blockTimeOverride > 0 {
+		return m.blockTimeOverride
+	}
+	return 1
+}
 func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	m.mu.Lock()
 	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{
@@ -1455,6 +1512,9 @@ func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64,
 	return m.invalidateBlockRet, m.invalidateBlockErr
 }
 func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if m.outputV0Override != nil {
+		return m.outputV0Override(ctx, l2BlockNum)
+	}
 	return &eth.OutputV0{
 		StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
 		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),

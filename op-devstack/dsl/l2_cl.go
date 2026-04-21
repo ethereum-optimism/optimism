@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -75,10 +76,32 @@ func (cl *L2CLNode) restoreManagedPeers() {
 }
 
 func (cl *L2CLNode) StartSequencer() {
-	unsafe := cl.HeadBlockRef(types.LocalUnsafe)
-	cl.log.Info("Continue sequencing with consensus node (op-node)", "chain", cl.ChainID(), "unsafe", unsafe)
-
-	err := cl.inner.RollupAPI().StartSequencer(cl.ctx, unsafe.Hash)
+	// The op-node Sequencer.Start RPC requires the caller to pass the hash of op-node's
+	// current unsafe head. Reading the head and issuing the start call are two separate
+	// RPCs, so any unsafe payload that op-node processes in between (e.g. blocks gossiped
+	// by another sequencer over p2p) invalidates the hash we just read. Retry on that
+	// specific mismatch error with a freshly-read head.
+	const maxAttempts = 10
+	var err error
+loop:
+	for range maxAttempts {
+		unsafe := cl.HeadBlockRef(types.LocalUnsafe)
+		cl.log.Info("Continue sequencing with consensus node (op-node)", "chain", cl.ChainID(), "unsafe", unsafe)
+		err = cl.inner.RollupAPI().StartSequencer(cl.ctx, unsafe.Hash)
+		if err == nil {
+			break
+		}
+		if !strings.Contains(err.Error(), "block hash does not match") {
+			break
+		}
+		cl.log.Info("Unsafe head advanced between read and StartSequencer; retrying", "chain", cl.ChainID(), "err", err)
+		select {
+		case <-cl.ctx.Done():
+			err = cl.ctx.Err()
+			break loop
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
 	cl.require.NoError(err, fmt.Sprintf("Expected to be able to start sequencer on chain %d", cl.ChainID()))
 
 	// wait for the sequencer to become active

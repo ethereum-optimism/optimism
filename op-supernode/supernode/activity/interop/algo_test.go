@@ -950,6 +950,9 @@ func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) 
 func (m *algoMockChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
 }
+func (m *algoMockChain) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
+}
 func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
