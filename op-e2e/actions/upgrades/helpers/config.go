@@ -61,4 +61,13 @@ func ApplyDeltaTimeOffset(dp *e2eutils.DeployParams, deltaTimeOffset *hexutil.Ui
 			dp.DeployConfig.L2GenesisJovianTimeOffset = deltaTimeOffset
 		}
 	}
+
+	// configure Karst to not be before Delta accidentally
+	if dp.DeployConfig.L2GenesisKarstTimeOffset != nil {
+		if deltaTimeOffset == nil {
+			dp.DeployConfig.L2GenesisKarstTimeOffset = nil
+		} else if *dp.DeployConfig.L2GenesisKarstTimeOffset < *deltaTimeOffset {
+			dp.DeployConfig.L2GenesisKarstTimeOffset = deltaTimeOffset
+		}
+	}
 }

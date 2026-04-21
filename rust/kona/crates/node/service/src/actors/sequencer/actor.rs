@@ -13,7 +13,7 @@ use crate::{
                 update_conductor_commitment_duration_metrics, update_seal_duration_metrics,
                 update_total_transactions_sequenced,
             },
-            origin_selector::OriginSelector,
+            origin_selector::{L1OriginSelectorError, OriginSelector},
         },
     },
 };
@@ -225,6 +225,15 @@ where
             .await
         {
             Ok(l1_origin) => l1_origin,
+            Err(L1OriginSelectorError::OriginNotFound(hash)) => {
+                warn!(
+                    target: "sequencer",
+                    %hash,
+                    "L1 origin block not found, resetting engine"
+                );
+                self.engine_client.reset_engine_forkchoice().await?;
+                return Ok(None);
+            }
             Err(err) => {
                 warn!(
                     target: "sequencer",
@@ -342,6 +351,13 @@ where
         // See: `<https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/derivation.md#activation-block-rules>`
         if self.rollup_config.is_first_jovian_block(attributes.payload_attributes.timestamp) {
             info!(target: "sequencer", "Sequencing jovian upgrade block");
+            return false;
+        }
+
+        // Do not include transactions in the first Karst block.
+        // See: `<https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>`
+        if self.rollup_config.is_first_karst_block(attributes.payload_attributes.timestamp) {
+            info!(target: "sequencer", "Sequencing karst upgrade block");
             return false;
         }
 

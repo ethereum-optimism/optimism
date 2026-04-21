@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Contracts
 import { OPContractsManagerUtils } from "src/L1/opcm/OPContractsManagerUtils.sol";
@@ -21,6 +23,11 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
+import { Claim, Duration } from "src/dispute/lib/LibUDT.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
@@ -69,7 +76,7 @@ contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
 
 /// @title OPContractsManagerUtils_TestInit
 /// @notice Shared setup for OPContractsManagerUtils tests.
-contract OPContractsManagerUtils_TestInit is Test {
+contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
     OPContractsManagerUtils internal utils;
     OPContractsManagerContainer internal container;
     OPContractsManagerContainer.Blueprints internal blueprints;
@@ -79,6 +86,8 @@ contract OPContractsManagerUtils_TestInit is Test {
     IStorageSetter internal storageSetter;
 
     function setUp() public virtual {
+        resolveFeaturesFromEnv();
+
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
 
@@ -105,7 +114,6 @@ contract OPContractsManagerUtils_TestInit is Test {
             protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
             l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
             optimismPortalImpl: makeAddr("optimismPortalImpl"),
-            optimismPortalInteropImpl: makeAddr("optimismPortalInteropImpl"),
             ethLockboxImpl: makeAddr("ethLockboxImpl"),
             systemConfigImpl: makeAddr("systemConfigImpl"),
             optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),
@@ -119,6 +127,7 @@ contract OPContractsManagerUtils_TestInit is Test {
             permissionedDisputeGameImpl: makeAddr("permissionedDisputeGameImpl"),
             superFaultDisputeGameImpl: makeAddr("superFaultDisputeGameImpl"),
             superPermissionedDisputeGameImpl: makeAddr("superPermissionedDisputeGameImpl"),
+            zkDisputeGameImpl: makeAddr("zkDisputeGameImpl"),
             storageSetterImpl: address(storageSetter)
         });
 
@@ -329,6 +338,18 @@ contract OPContractsManagerUtils_LoadBytes_Test is OPContractsManagerUtils_TestI
         bytes memory result = utils.loadBytes(mockSource, MOCK_SELECTOR, "testField", instructions);
 
         assertEq(result, _overrideData, "Should return override data");
+    }
+
+    /// @notice Tests that loadBytes reverts when the source address has no code.
+    function test_loadBytes_sourceNoCode_reverts() public {
+        address eoa = makeAddr("eoa");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUtils.OPContractsManagerUtils_ConfigLoadFailed.selector, "testField"
+            )
+        );
+        utils.loadBytes(eoa, MOCK_SELECTOR, "testField", _emptyInstructions());
     }
 
     /// @notice Tests that loadBytes reverts when the source call fails.
@@ -668,6 +689,134 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
 
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implBeta));
     }
+
+    /// @notice ERC-7201 Initializable slot used by OZ v5.
+    bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
+        bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+
+    /// @notice Tests that v4 contracts are unaffected by the v5 slot clearing logic. For v4
+    ///         contracts the ERC-7201 slot is all zeros, so the new code is a no-op.
+    function test_upgrade_v4ContractStillWorks_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Verify the ERC-7201 slot is zero (v4 contract).
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+
+        // Upgrade to v2 should succeed and the ERC-7201 slot should remain zero.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+    }
+
+    /// @notice Tests that a v5 contract with `_initialized = 1` at the ERC-7201 slot gets cleared.
+    function test_upgrade_v5SlotCleared_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate a v5 contract with _initialized = 1 at the ERC-7201 slot.
+        vm.store(address(proxy), OZ_V5_INITIALIZABLE_SLOT, bytes32(uint256(1)));
+
+        // Upgrade to v2 should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+        // The v5 _initialized field should have been cleared.
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+    }
+
+    /// @notice Tests that a v5 contract with `_initialized = type(uint64).max` (from
+    ///         `_disableInitializers()`) gets cleared.
+    function test_upgrade_v5SlotMaxInitialized_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate a v5 contract with _initialized = type(uint64).max (disabled initializers).
+        vm.store(address(proxy), OZ_V5_INITIALIZABLE_SLOT, bytes32(uint256(type(uint64).max)));
+
+        // Upgrade to v2 should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+        // The v5 _initialized field should have been cleared.
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+    }
+
+    /// @notice Tests that upgrade reverts when `_initializing` bool is set at the ERC-7201 slot.
+    function test_upgrade_v5InitializingDuringUpgrade_reverts() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Simulate a v5 contract that is mid-initialization. The _initializing bool is at byte
+        // offset 8 (bit 64). Set _initialized = 1 and _initializing = true.
+        uint256 v5Value = 1 | (uint256(1) << 64);
+        vm.store(address(proxy), OZ_V5_INITIALIZABLE_SLOT, bytes32(v5Value));
+
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_InitializingDuringUpgrade.selector);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+    }
+
+    /// @notice Tests that the upper bytes of the ERC-7201 slot beyond the Initializable struct
+    ///         are preserved when clearing the `_initialized` field.
+    function test_upgrade_v5SlotPreservesUpperBytes_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Set the v5 slot with _initialized = 1 in the low 8 bytes and some data in the upper
+        // bytes (above the _initializing bool at byte offset 8). Bytes 9+ are unused by the
+        // Initializable struct but should be preserved.
+        uint256 upperData = uint256(0xDEADBEEF) << 128;
+        uint256 v5Value = upperData | 1;
+        vm.store(address(proxy), OZ_V5_INITIALIZABLE_SLOT, bytes32(v5Value));
+
+        // Upgrade to v2 should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+        // The upper bytes should be preserved, only the low 8 bytes should be zeroed.
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(upperData));
+    }
 }
 
 /// @title OPContractsManagerUtils_Blueprints_Test
@@ -756,5 +905,83 @@ contract OPContractsManagerUtils_IsMatchingInstructionByKey_Test is OPContractsM
         // Create a key that is not the same as the instruction key.
         string memory _key = string.concat("not:", _instruction.key);
         assertFalse(utils.isMatchingInstructionByKey(_instruction, _key));
+    }
+}
+
+/// @title OPContractsManagerUtils_GetGameImpl_Test
+/// @notice Tests OPContractsManagerUtils.getGameImpl for the ZK dispute game type.
+contract OPContractsManagerUtils_GetGameImpl_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that getGameImpl returns the ZK dispute game implementation.
+    function test_getGameImpl_zkDisputeGame_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        address impl = address(utils.getGameImpl(GameTypes.ZK_DISPUTE_GAME));
+        assertEq(impl, makeAddr("zkDisputeGameImpl"), "ZK game impl address mismatch");
+        assertTrue(impl != address(0), "ZK game impl should not be zero");
+    }
+
+    /// @notice Tests that getGameImpl reverts for an unsupported game type.
+    function test_getGameImpl_unsupportedType_reverts() public {
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType.selector);
+        utils.getGameImpl(GameTypes.KAILUA);
+    }
+}
+
+/// @title OPContractsManagerUtils_MakeGameArgs_Test
+/// @notice Tests OPContractsManagerUtils.makeGameArgs for the ZK dispute game type.
+contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_TestInit {
+    /// @notice Tests that makeGameArgs encodes the correct CWIA layout for ZKDisputeGame.
+    function test_makeGameArgs_zkDisputeGame_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        Claim absolutePrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
+        IZKVerifier verifier = IZKVerifier(address(0xBEEF));
+        Duration maxChallengeDuration = Duration.wrap(uint64(7 days));
+        Duration maxProveDuration = Duration.wrap(uint64(3 days));
+        uint256 challengerBond = 1 ether;
+        IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(makeAddr("anchorStateRegistry"));
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(makeAddr("delayedWETH")));
+        uint256 l2ChainId = 42;
+
+        IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: absolutePrestate,
+                    verifier: verifier,
+                    maxChallengeDuration: maxChallengeDuration,
+                    maxProveDuration: maxProveDuration,
+                    challengerBond: challengerBond
+                })
+            )
+        });
+
+        bytes memory result = utils.makeGameArgs(l2ChainId, anchorStateRegistry, delayedWETH, cfg);
+
+        // Verify the CWIA layout: absolutePrestate | verifier | maxChallengeDuration | maxProveDuration |
+        // challengerBond | anchorStateRegistry | delayedWETH | l2ChainId
+        bytes memory expected = abi.encodePacked(
+            absolutePrestate,
+            verifier,
+            maxChallengeDuration,
+            maxProveDuration,
+            challengerBond,
+            address(anchorStateRegistry),
+            address(delayedWETH),
+            l2ChainId
+        );
+        assertEq(keccak256(result), keccak256(expected), "ZK game args CWIA layout mismatch");
+    }
+
+    /// @notice Tests that makeGameArgs reverts for an unsupported game type.
+    function test_makeGameArgs_unsupportedType_reverts() public {
+        IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.KAILUA,
+            gameArgs: bytes("")
+        });
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType.selector);
+        utils.makeGameArgs(1, IAnchorStateRegistry(address(0)), IDelayedWETH(payable(address(0))), cfg);
     }
 }

@@ -1,0 +1,1296 @@
+/* Riforma LL Font Faces */
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-MediumItalic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-HeavyItalic.woff2') format('woff2');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-LightItalic.woff2') format('woff2');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Apply Riforma LL globally */
+body,
+.nx-prose,
+.nx-prose p,
+.nx-prose h1,
+.nx-prose h2,
+.nx-prose h3,
+.nx-prose h4,
+.nx-prose h5,
+.nx-prose h6 {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Homepage-specific styling (no frontmatter title/description) */
+/* Add proper container for h1 and p */
+[data-page-id="index"] {
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+}
+
+/* Style custom h1 and p tags */
+[data-page-id="index"] h1 {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 3rem !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  margin-bottom: 1rem !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  color: #111827 !important;
+  letter-spacing: -0.02em !important;
+  max-width: 100% !important;
+}
+
+html[class*="dark"] [data-page-id="index"] h1 {
+  color: #f9fafb !important;
+}
+
+[data-page-id="index"] > p:first-of-type,
+[data-page-id="index"] h1 + p {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 1.25rem !important;
+  line-height: 1.6 !important;
+  color: #6b7280 !important;
+  margin-bottom: 2rem !important;
+  margin-top: 0 !important;
+  max-width: 100% !important;
+}
+
+html[class*="dark"] [data-page-id="index"] > p:first-of-type,
+html[class*="dark"] [data-page-id="index"] h1 + p {
+  color: #9ca3af !important;
+}
+
+/* Homepage content spacing */
+[data-page-id="index"] .nx-prose {
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Full width homepage styles */
+.nx-container {
+  max-width: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* Ensure page container has proper padding */
+[data-page-id="index"] .nx-prose,
+[data-page-id="index"] > div > div {
+  max-width: 100% !important;
+}
+
+/* Ensure clean link previews */
+body {
+  background: #ffffff !important;
+}
+
+html[class*="dark"] body {
+  background: #0f172a !important;
+}
+
+/* Remove any potential gradients from Mintlify */
+.nx-bg-gradient-to-r,
+.nx-bg-gradient-to-l,
+.nx-bg-gradient-to-t,
+.nx-bg-gradient-to-b,
+.nx-bg-gradient-to-br,
+.nx-bg-gradient-to-bl,
+.nx-bg-gradient-to-tr,
+.nx-bg-gradient-to-tl {
+  background: transparent !important;
+}
+
+/* Hero section styles */
+.hero-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: auto;
+  padding: 0;
+  margin-bottom: 2.5rem;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  background: transparent;
+}
+
+.hero-content {
+  flex: 1;
+  max-width: 505px;
+}
+
+.hero-content h1 {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+  color: #111827;
+  letter-spacing: -0.025em;
+}
+
+html[class*="dark"] .hero-content h1 {
+  color: #f9fafb;
+}
+
+.hero-content p {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  color: #6b7280;
+}
+
+html[class*="dark"] .hero-content p {
+  color: #9ca3af;
+}
+
+.hero-visual {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-visual img {
+  max-width: 100%;
+  height: auto;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-primary {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #ef4444;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-primary:hover {
+  background-color: #dc2626;
+  color: white;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: transparent;
+  color: #1f2937;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+html[class*="dark"] .btn-secondary {
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+html[class*="dark"] .btn-secondary:hover {
+  background-color: #374151;
+  border-color: #6b7280;
+  color: #f9fafb;
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+    padding: 2rem 0;
+  }
+
+  .hero-content {
+    padding-right: 0;
+    margin-bottom: 2rem;
+  }
+
+  .hero-content h1 {
+    font-size: 1.75rem;
+  }
+
+  .hero-buttons {
+    justify-content: center;
+  }
+}
+
+/* Home Cards Component Styles */
+.home-cards {
+  width: 100%;
+  margin-bottom: 2.5rem;
+  margin-top: 0;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+html[class*="dark"] .home-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* Card Content */
+.home-card .home-card__title {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  margin: 0 0 1.5rem 0;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+html[class*="dark"] .home-card .home-card__title {
+  color: #f1f5f9;
+}
+
+.home-card__footer {
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+.home-card__footer-link {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.home-card__footer-link:hover {
+  color: #475569;
+  text-decoration: none;
+}
+
+html[class*="dark"] .home-card__footer-link {
+  color: #94a3b8;
+}
+
+html[class*="dark"] .home-card__footer-link:hover {
+  color: #cbd5e1;
+}
+
+/* Card List Components */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.card-list-item:last-child {
+  border-bottom: none;
+}
+
+html[class*="dark"] .card-list-item {
+  border-bottom-color: #334155;
+}
+
+.card-list-item:hover .card-list-item__title {
+  color: #ef4444;
+}
+
+.card-list-item:hover .card-list-item__description {
+  color: #475569;
+}
+
+html[class*="dark"] .card-list-item:hover .card-list-item__description {
+  color: #cbd5e1;
+}
+
+.card-list-item__number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  color: #475569;
+}
+
+html[class*="dark"] .card-list-item__number {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.card-list-item__content {
+  flex: 1;
+}
+
+.card-list-item__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-list-item__title {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  transition: color 0.2s ease;
+  letter-spacing: -0.01em;
+}
+
+html[class*="dark"] .card-list-item__title {
+  color: #f1f5f9;
+}
+
+.card-list-item__description {
+  font-family: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  transition: color 0.2s ease;
+}
+
+html[class*="dark"] .card-list-item__description {
+  color: #94a3b8;
+}
+
+.card-list-item__badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.card-list-item__badge--easy {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.card-list-item__badge--medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.card-list-item__badge--hard {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+html[class*="dark"] .card-list-item__badge--easy {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+html[class*="dark"] .card-list-item__badge--medium {
+  background: #92400e;
+  color: #fef3c7;
+}
+
+html[class*="dark"] .card-list-item__badge--hard {
+  background: #991b1b;
+  color: #fecaca;
+}
+
+.card-list-item__arrow {
+  color: #cbd5e1;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.card-list-item:hover .card-list-item__arrow {
+  transform: translateX(4px);
+  color: #ef4444;
+}
+
+html[class*="dark"] .card-list-item__arrow {
+  color: #64748b;
+}
+
+html[class*="dark"] .card-list-item:hover .card-list-item__arrow {
+  color: #ef4444;
+}
+
+/* Container for regular Mintlify sections (not homepage) */
+.nx-prose:not([data-page-id="index"] .nx-prose) {
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 4rem 2rem;
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+  }
+
+  .hero-content {
+    margin-bottom: 2rem;
+    max-width: none;
+  }
+
+  .home-cards {
+    grid-template-columns: 1fr !important;
+    padding: 0 2rem;
+  }
+
+  .nx-prose {
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+  }
+
+  .card-list-item__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+/* Riforma LL Font Faces - Ensure fonts are loaded */
+/* Force font loading */
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/* Riforma LL Font Faces */
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-MediumItalic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-HeavyItalic.woff2') format('woff2');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Riforma LL';
+  src: url('/fonts/RiformaLL-LightItalic.woff2') format('woff2');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Logo Size Control */
+img[alt*="logo"],
+.nx-logo img,
+nav img,
+header img[src*="logo"],
+a[href="/"] img {
+  max-height: 13px !important;
+  width: auto !important;
+  height: 13px !important;
+}
+
+/* Apply Riforma LL to regular text and Roboto Mono to code */
+:root {
+  --font-riforma: 'Riforma LL', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Default font for regular text */
+body {
+  font-family: var(--font-riforma) !important;
+}
+
+/* Apply Riforma LL to text content with high specificity */
+html,
+body,
+.nx-prose,
+.nx-prose p,
+.nx-prose h1,
+.nx-prose h2,
+.nx-prose h3,
+.nx-prose h4,
+.nx-prose h5,
+.nx-prose h6,
+.nx-prose li,
+.nx-prose td,
+.nx-prose th,
+.nx-prose blockquote,
+div:not([class*="language-"]):not(pre):not(code),
+span:not([class*="language-"]):not([class*="token"]),
+a:not(pre a):not(code a),
+button {
+  font-family: var(--font-riforma) !important;
+}
+
+/* Code blocks and inline code - MUST come after Riforma rules to override */
+pre,
+code,
+.nx-font-mono,
+.nx-bg-primary-700\/5,
+.language-javascript,
+.language-typescript,
+.language-python,
+.language-json,
+.language-bash,
+.language-shell,
+.language-solidity,
+.language-yml,
+.language-yaml,
+.language-sh,
+[class*="language-"],
+.nx-code-block,
+div[data-language],
+div[data-theme*="dark"],
+div[data-theme*="light"],
+span[class*="token"],
+.token,
+.comment,
+.prolog,
+.doctype,
+.cdata,
+.punctuation,
+.property,
+.tag,
+.boolean,
+.number,
+.constant,
+.symbol,
+.deleted,
+.function,
+.class-name,
+.regex,
+.important,
+.variable,
+.operator,
+.keyword {
+  font-family: var(--font-mono) !important;
+  font-feature-settings: normal !important;
+}
+
+/* Ensure all nested elements in code blocks use monospace */
+pre *,
+code *,
+.nx-code-block *,
+div[data-language] *,
+[class*="language-"] *,
+pre span,
+code span,
+.nx-code-block span,
+div[data-language] span,
+[class*="language-"] span {
+  font-family: var(--font-mono) !important;
+  font-feature-settings: normal !important;
+}
+
+/* Brand requirement: h1, h2 should use Riforma LL with font-weight 400 */
+.nx-prose h1,
+h1 {
+  font-family: var(--font-riforma) !important;
+  font-weight: 400 !important;
+}
+
+.nx-prose h2,
+h2 {
+  font-family: var(--font-riforma) !important;
+  font-weight: 400 !important;
+}
+
+.nx-prose h3,
+h3 {
+  font-family: var(--font-riforma) !important;
+  font-weight: 400 !important;
+}
+
+/* Homepage-specific styling (no frontmatter title/description) */
+/* Add proper container for h1 and p */
+[data-page-id="index"] {
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+}
+
+/* Style custom h1 and p tags */
+[data-page-id="index"] h1 {
+  font-family: var(--font-riforma) !important;
+  font-size: 3rem !important;
+  font-weight: 400 !important;
+  line-height: 1.1 !important;
+  margin-bottom: 1rem !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  color: #111827 !important;
+  letter-spacing: -0.02em !important;
+  max-width: 100% !important;
+}
+
+html[class*="dark"] [data-page-id="index"] h1 {
+  color: #f9fafb !important;
+}
+
+[data-page-id="index"] > p:first-of-type,
+[data-page-id="index"] h1 + p {
+  font-family: var(--font-riforma) !important;
+  font-size: 1.25rem !important;
+  line-height: 1.6 !important;
+  color: #6b7280 !important;
+  margin-bottom: 2rem !important;
+  margin-top: 0 !important;
+  max-width: 100% !important;
+}
+
+html[class*="dark"] [data-page-id="index"] > p:first-of-type,
+html[class*="dark"] [data-page-id="index"] h1 + p {
+  color: #9ca3af !important;
+}
+
+/* Homepage content spacing */
+[data-page-id="index"] .nx-prose {
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Full width homepage styles */
+.nx-container {
+  max-width: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* Ensure page container has proper padding */
+[data-page-id="index"] .nx-prose,
+[data-page-id="index"] > div > div {
+  max-width: 100% !important;
+}
+
+/* Ensure clean link previews */
+body {
+  background: #ffffff !important;
+}
+
+html[class*="dark"] body {
+  background: #0f172a !important;
+}
+
+/* Remove any potential gradients from Mintlify */
+.nx-bg-gradient-to-r,
+.nx-bg-gradient-to-l,
+.nx-bg-gradient-to-t,
+.nx-bg-gradient-to-b,
+.nx-bg-gradient-to-br,
+.nx-bg-gradient-to-bl,
+.nx-bg-gradient-to-tr,
+.nx-bg-gradient-to-tl {
+  background: transparent !important;
+}
+
+/* Hero section styles */
+.hero-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: auto;
+  padding: 0;
+  margin-bottom: 2.5rem;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  background: transparent;
+}
+
+.hero-content {
+  flex: 1;
+  max-width: 505px;
+}
+
+.hero-content h1 {
+  font-family: var(--font-riforma) !important;
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+  color: #111827;
+  letter-spacing: -0.025em;
+}
+
+html[class*="dark"] .hero-content h1 {
+  color: #f9fafb;
+}
+
+.hero-content p {
+  font-family: var(--font-riforma) !important;
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+  color: #6b7280;
+}
+
+html[class*="dark"] .hero-content p {
+  color: #9ca3af;
+}
+
+.hero-visual {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-visual img {
+  max-width: 100%;
+  height: auto;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-primary {
+  font-family: var(--font-riforma) !important;
+  background-color: #FF0420;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-primary:hover {
+  background-color: #e00320;
+  color: white;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  font-family: var(--font-riforma) !important;
+  background-color: transparent;
+  color: #1f2937;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+html[class*="dark"] .btn-secondary {
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+html[class*="dark"] .btn-secondary:hover {
+  background-color: #374151;
+  border-color: #6b7280;
+  color: #f9fafb;
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+    padding: 2rem 0;
+  }
+
+  .hero-content {
+    padding-right: 0;
+    margin-bottom: 2rem;
+  }
+
+  .hero-content h1 {
+    font-size: 1.75rem;
+  }
+
+  .hero-buttons {
+    justify-content: center;
+  }
+}
+
+/* Home Cards Component Styles */
+.home-cards {
+  width: 100%;
+  margin-bottom: 2.5rem;
+  margin-top: 0;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+html[class*="dark"] .home-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* Card Content */
+.home-card .home-card__title {
+  font-family: var(--font-riforma) !important;
+  font-size: 1.5rem !important;
+  font-weight: 400 !important;
+  margin: 0 0 1.5rem 0;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+html[class*="dark"] .home-card .home-card__title {
+  color: #f1f5f9;
+}
+
+.home-card__footer {
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+.home-card__footer-link {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.home-card__footer-link:hover {
+  color: #475569;
+  text-decoration: none;
+}
+
+html[class*="dark"] .home-card__footer-link {
+  color: #94a3b8;
+}
+
+html[class*="dark"] .home-card__footer-link:hover {
+  color: #cbd5e1;
+}
+
+/* Card List Components */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.card-list-item:last-child {
+  border-bottom: none;
+}
+
+html[class*="dark"] .card-list-item {
+  border-bottom-color: #334155;
+}
+
+.card-list-item:hover .card-list-item__title {
+  color: #ef4444;
+}
+
+.card-list-item:hover .card-list-item__description {
+  color: #475569;
+}
+
+html[class*="dark"] .card-list-item:hover .card-list-item__description {
+  color: #cbd5e1;
+}
+
+.card-list-item__number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  color: #475569;
+}
+
+html[class*="dark"] .card-list-item__number {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.card-list-item__content {
+  flex: 1;
+}
+
+.card-list-item__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.card-list-item__title {
+  font-family: var(--font-riforma) !important;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: #0f172a;
+  transition: color 0.2s ease;
+  letter-spacing: -0.01em;
+}
+
+html[class*="dark"] .card-list-item__title {
+  color: #f1f5f9;
+}
+
+.card-list-item__description {
+  font-family: var(--font-riforma) !important;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  transition: color 0.2s ease;
+}
+
+html[class*="dark"] .card-list-item__description {
+  color: #94a3b8;
+}
+
+.card-list-item__badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.card-list-item__badge--easy {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.card-list-item__badge--medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.card-list-item__badge--hard {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+html[class*="dark"] .card-list-item__badge--easy {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+html[class*="dark"] .card-list-item__badge--medium {
+  background: #92400e;
+  color: #fef3c7;
+}
+
+html[class*="dark"] .card-list-item__badge--hard {
+  background: #991b1b;
+  color: #fecaca;
+}
+
+.card-list-item__arrow {
+  color: #cbd5e1;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.card-list-item:hover .card-list-item__arrow {
+  transform: translateX(4px);
+  color: #ef4444;
+}
+
+html[class*="dark"] .card-list-item__arrow {
+  color: #64748b;
+}
+
+html[class*="dark"] .card-list-item:hover .card-list-item__arrow {
+  color: #ef4444;
+}
+
+/* Container for regular Mintlify sections (not homepage) */
+.nx-prose:not([data-page-id="index"] .nx-prose) {
+  max-width: 1400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 4rem 2rem;
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+  }
+
+  .hero-content {
+    margin-bottom: 2rem;
+    max-width: none;
+  }
+
+  .home-cards {
+    grid-template-columns: 1fr !important;
+    padding: 0 2rem;
+  }
+
+  .nx-prose {
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+  }
+
+  .card-list-item__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+.nx-card img,
+[class*="card"] img[src*="/public/img/"] {
+  background: transparent !important;
+}

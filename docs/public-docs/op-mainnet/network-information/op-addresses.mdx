@@ -1,0 +1,58 @@
+---
+title: OP Mainnet Contract Addresses
+description: A comprehensive list of L1 and L2 contract addresses for OP Mainnet and OP Sepolia.
+---
+
+import { SuperchainContractTable } from "/snippets/superchain-contract-table.jsx"
+import { L1ContractTable } from "/snippets/l1-contract-table.jsx"
+import { L2ContractTable } from "/snippets/l2-contract-table.jsx"
+
+This page lists all contract addresses for OP Mainnet and OP Sepolia. For high-level details and source code, see the [Smart Contracts Overview](/op-stack/protocol/smart-contracts).
+
+<Info>
+Contract addresses are automatically synced from the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry/tree/main).
+</Info>
+
+## L2 Contract Addresses
+
+### OP Mainnet
+
+<L2ContractTable chain="10" legacy={false} />
+
+### OP Sepolia
+
+<L2ContractTable chain="11155420" legacy={false} />
+
+## L1 Contract Addresses
+
+### Ethereum Mainnet
+
+<L1ContractTable chain="10" explorer="1" legacy={false} />
+
+### Ethereum Testnet (Sepolia)
+
+<L1ContractTable chain="11155420" explorer="11155111" legacy={false} />
+
+## Shared Contracts
+
+### Ethereum Mainnet
+
+<SuperchainContractTable chain="1" explorer="1" />
+
+### Ethereum Testnet (Sepolia)
+
+<SuperchainContractTable chain="11155111" explorer="11155111" />
+
+## Legacy Contracts
+
+<Info>
+Legacy contracts are from previous versions of the OP Stack and are maintained for backwards compatibility.
+</Info>
+
+### OP Mainnet Legacy (L2)
+
+<L2ContractTable chain="10" legacy={true} />
+
+### Ethereum Mainnet Legacy (L1)
+
+<L1ContractTable chain="10" explorer="1" legacy={true} />

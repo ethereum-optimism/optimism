@@ -13,9 +13,9 @@ import (
 
 func TestCheckNodeEndpointErrorCount_NoErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointErrorCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointErrorCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, RollupEndpointErrorCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointErrorCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointErrorCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointErrorCount: 0},
 	}
 
 	metrics := &stubNodeEndpointErrorCountMetrics{}
@@ -30,12 +30,12 @@ func TestCheckNodeEndpointErrorCount_NoErrors(t *testing.T) {
 func TestCheckNodeEndpointErrorCount_SingleGameWithErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrorCount: 5,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointErrorCount: 5,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrorCount: 0,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointErrorCount: 0,
 		},
 	}
 
@@ -51,16 +51,16 @@ func TestCheckNodeEndpointErrorCount_SingleGameWithErrors(t *testing.T) {
 func TestCheckNodeEndpointErrorCount_MultipleGamesWithErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrorCount: 3,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointErrorCount: 3,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrorCount: 7,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointErrorCount: 7,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointErrorCount: 2,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			NodeEndpointErrorCount: 2,
 		},
 	}
 
@@ -77,20 +77,20 @@ func TestCheckNodeEndpointErrorCount_MultipleGamesWithErrors(t *testing.T) {
 func TestCheckNodeEndpointErrorCount_MixedGamesWithAndWithoutErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrorCount: 0,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointErrorCount: 0,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrorCount: 4,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointErrorCount: 4,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointErrorCount: 0,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			NodeEndpointErrorCount: 0,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x44}},
-			RollupEndpointErrorCount: 6,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x44}},
+			NodeEndpointErrorCount: 6,
 		},
 	}
 
@@ -119,16 +119,16 @@ func TestCheckNodeEndpointErrorCount_EmptyGamesList(t *testing.T) {
 func TestCheckNodeEndpointErrorCount_HighVolumeErrors(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointErrorCount: 100,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointErrorCount: 100,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointErrorCount: 250,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointErrorCount: 250,
 		},
 		{
-			GameMetadata:             gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointErrorCount: 75,
+			GameMetadata:           gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			NodeEndpointErrorCount: 75,
 		},
 	}
 
@@ -156,27 +156,27 @@ func TestCountGamesWithErrors(t *testing.T) {
 		{
 			name: "no errors",
 			games: []*types.EnrichedGameData{
-				{RollupEndpointErrorCount: 0},
-				{RollupEndpointErrorCount: 0},
+				{NodeEndpointErrorCount: 0},
+				{NodeEndpointErrorCount: 0},
 			},
 			expected: 0,
 		},
 		{
 			name: "all games have errors",
 			games: []*types.EnrichedGameData{
-				{RollupEndpointErrorCount: 1},
-				{RollupEndpointErrorCount: 5},
-				{RollupEndpointErrorCount: 10},
+				{NodeEndpointErrorCount: 1},
+				{NodeEndpointErrorCount: 5},
+				{NodeEndpointErrorCount: 10},
 			},
 			expected: 3,
 		},
 		{
 			name: "mixed errors",
 			games: []*types.EnrichedGameData{
-				{RollupEndpointErrorCount: 0},
-				{RollupEndpointErrorCount: 3},
-				{RollupEndpointErrorCount: 0},
-				{RollupEndpointErrorCount: 7},
+				{NodeEndpointErrorCount: 0},
+				{NodeEndpointErrorCount: 3},
+				{NodeEndpointErrorCount: 0},
+				{NodeEndpointErrorCount: 7},
 			},
 			expected: 2,
 		},

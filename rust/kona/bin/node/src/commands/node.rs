@@ -2,8 +2,8 @@
 
 use crate::{
     flags::{
-        BuilderClientArgs, DerivationDelegateArgs, GlobalArgs, L1ClientArgs, L2ClientArgs, P2PArgs,
-        RollupBoostFlags, RpcArgs, SequencerArgs,
+        DerivationDelegateArgs, GlobalArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
+        SequencerArgs,
     },
     metrics::{CliMetrics, init_rollup_config_metrics},
 };
@@ -16,12 +16,13 @@ use clap::Parser;
 use kona_cli::{LogConfig, MetricsArgs};
 use kona_engine::{HyperAuthClient, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::from_reader;
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc, time::Duration};
+use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -94,10 +95,6 @@ pub struct NodeCommand {
     #[clap(flatten)]
     pub l2_client_args: L2ClientArgs,
 
-    /// Optional block builder client.
-    #[clap(flatten)]
-    pub builder_client_args: BuilderClientArgs,
-
     /// Optional derivation delegation client.
     #[clap(flatten)]
     pub derivation_delegate_args: DerivationDelegateArgs,
@@ -110,6 +107,13 @@ pub struct NodeCommand {
     /// (overrides the default rollup configuration from the registry)
     #[arg(long, visible_alias = "rollup-l1-cfg", env = "KONA_NODE_L1_CHAIN_CONFIG")]
     pub l1_config_file: Option<PathBuf>,
+    /// Path to a JSON file describing the interop dependency set for this
+    /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
+    /// rollup config schedules the Interop hardfork; the inner
+    /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
+    /// silent state-divergence bug into a startup crash.
+    #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
+    pub interop_dependency_set: Option<PathBuf>,
     /// P2P CLI arguments.
     #[command(flatten)]
     pub p2p_flags: P2PArgs,
@@ -119,10 +123,6 @@ pub struct NodeCommand {
     /// SEQUENCER CLI arguments.
     #[command(flatten)]
     pub sequencer_flags: SequencerArgs,
-
-    /// Rollup boost CLI arguments - contains the builder and l2 engine arguments.
-    #[command(flatten)]
-    pub rollup_boost_flags: RollupBoostFlags,
 }
 
 impl Default for NodeCommand {
@@ -130,15 +130,14 @@ impl Default for NodeCommand {
         Self {
             l1_rpc_args: L1ClientArgs::default(),
             l2_client_args: L2ClientArgs::default(),
-            builder_client_args: BuilderClientArgs::default(),
             derivation_delegate_args: DerivationDelegateArgs::default(),
             l2_config_file: None,
             l1_config_file: None,
+            interop_dependency_set: None,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
             rpc_flags: RpcArgs::default(),
             sequencer_flags: SequencerArgs::default(),
-            rollup_boost_flags: RollupBoostFlags::default(),
         }
     }
 }
@@ -308,16 +307,13 @@ impl NodeCommand {
 
         let engine_config = EngineConfig {
             config: Arc::new(cfg.clone()),
-            builder_url: self.builder_client_args.l2_builder_rpc.clone(),
-            builder_jwt_secret: self.builder_jwt_secret()?,
-            builder_timeout: Duration::from_millis(self.builder_client_args.builder_timeout),
             l2_url: self.l2_client_args.l2_engine_rpc.clone(),
             l2_jwt_secret: jwt_secret,
-            l2_timeout: Duration::from_millis(self.l2_client_args.l2_engine_timeout),
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
-            rollup_boost: self.rollup_boost_flags.as_rollup_boost_args(),
         };
+
+        let dependency_set = self.load_dependency_set(&cfg)?;
 
         RollupNodeBuilder::new(
             cfg,
@@ -329,6 +325,7 @@ impl NodeCommand {
         )
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
+        .with_dependency_set(dependency_set)
         .build()
         .start()
         .await
@@ -338,6 +335,33 @@ impl NodeCommand {
         })?;
 
         Ok(())
+    }
+
+    /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
+    ///
+    /// Enforces the invariant that when the rollup config schedules the
+    /// Interop hardfork, the operator must supply a dependency-set JSON file.
+    /// Errors rather than panicking so the operator sees a clear message.
+    fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
+        match &self.interop_dependency_set {
+            Some(path) => {
+                let file = File::open(path).map_err(|e| {
+                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
+                })?;
+                let dep_set: DependencySet = from_reader(file).map_err(|e| {
+                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
+                })?;
+                Ok(Some(Arc::new(dep_set)))
+            }
+            None if cfg.hardforks.interop_time.is_some() => bail!(
+                "Interop is scheduled for this chain (interop_time = {:?}), but \
+                 --interop.dependency-set was not provided. Supply the dependency-set \
+                 JSON file matching op-node's --interop.dependency-set to avoid silent \
+                 state divergence on interop activation.",
+                cfg.hardforks.interop_time,
+            ),
+            None => Ok(None),
+        }
     }
 
     /// Get the L1 config, either from a file or the known chains.
@@ -394,24 +418,6 @@ impl NodeCommand {
         }
 
         Self::default_jwt_secret("l2_jwt.hex")
-    }
-
-    /// Returns the builder JWT secret for the engine API
-    /// using the provided [`PathBuf`]. If the file is not found,
-    /// it will return the default JWT secret.
-    pub fn builder_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.builder_client_args.builder_jwt_path &&
-            let Ok(secret) = std::fs::read_to_string(path)
-        {
-            return JwtSecret::from_hex(secret)
-                .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
-        }
-
-        if let Some(secret) = &self.builder_client_args.builder_jwt_secret {
-            return Ok(*secret);
-        }
-
-        Self::default_jwt_secret("builder_jwt.hex")
     }
 
     /// Uses the current directory to attempt to read

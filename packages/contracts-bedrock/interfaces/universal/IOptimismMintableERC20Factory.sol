@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IOptimismMintableERC20Factory {
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+
+interface IOptimismMintableERC20Factory is IProxyAdminOwnedBase {
     event Initialized(uint8 version);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);

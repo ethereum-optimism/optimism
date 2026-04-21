@@ -13,13 +13,45 @@ type VerifiedResult struct {
 	L2Heads     map[eth.ChainID]eth.BlockID `json:"l2Heads"`
 }
 
+// InvalidHead pairs a block identifier with the output preimage fields needed
+// for optimistic root computation in the superroot API. The full OutputV0 can
+// be reconstructed on demand via OutputV0() since BlockHash is already in BlockID.
+type InvalidHead struct {
+	eth.BlockID
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+}
+
 // Result represents the result of interop validation at a specific timestamp given current data.
 // it contains all the same information as VerifiedResult, but also contains a list of invalid heads.
 type Result struct {
 	Timestamp    uint64                      `json:"timestamp"`
 	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
 	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
-	InvalidHeads map[eth.ChainID]eth.BlockID `json:"invalidHeads"`
+	InvalidHeads map[eth.ChainID]InvalidHead `json:"invalidHeads"`
+}
+
+// PendingTransition is the generic write-ahead-log entry for an effectful
+// interop decision. Recovery and steady-state both use the same apply path.
+//
+// Phase 2 keeps this intentionally small:
+// - advance/invalidate carry their Result directly
+// - rewind carries the accepted timestamp to rewind from
+// Later phases can expand this into a richer explicit transition plan.
+type PendingTransition struct {
+	Decision Decision    `json:"decision"`
+	Result   *Result     `json:"result,omitempty"`
+	Rewind   *RewindPlan `json:"rewind,omitempty"`
+}
+
+// RewindPlan is the explicit rewind transition persisted in the WAL.
+// It captures the target verified frontier and per-chain logsDB target heads so
+// recovery can apply the same rewind path without recomputing it from live
+// state.
+type RewindPlan struct {
+	RewindAtOrAfter  uint64                      `json:"rewindAtOrAfter"`
+	ResetAllChainsTo *uint64                     `json:"resetAllChainsTo,omitempty"`
+	TargetHeads      map[eth.ChainID]eth.BlockID `json:"targetHeads,omitempty"`
 }
 
 func (r *Result) IsValid() bool {

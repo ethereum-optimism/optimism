@@ -1,0 +1,101 @@
+---
+title: Consensus-layer sync
+description: Learn about the consensus-layer sync mode.
+---
+
+This page documents the consensus-layer sync mode, which is the default sync method for op-node but not the recommended approach for most node operators.
+
+## Overview
+
+Consensus-layer sync is a sync approach where `op-node` reads transaction data from L1 and derives blocks, then inserts them into the execution client. Unlike execution-layer sync (snap sync), this method does not rely on P2P networking to download state or block data from other L2 nodes.
+
+While consensus-layer sync is still the default mode, **execution-layer sync (snap sync) is recommended** for faster synchronization and better performance.
+
+## When to use consensus-layer sync
+
+This sync mode might be preferred in the following scenarios:
+
+*   **Independent verification**: Decentralized developer groups who need to independently verify the entire chain by deriving all data from L1
+*   **No P2P connectivity**: Environments where P2P networking is restricted or unavailable
+*   **L1-only trust model**: Applications that prefer to trust only L1 data without relying on L2 peer nodes
+*   **Debugging and research**: Analyzing how blocks are derived from L1 data
+
+<Warning>
+  Consensus-layer sync is significantly slower than execution-layer sync (snap sync). For most node operators, [snap sync](/node-operators/guides/management/snap-sync) is the recommended approach for faster synchronization.
+</Warning>
+
+## Configuration
+
+### Configuration for op-node
+
+Set the following flag on `op-node`:
+
+```shell
+--syncmode=consensus-layer
+```
+
+<Info>
+  The `--syncmode=consensus-layer` is the default setting for `op-node`. You don't need to specify it explicitly unless you want to be explicit about the sync mode or are overriding a different configuration.
+</Info>
+
+### Configuration for op-geth
+
+Set the following flag on `op-geth`:
+
+```shell
+--syncmode=full
+```
+
+<Info>
+  The `--syncmode=full` flag is not the default setting and must be explicitly configured. This ensures blocks are inserted by `op-node` rather than synced via P2P.
+</Info>
+
+### Configuration for Nethermind
+
+Set the following flags on `Nethermind`:
+
+```shell
+--config op-mainnet
+--Sync.SnapSync=false
+--Sync.FastSync=false
+```
+
+<Info>
+  Replace `op-mainnet` with the appropriate configuration for your network (e.g., `op-sepolia` for OP Sepolia).
+</Info>
+
+## How consensus-layer sync works
+
+The consensus-layer sync process:
+
+1. **L1 monitoring**: `op-node` continuously monitors the L1 chain for transaction batches
+2. **Block derivation**: `op-node` derives L2 blocks from the L1 transaction data
+3. **Block insertion**: Derived blocks are inserted into the execution client one by one
+4. **State building**: The execution client builds state by executing each block sequentially
+
+This approach ensures that every block is derived from L1 and independently verified, but it's much slower than downloading state snapshots from peers.
+
+## Performance considerations
+
+*   **Sync time**: Significantly slower than snap sync or archive sync with execution-layer mode
+*   **Network requirements**: Requires reliable L1 RPC access but minimal L2 P2P connectivity
+*   **Resource usage**: Lower P2P bandwidth usage but more L1 RPC calls
+*   **OP Mainnet**: For OP Mainnet, you'll still need the [bedrock datadir](/node-operators/guides/management/snapshots) for state before the Bedrock upgrade
+
+## Comparison with other sync modes
+
+| Feature | Consensus-Layer (Legacy) | Execution-Layer (Snap Sync) | Archive with Execution-Layer |
+|---------|-------------------------|----------------------------|------------------------------|
+| Data source | L1 only | L2 P2P + L1 | L2 P2P + L1 |
+| Sync speed | Slowest | Fastest | Medium |
+| State pruning | Yes (by default) | Yes | No |
+| Historical state | Not available | Not available | Full history |
+| P2P required | No | Yes | Yes |
+| Verification | Full L1 derivation | Cryptographic verification | Full execution |
+
+## Next steps
+
+*   See the [Snap Sync guide](/node-operators/guides/management/snap-sync) for the recommended fast sync method
+*   See the [Archive Node guide](/node-operators/guides/management/archive-node) for running an archive node
+*   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization
+*   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions)

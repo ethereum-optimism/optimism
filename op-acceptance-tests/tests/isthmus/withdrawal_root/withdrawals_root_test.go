@@ -12,7 +12,7 @@ import (
 )
 
 func TestWithdrawalRoot(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimal(t)
 
 	// Skip this test if CGT is enabled

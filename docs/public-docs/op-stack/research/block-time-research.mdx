@@ -1,0 +1,74 @@
+---
+title: Block time research
+description: Sunnyside Labs' (formerly Test in Prod) and OP Labs 1 second block time research.
+---
+Sunnyside Labs (formerly Test in Prod) and OP Labs have researched whether we can drop OP Chains' block time to one second.
+
+To validate if dropping the block time is safe, we should check if nodes can build a block under a second when the block spends maximum gas in the production environment–i.e., block building time should take less than one second when the block spends maximum gas. We benchmarked the block-building time of every block at Base and grouped the data in various gas ranges using multiple clients–op-geth & op-reth.
+
+## Method and raw data
+
+This [GitHub repository](https://github.com/testinprod-io/block-building-stats/tree/main) contains the test methods, data sets, client versions, and raw data.
+
+The following benchmarks are available in this [notebook](https://github.com/testinprod-io/block-building-stats/blob/main/stats.ipynb).
+
+## Benchmarks
+
+| ![Figure 1: op-geth / archive node / block 5492540 \~ 9816497.](/public/img/op-stack/protocol/block-time-research-figure-1.png) |
+| :----------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 1**: op-geth / archive node / block 5492540 \~ 9816497                             |
+
+| ![Figure 2: op-geth / full node / block 5492540 \~ 9816497.](/public/img/op-stack/protocol/block-time-research-figure-2.png) |
+| :-------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 2**: op-geth / full node / block 5492540 \~ 9816497                             |
+
+Figures 1 and 2 show the Base nodes' block-building time distribution with op-geth archive node & full node from block 5492540 to 9816497. We can see that the average block building time takes 0.58 and 0.36 seconds each for blocks that spent 25M \~ 30M gas, which is less than one second.
+
+| ![Figure 3: op-reth / archive node / block 5492540 \~ 9816497.](/public/img/op-stack/protocol/block-time-research-figure-3.png) |
+| :----------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 3**: op-reth / archive node / block 5492540 \~ 9816497                             |
+
+Figure 3 shows the Base nodes' block-building time distribution using the op-reth archive node from block 5492540 to 9816497. Compared to op-geth's archive node, we can see that op-reth shows a better performance in all ranges.
+
+| ![Figure 4: op-geth / archive node / block 13686867 \~ 15074141.](/public/img/op-stack/protocol/block-time-research-figure-4.png) |
+| :------------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 4:** op-geth / archive node / block 13686867 \~ 15074141                             |
+
+| ![Figure 5: op-geth / full node / block 14567037 \~ 15074141.](/public/img/op-stack/protocol/block-time-research-figure-5.png) |
+| :---------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 5:** op-geth / full node / block 14567037 \~ 15074141                             |
+
+Throughout the research, we found that the node meaningfully takes longer to build a block as the chain stores more states and transactions to access more historical data. Therefore, we benchmarked the latest blocks in Figures 4 and 5. On average, both the full node and archive node could build a congested block on time. It is worth noting that the average block-building time of high gas spending range is similar to the older blocks, but the average block-building time is higher on the newer blocks.
+
+| ![Figure 6: op-geth / archive node / block 13686867 \~ 15074141 / histogram of 25m\~30m gas range.](/public/img/op-stack/protocol/block-time-research-figure-6.png) |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------: |
+|                              **Figure 6**: op-geth / archive node / block 13686867 \~ 15074141 / histogram of 25m\~30m gas range                             |
+
+If we zoom in on the 25m\~30m gas range of the archive node, the average could be potentially concerning–0.51 sec. It is worth noting that we can see the average is diverged from p50 (0.4 sec) because of outliers in the histogram (Figure 6), and p50 is a more important metric than the average for the block progression (Sequencer) because of its asynchronous nature.
+
+When the sequencer seals the block after the block time, it stops to include the transactions and yields the current processing transactions to the next block. Therefore, the sequencer can include most transactions that took less than one second in the block on time and include outliers in the next block. Therefore, we can expect the system to be able to build blocks in one second in most cases, even in the highest gas range (25m\~30m gas).
+
+As a result, we can learn that nodes can build the latest blocks of Base Mainnet with the highest level of production loads in one second with an [i3en.3xlarge instance](https://aws.amazon.com/ec2/instance-types/i3en/) (or similar specs).
+
+## Expected impacts
+
+### Verifier
+
+*   Sync from genesis: If OP Chains' block time drops to one second, verifiers may need longer to sync the chain from the genesis with L1 derivation. However, we expect it won't be a notable issue for verifiers as OP Stack supports the [engine sync](/node-operators/guides/management/snap-sync).
+*   Following the tip: The research suggests that verifiers are less likely to have a problem following the tip because nodes could build a block under one second at the highest gas range, especially since most verifiers are full nodes.
+
+### Sequencer
+
+*   Block progression: As the previous paragraph mentioned, the data suggests we don't expect problems on a shorter block time.
+
+## Limitation
+
+The data suggests we don't expect a problem dropping the block time to one second for now, as the average block building time of the latest blocks takes 0.19 seconds for the Base Mainnet. One concerning point: the benchmark shows that it takes longer to build a block as the chain progresses. When the chain stores more states over time and usage surges to a peak like 2017 Ethereum, we might need performance patches then.
+
+However, it is also worth noting that the research assumes that the Base Mainnet handles 2x of their current traffic–dropping the block time to half but still spending gas as current (when it runs two seconds of block time). Plus, the Base Mainnet's average block gas spending is 10M. To make all blocks reach the highest gas level that this research focuses on (25M), it's another 2.5x.
+
+Therefore, this research assumes the chain processes approximately 5x traffic compared to the current Base Mainnet (2x in block time \* 2.5x in gas spending).
+
+## Reference
+
+Base's prior research for raising gas limit: [replayor](https://github.com/danyalprout/replayor)

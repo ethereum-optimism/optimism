@@ -2,7 +2,7 @@
 name = "op-alloy-rpc-types"
 description = "Optimism RPC types"
 
-version = "0.23.1"
+version = "0.24.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -32,6 +32,9 @@ serde = { workspace = true, features = ["derive"] }
 
 # RPC
 jsonrpsee = { workspace = true, optional = true }
+reth-rpc-traits = { workspace = true, optional = true }
+alloy-signer = { workspace = true, optional = true }
+alloy-network = { workspace = true, optional = true }
 
 # arbitrary
 arbitrary = { workspace = true, features = ["derive"], optional = true }
@@ -61,7 +64,8 @@ std = [
 	"derive_more/std",
 	"serde/std",
 	"serde_json/std",
-	"thiserror/std"
+	"thiserror/std",
+	"reth-rpc-traits?/std"
 ]
 arbitrary = [
 	"std",
@@ -83,3 +87,4 @@ serde = [
 	"alloy-rpc-types-eth/serde"
 ]
 jsonrpsee = ["dep:jsonrpsee"]
+reth = ["dep:reth-rpc-traits", "dep:alloy-signer", "dep:alloy-network"]

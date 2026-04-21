@@ -86,22 +86,6 @@ type DevDeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
-type RevenueShareDeployConfig struct {
-	UseRevenueShare    bool           `json:"useRevenueShare"`
-	ChainFeesRecipient common.Address `json:"chainFeesRecipient"`
-}
-
-var _ ConfigChecker = (*RevenueShareDeployConfig)(nil)
-
-func (d *RevenueShareDeployConfig) Check(log log.Logger) error {
-	if d.UseRevenueShare {
-		if d.ChainFeesRecipient == (common.Address{}) {
-			return fmt.Errorf("%w: ChainFeesRecipient cannot be address(0)", ErrInvalidDeployConfig)
-		}
-	}
-	return nil
-}
-
 type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
@@ -407,6 +391,9 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisJovianTimeOffset is the number of seconds after genesis block that the Jovian hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Jovian.
 	L2GenesisJovianTimeOffset *hexutil.Uint64 `json:"l2GenesisJovianTimeOffset,omitempty"`
+	// L2GenesisKarstTimeOffset is the number of seconds after genesis block that the Karst hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Karst.
+	L2GenesisKarstTimeOffset *hexutil.Uint64 `json:"l2GenesisKarstTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
@@ -468,6 +455,8 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
 	case forks.Jovian:
 		return (*uint64)(d.L2GenesisJovianTimeOffset)
+	case forks.Karst:
+		return (*uint64)(d.L2GenesisKarstTimeOffset)
 	case forks.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
@@ -495,6 +484,8 @@ func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, of
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
 	case forks.Jovian:
 		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
+	case forks.Karst:
+		d.L2GenesisKarstTimeOffset = (*hexutil.Uint64)(offset)
 	case forks.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
@@ -571,6 +562,10 @@ func (d *UpgradeScheduleDeployConfig) JovianTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisJovianTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) KarstTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisKarstTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
@@ -605,6 +600,7 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
 		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
+		{L2GenesisTimeOffset: d.L2GenesisKarstTimeOffset, Name: string(L2AllocsKarst)},
 		{L2GenesisTimeOffset: d.L2GenesisInteropTimeOffset, Name: string(L2AllocsInterop)},
 	}
 }
@@ -786,7 +782,6 @@ type L2InitializationConfig struct {
 	L2CoreDeployConfig
 	FeeMarketConfig
 	AltDADeployConfig
-	RevenueShareDeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1163,6 +1158,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
 		JovianTime:              d.JovianTime(l1StartTime),
+		KarstTime:               d.KarstTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,
@@ -1229,7 +1225,6 @@ type L1Deployments struct {
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
-	OptimismPortalInterop             common.Address `json:"OptimismPortalInterop"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
 	ETHLockbox                        common.Address `json:"ETHLockbox"`
 	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
@@ -1257,7 +1252,6 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
 		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
 		OptimismPortal:                    contracts.OptimismPortalImpl,
-		OptimismPortalInterop:             contracts.OptimismPortalInteropImpl,
 		OptimismPortalProxy:               contracts.OptimismPortalProxy,
 		ETHLockbox:                        contracts.EthLockboxImpl,
 		ETHLockboxProxy:                   contracts.EthLockboxProxy,

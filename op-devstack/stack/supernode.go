@@ -1,77 +1,31 @@
 package stack
 
 import (
-	"fmt"
-	"log/slog"
-
 	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
-
-// SupernodeID identifies a Supernode by name, is type-safe, and can be value-copied and used as map key.
-type SupernodeID genericID
-
-var _ GenericID = (*SupernodeID)(nil)
-
-const SupernodeKind Kind = "Supernode"
-
-func NewSupernodeID(key string, chains ...eth.ChainID) SupernodeID {
-	var s string
-	for _, chain := range chains {
-		s += chain.String()
-	}
-	return SupernodeID(fmt.Sprintf("%s-%s", key, s))
-}
-
-func (id SupernodeID) String() string {
-	return genericID(id).string(SupernodeKind)
-}
-
-func (id SupernodeID) Kind() Kind {
-	return SupernodeKind
-}
-
-func (id SupernodeID) LogValue() slog.Value {
-	return slog.StringValue(id.String())
-}
-
-func (id SupernodeID) MarshalText() ([]byte, error) {
-	return genericID(id).marshalText(SupernodeKind)
-}
-
-func (id *SupernodeID) UnmarshalText(data []byte) error {
-	return (*genericID)(id).unmarshalText(SupernodeKind, data)
-}
-
-func SortSupernodeIDs(ids []SupernodeID) []SupernodeID {
-	return copyAndSortCmp(ids)
-}
-
-func SortSupernodes(elems []Supernode) []Supernode {
-	return copyAndSort(elems, lessElemOrdered[SupernodeID, Supernode])
-}
-
-var _ SupernodeMatcher = SupernodeID("")
-
-func (id SupernodeID) Match(elems []Supernode) []Supernode {
-	return findByID(id, elems)
-}
 
 type Supernode interface {
 	Common
-	ID() SupernodeID
 	QueryAPI() apis.SupernodeQueryAPI
 }
 
-// InteropTestControl provides integration test control methods for the interop activity.
-// This interface is for integration test control only.
+// InteropTestControl is the narrow integration-test surface on a running
+// supernode. Tests get direct access to the interop activity via
+// InteropActivity; see op-supernode/supernode/activity/interop for the
+// methods available on the returned pointer (PauseAt, Resume,
+// BackfillAttempts, BackfillCompleted, ActivationTimestamp,
+// RuntimeActivationTimestamp, FirstSealedBlock, LatestSealedBlock, ...).
 type InteropTestControl interface {
-	// PauseInteropActivity pauses the interop activity at the given timestamp.
-	// When the interop activity attempts to process this timestamp, it returns early.
-	// This function is for integration test control only.
-	PauseInteropActivity(ts uint64)
+	// InteropActivity returns the current interop activity, or nil if the
+	// supernode is not running or interop is not configured. Callers must
+	// not cache the pointer across RestartInteropActivity, which swaps the
+	// activity for a fresh instance.
+	InteropActivity() *interop.Interop
 
-	// ResumeInteropActivity clears any pause on the interop activity, allowing normal processing.
-	// This function is for integration test control only.
-	ResumeInteropActivity()
+	// RestartInteropActivity stops the running interop activity, optionally
+	// wipes its on-disk logs DBs, and launches a fresh instance against the
+	// still-running supernode (HTTP server, chain containers, and all other
+	// activities remain up).
+	RestartInteropActivity(wipeLogsDBs bool) error
 }

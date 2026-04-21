@@ -20,6 +20,9 @@
 /// Spec: <https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#executingdescriptor>
 #[derive(Default, Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExecutingDescriptor {
+    /// The chain ID of the executing chain.
+    #[serde(rename = "chainID", with = "alloy_serde::quantity")]
+    chain_id: u64,
     /// The timestamp used to enforce timestamp [invariant](https://github.com/ethereum-optimism/specs/blob/main/specs/interop/derivation.md#invariants)
     #[serde(with = "alloy_serde::quantity")]
     timestamp: u64,
@@ -30,8 +33,8 @@ pub struct ExecutingDescriptor {
 }
 
 impl ExecutingDescriptor {
-    /// Create a new [`ExecutingDescriptor`] from the timestamp and timeout
-    pub const fn new(timestamp: u64, timeout: Option<u64>) -> Self {
-        Self { timestamp, timeout }
+    /// Create a new [`ExecutingDescriptor`] with chain ID, timestamp and timeout
+    pub const fn new(chain_id: u64, timestamp: u64, timeout: Option<u64>) -> Self {
+        Self { chain_id, timestamp, timeout }
     }
 }

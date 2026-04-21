@@ -16,6 +16,7 @@ const (
 	Holocene Name = "holocene"
 	Isthmus  Name = "isthmus"
 	Jovian   Name = "jovian"
+	Karst    Name = "karst"
 	Interop  Name = "interop"
 	// ADD NEW MAINLINE FORKS TO [All] BELOW!
 
@@ -37,6 +38,7 @@ var All = []Name{
 	Holocene,
 	Isthmus,
 	Jovian,
+	Karst,
 	Interop,
 	// ADD NEW MAINLINE FORKS HERE!
 }

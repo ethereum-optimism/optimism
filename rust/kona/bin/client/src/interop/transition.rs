@@ -97,10 +97,17 @@ where
         );
     }
 
+    let agreed_l2_output_root = boot
+        .agreed_pre_state
+        .active_l2_output_root()
+        .ok_or(FaultProofProgramError::StateTransitionFailed)?
+        .output_root;
+
     // Create a new derivation driver with the given boot information and oracle.
     let cursor = new_oracle_pipeline_cursor(
         rollup_config.as_ref(),
         safe_head,
+        agreed_l2_output_root,
         &mut l1_provider,
         &mut l2_provider,
     )
@@ -117,6 +124,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
+        // Interop fault proof: dependency set is part of the boot info.
+        // This is used to gate the CrossL2Inbox upgrade-tx pair
+        // (emitted only when `dependencies.len() > 1`).
+        Some(Arc::new(boot.dependency_set.clone())),
     )
     .await
     .map_err(Box::new)?;

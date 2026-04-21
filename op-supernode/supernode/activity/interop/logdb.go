@@ -82,80 +82,113 @@ func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB,
 }
 
 var (
-	// ErrPreviousTimestampNotSealed is returned when loadLogs is called but the
-	// previous timestamp has not been sealed in the logsDB.
+	// ErrPreviousTimestampNotSealed is returned when a logsDB write path needs a
+	// previous timestamp that has not been sealed yet.
 	ErrPreviousTimestampNotSealed = errors.New("previous timestamp not sealed in logsDB")
 
 	// ErrParentHashMismatch is returned when the block's parent hash does not match
 	// the hash of the last sealed block in the logsDB.
 	ErrParentHashMismatch = errors.New("block parent hash does not match logsDB")
+
+	// ErrStaleLogsDB is returned when the logsDB has data for a different block
+	// at the same height (e.g., after a chain reorg). The caller should repair
+	// the logsDB by trimming to the verified frontier and retrying.
+	ErrStaleLogsDB = errors.New("logsDB has stale block data from a reorg")
 )
 
-// loadLogs loads and persists logs for the given timestamp for all chains.
-// The previous timestamp MUST already be sealed in the database; if not, an error is returned.
-// For the activation timestamp (first timestamp), the logsDB must be empty.
-func (i *Interop) loadLogs(ts uint64) error {
-	for chainID, chain := range i.chains {
-		db := i.logsDBs[chainID]
-
-		// Verify the previous timestamp is sealed (or DB is empty for activation timestamp)
-		// Returns the hash of the previous sealed block, or nil if DB is empty
-		latestBlock, hasBlocks, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime())
-		if err != nil {
+// persistFrontierLogs persists the exact accepted frontier blocks for a
+// timestamp. Frontier logs are only written here, during DecisionAdvance
+// transition apply — verification itself is read-only.
+func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) error {
+	for chainID, blockID := range blocksAtTS {
+		if err := i.sealFetchedBlockIntoLogsDB(chainID, blockID, ts); err != nil {
 			return err
 		}
-
-		// Get the block at timestamp ts
-		block, err := chain.LocalSafeBlockAtTimestamp(i.ctx, ts)
-		if err != nil {
-			return fmt.Errorf("chain %s: failed to get block at timestamp %d: %w", chainID, ts, err)
-		}
-
-		// Fetch receipts for the block
-		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, block.ID())
-		if err != nil {
-			return fmt.Errorf("chain %s: failed to fetch receipts for block %d: %w", chainID, block.Number, err)
-		}
-
-		// if the database has blocks, check if we can skip or need to verify continuity
-		if hasBlocks {
-			// if the latest block is the same or beyond the block we are loading, skip loading
-			if latestBlock.Number >= block.Number {
-				continue
-			}
-
-			// Verify chain continuity: block's parent must match the last sealed block
-			if blockInfo.ParentHash() != latestBlock.Hash {
-				return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB last sealed block hash %s: %w",
-					chainID, block.Number, blockInfo.ParentHash(), latestBlock.Hash, ErrParentHashMismatch)
-			}
-		}
-
-		// Process logs and seal the block
-		// If DB is empty (!hasBlocks), this is the first block - treat it as genesis for the logsDB
-		isFirstBlock := !hasBlocks
-		if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
-			return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, block.Number, err)
-		}
-
-		i.log.Debug("loaded logs for chain",
-			"chain", chainID,
-			"block", block.Number,
-			"timestamp", ts,
-		)
 	}
-
 	return nil
 }
 
-func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64) (eth.BlockID, bool, error) {
+// sealFetchedBlockIntoLogsDB fetches receipts for blockID and seals logs using ts for monotonicity checks
+// (typically the interop round timestamp, or the block timestamp during backfill).
+func (i *Interop) sealFetchedBlockIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, ts uint64) error {
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return nil
+	}
+	blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)
+	if err != nil {
+		return fmt.Errorf("chain %s: failed to fetch receipts for block %v: %w", chainID, blockID, err)
+	}
+	return i.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, receipts, ts, false)
+}
+
+// sealBlockDataIntoLogsDB seals logs for an already-fetched block using ts for verifyCanAddTimestamp.
+// isBackfill relaxes the first-seal check to allow any ts >= activation (not just ts == activation).
+func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, ts uint64, isBackfill bool) error {
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return nil
+	}
+	db := i.logsDBs[chainID]
+
+	latestBlock, hasBlocks, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime(), isBackfill)
+	if err != nil {
+		return err
+	}
+
+	if hasBlocks {
+		if latestBlock.Number > blockID.Number {
+			seal, err := db.FindSealedBlock(blockID.Number)
+			if err == nil && seal.Hash == blockID.Hash {
+				return nil
+			}
+			return fmt.Errorf("chain %s: logsDB has stale data at height %d: %w",
+				chainID, blockID.Number, ErrStaleLogsDB)
+		}
+		if latestBlock.Number == blockID.Number {
+			if latestBlock.Hash == blockID.Hash {
+				return nil
+			}
+			return fmt.Errorf("chain %s: logsDB has block %s at height %d, expected %s: %w",
+				chainID, latestBlock.Hash, latestBlock.Number, blockID.Hash, ErrStaleLogsDB)
+		}
+
+		if blockInfo.ParentHash() != latestBlock.Hash {
+			return fmt.Errorf("chain %s: block %d parent hash %s does not match logsDB last sealed block hash %s: %w",
+				chainID, blockID.Number, blockInfo.ParentHash(), latestBlock.Hash, ErrParentHashMismatch)
+		}
+	}
+
+	isFirstBlock := !hasBlocks
+	if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
+		return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, blockID.Number, err)
+	}
+	return nil
+}
+
+func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint64, blockTime uint64, isBackfill bool) (eth.BlockID, bool, error) {
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
-	// If no blocks in DB:
-	// - At activation timestamp: OK, proceed to load the first block
-	// - Not at activation timestamp: ERROR, we're missing data
 	if !hasBlocks {
-		if ts == i.activationTimestamp {
+		// The main loop starts at runtimeActivationTimestamp (which may have been
+		// advanced past the protocol activation by backfill). If the DB is empty,
+		// this is the only timestamp the main loop would legitimately seal first.
+		if ts == i.runtimeActivationTimestamp {
+			return eth.BlockID{}, hasBlocks, nil
+		}
+		// Backfill's first block is TargetBlockNumber(T_lo), which floors the
+		// T_lo->blockNumber mapping. When T_lo clamps to activationTimestamp and
+		// activation is not aligned to (genesis + k*blockTime), the floored block
+		// has Time() < activationTimestamp — it is the block representing the
+		// chain state as of activation (the last block whose header is in force
+		// when the fork takes effect), and is the correct pairing anchor for the
+		// first post-activation block. Accept any ts within one blockTime before
+		// activation; strictly earlier seals still error. The ts+blockTime form
+		// underflow-protects (ts, blockTime both uint64) and generalises cleanly
+		// to chains whose activation happens to land on a block boundary
+		// (ts == activationTimestamp), in which case the condition is trivially
+		// satisfied.
+		if isBackfill && ts+blockTime > i.activationTimestamp {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: logsDB is empty but expected blocks before timestamp %d: %w",
@@ -184,9 +217,11 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 			chainID, ts-blockTime, ts, blockTime, seal.Timestamp, ErrPreviousTimestampNotSealed)
 	}
 
-	// if the gap is less than a block time, we can append the timestamp to the database, but warn the caller
+	// If the gap is less than a block time, we can still append the timestamp to the database.
+	// This is expected for chains whose block time is greater than one second, since the
+	// interop timestamp may legitimately fall between consecutive L2 blocks.
 	if gap < blockTime {
-		i.log.Warn("verifyCanAddTimestamp: requested for timestamp which is not a multiple of block time",
+		i.log.Debug("verifyCanAddTimestamp: timestamp falls between L2 blocks for this chain; this can be expected for chains with block times greater than one second",
 			"chain", chainID,
 			"timestamp", ts,
 			"block time", blockTime,
@@ -199,18 +234,28 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 
 // processBlockLogs processes the receipts for a block and stores the logs in the database.
 // If isFirstBlock is true, this is the first block being added to the logsDB (at activation timestamp),
-// and we treat it as genesis by using an empty parent block. This allows the logsDB to start at any
-// block number, not just genesis.
+// and we first seal a "virtual parent" block so that logs have a sealed block to reference.
+// This allows the logsDB to start at any block number, not just genesis.
 func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, isFirstBlock bool) error {
 	blockNum := blockInfo.NumberU64()
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockNum}
 	parentHash := blockInfo.ParentHash()
 
-	// For the first block in the logsDB (activation block), use empty parent to treat it as genesis.
-	// This allows OpenBlock to work correctly even when we start at a non-genesis block.
 	parentBlock := eth.BlockID{Hash: parentHash, Number: blockNum - 1}
 	sealParentHash := parentHash
-	if blockNum == 0 || isFirstBlock {
+
+	// For the first block in the logsDB (activation block), we need to first seal
+	// a virtual parent block so that logs have a sealed block to reference.
+	// When the DB is empty, SealBlock allows any block to be added without parent validation.
+	if isFirstBlock && blockNum > 0 {
+		// Seal the parent as a "virtual genesis" - this works because DB is empty
+		if err := db.SealBlock(common.Hash{}, parentBlock, blockInfo.Time()); err != nil {
+			return fmt.Errorf("failed to seal virtual parent for first block: %w", err)
+		}
+		// parentBlock stays as-is (references the now-sealed parent)
+		// sealParentHash stays as parentHash
+	} else if blockNum == 0 {
+		// Actual genesis block - no parent, no logs allowed
 		parentBlock = eth.BlockID{}
 		sealParentHash = common.Hash{}
 	}
@@ -230,7 +275,6 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 		}
 	}
 
-	// Seal the block - use empty parent hash for first block
 	if err := db.SealBlock(sealParentHash, blockID, blockInfo.Time()); err != nil {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}

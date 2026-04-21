@@ -107,6 +107,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InteropNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
     "type": "error"
   },

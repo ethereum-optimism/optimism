@@ -206,7 +206,9 @@ func TestRandomConfigDescription(t *testing.T) {
 		config.IsthmusTime = &i
 		j := uint64(1677119342)
 		config.JovianTime = &j
-		it := uint64(1677119343)
+		k := uint64(1677119343)
+		config.KarstTime = &k
+		it := uint64(1677119344)
 		config.InteropTime = &it
 
 		out := config.Description(nil)
@@ -220,6 +222,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Holocene: @ %d ~ ", h))
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
 		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
+		require.Contains(t, out, fmt.Sprintf("Karst: @ %d ~ ", k))
 		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
 	})
 }
@@ -614,7 +617,8 @@ func TestConfig_Check(t *testing.T) {
 				holoceneTime := uint64(7)
 				isthmusTime := uint64(8)
 				jovianTime := uint64(9)
-				interopTime := uint64(10)
+				karstTime := uint64(10)
+				interopTime := uint64(11)
 				cfg.RegolithTime = &regolithTime
 				cfg.CanyonTime = &canyonTime
 				cfg.DeltaTime = &deltaTime
@@ -624,6 +628,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.HoloceneTime = &holoceneTime
 				cfg.IsthmusTime = &isthmusTime
 				cfg.JovianTime = &jovianTime
+				cfg.KarstTime = &karstTime
 				cfg.InteropTime = &interopTime
 			},
 			expectedErr: nil,

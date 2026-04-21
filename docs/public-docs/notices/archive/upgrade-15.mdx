@@ -1,0 +1,122 @@
+---
+title: Upgrade 15 - Isthmus Hard Fork
+description: Learn how to prepare for Isthmus hard fork breaking changes.
+---
+
+This page outlines breaking changes related to the Isthmus network upgrade for chain operators and node operators. The upgrade proposal is available [here](https://gov.optimism.io/t/upgrade-proposal-15-isthmus-hard-fork/9804) and the governance vote is available [here](https://gov.optimism.io/t/proposal-preview-implement-prague-features-on-the-op-stack/9703).
+
+If you experience difficulty at any stage of this process, please reach out to developer support.
+
+<Info>
+  The Isthmus hard fork for the Sepolia Superchain will be activated at **Thu Apr 17 16:00:00 UTC 2025** (`1744905600`) and the Mainnet Superchain will be activated at **Fri May 9 2025 16:00:01 UTC** (`1746806401`).
+  This is for all chains who have opted into the [hard fork inheritance behavior](/superchain/superchain-registry#hard-fork-activation-inheritance-behavior).
+</Info>
+
+## What's included in Isthmus
+
+Isthmus contains these main changes:
+
+*   **Implement Prague features on the OP Stack**: This includes the EIPs that are relevant to the L2 that are being added to Ethereum with its Pectra activation. Learn more about this [here](https://gov.optimism.io/t/proposal-preview-implement-prague-features-on-the-op-stack/9703).
+*   **L2 Withdrawals Root in Block Header**: This lowers the lift for chain operators by allowing them to run a full node to operate `op-dispute-mon` making it easier to guarantee the security of the fault proofs for the chains in the Superchain as the number of chains scales. Learn more about this [here](https://gov.optimism.io/t/proposal-preview-l2-withdrawals-root-in-block-header/9730).
+*   **Operator Fee**: A new component to the fee formula for the OP Stack which is a first step towards better resource pricing. This improves the OP Stack ability to support chains using Alt-DA or using ZK proving. Learn more about this [here](https://gov.optimism.io/t/proposal-preview-operator-fee/9715).
+
+For more information on the Isthmus implementation details, please review [Isthmus specification](https://specs.optimism.io/protocol/isthmus/overview.html).
+
+## For chain operators
+
+Chain operators must upgrade their nodes ahead of the activation times to a release that contains the Isthmus changes and has the activation times for their chains baked in, or set the activation times manually via overrides. The details are outlined in the node operator section below. Additionally, chain operators must update `op-batcher` to [`v1.12.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.12.0) and must update `op-challenger` to [`v1.4.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.4.0). 
+
+In addition to this, the L1 smart contract upgrades in [upgrade 14](/notices/archive/upgrade-14) are required to utilize this new functionality.
+
+### For permissionless fault proof enabled chains
+
+Chains running permissionless fault proofs will need to deploy new dispute game contracts with new absolute prestates. The new 64 bit version of cannon will be utilized moving forward. The Sepolia Superchain, will utilize [op-program/v1.6.0-2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2). The following permissionless fault proof Sepolia chains are: `Base Sepolia`, `Ink Sepolia`, and `OP Sepolia`.
+
+<Steps>
+  <Step title="Verify the new absolute prestate">
+  <Info>
+      As of upgrade 14, the 64 bit multi-threaded version of cannon is utilized.
+    </Info>
+  
+    The absolute prestate is generated with the [op-program/v1.6.0-rc.2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2). You can use this new absolute prestate (`0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6`) for the following chains:
+  
+    *   Sepolia: Base, Creator Chain, OP, Metal, Mode, Zora, Ethernity, Unichain, Ink, and Minato (Soneium)
+  
+    You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) in the root of the monorepo on the `op-program/v1.6.0-rc.2` tag:
+  
+    ```shell
+    make reproducible-prestate
+    ```
+  
+    You should expect the following output at the end of the command:
+  
+    ```shell
+    Cannon Absolute prestate hash: 
+    0x03513e996556589f633fe1d38d694f63bc93cca5df559af37631b30875a829e9
+    Cannon64 Absolute prestate hash: 
+    0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6
+    CannonInterop Absolute prestate hash: 
+    0x0399cfb018011977a027d1e7a85eb7ff101aec9bfc7d6500abac944c47a4581f
+    ```
+  </Step>
+
+  <Step title="Upload your new preimage file">
+  During the previous step, you also generated the preimage of the absolute prestate, which is basically the op-program serialized into a binary file. You'll find that new file at `optimism/op-program/bin/prestate-mt64.bin.gz`. Rename that file to have the absolute prestate hash as the filename so it looks like `0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6.bin.gz`.
+  
+    Upload that file to where you're storing your other absolute preimage files. This should be the location where you're pointing your `--cannon-prestates-url` at. The `op-challenger` will grab this file and use it when it needs to challenge games.
+  </Step>
+
+  <Step title="Deploy new dispute game contracts">
+  You will then take the absolute prestate and deploy new `FaultDisputeGame` and `PermissionedDisputeGame` contracts with that value.
+  </Step>
+
+  <Step title="Update the DisputeGameFactory">
+  You will then need to update the `DisputeGameFactory` to point to the new `FaultDisputeGame` and `PermissionedDisputeGame` contracts by calling `DisputeGameFactory.setImplementation`.
+  </Step>
+
+  <Step title="Execute the upgrade">
+  Once your `op-challenger` is ready with the new preimage, you can execute the "Set Dispute Game Implementation" transaction. Please simulate and validate that the expected output prior to executing the transaction.
+  </Step>
+</Steps>
+
+The new op-program release that contains the Mainnet activation timestamps will be available soon.
+
+## For node operators
+
+Node operators will need to upgrade to the respective Isthmus releases before the activation dates.
+
+These following steps are necessary for every node operator:
+
+<Steps>
+  <Step title="Update to the latest release">
+  The releases contain both the Isthmus Mainnet and Sepolia Superchain activation timestamps.
+  
+    *   [`op-node` at `v1.13.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.13.2)
+    *   [`op-geth` at `v1.101503.4`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101503.4)
+  </Step>
+
+  <Step title="Configure the Isthmus activation date">
+  <Info>
+      If you are operating a node for an OP Chain that has opted into the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md) and are utilizing the network flags, the Isthmus activation date is part of the `op-node` and `op-geth` nodes. So, no action is needed for the sequencer after upgrading to the latest release. Please skip to [Step 3: Verify Your Configuration](#verify-your-configuration).
+  
+      The following chains are included but are subject to change: `Base Sepolia`, `Creator Chain Testnet`, `Ethernity Sepolia`, `Ink Sepolia`, `Lisk Sepolia`, `Metal Sepolia`, `Mode Sepolia`, `Minato (Soneium) Sepolia`, `OP Sepolia`, `Unichain Sepolia`, and `Zora Sepolia`.
+    </Info>
+  
+    For node operators of not using the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md), you will need to manually configure the activation. This can be done one of two ways:
+  
+    <Info>
+      If you use custom genesis chain configuration, you need to set the `pragueTime` to the same value as the `isthmusTime`. It is not automatically set, this happens by default for chains using the network flags and also when using the override flags.
+    </Info>
+  
+    *   **Option 1:** Set the activation time in the `rollup.json` for `op-node`. You will still need to set the `override.isthmus` flag in `op-geth` if you use this option. Please note that the chain configuration file is subject to a stricter format and needs to contain the `chain_op_config` outlined in the `op-node/v1.11.0` [release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.11.0).
+    *   **Option 2:** Set the activation time via overrides (CLI) in both `op-node` and `op-geth`. These will need to be set on `op-node` and `op-geth` for the sequencer and all other nodes.
+  </Step>
+
+  <Step title="Verify Your Configuration">
+  Make the following checks to verify that your node is properly configured.
+  
+    *   `op-node` and `op-geth` will log their configurations at startup
+    *   Check that the Isthmus time is set to `activation-timestamp` in the op-node startup logs
+    *   Check that the Isthmus time is set to `activation-timestamp` in the op-geth startup logs
+  </Step>
+</Steps>

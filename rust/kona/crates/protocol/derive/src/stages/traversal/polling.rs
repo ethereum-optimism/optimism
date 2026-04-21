@@ -1,10 +1,11 @@
 //! Contains the [`PollingTraversal`] stage of the derivation pipeline.
 
 use crate::{
-    ActivationSignal, ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider,
-    PipelineError, PipelineResult, ResetError, ResetSignal, Signal, SignalReceiver,
+    ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider, PipelineError,
+    PipelineResult, ResetError, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -98,25 +99,13 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
         let receipts =
             self.data_source.receipts_by_hash(next_l1_origin.hash).await.map_err(Into::into)?;
 
-        let addr = self.rollup_config.l1_system_config_address;
-        let active = self.rollup_config.is_ecotone_active(next_l1_origin.timestamp);
-        match self.system_config.update_with_receipts(&receipts[..], addr, active) {
-            Ok(true) => {
-                let next = next_l1_origin.number as f64;
-                kona_macros::set!(gauge, crate::Metrics::PIPELINE_LATEST_SYS_CONFIG_UPDATE, next);
-                info!(target: "l1_traversal", "System config updated at block {next}.");
-            }
-            Ok(false) => { /* Ignore, no update applied */ }
-            Err(err) => {
-                error!(target: "l1_traversal", ?err, "Failed to update system config at block {}", next_l1_origin.number);
-                kona_macros::set!(
-                    gauge,
-                    crate::Metrics::PIPELINE_SYS_CONFIG_UPDATE_ERROR,
-                    next_l1_origin.number as f64
-                );
-                return Err(PipelineError::SystemConfigUpdate(err).crit());
-            }
-        }
+        super::update_system_config_with_receipts(
+            &mut self.system_config,
+            &receipts,
+            self.rollup_config.l1_system_config_address,
+            self.rollup_config.is_ecotone_active(next_l1_origin.timestamp),
+            next_l1_origin.number,
+        );
 
         let prev_block_holocene = self.rollup_config.is_holocene_active(block.timestamp);
         let next_block_holocene = self.rollup_config.is_holocene_active(next_l1_origin.timestamp);
@@ -152,32 +141,44 @@ impl<F: ChainProvider> OriginProvider for PollingTraversal<F> {
 }
 
 #[async_trait]
-impl<F: ChainProvider + Send> SignalReceiver for PollingTraversal<F> {
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        match signal {
-            Signal::Reset(ResetSignal { l1_origin, system_config, .. }) |
-            Signal::Activation(ActivationSignal { l1_origin, system_config, .. }) => {
-                self.update_origin(l1_origin);
-                self.system_config = system_config.expect("System config must be provided.");
-            }
-            Signal::ProvideBlock(_) => {
-                /* Not supported in this stage. */
-                warn!(target: "traversal", "ProvideBlock signal not supported in PollingTraversal stage.");
-                return Err(PipelineError::UnsupportedSignal.temp());
-            }
-            _ => {}
-        }
-
+impl<F: ChainProvider + Send> Stage for PollingTraversal<F> {
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        let block_info =
+            self.data_source.block_info_by_number(l1_origin.number).await.map_err(Into::into)?;
+        self.update_origin(block_info);
+        self.system_config = system_config;
         Ok(())
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        Ok(())
+    }
+
+    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
+        warn!(target: "traversal", "provide_block not supported in PollingTraversal stage.");
+        Err(PipelineError::UnsupportedSignal.temp())
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{errors::PipelineErrorKind, test_utils::TraversalTestHelper};
+    use crate::{
+        errors::PipelineErrorKind,
+        test_utils::{TestChainProvider, TraversalTestHelper},
+    };
     use alloc::vec;
-    use alloy_primitives::{address, b256};
+    use alloy_consensus::Receipt;
+    use alloy_primitives::{Bytes, Log, LogData, address, b256};
+    use kona_genesis::CONFIG_UPDATE_TOPIC;
 
     #[test]
     fn test_l1_traversal_batcher_address() {
@@ -193,7 +194,7 @@ pub(crate) mod tests {
         let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
         assert!(traversal.advance_origin().await.is_ok());
         traversal.done = true;
-        assert!(traversal.signal(Signal::FlushChannel).await.is_ok());
+        assert!(traversal.flush_channel().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
         assert!(traversal.done);
     }
@@ -204,19 +205,10 @@ pub(crate) mod tests {
         let receipts = TraversalTestHelper::new_receipts();
         let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
         assert!(traversal.advance_origin().await.is_ok());
-        let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .signal(
-                    ActivationSignal { system_config: Some(cfg), ..Default::default() }.signal()
-                )
-                .await
-                .is_ok()
-        );
+        assert!(traversal.activate().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
-        assert_eq!(traversal.system_config, cfg);
-        assert!(!traversal.done);
+        assert!(traversal.done);
     }
 
     #[tokio::test]
@@ -227,12 +219,7 @@ pub(crate) mod tests {
         assert!(traversal.advance_origin().await.is_ok());
         let cfg = SystemConfig::default();
         traversal.done = true;
-        assert!(
-            traversal
-                .signal(ResetSignal { system_config: Some(cfg), ..Default::default() }.signal())
-                .await
-                .is_ok()
-        );
+        assert!(traversal.reset(BlockNumHash::default(), cfg).await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
         assert_eq!(traversal.system_config, cfg);
         assert!(!traversal.done);
@@ -285,18 +272,51 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn test_l1_traversal_system_config_update_fails() {
+        // Build a 3-node chain: genesis (hash=0x0) → block1 → block2.
+        // block2 has a receipt with a log from L1_SYS_CONFIG_ADDR that has only
+        // 1 topic instead of the required >= 3, triggering a syscfg update error.
+        // The fix under test makes this error non-fatal: advance_origin warns and
+        // continues (matching op-node's l1_traversal.go:78-82 behaviour).
         let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
-        let block1 = BlockInfo { hash: first, ..BlockInfo::default() };
-        let block2 = BlockInfo { hash: second, ..BlockInfo::default() };
-        let blocks = vec![block1, block2];
-        let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        // block1: child of genesis (parent_hash = 0x0 = genesis.hash)
+        let block1 = BlockInfo { number: 1, hash: first, ..BlockInfo::default() };
+        // block2: child of block1, with a receipt that triggers syscfg update failure
+        let block2 =
+            BlockInfo { number: 2, hash: second, parent_hash: first, ..BlockInfo::default() };
+
+        let mut provider = TestChainProvider::default();
+        let rollup_config = RollupConfig {
+            l1_system_config_address: TraversalTestHelper::L1_SYS_CONFIG_ADDR,
+            ..RollupConfig::default()
+        };
+        provider.insert_block(1, block1);
+        provider.insert_block(2, block2);
+        // block1 gets an empty receipt (no syscfg updates).
+        provider.insert_receipts(first, vec![Receipt::default()]);
+        // block2 gets a malformed log from L1_SYS_CONFIG_ADDR (only 1 topic instead of 3).
+        // update_with_receipts returns Err(InvalidTopicLen(1)) → non-fatal with the fix.
+        let bad_log = Log {
+            address: TraversalTestHelper::L1_SYS_CONFIG_ADDR,
+            data: LogData::new_unchecked(vec![CONFIG_UPDATE_TOPIC], Bytes::default()),
+        };
+        let bad_receipt = Receipt {
+            status: alloy_consensus::Eip658Value::Eip658(true),
+            logs: vec![bad_log],
+            ..Receipt::default()
+        };
+        provider.insert_receipts(second, vec![bad_receipt]);
+
+        let mut traversal = PollingTraversal::new(provider, Arc::new(rollup_config));
+
+        // First advance_origin: genesis → block1 (empty receipt, no syscfg update)
         assert!(traversal.advance_origin().await.is_ok());
-        // Only the second block should fail since the second receipt
-        // contains invalid logs that will error for a system config update.
-        let err = traversal.advance_origin().await.unwrap_err();
-        matches!(err, PipelineErrorKind::Critical(PipelineError::SystemConfigUpdate(_)));
+        // Second advance_origin: block1 → block2 (bad receipt triggers syscfg update
+        // error, but it is now non-fatal: warn + continue = Ok(())).
+        assert!(
+            traversal.advance_origin().await.is_ok(),
+            "system config update failure should be non-fatal (warn + continue)"
+        );
     }
 
     #[tokio::test]

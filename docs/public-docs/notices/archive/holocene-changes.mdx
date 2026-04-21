@@ -1,0 +1,87 @@
+---
+title: Preparing for Holocene breaking changes
+description: Learn how to prepare for Holocene upgrade breaking changes.
+---
+
+This page outlines breaking changes related to the Holocene network upgrade for chain operators, and node operators.
+If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).
+
+<Info>
+  The Holocene upgrade for the Sepolia Superchain will be activated at **Tue Nov 26 at 15:00:00 UTC** (`1732633200`).
+  
+  The Holocene upgrade for the Unichain Sepolia will be activated at **Wed Dec 18 at 22:00:00 UTC** (`1734559200`).
+
+  The Holocene upgrade for the Soneium Minato (Sepolia) will be activated at **Fri Dec 20 at 09:00:00 UTC** (`1734685200`).
+
+  The Holocene upgrade for the Mainnet Superchain is scheduled for **Thu 9 Jan 2025 18:00:01 UTC**, [governance approval](https://vote.optimism.io/proposals/20127877429053636874064552098716749508236019236440427814457915785398876262515).
+
+  The Holocene upgrade for the Soneium Mainnet will be activated at **Mon Feb 03 at 09:00:00 UTC** (`1738573200`).
+</Info>
+
+## What's included in Holocene
+
+Holocene contains three changes:
+
+*   **Holocene block derivation**: a set of changes that render the derivation pipeline stricter and simpler, improving worst-case scenarios for the Fault Proof System and Interoperability.
+*   **EIP-1559 configurability**: The elasticity and denominator EIP-1559 parameters become configurable via the `SystemConfig` L1 contract, allowing the gas target and gas limit to be configured independently.
+*   **MIPS contract upgrade**: Updates to support additional calls made by the new `op-program` version.
+
+For more information on the Holocene implementation details, please review [Holocene specification](https://specs.optimism.io/protocol/holocene/overview.html?utm_source=op-docs&utm_medium=docs).
+
+## For chain operators
+
+Chain operators should upgrade their nodes ahead of the activation times to a release that contains the Holocene changes and has the activation times for their chains baked in, or set the activation times manually via overrides.
+
+Besides this, several L1 contract updates must be performed, the fault proof contracts should be updated before the Holocene activation. The `SystemConfig` should be upgraded after the Holocene activation. We have prepared an [upgrade script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) to automate most of the deployments and superchain-ops task generation or Safe multi-sig input bundle generation.
+
+Chain operators must upgrade their chain's `SystemConfig` to the latest OP Contracts [v1.8.0-rc.3 release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.8.0-rc.3) to utilize the EIP-1559 configurability. The updated `SystemConfig` implementations are deployed at addresses:
+
+*   Sepolia: `0x33b83E4C305c908B2Fc181dDa36e230213058d7d` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-sepolia.toml#L9)
+*   Mainnet: `0xAB9d6cB7A427c0765163A7f45BB91cAfe5f2D375` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L9)
+
+Chain operators need to update their proxy contracts to point to these new implementations. The upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md). Note that it is recommended to upgrade the `SystemConfig` after the Holocene activation. You need to upgrade if you want to reconfigure your EIP-1559 parameters.
+
+### For fault proof enabled chains
+
+Since the Holocene upgrade changes the execution and derivation rules, the version of `op-program` used in the fault proof system has to be upgraded to a version that includes the Holocene activation date for the chain. The `op-program` version used is specified via the `faultGameAbsolutePrestate` setting, deployed as part of `FaultDisputeGame` and `PermissionedDisputeGame` contracts. Additionally, the `MIPS` contract must be upgraded to support additional calls made by the new `op-program`.
+
+The `FaultDisputeGame` and `PermissionedDisputeGame` contracts must be deployed separately for each chain. The `MIPS` contract implementation can be shared by all chains and is deployed at:
+
+*   Sepolia: `0x69470D6970Cd2A006b84B1d4d70179c892cFCE01` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12)
+*   Mainnet: `0x5fE03a12C1236F9C22Cb6479778DDAa4bce6299C` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12)
+
+Chain operators need to update the `DisputeGameFactory` to use the new `FaultDisputeGame` and `PermissionedDisputeGame` contracts by calling `DisputeGameFactory.setImplementation`. The same upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md).
+
+## For node operators
+
+Node operators will need to upgrade to the respective Holocene releases before the activation dates.
+
+These following steps are necessary for every node operator:
+
+<Steps>
+  <Step title="Update to the latest release">
+  *   [`op-node` at `v1.10.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.10.2)
+    *   [`op-geth` at `v1.101411.4`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101411.4)
+  </Step>
+
+  <Step title="Configure the Holocene activation date">
+  <Info>
+      If you are operating a node for an OP Chain that has opted into the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md), the Holocene activation date is part of the `op-node` and `op-geth` nodes. So, no action is needed for the sequencer after upgrading to the latest release. Please skip to [Step 3: Verify Your Configuration](#verify-your-configuration).
+  
+      For Sepolia that is: `OP Sepolia`, `Base Sepolia`, `Mode Sepolia`, `Zora Sepolia`, and `Metal Sepolia`.
+    </Info>
+  
+    For node operators of not included in the [hardfork activation inheritance behavior](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md), you will need to manually configure the activation. This can be done one of two ways:
+  
+    *   **Option 1:** Set the activation time in the `rollup.json` for `op-node`. You will still need to set the `override.holocene` flag in `op-geth` if you use this option.
+    *   **Option 2:** Set the activation time via overrides (CLI) in both `op-node` and `op-geth`. These will need to be set on `op-node` and `op-geth` for the sequencer and all other nodes.
+  </Step>
+
+  <Step title="Verify Your Configuration">
+  Make the following checks to verify that your node is properly configured.
+  
+    *   `op-node` and `op-geth` will log their configurations at startup
+    *   Check that the Holocene time is set to `activation-timestamp` in the op-node startup logs
+    *   Check that the Holocene time is set to `activation-timestamp` in the op-geth startup logs
+  </Step>
+</Steps>

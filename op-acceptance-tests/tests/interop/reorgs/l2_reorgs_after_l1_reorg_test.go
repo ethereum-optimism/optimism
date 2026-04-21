@@ -6,8 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -60,16 +58,14 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // op-e2e/e2eutils/geth/geth.go when initialising FakePoS)
 // pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewSimpleInterop(t)
 
-	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
-
 	sys.L1Network.WaitForBlock()
 
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Stop)
+	sys.L1CL.Stop()
 
 	// sequence a few L1 and L2 blocks
 	for range n + 1 {
@@ -101,7 +97,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), divergence.ParentHash)
 
 	// continue building on the alternative L1 chain
-	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
+	sys.L1CL.Start()
 
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)

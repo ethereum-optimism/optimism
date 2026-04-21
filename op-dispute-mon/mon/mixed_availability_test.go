@@ -13,11 +13,11 @@ import (
 
 func TestCheckMixedAvailability(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointTotalCount: 5, RollupEndpointNotFoundCount: 2, RollupEndpointErrorCount: 1}, // Mixed (2 successful)
-		{RollupEndpointTotalCount: 3, RollupEndpointNotFoundCount: 0, RollupEndpointErrorCount: 0},                                                                    // All successful
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointTotalCount: 6, RollupEndpointNotFoundCount: 2, RollupEndpointErrorCount: 2}, // Mixed (2 successful)
-		{RollupEndpointTotalCount: 3, RollupEndpointNotFoundCount: 3, RollupEndpointErrorCount: 0},                                                                    // All not found
-		{RollupEndpointTotalCount: 2, RollupEndpointNotFoundCount: 0, RollupEndpointErrorCount: 2},                                                                    // All errors
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointTotalCount: 5, NodeEndpointNotFoundCount: 2, NodeEndpointErrorCount: 1}, // Mixed (2 successful)
+		{NodeEndpointTotalCount: 3, NodeEndpointNotFoundCount: 0, NodeEndpointErrorCount: 0},                                                                    // All successful
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointTotalCount: 6, NodeEndpointNotFoundCount: 2, NodeEndpointErrorCount: 2}, // Mixed (2 successful)
+		{NodeEndpointTotalCount: 3, NodeEndpointNotFoundCount: 3, NodeEndpointErrorCount: 0},                                                                    // All not found
+		{NodeEndpointTotalCount: 2, NodeEndpointNotFoundCount: 0, NodeEndpointErrorCount: 2},                                                                    // All errors
 	}
 	metrics := &stubMixedAvailabilityMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)

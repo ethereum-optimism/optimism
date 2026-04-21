@@ -51,6 +51,9 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract with extra version tags.
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
 
+    /// @notice Thrown when a contract has `_initializing` as true during an upgrade.
+    error OPContractsManagerUtils_InitializingDuringUpgrade();
+
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
@@ -195,6 +198,12 @@ contract OPContractsManagerUtils {
             return overrideInstruction.data;
         }
 
+        // Check that the source contract has code. Calling an EOA returns success with empty
+        // data, which would cause issues when the caller tries to decode the result.
+        if (_source.code.length == 0) {
+            revert OPContractsManagerUtils_ConfigLoadFailed(_name);
+        }
+
         // Otherwise, load the data from the source contract.
         (bool success, bytes memory result) = address(_source).staticcall(abi.encodePacked(_selector));
         if (!success) {
@@ -327,11 +336,33 @@ contract OPContractsManagerUtils {
         // Upgrade to StorageSetter.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
-        // Otherwise, we need to reset the initialized slot and call the initializer.
+        // We need to reset the initialized slot and call the initializer.
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
+
+        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
+        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
+        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
+        // Slot derivation (ERC-7201):
+        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
+        // ~bytes32(uint256(0xff))
+        // Ref:
+        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
+        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+        bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
+        uint256 v5Value = uint256(v5Current);
+
+        // A contract should never be mid-initialization during an upgrade. The `_initializing`
+        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
+        if ((v5Value >> 64) & 0xFF != 0) {
+            revert OPContractsManagerUtils_InitializingDuringUpgrade();
+        }
+
+        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
+        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
+        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
@@ -366,6 +397,8 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -388,10 +421,15 @@ contract OPContractsManagerUtils {
         returns (bytes memory)
     {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
+
+        // Super game types require l2ChainId=0 in game args because the chain ID is
+        // embedded in the super root proof extraData, not in the game args.
+        uint32 rawGT = _gcfg.gameType.raw();
+        uint256 chainId = GameTypes.isSuperGame(_gcfg.gameType) ? 0 : _l2ChainId;
+
         if (
-            _gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+            rawGT == GameTypes.CANNON.raw() || rawGT == GameTypes.CANNON_KONA.raw()
+                || rawGT == GameTypes.SUPER_CANNON.raw() || rawGT == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
@@ -400,12 +438,9 @@ contract OPContractsManagerUtils {
                 impls.mipsImpl,
                 address(_anchorStateRegistry),
                 address(_delayedWETH),
-                _l2ChainId
+                chainId
             );
-        } else if (
-            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-        ) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -413,9 +448,22 @@ contract OPContractsManagerUtils {
                 impls.mipsImpl,
                 address(_anchorStateRegistry),
                 address(_delayedWETH),
-                _l2ChainId,
+                chainId,
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
+            );
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                parsedInputArgs.verifier,
+                parsedInputArgs.maxChallengeDuration,
+                parsedInputArgs.maxProveDuration,
+                parsedInputArgs.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                chainId
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

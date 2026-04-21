@@ -28,9 +28,9 @@ func (m *MixedAvailability) CheckMixedAvailability(games []*types.EnrichedGameDa
 			count++
 			m.logger.Debug("Mixed availability detected",
 				"game", game.Proxy,
-				"totalEndpoints", game.RollupEndpointTotalCount,
-				"notFoundCount", game.RollupEndpointNotFoundCount,
-				"errorCount", game.RollupEndpointErrorCount)
+				"totalEndpoints", game.NodeEndpointTotalCount,
+				"notFoundCount", game.NodeEndpointNotFoundCount,
+				"errorCount", game.NodeEndpointErrorCount)
 		}
 	}
 

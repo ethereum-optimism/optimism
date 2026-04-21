@@ -8,10 +8,10 @@
 
 pub use alloy_network::*;
 
-use alloy_consensus::{ReceiptWithBloom, TxEnvelope, TxType, TypedTransaction};
+use alloy_consensus::{ReceiptWithBloom, TxType};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rpc_types_eth::AccessList;
-use op_alloy_consensus::{OpReceipt, OpTxEnvelope, OpTxType, OpTypedTransaction};
+use op_alloy_consensus::{OpReceipt, OpTxType, OpTypedTransaction};
 use op_alloy_rpc_types::OpTransactionRequest;
 
 /// Types for an Op-stack network.
@@ -143,6 +143,7 @@ impl TransactionBuilder<Optimism> for OpTransactionRequest {
     fn complete_type(&self, ty: OpTxType) -> Result<(), Vec<&'static str>> {
         match ty {
             OpTxType::Deposit => Err(vec!["not implemented for deposit tx"]),
+            OpTxType::PostExec => Err(vec!["not implemented for post-exec tx"]),
             _ => {
                 let ty = TxType::try_from(ty as u8).unwrap();
                 self.as_ref().complete_type(ty)
@@ -196,45 +197,6 @@ impl TransactionBuilder<Optimism> for OpTransactionRequest {
         wallet: &W,
     ) -> Result<<Optimism as Network>::TxEnvelope, TransactionBuilderError<Optimism>> {
         Ok(wallet.sign_request(self).await?)
-    }
-}
-
-impl NetworkWallet<Optimism> for EthereumWallet {
-    fn default_signer_address(&self) -> Address {
-        NetworkWallet::<Ethereum>::default_signer_address(self)
-    }
-
-    fn has_signer_for(&self, address: &Address) -> bool {
-        NetworkWallet::<Ethereum>::has_signer_for(self, address)
-    }
-
-    fn signer_addresses(&self) -> impl Iterator<Item = Address> {
-        NetworkWallet::<Ethereum>::signer_addresses(self)
-    }
-
-    async fn sign_transaction_from(
-        &self,
-        sender: Address,
-        tx: OpTypedTransaction,
-    ) -> alloy_signer::Result<OpTxEnvelope> {
-        let tx = match tx {
-            OpTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
-            OpTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
-            OpTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
-            OpTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
-            OpTypedTransaction::Deposit(_) => {
-                return Err(alloy_signer::Error::other("not implemented for deposit tx"));
-            }
-        };
-        let tx = NetworkWallet::<Ethereum>::sign_transaction_from(self, sender, tx).await?;
-
-        Ok(match tx {
-            TxEnvelope::Eip1559(tx) => OpTxEnvelope::Eip1559(tx),
-            TxEnvelope::Eip2930(tx) => OpTxEnvelope::Eip2930(tx),
-            TxEnvelope::Eip7702(tx) => OpTxEnvelope::Eip7702(tx),
-            TxEnvelope::Legacy(tx) => OpTxEnvelope::Legacy(tx),
-            _ => unreachable!(),
-        })
     }
 }
 

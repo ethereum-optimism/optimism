@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -15,8 +14,8 @@ import (
 // (A->B and B->A) to verify the supernode handles bidirectional interop correctly.
 // All messages are valid, and no interruptions to the chains are expected.
 func TestSupernodeInteropBidirectionalMessages(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	t := devtest.ParallelT(gt)
+	sys := newSupernodeInteropWithTimeTravel(t, 0)
 
 	// Create funded EOAs on both chains
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
@@ -36,8 +36,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.11.0
-    string public constant version = "2.11.0";
+    /// @custom:semver 2.11.1
+    string public constant version = "2.11.1";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;

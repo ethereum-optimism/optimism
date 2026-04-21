@@ -1,0 +1,406 @@
+---
+# Keywords config file
+
+# Metadata Configuration for Documentation
+metadata_rules:
+  # PERSONA
+  persona:
+    required: true
+    multiple: true
+    min: 1
+    validation_rules:
+      - enum:
+          - app-developer
+          - node-operator
+          - chain-operator
+          - partner
+          - protocol-developer
+          - auditor
+          - governance-participant
+        description: "Must select at least one valid persona"
+
+  # CONTENT TYPE
+  content_type:
+    required: true
+    multiple: false
+    validation_rules:
+      - enum:
+          - tutorial  # step-by-step instructions
+          - landing-page # navigation and overview pages
+          - guide     # general how-to content and concept exlainers
+          - reference # technical specifications and API docs
+          - troubleshooting # problem-solution focused
+          - notice        # Technical updates: breaking changes, upgrades, deprecations
+          - announcement  # Community/Governance updates: new programs, initiatives
+        description: "Must select exactly one content type"
+
+  # TOPIC
+  topic:
+    required: true
+    multiple: false
+    validation_rules:
+      - pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        description: "Must be kebab-case, derived from page title"
+        examples: ["standard-bridge", "account-abstraction", "ecotone-upgrade"]
+      - unique: true
+        description: "Topic must be unique across all pages"
+      - max_length: 100
+        description: "Topic should be concise"
+
+  # CATEGORIES
+  categories:
+    required: true
+    multiple: true
+    min: 1
+    max: 8
+    validation_rules:
+      - no_duplicates: true
+        description: "Categories must not repeat"
+      - no_metadata_overlap:
+          fields: ["topic", "content_type", "persona"]
+        description: "Categories cannot repeat values used in topic, content_type, or persona"
+    values:
+      # Data Availability Layer
+      - eth-da               
+      - alt-da              
+      - permissionless-batch-submission
+      - block-times
+      - data-availability
+      - data-availability-layer
+      - blob-configuration
+
+      # Sequencing Layer
+      - sequencer
+      - sequencer-pbs
+      - sequencer-decentralization
+      - sequencer-in-a-box
+      - op-batcher
+      - batcher-configuration
+      - outages
+      - downtime
+      - optimism-portal
+      - transaction-submission
+      - transaction-inclusion
+      - censorship-resistance
+      - disaster-recovery
+      - forced-transactions
+      - sequencing-layer
+      
+      # Derivation Layer
+      - rollup-node
+      - rollup-configuration
+      - consensus-client
+      - op-node        
+      - fault-proofs
+      - fp-contracts
+      - dispute-game
+      - dispute-resolution
+      - fault-tolerance
+      - fault-proof-system
+      - contests
+      - span-batches
+      - virtual-machine
+      - op-challenger
+      - safe-head
+      - derivation
+      - derivation-pipeline
+      - derivation-layer
+      - batch-submission
+      - cannon
+      - zk
+      - op-workbench       # Tool: derivation testing & simulation
+      
+      # Execution Layer
+      - op-geth
+      - op-reth
+      - op-erigon
+      - op-nethermind
+      - evm-equivalence
+      - precompiles
+      - predeploys
+      - preinstalls
+      - custom-gas-token
+      - gas
+      - gas-configuration
+      - fee-optimization
+      - node-configuration
+      - gas-optimization
+      - rpc
+      - mempool
+      - block-production
+      - block-execution
+      - transactions
+      - conditional-transactions
+      - l2-contracts
+      - transaction-management
+      - account-abstraction
+      - paymasters
+      - l1-data-fee
+      - execution-gas-fee
+      - execution-client
+      - eip-1559
+      - sequencer-fee-vault
+      - dev-console        # Tool: execution layer interaction
+      - execution-layer
+
+      # Settlement Layer
+      - l1-contracts
+      - superchain-contracts
+      - op-contracts
+      - standard-bridge
+      - custom-bridge
+      - superchain-erc20
+      - deposits
+      - proxy
+      - withdrawals
+      - teleportr
+      - bridging
+      - token-standard
+      - token-bridge
+      - eth-bridging
+      - superchain-eth-bridge
+      - superchain-token-bridge
+      - token-deployment
+      - event-reading
+      - block-safety
+      - dependency-set  
+      - interoperability
+      - cross-chain-messaging
+      - cross-domain-messenger
+      - message-relaying
+      - message-passing
+      - message-validation
+      - transaction-flow
+      - l1-l2-communication
+      - l2-output-submission
+      - message-proving
+      - message-finalization
+      - l2-to-l1
+      - token-transfers
+      - interoperable-assets
+      - reorgs
+      - op-deployer        # Tool: contract deployment
+      - op-supervisor
+      - transaction-finality
+      - ethereum-consensus
+      - finality-guarantees
+      - transaction-lifecycle
+      - rollup-transactions
+      - state-commitment
+      - contract-addresses
+      - settlement-layer
+      - proposer-configuration
+      
+      # Governance Layer
+      - security-council
+      - guardian
+      - multisig
+      - governance
+      - optimism-collective
+      - superchain-ecosystem
+      - token-house
+      - citizens-house
+      - delegates
+      - voting
+      - audits
+      - privileged-roles
+      - security-policy
+      - security-model
+      - security-reviews
+      - vulnerability-assessment
+      - bug-bounty-program
+      - responsible-disclosure
+      - vulnerability-reporting
+      - safety-mechanisms
+      - pause
+      - emergency-response
+      - op-token
+      - blockspace-charters
+      - retro-funding
+      - revshare-enshrinement
+      - superchain
+      - superchain-registry
+      - contract-upgrades
+      - governance-layer
+      
+      # Cross-layer Development Tools
+      - architecture
+      - op-stack
+      - supersim            # Tests across multiple layers
+      - devnet            # Full-stack local environment
+      - performance-tooling # Stack-wide performance testing
+      - l1-deployment-upgrade-tooling  # Cross-layer deployment
+      - l2-deployment-upgrade-tooling  # Cross-layer deployment
+      - testnet-tooling # testnet-specific tools like faucets, block explorers, etc
+      - deployment-tooling # deployment-specific tools like OPCM
+      - testing-environment
+      - testing
+      - alphanets
+      - betanets
+      - l2-rollup
+      - chain-deployment
+      - layer2-scaling
+      - system-components
+      - smart-contracts
+      - deployment-artifacts
+      - local-development-environment
+      - genesis-configuration
+      - genesis-creation
+      - chain-configuration
+      - docker
+      
+      # Chain Management (Cross-layer)
+      - protocol
+      - infrastructure
+      - op-proposer
+      - op-supervisor
+      - op-conductor
+      - op-signer
+      - mcp
+      - mcp-l2
+      - upgrade-standard-chains-stage-1
+      - launch-new-chains-stage-1
+      - automated-pause
+      - dispute-mon
+      - monitorism
+      - vertical-scaling
+      - chain-operation
+      
+      # Protocol Releases
+      - granite
+      - holocene
+      - isthmus
+      - canyon
+      - delta
+      - ecotone
+      - fjord
+      - network-upgrade
+      - hard-fork
+      - hardfork-activation
+      - protocol-upgrades
+      
+      # Infrastructure & Operations
+      - kubernetes-infrastructure
+      - devops-tooling
+      - artifacts-packaging
+      - peer-management-service
+      - node-management
+      - proxyd
+      - zdd-service
+      - snapman
+      - op-beat
+      - consensus-awareness
+      - load-balancing
+      - monitoring           # General monitoring tools and services
+      - analytics           # Analytics platforms and data analysis
+      - security-monitoring-response
+      - stability-monitoring
+      - security
+      - research
+      - beta-features
+      - experimental
+      - feature-testing
+      - decentralization
+      - modularity
+      - system-design
+      - system-configuration
+      - development-networks
+      - network-upgrades
+      - key-management
+      
+      # Development Languages & SDKs
+      - solidity
+      - typescript
+      - javascript
+      - go
+      - rust
+      - python
+      - foundry
+      - hardhat
+      - ethers
+      - viem
+      - web3js
+      - wagmi
+      - cli              # Command Line Interfaces
+      - api              # Application Programming Interfaces
+      
+      # Development Environments
+      - local-devnet
+      - testnet
+      - mainnet
+
+      # Test Networks
+      - sepolia          # Ethereum L1 testnet
+      - op-sepolia      # OP Stack L2 testnet
+      - base-sepolia    # Base testnet
+      - zora-sepolia    # Zora testnet
+
+  # IS_IMPORTED_CONTENT
+  is_imported_content:
+    required: true
+    multiple: false
+    validation_rules:
+      - enum:
+          - 'true'
+          - 'false'
+        description: "Must be either 'true' for imported/duplicate pages or 'false' for original pages"
+
+  # TIMEFRAME
+  timeframe:
+    required_for: 
+      - announcement
+      - notice
+    required: false
+    multiple: false
+    validation_rules:
+      # Component versions
+      - pattern: ^(op-\w+|cannon)/v\d+\.\d+\.\d+$
+        description: "Component releases must be in format component/vX.Y.Z"
+        examples: ["op-node/v1.11.0", "op-batcher/v1.11.1"]
+
+      # Release candidates
+      - pattern: ^(op-\w+)/v\d+\.\d+\.\d+-rc\.\d+$
+        description: "Release candidates must be in format component/vX.Y.Z-rc.N"
+        examples: ["op-node/v1.11.0-rc.2"]
+
+      # Alpha/Beta versions
+      - pattern: ^(op-\w+|cannon)/v\d+\.\d+\.\d+-(alpha|beta)\.\d+$
+        description: "Alpha/Beta releases must be in format component/vX.Y.Z-{alpha|beta}.N"
+        examples: ["cannon/v1.4.0-alpha.1"]
+
+      # Season format
+      - pattern: ^S[6-9]|S[1-9][0-9]+$
+        description: "Season numbers must start with 'S' followed by a number 6 or greater"
+        examples: ["S6", "S7", "S8", "S10"]
+
+      # Calendar year
+      - pattern: ^20(2[4-9]|[3-9][0-9])$
+        description: "Years must be 2024 or later"
+        examples: ["2024", "2025", "2026"]
+
+      # Half year
+      - pattern: ^20(2[4-9]|[3-9][0-9])H[1-2]$
+        description: "Half years must be in format YYYYH1 or YYYYH2"
+        examples: ["2024H1", "2024H2", "2025H1"]
+
+      # Quarter
+      - pattern: ^20(2[4-9]|[3-9][0-9])Q[1-4]$
+        description: "Quarters must be in format YYYYQ1-Q4"
+        examples: ["2024Q1", "2024Q2", "2025Q3"]
+
+      # Month
+      - pattern: ^20(2[4-9]|[3-9][0-9])-(0[1-9]|1[0-2])$
+        description: "Months must be in format YYYY-MM"
+        examples: ["2024-01", "2024-12", "2025-06"]
+
+      # Protocol upgrades
+      - enum:
+          - bedrock
+          - canyon
+          - delta
+          - ecotone
+          - fjord
+          - granite
+          - holocene
+          - isthmus
+        description: "Protocol upgrade names must match exactly"

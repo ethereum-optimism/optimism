@@ -57,8 +57,7 @@ contract GasBenchMark_L1Block is CommonTest {
 
 contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
     function test_setL1BlockValuesEcotone_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Test
         SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
@@ -70,8 +69,7 @@ contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
 
 contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
     function test_setL1BlockValuesEcotone_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
+        skipIfUnoptimized();
 
         // Setup
         // Trigger so storage is warm.

@@ -21,14 +21,14 @@ var excludeContracts = []string{
 	"ERC777TokensRecipient", "Guard", "IProxy", "Vm", "VmSafe", "IMulticall3",
 	"IERC721TokenReceiver", "IProxyCreationCallback", "IBeacon", "IEIP712",
 
-	// Generic interfaces
-	"IHasSuperchainConfig",
-
 	// EAS
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",
 
-	// Misc stuff that can be ignored
-	"IOPContractsManagerLegacyUpgrade",
+	// Constructor inheritance differences
+	"IL2ProxyAdmin",
+
+	// OZ v4/v5 Ownable mismatch: IOwnable has v5 errors, AddressManager uses v4 Ownable
+	"IAddressManager",
 
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
@@ -38,7 +38,7 @@ var excludeContracts = []string{
 // excludeSourceContracts is a list of contracts that are allowed to not have interfaces
 var excludeSourceContracts = []string{
 	// Base contracts with no external functions
-	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1",
+	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1", "PolicyEngineStakingMapping",
 
 	// Helper contracts
 	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper", "GameHelper",
@@ -46,8 +46,8 @@ var excludeSourceContracts = []string{
 	// Periphery
 	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",
 
-	// Errors because they should be in their own contracts but are in a shared one
-	"OPContractsManagerDeployer", "OPContractsManagerUpgrader", "OPContractsManagerBase", "OPContractsManagerInteropMigrator", "OPContractsManagerContractsContainer", "OPContractsManagerGameTypeAdder", "OPContractsManagerStandardValidator",
+	// OPCM sub-contracts that don't have their own interfaces
+	"OPContractsManagerStandardValidator", "OPContractsManagerUtilsCaller",
 
 	// FIXME
 	"WETH", "MIPS64",

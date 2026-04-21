@@ -389,3 +389,17 @@ target "op-reth" {
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
 }
+
+target "cannon-builder" {
+  dockerfile = "cannon.dockerfile"
+  context = "rust/kona/docker/cannon"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
+}
+
+target "ci-base-clang" {
+  dockerfile = "Dockerfile"
+  context = "ops/docker/ci-base-clang"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
+}

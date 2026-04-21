@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -23,6 +22,7 @@ import (
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
+const FailFlakyTests = "DEVNET_FAIL_FLAKY_TESTS"
 
 var (
 	// RootContext is the context that is used for the root of the test suite.
@@ -71,6 +71,10 @@ type T interface {
 	// Gate provides everything that Require does, but skips instead of fails the test upon error.
 	Gate() *testreq.Assertions
 
+	// MarkFlaky downgrades future test failures to skips unless DEVNET_FAIL_FLAKY_TESTS is set.
+	// Call this near the top of the test, before storing any Require()-derived helper.
+	MarkFlaky(reason string)
+
 	// Deadline reports the time at which the test binary will have
 	// exceeded the timeout specified by the -timeout flag.
 	//
@@ -93,6 +97,8 @@ type testingT struct {
 	ctx    context.Context
 	req    *testreq.Assertions
 	gate   *testreq.Assertions
+	flaky  bool
+	reason string
 }
 
 func mustNotSkip() bool {
@@ -101,24 +107,56 @@ func mustNotSkip() bool {
 	return out
 }
 
+func mustFailFlakyTests() bool {
+	v := os.Getenv(FailFlakyTests)
+	out, _ := strconv.ParseBool(v) // default to false
+	return out
+}
+
+func (t *testingT) shouldSkipFlakyFailure() bool {
+	return t.flaky && !mustFailFlakyTests()
+}
+
+func (t *testingT) skipFlakyFailure(msg string) {
+	if t.reason != "" {
+		t.logger.Warn("Ignoring failure in flaky test", "reason", t.reason, "failure", msg)
+		t.t.Skipf("FLAKY_FAIL: %s: %s", t.reason, msg)
+	} else {
+		t.logger.Warn("Ignoring failure in flaky test", "failure", msg)
+		t.t.Skipf("FLAKY_FAIL: %s", msg)
+	}
+}
+
 func (t *testingT) Error(args ...any) {
 	t.t.Helper()
-	// Note: the test-logger catches panics when the test is logged to after test-end.
-	// Note: we do not use t.Error directly, to keep the log-formatting more consistent.
-	t.logger.Error(fmt.Sprintln(args...))
-	t.Fail()
+	if t.shouldSkipFlakyFailure() {
+		t.skipFlakyFailure(fmt.Sprintln(args...))
+		return
+	}
+	// Write directly to testing.T, not the structured logger. The structured logger's
+	// terminal handler quotes messages containing '=' (via escapeMessage/strconv.Quote),
+	// which escapes all \n and \t, making testify's multi-line assertion diffs unreadable.
+	t.t.Error(args...)
 }
 
 func (t *testingT) Errorf(format string, args ...any) {
 	t.t.Helper()
-	// Note: the test-logger catches panics when the test is logged to after test-end.
-	// Note: we do not use t.Errorf directly, to keep the log-formatting more consistent.
-	t.logger.Error(fmt.Sprintf(format, args...))
-	t.Fail()
+	if t.shouldSkipFlakyFailure() {
+		t.skipFlakyFailure(fmt.Sprintf(format, args...))
+		return
+	}
+	// Write directly to testing.T, not the structured logger. The structured logger's
+	// terminal handler quotes messages containing '=' (via escapeMessage/strconv.Quote),
+	// which escapes all \n and \t, making testify's multi-line assertion diffs unreadable.
+	t.t.Errorf(format, args...)
 }
 
 func (t *testingT) Fail() {
 	t.t.Helper()
+	if t.shouldSkipFlakyFailure() {
+		t.skipFlakyFailure("test called Fail")
+		return
+	}
 	// if we already closed and failed, then this error is stale
 	if t.ctx.Err() != nil && t.t.Failed() {
 		return
@@ -128,6 +166,10 @@ func (t *testingT) Fail() {
 
 func (t *testingT) FailNow() {
 	t.t.Helper()
+	if t.shouldSkipFlakyFailure() {
+		t.skipFlakyFailure("test called FailNow")
+		return
+	}
 	// If we already closed and failed the test-scope, then there is nothing to do.
 	// This happens on e.g. a go-routine spawned by require.Eventually, when the time runs out,
 	// the ctx is closed, a shared resource fails to do a lookup because of the ctx-timeout,
@@ -194,6 +236,8 @@ func (t *testingT) WithCtx(ctx context.Context) T {
 		logger: logger,
 		tracer: t.tracer,
 		ctx:    ctx,
+		flaky:  t.flaky,
+		reason: t.reason,
 	}
 	out.req = testreq.New(out)
 	out.gate = testreq.New(&gateAdapter{out})
@@ -202,6 +246,22 @@ func (t *testingT) WithCtx(ctx context.Context) T {
 
 func (t *testingT) Require() *testreq.Assertions {
 	return t.req
+}
+
+func (t *testingT) MarkFlaky(reason string) {
+	t.flaky = true
+	if reason != "" {
+		t.reason = reason
+	}
+	t.t.Cleanup(func() {
+		if !t.t.Failed() && !t.t.Skipped() && !mustFailFlakyTests() {
+			if t.reason != "" {
+				t.t.Skipf("FLAKY_PASS: %s", t.reason)
+			} else {
+				t.t.Skip("FLAKY_PASS")
+			}
+		}
+	})
 }
 
 func (t *testingT) Run(name string, fn func(T)) {
@@ -225,9 +285,22 @@ func (t *testingT) Run(name string, fn func(T)) {
 			logger: logger,
 			tracer: tracer,
 			ctx:    ctx,
+			flaky:  t.flaky,
+			reason: t.reason,
 		}
 		subT.req = testreq.New(subT)
 		subT.gate = testreq.New(&gateAdapter{subT})
+		if subT.flaky {
+			subGoT.Cleanup(func() {
+				if !subGoT.Failed() && !subGoT.Skipped() && !mustFailFlakyTests() {
+					if subT.reason != "" {
+						subGoT.Skipf("FLAKY_PASS: %s", subT.reason)
+					} else {
+						subGoT.Skip("FLAKY_PASS")
+					}
+				}
+			})
+		}
 		fn(subT)
 	})
 }
@@ -313,7 +386,7 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
+		wrapTracingHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
 	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.

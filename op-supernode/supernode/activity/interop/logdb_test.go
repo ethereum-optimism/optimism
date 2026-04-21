@@ -1,7 +1,6 @@
 package interop
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
-	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -225,8 +222,9 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			t.Parallel()
 
 			interop := &Interop{
-				log:                 gethlog.New(),
-				activationTimestamp: tt.activationTS,
+				log:                        gethlog.New(),
+				activationTimestamp:        tt.activationTS,
+				runtimeActivationTimestamp: tt.activationTS,
 			}
 			chainID := eth.ChainIDFromUInt64(10)
 			expectedHash := common.Hash{0x01}
@@ -241,7 +239,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 				findSealErr: tt.findSealErr,
 			}
 
-			block, _, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime)
+			block, _, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime, false)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -284,10 +282,10 @@ func TestProcessBlockLogs(t *testing.T) {
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCall.parentHash)
-		require.Equal(t, uint64(100), db.sealBlockCall.block.Number)
-		require.Equal(t, uint64(1000), db.sealBlockCall.timestamp)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(100), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, uint64(1000), db.sealBlockCalls[0].timestamp)
 		require.Equal(t, 0, db.addLogCalls)
 	})
 
@@ -321,7 +319,7 @@ func TestProcessBlockLogs(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, 3, db.addLogCalls)
-		require.NotNil(t, db.sealBlockCall)
+		require.Len(t, db.sealBlockCalls, 1)
 	})
 
 	t.Run("genesis block handled correctly", func(t *testing.T) {
@@ -339,11 +337,11 @@ func TestProcessBlockLogs(t *testing.T) {
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		require.Equal(t, uint64(0), db.sealBlockCall.block.Number)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, uint64(0), db.sealBlockCalls[0].block.Number)
 	})
 
-	t.Run("first block at non-zero number uses empty parent", func(t *testing.T) {
+	t.Run("first block at non-zero number seals virtual parent first", func(t *testing.T) {
 		t.Parallel()
 
 		interop := &Interop{log: gethlog.New()}
@@ -355,14 +353,95 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		// isFirstBlock=true should use empty parent for both AddLog and SealBlock
-		// This allows the logsDB to treat this block as its genesis
+		// isFirstBlock=true should first seal a "virtual parent" block,
+		// then seal the actual block. This allows logs to reference a sealed parent.
 		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
 
 		require.NoError(t, err)
-		require.NotNil(t, db.sealBlockCall)
-		// Both AddLog and SealBlock should use empty parent for first block
-		require.Equal(t, common.Hash{}, db.sealBlockCall.parentHash)
+		require.Len(t, db.sealBlockCalls, 2)
+
+		// First call: seal the virtual parent (block 9) with empty parent hash
+		require.Equal(t, common.Hash{}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(9), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].block.Hash)
+
+		// Second call: seal the actual block (block 10) with real parent hash
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[1].parentHash)
+		require.Equal(t, uint64(10), db.sealBlockCalls[1].block.Number)
+		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[1].block.Hash)
+	})
+
+	t.Run("first block with logs succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		interop := &Interop{log: gethlog.New()}
+		db := &mockLogsDB{}
+		blockInfo := &testBlockInfo{
+			hash:       common.Hash{0x02},
+			parentHash: common.Hash{0x01},
+			number:     100,
+			timestamp:  1000,
+		}
+
+		receipts := types.Receipts{
+			&types.Receipt{
+				Logs: []*types.Log{
+					{Address: common.Address{0xAA}, Data: []byte{0x01}},
+				},
+			},
+		}
+
+		// This is the key test: first block with logs should work because
+		// we seal the virtual parent first, allowing AddLog to reference it
+		err := interop.processBlockLogs(db, blockInfo, receipts, true)
+
+		require.NoError(t, err)
+		require.Len(t, db.sealBlockCalls, 2) // virtual parent + actual block
+		require.Equal(t, 1, db.addLogCalls)
+	})
+
+	t.Run("integration: first block with logs against real DB", func(t *testing.T) {
+		t.Parallel()
+
+		dataDir := t.TempDir()
+		chainID := eth.ChainIDFromUInt64(10)
+
+		db, err := openLogsDB(gethlog.New(), chainID, dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		interop := &Interop{log: gethlog.New()}
+		blockInfo := &testBlockInfo{
+			hash:       common.Hash{0x02},
+			parentHash: common.Hash{0x01},
+			number:     100,
+			timestamp:  1000,
+		}
+		receipts := types.Receipts{
+			&types.Receipt{
+				Logs: []*types.Log{
+					{Address: common.Address{0xAA}, Data: []byte{0x01}},
+					{Address: common.Address{0xBB}, Data: []byte{0x02}},
+				},
+			},
+		}
+
+		// This is the key integration test: first block with logs must work
+		// against the real logs.DB, not just the mock.
+		err = interop.processBlockLogs(db, blockInfo, receipts, true)
+		require.NoError(t, err)
+
+		// Verify data is correctly in the DB
+		latestBlock, ok := db.LatestSealedBlock()
+		require.True(t, ok)
+		require.Equal(t, uint64(100), latestBlock.Number)
+		require.Equal(t, common.Hash{0x02}, latestBlock.Hash)
+
+		// Verify we can open the block and see the logs
+		ref, logCount, _, err := db.OpenBlock(100)
+		require.NoError(t, err)
+		require.Equal(t, uint32(2), logCount)
+		require.Equal(t, common.Hash{0x01}, ref.ParentHash)
 	})
 
 	t.Run("AddLog error propagated", func(t *testing.T) {
@@ -408,82 +487,18 @@ func TestProcessBlockLogs(t *testing.T) {
 }
 
 // =============================================================================
-// TestLoadLogs_ParentHashMismatch
-// =============================================================================
-
-func TestLoadLogs_ParentHashMismatch(t *testing.T) {
-	t.Parallel()
-	dataDir := t.TempDir()
-
-	chainID := eth.ChainIDFromUInt64(10)
-	firstBlockHash := common.Hash{0x01}
-	wrongParentHash := common.Hash{0xFF}
-
-	callCount := 0
-	mockChain := &statefulMockChainContainer{
-		id: chainID,
-		blockAtTimestampFn: func(ts uint64) (eth.L2BlockRef, error) {
-			if ts == 1000 {
-				return eth.L2BlockRef{
-					Hash:   firstBlockHash,
-					Number: 100,
-					Time:   1000,
-				}, nil
-			}
-			return eth.L2BlockRef{
-				Hash:   common.Hash{0x02},
-				Number: 101,
-				Time:   1001,
-			}, nil
-		},
-		fetchReceiptsFn: func(blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-			callCount++
-			if callCount == 1 {
-				return &testBlockInfo{
-					hash:       firstBlockHash,
-					parentHash: common.Hash{},
-					number:     100,
-					timestamp:  1000,
-				}, types.Receipts{}, nil
-			}
-			return &testBlockInfo{
-				hash:       common.Hash{0x02},
-				parentHash: wrongParentHash, // Wrong parent!
-				number:     101,
-				timestamp:  1001,
-			}, types.Receipts{}, nil
-		},
-	}
-
-	chains := map[eth.ChainID]cc.ChainContainer{chainID: mockChain}
-	interop := New(gethlog.New(), 1000, chains, dataDir)
-	require.NotNil(t, interop)
-	interop.ctx = context.Background()
-	defer func() { _ = interop.Stop(context.Background()) }()
-
-	// Load logs for activation timestamp
-	err := interop.loadLogs(1000)
-	require.NoError(t, err)
-
-	// Try to load logs for 1001 - should fail due to parent hash mismatch
-	err = interop.loadLogs(1001)
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrParentHashMismatch)
-}
-
-// =============================================================================
 // Mock Types for LogsDB Tests
 // =============================================================================
 
 type mockLogsDB struct {
-	latestBlock   eth.BlockID
-	hasBlocks     bool
-	seal          suptypes.BlockSeal
-	findSealErr   error
-	addLogErr     error
-	sealBlockErr  error
-	addLogCalls   int
-	sealBlockCall *sealBlockCall
+	latestBlock    eth.BlockID
+	hasBlocks      bool
+	seal           suptypes.BlockSeal
+	findSealErr    error
+	addLogErr      error
+	sealBlockErr   error
+	addLogCalls    int
+	sealBlockCalls []*sealBlockCall // Track all SealBlock calls
 
 	firstSealedBlock    suptypes.BlockSeal
 	firstSealedBlockErr error
@@ -541,11 +556,11 @@ func (m *mockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx
 }
 
 func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
-	m.sealBlockCall = &sealBlockCall{
+	m.sealBlockCalls = append(m.sealBlockCalls, &sealBlockCall{
 		parentHash: parentHash,
 		block:      block,
 		timestamp:  timestamp,
-	}
+	})
 	return m.sealBlockErr
 }
 
@@ -554,55 +569,3 @@ func (m *mockLogsDB) Clear(inv reads.Invalidator) error                       { 
 func (m *mockLogsDB) Close() error                                            { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)
-
-// statefulMockChainContainer allows dynamic behavior based on test state
-type statefulMockChainContainer struct {
-	id                 eth.ChainID
-	blockAtTimestampFn func(ts uint64) (eth.L2BlockRef, error)
-	fetchReceiptsFn    func(blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error)
-}
-
-func (m *statefulMockChainContainer) ID() eth.ChainID                  { return m.id }
-func (m *statefulMockChainContainer) Start(ctx context.Context) error  { return nil }
-func (m *statefulMockChainContainer) Stop(ctx context.Context) error   { return nil }
-func (m *statefulMockChainContainer) Pause(ctx context.Context) error  { return nil }
-func (m *statefulMockChainContainer) Resume(ctx context.Context) error { return nil }
-func (m *statefulMockChainContainer) RegisterVerifier(v activity.VerificationActivity) {
-}
-func (m *statefulMockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	return m.blockAtTimestampFn(ts)
-}
-func (m *statefulMockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
-	return eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-func (m *statefulMockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
-	return eth.Bytes32{}, nil
-}
-func (m *statefulMockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
-	return nil, nil
-}
-func (m *statefulMockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	return m.fetchReceiptsFn(blockID)
-}
-func (m *statefulMockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	return &eth.SyncStatus{}, nil
-}
-func (m *statefulMockChainContainer) BlockTime() uint64 { return 1 }
-func (m *statefulMockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
-	return nil
-}
-func (m *statefulMockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
-}
-func (m *statefulMockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
-}
-func (m *statefulMockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
-
-var _ cc.ChainContainer = (*statefulMockChainContainer)(nil)

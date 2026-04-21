@@ -247,6 +247,11 @@ func (c *LogsDBChainIngester) BlockHashAt(blockNum uint64) (common.Hash, bool) {
 	return seal.Hash, true
 }
 
+// BlockHashByNumber returns the sealed block hash at the given height.
+func (c *LogsDBChainIngester) BlockHashByNumber(blockNum uint64) (common.Hash, bool) {
+	return c.BlockHashAt(blockNum)
+}
+
 // LatestTimestamp returns the timestamp of the latest sealed block
 func (c *LogsDBChainIngester) LatestTimestamp() (uint64, bool) {
 	c.mu.RLock()
@@ -278,33 +283,36 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 		return nil, types.ErrUninitialized
 	}
 
-	latestBlock, ok := c.logsDB.LatestSealedBlock()
-	if !c.earliestIngestedBlockSet.Load() || !ok {
+	blockNum, err := c.rollupCfg.TargetBlockNumber(timestamp)
+	if err != nil {
 		return nil, nil
 	}
-	earliest := c.earliestIngestedBlock.Load()
+
+	latestBlock, ok := c.logsDB.LatestSealedBlock()
+	if !ok || blockNum > latestBlock.Number {
+		return nil, nil
+	}
+
+	if !c.earliestIngestedBlockSet.Load() || blockNum < c.earliestIngestedBlock.Load() {
+		return nil, nil
+	}
+
+	ref, _, execMsgs, err := c.logsDB.OpenBlock(blockNum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open block %d: %w", blockNum, err)
+	}
+
+	if ref.Time != timestamp {
+		return nil, nil
+	}
 
 	var results []IncludedMessage
-	for blockNum := earliest; blockNum <= latestBlock.Number; blockNum++ {
-		ref, _, execMsgs, err := c.logsDB.OpenBlock(blockNum)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open block %d: %w", blockNum, err)
-		}
-
-		if ref.Time == timestamp {
-			for _, msg := range execMsgs {
-				results = append(results, IncludedMessage{
-					ExecutingMessage:   msg,
-					InclusionBlockNum:  blockNum,
-					InclusionTimestamp: ref.Time,
-				})
-			}
-		}
-
-		// Timestamps increase, so we can stop early
-		if ref.Time > timestamp {
-			break
-		}
+	for _, msg := range execMsgs {
+		results = append(results, IncludedMessage{
+			ExecutingMessage:   msg,
+			InclusionBlockNum:  blockNum,
+			InclusionTimestamp: ref.Time,
+		})
 	}
 
 	return results, nil
@@ -337,7 +345,12 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
 // calculateStartingBlock returns the block number where ingestion should start,
 // calculated from startTimestamp and backfillDuration.
 func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
-	backfillTimestamp := c.startTimestamp - uint64(c.backfillDuration.Seconds())
+	backfillSeconds := uint64(c.backfillDuration.Seconds())
+	if c.startTimestamp < backfillSeconds {
+		// Backfill reaches before epoch 0; start from genesis
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	backfillTimestamp := c.startTimestamp - backfillSeconds
 
 	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {
@@ -423,7 +436,7 @@ func (c *LogsDBChainIngester) runIngestion() {
 		}
 
 		// Reorg detection: if head moved behind our progress, check hash
-		if head.NumberU64() < nextBlock-1 {
+		if head.NumberU64() < nextBlock {
 			if err := c.checkReorg(head); err != nil {
 				continue
 			}

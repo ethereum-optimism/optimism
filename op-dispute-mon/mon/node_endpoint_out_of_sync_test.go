@@ -13,9 +13,9 @@ import (
 
 func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointOutOfSyncCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointOutOfSyncCount: 0},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, RollupEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointOutOfSyncCount: 0},
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointOutOfSyncCount: 0},
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
@@ -30,12 +30,12 @@ func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
 func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 5,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointOutOfSyncCount: 5,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 0,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointOutOfSyncCount: 0,
 		},
 	}
 
@@ -51,16 +51,16 @@ func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 3,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointOutOfSyncCount: 3,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 7,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointOutOfSyncCount: 7,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointOutOfSyncCount: 2,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			NodeEndpointOutOfSyncCount: 2,
 		},
 	}
 
@@ -77,20 +77,20 @@ func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing.T) {
 	games := []*types.EnrichedGameData{
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x11}},
-			RollupEndpointOutOfSyncCount: 0,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
+			NodeEndpointOutOfSyncCount: 0,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x22}},
-			RollupEndpointOutOfSyncCount: 4,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x22}},
+			NodeEndpointOutOfSyncCount: 4,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x33}},
-			RollupEndpointOutOfSyncCount: 0,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x33}},
+			NodeEndpointOutOfSyncCount: 0,
 		},
 		{
-			GameMetadata:                 gameTypes.GameMetadata{Proxy: common.Address{0x44}},
-			RollupEndpointOutOfSyncCount: 6,
+			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x44}},
+			NodeEndpointOutOfSyncCount: 6,
 		},
 	}
 

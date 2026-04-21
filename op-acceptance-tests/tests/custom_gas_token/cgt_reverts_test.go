@@ -2,14 +2,12 @@ package custom_gas_token
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-
-	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/lmittmann/w3"
@@ -18,8 +16,8 @@ import (
 // TestCGT_MessengerRejectsValue ensures that sending native value to the
 // L2CrossDomainMessenger reverts under CGT (non-payable path).
 func TestCGT_MessengerRejectsValue(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	t := devtest.ParallelT(gt)
+	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
@@ -40,8 +38,8 @@ func TestCGT_MessengerRejectsValue(gt *testing.T) {
 // TestCGT_L2StandardBridge_LegacyWithdrawReverts verifies that the legacy
 // ETH-specific withdraw path on L2StandardBridge reverts under CGT.
 func TestCGT_L2StandardBridge_LegacyWithdrawReverts(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewMinimal(t)
+	t := devtest.ParallelT(gt)
+	sys := newCGTMinimal(t)
 	ensureCGTOrSkip(t, sys)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)

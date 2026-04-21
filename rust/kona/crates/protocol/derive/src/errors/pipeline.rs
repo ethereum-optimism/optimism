@@ -1,7 +1,8 @@
 //! This module contains derivation errors thrown within the pipeline.
 
-use crate::BuilderError;
+use crate::{BlobProviderError, BuilderError};
 use alloc::string::String;
+use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use kona_genesis::SystemConfigUpdateError;
 use kona_protocol::{DepositError, SpanBatchError};
@@ -344,6 +345,28 @@ pub enum ResetError {
     /// The next l1 block provided to the managed traversal stage is not the expected one.
     #[error("Next L1 block hash mismatch: expected {0}, got {1}")]
     NextL1BlockHashMismatch(B256, B256),
+    /// Blobs referenced by an L1 block are permanently unavailable (e.g. missed beacon slot).
+    /// The pipeline must reset to move past the offending L1 block.
+    #[error("Blobs unavailable: beacon node returned 404 for slot {0}")]
+    BlobsUnavailable(u64),
+    /// An L1 block referenced during derivation is no longer present on the chain,
+    /// typically because an L1 reorg removed it. The pipeline must reset to recover.
+    #[error("Block not found: {0}")]
+    BlockNotFound(BlockId),
+    /// The blob provider returned fewer blobs than expected (under-fill).
+    #[error("Blob provider under-fill: {0}")]
+    BlobsUnderFill(BlobProviderError),
+    /// The blob provider returned more blobs than were requested (over-fill).
+    /// Can occur with buggy blob providers or in rare L1 reorg scenarios.
+    #[error(
+        "Blob provider over-fill: filled {filled} blob placeholders but provider returned {returned} blobs"
+    )]
+    BlobsOverFill {
+        /// The number of blob placeholders that were filled.
+        filled: usize,
+        /// The total number of blobs returned by the provider.
+        returned: usize,
+    },
 }
 
 impl ResetError {
@@ -431,6 +454,13 @@ mod tests {
                 Default::default(),
             )),
             ResetError::HoloceneActivation,
+            ResetError::BlobsUnavailable(0),
+            ResetError::BlockNotFound(B256::default().into()),
+            ResetError::BlobsUnderFill(BlobProviderError::NotEnoughBlobs {
+                expected: 0,
+                actual: 0,
+            }),
+            ResetError::BlobsOverFill { filled: 0, returned: 0 },
         ];
         for error in reset_errors {
             let expected = PipelineErrorKind::Reset(error.clone());

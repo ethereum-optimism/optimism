@@ -5,9 +5,10 @@
 //! directly from this cached state. Chain updates are provided through the `add_block` and
 //! `handle_chain_event` methods.
 
+use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use async_trait::async_trait;
-use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind};
+use kona_derive::{L2ChainProvider, PipelineError, PipelineErrorKind, ResetError};
 use kona_genesis::{ChainGenesis, RollupConfig, SystemConfig};
 use kona_protocol::{BatchValidationProvider, L2BlockInfo, to_system_config};
 use op_alloy_consensus::OpBlock;
@@ -279,9 +280,9 @@ impl From<BufferedProviderError> for PipelineErrorKind {
                     "Block not found in cache: {hash}"
                 )))
             }
-            BufferedProviderError::BlockNotFound(number) => Self::Temporary(
-                PipelineError::Provider(format!("Block {number} not found in cache")),
-            ),
+            BufferedProviderError::BlockNotFound(number) => {
+                ResetError::BlockNotFound(BlockId::Number(number.into())).reset()
+            }
             BufferedProviderError::L2BlockInfoConstruction(number) => {
                 Self::Temporary(PipelineError::Provider(format!(
                     "Failed to construct L2BlockInfo for block {number}"
@@ -416,5 +417,36 @@ mod tests {
         // Retrieve L2 block info by number
         let retrieved_info = provider.l2_block_info_by_number(1).await.unwrap();
         assert_eq!(retrieved_info.block_info.number, 1);
+    }
+
+    #[test]
+    fn test_from_buffered_provider_error() {
+        // BlockNotFound means the block is gone (e.g. due to a reorg draining the buffer).
+        // Retrying will never succeed — the pipeline must reset.
+        let kind: PipelineErrorKind = BufferedProviderError::BlockNotFound(42).into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Reset(_)),
+            "BlockNotFound must map to Reset so the pipeline recovers from reorgs"
+        );
+
+        // Other errors remain Temporary or Critical as before.
+        let kind: PipelineErrorKind = BufferedProviderError::L2BlockInfoConstruction(1).into();
+        assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
+
+        let kind: PipelineErrorKind = BufferedProviderError::SystemConfigMissing.into();
+        assert!(matches!(kind, PipelineErrorKind::Critical(_)));
+    }
+
+    #[tokio::test]
+    async fn test_block_not_found_is_reset_via_provider() {
+        let mut provider = create_test_provider().await;
+        // Querying a block number that was never inserted must produce a Reset error,
+        // not a Temporary one. This is the observable contract the pipeline relies on.
+        let err = provider.block_by_number(99).await.unwrap_err();
+        let kind: PipelineErrorKind = err.into();
+        assert!(
+            matches!(kind, PipelineErrorKind::Reset(_)),
+            "block_by_number returning BlockNotFound must map to Reset"
+        );
     }
 }

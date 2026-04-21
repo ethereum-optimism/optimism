@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -18,9 +19,9 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 /// @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
-contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @custom:semver 2.2.0
-    string public constant version = "2.2.0";
+contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, ISemver {
+    /// @custom:semver 2.2.1
+    string public constant version = "2.2.1";
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() {
@@ -30,6 +31,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Initializer.
     /// @param _l1CrossDomainMessenger L1CrossDomainMessenger contract on the other network.
     function initialize(CrossDomainMessenger _l1CrossDomainMessenger) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         __CrossDomainMessenger_init({ _otherMessenger: _l1CrossDomainMessenger });
     }
 

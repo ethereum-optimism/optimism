@@ -24,6 +24,7 @@ type conductor interface {
 	AddServerAsVoter(ctx context.Context, id string, addr string, version uint64) error
 	AddServerAsNonvoter(ctx context.Context, id string, addr string, version uint64) error
 	RemoveServer(ctx context.Context, id string, version uint64) error
+	DemoteVoter(ctx context.Context, id string, version uint64) error
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
@@ -86,6 +87,11 @@ func (api *APIBackend) AddServerAsVoter(ctx context.Context, id string, addr str
 // RemoveServer implements API.
 func (api *APIBackend) RemoveServer(ctx context.Context, id string, version uint64) error {
 	return api.con.RemoveServer(ctx, id, version)
+}
+
+// DemoteVoter implements API.
+func (api *APIBackend) DemoteVoter(ctx context.Context, id string, version uint64) error {
+	return api.con.DemoteVoter(ctx, id, version)
 }
 
 // CommitUnsafePayload implements API.

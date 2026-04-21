@@ -4,5 +4,7 @@
 
 mod precompiles;
 
+mod tx;
+
 mod factory;
 pub use factory::FpvmOpEvmFactory;

@@ -29,12 +29,6 @@ type DeployImplementationsInput struct {
 }
 
 type DeployImplementationsOutput struct {
-	Opcm                             common.Address `json:"opcmAddress"`
-	OpcmContractsContainer           common.Address `json:"opcmContractsContainerAddress"`
-	OpcmGameTypeAdder                common.Address `json:"opcmGameTypeAdderAddress"`
-	OpcmDeployer                     common.Address `json:"opcmDeployerAddress"`
-	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
-	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
 	OpcmUtils                        common.Address `json:"opcmUtilsAddress"`
 	OpcmMigrator                     common.Address `json:"opcmMigratorAddress"`
@@ -42,7 +36,6 @@ type DeployImplementationsOutput struct {
 	OpcmContainer                    common.Address `json:"opcmContainerAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
-	OptimismPortalInteropImpl        common.Address `json:"optimismPortalInteropImplAddress"`
 	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" abi:"ethLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingleton                    common.Address `json:"mipsSingletonAddress"`
@@ -59,6 +52,7 @@ type DeployImplementationsOutput struct {
 	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
+	ZkDisputeGameImpl                common.Address `json:"zkDisputeGameImplAddress" abi:"zkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`
 }
 

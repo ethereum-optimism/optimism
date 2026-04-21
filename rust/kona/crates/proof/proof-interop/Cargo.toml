@@ -28,7 +28,7 @@ alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
-alloy-evm = { workspace = true, features = ["op"] }
+alloy-evm = { workspace = true }
 
 # OP Alloy
 op-alloy-consensus.workspace = true
@@ -55,6 +55,7 @@ alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
 kona-interop = { workspace = true, features = ["arbitrary"] }
 arbitrary = { workspace = true, features = ["derive"] }
 rand.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 
 [features]
 arbitrary = [
@@ -69,4 +70,5 @@ arbitrary = [
 	"op-alloy-consensus/arbitrary",
 	"op-alloy-rpc-types-engine/arbitrary",
 	"revm/arbitrary",
+	"alloy-op-evm/arbitrary",
 ]

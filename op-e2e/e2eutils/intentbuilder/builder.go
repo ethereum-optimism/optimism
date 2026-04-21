@@ -54,7 +54,6 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
-	WithRevenueShare(enabled bool, chainFeesRecipient common.Address)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -63,6 +62,7 @@ type L2Configurator interface {
 	L2HardforkConfigurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
 	WithDAFootprintGasScalar(scalar uint16)
+	WithGasLimit(v uint64)
 }
 
 type ContractsConfigurator interface {
@@ -113,6 +113,7 @@ type Builder interface {
 
 	WithGlobalOverride(key string, value any) Builder
 	GlobalOverride(key string) any
+	WithUseInterop(enabled bool) Builder
 }
 
 func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -237,6 +238,11 @@ func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
 
 func (b *intentBuilder) GlobalOverride(key string) any {
 	return b.intent.GlobalDeployOverrides[key]
+}
+
+func (b *intentBuilder) WithUseInterop(enabled bool) Builder {
+	b.intent.UseInterop = enabled
+	return b
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {
@@ -527,11 +533,6 @@ func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	}
 }
 
-func (c *l2Configurator) WithRevenueShare(enabled bool, chainFeesRecipient common.Address) {
-	c.builder.intent.Chains[c.chainIndex].UseRevenueShare = enabled
-	c.builder.intent.Chains[c.chainIndex].ChainFeesRecipient = chainFeesRecipient
-}
-
 func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 	chainIntent := c.builder.intent.Chains[c.chainIndex]
 	if chainIntent.L2DevGenesisParams == nil {
@@ -543,6 +544,10 @@ func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
 	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l2Configurator) WithGasLimit(v uint64) {
+	c.builder.intent.Chains[c.chainIndex].GasLimit = v
 }
 
 func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) {

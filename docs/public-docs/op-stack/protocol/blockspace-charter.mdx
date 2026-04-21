@@ -1,0 +1,107 @@
+---
+title: The Blockspace and Standard Rollup Charters
+description: Learn about Blockspace Charters, the Standard Rollup Charter, and the superchain-registry.
+---
+Blockspace Charters provide the essential technical and governance framework for chains on the OP Stack. These frameworks provide a secure and scalable foundation for all stakeholders. By adhering to these charters, chain operators and users can operate confidently within the OP Stack ecosystem. The Standard Rollup Charter is the first of several blockspace charters with different customizations and security guarantees.
+
+These documents establish standards to ensure security, transparency, and long-term sustainability. This guide offers an overview of each charter, explains how chains can achieve compliance to be considered Standard Chains, and how the charters tie into the superchain-registry.
+
+This doc mostly covers the charters, but references the superchain-registry as they are all deeply connected. Read more about the superchain-registry [here](/op-stack/protocol/superchain-registry).
+
+## Summary of charters
+
+The components work in unison to form a cohesive governance and technical framework:
+
+*   **Blockspace Charters:** A type of framework that establishes criteria, governing policies, and precommitments for blockspace in the Optimism ecosystem, ensuring security, uptime, and alignment with the [Law of Chains](https://github.com/ethereum-optimism/OPerating-manual/blob/main/Law%20of%20Chains.md).
+*   **Standard Rollup Charter:** The Standard Rollup Charter is the first blockspace charter, defining the technical and governance requirements for our highest-security blockspace. By adhering to the Standard Rollup Charter, chains can achieve "Standard" status, ensuring consistency, high security, and operational reliability.
+*   **superchain-registry:** The superchain-registry is an index of chains which serves as the source of truth for OP Stack chain classification and configuration. The registry checks for compliance with the Standard Rollup Charter. Chains with `superchain_level = 2` meet all the criteria to be classified as a Standard Rollup.
+
+Together, these components ensure a robust, scalable, and transparent ecosystem. Blockspace Charters provide the vision and principles, the Standard Rollup Charter translates these into concrete requirements, and the superchain-registry certifies compliance.
+
+## Blockspace Charters
+
+Blockspace Charters outline the foundational framework for governing blockspace within the Optimism ecosystem.
+
+They are structured around three main components, detailed below:
+
+### Criteria
+
+The technical parameters defining which chains are subject to the charter include:
+
+*   **Version:** The OP Stack version powering the chain, validated via commit-hash or release tag.
+*   **Configuration:** Parameter bounds for deployment, covering both static variables like Chain ID and dynamic variables such as sequencer roles or upgrade keys.
+*   **Solvency:** Verification that all state transitions in the chain's history are valid, and free from invalid withdrawals or outputs that could undercollateralize the bridge.
+
+### Governing policies
+
+These establish rules and procedures for stakeholder interactions and blockspace management. For example:
+
+*   Expected behaviors for roles like sequencers and upgrade key holders.
+*   Processes for identifying and resolving violations, such as governance votes for removing non-compliant actors.
+*   Alignment with the [Law of Chains](https://github.com/ethereum-optimism/OPerating-manual/blob/main/Law%20of%20Chains.md), ensuring user protections like censorship resistance and security.
+
+### Precommitments
+
+Commitments outlining long-term governance stability and anticipated changes. Examples include:
+
+*   Future updates to fee models or role separations.
+*   Guidance for evolving technical parameters like gas limits and fee margins.
+
+By defining these components, blockspace charters ensures secure, scalable, and governed blockspace while fostering trust and alignment within the ecosystem.
+
+### Criteria governance
+
+The criteria for Blockspace Charters are set in two ways; either by a governance vote or by the Optimism Foundation.
+
+*   **Governance controlled**: The three `TOML` files referenced in the charter ([standard config params](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-config-params-mainnet.toml), [standard config roles](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-config-roles-mainnet.toml), and [standard versions](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)) require a governance vote to alter. Changes to the files require a governance vote, but changes to code or tools that consume or validate them don't "so long as they do not violate the semantic interpretation of those TOML files."
+*   **Foundation discretion**: Changes to validation, outside of the three TOML files referenced above, remain at the Foundation's discretion. This includes changes to, but is not limited to, `BHIC`, other config checks, and RPC availability.
+
+Read more about Blockspace Charters in the [governance post](https://gov.optimism.io/t/season-6-introducing-blockspace-charters-superchain-first-governance/8133).
+
+## The Standard Rollup Charter
+
+The Standard Rollup Charter is the Blockspace Charter that defines the requirements for being a standard chain, our highest-security flagship blockspace. The Standard Rollup Charter ensures that chains adhere to the technical and operational benchmarks necessary to maintain the highest standards of security, compatibility, and compliance on the OP Stack.
+
+Learn more about The Standard Charter in [the governance post](https://github.com/ethereum-optimism/OPerating-manual/blob/feat/standard-rollup-charter/Standard%20Rollup%20Charter.md#standard-rollup-charter).
+
+Here are some specific criteria a chain must meet:
+
+### Onchain criteria
+
+*   **Version validation:** Chains must deploy a governance-approved, up-to-date OP Stack release. Contracts must match the [standard bytecode](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+*   **Configuration checks:** Chain parameters, such as block time and gas metering, must comply with governance-approved specifications. Administrative roles must align with Security Council requirements.
+
+Read more about onchain checks in the [repo](https://github.com/ethereum-optimism/OPerating-manual/blob/feat/standard-rollup-charter/Standard%20Rollup%20Charter.md#onchain-criteria).
+
+### Off-chain criteria
+
+The Optimism Foundation performs off-chain checks to verify compliance. These include:
+
+*   Ensuring unique Chain IDs.
+*   Monitoring security configurations.
+*   Verifying governance authenticity.
+
+Such measures remain under the Foundation's oversight until governance transitions to fully autonomous control.
+
+Read more about Off-Chain checks in the [repo](https://github.com/ethereum-optimism/OPerating-manual/blob/feat/standard-rollup-charter/Standard%20Rollup%20Charter.md#offchain-criteria)
+
+### History integrity
+
+The history integrity check identifies discrepancies in chain history, including invalid state transitions. These checks are only required for chains that have not been managed by the Optimism Security Council from launch.
+
+### Understanding chain compliance
+
+Chains must meet strict requirements to qualify as "Standard." Below are answers to common questions:
+
+*   **Can I modify system smart contracts and remain Standard?** No, modifications invalidate compliance.
+*   **Is an alt-DA mode chain Standard?** No, Standard Rollups must adhere to the default data availability model.
+*   **Will beta features qualify as Standard?** No. Beta features have not yet been approved by Optimism Governance. When features graduate from Beta to GA, they may be included in the Standard Rollup Charter.
+
+## The superchain-registry
+
+The superchain-registry serves as the source of truth for OP Stack chain classification and what modifications chains have made. The superchain-registry has two main tasks:
+
+*   **Validates version and configuration:** The registry validates that chains align with governance-approved standards in the form of the Standard Rollup Charter.
+*   **Indicates adherence to the Standard Rollup Charter:** Once the registry validates that a chain meets the standard criteria, it promotes it to "Standard" by setting its `superchain_level` value to `2`.
+
+By integrating with the Standard Rollup Charter, the registry offers an automated and transparent validation system. This ensures chains can independently demonstrate compliance. For additional details, refer to the [superchain-registry documentation](/op-stack/protocol/superchain-registry).

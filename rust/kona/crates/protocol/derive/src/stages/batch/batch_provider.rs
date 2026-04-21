@@ -3,12 +3,13 @@
 use super::NextBatchProvider;
 use crate::{
     AttributesProvider, BatchQueue, BatchValidator, L2ChainProvider, OriginAdvancer,
-    OriginProvider, PipelineError, PipelineResult, Signal, SignalReceiver,
+    OriginProvider, PipelineError, PipelineResult, Stage,
 };
 use alloc::{boxed::Box, sync::Arc};
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::RollupConfig;
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 
 /// The [`BatchProvider`] stage is a mux between the [`BatchQueue`] and [`BatchValidator`] stages.
@@ -18,11 +19,11 @@ use kona_protocol::{BlockInfo, L2BlockInfo, SingleBatch};
 /// When Holocene is active, the [`BatchValidator`] is used.
 ///
 /// When transitioning between the two stages, the mux will reset the active stage, but
-/// retain `l1_blocks`.
+/// retain `l1_blocks` and `origin`.
 #[derive(Debug)]
 pub struct BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// The rollup configuration.
@@ -48,7 +49,7 @@ where
 
 impl<P, F> BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     /// Creates a new [`BatchProvider`] with the given configuration and previous stage.
@@ -74,6 +75,7 @@ where
             let batch_queue = self.batch_queue.take().expect("Must have batch queue");
             let mut bv = BatchValidator::new(self.cfg.clone(), batch_queue.prev);
             bv.l1_blocks = batch_queue.l1_blocks;
+            bv.origin = batch_queue.origin;
             self.batch_validator = Some(bv);
         } else if self.batch_validator.is_some() && !self.cfg.is_holocene_active(origin.timestamp) {
             // If the batch validator is active, and Holocene is not active, it indicates an L1
@@ -92,7 +94,7 @@ where
 #[async_trait]
 impl<P, F> OriginAdvancer for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     async fn advance_origin(&mut self) -> PipelineResult<()> {
@@ -110,7 +112,7 @@ where
 
 impl<P, F> OriginProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug,
     F: L2ChainProvider + Clone + Debug,
 {
     fn origin(&self) -> Option<BlockInfo> {
@@ -126,29 +128,51 @@ where
     }
 }
 
-#[async_trait]
-impl<P, F> SignalReceiver for BatchProvider<P, F>
-where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Send + Debug,
-    F: L2ChainProvider + Clone + Send + Debug,
-{
-    async fn signal(&mut self, signal: Signal) -> PipelineResult<()> {
-        self.attempt_update()?;
-
-        if let Some(batch_validator) = self.batch_validator.as_mut() {
-            batch_validator.signal(signal).await
-        } else if let Some(batch_queue) = self.batch_queue.as_mut() {
-            batch_queue.signal(signal).await
+/// Dispatches a method call to the active inner batch stage.
+macro_rules! dispatch_inner {
+    ($self:ident, $method:ident $(, $arg:expr)*) => {{
+        $self.attempt_update()?;
+        if let Some(inner) = $self.batch_validator.as_mut() {
+            inner.$method($($arg),*).await
+        } else if let Some(inner) = $self.batch_queue.as_mut() {
+            inner.$method($($arg),*).await
         } else {
             Err(PipelineError::NotEnoughData.temp())
         }
+    }};
+}
+
+#[async_trait]
+impl<P, F> Stage for BatchProvider<P, F>
+where
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Send + Debug,
+    F: L2ChainProvider + Clone + Send + Debug,
+{
+    async fn reset(
+        &mut self,
+        l1_origin: BlockNumHash,
+        system_config: SystemConfig,
+    ) -> PipelineResult<()> {
+        dispatch_inner!(self, reset, l1_origin, system_config)
+    }
+
+    async fn activate(&mut self) -> PipelineResult<()> {
+        dispatch_inner!(self, activate)
+    }
+
+    async fn flush_channel(&mut self) -> PipelineResult<()> {
+        dispatch_inner!(self, flush_channel)
+    }
+
+    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
+        dispatch_inner!(self, provide_block, block)
     }
 }
 
 #[async_trait]
 impl<P, F> AttributesProvider for BatchProvider<P, F>
 where
-    P: NextBatchProvider + OriginAdvancer + OriginProvider + SignalReceiver + Debug + Send,
+    P: NextBatchProvider + OriginAdvancer + OriginProvider + Stage + Debug + Send,
     F: L2ChainProvider + Clone + Send + Debug,
 {
     fn is_last_in_span(&self) -> bool {
@@ -176,11 +200,11 @@ mod test {
     use super::BatchProvider;
     use crate::{
         test_utils::{TestL2ChainProvider, TestNextBatchProvider},
-        traits::{OriginProvider, SignalReceiver},
-        types::ResetSignal,
+        traits::{OriginProvider, Stage},
     };
     use alloc::{sync::Arc, vec};
-    use kona_genesis::{HardForkConfig, RollupConfig};
+    use alloy_eips::BlockNumHash;
+    use kona_genesis::{HardForkConfig, RollupConfig, SystemConfig};
     use kona_protocol::BlockInfo;
 
     #[test]
@@ -280,12 +304,12 @@ mod test {
         let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
 
         // Reset the batch provider.
-        batch_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        batch_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         let Some(bq) = batch_provider.batch_queue else {
             panic!("Expected BatchQueue");
         };
-        assert!(bq.l1_blocks.len() == 1);
+        assert_eq!(bq.l1_blocks.len(), 1);
     }
 
     #[tokio::test]
@@ -299,11 +323,66 @@ mod test {
         let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
 
         // Reset the batch provider.
-        batch_provider.signal(ResetSignal::default().signal()).await.unwrap();
+        batch_provider.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
 
         let Some(bv) = batch_provider.batch_validator else {
             panic!("Expected BatchValidator");
         };
-        assert!(bv.l1_blocks.len() == 1);
+        assert_eq!(bv.l1_blocks.len(), 1);
+    }
+
+    // On Holocene activation, BatchProvider.attempt_update() must copy BOTH l1_blocks
+    // AND origin from the old BatchQueue to the new BatchValidator.
+    //
+    // Without copying origin, BatchValidator.origin starts as None. The first
+    // update_origins() call always enters the `self.origin != self.prev.origin()` branch
+    // (None != Some(...)), causing either duplicate l1_block insertion (normal case) or
+    // l1_blocks.clear() followed by MissingOrigin.crit() halt (lagging case).
+    #[test]
+    fn test_spec_batch_provider_holocene_transition_origin_transferred() {
+        let provider = TestNextBatchProvider::new(vec![]);
+        let l2_provider = TestL2ChainProvider::default();
+        // Holocene activates at timestamp 2.
+        let cfg = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(2), ..Default::default() },
+            ..Default::default()
+        });
+        let mut batch_provider = BatchProvider::new(cfg, provider, l2_provider);
+
+        // Initialize with BatchQueue (Holocene not yet active at timestamp 0).
+        batch_provider.attempt_update().unwrap();
+        assert!(batch_provider.batch_queue.is_some(), "Expected BatchQueue pre-Holocene");
+
+        // Seed BatchQueue.l1_blocks with two blocks (as would happen during normal derivation).
+        let block_a = BlockInfo { number: 1, timestamp: 0, ..Default::default() };
+        let block_b = BlockInfo { number: 2, timestamp: 2, ..Default::default() };
+        {
+            let bq = batch_provider.batch_queue.as_mut().unwrap();
+            bq.l1_blocks.push(block_a);
+            bq.l1_blocks.push(block_b);
+            bq.origin = Some(block_b); // BatchQueue.origin set to the current L1 head
+            // Advance the mock prev origin to Holocene activation timestamp.
+            bq.prev.origin = Some(block_b);
+        }
+
+        // Trigger Holocene transition via attempt_update().
+        batch_provider.attempt_update().unwrap();
+        assert!(batch_provider.batch_queue.is_none(), "BatchQueue should be gone post-Holocene");
+        assert!(batch_provider.batch_validator.is_some(), "Expected BatchValidator post-Holocene");
+
+        let bv = batch_provider.batch_validator.as_ref().unwrap();
+
+        // Verify l1_blocks were transferred.
+        assert_eq!(bv.l1_blocks.len(), 2, "l1_blocks must be transferred from BatchQueue");
+        assert_eq!(bv.l1_blocks[0], block_a);
+        assert_eq!(bv.l1_blocks[1], block_b);
+
+        // Verify origin was transferred: BatchValidator.origin must equal the
+        // origin from the old BatchQueue, matching Go's TransformHolocene (batch_mux.go:68).
+        assert_eq!(
+            bv.origin,
+            Some(block_b),
+            "BatchValidator.origin must be copied from BatchQueue on Holocene transition"
+        );
     }
 }

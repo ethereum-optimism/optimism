@@ -18,17 +18,17 @@ pub const FJORD_MAX_SEQUENCER_DRIFT: u64 = 1800;
 /// The channel timeout once the Granite hardfork is active.
 pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 
-/// The default interop message expiry window. (1 hour, in seconds)
-pub const DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW: u64 = 60 * 60;
-
 #[cfg(feature = "serde")]
 const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
 }
 
-#[cfg(feature = "serde")]
-const fn default_interop_message_expiry_window() -> u64 {
-    DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW
+/// The max sequencer drift needs to be changes for some chains, e.g. those that build only on
+/// finalized L1 blocks, where L1 finality delays can exceed the standard
+/// [`FJORD_MAX_SEQUENCER_DRIFT`].
+#[cfg(all(feature = "serde", feature = "rollup_config_override"))]
+const fn default_fjord_max_sequencer_drift() -> u64 {
+    FJORD_MAX_SEQUENCER_DRIFT
 }
 
 /// The Rollup configuration.
@@ -55,6 +55,10 @@ pub struct RollupConfig {
     /// The channel timeout after the Granite hardfork.
     #[cfg_attr(feature = "serde", serde(default = "default_granite_channel_timeout"))]
     pub granite_channel_timeout: u64,
+    /// The max sequencer drift after the Fjord hardfork.
+    #[cfg(feature = "rollup_config_override")]
+    #[cfg_attr(feature = "serde", serde(default = "default_fjord_max_sequencer_drift"))]
+    pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
     /// The L2 chain ID
@@ -84,10 +88,6 @@ pub struct RollupConfig {
     /// stored at.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub da_challenge_address: Option<Address>,
-    /// `interop_message_expiry_window` is the maximum time (in seconds) that an initiating message
-    /// can be referenced on a remote chain before it expires.
-    #[cfg_attr(feature = "serde", serde(default = "default_interop_message_expiry_window"))]
-    pub interop_message_expiry_window: u64,
     /// `alt_da_config` is the chain-specific DA config for the rollup.
     #[cfg_attr(feature = "serde", serde(rename = "alt_da"))]
     pub alt_da_config: Option<AltDAConfig>,
@@ -115,6 +115,8 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             seq_window_size: u.arbitrary()?,
             channel_timeout: u.arbitrary()?,
             granite_channel_timeout: u.arbitrary()?,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: u.arbitrary()?,
             l1_chain_id: u.arbitrary()?,
             l2_chain_id: u.arbitrary()?,
             hardforks: HardForkConfig::arbitrary(u)?,
@@ -125,7 +127,6 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
-            interop_message_expiry_window: u.arbitrary()?,
             chain_op_config,
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
         })
@@ -142,6 +143,8 @@ impl Default for RollupConfig {
             seq_window_size: 0,
             channel_timeout: 0,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 0,
             l2_chain_id: Chain::from_id(0),
             hardforks: HardForkConfig::default(),
@@ -152,7 +155,6 @@ impl Default for RollupConfig {
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
-            interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
         }
@@ -302,13 +304,25 @@ impl RollupConfig {
     /// Returns true if Jovian is active at the given timestamp.
     pub fn is_jovian_active(&self, timestamp: u64) -> bool {
         self.hardforks.jovian_time.is_some_and(|t| timestamp >= t) ||
-            self.is_interop_active(timestamp)
+            self.is_karst_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Jovian block.
     pub fn is_first_jovian_block(&self, timestamp: u64) -> bool {
         self.is_jovian_active(timestamp) &&
             !self.is_jovian_active(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if Karst is active at the given timestamp.
+    pub fn is_karst_active(&self, timestamp: u64) -> bool {
+        self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
+            self.is_interop_active(timestamp)
+    }
+
+    /// Returns true if the timestamp marks the first Karst block.
+    pub fn is_first_karst_block(&self, timestamp: u64) -> bool {
+        self.is_karst_active(timestamp) &&
+            !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Interop is active at the given timestamp.
@@ -331,10 +345,12 @@ impl RollupConfig {
     /// Returns the max sequencer drift for the given timestamp.
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
-            FJORD_MAX_SEQUENCER_DRIFT
-        } else {
-            self.max_sequencer_drift
+            #[cfg(feature = "rollup_config_override")]
+            return self.fjord_max_sequencer_drift;
+            #[cfg(not(feature = "rollup_config_override"))]
+            return FJORD_MAX_SEQUENCER_DRIFT;
         }
+        self.max_sequencer_drift
     }
 
     /// Returns the max rlp bytes per channel for the given timestamp.
@@ -460,7 +476,12 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .jovian_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or(ForkCondition::Never),
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Karst)),
+            OpHardfork::Karst => self
+                .hardforks
+                .karst_time
+                .map(ForkCondition::Timestamp)
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
             OpHardfork::Interop => self
                 .hardforks
                 .interop_time
@@ -649,6 +670,25 @@ mod tests {
     }
 
     #[test]
+    fn test_karst_active() {
+        let mut config = RollupConfig::default();
+        assert!(!config.is_karst_active(0));
+        config.hardforks.karst_time = Some(10);
+        assert!(config.is_regolith_active(10));
+        assert!(config.is_canyon_active(10));
+        assert!(config.is_delta_active(10));
+        assert!(config.is_ecotone_active(10));
+        assert!(config.is_fjord_active(10));
+        assert!(config.is_granite_active(10));
+        assert!(config.is_holocene_active(10));
+        assert!(!config.is_pectra_blob_schedule_active(10));
+        assert!(config.is_isthmus_active(10));
+        assert!(config.is_jovian_active(10));
+        assert!(config.is_karst_active(10));
+        assert!(!config.is_karst_active(9));
+    }
+
+    #[test]
     fn test_interop_active() {
         let mut config = RollupConfig::default();
         assert!(!config.is_interop_active(0));
@@ -662,6 +702,7 @@ mod tests {
         assert!(config.is_holocene_active(10));
         assert!(!config.is_pectra_blob_schedule_active(10));
         assert!(config.is_isthmus_active(10));
+        assert!(config.is_karst_active(10));
         assert!(config.is_interop_active(10));
         assert!(!config.is_interop_active(9));
     }
@@ -680,7 +721,8 @@ mod tests {
                 pectra_blob_schedule_time: Some(80),
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
-                interop_time: Some(110),
+                karst_time: Some(110),
+                interop_time: Some(120),
             },
             block_time: 2,
             ..Default::default()
@@ -736,10 +778,15 @@ mod tests {
         assert!(cfg.is_first_jovian_block(100));
         assert!(!cfg.is_first_jovian_block(102));
 
+        // Karst
+        assert!(!cfg.is_first_karst_block(108));
+        assert!(cfg.is_first_karst_block(110));
+        assert!(!cfg.is_first_karst_block(112));
+
         // Interop
-        assert!(!cfg.is_first_interop_block(108));
-        assert!(cfg.is_first_interop_block(110));
-        assert!(!cfg.is_first_interop_block(112));
+        assert!(!cfg.is_first_interop_block(118));
+        assert!(cfg.is_first_interop_block(120));
+        assert!(!cfg.is_first_interop_block(122));
     }
 
     #[test]
@@ -861,6 +908,8 @@ mod tests {
             seq_window_size: 3600,
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 3151908,
             l2_chain_id: Chain::from_id(1337),
             hardforks: HardForkConfig {
@@ -878,7 +927,6 @@ mod tests {
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
-            interop_message_expiry_window: DEFAULT_INTEROP_MESSAGE_EXPIRY_WINDOW,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
         };
@@ -946,5 +994,42 @@ mod tests {
 
         assert_eq!(cfg.block_number_from_timestamp(20), 5);
         assert_eq!(cfg.block_number_from_timestamp(30), 10);
+    }
+
+    #[cfg(feature = "rollup_config_override")]
+    mod rollup_config_override_tests {
+        use super::*;
+
+        #[test]
+        fn test_max_sequencer_drift_override() {
+            let mut config = RollupConfig {
+                max_sequencer_drift: 100,
+                fjord_max_sequencer_drift: 2892,
+                hardforks: HardForkConfig { fjord_time: Some(10), ..Default::default() },
+                ..Default::default()
+            };
+            assert_eq!(config.max_sequencer_drift(0), 100);
+            assert_eq!(config.max_sequencer_drift(10), 2892);
+            config.fjord_max_sequencer_drift = 3600;
+            assert_eq!(config.max_sequencer_drift(10), 3600);
+        }
+
+        #[test]
+        #[cfg(feature = "serde")]
+        fn test_serde_fjord_max_sequencer_drift_override() {
+            // Default value survives round-trip.
+            let config = RollupConfig::default();
+            assert_eq!(config.fjord_max_sequencer_drift, FJORD_MAX_SEQUENCER_DRIFT);
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized.fjord_max_sequencer_drift, FJORD_MAX_SEQUENCER_DRIFT);
+
+            // Custom value survives round-trip.
+            let mut config = config;
+            config.fjord_max_sequencer_drift = 2892;
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized.fjord_max_sequencer_drift, 2892);
+        }
     }
 }

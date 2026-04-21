@@ -30,6 +30,20 @@ func (f *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []comm
 	return nil
 }
 
+// GetBlockHashByNumber returns the latest ingested block hash or the block hash at a specific height.
+func (f *QueryFrontend) GetBlockHashByNumber(ctx context.Context, chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error) {
+	return f.backend.GetBlockHashByNumber(chainID, blockNum)
+}
+
+// PublicAdminFrontend exposes read-only admin methods on the public port.
+type PublicAdminFrontend struct {
+	backend *Backend
+}
+
+func (p *PublicAdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return p.backend.FailsafeEnabled(), nil
+}
+
 // AdminFrontend handles admin RPC methods
 type AdminFrontend struct {
 	backend *Backend

@@ -178,8 +178,8 @@ where
                     return Ok(Some(receipt));
                 }
             }
-            let Some((tx, meta, receipt)) = tx_receipt else { return Ok(None) };
-            self.build_transaction_receipt(tx, meta, receipt).await.map(Some)
+            let Some((tx, meta, receipt, all_receipts)) = tx_receipt else { return Ok(None) };
+            self.build_transaction_receipt(tx, meta, receipt, all_receipts).await.map(Some)
         }
     }
 }

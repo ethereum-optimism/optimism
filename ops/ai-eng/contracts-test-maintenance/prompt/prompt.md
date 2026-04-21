@@ -626,7 +626,7 @@ contract L1FeeVault_Version_Test {
 **MANDATORY VALIDATION STEPS:**
 1. Run all tests: `just test-dev --match-path test/[folder]/[ContractName].t.sol -v`
 2. Clean artifacts: `just clean`
-3. Run pre-PR validation: `just pre-pr`
+3. Run pre-PR validation: `just pr`
    - This runs lint and fast checks
    - MUST pass before creating any PR
 4. Search for any vm.expectRevert() without arguments and fix them
@@ -660,8 +660,8 @@ contract L1FeeVault_Version_Test {
 <pr_submission>
 **PULL REQUEST CREATION:**
 
-CRITICAL: Only proceed after ALL validation steps pass, especially `just pre-pr`.
-- If `just pre-pr` fails → NO PR (fix issues first)
+CRITICAL: Only proceed after ALL validation steps pass, especially `just pr`.
+- If `just pr` fails → NO PR (fix issues first)
 - This is a mandatory gate - no exceptions
 
 After successful validation, open a pull request using the default PR template.

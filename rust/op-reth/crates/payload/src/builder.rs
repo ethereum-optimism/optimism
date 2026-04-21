@@ -8,6 +8,7 @@ use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
@@ -16,7 +17,6 @@ use reth_evm::{
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
-    op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT},
 };
 use reth_execution_types::BlockExecutionOutput;
 use reth_optimism_forks::OpHardforks;
@@ -27,7 +27,7 @@ use reth_optimism_txpool::{
     interop::{MaybeInteropTransaction, is_valid_interop},
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
-use reth_payload_primitives::{BuildNextEnv, BuiltPayloadExecutedBlock, PayloadBuilderAttributes};
+use reth_payload_primitives::{BuildNextEnv, BuiltPayloadExecutedBlock};
 use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, PayloadTransactions};
 use reth_primitives_traits::{
     HeaderTy, NodePrimitives, SealedHeader, SealedHeaderFor, SignedTransaction, TxTy,
@@ -179,7 +179,7 @@ where
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
     {
-        let BuildArguments { mut cached_reads, config, cancel, best_payload } = args;
+        let BuildArguments { mut cached_reads, config, cancel, best_payload, .. } = args;
 
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
@@ -209,14 +209,11 @@ where
         &self,
         parent: SealedHeader<N::BlockHeader>,
         attributes: Attrs::RpcPayloadAttributes,
-    ) -> Result<ExecutionWitness, PayloadBuilderError>
-    where
-        Attrs: PayloadBuilderAttributes,
-    {
-        let attributes =
-            Attrs::try_new(parent.hash(), attributes, 3).map_err(PayloadBuilderError::other)?;
+    ) -> Result<ExecutionWitness, PayloadBuilderError> {
+        let attributes = Attrs::try_new(parent.hash(), attributes, 3)?;
+        let payload_id = attributes.payload_id();
 
-        let config = PayloadConfig { parent_header: Arc::new(parent), attributes };
+        let config = PayloadConfig { parent_header: Arc::new(parent), attributes, payload_id };
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
@@ -234,20 +231,26 @@ where
 }
 
 /// Implementation of the [`PayloadBuilder`] trait for [`OpPayloadBuilder`].
-impl<Pool, Client, Evm, N, Txs, Attrs> PayloadBuilder
-    for OpPayloadBuilder<Pool, Client, Evm, Txs, Attrs>
+///
+/// This impl uses [`crate::payload::OpPayloadAttrs`] (the RPC payload attributes wrapper) as the
+/// `Attributes` type, converting to [`OpPayloadBuilderAttributes`] internally for building.
+impl<Pool, Client, Evm, N, Txs> PayloadBuilder
+    for OpPayloadBuilder<Pool, Client, Evm, Txs, OpPayloadBuilderAttributes<N::SignedTx>>
 where
     N: OpPayloadPrimitives,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Evm: ConfigureEvm<
             Primitives = N,
-            NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Client::ChainSpec>,
+            NextBlockEnvCtx: BuildNextEnv<
+                OpPayloadBuilderAttributes<N::SignedTx>,
+                N::BlockHeader,
+                Client::ChainSpec,
+            >,
         >,
     Txs: OpPayloadTransactions<Pool::Transaction>,
-    Attrs: OpAttributes<Transaction = N::SignedTx>,
 {
-    type Attributes = Attrs;
+    type Attributes = crate::payload::OpPayloadAttrs;
     type BuiltPayload = OpBuiltPayload<N>;
 
     fn try_build(
@@ -255,7 +258,10 @@ where
         args: BuildArguments<Self::Attributes, Self::BuiltPayload>,
     ) -> Result<BuildOutcome<Self::BuiltPayload>, PayloadBuilderError> {
         let pool = self.pool.clone();
-        self.build_payload(args, |attrs| self.best_transactions.best_transactions(pool, attrs))
+        let converted_args = convert_build_args::<N>(args)?;
+        self.build_payload(converted_args, |attrs| {
+            self.best_transactions.best_transactions(pool, attrs)
+        })
     }
 
     fn on_missing_payload(
@@ -276,13 +282,47 @@ where
         let args = BuildArguments {
             config,
             cached_reads: Default::default(),
+            execution_cache: None,
+            trie_handle: None,
             cancel: Default::default(),
             best_payload: None,
         };
-        self.build_payload(args, |_| NoopPayloadTransactions::<Pool::Transaction>::default())?
-            .into_payload()
-            .ok_or_else(|| PayloadBuilderError::MissingPayload)
+        let converted_args = convert_build_args::<N>(args)?;
+        self.build_payload(converted_args, |_| {
+            NoopPayloadTransactions::<Pool::Transaction>::default()
+        })?
+        .into_payload()
+        .ok_or_else(|| PayloadBuilderError::MissingPayload)
     }
+}
+
+/// Converts `BuildArguments` from [`OpPayloadAttrs`](crate::payload::OpPayloadAttrs) to
+/// [`OpPayloadBuilderAttributes`], decoding the RPC transaction bytes into typed transactions.
+fn convert_build_args<N: OpPayloadPrimitives>(
+    args: BuildArguments<crate::payload::OpPayloadAttrs, OpBuiltPayload<N>>,
+) -> Result<
+    BuildArguments<OpPayloadBuilderAttributes<N::SignedTx>, OpBuiltPayload<N>>,
+    PayloadBuilderError,
+> {
+    let BuildArguments { config, cached_reads, execution_cache, trie_handle, cancel, best_payload } =
+        args;
+    let parent_hash = config.parent_header.hash();
+    let payload_id = config.payload_id;
+    let builder_attrs =
+        OpPayloadBuilderAttributes::from_rpc_attrs(parent_hash, payload_id, config.attributes.0)
+            .map_err(PayloadBuilderError::other)?;
+    Ok(BuildArguments {
+        config: PayloadConfig {
+            parent_header: config.parent_header,
+            attributes: builder_attrs,
+            payload_id,
+        },
+        cached_reads,
+        execution_cache,
+        trie_handle,
+        cancel,
+        best_payload,
+    })
 }
 
 /// The type that builds the payload.
@@ -369,7 +409,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
-            builder.finish(state_provider)?;
+            builder.finish(state_provider, None)?;
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
@@ -599,7 +639,7 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, DB>,
+            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>,
         > + 'a,
         PayloadBuilderError,
     > {

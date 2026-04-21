@@ -3,14 +3,10 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test } from "test/setup/Test.sol";
-import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Config } from "scripts/libraries/Config.sol";
-
-// Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
@@ -117,16 +113,22 @@ contract L1ChugSplashProxy_SetCode_Test is L1ChugSplashProxy_TestInit {
         // if forge coverage is run before testing this with forge test or forge snapshot, forge
         // clean should be run first so that it recompiles the contracts using the foundry.toml
         // optimizer settings.
-        if (vm.isContext(VmSafe.ForgeContext.Coverage) || LibString.eq(Config.foundryProfile(), "lite")) {
+        bool isUnoptimized = Config.isUnoptimized();
+        if (isUnoptimized) {
             gasLimit = 95_000;
-        } else if (vm.isContext(VmSafe.ForgeContext.Test) || vm.isContext(VmSafe.ForgeContext.Snapshot)) {
-            gasLimit = 65_000;
         } else {
-            revert("SafeCall_Test: unknown context");
+            gasLimit = 65_000;
         }
 
         vm.prank(owner);
-        vm.expectRevert(bytes("L1ChugSplashProxy: code was not correctly deployed")); // Ran out of gas
+        if (isUnoptimized) {
+            // Under unoptimized compilation, the larger proxy bytecode leaves insufficient
+            // retained gas (1/64 rule) for the require message after the inner CREATE OOGs.
+            // The call still reverts (OOG), just without the specific error string.
+            vm.expectRevert();
+        } else {
+            vm.expectRevert(bytes("L1ChugSplashProxy: code was not correctly deployed"));
+        }
         proxy.setCode{ gas: gasLimit }(
             hex"fefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
         );

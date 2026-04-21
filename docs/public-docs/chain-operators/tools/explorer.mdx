@@ -1,0 +1,60 @@
+---
+title: Blockscout block explorer
+description: Blockscout an open source block explorer for the OP Stack.
+---
+
+[Blockscout](https://www.blockscout.com/) is an open source block explorer that supports OP Stack chains.
+Keep reading for a quick overview on how to deploy Blockscout for your OP Stack chain.
+
+<Info>
+  Check out the [Blockscout documentation](https://docs.blockscout.com) for up-to-date information on how to deploy and maintain a Blockscout instance.
+</Info>
+
+## Dependencies
+
+*   [Docker](https://docs.docker.com/get-docker/)
+
+## Create an archive node
+
+Blockscout needs access to an [archive node](https://www.alchemy.com/overviews/archive-nodes#archive-nodes) for your OP Stack chain to properly index transactions, blocks, and internal interactions.
+If using `op-geth`, you can run a node in archive mode with the `--gcmode=archive` flag.
+
+<Info>
+  Archive nodes take up significantly more disk space than full nodes.
+  You may need to have 2-4 terabytes of disk space available (ideally SSD) if you intend to run an archive node for a production OP Stack chain.
+  1-200 gigabytes of disk space may be sufficient for a development chain.
+</Info>
+
+## Installation
+
+Blockscout can be started from its source code on GitHub.
+
+```sh
+git clone https://github.com/blockscout/blockscout.git -b production-optimism
+cd blockscout/docker-compose
+```
+
+## Configuration
+
+Review the configuration files within the `envs` directory and make any necessary changes.
+In particular, make sure to review `envs/common-blockscout.env` and `envs/common-frontend.env`.
+
+## Starting Blockscout
+
+Start Blockscout with the following command:
+
+```sh
+DOCKER_REPO=blockscout-optimism docker compose -f geth.yml up
+```
+
+## Usage
+
+### Explorer
+
+After Blockscout is started, browse to [http://localhost](http://localhost) to view the user interface.
+Note that this URL may differ if you have changed the Blockscout configuration.
+
+### API
+
+Blockscout provides both a REST API and a GraphQL API.
+Refer to the [API documentation](https://docs.blockscout.com/for-users/api) for more information.

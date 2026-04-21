@@ -30,14 +30,17 @@ abstract contract ProxyAdmin_TestInit is Test {
 
     Proxy_SimpleStorage_Harness implementation;
 
-    function setUp() external {
-        // Deploy the proxy admin
-        admin = IProxyAdmin(
+    function _createAdmin(address _owner) internal virtual returns (IProxyAdmin) {
+        return IProxyAdmin(
             DeployUtils.create1({
                 _name: "ProxyAdmin",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (alice)))
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (_owner)))
             })
         );
+    }
+
+    function setUp() public virtual {
+        admin = _createAdmin(alice);
 
         // Deploy the standard proxy
         proxy = IProxy(

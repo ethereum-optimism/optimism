@@ -13,11 +13,11 @@ import (
 
 func TestCheckMixedSafety(t *testing.T) {
 	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, RollupEndpointSafeCount: 2, RollupEndpointUnsafeCount: 1},
-		{RollupEndpointSafeCount: 3, RollupEndpointUnsafeCount: 0}, // All safe
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, RollupEndpointSafeCount: 1, RollupEndpointUnsafeCount: 4},
-		{RollupEndpointSafeCount: 0, RollupEndpointUnsafeCount: 2}, // All unsafe
-		{RollupEndpointSafeCount: 0, RollupEndpointUnsafeCount: 0}, // No safety checks
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointSafeCount: 2, NodeEndpointUnsafeCount: 1},
+		{NodeEndpointSafeCount: 3, NodeEndpointUnsafeCount: 0}, // All safe
+		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointSafeCount: 1, NodeEndpointUnsafeCount: 4},
+		{NodeEndpointSafeCount: 0, NodeEndpointUnsafeCount: 2}, // All unsafe
+		{NodeEndpointSafeCount: 0, NodeEndpointUnsafeCount: 0}, // No safety checks
 	}
 	metrics := &stubMixedSafetyMetrics{}
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)

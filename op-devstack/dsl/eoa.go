@@ -2,14 +2,14 @@ package dsl
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"math/rand"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -19,8 +19,10 @@ import (
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // EOA is an Externally-Owned-Account:
@@ -231,7 +233,7 @@ func (u *EOA) WaitForBalance(v eth.ETH) {
 }
 
 func (u *EOA) DeployEventLogger() common.Address {
-	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(bindings.EventloggerBin)))
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(txIntentBindings.EventloggerBin)))
 	res, err := tx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "failed to deploy EventLogger")
 	eventLoggerAddress := res.ContractAddress
@@ -287,20 +289,68 @@ func (u *EOA) SendRandomInitMessage(rng *rand.Rand, eventLoggerAddress common.Ad
 	return u.SendInitMessage(trigger)
 }
 
-func (u *EOA) SendExecMessage(initMsg *InitMessage) *ExecMessage {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+// ExecMessageOpt configures the behavior of SendExecMessage.
+type ExecMessageOpt func(*execMessageConfig)
+
+type execMessageConfig struct {
+	txOpts       []txplan.Option
+	expectRevert bool
+}
+
+// WithFixedGasLimit sets a fixed gas limit, bypassing eth_estimateGas.
+// Use when the transaction is expected to revert (estimation would fail).
+func WithFixedGasLimit(limit uint64) ExecMessageOpt {
+	return func(c *execMessageConfig) {
+		c.txOpts = append(c.txOpts, txplan.WithGasLimit(limit))
+	}
+}
+
+// WithExpectRevert indicates the transaction should be included but revert.
+// The receipt status is asserted to be failed, and the log-count check is skipped.
+func WithExpectRevert() ExecMessageOpt {
+	return func(c *execMessageConfig) {
+		c.expectRevert = true
+	}
+}
+
+func (u *EOA) SendExecMessage(initMsg *InitMessage, opts ...ExecMessageOpt) *ExecMessage {
+	var cfg execMessageConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	planOpts := append([]txplan.Option{u.Plan()}, cfg.txOpts...)
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](txplan.Combine(planOpts...))
 	tx.Content.DependOn(&initMsg.Tx.Result)
-	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initMsg.Tx.Result, 0))
+	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	u.t.Require().NoError(err, "exec msg receipt not found")
-	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
-	// Check single ExecutingMessage triggered
-	u.t.Require().Equal(1, len(receipt.Logs))
+	if cfg.expectRevert {
+		u.t.Require().Equal(types.ReceiptStatusFailed, receipt.Status, "exec tx should revert")
+	} else {
+		u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
+		// Check single ExecutingMessage triggered
+		u.t.Require().Equal(1, len(receipt.Logs))
+	}
 	return &ExecMessage{
 		Init:    initMsg,
 		Tx:      tx,
 		Receipt: receipt,
 	}
+}
+
+// PrepareExecTx builds and signs an executing-message transaction referencing
+// the given init message, but does NOT submit it. Returns the raw signed
+// transaction bytes and tx hash. The raw bytes are suitable for injection via
+// TestSequencer.SequenceBlockWithTxs, bypassing mempool filtering.
+func (u *EOA) PrepareExecTx(initMsg *InitMessage) (rawTx []byte, txHash common.Hash) {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
+	signedTx, err := tx.PlannedTx.Signed.Eval(u.ctx)
+	u.require.NoError(err, "failed to sign exec tx")
+	rawBytes, err := signedTx.MarshalBinary()
+	u.require.NoError(err, "failed to marshal exec tx")
+	return rawBytes, signedTx.Hash()
 }
 
 // SendInvalidExecMessage sends an executing message with an invalid identifier.
@@ -316,7 +366,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 
 	// Create the exec trigger with the invalid message
 	execTrigger := &txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      msg,
 	}
 
@@ -346,7 +396,7 @@ func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress co
 		initCalls[index] = interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(100))
 	}
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
-	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	tx.Content.Set(&txintent.MultiTrigger{Emitter: predeploys.MultiCall3Addr, Calls: initCalls})
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	if err != nil {
 		return nil, nil, err
@@ -367,7 +417,7 @@ func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.Multi
 	for idx := range len(result.Entries) {
 		indexes = append(indexes, idx)
 	}
-	tx.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &dependOn.Result, indexes))
+	tx.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &dependOn.Result, indexes))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	if err != nil {
 		return nil, nil, err
@@ -423,4 +473,163 @@ func (u *EOA) ApproveToken(tokenAddr common.Address, spender common.Address, amo
 	approveCall := tokenContract.Approve(spender, amount)
 	_, err := contractio.Write(approveCall, u.ctx, u.Plan())
 	u.t.Require().NoError(err, "failed to approve token")
+}
+
+// =============================================================================
+// Same-Timestamp Interop Helpers
+// =============================================================================
+
+// SameTimestampPair holds a precomputed init message for same-timestamp interop testing.
+// It allows creating exec messages that reference the init before it's actually included on chain.
+// This is necessary for same-timestamp scenarios where the exec needs to reference an init
+// that will be included in a block at the same timestamp.
+type SameTimestampPair struct {
+	eoa         *EOA
+	Trigger     *txintent.InitTrigger
+	Message     suptypes.Message
+	eventLogger common.Address
+}
+
+// PrepareSameTimestampInit creates a precomputed init message for same-timestamp testing.
+// The message identifier is computed for the expected block position (blockNum, logIdx, timestamp).
+// This allows an exec message on another chain to reference this init before it's included.
+//
+// Parameters:
+//   - rng: random source for generating topics and data
+//   - eventLogger: address of the EventLogger contract that will emit the init
+//   - expectedBlockNum: the block number where this init is expected to be included
+//   - expectedLogIdx: the log index within the block (0 if first log in block)
+//   - expectedTimestamp: the timestamp of the block
+func (u *EOA) PrepareSameTimestampInit(
+	rng *rand.Rand,
+	eventLogger common.Address,
+	expectedBlockNum uint64,
+	expectedLogIdx uint32,
+	expectedTimestamp uint64,
+) *SameTimestampPair {
+	// Generate random topics (2 topics for a reasonable init message)
+	topics := make([][32]byte, 2)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+
+	trigger := &txintent.InitTrigger{
+		Emitter:    eventLogger,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, 10),
+	}
+
+	// Precompute the message identifier by hashing the payload
+	payload := make([]byte, 0)
+	for _, topic := range trigger.Topics {
+		payload = append(payload, topic[:]...)
+	}
+	payload = append(payload, trigger.OpaqueData...)
+
+	msg := suptypes.Message{
+		Identifier: suptypes.Identifier{
+			Origin:      eventLogger,
+			BlockNumber: expectedBlockNum,
+			LogIndex:    expectedLogIdx,
+			Timestamp:   expectedTimestamp,
+			ChainID:     u.ChainID(),
+		},
+		PayloadHash: crypto.Keccak256Hash(payload),
+	}
+
+	return &SameTimestampPair{
+		eoa:         u,
+		Trigger:     trigger,
+		Message:     msg,
+		eventLogger: eventLogger,
+	}
+}
+
+// SubmitInit returns a planned init transaction for same-timestamp testing.
+// The test harness assigns deterministic nonces and includes the signed tx directly.
+func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
+	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](p.eoa.Plan())
+	tx.Content.Set(p.Trigger)
+	return tx.PlannedTx
+}
+
+// SubmitExecTo returns a planned exec transaction to the given EOA's chain,
+// referencing this init. The test harness assigns deterministic nonces and
+// includes the signed tx directly.
+func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      p.Message,
+	})
+	return tx.PlannedTx
+}
+
+// SubmitInvalidExecTo submits an exec message with an invalid log index.
+// This creates an exec that references a non-existent log, which should be detected as invalid.
+// Returns the planned tx; the test harness assigns deterministic nonces and
+// includes the signed tx directly.
+func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
+	invalidMsg := MakeInvalidLogIndex(p.Message)
+
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      invalidMsg,
+	})
+	return tx.PlannedTx
+}
+
+// PrecomputeExecEventMessage computes the suptypes.Message that a CrossL2Inbox
+// ExecutingMessage event will produce when executing the given referenced message.
+// This allows precomputing exec-referencing-exec chains before any blocks are built.
+func PrecomputeExecEventMessage(
+	referencedMsg suptypes.Message,
+	execChainID eth.ChainID,
+	expectedBlockNum uint64,
+	expectedLogIdx uint32,
+	expectedTimestamp uint64,
+) suptypes.Message {
+	// Build ABI-encoded Identifier data (5 x 32-byte words)
+	id := referencedMsg.Identifier
+	data := make([]byte, 0, 32*5)
+	data = append(data, make([]byte, 12)...)
+	data = append(data, id.Origin.Bytes()...)
+	data = append(data, make([]byte, 32-8)...)
+	data = append(data, binary.BigEndian.AppendUint64(nil, id.BlockNumber)...)
+	data = append(data, make([]byte, 32-4)...)
+	data = append(data, binary.BigEndian.AppendUint32(nil, id.LogIndex)...)
+	data = append(data, make([]byte, 32-8)...)
+	data = append(data, binary.BigEndian.AppendUint64(nil, id.Timestamp)...)
+	b := id.ChainID.Bytes32()
+	data = append(data, b[:]...)
+
+	// payload = topics || data (per LogToMessagePayload)
+	payload := make([]byte, 0, 32+32+32*5)
+	payload = append(payload, suptypes.ExecutingMessageEventTopic.Bytes()...)
+	payload = append(payload, referencedMsg.PayloadHash.Bytes()...)
+	payload = append(payload, data...)
+
+	return suptypes.Message{
+		Identifier: suptypes.Identifier{
+			Origin:      predeploys.CrossL2InboxAddr,
+			BlockNumber: expectedBlockNum,
+			LogIndex:    expectedLogIdx,
+			Timestamp:   expectedTimestamp,
+			ChainID:     execChainID,
+		},
+		PayloadHash: crypto.Keccak256Hash(payload),
+	}
+}
+
+// SubmitExecForMessage returns a planned exec transaction referencing the given message.
+// Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
+// precomputed exec event messages for exec-referencing-exec chains.
+func SubmitExecForMessage(msg suptypes.Message, executor *EOA) *txplan.PlannedTx {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      msg,
+	})
+	return tx.PlannedTx
 }

@@ -3,7 +3,6 @@ package loadtest
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -12,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -31,16 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
-
-func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSimpleInterop(),
-		presets.WithLogFilter(
-			logfilter.DefaultMute(
-				logfilter.Level(slog.LevelWarn).Show(),
-			),
-		),
-	)
-}
 
 // TODO(16371) every txintent.Call implementation should probably just be a txplan.Option.
 func planCall(t devtest.T, call txintent.Call) txplan.Option {
@@ -70,7 +58,7 @@ type BlockRefByLabel interface {
 func planExecMsg(t devtest.T, initMsg *suptypes.Message, blockTime time.Duration, el BlockRefByLabel) txplan.Option {
 	t.Require().NotNil(initMsg)
 	return txplan.Combine(planCall(t, &txintent.ExecTrigger{
-		Executor: constants.CrossL2Inbox,
+		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      *initMsg,
 	}), func(tx *txplan.PlannedTx) {
 		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
@@ -108,7 +96,7 @@ func setupLoadTest(gt *testing.T) (devtest.T, *L2, *L2) {
 	if testing.Short() {
 		gt.Skip("skipping load test in short mode")
 	}
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 3*time.Minute)
 	if timeoutStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_TIMEOUT"); exists {
@@ -125,12 +113,12 @@ func setupLoadTest(gt *testing.T) (devtest.T, *L2, *L2) {
 }
 
 func setupL2s(t devtest.T) (*L2, *L2) {
-	sys := presets.NewSimpleInterop(t)
-	blockTimeA := time.Duration(sys.L2ChainA.Escape().RollupConfig().BlockTime) * time.Second
-	blockTimeB := time.Duration(sys.L2ChainB.Escape().RollupConfig().BlockTime) * time.Second
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
+	blockTimeA := time.Duration(sys.L2A.Escape().RollupConfig().BlockTime) * time.Second
+	blockTimeB := time.Duration(sys.L2B.Escape().RollupConfig().BlockTime) * time.Second
 
-	l2A := setupL2(t, sys.Wallet, blockTimeA, sys.L2ChainA.Escape().ChainConfig(), sys.L2ChainA.PublicRPC(), sys.FaucetA)
-	l2B := setupL2(t, sys.Wallet, blockTimeB, sys.L2ChainB.Escape().ChainConfig(), sys.L2ChainB.PublicRPC(), sys.FaucetB)
+	l2A := setupL2(t, sys.Wallet, blockTimeA, sys.L2A.Escape().ChainConfig(), sys.L2A.PublicRPC(), sys.FaucetA)
+	l2B := setupL2(t, sys.Wallet, blockTimeB, sys.L2B.Escape().ChainConfig(), sys.L2B.PublicRPC(), sys.FaucetB)
 
 	var deployWg sync.WaitGroup
 	defer deployWg.Wait()

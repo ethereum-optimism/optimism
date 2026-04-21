@@ -17,7 +17,7 @@ import (
 // - the two CLs are advancing unsafe and local safe heads
 func TestTwoChainProgress(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2(t)
+	sys := presets.NewTwoL2Supernode(t)
 
 	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 	waitTime := time.Duration(blockTime+1) * time.Second

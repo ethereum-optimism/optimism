@@ -30,6 +30,9 @@ pub use interop::Interop;
 mod jovian;
 pub use jovian::Jovian;
 
+mod karst;
+pub use karst::Karst;
+
 mod utils;
 pub(crate) use utils::upgrade_to_calldata;
 

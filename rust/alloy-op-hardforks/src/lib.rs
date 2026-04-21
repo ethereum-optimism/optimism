@@ -44,10 +44,12 @@ hardfork!(
         /// Holocene: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/superchain-upgrades.md#holocene>
         Holocene,
         /// Isthmus: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/overview.md>
-        #[default]
         Isthmus,
         /// Jovian: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/jovian>
+        #[default]
         Jovian,
+        /// Karst: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>
+        Karst,
         /// TODO: add interop hardfork overview when available
         Interop,
     }
@@ -164,21 +166,6 @@ impl OpHardfork {
         ]
     }
 
-    /// Devnet list of hardforks.
-    pub const fn devnet() -> [(Self, ForkCondition); 9] {
-        [
-            (Self::Bedrock, ForkCondition::ZERO_BLOCK),
-            (Self::Regolith, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Canyon, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Ecotone, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Fjord, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Granite, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Holocene, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Isthmus, ForkCondition::ZERO_TIMESTAMP),
-            (Self::Jovian, ForkCondition::Timestamp(1762185600)),
-        ]
-    }
-
     /// Returns index of `self` in sorted canonical array.
     pub const fn idx(&self) -> usize {
         *self as usize
@@ -242,6 +229,12 @@ pub trait OpHardforks: EthereumHardforks {
         self.op_fork_activation(OpHardfork::Jovian).active_at_timestamp(timestamp)
     }
 
+    /// Returns `true` if [`Karst`](OpHardfork::Karst) is active at given block
+    /// timestamp.
+    fn is_karst_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.op_fork_activation(OpHardfork::Karst).active_at_timestamp(timestamp)
+    }
+
     /// Returns `true` if [`Interop`](OpHardfork::Interop) is active at given block
     /// timestamp.
     fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
@@ -295,11 +288,6 @@ impl OpChainHardforks {
         Self::new(OpHardfork::base_sepolia())
     }
 
-    /// Creates a new [`OpChainHardforks`] with devnet configuration.
-    pub fn devnet() -> Self {
-        Self::new(OpHardfork::devnet())
-    }
-
     /// Returns `true` if this is an OP mainnet instance.
     pub fn is_op_mainnet(&self) -> bool {
         self[OpHardfork::Bedrock] == ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)
@@ -308,8 +296,8 @@ impl OpChainHardforks {
 
 impl EthereumHardforks for OpChainHardforks {
     fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
-        use EthereumHardfork::{Cancun, Prague, Shanghai};
-        use OpHardfork::{Canyon, Ecotone, Isthmus};
+        use EthereumHardfork::{Cancun, Osaka, Prague, Shanghai};
+        use OpHardfork::{Canyon, Ecotone, Isthmus, Karst};
 
         if self.forks.is_empty() {
             return ForkCondition::Never;
@@ -321,6 +309,7 @@ impl EthereumHardforks for OpChainHardforks {
             Shanghai if forks_len <= Canyon.idx() => ForkCondition::Never,
             Cancun if forks_len <= Ecotone.idx() => ForkCondition::Never,
             Prague if forks_len <= Isthmus.idx() => ForkCondition::Never,
+            Osaka if forks_len <= Karst.idx() => ForkCondition::Never,
             _ => self[fork],
         }
     }
@@ -341,7 +330,8 @@ impl Index<OpHardfork> for OpChainHardforks {
 
     fn index(&self, hf: OpHardfork) -> &Self::Output {
         use OpHardfork::{
-            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Interop, Isthmus, Jovian, Regolith,
+            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Interop, Isthmus, Jovian, Karst,
+            Regolith,
         };
 
         match hf {
@@ -354,6 +344,7 @@ impl Index<OpHardfork> for OpChainHardforks {
             Holocene => &self.forks[Holocene.idx()].1,
             Isthmus => &self.forks[Isthmus.idx()].1,
             Jovian => &self.forks[Jovian.idx()].1,
+            Karst => &self.forks[Karst.idx()].1,
             Interop => &self.forks[Interop.idx()].1,
         }
     }
@@ -368,11 +359,11 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             Constantinople, Dao, Frontier, GrayGlacier, Homestead, Istanbul, London, MuirGlacier,
             Osaka, Paris, Petersburg, Prague, Shanghai, SpuriousDragon, Tangerine,
         };
-        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus};
+        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus, Karst};
 
         match hf {
             // Dao Hardfork is not needed for OpChainHardforks
-            Dao | Osaka | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
+            Dao | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
             Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
             Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
             Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
@@ -390,6 +381,7 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             Shanghai => &self[Canyon],
             Cancun => &self[Ecotone],
             Prague => &self[Isthmus],
+            Osaka => &self[Karst],
             _ => unreachable!(),
         }
     }
@@ -406,7 +398,7 @@ mod tests {
     fn check_op_hardfork_from_str() {
         let hardfork_str = [
             "beDrOck", "rEgOlITH", "cAnYoN", "eCoToNe", "FJorD", "GRaNiTe", "hOlOcEnE", "isthMUS",
-            "jOvIaN", "inTerOP",
+            "jOvIaN", "kArSt", "inTerOP",
         ];
         let expected_hardforks = [
             OpHardfork::Bedrock,
@@ -418,6 +410,7 @@ mod tests {
             OpHardfork::Holocene,
             OpHardfork::Isthmus,
             OpHardfork::Jovian,
+            OpHardfork::Karst,
             OpHardfork::Interop,
         ];
 

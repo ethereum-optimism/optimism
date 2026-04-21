@@ -8,7 +8,7 @@ use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    InitializationJob, OpProofsStorage, OpProofsStore, db::MdbxProofsStorage,
+    InitializationJob, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::{path::PathBuf, sync::Arc};
@@ -39,22 +39,27 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
     /// Execute `initialize-op-proofs` command
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
+        runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
         info!(target: "reth::cli", "Initializing OP proofs storage at: {:?}", self.storage_path);
 
         // Initialize the environment with read-only access
-        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO)?;
+        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
 
-        // Create the proofs storage
-        let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(
+        // Create the proofs storage without the metrics wrapper.
+        // During initialization we write billions of entries; the metrics layer's
+        // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
+        // would accumulate ~19 bytes per observation, causing OOM on large chains.
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
             MdbxProofsStorage::new(&self.storage_path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-        )
-        .into();
+        );
 
         // Check if already initialized
-        if let Some((block_number, block_hash)) = storage.get_earliest_block_number()? {
+        if let Some((block_number, block_hash)) =
+            storage.provider_ro()?.get_earliest_block_number()?
+        {
             info!(
                 target: "reth::cli",
                 block_number = block_number,

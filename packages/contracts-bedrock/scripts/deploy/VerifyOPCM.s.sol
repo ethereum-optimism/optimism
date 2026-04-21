@@ -13,11 +13,10 @@ import { Process } from "scripts/libraries/Process.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -98,9 +97,6 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when a staticcall to a validator getter fails.
     error VerifyOPCM_ValidatorCallFailed(string sig);
 
-    /// @notice Thrown when _findChar is called with a multi-character string.
-    error VerifyOPCM_MustBeSingleChar();
-
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
@@ -108,9 +104,10 @@ contract VerifyOPCM is Script {
     uint256 constant MAX_INIT_CODE_SIZE = 23500;
 
     /// @notice Represents a contract name and its corresponding address.
-    /// @param field Name of the field the address was extracted from.
-    /// @param name  Name of the contract.
-    /// @param addr  Address of the contract.
+    /// @param field     Name of the field the address was extracted from.
+    /// @param name      Name of the contract.
+    /// @param addr      Address of the contract.
+    /// @param blueprint Whether the contract is a blueprint deployment.
     struct OpcmContractRef {
         string field;
         string name;
@@ -172,7 +169,6 @@ contract VerifyOPCM is Script {
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
-        fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
         fieldNameOverrides["faultDisputeGameImpl"] = "FaultDisputeGame";
@@ -203,13 +199,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
-
-        // Overrides for situations where contracts have differently named source files.
-        sourceNameOverrides["OPContractsManagerGameTypeAdder"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
+        fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -245,7 +235,6 @@ contract VerifyOPCM is Script {
         // Implementation addresses - verify against Container
         validatorGetterChecks["l1ERC721BridgeImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["optimismPortalImpl"] = "CONTAINER_IMPL";
-        validatorGetterChecks["optimismPortalInteropImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["ethLockboxImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["systemConfigImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["optimismMintableERC20FactoryImpl"] = "CONTAINER_IMPL";
@@ -257,6 +246,9 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["mipsImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["faultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -289,10 +281,15 @@ contract VerifyOPCM is Script {
     /// @param _addr Address of the contract to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+        // Make sure the setup function has been called.
+        if (!ready) {
+            setUp();
+        }
+
         // This function is used as part of the release checklist to verify new contracts.
         // Rather than requiring an opcm input parameter, just pass in an empty reference
         // as we really only need this for features that are in development.
-        IOPContractsManager emptyOpcm = IOPContractsManager(address(0));
+        IOPContractsManagerV2 emptyOpcm = IOPContractsManagerV2(address(0));
         _verifyOpcmContractRef(
             emptyOpcm,
             OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }),
@@ -317,7 +314,7 @@ contract VerifyOPCM is Script {
         }
 
         // Fetch Implementations & Blueprints from OPCM
-        IOPContractsManager opcm = IOPContractsManager(_opcmAddress);
+        IOPContractsManagerV2 opcm = IOPContractsManagerV2(_opcmAddress);
 
         // Validate that all ABI getters are accounted for.
         _validateAllGettersAccounted();
@@ -347,7 +344,7 @@ contract VerifyOPCM is Script {
     /// @notice Collects all the references from the OPCM contract.
     /// @param _opcm The live OPCM contract.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
-    function _collectOpcmContractRefs(IOPContractsManager _opcm) internal returns (OpcmContractRef[] memory) {
+    function _collectOpcmContractRefs(IOPContractsManagerV2 _opcm) internal returns (OpcmContractRef[] memory) {
         // Collect property references.
         OpcmContractRef[] memory propRefs = _getOpcmPropertyRefs(_opcm);
         if (propRefs.length == 0) {
@@ -391,7 +388,7 @@ contract VerifyOPCM is Script {
         refs[0] = OpcmContractRef({ field: "opcm", name: _opcmContractName(), addr: address(_opcm), blueprint: false });
         refs[1] = OpcmContractRef({
             field: "contractsContainer",
-            name: _isOPCMV2() ? "OPContractsManagerContainer" : "OPContractsManagerContractsContainer",
+            name: "OPContractsManagerContainer",
             addr: contractsContainerAddr,
             blueprint: false
         });
@@ -582,7 +579,7 @@ contract VerifyOPCM is Script {
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     /// @return True if the contract reference is verified, false otherwise.
     function _verifyOpcmContractRef(
-        IOPContractsManager _opcm,
+        IOPContractsManagerV2 _opcm,
         OpcmContractRef memory _target,
         bool _skipConstructorVerification
     )
@@ -609,6 +606,20 @@ contract VerifyOPCM is Script {
                     return true; // Consider this "verified" when feature is off
                 } else {
                     console.log("[FAIL] ERROR: Super game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
+
+        // Check if this is a ZK dispute game that should be skipped
+        if (_isZKDisputeGameImplementation(_target.name)) {
+            if (!_isZKDisputeGameEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] ZK dispute game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: ZK dispute game deployed but feature disabled");
                     success = false;
                 }
             }
@@ -691,7 +702,7 @@ contract VerifyOPCM is Script {
 
         // If this is the OPCM contract itself, verify the immutable variables as well.
         if (keccak256(bytes(_target.field)) == keccak256(bytes("opcm"))) {
-            success = _verifyOpcmImmutableVariables(IOPContractsManager(_target.addr)) && success;
+            success = _verifyOpcmImmutableVariables(IOPContractsManagerV2(_target.addr)) && success;
         }
 
         // Log final status for this field.
@@ -741,9 +752,10 @@ contract VerifyOPCM is Script {
     /// @notice Checks if super dispute games feature is enabled in the dev feature bitmap.
     /// @param _opcm The OPContractsManager to check.
     /// @return True if super dispute games are enabled.
-    function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
+    function _isSuperDisputeGamesEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
         bytes32 bitmap = _opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.
@@ -754,10 +766,24 @@ contract VerifyOPCM is Script {
             || LibString.eq(_contractName, "SuperPermissionedDisputeGame");
     }
 
+    /// @notice Checks if the ZK dispute game feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if the ZK dispute game feature is enabled.
+    function _isZKDisputeGameEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
+
+    /// @notice Checks if a contract is a ZK dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a ZK dispute game.
+    function _isZKDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "ZKDisputeGame");
+    }
+
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
     /// @param _opcm The OPCM contract to verify immutable variables for.
     /// @return True if all immutable variables are verified, false otherwise.
-    function _verifyOpcmImmutableVariables(IOPContractsManager _opcm) internal returns (bool) {
+    function _verifyOpcmImmutableVariables(IOPContractsManagerV2 _opcm) internal returns (bool) {
         console.log("  Verifying OPCM immutable variables...");
 
         bool success = true;
@@ -936,7 +962,7 @@ contract VerifyOPCM is Script {
     ///         references to other OPCM contracts.
     /// @param _opcm The live OPCM contract.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
-    function _getOpcmPropertyRefs(IOPContractsManager _opcm) internal returns (OpcmContractRef[] memory) {
+    function _getOpcmPropertyRefs(IOPContractsManagerV2 _opcm) internal returns (OpcmContractRef[] memory) {
         // Find all functions that start with "opcm".
         string[] memory functionNames = abi.decode(
             vm.parseJson(
@@ -985,7 +1011,7 @@ contract VerifyOPCM is Script {
     /// @param _blueprint Whether this is a blueprint or an implementation.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
     function _getOpcmContractRefs(
-        IOPContractsManager _opcm,
+        IOPContractsManagerV2 _opcm,
         string memory _property,
         bool _blueprint
     )
@@ -1046,7 +1072,7 @@ contract VerifyOPCM is Script {
     /// @return The contract name.
     function _getContractNameFromFieldName(string memory _fieldName) internal view returns (string memory) {
         if (LibString.eq(_fieldName, "contractsContainer")) {
-            _fieldName = _isOPCMV2() ? "contractsContainerV2" : "contractsContainerV1";
+            _fieldName = "contractsContainerV2";
         }
 
         // Check for an explicit override
@@ -1183,7 +1209,7 @@ contract VerifyOPCM is Script {
 
     /// @notice Validates that the dev feature bitmap is empty on mainnet.
     /// @param _opcm The OPCM contract.
-    function _validateDevFeatureBitmap(IOPContractsManager _opcm) internal view {
+    function _validateDevFeatureBitmap(IOPContractsManagerV2 _opcm) internal view {
         // Get the dev feature bitmap.
         bytes32 devFeatureBitmap = _opcm.devFeatureBitmap();
 
@@ -1227,26 +1253,10 @@ contract VerifyOPCM is Script {
         }
     }
 
-    /// @notice Returns the name of the OPCM contract depending on whether the OPCM is V2.
+    /// @notice Returns the name of the OPCM contract.
     /// @return The name of the OPCM contract.
-    function _opcmContractName() internal view returns (string memory) {
-        return _isOPCMV2() ? "OPContractsManagerV2" : "OPContractsManager";
-    }
-
-    /// @notice Checks if the OPCM is V2.
-    /// @dev If the OPCM address is not set, default to false.
-    /// @return True if the OPCM is V2, false otherwise.
-    function _isOPCMV2() internal view returns (bool) {
-        // Get the OPCM contract address from the environment variables.
-        address opcmAddress = _getOPCMAddress();
-
-        // If the OPCM contract address is not set, default to V1.
-        if (opcmAddress == address(0)) {
-            return false;
-        }
-
-        // If the OPCM contract version is greater than or equal to 7.0.0, then it is OPCM V2.
-        return SemverComp.gte(IOPContractsManager(opcmAddress).version(), Constants.OPCM_V2_MIN_VERSION);
+    function _opcmContractName() internal pure returns (string memory) {
+        return "OPContractsManagerV2";
     }
 
     /// @notice Gets the address of the OPCM contract from the environment variables.
@@ -1263,7 +1273,7 @@ contract VerifyOPCM is Script {
     /// @param _artifact The artifact info for the contract.
     /// @return True if all security-critical values are correct.
     function _verifySecurityCriticalValues(
-        IOPContractsManager _opcm,
+        IOPContractsManagerV2 _opcm,
         OpcmContractRef memory _target,
         ArtifactInfo memory _artifact
     )
@@ -1286,7 +1296,7 @@ contract VerifyOPCM is Script {
         }
 
         // OptimismPortal2: Verify PROOF_MATURITY_DELAY_SECONDS
-        if (LibString.eq(_target.name, "OptimismPortal2") || LibString.eq(_target.name, "OptimismPortalInterop")) {
+        if (LibString.eq(_target.name, "OptimismPortal2")) {
             success = _verifyPortalDelays(IOptimismPortal2(payable(_target.addr))) && success;
         }
 
@@ -1365,7 +1375,7 @@ contract VerifyOPCM is Script {
     /// @param _opcm The OPCM contract.
     /// @param _validator The StandardValidator contract address.
     /// @return True if all getters are valid.
-    function _verifyStandardValidatorArgs(IOPContractsManager _opcm, address _validator) internal returns (bool) {
+    function _verifyStandardValidatorArgs(IOPContractsManagerV2 _opcm, address _validator) internal returns (bool) {
         bool success = true;
         console.log("  Verifying StandardValidator args...");
 
@@ -1602,22 +1612,5 @@ contract VerifyOPCM is Script {
         (bool ok, bytes memory data) = _validator.staticcall(abi.encodeWithSignature(_sig));
         if (!ok) revert VerifyOPCM_ValidatorCallFailed(_sig);
         return abi.decode(data, (bytes32));
-    }
-
-    /// @notice Finds the position of a character in a string.
-    /// @param _str The string to search.
-    /// @param _char The character to find (as a single-char string).
-    /// @return The index of the first occurrence, or string length if not found.
-    function _findChar(string memory _str, string memory _char) internal pure returns (uint256) {
-        bytes memory strBytes = bytes(_str);
-        bytes memory charBytes = bytes(_char);
-        if (charBytes.length != 1) revert VerifyOPCM_MustBeSingleChar();
-        bytes1 target = charBytes[0];
-        for (uint256 i = 0; i < strBytes.length; i++) {
-            if (strBytes[i] == target) {
-                return i;
-            }
-        }
-        return strBytes.length;
     }
 }

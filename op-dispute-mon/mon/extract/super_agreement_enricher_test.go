@@ -28,9 +28,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
@@ -47,9 +48,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:        200,
-					L2SequenceNumber: 0,
-					RootClaim:        mockRootClaim,
+					L1HeadNum:          200,
+					L2SequenceNumber:   0,
+					RootClaim:          mockRootClaim,
+					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -68,9 +70,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:        200,
-					L2SequenceNumber: 0,
-					RootClaim:        mockRootClaim,
+					L1HeadNum:          200,
+					L2SequenceNumber:   0,
+					RootClaim:          mockRootClaim,
+					NodeEndpointErrors: make(map[string]bool),
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -86,9 +89,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
@@ -103,9 +107,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 0,
-			RootClaim:        common.Hash{},
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          common.Hash{},
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -121,9 +126,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -139,9 +145,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -157,9 +164,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 0,
-			RootClaim:        common.Hash{},
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          common.Hash{},
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -175,9 +183,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 100,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   100,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -193,9 +202,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 42984924,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   42984924,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -213,9 +223,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
@@ -234,9 +245,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        100,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -254,9 +266,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -275,9 +288,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -295,9 +309,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 0,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -318,9 +333,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 50,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -341,9 +357,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 50,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -364,9 +381,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 50,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -388,9 +406,10 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:        200,
-			L2SequenceNumber: 50,
-			RootClaim:        mockRootClaim,
+			L1HeadNum:          200,
+			L2SequenceNumber:   50,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -447,4 +466,172 @@ func (s *stubSuperNodeClient) SuperRootAtTimestamp(_ context.Context, timestamp 
 			SuperRoot:          eth.Bytes32(s.superRoot),
 		},
 	}, nil
+}
+
+// TestSuperNodeEndpointTracking verifies that all endpoint tracking fields are properly populated
+func TestSuperNodeEndpointTracking(t *testing.T) {
+	t.Run("TrackErrorsCorrectly", func(t *testing.T) {
+		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		clients[0].outputErr = errors.New("error1")
+		clients[1].outputErr = errors.New("error2")
+		clients[2].superRoot = mockRootClaim
+		clients[2].derivedFromL1BlockNum = 100
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999, // Super root game type
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		// Verify error tracking
+		require.Equal(t, 3, game.NodeEndpointTotalCount, "Should track total endpoints")
+		require.Equal(t, 2, game.NodeEndpointErrorCount, "Should track 2 errors")
+		require.Equal(t, 2, len(game.NodeEndpointErrors), "Should track 2 unique endpoint errors")
+		require.True(t, game.NodeEndpointErrors["client-0"], "Should track client-0 error")
+		require.True(t, game.NodeEndpointErrors["client-1"], "Should track client-1 error")
+	})
+
+	t.Run("TrackNotFoundCount", func(t *testing.T) {
+		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		clients[0].notFound = true
+		clients[1].notFound = true
+		clients[2].superRoot = mockRootClaim
+		clients[2].derivedFromL1BlockNum = 100
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999,
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, game.NodeEndpointTotalCount)
+		require.Equal(t, 2, game.NodeEndpointNotFoundCount, "Should track 2 not found responses")
+		require.Equal(t, 0, game.NodeEndpointErrorCount, "Should have no errors")
+	})
+
+	t.Run("TrackSafeUnsafeCounts", func(t *testing.T) {
+		validator, clients, _ := setupMultiSuperNodeTest(t, 4)
+		// Two clients report safe (derivedFromL1BlockNum <= game.L1HeadNum)
+		clients[0].superRoot = mockRootClaim
+		clients[0].derivedFromL1BlockNum = 100 // Safe
+		clients[1].superRoot = mockRootClaim
+		clients[1].derivedFromL1BlockNum = 200 // Safe
+		// Two clients report unsafe (derivedFromL1BlockNum > game.L1HeadNum)
+		clients[2].superRoot = mockRootClaim
+		clients[2].derivedFromL1BlockNum = 201 // Unsafe
+		clients[3].superRoot = mockRootClaim
+		clients[3].derivedFromL1BlockNum = 300 // Unsafe
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999,
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		// This should result in disagreement due to mixed safety
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 4, game.NodeEndpointTotalCount)
+		require.Equal(t, 2, game.NodeEndpointSafeCount, "Should track 2 safe assessments")
+		require.Equal(t, 2, game.NodeEndpointUnsafeCount, "Should track 2 unsafe assessments")
+		require.True(t, game.HasMixedSafety(), "Should detect mixed safety")
+	})
+
+	t.Run("TrackDivergentSuperRoots", func(t *testing.T) {
+		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		divergedRoot := common.HexToHash("0xdivergent")
+		clients[0].superRoot = mockRootClaim
+		clients[0].derivedFromL1BlockNum = 100
+		clients[1].superRoot = divergedRoot
+		clients[1].derivedFromL1BlockNum = 100
+		clients[2].superRoot = divergedRoot
+		clients[2].derivedFromL1BlockNum = 100
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999,
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.True(t, game.NodeEndpointDifferentRoots, "Should flag divergent super roots")
+		require.False(t, game.AgreeWithClaim, "Should disagree when super roots diverge")
+	})
+
+	t.Run("TrackMixedAvailability", func(t *testing.T) {
+		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		clients[0].notFound = true
+		clients[1].superRoot = mockRootClaim
+		clients[1].derivedFromL1BlockNum = 100
+		clients[2].superRoot = mockRootClaim
+		clients[2].derivedFromL1BlockNum = 100
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999,
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, game.NodeEndpointTotalCount)
+		require.Equal(t, 1, game.NodeEndpointNotFoundCount)
+		require.True(t, game.HasMixedAvailability(), "Should detect mixed availability")
+	})
+
+	t.Run("AllFieldsZeroWhenNoEndpoints", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlInfo)
+		validator := NewSuperAgreementEnricher(logger, &stubOutputMetrics{}, []SuperRootProvider{}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 999,
+			},
+			L1HeadNum:          200,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
+
+		// Verify all counts remain zero when no endpoints
+		require.Equal(t, 0, game.NodeEndpointTotalCount)
+		require.Equal(t, 0, game.NodeEndpointErrorCount)
+		require.Equal(t, 0, game.NodeEndpointNotFoundCount)
+		require.Equal(t, 0, game.NodeEndpointSafeCount)
+		require.Equal(t, 0, game.NodeEndpointUnsafeCount)
+		require.False(t, game.NodeEndpointDifferentRoots)
+	})
 }

@@ -24,7 +24,6 @@ import (
 // - A replacement block is built at the same height (deposits-only)
 // - The replacement block's timestamp eventually becomes verified
 func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
-
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
@@ -117,4 +116,14 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"invalid_block_number", invalidBlockNumber,
 		"invalid_block_hash", invalidBlockHash,
 	)
+
+	// We should still be able to include new transactions and have them be fully validated
+	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
+	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
+	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
+
+	txTimestamp := sys.L2B.TimestampForBlockNum(bigs.Uint64Strict(tx.Included.Value().BlockNumber))
+	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
+	// Should still have the tx in the block.
+	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
 }

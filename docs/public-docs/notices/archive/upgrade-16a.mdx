@@ -1,0 +1,123 @@
+---
+title: Upgrade 16a Protocol upgrade
+description: Learn how to prepare for the Upgrade 16a protocol changes.
+---
+
+
+
+Upgrade 16a is a **maintenance release that supersedes Upgrade 16**. If you are on upgrade 15 **please skip** upgrade 16 and go straight to this upgrade. It temporarily removes unused interop withdrawal-proving code introduced in Upgrade 16 and adds system-level feature toggles to improve flexibility and rollout safety. These changes reduce risk while maintaining momentum toward the Superchain roadmap.
+
+<Info>
+  The Upgrade 16a protocol upgrade on the **Sepolia** Superchain will be executed on **Mon, Sept 22, 2025**, and the **Mainnet** Superchain will be activated on **Thur, Oct 2, 2025**.
+  The upgrade will be executed on the following chains: `OP`, `Base`, `Soneium`, `Ink`, and `Unichain`.
+  Execution times may vary depending on the current state of each chain.
+</Info>
+
+## What's included in Upgrade 16a
+
+Upgrade 16a introduces the following changes:
+
+**Removal of interop withdrawal-proving code**: Code paths for interop withdrawals added in Upgrade 16 have been removed following partner feedback. ETHLockbox remains supported on chains already running U16. Chains moving directly from U15 → U16a will not adopt ETHLockbox until a future upgrade.
+
+**System-level feature toggles**
+Added via the `SystemConfig` contract. ETHLockbox is the first feature placed behind a toggle. This mechanism enables chain-specific configuration and safer iterative upgrades.
+
+**Development-only feature flags**
+Introduced to allow testing of interop functionality on non-production environments. These flags cannot be enabled on production chains.
+
+**OP Contracts Manager (OPCM) updates**
+Updated to support both upgrade paths: `U15 → U16a` and `U16 → U16a`.
+
+## Impact summary
+
+*   No chain downtime is expected, however if upgrading from U15, withdrawals will be invalidated (see below).
+*   Withdrawal proofs created under U16 remain valid.
+*   Chains still on U15 are affected in the same way described in the Upgrade 16 notice.
+*   Chains upgrading directly from U15 → U16a will not adopt ETHLockbox until a future release.
+*   System-level toggles improve operator control and make future upgrades easier to roll out.
+
+## For chain operators
+
+<Info>Withdrawal invalidation impacts only chains still on U15.
+Any pending L1 withdrawals on those chains that are not finalized before the upgrade executes will need to be reproven after the upgrade completes. Users must re-submit their proof transactions after the upgrade.
+Chains already on U16 are not affected. No funds are at risk.</Info>
+
+
+
+### Chain operators must complete the following tasks:
+
+*   Update `op-challenger` to [op-challenger/v1.5.1](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.5.1)
+*   If you're building your own `op-challenger` software, then ensure that the `--cannon-bin` flag is set to `cannon/v1.6.0 build`. There's no action needed if you're using the official Optimism docker image.
+
+
+### For permissionless fault proof enabled chains
+
+Chains running permissionless fault proofs will need to deploy new dispute game contracts with new absolute prestates.
+
+<Steps>
+  ### Verify the new absolute prestate
+
+  <Info>
+    As of upgrade 14, the 64 bit multi-threaded version of cannon is utilized.
+  </Info>
+
+  The absolute prestate is generated with the [op-program/v1.6.1-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1). You can use this new absolute prestate `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8` for the following chains:
+
+  *   Mainnet and Sepolia: `OP`, `Base`, `Soneium`, `Ink` and `Unichain`
+
+  You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) in the root of the monorepo on the `op-program/v1.6.1-rc.1` tag:
+
+  ```shell
+  make reproducible-prestate
+  ```
+
+  This will output the calculated prestates, which will look something like:
+
+  ```shell
+  -------------------- Production Prestates --------------------
+
+
+  Cannon64 Absolute prestate hash: 
+  0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+
+  -------------------- Experimental Prestates --------------------
+
+  CannonInterop Absolute prestate hash: 
+  0x03fc3b4d091527d53f1ff369ea8ed65e5e17cc7fc98ebf75380238151cdc949c
+
+  Cannon64Next Absolute prestate hash: 
+  0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
+  ```
+
+  *   The "Cannon64" hash is the 64-bit prestate.
+
+  Verify that your target prestate was calculated as expected and matches the corresponding entry in
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+
+  ### Upload your new preimage file
+
+  During the previous step, you also generated the preimage of the absolute prestate, which is the op-program serialized into a binary file. You'll find that new file at `optimism/op-program/bin/prestate-mt64.bin.gz`. Rename that file to have the absolute prestate hash as the filename so it looks like `PRESTATEHASH.bin.gz`.
+
+  Upload that file to where you're storing your other absolute preimage files. This should be the location where you're pointing your `--cannon-prestates-url` at. The `op-challenger` will grab this file and use it when it needs to challenge games.
+
+  ### Execute the upgrade
+
+  Once your `op-challenger` is ready with the new preimage, you can execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contract Manager (at the address listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22).
+
+  Please simulate and validate the expected output prior to executing the transaction.
+</Steps>
+
+### Withdrawal flow changes
+
+1.  There will be a one-time invalidation of all pending withdrawal proofs created on L1.
+
+2.  Complete any pending withdrawals before the upgrade is executed
+
+3.  Avoid creating new withdrawal proofs that would not become executable in time
+
+4.  If a withdrawal was invalidated, submit a second withdrawal proof transaction on L1
+
+This invalidation does not place any ETH or ERC-20 tokens at risk.
+
+
+

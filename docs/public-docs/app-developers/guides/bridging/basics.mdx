@@ -1,0 +1,30 @@
+---
+title: Bridging basics
+description: Learn about the fundamentals of sending data and tokens between Ethereum and OP Mainnet.
+---
+OP Mainnet is a "Layer 2" system and is fundamentally connected to Ethereum.
+However, OP Mainnet is also a distinct blockchain with its own blocks and transactions.
+App developers commonly need to move data and tokens between OP Mainnet and Ethereum.
+This process of moving data and tokens between the two networks is called "bridging".
+
+## Sending tokens
+
+One of the most common use cases for bridging is the need to send ETH or ERC-20 tokens between OP Mainnet and Ethereum.
+OP Mainnet has a system called the [Standard Bridge](./standard-bridge) that makes it easy to move tokens in both directions.
+If you mostly need to bridge tokens, make sure to check out the [Standard Bridge](./standard-bridge) guide.
+
+## Sending data
+
+Under the hood, the Standard Bridge is just an application that uses the OP Mainnet [message passing system to send arbitrary data between Ethereum and OP Mainnet](./messaging).
+Applications can use this system to have a contract on Ethereum interact with a contract on OP Mainnet, and vice versa.
+All of this is easily accessible with a simple, clean API.
+
+## Next steps
+
+Ready to start bridging?
+Check out these tutorials to get up to speed fast.
+
+*   [Learn how to bridge ERC-20 tokens with viem](/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+*   [Learn how to create a standard bridged token](/app-developers/tutorials/bridging/standard-bridge-standard-token)
+*   [Learn how to create a custom bridged token](/app-developers/tutorials/bridging/standard-bridge-custom-token)
+*   [Learn how to submit transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth)

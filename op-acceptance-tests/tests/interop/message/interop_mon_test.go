@@ -17,9 +17,8 @@ import (
 
 // TestInteropMon is testing that the op-interop-mon metrics are correctly collected
 func TestInteropMon(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
-	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t)
+	t := devtest.ParallelT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	clients := map[eth.ChainID]*sources.EthClient{
 		sys.L2ELA.Escape().ChainID(): sys.L2ELA.Escape().EthClient().(*sources.EthClient),

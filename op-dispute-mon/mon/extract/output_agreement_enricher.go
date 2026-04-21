@@ -72,7 +72,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		return nil
 	}
 
-	game.RollupEndpointTotalCount = len(o.clients)
+	game.NodeEndpointTotalCount = len(o.clients)
 
 	results := make([]outputResult, len(o.clients))
 	var wg sync.WaitGroup
@@ -141,27 +141,27 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		if result.err != nil {
 			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2SequenceNumber", game.L2SequenceNumber, "err", result.err)
 			endpointID := fmt.Sprintf("client-%d", idx)
-			game.RollupEndpointErrors[endpointID] = true
-			game.RollupEndpointErrorCount++
+			game.NodeEndpointErrors[endpointID] = true
+			game.NodeEndpointErrorCount++
 			continue
 		}
 		if result.gameL1HeadUnprocessed {
-			game.RollupEndpointOutOfSyncCount++
+			game.NodeEndpointOutOfSyncCount++
 			continue
 		}
 
 		validResults = append(validResults, result)
 
 		if result.notFound {
-			game.RollupEndpointNotFoundCount++
+			game.NodeEndpointNotFoundCount++
 		} else {
 			foundResults = append(foundResults, result)
 			// Track safety counts only for found results where the output root matches the game's root claim
 			if result.outputRoot == game.RootClaim {
 				if result.isSafe {
-					game.RollupEndpointSafeCount++
+					game.NodeEndpointSafeCount++
 				} else {
-					game.RollupEndpointUnsafeCount++
+					game.NodeEndpointUnsafeCount++
 				}
 			}
 		}
@@ -192,7 +192,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		for _, result := range foundResults[1:] {
 			if result.outputRoot != firstResult.outputRoot {
 				diverged = true
-				game.RollupEndpointDifferentOutputRoots = true
+				game.NodeEndpointDifferentRoots = true
 				break
 			}
 		}

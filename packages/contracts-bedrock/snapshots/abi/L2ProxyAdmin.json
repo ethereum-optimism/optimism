@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -341,6 +335,17 @@
     ],
     "name": "PredeploysUpgraded",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "l2ContractsManager",
+        "type": "address"
+      }
+    ],
+    "name": "L2ProxyAdmin__L2ContractsManagerNotDeployed",
+    "type": "error"
   },
   {
     "inputs": [],

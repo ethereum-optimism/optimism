@@ -24,6 +24,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -32,23 +37,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					Output: &eth.OutputResponse{
-						Version:    eth.Bytes32{0x01},
-						OutputRoot: eth.Bytes32{0x11, 0x12},
-						BlockRef: eth.L2BlockRef{
-							Hash:       common.Hash{0x22},
-							Number:     472,
-							ParentHash: common.Hash{0xdd},
-							Time:       9895839,
-							L1Origin: eth.BlockID{
-								Hash:   common.Hash{0xee},
-								Number: 9802,
-							},
-							SequenceNumber: 4982,
-						},
-						WithdrawalStorageRoot: common.Hash{0xff},
-						StateRoot:             common.Hash{0xaa},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,
@@ -89,6 +79,11 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 
 		chainA := eth.ChainIDFromUInt64(1)
 		chainB := eth.ChainIDFromUInt64(4)
+		chainAOutput := &eth.OutputV0{
+			StateRoot:                eth.Bytes32{0xaa},
+			MessagePasserStorageRoot: eth.Bytes32{0xff},
+			BlockHash:                common.Hash{0x22},
+		}
 		expected := eth.SuperRootAtTimestampResponse{
 			CurrentL1: eth.BlockID{
 				Number: 305,
@@ -97,23 +92,8 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 			ChainIDs: []eth.ChainID{chainA, chainB},
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				chainA: {
-					Output: &eth.OutputResponse{
-						Version:    eth.Bytes32{0x01},
-						OutputRoot: eth.Bytes32{0x11, 0x12},
-						BlockRef: eth.L2BlockRef{
-							Hash:       common.Hash{0x22},
-							Number:     472,
-							ParentHash: common.Hash{0xdd},
-							Time:       9895839,
-							L1Origin: eth.BlockID{
-								Hash:   common.Hash{0xee},
-								Number: 9802,
-							},
-							SequenceNumber: 4982,
-						},
-						WithdrawalStorageRoot: common.Hash{0xff},
-						StateRoot:             common.Hash{0xaa},
-					},
+					Output:     chainAOutput,
+					OutputRoot: eth.OutputRoot(chainAOutput),
 					RequiredL1: eth.BlockID{
 						Hash:   common.Hash{0xbb},
 						Number: 7842,
@@ -144,5 +124,62 @@ func TestSuperNodeClient_SuperRootAtTimestamp(t *testing.T) {
 		_, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		require.NotErrorIs(t, err, ethereum.NotFound) // should not convert to not found even though it contains not found
 		require.NotNil(t, err)
+	})
+}
+
+func TestSuperNodeClient_SyncStatus(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		chainA := eth.ChainIDFromUInt64(1)
+		chainB := eth.ChainIDFromUInt64(2)
+		expected := eth.SuperNodeSyncStatusResponse{
+			Chains: map[eth.ChainID]eth.SyncStatus{
+				chainA: {
+					CurrentL1:     eth.L1BlockRef{Number: 100},
+					UnsafeL2:      eth.L2BlockRef{Number: 10, Time: 200},
+					CrossUnsafeL2: eth.L2BlockRef{Number: 9, Time: 190},
+					LocalSafeL2:   eth.L2BlockRef{Number: 9, Time: 175},
+					SafeL2:        eth.L2BlockRef{Number: 8, Time: 160},
+					FinalizedL2:   eth.L2BlockRef{Number: 6, Time: 120},
+				},
+				chainB: {
+					CurrentL1:     eth.L1BlockRef{Number: 100},
+					UnsafeL2:      eth.L2BlockRef{Number: 11, Time: 210},
+					CrossUnsafeL2: eth.L2BlockRef{Number: 10, Time: 200},
+					LocalSafeL2:   eth.L2BlockRef{Number: 9, Time: 170},
+					SafeL2:        eth.L2BlockRef{Number: 8, Time: 160},
+					FinalizedL2:   eth.L2BlockRef{Number: 5, Time: 100},
+				},
+			},
+			CurrentL1:          eth.BlockID{Number: 100},
+			ChainIDs:           []eth.ChainID{chainA, chainB},
+			SafeTimestamp:      160,
+			LocalSafeTimestamp: 170,
+			FinalizedTimestamp: 100,
+		}
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
+			*args[1].(*eth.SuperNodeSyncStatusResponse) = expected
+		}).Return([]error{nil})
+
+		result, err := client.SyncStatus(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, result)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		ctx := context.Background()
+		rpc := new(mockRPC)
+		defer rpc.AssertExpectations(t)
+		client := NewSuperNodeClient(rpc)
+
+		rpc.On("CallContext", ctx, new(eth.SuperNodeSyncStatusResponse),
+			"supernode_syncStatus", []any(nil)).Return([]error{errors.New("boom")})
+		_, err := client.SyncStatus(ctx)
+		require.Error(t, err)
 	})
 }

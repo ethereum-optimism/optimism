@@ -1,18 +1,18 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
-use alloy_op_evm::{OpEvm, OpEvmFactory};
+use alloy_op_evm::{OpEvm, OpEvmFactory, OpTx, OpTxError};
 use alloy_primitives::{Address, Bytes};
 use op_revm::{
-    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, OpTransactionError,
-    precompiles::OpPrecompiles,
+    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
 };
-use reth_ethereum::evm::revm::{
+use revm::{
     Context, Inspector, Journal,
     context::{BlockEnv, CfgEnv, result::ResultAndState},
+    context_interface::result::EVMError,
     handler::PrecompileProvider,
+    inspector::NoOpInspector,
     interpreter::InterpreterResult,
 };
-use revm::{context_interface::result::EVMError, inspector::NoOpInspector};
 use std::error::Error;
 
 /// EVM context contains data that EVM needs for execution of [`CustomTxEnv`].
@@ -20,11 +20,11 @@ pub type CustomContext<DB> =
     Context<BlockEnv, OpTransaction<PaymentTxEnv>, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
 
 pub struct CustomEvm<DB: Database, I, P = OpPrecompiles> {
-    inner: OpEvm<DB, I, P>,
+    inner: OpEvm<DB, I, P, OpTx>,
 }
 
 impl<DB: Database, I, P> CustomEvm<DB, I, P> {
-    pub fn new(op: OpEvm<DB, I, P>) -> Self {
+    pub fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
         Self { inner: op }
     }
 }
@@ -37,7 +37,7 @@ where
 {
     type DB = DB;
     type Tx = CustomTxEnv;
-    type Error = EVMError<DB::Error, OpTransactionError>;
+    type Error = EVMError<DB::Error, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;
@@ -101,7 +101,7 @@ impl EvmFactory for CustomEvmFactory {
     type Evm<DB: Database, I: Inspector<OpContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
     type Context<DB: Database> = OpContext<DB>;
     type Tx = CustomTxEnv;
-    type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTransactionError>;
+    type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;

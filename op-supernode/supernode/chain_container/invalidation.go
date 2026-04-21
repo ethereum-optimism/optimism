@@ -3,11 +3,13 @@ package chain_container
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
@@ -24,6 +26,30 @@ var denyListBucketName = []byte("denied_blocks")
 type DenyList struct {
 	db *bolt.DB
 	mu sync.RWMutex
+}
+
+// DenyRecord stores a denied payload hash along with decision provenance
+// and the output preimage fields for optimistic root computation.
+type DenyRecord struct {
+	PayloadHash              common.Hash `json:"payloadHash"`
+	DecisionTimestamp        uint64      `json:"decisionTimestamp"`
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+}
+
+func encodeDenyRecords(records []DenyRecord) ([]byte, error) {
+	return json.Marshal(records)
+}
+
+func decodeDenyRecords(raw []byte) ([]DenyRecord, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var records []DenyRecord
+	if err := json.Unmarshal(raw, &records); err != nil {
+		return nil, fmt.Errorf("failed to decode denylist records: %w", err)
+	}
+	return records, nil
 }
 
 // OpenDenyList opens or creates a DenyList at the given data directory.
@@ -59,8 +85,9 @@ func heightToKey(height uint64) []byte {
 }
 
 // Add adds a payload hash to the deny list at the given block height.
+// stateRoot and messagePasserStorageRoot are the output preimage fields for optimistic root computation.
 // Multiple hashes can be denied at the same height.
-func (d *DenyList) Add(height uint64, payloadHash common.Hash) error {
+func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -69,25 +96,102 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash) error {
 	return d.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(denyListBucketName)
 
-		// Get existing hashes at this height
 		existing := b.Get(key)
-		var hashes []byte
-		if existing != nil {
-			// Check if hash already exists
-			for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
-				if common.BytesToHash(existing[i:i+common.HashLength]) == payloadHash {
-					// Already denied
-					return nil
-				}
-			}
-			hashes = make([]byte, len(existing), len(existing)+common.HashLength)
-			copy(hashes, existing)
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
 		}
 
-		// Append the new hash
-		hashes = append(hashes, payloadHash.Bytes()...)
-		return b.Put(key, hashes)
+		for _, r := range records {
+			if r.PayloadHash == payloadHash {
+				return nil
+			}
+		}
+
+		records = append(records, DenyRecord{
+			PayloadHash:              payloadHash,
+			DecisionTimestamp:        decisionTimestamp,
+			StateRoot:                stateRoot,
+			MessagePasserStorageRoot: messagePasserStorageRoot,
+		})
+
+		encoded, err := encodeDenyRecords(records)
+		if err != nil {
+			return err
+		}
+		return b.Put(key, encoded)
 	})
+}
+
+// LastDeniedOutputV0 returns the OutputV0 for the most recently denied block at the given height.
+// Returns nil if no blocks are denied at that height.
+// Note: supernode does not currently behave in well defined ways when there are multiple denied blocks at the same height.
+func (d *DenyList) LastDeniedOutputV0(height uint64) (*eth.OutputV0, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var result *eth.OutputV0
+
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		if len(records) > 0 {
+			r := records[len(records)-1]
+			result = &eth.OutputV0{
+				StateRoot:                r.StateRoot,
+				MessagePasserStorageRoot: r.MessagePasserStorageRoot,
+				BlockHash:                r.PayloadHash,
+			}
+		}
+		return nil
+	})
+
+	return result, err
+}
+
+// GetOutputV0 reconstructs and returns the full OutputV0 for a denied block.
+// Returns nil if the hash is not denied at that height.
+func (d *DenyList) GetOutputV0(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var result *eth.OutputV0
+
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		for _, r := range records {
+			if r.PayloadHash == payloadHash {
+				result = &eth.OutputV0{
+					StateRoot:                r.StateRoot,
+					MessagePasserStorageRoot: r.MessagePasserStorageRoot,
+					BlockHash:                payloadHash,
+				}
+				return nil
+			}
+		}
+		return nil
+	})
+
+	return result, err
 }
 
 // Contains checks if a payload hash is denied at the given block height.
@@ -105,9 +209,12 @@ func (d *DenyList) Contains(height uint64, payloadHash common.Hash) (bool, error
 			return nil
 		}
 
-		// Search for the hash in the list
-		for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
-			if common.BytesToHash(existing[i:i+common.HashLength]) == payloadHash {
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		for _, r := range records {
+			if r.PayloadHash == payloadHash {
 				found = true
 				return nil
 			}
@@ -133,13 +240,90 @@ func (d *DenyList) GetDeniedHashes(height uint64) ([]common.Hash, error) {
 			return nil
 		}
 
-		for i := 0; i+common.HashLength <= len(existing); i += common.HashLength {
-			hashes = append(hashes, common.BytesToHash(existing[i:i+common.HashLength]))
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		for _, r := range records {
+			hashes = append(hashes, r.PayloadHash)
 		}
 		return nil
 	})
 
 	return hashes, err
+}
+
+// GetDeniedRecords returns all denied records at the given block height.
+func (d *DenyList) GetDeniedRecords(height uint64) ([]DenyRecord, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var records []DenyRecord
+
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+
+		var decErr error
+		records, decErr = decodeDenyRecords(existing)
+		return decErr
+	})
+
+	return records, err
+}
+
+// PruneAtOrAfterTimestamp iterates all keys in the bucket, decodes records,
+// removes any where DecisionTimestamp >= timestamp, re-encodes remaining.
+// Returns map of removed hashes by height.
+func (d *DenyList) PruneAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	removed := make(map[uint64][]common.Hash)
+
+	err := d.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			height := binary.BigEndian.Uint64(k)
+
+			records, err := decodeDenyRecords(v)
+			if err != nil {
+				return err
+			}
+
+			var kept []DenyRecord
+			for _, r := range records {
+				if r.DecisionTimestamp >= timestamp {
+					removed[height] = append(removed[height], r.PayloadHash)
+				} else {
+					kept = append(kept, r)
+				}
+			}
+
+			if len(kept) == 0 {
+				if err := b.Delete(k); err != nil {
+					return err
+				}
+			} else if len(kept) < len(records) {
+				encoded, err := encodeDenyRecords(kept)
+				if err != nil {
+					return err
+				}
+				if err := b.Put(k, encoded); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	return removed, err
 }
 
 // Close closes the database.
@@ -149,9 +333,13 @@ func (d *DenyList) Close() error {
 
 // InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
 // currently uses that block at the specified height.
+// WARNING: this should only be called by interop transition application.
+// Other callers risk triggering chain rewinds outside the interop WAL model.
+// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
+// smaller interop-owned interface.
 // Returns true if a rewind was triggered, false otherwise.
 // Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
-func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
 	}
@@ -161,8 +349,8 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
 	}
 
-	// Add to deny list first
-	if err := c.denyList.Add(height, payloadHash); err != nil {
+	// Add to deny list with the output preimage fields
+	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 
@@ -201,7 +389,10 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	invalidatedBlock := currentBlock.BlockRef()
 
 	// Rewind to the prior block's timestamp
-	priorTimestamp := c.blockNumberToTimestamp(height - 1)
+	priorTimestamp, err := c.blockNumberToTimestamp(height - 1)
+	if err != nil {
+		return false, fmt.Errorf("failed to compute rewind timestamp: %w", err)
+	}
 	if err := c.RewindEngine(ctx, priorTimestamp, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
 	}
@@ -212,4 +403,11 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	)
 
 	return true, nil
+}
+
+func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	if c.denyList == nil {
+		return nil, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.PruneAtOrAfterTimestamp(timestamp)
 }

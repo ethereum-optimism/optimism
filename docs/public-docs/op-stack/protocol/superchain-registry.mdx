@@ -1,0 +1,33 @@
+---
+title: The superchain-registry
+description: Learn about OP Stack chain classification and the superchain-registry.
+---
+
+The [superchain-registry](https://github.com/ethereum-optimism/superchain-registry/tree/main) serves as the source of truth for OP Stack chain classification and what modifications chains have made. The superchain-registry introduces:
+
+*   A step-by-step process new chains can follow to join the registry
+*   Validation checks to ensure standard chains comply with the Standard Rollup Charter and non-standard chains pass baseline validation before joining the superchain-registry
+*   A repository that shows who's in the registry and the chain's configuration. Chains with `superchain_level = 2` have proven that they follow the Standard Rollup Charter, and can be classified as a Standard Rollup.
+
+## The Standard Rollup
+
+An OP Stack Standard Rollup follows the Standard Rollup Charter.
+
+This configuration targets the Optimism Collective's highest bar for security, uptime, and decentralization.
+
+You can find more details in the [Standard Rollup Charter documentation](/op-stack/protocol/blockspace-charter).
+
+<Info>
+  We **strongly** recommend using the [op-deployer](/chain-operators/tools/op-deployer/overview) to deploy L1 contracts and generate the L2 genesis file that meets the configuration requirements outlined in the [Standard Rollup Charter](/op-stack/protocol/blockspace-charter).
+</Info>
+
+## Joining the Registry
+
+All OP Stack chains are welcome to join the superchain-registry, regardless of whether they adhere to the standard rollup charter or not. To join the Registry, [follow the steps in this guide](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-chain) to submit a pull request and join the Registry. This guide will help you set up your chain, create your environment, and run all the validation checks needed to ensure your chain is ready to join the Registry.
+
+## Hard fork activation inheritance behavior
+
+After being included into the superchain-registry, subsequent releases of the `op-node` and `op-geth` will contain the chain's genesis and rollup configurations baked in. You can use then use the `--network` (`op-node`) and `--op-network` (`op-geth`) flags to start up your node with this information. Using these flags means that the node will automatically inherit the hard fork activation times from the superchain-registry, so you don't need to manually set them in your node configuration.
+
+Additionally, chains can opt into the hard fork activation inheritance behavior by specifying the `superchain_time` in the chain's TOML file to start inheriting OP Stack wide activation timestamps.
+Networks that utilize this mechanism will activate network hard forks specified in the `superchain.toml` files: [Sepolia superchain.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/superchain.toml) and [Mainnet superchain.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/superchain.toml).

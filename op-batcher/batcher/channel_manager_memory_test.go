@@ -141,8 +141,14 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	runtime.GC()
 	runtime.ReadMemStats(&finalMem)
 
-	// Calculate memory used by the channel manager
-	memUsed := finalMem.Alloc - initialMem.Alloc
+	// Calculate memory used by the channel manager.
+	// Guard against uint64 underflow: GC between the two ReadMemStats calls can
+	// reclaim memory from other goroutines, making finalMem.Alloc < initialMem.Alloc.
+	// When that happens the delta is effectively zero — no leak detected.
+	var memUsed uint64
+	if finalMem.Alloc > initialMem.Alloc {
+		memUsed = finalMem.Alloc - initialMem.Alloc
+	}
 
 	// Assert that memory usage doesn't exceed 512MB
 	const maxMemoryMB = 512 * 1024 * 1024 // 512MB in bytes

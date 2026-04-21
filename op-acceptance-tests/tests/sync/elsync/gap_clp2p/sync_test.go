@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	t := devtest.ParallelT(gt)
+	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
@@ -46,8 +46,18 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 // not cause the CL's unsafe head to regress, preserving the last known valid head
 // while maintaining correct Engine API semantics.
 func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	t := devtest.ParallelT(gt)
+	// Example error with op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|09:41:58.089]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/l2_cl.go:279
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync/elsync/gap_clp2p/sync_test.go:96
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	expected head not to advance: unsafe
+	// assertions.go:387:             	Test:       	TestCLUnsafeNotRewoundOnInvalidDuringELSync
+	// assertions.go:387:
+	sysgo.SkipOnOpReth(t, "not supported")
+	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()
 

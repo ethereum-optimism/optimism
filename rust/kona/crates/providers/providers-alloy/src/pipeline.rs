@@ -4,12 +4,12 @@ use crate::{AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, Online
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_derive::{
-    DerivationPipeline, EthereumDataSource, IndexedAttributesQueueStage, L2ChainProvider,
-    OriginProvider, Pipeline, PipelineBuilder, PipelineErrorKind, PipelineResult,
-    PolledAttributesQueueStage, ResetSignal, Signal, SignalReceiver, StatefulAttributesBuilder,
-    StepResult,
+    DerivationPipeline, EthereumDataSource, IndexedAttributesQueueStage, OriginProvider, Pipeline,
+    PipelineBuilder, PipelineErrorKind, PipelineResult, PolledAttributesQueueStage, ResetSignal,
+    Signal, SignalReceiver, StatefulAttributesBuilder, StepResult,
 };
 use kona_genesis::{L1ChainConfig, RollupConfig, SystemConfig};
+use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use std::sync::Arc;
 
@@ -54,14 +54,21 @@ pub enum OnlinePipeline {
 
 impl OnlinePipeline {
     /// Constructs a new polled derivation pipeline that is initialized.
+    ///
+    /// `dependency_set` must be `Some` when the rollup config schedules the
+    /// Interop hardfork. The inner [`StatefulAttributesBuilder`] constructor
+    /// panics otherwise; turning a silent state-divergence bug into a
+    /// startup crash.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         cfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,
         l2_safe_head: L2BlockInfo,
-        l1_origin: BlockInfo,
+        _l1_origin: BlockInfo,
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
         chain_provider: AlloyChainProvider,
-        mut l2_chain_provider: AlloyL2ChainProvider,
+        l2_chain_provider: AlloyL2ChainProvider,
+        dependency_set: Option<Arc<DependencySet>>,
     ) -> PipelineResult<Self> {
         let mut pipeline = Self::new_polled(
             cfg.clone(),
@@ -69,23 +76,12 @@ impl OnlinePipeline {
             blob_provider,
             chain_provider,
             l2_chain_provider.clone(),
+            dependency_set,
         );
 
         // Reset the pipeline to populate the initial L1/L2 cursor and system configuration in L1
         // Traversal.
-        pipeline
-            .signal(
-                ResetSignal {
-                    l2_safe_head,
-                    l1_origin,
-                    system_config: l2_chain_provider
-                        .system_config_by_number(l2_safe_head.block_info.number, cfg.clone())
-                        .await
-                        .ok(),
-                }
-                .signal(),
-            )
-            .await?;
+        pipeline.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
 
         Ok(pipeline)
     }
@@ -103,12 +99,14 @@ impl OnlinePipeline {
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
         chain_provider: AlloyChainProvider,
         l2_chain_provider: AlloyL2ChainProvider,
+        dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         let attributes = StatefulAttributesBuilder::new(
             cfg.clone(),
             l1_cfg,
             l2_chain_provider.clone(),
             chain_provider.clone(),
+            dependency_set,
         );
         let dap = EthereumDataSource::new_from_parts(chain_provider.clone(), blob_provider, &cfg);
 
@@ -137,12 +135,14 @@ impl OnlinePipeline {
         blob_provider: OnlineBlobProvider<OnlineBeaconClient>,
         chain_provider: AlloyChainProvider,
         l2_chain_provider: AlloyL2ChainProvider,
+        dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         let attributes = StatefulAttributesBuilder::new(
             cfg.clone(),
             l1_cfg,
             l2_chain_provider.clone(),
             chain_provider.clone(),
+            dependency_set,
         );
         let dap = EthereumDataSource::new_from_parts(chain_provider.clone(), blob_provider, &cfg);
 

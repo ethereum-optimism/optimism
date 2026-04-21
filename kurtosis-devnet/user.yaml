@@ -1,3 +1,0 @@
-{{- $context := or . (dict)}}
----
-{{ include "templates/devnet.yaml" $context }}

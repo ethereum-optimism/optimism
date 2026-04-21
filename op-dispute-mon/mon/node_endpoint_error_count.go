@@ -25,7 +25,7 @@ func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*typ
 	totalErrors := 0
 
 	for _, game := range games {
-		totalErrors += game.RollupEndpointErrorCount
+		totalErrors += game.NodeEndpointErrorCount
 	}
 
 	m.metrics.RecordNodeEndpointErrorCount(totalErrors)
@@ -35,7 +35,7 @@ func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*typ
 func countGamesWithErrors(games []*types.EnrichedGameData) int {
 	count := 0
 	for _, game := range games {
-		if game.RollupEndpointErrorCount > 0 {
+		if game.NodeEndpointErrorCount > 0 {
 			count++
 		}
 	}

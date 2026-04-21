@@ -19,6 +19,7 @@ workspace = true
 kona-rpc.workspace = true
 kona-peers.workspace = true
 kona-genesis = { workspace = true, features = ["tabled"] }
+kona-interop = { workspace = true, features = ["serde"] }
 kona-protocol.workspace = true
 
 kona-cli = { workspace = true, features = ["secrets"] }
@@ -49,7 +50,6 @@ op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
 # general
 url.workspace = true
-http.workspace = true
 dirs.workspace = true
 strum.workspace = true
 discv5.workspace = true
@@ -70,9 +70,6 @@ clap = { workspace = true, features = ["derive", "env"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-
-# rollup boost
-rollup-boost.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

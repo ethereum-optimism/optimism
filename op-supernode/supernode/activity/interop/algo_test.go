@@ -24,10 +24,15 @@ import (
 // =============================================================================
 
 // newMockChainWithL1 creates a mock chain with the specified L1 block for OptimisticAt
-func newMockChainWithL1(chainID eth.ChainID, l1Block eth.BlockID) *algoMockChain {
+func newMockChainWithL1(chainID eth.ChainID, l1Block eth.BlockID, blocks ...eth.BlockID) *algoMockChain {
+	hashes := make(map[uint64]common.Hash, len(blocks))
+	for _, b := range blocks {
+		hashes[b.Number] = b.Hash
+	}
 	return &algoMockChain{
 		id:           chainID,
 		optimisticL1: l1Block,
+		blockHashes:  hashes,
 	}
 }
 
@@ -59,6 +64,174 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	}
 }
 
+func TestL1Inclusion(t *testing.T) {
+	t.Parallel()
+
+	type l1InclusionTestCase struct {
+		name        string
+		setup       func() (*Interop, uint64, map[eth.ChainID]eth.BlockID)
+		expectError bool
+		errorMsg    string
+		validate    func(t *testing.T, l1 eth.BlockID)
+	}
+
+	tests := []l1InclusionTestCase{
+		{
+			name: "SingleChain",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+				l1Block := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains:              map[eth.ChainID]cc.ChainContainer{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}, l1)
+			},
+		},
+		{
+			name: "MultipleChains_HighestL1Selected",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chain1ID := eth.ChainIDFromUInt64(10)
+				chain2ID := eth.ChainIDFromUInt64(8453)
+				chain3ID := eth.ChainIDFromUInt64(420)
+
+				// Chain 1 has L1 at 60 (highest - should be selected)
+				// Chain 2 has L1 at 45 (earliest)
+				// Chain 3 has L1 at 50 (middle)
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}},
+						chain2ID: &algoMockChain{id: chain2ID, optimisticL1: eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}},
+						chain3ID: &algoMockChain{id: chain3ID, optimisticL1: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_3")}},
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chain1ID: {Number: 100, Hash: common.HexToHash("0x1")},
+					chain2ID: {Number: 200, Hash: common.HexToHash("0x2")},
+					chain3ID: {Number: 150, Hash: common.HexToHash("0x3")},
+				}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}, l1)
+			},
+		},
+		{
+			name: "ChainNotInChainsMap_Skipped",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chain1ID := eth.ChainIDFromUInt64(10)
+				chain2ID := eth.ChainIDFromUInt64(8453) // Not in chains map
+
+				l1Block1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: l1Block1},
+						// chain2ID NOT in chains map
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chain1ID: {Number: 100, Hash: common.HexToHash("0x1")},
+					chain2ID: {Number: 200, Hash: common.HexToHash("0x2")},
+				}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}, l1)
+			},
+		},
+		{
+			name: "OptimisticAtError_ReturnsError",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						chainID: &algoMockChain{id: chainID, optimisticAtErr: errors.New("optimistic at error")},
+					},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{
+					chainID: {Number: 100, Hash: common.HexToHash("0x123")},
+				}
+			},
+			expectError: true,
+			errorMsg:    "failed to get L1 inclusion",
+		},
+		{
+			name: "NoChains_ReturnsEmpty",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains:              map[eth.ChainID]cc.ChainContainer{},
+				}
+				return interop, 1000, map[eth.ChainID]eth.BlockID{}
+			},
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{}, l1)
+			},
+		},
+		{
+			name: "GenesisBlock_NoError",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				chainID := eth.ChainIDFromUInt64(10)
+				// L1 genesis block at number 0
+				l1Block := eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesisL1")}
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{},
+					chains:              map[eth.ChainID]cc.ChainContainer{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
+				}
+				return interop, 0, map[eth.ChainID]eth.BlockID{
+					chainID: {Number: 0, Hash: common.HexToHash("0x123")},
+				}
+			},
+			// Genesis blocks included at L1 block number 0 must not cause an error.
+			validate: func(t *testing.T, l1 eth.BlockID) {
+				require.Equal(t, eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesisL1")}, l1)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			interop, ts, blocks := tc.setup()
+			l1, err := interop.l1Inclusion(ts, blocks)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorMsg != "" {
+					require.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tc.validate != nil {
+				tc.validate(t, l1)
+			}
+		})
+	}
+}
+
 func TestVerifyInteropMessages(t *testing.T) {
 	t.Parallel()
 
@@ -78,9 +251,10 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
+					chains:              map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
 				}
 
 				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
@@ -127,7 +301,8 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -159,7 +334,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				// Message is exactly at the expiry boundary (should pass)
 				execTimestamp := uint64(1000000)
-				initTimestamp := execTimestamp - ExpiryTime // Exactly at boundary
+				initTimestamp := execTimestamp - defaultMessageExpiryWindow // Exactly at boundary
 
 				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
@@ -186,7 +361,8 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -208,6 +384,73 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
+			name: "ValidBlocks/SameTimestampMessage",
+			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Same-timestamp interop: executing message references an initiating message
+				// from the SAME timestamp.
+				sourceChainID := eth.ChainIDFromUInt64(10)
+				destChainID := eth.ChainIDFromUInt64(8453)
+
+				sourceBlockHash := common.HexToHash("0xSource")
+				destBlockHash := common.HexToHash("0xDest")
+
+				// Both blocks at the SAME timestamp
+				sharedTimestamp := uint64(1000)
+
+				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
+				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+
+				execMsg := &suptypes.ExecutingMessage{
+					ChainID:   sourceChainID,
+					BlockNum:  50,
+					LogIdx:    0,
+					Timestamp: sharedTimestamp, // SAME as executing timestamp - should be VALID
+					Checksum:  suptypes.MessageChecksum{0x01},
+				}
+
+				sourceDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
+					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
+				}
+
+				destDB := &algoMockLogsDB{
+					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
+					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+						0: execMsg,
+					},
+				}
+
+				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
+
+				interop := &Interop{
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs: map[eth.ChainID]LogsDB{
+						sourceChainID: sourceDB,
+						destChainID:   destDB,
+					},
+					chains: map[eth.ChainID]cc.ChainContainer{
+						sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
+						destChainID:   newMockChainWithL1(destChainID, l1Block),
+					},
+				}
+
+				return interop, sharedTimestamp, map[eth.ChainID]eth.BlockID{
+					sourceChainID: sourceBlock,
+					destChainID:   destBlock,
+				}
+			},
+			validate: func(t *testing.T, result Result) {
+				// Same-timestamp messages should now be VALID
+				require.True(t, result.IsValid(), "same-timestamp messages should be valid")
+				require.Empty(t, result.InvalidHeads, "no blocks should be invalid")
+			},
+		},
+		{
+			// Interop verification *never* expects to be given chain data for chains that are not part of the supernode,
+			// so this test is not helpful except to demonstrate the specified behavior: if chain data is available
+			// but is not part of the chains map for some reason, it should not be used at all, as it is unrelated to the
+			// superchain's interop verification.
 			name: "ValidBlocks/UnregisteredChainsSkipped",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				registeredChain := eth.ChainIDFromUInt64(10)
@@ -218,8 +461,9 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{registeredChain: mockDB},
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{registeredChain: mockDB},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						registeredChain: newMockChainWithL1(registeredChain, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
 					},
@@ -255,9 +499,10 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
+					chains:              map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block, expectedBlock)},
 				}
 
 				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
@@ -267,7 +512,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0xExpected")}
 				require.False(t, result.IsValid())
 				require.Contains(t, result.InvalidHeads, chainID)
-				require.Equal(t, expectedBlock, result.InvalidHeads[chainID])
+				require.Equal(t, expectedBlock, result.InvalidHeads[chainID].BlockID)
 			},
 		},
 		{
@@ -299,14 +544,15 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -319,8 +565,11 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "InvalidBlocks/TimestampViolation",
+			name: "InvalidBlocks/FutureTimestamp",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+				// Future timestamp: initiating message timestamp > executing timestamp.
+				// This is INVALID (you can't execute a message that hasn't been initiated yet).
+				// Note: Same-timestamp (==) is ALLOWED, only strictly greater (>) is invalid.
 				sourceChainID := eth.ChainIDFromUInt64(10)
 				destChainID := eth.ChainIDFromUInt64(8453)
 
@@ -331,7 +580,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
-					Timestamp: 1001, // Future timestamp - INVALID!
+					Timestamp: 1001, // FUTURE timestamp (> 1000) - INVALID!
 					Checksum:  suptypes.MessageChecksum{0x01},
 				}
 
@@ -347,14 +596,15 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -362,7 +612,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 			validate: func(t *testing.T, result Result) {
 				destChainID := eth.ChainIDFromUInt64(8453)
-				require.False(t, result.IsValid())
+				require.False(t, result.IsValid(), "future timestamp messages should be invalid")
 				require.Contains(t, result.InvalidHeads, destChainID)
 			},
 		},
@@ -391,14 +641,15 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						destChainID: destDB,
 						// Note: unknownSourceChain NOT in logsDBs
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						unknownSourceChain: newMockChainWithL1(unknownSourceChain, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:        newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:        newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -419,8 +670,8 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlockHash := common.HexToHash("0xDest")
 				// Executing block is at timestamp 1000000 (well after expiry)
 				execTimestamp := uint64(1000000)
-				// Initiating message timestamp is more than ExpiryTime (604800) before executing timestamp
-				initTimestamp := execTimestamp - ExpiryTime - 1 // 1 second past expiry
+				// Initiating message timestamp is more than defaultMessageExpiryWindow (604800) before executing timestamp
+				initTimestamp := execTimestamp - defaultMessageExpiryWindow - 1 // 1 second past expiry
 
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
@@ -444,14 +695,15 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
 						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
 					},
 				}
 
@@ -501,14 +753,15 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log: gethlog.New(),
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID:  sourceDB,
 						validChainID:   validDB,
 						invalidChainID: invalidDB,
 					},
 					chains: map[eth.ChainID]cc.ChainContainer{
-						invalidChainID: newMockChainWithL1(invalidChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
+						invalidChainID: newMockChainWithL1(invalidChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, invalidBlock),
 						sourceChainID:  newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
 						validChainID:   newMockChainWithL1(validChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
 					},
@@ -531,205 +784,6 @@ func TestVerifyInteropMessages(t *testing.T) {
 				require.Contains(t, result.InvalidHeads, invalidChainID)
 			},
 		},
-		// L1Inclusion tests
-		{
-			name: "L1Inclusion/SingleChain",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chainID := eth.ChainIDFromUInt64(10)
-				blockHash := common.HexToHash("0x123")
-				expectedBlock := eth.BlockID{Number: 100, Hash: blockHash}
-				l1Block := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
-
-				mockDB := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: blockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain := &algoMockChain{
-					id:           chainID,
-					optimisticL1: l1Block,
-				}
-
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: mockChain},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
-			},
-			validate: func(t *testing.T, result Result) {
-				chainID := eth.ChainIDFromUInt64(10)
-				expectedBlock := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
-				expectedL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				require.Equal(t, expectedBlock, result.L2Heads[chainID])
-				require.Equal(t, expectedL1, result.L1Inclusion)
-			},
-		},
-		{
-			name: "L1Inclusion/MultipleChains_EarliestL1Selected",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chain1ID := eth.ChainIDFromUInt64(10)
-				chain2ID := eth.ChainIDFromUInt64(8453)
-				chain3ID := eth.ChainIDFromUInt64(420)
-
-				block1 := eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")}
-				block2 := eth.BlockID{Number: 200, Hash: common.HexToHash("0x2")}
-				block3 := eth.BlockID{Number: 150, Hash: common.HexToHash("0x3")}
-
-				// Chain 1 has L1 at 60 (highest)
-				// Chain 2 has L1 at 45 (earliest - should be selected)
-				// Chain 3 has L1 at 50 (middle)
-				l1Block1 := eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}
-				l1Block2 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
-				l1Block3 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_3")}
-
-				mockDB1 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block1.Hash, Number: block1.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB2 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block2.Hash, Number: block2.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB3 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block3.Hash, Number: block3.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain1 := &algoMockChain{id: chain1ID, optimisticL1: l1Block1}
-				mockChain2 := &algoMockChain{id: chain2ID, optimisticL1: l1Block2}
-				mockChain3 := &algoMockChain{id: chain3ID, optimisticL1: l1Block3}
-
-				interop := &Interop{
-					log: gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{
-						chain1ID: mockDB1,
-						chain2ID: mockDB2,
-						chain3ID: mockDB3,
-					},
-					chains: map[eth.ChainID]cc.ChainContainer{
-						chain1ID: mockChain1,
-						chain2ID: mockChain2,
-						chain3ID: mockChain3,
-					},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{
-					chain1ID: block1,
-					chain2ID: block2,
-					chain3ID: block3,
-				}
-			},
-			validate: func(t *testing.T, result Result) {
-				// The earliest L1 block (45) should be selected
-				expectedL1 := eth.BlockID{Number: 45, Hash: common.HexToHash("0xL1_2")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				require.Equal(t, expectedL1, result.L1Inclusion)
-				require.Len(t, result.L2Heads, 3)
-			},
-		},
-		{
-			name: "L1Inclusion/ChainNotInChainsMap_Skipped",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chain1ID := eth.ChainIDFromUInt64(10)
-				chain2ID := eth.ChainIDFromUInt64(8453) // Not in chains map
-
-				block1 := eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")}
-				block2 := eth.BlockID{Number: 200, Hash: common.HexToHash("0x2")}
-
-				l1Block1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
-
-				mockDB1 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block1.Hash, Number: block1.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-				mockDB2 := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: block2.Hash, Number: block2.Number, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain1 := &algoMockChain{id: chain1ID, optimisticL1: l1Block1}
-
-				interop := &Interop{
-					log: gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{
-						chain1ID: mockDB1,
-						chain2ID: mockDB2,
-					},
-					chains: map[eth.ChainID]cc.ChainContainer{
-						chain1ID: mockChain1,
-						// chain2ID is NOT in the chains map
-					},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{
-					chain1ID: block1,
-					chain2ID: block2,
-				}
-			},
-			validate: func(t *testing.T, result Result) {
-				chain2ID := eth.ChainIDFromUInt64(8453)
-				expectedL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1_1")}
-				require.True(t, result.IsValid())
-				require.Empty(t, result.InvalidHeads)
-				// chain2 should still be in L2Heads even though it's not in chains map
-				require.Contains(t, result.L2Heads, chain2ID)
-				// L1Inclusion should only consider chain1
-				require.Equal(t, expectedL1, result.L1Inclusion)
-			},
-		},
-		{
-			name: "L1Inclusion/OptimisticAtError_ReturnsError",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				chainID := eth.ChainIDFromUInt64(10)
-				blockHash := common.HexToHash("0x123")
-				expectedBlock := eth.BlockID{Number: 100, Hash: blockHash}
-
-				mockDB := &algoMockLogsDB{
-					openBlockRef:     eth.BlockRef{Hash: blockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: nil,
-				}
-
-				mockChain := &algoMockChain{
-					id:              chainID,
-					optimisticAtErr: errors.New("optimistic at error"),
-				}
-
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: mockChain},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: expectedBlock}
-			},
-			expectError: true,
-			errorMsg:    "failed to get L1 inclusion",
-			validate: func(t *testing.T, result Result) {
-				require.True(t, result.IsEmpty())
-			},
-		},
-		{
-			name: "L1Inclusion/NoChains_Error",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{},
-					chains:  map[eth.ChainID]cc.ChainContainer{},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{}
-			},
-			expectError: true,
-			errorMsg:    "no L1 inclusion found",
-			validate: func(t *testing.T, result Result) {
-				require.True(t, result.IsEmpty())
-			},
-		},
 		// Error cases
 		{
 			name: "Errors/OpenBlockError",
@@ -743,9 +797,10 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				interop := &Interop{
-					log:     gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
-					chains:  map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
+					messageExpiryWindow: defaultMessageExpiryWindow,
+					log:                 gethlog.New(),
+					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
+					chains:              map[eth.ChainID]cc.ChainContainer{chainID: newMockChainWithL1(chainID, l1Block)},
 				}
 
 				return interop, 1000, map[eth.ChainID]eth.BlockID{chainID: block}
@@ -857,6 +912,7 @@ type algoMockChain struct {
 	optimisticL2    eth.BlockID
 	optimisticL1    eth.BlockID
 	optimisticAtErr error
+	blockHashes     map[uint64]common.Hash
 }
 
 func (m *algoMockChain) ID() eth.ChainID                                  { return m.id }
@@ -864,7 +920,9 @@ func (m *algoMockChain) Start(ctx context.Context) error                  { retu
 func (m *algoMockChain) Stop(ctx context.Context) error                   { return nil }
 func (m *algoMockChain) Pause(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Resume(ctx context.Context) error                 { return nil }
+func (m *algoMockChain) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *algoMockChain) RegisterVerifier(v activity.VerificationActivity) {}
+func (m *algoMockChain) VerifierCurrentL1s() []eth.BlockID                { return nil }
 func (m *algoMockChain) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
@@ -883,7 +941,7 @@ func (m *algoMockChain) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockI
 func (m *algoMockChain) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
-func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
 func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
@@ -892,12 +950,28 @@ func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) 
 func (m *algoMockChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
 }
+func (m *algoMockChain) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
+}
 func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	return nil
 }
 func (m *algoMockChain) BlockTime() uint64 { return 1 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	return false, nil
+}
+func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	out := &eth.OutputV0{}
+	if m.blockHashes != nil {
+		out.BlockHash = m.blockHashes[l2BlockNum]
+	}
+	return out, nil
+}
+func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
+}
+func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
+	return nil, nil
 }
 func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil

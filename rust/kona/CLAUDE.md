@@ -5,14 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build Commands
 - Build workspace: `just b` or `just build-native`
 - Lint: `just l` or `just lint-native`
-- Format: `just f` or `just fmt-native-fix`
+- Format: `just f` or `just fmt-native-fix` (if `rust-fmt` CI fails, use `/fix-rust-fmt`)
 - Run all tests: `just t` or `just tests`
 - Run specific test: `cargo nextest run --package [package-name] --test [test-name]`
 - Run single test: `cargo nextest run --package [package-name] --test [test-name] -- [test_function_name]`
 - Documentation: `just test-docs`
 
 ## Code Style
-- MSRV: 1.88
+- MSRV: 1.92
 - Format with nightly rustfmt: `cargo +nightly fmt`
 - Imports: organized by crate, reordered automatically
 - Error handling: use proper error types, prefer `Result<T, E>` over panics
@@ -31,7 +31,6 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`client`**: The fault proof program that executes state transitions on a prover
 - **`host`**: Native program serving as the Preimage Oracle server
 - **`node`**: Rollup Node implementation with flexible chain ID support
-- **`supervisor`**: Supervisor implementation for interop coordination
 
 ### Protocol (`crates/protocol/`)
 - **`derive`**: `no_std` compatible derivation pipeline implementation
@@ -58,13 +57,6 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 - **`p2p`**: P2P networking including Gossip and Discovery
 - **`sources`**: Data source types and utilities
 
-### Supervisor (`crates/supervisor/`)
-- **`core`**: Core supervisor functionality
-- **`service`**: Supervisor service implementation
-- **`rpc`**: Supervisor RPC types and client
-- **`storage`**: Database storage layer
-- **`types`**: Common types for supervisor components
-
 ### Development Workflow
 
 1. **Testing**: The project uses `nextest` for test execution. Online tests are excluded by default and can be run separately with `just test-online`
@@ -73,7 +65,7 @@ Kona is a monorepo for OP Stack types, components, and services built in Rust. T
 4. **Monorepo Integration**: Pins and integrates with the Optimism monorepo for action tests
 
 ### Key Configuration Files
-- `rust-toolchain.toml`: Pins Rust version to 1.88
+- `rust-toolchain.toml`: Pins Rust version to 1.92
 - `rustfmt.toml`: Custom formatting configuration with crate-level import grouping
 - `clippy.toml`: MSRV configuration for clippy
 - `deny.toml`: Dependency auditing and license compliance

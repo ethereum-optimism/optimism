@@ -65,6 +65,10 @@ func Main(version string) cliapp.LifecycleAction {
 
 		l.Info("Initializing op-interop-filter", "version", version)
 
+		if cfg.Passthrough {
+			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
+		}
+
 		if !cfg.MessageExpiryWindowExplicit {
 			l.Debug("Using default message expiry window", "window", DefaultMessageExpiryWindow)
 		} else {
@@ -219,6 +223,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		Metrics:        s.metrics,
 		Chains:         chains,
 		CrossValidator: crossValidator,
+		Passthrough:    cfg.Passthrough,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))
@@ -238,6 +243,12 @@ func (s *Service) initRPCServer(cfg *Config) error {
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
 		Service:       &QueryFrontend{backend: s.backend},
+		Authenticated: false,
+	})
+
+	server.AddAPI(rpc.API{
+		Namespace:     "admin",
+		Service:       &PublicAdminFrontend{backend: s.backend},
 		Authenticated: false,
 	})
 
@@ -367,4 +378,20 @@ func (s *Service) AdminHTTPEndpoint() string {
 		return ""
 	}
 	return "http://" + s.adminRPCServer.Endpoint()
+}
+
+// Ready returns true if all chain ingesters have completed backfill.
+func (s *Service) Ready() bool {
+	return s.backend.Ready()
+}
+
+// SetFailsafeEnabled sets the manual failsafe override on the backend.
+// Used by tests to toggle failsafe mode without admin RPC/JWT.
+func (s *Service) SetFailsafeEnabled(enabled bool) {
+	s.backend.SetFailsafeEnabled(enabled)
+}
+
+// FailsafeEnabled returns whether failsafe is currently active.
+func (s *Service) FailsafeEnabled() bool {
+	return s.backend.FailsafeEnabled()
 }

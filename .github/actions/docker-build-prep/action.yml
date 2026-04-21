@@ -12,6 +12,12 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install mise
+      uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+      with:
+        version: 2026.2.2
+        install_args: just
+
     - name: Get date
       id: date
       shell: bash
@@ -22,8 +28,10 @@ runs:
     - name: Compute GIT_VERSION for all images
       id: compute_versions
       shell: bash
+      env:
+        GIT_COMMIT: ${{ github.sha }}
       run: |
-        VERSIONS=$(GIT_COMMIT="${{ github.sha }}" make compute-git-versions)
+        VERSIONS=$(just compute-git-versions)
         echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
         echo "Computed versions: $VERSIONS"
 

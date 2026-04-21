@@ -7,6 +7,10 @@
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+// Required for feature forwarding
+use reth_ethereum as _;
+use reth_payload_primitives as _;
+
 use crate::{
     engine::{CustomEngineValidatorBuilder, CustomPayloadTypes},
     engine_api::CustomEngineApiBuilder,
@@ -17,9 +21,9 @@ use crate::{
 };
 use chainspec::CustomChainSpec;
 use primitives::CustomNodePrimitives;
-use reth_ethereum::node::api::{FullNodeTypes, NodeTypes};
+use reth_node_api::FullNodeTypes;
 use reth_node_builder::{
-    Node, NodeAdapter,
+    Node, NodeAdapter, NodeTypes,
     components::{BasicPayloadServiceBuilder, ComponentsBuilder},
 };
 use reth_op::{
