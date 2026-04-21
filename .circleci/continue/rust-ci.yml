@@ -807,18 +807,12 @@ jobs:
       - run:
           name: Set run environment
           command: |
-            echo 'export BLOCK_NUMBER=26215604' >> $BASH_ENV
-            echo 'export L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d' >> $BASH_ENV
-            echo 'export L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b' >> $BASH_ENV
-            echo 'export L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473' >> $BASH_ENV
-            echo 'export L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25' >> $BASH_ENV
+            echo 'export BLOCK_NUMBER=42427365' >> $BASH_ENV
+            echo 'export L2_CLAIM=0xaaf7cb1725cb9766899cbd78866270d8561e79b91c00be5c53adb7699e0e7715' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0xac90a2e8cfee33ecb47b73f3e83f9aa18ff7ecf28bc8d34b2de857919e50b6c6' >> $BASH_ENV
+            echo 'export L2_HEAD=0xc5fa07d52e83f7a2e68de356e7a7bfc9306a9b28666ec6c9cc6e4f8e1b268278' >> $BASH_ENV
+            echo 'export L1_HEAD=0xab33322985684f2c6fbcf375bdcb69cc0f10547e58cb5a7b889172ee9ea77aef' >> $BASH_ENV
             echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
-            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-26215604-witness.tar.zst' >> $BASH_ENV
-      - run:
-          name: Decompress witness data
-          working_directory: rust/kona
-          command: |
-            tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
       - run:
           name: Run host + client offline
           working_directory: rust/kona/bin/client

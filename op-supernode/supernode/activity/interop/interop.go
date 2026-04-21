@@ -787,6 +787,13 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
+// IsActiveAt reports whether the interop verifier is responsible for verifying
+// L2 content at the given timestamp. Returns false for timestamps strictly
+// before the configured activation timestamp.
+func (i *Interop) IsActiveAt(ts uint64) bool {
+	return ts >= i.activationTimestamp
+}
+
 // LatestVerifiedL2Block returns the latest L2 block which has been verified,
 // along with the timestamp at which it was verified.
 func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {

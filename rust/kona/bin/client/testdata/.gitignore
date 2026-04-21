@@ -1,0 +1,4 @@
+# Witness tars are fetched on demand from the chain-test-data release hosting
+# (see scripts/fetch-witness-tar.sh) rather than committed.
+*.tar.zst
+*.tar.zst.etag
