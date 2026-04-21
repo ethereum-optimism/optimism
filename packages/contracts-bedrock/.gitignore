@@ -3,7 +3,6 @@ artifacts
 forge-artifacts
 forge-artifacts-lite
 forge-artifacts-src-prod
-forge-artifacts-src-dev
 cache
 broadcast
 kout-proofs

@@ -84,7 +84,7 @@ check_types:
   # interfaces-check validates that every src/ contract has a matching
   # interfaces/I<Name>.sol on disk; drift is fixed manually. src →
   # interfaces propagation isn't needed — interfaces-check fires
-  # directly on src changes via artifact:forge-artifacts-src-dev.)
+  # directly on src changes via artifact:forge-artifacts-dev.)
 
   - id: build-go-ffi
     name: "Contracts go-ffi helper"
@@ -171,7 +171,12 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-prod/**"
     avg_duration: 180
-    assertion: contracts-built-full
+    # forge-build and forge-build-dev are NOT alternatives — they
+    # produce different artifact dirs (prod vs dev) consumed by
+    # different downstream checks (forge-test / bytecode validators
+    # read prod; AST validators read dev). Both run when needed.
+    # profile:prod tag gates forge-build to PR+ where the prod
+    # pipeline's consumers are active.
     tags: [profile:prod]
     ci_job_names:
       - contracts-bedrock-build
@@ -191,8 +196,11 @@ check_types:
     outputs:
       - "artifact:forge-artifacts-dev/**"
     avg_duration: 45
-    assertion: contracts-built-full
-    tags: [profile:dev]
+    # Untagged: dev artifacts feed both forge-test-dev (commit-stage
+    # test runner) and the AST validators (interfaces-check,
+    # validate-spacers, reinitializer-check) which run at every
+    # stage. So forge-build-dev runs whenever src/test/scripts
+    # change, at any stage.
 
   # Src-only builds (skip scripts + test) for checks that only scan
   # src/ artifacts. Much faster (~1min vs ~3min) and unblocks the
@@ -215,22 +223,13 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
     avg_duration: 60
 
-  - id: forge-build-src-dev
-    name: "Forge build (lite, src-only)"
-    kind: build
-    language: solidity
-    command: |
-      cd packages/contracts-bedrock && FOUNDRY_PROFILE=lite mise exec -- forge build \
-        --skip '/**/test/**' --skip '/**/scripts/**' \
-        --out forge-artifacts-src-dev
-    scopeable: false
-    tools: [forge, mise]
-    inputs:
-      - "packages/contracts-bedrock/src/**/*.sol"
-      - "packages/contracts-bedrock/foundry.toml"
-    outputs:
-      - "artifact:forge-artifacts-src-dev/**"
-    avg_duration: 20
+  # (No forge-build-src-dev: forge-build-dev already compiles src as
+  # part of its full lite build, producing forge-artifacts-dev/. The
+  # AST validators that used to read forge-artifacts-src-dev/ now read
+  # forge-artifacts-dev/ — same JSON files, just a superset directory.
+  # The src-only prod build (forge-build-src) is still needed because
+  # the full prod build (forge-build) is gated to PR+, so without
+  # src-only-prod the snapshots/semver checks couldn't run at commit.)
 
   - id: go-build
     name: "Go build"
@@ -489,13 +488,13 @@ check_types:
     name: "Interface ABI match"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just interfaces-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-dev mise exec -- just interfaces-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/interfaces/**/*.sol"
-      - "artifact:forge-artifacts-src-dev/**"
+      - "artifact:forge-artifacts-dev/**"
     # Legacy produces: for the per-file-prereq mechanism. Kept during
     # Phase B — the dataflow walker covers new selection but the
     # produces-edge mechanism still drives the scheduler's per-file
@@ -521,12 +520,12 @@ check_types:
     name: "Storage spacer validation"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just validate-spacers-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-dev mise exec -- just validate-spacers-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts-src-dev/**"
+      - "artifact:forge-artifacts-dev/**"
     outputs: []
     avg_duration: 30
 
@@ -534,12 +533,12 @@ check_types:
     name: "Reinitializer guard check"
     kind: check
     language: solidity
-    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-dev mise exec -- just reinitializer-check-no-build"
+    command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-dev mise exec -- just reinitializer-check-no-build"
     scopeable: false
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts-src-dev/**"
+      - "artifact:forge-artifacts-dev/**"
     outputs: []
     avg_duration: 30
 

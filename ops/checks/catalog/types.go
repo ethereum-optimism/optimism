@@ -59,11 +59,14 @@ type CheckType struct {
 	// dataflow-selected (subject to tag filtering).
 	//
 	// Canonical assertions currently in use:
-	//   contracts-built-full — full contracts build (src+scripts+test)
-	//   contracts-tests-pass — contracts test suite passed
-	// Src-only builds (forge-build-src / forge-build-src-dev) are NOT
-	// alternatives — they produce different artifact dirs consumed by
-	// different downstream checks, so both run in parallel when needed.
+	//   contracts-tests-pass — contracts test suite passed (forge-test
+	//                          prod vs forge-test-dev lite)
+	// Build checks (forge-build, forge-build-dev, forge-build-src) are
+	// NOT alternatives — they produce different artifact dirs consumed
+	// by different downstream checks (prod builds feed forge-test /
+	// snapshots / semver; dev builds feed forge-test-dev / AST
+	// validators). They run independently when their respective
+	// downstream consumers are active.
 	Assertion string `yaml:"assertion,omitempty"`
 
 	// Tags classify the check for stage-level acceptance filtering.
