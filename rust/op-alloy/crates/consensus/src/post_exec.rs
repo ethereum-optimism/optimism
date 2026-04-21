@@ -367,7 +367,7 @@ where
     }
 
     SerdeHelper {
-        hash: value.seal(),
+        hash: value.hash(),
         tx_type: POST_EXEC_TX_TYPE_ID,
         gas: 0,
         value: U256::ZERO,
