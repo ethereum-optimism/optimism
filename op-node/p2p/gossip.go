@@ -463,21 +463,27 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 
 	authCtx := &opsigner.OPStackP2PBlockAuthV1{Allowed: currentAddr, Chain: chain}
-	if err := block.VerifySignature(authCtx); err == nil {
+	currentErr := block.VerifySignature(authCtx)
+	if currentErr == nil {
 		runCfg.ConfirmCurrentSigner()
 		return pubsub.ValidationAccept
 	}
 
 	// Current signer didn't match — try previous signer during grace period
+	var prevErr error
 	if prevAddr := runCfg.PreviousP2PSequencerAddress(); prevAddr != (common.Address{}) {
 		prevAuthCtx := &opsigner.OPStackP2PBlockAuthV1{Allowed: prevAddr, Chain: chain}
-		if err := block.VerifySignature(prevAuthCtx); err == nil {
+		prevErr = block.VerifySignature(prevAuthCtx)
+		if prevErr == nil {
 			log.Info("accepted block from previous signer during grace period", "peer", id, "previous_signer", prevAddr)
 			return pubsub.ValidationAccept
 		}
 	}
 
-	log.Warn("invalid block signature", "peer", id)
+	// Neither the current nor previous signer verified the block.
+	// Log both errors so operators can distinguish between malformed signatures
+	// and legitimate signer-rotation mismatches.
+	log.Warn("invalid block signature", "peer", id, "current_err", currentErr, "previous_err", prevErr)
 	return pubsub.ValidationReject
 }
 

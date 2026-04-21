@@ -105,9 +105,24 @@ func (r *RuntimeConfig) PreviousP2PSequencerAddress() common.Address {
 	return r.prevP2PBlockSignerAddr
 }
 
+// ConfirmCurrentSigner is called on every validly-signed block to confirm
+// the current signer is in use. If a grace period is active (i.e. a previous
+// signer is still being accepted), the previous signer is cleared.
 func (r *RuntimeConfig) ConfirmCurrentSigner() {
+	// Guard: check the previous signer and exit early if it's not set.
+	r.mu.RLock()
+	hasPrev := r.prevP2PBlockSignerAddr != (common.Address{})
+	r.mu.RUnlock()
+	if !hasPrev {
+		return
+	}
+
+	// Otherwise, take the write lock and clear the previous signer.
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.prevP2PBlockSignerAddr == (common.Address{}) {
+		return
+	}
 	if r.p2pBlockSignerAddr == (common.Address{}) {
 		r.log.Warn("confirmed current signer but address is nil")
 		return
