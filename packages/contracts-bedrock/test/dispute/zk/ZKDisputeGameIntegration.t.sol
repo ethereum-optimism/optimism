@@ -6,7 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { NoCreditToClaim } from "src/dispute/lib/Errors.sol";
 
@@ -14,6 +14,7 @@ import { NoCreditToClaim } from "src/dispute/lib/Errors.sol";
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
 // Interfaces
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 
 /// @title ZKDisputeGame_Integration_Test
@@ -54,6 +55,25 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 ///     PDG-established anchor root and sequence number.
 ///  5. The ZK game runs through a full challenge → prove → resolve cycle.
 ///  6. Credits are claimed and the anchor advances to the ZK game, crossing the game-type boundary.
+///
+/// Scenario 4 — Unrespected ZK game resolves normally but does not advance anchor
+/// ─────────────────────────────────────────────────────────────────────────────────
+///  1. The respected game type is switched away from ZK → next ZK game gets
+///     wasRespectedGameTypeWhenCreated=false.
+///  2. A ZK game is created from anchor state. It runs unchallenged → DEFENDER_WINS.
+///  3. After finality, closeGame() sees isGameProper()=true → sets NORMAL bond distribution.
+///  4. setAnchorState() is silently skipped inside closeGame() because isGameClaimValid()
+///     fails: isGameRespected() returns false for this game.
+///  5. The anchor has NOT advanced. Proposer still claims the full bond back via NORMAL mode.
+///
+/// Scenario 5 — Guardian blacklists a challenged game mid-execution. both participants receive refunds
+/// ─────────────────────────────────────────────────────────────────────────────────────────
+///  1. A ZK game is created and challenged (both proposer and challenger have bonded ETH).
+///  2. The guardian blacklists the game on the AnchorStateRegistry.
+///  3. The prove deadline expires without a proof → resolve → CHALLENGER_WINS.
+///  4. After finality, closeGame() calls isGameProper() → false (blacklisted) → REFUND mode.
+///  5. Proposer reclaims original initBond; challenger reclaims original challengerBond.
+///     Bond distribution ignores the CHALLENGER_WINS outcome entirely.
 contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
@@ -330,6 +350,86 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         _claimCreditTwoPhase(zkGame, prover);
         _claimCreditAndAssert(zkGame, proposer, bond);
         _assertAnchor(zkClaim, zkSeqNum);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 4 — Unrespected ZK game resolves normally but does not advance anchor
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice A ZK game created while ZK is not the respected game type resolves and distributes
+    ///         bonds normally (NORMAL mode, isGameProper=true), but never advances the anchor
+    ///         because wasRespectedGameTypeWhenCreated=false causes isGameClaimValid() to fail.
+    function test_integration_unrespectedGameDoesNotAdvanceAnchor_succeeds() public {
+        // ── Capture the current anchor before the scenario ──
+        (Hash anchorRootBefore, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+        Claim anchorClaimBefore = Claim.wrap(anchorRootBefore.raw());
+
+        // ── Switch respected game type away from ZK ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
+
+        // ── Create a ZK game while ZK is not the respected game type ──
+        uint256 seqNum = anchorSeqBefore + 1000;
+        Claim claim = Claim.wrap(keccak256("unrespectedClaim"));
+        (ZKDisputeGame game,) = _createGame(claim, seqNum, type(uint32).max);
+
+        assertFalse(game.wasRespectedGameTypeWhenCreated());
+
+        // ── Let the game expire unchallenged → DEFENDER_WINS ──
+        _resolveUnchallenged(game);
+        assertEq(uint8(game.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── Wait for finality then close the game ──
+        // closeGame() sees isGameProper()=true → NORMAL mode.
+        // setAnchorState() is silently skipped: isGameClaimValid() fails on isGameRespected().
+        _waitForFinality(game);
+        game.closeGame();
+
+        assertEq(uint8(game.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+        _assertAnchor(anchorClaimBefore, anchorSeqBefore);
+
+        // ── Proposer claims full bond back (NORMAL mode, unchallenged path) ──
+        _claimCreditAndAssert(game, proposer, bond);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 5 — Guardian blacklists a game mid-flight; both participants receive refunds
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice When the guardian blacklists a game, closeGame() enters REFUND mode and both
+    ///         the proposer and challenger reclaim their original deposits regardless of outcome.
+    function test_integration_blacklistedGameRefundsBothParties_succeeds() public {
+        (, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+
+        // ── Create a ZK game and challenge it so both parties have bonded ETH ──
+        uint256 seqNum = anchorSeqBefore + 1000;
+        Claim claim = Claim.wrap(keccak256("blacklistedClaim"));
+        (ZKDisputeGame game,) = _createGame(claim, seqNum, type(uint32).max);
+
+        vm.prank(challenger);
+        game.challenge{ value: bond }();
+        _assertProposalStatus(game, ZKDisputeGame.ProposalStatus.Challenged);
+
+        // ── Guardian blacklists the game (e.g. invalid starting state discovered) ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+
+        // ── Prove deadline expires without a proof → CHALLENGER_WINS ──
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        assertEq(uint8(game.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // ── closeGame() sees isGameProper()=false (blacklisted) → REFUND mode ──
+        // setAnchorState() is still attempted but fails silently (CHALLENGER_WINS + blacklisted).
+        _waitForFinality(game);
+        game.closeGame();
+
+        assertEq(uint8(game.bondDistributionMode()), uint8(BondDistributionMode.REFUND));
+
+        // ── Both participants reclaim their original deposits; outcome is irrelevant ──
+        _claimCreditAndAssert(game, proposer, bond);
+        _claimCreditAndAssert(game, challenger, bond);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
