@@ -2,6 +2,7 @@ package superfaultproofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"os"
@@ -16,18 +17,29 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -54,6 +66,214 @@ type transitionTest struct {
 	L1Head             eth.BlockID
 	ClaimTimestamp     uint64
 	ExpectValid        bool
+}
+
+func buildTestSequencerBlock(
+	t devtest.T,
+	testSequencer *dsl.TestSequencer,
+	el *dsl.L2ELNode,
+	parent eth.L2BlockRef,
+	l1Origin *common.Hash,
+	rawTxs ...[]byte,
+) eth.L2BlockRef {
+	ca := testSequencer.Escape().ControlAPI(el.ChainID())
+	opts := seqtypes.BuildOpts{Parent: parent.Hash}
+	if l1Origin != nil {
+		opts.L1Origin = l1Origin
+	}
+
+	err := ca.New(t.Ctx(), opts)
+	t.Require().NoError(err, "failed to create block job")
+	for _, rawTx := range rawTxs {
+		err = ca.IncludeTx(t.Ctx(), hexutil.Bytes(rawTx))
+		t.Require().NoError(err, "failed to include tx in block")
+	}
+	err = ca.Open(t.Ctx())
+	t.Require().NoError(err, "failed to open block")
+	err = ca.Seal(t.Ctx())
+	t.Require().NoError(err, "failed to seal block")
+	err = ca.Sign(t.Ctx())
+	t.Require().NoError(err, "failed to sign block")
+	err = ca.Commit(t.Ctx())
+	t.Require().NoError(err, "failed to commit block")
+
+	el.Reached(eth.Unsafe, parent.Number+1, 10)
+	head := el.BlockRefByLabel(eth.Unsafe)
+
+	resetErr := ca.Start(t.Ctx(), head.Hash)
+	t.Require().Error(resetErr, "expected reset path to return not implemented")
+	t.Require().Contains(resetErr.Error(), "not implemented", "failed to reset test sequencer state")
+
+	return head
+}
+
+func marshalPlannedTx(t devtest.T, plannedTx *txplan.PlannedTx) ([]byte, common.Hash) {
+	signedTx, err := plannedTx.Signed.Eval(t.Ctx())
+	t.Require().NoError(err, "failed to sign tx")
+	rawTx, err := signedTx.MarshalBinary()
+	t.Require().NoError(err, "failed to marshal tx")
+	return rawTx, signedTx.Hash()
+}
+
+func precomputeInitMessageFromTrigger(
+	trigger *txintent.InitTrigger,
+	chainID eth.ChainID,
+	blockNumber uint64,
+	logIndex uint32,
+	timestamp uint64,
+) types.Message {
+	payload := make([]byte, 0, len(trigger.Topics)*32+len(trigger.OpaqueData))
+	for _, topic := range trigger.Topics {
+		payload = append(payload, topic[:]...)
+	}
+	payload = append(payload, trigger.OpaqueData...)
+
+	return types.Message{
+		Identifier: types.Identifier{
+			Origin:      trigger.Emitter,
+			BlockNumber: blockNumber,
+			LogIndex:    logIndex,
+			Timestamp:   timestamp,
+			ChainID:     chainID,
+		},
+		PayloadHash: crypto.Keccak256Hash(payload),
+	}
+}
+
+func assertELCanServeBlockAndReceiptsByHash(t devtest.T, el *dsl.L2ELNode, block eth.L2BlockRef) {
+	ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+	defer cancel()
+
+	blockByHash := el.BlockRefByHash(block.Hash)
+	t.Require().Equal(block, blockByHash, "expected EL to resolve replacement block by hash")
+
+	var rawHeader hexutil.Bytes
+	err := el.EthClient().RPC().CallContext(ctx, &rawHeader, "debug_getRawHeader", block.Hash)
+	t.Require().NoError(err, "expected EL to serve replacement block header by hash")
+
+	var header gethtypes.Header
+	t.Require().NoError(rlp.DecodeBytes(rawHeader, &header), "failed to decode raw header")
+	t.Require().Equal(block.Hash, header.Hash(), "decoded header hash mismatch")
+	t.Require().Equal(block.Number, bigs.Uint64Strict(header.Number), "decoded header number mismatch")
+
+	_, txs, err := el.EthClient().InfoAndTxsByNumber(ctx, block.Number)
+	t.Require().NoError(err, "failed to fetch canonical block by number")
+
+	txHashes := make([]common.Hash, len(txs))
+	for i, tx := range txs {
+		txHashes[i] = tx.Hash()
+	}
+
+	var rawReceipts []hexutil.Bytes
+	err = el.EthClient().RPC().CallContext(ctx, &rawReceipts, "debug_getRawReceipts", block.Hash)
+	t.Require().NoError(err, "expected EL to serve replacement block receipts by hash")
+	t.Require().Len(rawReceipts, len(txs), "receipt count should match tx count")
+
+	receipts, err := eth.DecodeRawReceipts(block.ID(), rawReceipts, txHashes)
+	t.Require().NoError(err, "failed to decode raw receipts")
+	t.Require().Len(receipts, len(txs), "decoded receipt count should match tx count")
+	for _, receipt := range receipts {
+		t.Require().Equal(block.Hash, receipt.BlockHash, "receipt should point at replacement block")
+		t.Require().Equal(block.Number, bigs.Uint64Strict(receipt.BlockNumber), "receipt block number mismatch")
+	}
+}
+
+func randomInitTrigger(rng *rand.Rand, eventLogger common.Address, topicCount, dataLen int) *txintent.InitTrigger {
+	if topicCount > 4 {
+		topicCount = 4
+	}
+	if topicCount < 1 {
+		topicCount = 1
+	}
+	if dataLen < 1 {
+		dataLen = 1
+	}
+
+	topics := make([][32]byte, topicCount)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+
+	return &txintent.InitTrigger{
+		Emitter:    eventLogger,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, dataLen),
+	}
+}
+
+func submitDepositInitWithoutWaiting(
+	t devtest.T,
+	l1EOA *dsl.EOA,
+	l1EL *dsl.L1ELNode,
+	l2Net *dsl.L2Network,
+	trigger *txintent.InitTrigger,
+) (*gethtypes.Receipt, common.Hash) {
+	calldata, err := trigger.EncodeInput()
+	t.Require().NoError(err, "failed to encode deposit init trigger")
+
+	portal := txIntentBindings.NewBindings[txIntentBindings.OptimismPortal2](
+		txIntentBindings.WithClient(l1EL.EthClient()),
+		txIntentBindings.WithTo(l2Net.DepositContractAddr()),
+		txIntentBindings.WithTest(t),
+	)
+
+	minGas, err := contractio.Read(portal.MinimumGasLimit(uint64(len(calldata))), t.Ctx())
+	t.Require().NoError(err, "failed to read minimum deposit gas limit")
+
+	depositCall := portal.DepositTransaction(trigger.Emitter, eth.ZeroWei, max(uint64(100_000), minGas), false, calldata)
+	l1Receipt, err := contractio.Write(depositCall, t.Ctx(), l1EOA.Plan())
+	t.Require().NoError(err, "L1 deposit tx failed")
+	t.Require().Equal(gethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")
+
+	var l2DepositTx *gethtypes.DepositTx
+	for _, log := range l1Receipt.Logs {
+		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
+			break
+		}
+	}
+	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event found in L1 receipt")
+
+	return l1Receipt, gethtypes.NewTx(l2DepositTx).Hash()
+}
+
+func initMessageFromReceipt(
+	t devtest.T,
+	l2EL *dsl.L2ELNode,
+	chainID eth.ChainID,
+	receipt *gethtypes.Receipt,
+) *dsl.InitMessage {
+	l2BlockRef := l2EL.BlockRefByNumber(bigs.Uint64Strict(receipt.BlockNumber))
+
+	var result txintent.InteropOutput
+	err := result.FromReceipt(t.Ctx(), receipt, l2BlockRef.BlockRef(), chainID)
+	t.Require().NoError(err, "failed to build InteropOutput from L2 receipt")
+
+	tx := &txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]{}
+	tx.Result.Set(&result)
+	return &dsl.InitMessage{Tx: tx, Receipt: receipt}
+}
+
+func prepareInvalidExecTx(
+	t devtest.T,
+	executor *dsl.EOA,
+	initMsg *dsl.InitMessage,
+) ([]byte, common.Hash) {
+	result, err := initMsg.Tx.Result.Eval(t.Ctx())
+	t.Require().NoError(err, "failed to evaluate init message output")
+	t.Require().Greater(len(result.Entries), 0, "expected at least one initiating message")
+
+	invalidMsg := dsl.MakeInvalidLogIndex(result.Entries[0])
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      invalidMsg,
+	})
+
+	signedTx, err := tx.PlannedTx.Signed.Eval(t.Ctx())
+	t.Require().NoError(err, "failed to sign invalid exec tx")
+	rawTx, err := signedTx.MarshalBinary()
+	t.Require().NoError(err, "failed to marshal invalid exec tx")
+	return rawTx, signedTx.Hash()
 }
 
 // orderedChains returns the two interop chains sorted by chain ID.
@@ -157,8 +377,9 @@ func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
 	return latest
 }
 
-// runKonaInteropProgram runs the kona interop fault proof program and checks the result.
-func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agreedPreState []byte, l2Claim common.Hash, claimTimestamp uint64, expectValid bool) {
+// runKonaInteropProgram runs the kona interop fault proof program, checks the result,
+// and returns the captured stdout/stderr.
+func runKonaInteropProgramOutput(t devtest.T, cfg vm.Config, l1Head common.Hash, agreedPreState []byte, l2Claim common.Hash, claimTimestamp uint64, expectValid bool) string {
 	tmpDir := t.TempDir()
 	inputs := utils.LocalGameInputs{
 		L1Head:           l1Head,
@@ -186,13 +407,26 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 	cmd.WaitDelay = 60 * time.Second
 
 	out, runErr := cmd.CombinedOutput()
+	lines := strings.Split(string(out), "\n")
+	t.Logf("DEBUG: kona output:")
+	for _, line := range lines {
+		if line != "" {
+			t.Logf("%s", line)
+		}
+	}
 	if expectValid {
 		t.Require().NoErrorf(runErr, "kona interop program failed:\n%s", string(out))
-		return
+		return string(out)
 	}
 	var exitErr *exec.ExitError
 	t.Require().ErrorAsf(runErr, &exitErr, "expected kona interop program to fail, got: %v\n%s", runErr, string(out))
 	t.Require().Equalf(1, exitErr.ExitCode(), "expected exit code 1 for invalid claim, got %d:\n%s", exitErr.ExitCode(), string(out))
+	return string(out)
+}
+
+// runKonaInteropProgram runs the kona interop fault proof program and checks the result.
+func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agreedPreState []byte, l2Claim common.Hash, claimTimestamp uint64, expectValid bool) {
+	runKonaInteropProgramOutput(t, cfg, l1Head, agreedPreState, l2Claim, claimTimestamp, expectValid)
 }
 
 // runChallengerProviderTest verifies the challenger trace provider agrees with the test expectations.
@@ -1053,6 +1287,173 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
 	}
+}
+
+// RunReplacementBlockCanonicalELAccessTest verifies a replacement-block
+// scenario where chain A's invalid block is replaced with a deposit-only
+// block, while a same-timestamp exec on chain B references the surviving
+// deposit-origin log on chain A. This forces kona to request receipts for the
+// replaced chain A block during consolidation, and then confirms the canonical
+// EL can serve the replacement block by hash, including raw receipts.
+func RunReplacementBlockCanonicalELAccessTest(t devtest.T, sys *presets.SimpleInterop) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	t.Require().NotNil(sys.TestSequencer, "test sequencer is required for this test")
+	rng := rand.New(rand.NewSource(1234))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	depositorL1 := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	aliceB := sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	eventLoggerA := aliceA.DeployEventLogger()
+	eventLoggerB := aliceB.DeployEventLogger()
+
+	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
+	sys.L2ChainA.CatchUpTo(sys.L2ChainB)
+	sys.SuperRoots.EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+
+	sys.L2CLA.StopSequencer()
+	sys.L2CLB.StopSequencer()
+	parentA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	parentB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	for range 10 {
+		if parentA.Time == parentB.Time {
+			break
+		}
+		if parentA.Time < parentB.Time {
+			sys.L2CLA.StartSequencer()
+			sys.L2ELA.WaitForTime(parentB.Time)
+			sys.L2CLA.StopSequencer()
+			parentA = sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		} else {
+			sys.L2CLB.StartSequencer()
+			sys.L2ELB.WaitForTime(parentA.Time)
+			sys.L2CLB.StopSequencer()
+			parentB = sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+		}
+	}
+	t.Require().Equal(parentA.Time, parentB.Time, "chains must be at the same timestamp")
+
+	depositTrigger := randomInitTrigger(rng, eventLoggerA, 2, 10)
+	depositL1Receipt, depositTxHash := submitDepositInitWithoutWaiting(
+		t,
+		depositorL1,
+		sys.L1EL,
+		sys.L2ChainA,
+		depositTrigger,
+	)
+
+	sys.L2CLA.AwaitMinL1Processed(bigs.Uint64Strict(depositL1Receipt.BlockNumber))
+	depositL1Number := bigs.Uint64Strict(depositL1Receipt.BlockNumber)
+	for parentA.L1Origin.Number+1 < depositL1Number {
+		nextL1Origin := sys.L1EL.BlockRefByNumber(parentA.L1Origin.Number + 1)
+		nextL1Hash := nextL1Origin.Hash
+		parentA = buildTestSequencerBlock(t, sys.TestSequencer, sys.L2ELA, parentA, &nextL1Hash)
+		parentB = buildTestSequencerBlock(t, sys.TestSequencer, sys.L2ELB, parentB, nil)
+	}
+
+	blockTime := sys.L2ChainA.Escape().RollupConfig().BlockTime
+	expectedTimestamp := parentA.Time + blockTime
+	expectedBlockNumA := parentA.Number + 1
+	expectedBlockNumB := parentB.Number + 1
+
+	depositMsg := precomputeInitMessageFromTrigger(
+		depositTrigger,
+		sys.L2ChainA.ChainID(),
+		expectedBlockNumA,
+		0,
+		expectedTimestamp,
+	)
+	dummyInitB := aliceB.PrepareSameTimestampInit(rng, eventLoggerB, expectedBlockNumB, 0, expectedTimestamp)
+
+	invalidExecPlanA := dummyInitB.SubmitInvalidExecTo(aliceA)
+	txplan.WithStaticNonce(aliceA.PendingNonce())(invalidExecPlanA)
+	invalidExecRawTx, invalidExecHash := marshalPlannedTx(t, invalidExecPlanA)
+
+	validExecPlanB := dsl.SubmitExecForMessage(depositMsg, aliceB)
+	txplan.WithStaticNonce(aliceB.PendingNonce())(validExecPlanB)
+	validExecRawTx, _ := marshalPlannedTx(t, validExecPlanB)
+
+	depositL1Origin := depositL1Receipt.BlockHash
+	originalInvalidBlock := buildTestSequencerBlock(
+		t,
+		sys.TestSequencer,
+		sys.L2ELA,
+		parentA,
+		&depositL1Origin,
+		invalidExecRawTx,
+	)
+	execBlock := buildTestSequencerBlock(
+		t,
+		sys.TestSequencer,
+		sys.L2ELB,
+		parentB,
+		nil,
+		validExecRawTx,
+	)
+
+	t.Require().Equal(expectedTimestamp, originalInvalidBlock.Time, "unexpected chain A block timestamp")
+	t.Require().Equal(expectedTimestamp, execBlock.Time, "unexpected chain B block timestamp")
+	t.Require().Equal(expectedBlockNumA, originalInvalidBlock.Number, "unexpected chain A block number")
+	t.Require().Equal(expectedBlockNumB, execBlock.Number, "unexpected chain B block number")
+
+	sys.L2ELA.AssertTxInBlock(originalInvalidBlock.Number, invalidExecHash)
+	sys.L2ELA.AssertTxInBlock(originalInvalidBlock.Number, depositTxHash)
+
+	depositReceipt := sys.L2ELA.WaitForReceipt(depositTxHash)
+	t.Require().Equal(originalInvalidBlock.Number, bigs.Uint64Strict(depositReceipt.BlockNumber), "deposit should land in the replaced block")
+	t.Require().NotEmpty(depositReceipt.Logs, "deposit should emit initiating logs")
+	t.Require().Equal(uint(0), depositReceipt.Logs[0].Index, "expected deposit-origin initiating log to be the first log in the block")
+
+	invalidBlockNum := originalInvalidBlock.Number
+	invalidBlockHash := originalInvalidBlock.Hash
+	endTimestamp := originalInvalidBlock.Time
+	startTimestamp := endTimestamp - 1
+
+	sys.SuperRoots.ResumeInterop()
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	sys.L2CLA.Reached(types.CrossSafe, invalidBlockNum, 10)
+	sys.L2ELA.AssertTxNotInBlock(invalidBlockNum, invalidExecHash)
+	sys.L2ELA.AssertTxInBlock(invalidBlockNum, depositTxHash)
+
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	crossSafeSuperRootEnd := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+	preReplacementTransition := marshalTransition(start, consolidateStep, firstOptimistic, secondOptimistic)
+
+	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
+	konaOutput := runKonaInteropProgramOutput(
+		t,
+		challengerCfg.CannonKona,
+		l1HeadCurrent.Hash,
+		preReplacementTransition,
+		crypto.Keccak256Hash(crossSafeSuperRootEnd.Marshal()),
+		endTimestamp,
+		true,
+	)
+	t.Require().Contains(
+		konaOutput,
+		fmt.Sprintf(
+			"Requesting receipts from host chain_id=%s block_hash=%s",
+			sys.L2ChainA.ChainID(),
+			invalidBlockHash,
+		),
+		"expected kona to request receipts for the replaced block on chain A",
+	)
+
+	replacementBlock := sys.L2ELA.BlockRefByNumber(invalidBlockNum)
+	t.Require().NotEqual(
+		invalidBlockHash,
+		replacementBlock.Hash,
+		"expected the invalid optimistic block to be replaced with a different canonical block",
+	)
+
+	assertELCanServeBlockAndReceiptsByHash(t, sys.L2ELA, replacementBlock)
 }
 
 // RunMessageExpiryTest verifies that when a cross-chain message expires (the

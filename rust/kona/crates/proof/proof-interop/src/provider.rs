@@ -96,6 +96,15 @@ where
         block_hash: B256,
         header: &Header,
     ) -> Result<Vec<OpReceiptEnvelope>, <Self as InteropProvider>::Error> {
+        // derive_receipts
+        tracing::error!(
+            target: "client_interop",
+            chain_id,
+            block_hash = %block_hash,
+            block_number = header.number,
+            receipts_root = %header.receipts_root,
+            "Requesting receipts from host",
+        );
         // Send a hint for the block's receipts, and walk through the receipts trie in the header to
         // verify them.
         HintType::L2Receipts
@@ -191,7 +200,15 @@ where
         chain_id: u64,
         number: u64,
     ) -> Result<Vec<OpReceiptEnvelope>, Self::Error> {
-        let header = self.header_by_number(chain_id, number).await?;
+       let header = self.header_by_number(chain_id, number).await?;
+       tracing::error!(
+            target: "client_interop",
+            chain_id,
+            requested_number = number,
+            resolved_hash = %header.hash_slow(),
+            resolved_number = header.number,
+            "Resolved receipts request by number",
+        );
         self.derive_receipts(chain_id, header.hash_slow(), &header).await
     }
 

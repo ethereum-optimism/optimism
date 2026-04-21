@@ -72,6 +72,12 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sfp.RunInvalidBlockTest(t, sys)
 }
 
+func TestInteropFaultProofs_ReplacementBlockCanonicalELAccess(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunReplacementBlockCanonicalELAccessTest(t, sys)
+}
+
 func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 	for _, tc := range sfp.IntraBlockCases() {
 		gt.Run(tc.Name, func(gt *testing.T) {
