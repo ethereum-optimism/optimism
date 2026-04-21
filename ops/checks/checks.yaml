@@ -86,6 +86,25 @@ check_types:
   # interfaces propagation isn't needed — interfaces-check fires
   # directly on src changes via artifact:forge-artifacts-src-dev.)
 
+  - id: build-go-ffi
+    name: "Contracts go-ffi helper"
+    kind: build
+    language: go
+    # forge-test and forge-test-dev both call into scripts/go-ffi for
+    # vm helpers during test setup. It's a tiny Go binary that must be
+    # built before any forge test can run. Factoring it out of the
+    # test commands lets the scheduler build it once instead of
+    # re-running the build-go-ffi step inside every tiered forge-test
+    # invocation.
+    command: "cd packages/contracts-bedrock/scripts/go-ffi && go build -buildvcs=false"
+    scopeable: false
+    tools: [go]
+    inputs:
+      - "packages/contracts-bedrock/scripts/go-ffi/**"
+    outputs:
+      - "artifact:packages/contracts-bedrock/scripts/go-ffi/go-ffi"
+    avg_duration: 5
+
   - id: gen-go-bindings
     name: "Regenerate Go bindings from forge artifacts"
     kind: gen
@@ -232,7 +251,13 @@ check_types:
     name: "Forge tests (prod)"
     kind: test
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- just test"
+    # Bypass `just test` so our single-quoted brace glob survives as
+    # one forge argument. `just *ARGS` interpolates via {{ARGS}} which
+    # strips quotes, triggering bash brace expansion that splits
+    # {a,b,c} into three positional args forge rejects. The
+    # build-go-ffi prereq the recipe would have provided is now its
+    # own catalog check, wired in via consumes/produces below.
+    command: "cd packages/contracts-bedrock && mise exec -- forge test"
     scopeable: true
     scope_flag: "--match-path"
     scope_join: brace
@@ -245,6 +270,7 @@ check_types:
       - "packages/contracts-bedrock/scripts/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
       - "artifact:forge-artifacts-prod/**"
+      - "artifact:packages/contracts-bedrock/scripts/go-ffi/go-ffi"
     outputs: []
     avg_duration: 3600
     per_unit_duration: 60
@@ -292,7 +318,9 @@ check_types:
     # Consumes artifact:forge-artifacts-dev/** (built by
     # forge-build-dev into forge-artifacts-lite/); CI has no direct
     # analogue, so ci_job_names is empty.
-    command: "cd packages/contracts-bedrock && mise exec -- just test-dev"
+    # Same rationale as forge-test: bypass the recipe so the
+    # single-quoted {a,b,c} glob reaches forge intact.
+    command: "cd packages/contracts-bedrock && FOUNDRY_PROFILE=lite mise exec -- forge test"
     scopeable: true
     scope_flag: "--match-path"
     scope_join: brace
@@ -305,6 +333,7 @@ check_types:
       - "packages/contracts-bedrock/scripts/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
       - "artifact:forge-artifacts-dev/**"
+      - "artifact:packages/contracts-bedrock/scripts/go-ffi/go-ffi"
     outputs: []
     avg_duration: 900
     per_unit_duration: 30
