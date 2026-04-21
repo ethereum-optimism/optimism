@@ -3018,6 +3018,7 @@ workflows:
                 - soneium
                 - world-chain
                 - base
+                - xlayer
           test_profile: ci
           context:
             - circleci-repo-readonly-authenticated-github-token
