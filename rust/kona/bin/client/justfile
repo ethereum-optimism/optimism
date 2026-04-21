@@ -164,8 +164,8 @@ generate-witness-tar block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc ou
   echo "    --notes \"op-sepolia block $CLAIMED_L2_BLOCK_NUMBER\" \\"
   echo "    \"$OUTPUT_TAR\""
   echo ""
-  echo "Then bump WITNESS_TAR_URL in .circleci/continue/rust-ci.yml and the"
-  echo "default BASE_URL in bin/client/scripts/fetch-witness-tar.sh to \$TAG."
+  echo "Then bump the witness_tar / witness_tar_url defaults on"
+  echo "run-client-cannon-offline in this justfile to match."
 
 # Run the client program on cannon with the host in detached server mode.
 run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollup_config_path='' verbosity='':
@@ -233,8 +233,23 @@ run-client-cannon block_number l1_rpc l1_beacon_rpc l2_rpc rollup_node_rpc rollu
     --data-dir ./data \
     {{verbosity}}
 
+# Fetch the offline witness tar from chain-test-data and decompress it into
+# rust/kona/data. Etag caching in `scripts/fetch-witness-tar.sh` keeps repeat
+# invocations cheap.
+prepare-witness-data witness_tar witness_tar_url:
+  #!/usr/bin/env bash
+  set -o errexit -o nounset -o pipefail
+  {{KONA_CLIENT_ROOT}}/scripts/fetch-witness-tar.sh "{{witness_tar}}" "{{witness_tar_url}}"
+  cd {{KONA_CLIENT_ROOT}}/../..
+  tar --zstd -xf ./bin/client/testdata/{{witness_tar}} -C .
+
 # Run the client program on cannon with the host program detached, in offline mode.
-run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id verbosity='':
+#
+# The witness preimages are fetched from the chain-test-data release
+# `kona-YYYY-MM-DD` by the `prepare-witness-data` dependency. When regenerating
+# for a new block, upload a new release (see `generate-witness-tar`) and bump
+# the `witness_tar` / `witness_tar_url` defaults.
+run-client-cannon-offline block_number l2_claim l2_output_root l2_head l1_head l2_chain_id witness_tar='op-sepolia-42427365-witness.tar.zst' witness_tar_url='https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-04-21' verbosity='': (prepare-witness-data witness_tar witness_tar_url)
   #!/usr/bin/env bash
 
   HOST_BIN_PATH="{{KONA_CLIENT_ROOT}}/../../../target/debug/kona-host"
