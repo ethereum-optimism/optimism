@@ -30,10 +30,25 @@ func Match(pattern, path string) bool {
 	if strings.HasPrefix(pattern, "**/") {
 		return matchTail(pattern[len("**/"):], path)
 	}
-	// `prefix/**` → any path with prefix
+	// `prefix/**` → path rooted at prefix.
+	// Matches: `prefix/foo`, `prefix/foo/bar`, exact `prefix`.
+	// Does NOT match: `other/prefix/foo` — the pattern is anchored at
+	// path start. Absolute paths (Go/Rust adapter dirs like
+	// `/abs/repo/op-node/rollup`) get a second chance via
+	// `/prefix/` segment match, so catalog patterns written as
+	// `op-node/rollup/**` still match the absolute-path node.
 	if strings.HasSuffix(pattern, "/**") {
 		prefix := strings.TrimSuffix(pattern, "/**")
-		return strings.HasPrefix(path, prefix) || strings.Contains(path, "/"+prefix)
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+		// Absolute-path fallback: `/prefix/` anywhere. Still
+		// segment-anchored, but allows matching an absolute repo-
+		// rooted path against a repo-relative pattern.
+		if strings.HasPrefix(path, "/") && strings.Contains(path, "/"+prefix+"/") {
+			return true
+		}
+		return false
 	}
 	// filepath.Match on the full path
 	if matched, _ := filepath.Match(pattern, path); matched {

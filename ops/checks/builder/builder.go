@@ -2,12 +2,12 @@ package builder
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/ops/checks/adapter"
 	"github.com/ethereum-optimism/optimism/ops/checks/catalog"
 	"github.com/ethereum-optimism/optimism/ops/checks/graph"
+	"github.com/ethereum-optimism/optimism/ops/checks/internal/glob"
 )
 
 // Builder constructs a complete graph from adapters + catalog.
@@ -265,79 +265,9 @@ func nodePath(n *graph.Node) string {
 }
 
 // matchesAnyGlob reports whether path matches any of the supplied
-// glob patterns. Supports:
-//   - `prefix/**` — any path with this prefix
-//   - `**/*.ext` — any path with this extension (anywhere)
-//   - `prefix/**/*.ext` — any path under prefix/ with this extension
-//   - `**/basename` — any path whose basename matches
-//   - simple `*` globs via filepath.Match
-//   - exact literal match
+// glob patterns. Wraps glob.MatchAny to keep the import single-sourced.
 func matchesAnyGlob(path string, patterns []string) bool {
-	for _, p := range patterns {
-		if matchGlob(p, path) {
-			return true
-		}
-	}
-	return false
-}
-
-func matchGlob(pattern, path string) bool {
-	// `prefix/**/*.ext` → under prefix AND has extension
-	if i := strings.Index(pattern, "/**/"); i != -1 {
-		prefix := pattern[:i]
-		rest := pattern[i+len("/**/"):]
-		if !(strings.HasPrefix(path, prefix+"/") || strings.Contains(path, "/"+prefix+"/")) {
-			return false
-		}
-		// Match `rest` against any segment tail.
-		return matchTail(rest, path)
-	}
-	// `**/<tail>` → match tail anywhere
-	if strings.HasPrefix(pattern, "**/") {
-		return matchTail(pattern[len("**/"):], path)
-	}
-	// `prefix/**` → any path with prefix
-	if strings.HasSuffix(pattern, "/**") {
-		prefix := strings.TrimSuffix(pattern, "/**")
-		return strings.HasPrefix(path, prefix) || strings.Contains(path, "/"+prefix)
-	}
-	// filepath.Match on the full path
-	if matched, _ := filepath.Match(pattern, path); matched {
-		return true
-	}
-	// Basename fallback for patterns like `*.go`
-	if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
-		return true
-	}
-	return false
-}
-
-// matchTail reports whether path ends with a segment that matches
-// `rest` (via filepath.Match, applied to the basename). For `*.ext`
-// patterns, this amounts to an extension check.
-func matchTail(rest, path string) bool {
-	if matched, _ := filepath.Match(rest, filepath.Base(path)); matched {
-		return true
-	}
-	// For patterns like `subdir/*.ext`, check if path ends in /subdir/...
-	if i := strings.Index(rest, "/"); i != -1 {
-		segment := rest[:i]
-		tail := rest[i+1:]
-		// Look for a slash-separated segment in path matching the prefix segment
-		idx := 0
-		for {
-			j := strings.Index(path[idx:], "/"+segment+"/")
-			if j == -1 {
-				break
-			}
-			sub := path[idx+j+len(segment)+2:]
-			if matched, _ := filepath.Match(tail, filepath.Base(sub)); matched {
-				return true
-			}
-			idx += j + 1
-		}
-	}
-	return false
+	return glob.MatchAny(path, patterns)
 }
 
 func nodeLanguage(node *graph.Node) string {
