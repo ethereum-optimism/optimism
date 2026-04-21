@@ -23,6 +23,15 @@ make = "4.4.1"
 svm-rs = "0.5.19"
 "github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
 
+# Rust tooling previously installed via `cargo binstall` in CI.
+"ubi:EmbarkStudios/cargo-deny" = "0.19.4"
+"ubi:ggwpez/zepter" = "1.88.0"
+"ubi:crate-ci/typos" = "1.45.1"
+"ubi:est31/cargo-udeps" = "0.1.60"
+"ubi:taiki-e/cargo-hack" = "0.6.44"
+"ubi:taiki-e/cargo-llvm-cov" = "0.8.5"
+"github:lycheeverse/lychee" = { version = "0.23.0", version_prefix = "lychee-v", bin = "lychee" }
+
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
 "go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
