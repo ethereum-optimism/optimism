@@ -38,13 +38,7 @@ contract ReadImplementationAddresses is Script {
         address permissionedDisputeGame;
         address superFaultDisputeGame;
         address superPermissionedDisputeGame;
-<<<<<<< HEAD
         address zkDisputeGame;
-        address opcmDeployer;
-        address opcmUpgrader;
-        address opcmGameTypeAdder;
-=======
->>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
         address opcmStandardValidator;
         address opcmInteropMigrator;
     }

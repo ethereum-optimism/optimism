@@ -40,16 +40,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-<<<<<<< HEAD
-    /// @custom:semver 2.7.1
-    string public constant version = "2.7.1";
-
-    /// @notice Length of ZK dispute game args in bytes (tightly packed CWIA immutable args).
-    uint256 private constant ZK_GAME_ARGS_LENGTH = 172;
-=======
     /// @custom:semver 2.8.0
     string public constant version = "2.8.0";
->>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -1092,11 +1084,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-GARGS");
         if (_isZK) {
-<<<<<<< HEAD
-            bool ok = _gameArgsBytes.length == ZK_GAME_ARGS_LENGTH;
-=======
             bool ok = LibGameArgs.isValidZKArgs(_gameArgsBytes);
->>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
         } else if (_isPermissioned) {
@@ -1110,33 +1098,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-<<<<<<< HEAD
-    /// @notice Decodes the anchorStateRegistry, weth, and l2ChainId from packed ZK game template
-    ///         args as produced by OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
-    ///         Layout (abi.encodePacked, ZK_GAME_ARGS_LENGTH bytes):
-    ///           [0-31]   absolutePrestate (bytes32)
-    ///           [32-51]  verifier (address)
-    ///           [52-59]  maxChallengeDuration (uint64)
-    ///           [60-67]  maxProveDuration (uint64)
-    ///           [68-99]  challengerBond (uint256)
-    ///           [100-119] anchorStateRegistry (address)
-    ///           [120-139] weth (address)
-    ///           [140-171] l2ChainId (uint256)
-    function _decodeZKGameArgs(bytes memory _args)
-        private
-        pure
-        returns (IAnchorStateRegistry asr_, IDelayedWETH weth_, uint256 l2ChainId_)
-    {
-        assembly {
-            let base := add(_args, 0x20)
-            asr_ := shr(96, mload(add(base, 100)))
-            weth_ := shr(96, mload(add(base, 120)))
-            l2ChainId_ := mload(add(base, 140))
-        }
-    }
-
-=======
->>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
     /// @notice Validates the decoded ZK game args (chainId, weth, asr) against the chain config.
     function _assertValidZKGameArgs(
         string memory _errors,
@@ -1151,15 +1112,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-<<<<<<< HEAD
-        (IAnchorStateRegistry asr, IDelayedWETH weth, uint256 chainId) =
-            _decodeZKGameArgs(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-=======
         (address _asr, address _weth, uint256 chainId) =
             LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
         IAnchorStateRegistry asr = IAnchorStateRegistry(_asr);
         IDelayedWETH weth = IDelayedWETH(payable(_weth));
->>>>>>> 0bbba7116ddb4a86cdbe0a01cc4b5bd9e2b87b36
         _errors = internalRequire(chainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
         _errors = assertValidDelayedWETH(_errors, _sysCfg, weth, _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, factory, asr, _admin, _errorPrefix);

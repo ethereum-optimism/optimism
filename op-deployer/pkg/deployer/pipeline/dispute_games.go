@@ -150,10 +150,11 @@ func deployDisputeGame(
 			return fmt.Errorf("failed to encode ZK game args: %w", err)
 		}
 		zkInput := opcm.SetDisputeGameImplInput{
-			Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
-			Impl:     zkImpl,
-			GameType: game.DisputeGameType,
-			GameArgs: encoded[4:],
+			Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
+			Impl:                zkImpl,
+			AnchorStateRegistry: common.Address{},
+			GameType:            game.DisputeGameType,
+			GameArgs:            encoded[4:],
 		}
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
