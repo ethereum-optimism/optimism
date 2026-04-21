@@ -2370,4 +2370,26 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         // DelayedWETH proxyAdminOwner mismatch (MIG-SDWETH-30).
         assertEq("MIG-SDGF-30,MIG-SDWETH-30", errors);
     }
+
+    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override when
+    ///         the SPDG game args challenger matches the overridden address.
+    function test_validateMigratedChainWithOverrides_challengerMatch_succeeds() public {
+        address overrideChallenger = makeAddr("overrideChallenger");
+        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, overrideChallenger);
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: overrideChallenger });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        assertEq(errors, "");
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override, causing
+    ///         MIG-SPDG-100 when the SPDG game args challenger does not match the overridden address.
+    function test_validateMigratedChainWithOverrides_challengerMismatch_succeeds() public {
+        address wrongChallenger = makeAddr("wrongChallenger");
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: wrongChallenger });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        assertEq("MIG-SPDG-100", errors);
+    }
 }
