@@ -88,7 +88,7 @@ check_types:
     scopeable: false
     tools: [forge, mise]
     inputs:
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-dev/**"
       - "packages/contracts-bedrock/src/**/*.sol"
     outputs:
       - "packages/contracts-bedrock/interfaces/**/*.sol"
@@ -111,7 +111,7 @@ check_types:
     scopeable: false
     tools: [forge, go, jq, mise]
     inputs:
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
       - "packages/contracts-bedrock/src/**/*.sol"
     outputs:
       - "op-e2e/bindings/**/*.go"
@@ -121,11 +121,26 @@ check_types:
     avg_duration: 90
 
   # === Build Steps ===
+  # Two forge-build variants with distinct outputs so they can run in
+  # parallel without clobbering each other (per foundry.toml's
+  # [profile.lite].out = 'forge-artifacts-lite').
+  #
+  # forge-build (prod) feeds bytecode-dependent consumers: forge-test
+  # (CI-parity run), snapshots-check, semver-check, check-nut-locks,
+  # gen-go-bindings, kontrol-build. These compare against CI-committed
+  # bytecode hashes, embed bytecode directly, or need gas-cost parity
+  # with CI, so the optimizer profile must match.
+  #
+  # forge-build-dev (lite) feeds profile-independent consumers:
+  # forge-test-dev (fast local iteration), interfaces-check,
+  # reinitializer-check, validate-spacers, gen-solidity-interfaces.
+  # These scan ASTs / ABI / storage layout — none of which change
+  # with the optimizer — and benefit from the faster lite build.
   - id: forge-build
-    name: "Forge build"
+    name: "Forge build (prod)"
     kind: build
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- forge build"
+    command: "cd packages/contracts-bedrock && mise exec -- just build"
     scopeable: false
     tools: [forge, mise]
     inputs:
@@ -133,10 +148,26 @@ check_types:
       - "packages/contracts-bedrock/scripts/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
     outputs:
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
     avg_duration: 180
     ci_job_names:
       - contracts-bedrock-build
+
+  - id: forge-build-dev
+    name: "Forge build (lite)"
+    kind: build
+    language: solidity
+    command: "cd packages/contracts-bedrock && mise exec -- just build-dev"
+    scopeable: false
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/scripts/**/*.sol"
+      - "packages/contracts-bedrock/test/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+    outputs:
+      - "artifact:forge-artifacts-dev/**"
+    avg_duration: 45
 
   - id: go-build
     name: "Go build"
@@ -154,10 +185,10 @@ check_types:
 
   # === Test Commands ===
   - id: forge-test
-    name: "Forge tests"
+    name: "Forge tests (prod)"
     kind: test
     language: solidity
-    command: "cd packages/contracts-bedrock && mise exec -- forge test"
+    command: "cd packages/contracts-bedrock && mise exec -- just test"
     scopeable: true
     scope_flag: "--match-path"
     scope_type: paths
@@ -168,7 +199,7 @@ check_types:
       - "packages/contracts-bedrock/interfaces/**/*.sol"
       - "packages/contracts-bedrock/scripts/**/*.sol"
       - "packages/contracts-bedrock/foundry.toml"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 3600
     per_unit_duration: 60
@@ -196,6 +227,41 @@ check_types:
         default: 8
         min: 1
         max: 100000
+      - name: match_test
+        type: string
+        flag: "--match-test"
+        default: ""
+      - name: match_contract
+        type: string
+        flag: "--match-contract"
+        default: ""
+
+  - id: forge-test-dev
+    name: "Forge tests (lite)"
+    kind: test
+    language: solidity
+    # Fast-iteration local variant. FOUNDRY_PROFILE=lite skips
+    # optimization, so gas-pinned assertions may diverge from CI.
+    # Consumes artifact:forge-artifacts-dev/** (built by
+    # forge-build-dev into forge-artifacts-lite/); CI has no direct
+    # analogue, so ci_job_names is empty.
+    command: "cd packages/contracts-bedrock && mise exec -- just test-dev"
+    scopeable: true
+    scope_flag: "--match-path"
+    scope_type: paths
+    tools: [forge, mise]
+    inputs:
+      - "packages/contracts-bedrock/src/**/*.sol"
+      - "packages/contracts-bedrock/test/**/*.sol"
+      - "packages/contracts-bedrock/interfaces/**/*.sol"
+      - "packages/contracts-bedrock/scripts/**/*.sol"
+      - "packages/contracts-bedrock/foundry.toml"
+      - "artifact:forge-artifacts-dev/**"
+    outputs: []
+    avg_duration: 900
+    per_unit_duration: 30
+    ci_job_names: []
+    knobs:
       - name: match_test
         type: string
         flag: "--match-test"
@@ -324,7 +390,7 @@ check_types:
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/snapshots/**"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 60
     # snapshots-check + interfaces-check + semver-check + validate-
@@ -346,7 +412,7 @@ check_types:
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/interfaces/**/*.sol"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-dev/**"
     # Legacy produces: for the per-file-prereq mechanism. Kept during
     # Phase B — the dataflow walker covers new selection but the
     # produces-edge mechanism still drives the scheduler's per-file
@@ -364,7 +430,7 @@ check_types:
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
       - "packages/contracts-bedrock/snapshots/semver-lock.json"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 60
 
@@ -377,7 +443,7 @@ check_types:
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-dev/**"
     outputs: []
     avg_duration: 30
 
@@ -390,7 +456,7 @@ check_types:
     tools: [forge, mise]
     inputs:
       - "packages/contracts-bedrock/src/**/*.sol"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-dev/**"
     outputs: []
     avg_duration: 30
 
@@ -471,7 +537,7 @@ check_types:
     inputs:
       - "packages/contracts-bedrock/src/L1/**"
       - "packages/contracts-bedrock/test/kontrol/**"
-      - "artifact:forge-artifacts/**"
+      - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 1800
     ci_job_names:
@@ -560,6 +626,9 @@ check_types:
       - "op-node/rollup/derive/interop_nut_bundle.json"
       - "**/interop_nut_bundle.json"
       - "op-supernode/supernode/activity/interop/**"
+      # Bytecode-dependent: committed NUT bundle embeds prod-built
+      # contract bytecode. Establishes forge-build as a prereq.
+      - "artifact:forge-artifacts-prod/**"
     outputs: []
     avg_duration: 60
     ci_job_names:
