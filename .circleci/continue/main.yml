@@ -727,15 +727,14 @@ jobs:
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
     steps:
-      - utils/ci-gate
-
-  ci-gate-skip:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
-    steps:
-      - run: echo "Skipped — docs-only change"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -1560,13 +1559,13 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     parameters:
-      always-succed:
+      always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
         type: boolean
         default: false
     steps:
       - utils/ci-gate:
-          always-succeed: << parameters.always-succed >>
+          always-succeed: << parameters.always-succeed >>
 
   contracts-bedrock-checks-fast:
     docker:
@@ -2731,12 +2730,6 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # Aggregator for all memory-all acceptance test variants
-      - memory-all:
-          requires:
-            - memory-all-opn-op-geth
-            - memory-all-opn-op-reth
-            - memory-all-kona-op-reth
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
@@ -2748,7 +2741,9 @@ workflows:
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - go-tests-short: terminal
-            - memory-all: terminal
+            - memory-all-opn-op-geth: terminal
+            - memory-all-opn-op-reth: terminal
+            - memory-all-kona-op-reth: terminal
           context:
             - circleci-api-token
           filters:
@@ -2769,7 +2764,7 @@ workflows:
         - not: << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - ci-gate:
-          always-succed: true
+          always-succeed: true
           context:
             - circleci-api-token
 
@@ -3282,6 +3277,6 @@ workflows:
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
-          always-succed: true
+          always-succeed: true
           context:
             - circleci-api-token
