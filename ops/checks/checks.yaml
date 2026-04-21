@@ -470,7 +470,7 @@ check_types:
     name: "Cannon prestate build"
     kind: build
     language: go
-    command: "just cannon-prestate"
+    command: "just cannon-prestates"
     scopeable: false
     tools: [go, mise]
     inputs:
@@ -478,8 +478,7 @@ check_types:
       - "op-program/**"
       - "op-service/**"
       - "op-node/rollup/**"
-      - "op-devstack/**"
-      - "op-acceptance-tests/**"
+      - "rust/kona/**"
       - "go.mod"
       - "go.sum"
     outputs:
@@ -491,6 +490,37 @@ check_types:
       - sanitize-op-program
       - go-binaries-for-sysgo
 
+  - id: op-acceptance-tests
+    name: "op-acceptance-tests"
+    kind: test
+    language: go
+    command: "cd op-acceptance-tests && just test"
+    scopeable: true
+    scope_type: packages
+    tools: [go, mise]
+    # Trigger on direct source + artifact chains only. Transitive Go
+    # deps reach us via:
+    #   - cannon-prestates (op-program / cannon / rust-kona changes)
+    #   - rust-target (op-reth / op-rbuilder / rollup-boost changes)
+    # The import-walk in the scope layer surfaces finer-grained package
+    # scoping for Go-code-only changes within op-acceptance-tests' import
+    # closure.
+    inputs:
+      - "op-acceptance-tests/**"
+      - "op-devstack/**"
+      - "artifact:cannon-prestates/**"
+      - "artifact:rust-target/**"
+      - "go.mod"
+      - "go.sum"
+    outputs: []
+    avg_duration: 7200
+    per_unit_duration: 120
+    ci_job_names:
+      - memory-all-opn-op-geth
+      - memory-all-opn-op-reth
+      - memory-all-kona-op-reth
+      - generate-flaky-tests-report
+
   # === NUT (Network Upgrade Task) locks ===
   - id: check-nut-locks
     name: "NUT lockfile verification"
@@ -499,8 +529,18 @@ check_types:
     command: "cd packages/contracts-bedrock && just check-nut-locks"
     scopeable: false
     tools: [forge, mise]
+    # check-nut-locks runs GenerateNUTBundle.s.sol, which ONLY reads
+    # specific L2 contracts (StorageSetter, L2CrossDomainMessenger,
+    # GasPriceOracle, L2StandardBridge, SequencerFeeVault,
+    # OptimismMintableERC20Factory, L2ERC721Bridge, ConditionalDeployer,
+    # L2ContractsManager) plus src/libraries (Predeploys, Preinstalls,
+    # Constants, NetworkUpgradeTxns, L2ContractsManagerTypes, UpgradeUtils,
+    # DeployUtils). It does NOT touch src/L1 or L1 OPCM contracts.
+    # Scope inputs to the actual reads to avoid firing on every contracts
+    # src diff.
     inputs:
-      - "packages/contracts-bedrock/src/L1/opcm/**"
+      - "packages/contracts-bedrock/src/L2/**"
+      - "packages/contracts-bedrock/src/libraries/**"
       - "packages/contracts-bedrock/scripts/upgrade/**"
       - "packages/contracts-bedrock/snapshots/upgrades/**"
       - "packages/contracts-bedrock/nuts/**"
@@ -508,7 +548,6 @@ check_types:
       - "op-node/rollup/derive/interop_nut_bundle.json"
       - "**/interop_nut_bundle.json"
       - "op-supernode/supernode/activity/interop/**"
-      - "artifact:forge-artifacts/**"
     outputs: []
     avg_duration: 60
     ci_job_names:

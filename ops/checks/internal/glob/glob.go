@@ -39,11 +39,29 @@ func Match(pattern, path string) bool {
 	if matched, _ := filepath.Match(pattern, path); matched {
 		return true
 	}
-	// Basename fallback for patterns like `*.go`
-	if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
-		return true
+	// Basename fallback for patterns with glob metacharacters (e.g.
+	// `*.go` against `foo/bar.go`). Literal patterns without
+	// metacharacters (e.g. `package.json`) are exact-path-only — the
+	// basename fallback would otherwise match `package.json` against
+	// every nested `docs/public-docs/package.json`, silently firing
+	// universal_inputs fanout on unrelated diffs.
+	if hasGlobMeta(pattern) {
+		if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
+			return true
+		}
 	}
 	return path == pattern
+}
+
+// hasGlobMeta reports whether s contains any filepath.Match metacharacters.
+func hasGlobMeta(s string) bool {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '*', '?', '[':
+			return true
+		}
+	}
+	return false
 }
 
 // MatchAny reports whether path matches any of the supplied patterns.
