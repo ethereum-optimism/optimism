@@ -133,6 +133,7 @@ optimizer_runs = 0
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 0 },
+  { name = "validator", optimizer_runs = 0 },
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
@@ -174,6 +175,7 @@ optimizer_runs = 0
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 0 },
+  { name = "validator", optimizer_runs = 0 },
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
@@ -210,6 +212,7 @@ optimizer_runs = 0
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 0 },
+  { name = "validator", optimizer_runs = 0 },
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },

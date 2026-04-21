@@ -127,6 +127,11 @@ func addGameTypesForRuntime(
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
+	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
+	if enabled[gameTypes.ZKDisputeGameType] {
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
+	}
+
 	configs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  enabled[gameTypes.CannonGameType],
@@ -170,9 +175,10 @@ func addGameTypesForRuntime(
 			GameType: embedded.GameTypeSuperCannonKona,
 		},
 		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeZKDisputeGame,
+			Enabled:             enabled[gameTypes.ZKDisputeGameType],
+			InitBond:            initBond,
+			GameType:            embedded.GameTypeZKDisputeGame,
+			ZKDisputeGameConfig: zkDisputeGameConfig,
 		},
 	}
 
@@ -226,6 +232,18 @@ func addGameTypesForRuntime(
 
 	t.Log("Executing opcmV2.upgrade via SetCode delegatecall")
 	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, calldata[0].Data)
+}
+
+// ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
+// The verifier is set to address(0) as a placeholder; real deployments must supply a valid verifier.
+func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *embedded.ZKDisputeGameConfig {
+	return &embedded.ZKDisputeGameConfig{
+		AbsolutePrestate:     common.Hash{},    // placeholder for devstack
+		Verifier:             common.Address{}, // address(0) — external verifier not yet wired
+		MaxChallengeDuration: 604800,           // 7 days
+		MaxProveDuration:     259200,           // 3 days
+		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
+	}
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
