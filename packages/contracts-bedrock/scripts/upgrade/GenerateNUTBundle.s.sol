@@ -134,6 +134,13 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
             require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
 
+            // EIP-7623: op-geth rejects the tx (ErrFloorDataGas) if gasLimit < floorDataGas.
+            uint64 floorDataGas = UpgradeUtils.computeFloorDataGas(_output.txns[i].data);
+            require(
+                _output.txns[i].gasLimit >= floorDataGas,
+                string.concat("GenerateNUTBundle: gasLimit below EIP-7623 floor for ", _output.txns[i].intent)
+            );
+
             if (_output.txns[i].from == address(0)) {
                 // Transactions must have a from address except for ProxyAdmin and ConditionalDeployer upgrades
                 if (
@@ -347,22 +354,20 @@ contract GenerateNUTBundle is Script {
     }
 
     /// @notice Builds the implementation configuration mapping for all contracts to be deployed.
-    /// @dev IMPORTANT: Only modify this function if you need to add or modify a deployment implementation
-    /// configuration.
-    /// @dev An array of strings is used to add contracts that are not predeploys (StorageSetter) or have
-    /// feature-specific variants (e.g. CGT).
-    /// @dev Gas limits are based on actual gas profiling of mainnet fork execution with 1.5x safety margin.
+    /// @dev Each `deploymentGasLimit` = 1.5x * max(intrinsic + body, EIP-7623 floor), rounded up
+    ///      for cold-storage profile variance. Values are produced and enforced by
+    ///      `test_l2ForkUpgrade_isolatedGas_succeeds`.
     function _buildImplementationDeploymentConfigs() internal {
         implementationConfigs["StorageSetter"] = ImplementationConfig({
             name: "StorageSetter",
             artifactPath: "StorageSetter.sol:StorageSetter",
-            deploymentGasLimit: 492_972,
+            deploymentGasLimit: 498_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("StorageSetter.sol:StorageSetter"), SALT)
         });
         implementationConfigs["L2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2CrossDomainMessenger",
             artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
-            deploymentGasLimit: 3_097_290,
+            deploymentGasLimit: 3_129_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2CrossDomainMessenger.sol:L2CrossDomainMessenger"), SALT
             )
@@ -370,7 +375,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["GasPriceOracle"] = ImplementationConfig({
             name: "GasPriceOracle",
             artifactPath: "GasPriceOracle.sol:GasPriceOracle",
-            deploymentGasLimit: 2_735_439,
+            deploymentGasLimit: 2_762_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle"), SALT
             )
@@ -378,7 +383,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2StandardBridge"] = ImplementationConfig({
             name: "L2StandardBridge",
             artifactPath: "L2StandardBridge.sol:L2StandardBridge",
-            deploymentGasLimit: 4_149_250,
+            deploymentGasLimit: 4_193_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2StandardBridge.sol:L2StandardBridge"), SALT
             )
@@ -386,7 +391,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["SequencerFeeVault"] = ImplementationConfig({
             name: "SequencerFeeVault",
             artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
-            deploymentGasLimit: 1_490_827,
+            deploymentGasLimit: 1_506_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SequencerFeeVault.sol:SequencerFeeVault"), SALT
             )
@@ -394,7 +399,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["OptimismMintableERC20Factory"] = ImplementationConfig({
             name: "OptimismMintableERC20Factory",
             artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
-            deploymentGasLimit: 4_153_450,
+            deploymentGasLimit: 4_193_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"), SALT
             )
@@ -402,7 +407,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2ERC721Bridge"] = ImplementationConfig({
             name: "L2ERC721Bridge",
             artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
-            deploymentGasLimit: 2_342_763,
+            deploymentGasLimit: 2_367_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
             )
@@ -410,19 +415,19 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L1Block"] = ImplementationConfig({
             name: "L1Block",
             artifactPath: "L1Block.sol:L1Block",
-            deploymentGasLimit: 1_178_374,
+            deploymentGasLimit: 1_191_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
         });
         implementationConfigs["L1BlockCGT"] = ImplementationConfig({
             name: "L1BlockCGT",
             artifactPath: "L1BlockCGT.sol:L1BlockCGT",
-            deploymentGasLimit: 1_551_891,
+            deploymentGasLimit: 1_568_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
         });
         implementationConfigs["L2ToL1MessagePasser"] = ImplementationConfig({
             name: "L2ToL1MessagePasser",
             artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-            deploymentGasLimit: 686_389,
+            deploymentGasLimit: 694_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
             )
@@ -430,7 +435,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2ToL1MessagePasserCGT"] = ImplementationConfig({
             name: "L2ToL1MessagePasserCGT",
             artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-            deploymentGasLimit: 819_505,
+            deploymentGasLimit: 827_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
             )
@@ -438,7 +443,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["OptimismMintableERC721Factory"] = ImplementationConfig({
             name: "OptimismMintableERC721Factory",
             artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
-            deploymentGasLimit: 5_604_033,
+            deploymentGasLimit: 5_661_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), SALT
             )
@@ -446,25 +451,25 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2ProxyAdmin"] = ImplementationConfig({
             name: "L2ProxyAdmin",
             artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
-            deploymentGasLimit: 2_515_693,
+            deploymentGasLimit: 2_541_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L2ProxyAdmin.sol:L2ProxyAdmin"), SALT)
         });
         implementationConfigs["BaseFeeVault"] = ImplementationConfig({
             name: "BaseFeeVault",
             artifactPath: "BaseFeeVault.sol:BaseFeeVault",
-            deploymentGasLimit: 1_487_293,
+            deploymentGasLimit: 1_503_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("BaseFeeVault.sol:BaseFeeVault"), SALT)
         });
         implementationConfigs["L1FeeVault"] = ImplementationConfig({
             name: "L1FeeVault",
             artifactPath: "L1FeeVault.sol:L1FeeVault",
-            deploymentGasLimit: 159_795,
+            deploymentGasLimit: 260_550,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1FeeVault.sol:L1FeeVault"), SALT)
         });
         implementationConfigs["OperatorFeeVault"] = ImplementationConfig({
             name: "OperatorFeeVault",
             artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
-            deploymentGasLimit: 1_492_554,
+            deploymentGasLimit: 1_504_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("OperatorFeeVault.sol:OperatorFeeVault"), SALT
             )
@@ -472,7 +477,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["SchemaRegistry"] = ImplementationConfig({
             name: "SchemaRegistry",
             artifactPath: "SchemaRegistry.sol:SchemaRegistry",
-            deploymentGasLimit: 797_266,
+            deploymentGasLimit: 805_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SchemaRegistry.sol:SchemaRegistry"), SALT
             )
@@ -480,19 +485,19 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["EAS"] = ImplementationConfig({
             name: "EAS",
             artifactPath: "EAS.sol:EAS",
-            deploymentGasLimit: 6_188_641,
+            deploymentGasLimit: 6_251_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("EAS.sol:EAS"), SALT)
         });
         implementationConfigs["CrossL2Inbox"] = ImplementationConfig({
             name: "CrossL2Inbox",
             artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
-            deploymentGasLimit: 661_267,
+            deploymentGasLimit: 668_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("CrossL2Inbox.sol:CrossL2Inbox"), SALT)
         });
         implementationConfigs["L2ToL2CrossDomainMessenger"] = ImplementationConfig({
             name: "L2ToL2CrossDomainMessenger",
             artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
-            deploymentGasLimit: 1_594_332,
+            deploymentGasLimit: 1_611_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"), SALT
             )
@@ -500,7 +505,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["SuperchainETHBridge"] = ImplementationConfig({
             name: "SuperchainETHBridge",
             artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
-            deploymentGasLimit: 749_430,
+            deploymentGasLimit: 757_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("SuperchainETHBridge.sol:SuperchainETHBridge"), SALT
             )
@@ -508,13 +513,13 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["ETHLiquidity"] = ImplementationConfig({
             name: "ETHLiquidity",
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
-            deploymentGasLimit: 418_672,
+            deploymentGasLimit: 423_000,
             implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT)
         });
         implementationConfigs["NativeAssetLiquidity"] = ImplementationConfig({
             name: "NativeAssetLiquidity",
             artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
-            deploymentGasLimit: 387_951,
+            deploymentGasLimit: 392_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("NativeAssetLiquidity.sol:NativeAssetLiquidity"), SALT
             )
@@ -522,7 +527,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["LiquidityController"] = ImplementationConfig({
             name: "LiquidityController",
             artifactPath: "LiquidityController.sol:LiquidityController",
-            deploymentGasLimit: 1_851_309,
+            deploymentGasLimit: 1_870_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
             )
@@ -530,7 +535,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deploymentGasLimit: 87_324,
+            deploymentGasLimit: 116_400,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
             )
@@ -538,7 +543,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deploymentGasLimit: 311_293,
+            deploymentGasLimit: 315_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
             )

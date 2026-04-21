@@ -805,6 +805,9 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     }
 
     /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
+    /// @dev Emulates op-geth's post-execution EIP-7623 floor: receipt.gasUsed = max(exec, floor).
+    ///      Without this, forge reports execution gas while op-geth reports the floor when it binds
+    ///      (e.g. ConditionalDeployer collision paths), making the two diverge by up to 67k gas.
     /// @param _i Transaction index (0-based).
     /// @param _total Total number of transactions.
     /// @param _txn The NUT bundle transaction.
@@ -823,16 +826,15 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         pure
         returns (GasMeasurement memory measurement_)
     {
-        uint64 gasUsed = _intrinsicGas + _bodyGasUsed;
-        uint64 recommendedLimit = UpgradeUtils.computeRecommendedGasLimit(_intrinsicGas, _bodyGasUsed);
-        uint256 efficiency = (uint256(gasUsed) * 100) / uint256(_txn.gasLimit);
+        uint64 floorGas = UpgradeUtils.computeFloorDataGas(_txn.data);
+        uint64 gasUsed = _intrinsicGas + _bodyGasUsed > floorGas ? _intrinsicGas + _bodyGasUsed : floorGas;
         measurement_ = GasMeasurement({
             index: _i,
             intent: _txn.intent,
             gasUsed: gasUsed,
             gasLimit: _txn.gasLimit,
-            recommendedLimit: recommendedLimit,
-            efficiency: efficiency
+            recommendedLimit: UpgradeUtils.computeRecommendedGasLimit(_intrinsicGas, _bodyGasUsed, floorGas),
+            efficiency: (uint256(gasUsed) * 100) / uint256(_txn.gasLimit)
         });
         _logTxnGas(
             _i,
@@ -842,7 +844,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             _bodyGasUsed,
             gasUsed,
             _txn.gasLimit,
-            _showRecommended ? recommendedLimit : 0
+            _showRecommended ? measurement_.recommendedLimit : 0
         );
     }
 
@@ -874,7 +876,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             assertGe(
                 txn.gasLimit,
                 measurements[i].recommendedLimit,
-                string.concat("Bundle gas limit must exceed 1.5x (intrinsic+body) recommendation for ", txn.intent)
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
             );
             totalGasUsed += measurements[i].gasUsed;
             totalGasLimit += measurements[i].gasLimit;
@@ -908,14 +910,14 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
             // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
             // exactly what op-geth gives it in production.
-            //
             uint256 gasBefore = gasleft();
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
+
             // gasleft() delta is used (not vm.lastCallGas()) because in isolated mode,
             // transact_inner() records result_gas.used() (= intrinsic + body − refunds)
-            // against the original forwarded gas_limit, so gas.remaining() =
+            // against the forwarded gas_limit, so gas.remaining() =
             // forwarded − (intrinsic + body − refunds), and gasleft() delta =
-            // intrinsic + body − refunds = production total
+            // intrinsic + body − refunds = production total.
             uint64 gasUsed = uint64(gasBefore - gasleft());
             uint64 bodyGasUsed = gasUsed > intrinsicGas ? gasUsed - intrinsicGas : 0;
 
@@ -941,7 +943,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             assertGe(
                 txn.gasLimit,
                 measurements[i].recommendedLimit,
-                string.concat("Bundle gas limit must exceed 1.5x (intrinsic+body) recommendation for ", txn.intent)
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
             );
 
             totalGasUsed += measurements[i].gasUsed;

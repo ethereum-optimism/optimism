@@ -25,11 +25,14 @@ contract ExecuteNUTBundle is Script {
         _executeAll(txns);
     }
 
-    /// @notice Executes a single NUT bundle transaction with deposit-faithful gas semantics.
-    /// @dev Models op-geth deposit transaction execution: intrinsic gas is deducted from the gas
-    ///      limit before the contract body runs, matching production DepositTx behavior.
-    ///      Body gas is measured via vm.lastCallGas() (callee frame only, net post-refund),
-    ///      matching op-geth's usedGas - intrinsicGas without CALL opcode overhead.
+    /// @notice Executes a single NUT bundle transaction with deposit-faithful body gas semantics.
+    /// @dev Intrinsic gas is deducted from the forwarded amount before the call so the body runs
+    ///      with the same budget op-geth gives it in production (gasLimit - intrinsic). Body gas
+    ///      is measured via vm.lastCallGas() (callee frame only, net of refunds), excluding CALL
+    ///      opcode overhead. This is not the same as op-geth's receipt.gasUsed: op-geth applies
+    ///      the EIP-7623 floor post-execution (receipt.gasUsed = max(intrinsic+body, floor)),
+    ///      so for txs where execution lands below the floor, receipt.gasUsed will exceed
+    ///      intrinsic + bodyGasUsed_.
     /// @param _txn The Network Upgrade Transaction to execute.
     /// @return success_ Whether the call succeeded.
     /// @return returnData_ The return data from the call.

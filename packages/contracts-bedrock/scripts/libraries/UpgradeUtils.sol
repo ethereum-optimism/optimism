@@ -63,21 +63,17 @@ library UpgradeUtils {
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
-    /// @dev Gas limits are set to the 1.5x recommended value from mainnet fork profiling.
-    /// @dev `proxyAdminUpgrade` is the only NUT whose `gasLimit - 21_000` is below its intrinsic
-    ///      gas. This causes `transact_inner`'s outer `Gas` budget to overflow when recording
-    ///      tx_gas_used, so the isolated test under-reports its body as 0. This is the reason why
-    ///      the recommendation gas limit is lower than the actual gas limit.
+    /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: 4_884_954,
-            upgradeExecution: 2_093_653,
+            l2cmDeployment: 4_934_000,
+            upgradeExecution: 2_115_000,
             // Karst
-            conditionalDeployerDeployment: 573_471,
-            conditionalDeployerUpgrade: 75_508,
-            proxyAdminUpgrade: 45_117
+            conditionalDeployerDeployment: 580_000,
+            conditionalDeployerUpgrade: 77_000,
+            proxyAdminUpgrade: 49_711
         });
     }
 
@@ -138,19 +134,40 @@ library UpgradeUtils {
     }
 
     /// @notice Computes the recommended gas limit for a transaction.
-    /// @dev Recommended gas limit = 1.5x (the intrinsic gas cost + base gas limit).
+    /// @dev Recommended gas limit = 1.5x max(intrinsic + body, EIP-7623 floor). The EIP-7623
+    ///      floor dominates when execution is cheap relative to calldata,
+    ///      since op-geth charges the floor as gasUsed.
     /// @param _intrinsicGas The intrinsic gas cost.
     /// @param _bodyGasUsed The body gas used.
+    /// @param _floorGas The EIP-7623 floor gas.
     /// @return gas_ The recommended gas limit.
     function computeRecommendedGasLimit(
         uint64 _intrinsicGas,
-        uint64 _bodyGasUsed
+        uint64 _bodyGasUsed,
+        uint64 _floorGas
     )
         internal
         pure
         returns (uint64 gas_)
     {
-        gas_ = uint64((uint256(_intrinsicGas + _bodyGasUsed) * 150) / 100); // 1.5x
+        uint64 exec = _intrinsicGas + _bodyGasUsed;
+        uint64 effective = exec > _floorGas ? exec : _floorGas;
+        gas_ = uint64((uint256(effective) * 150) / 100); // 1.5x
+    }
+
+    /// @notice Computes the EIP-7623 floor gas for a transaction.
+    /// @dev Replicates op-geth's FloorDataGas (core/state_transition.go) active on Prague/Isthmus+:
+    ///      floor = 21_000 + 10 * tokens, where tokens = zero_bytes + 4 * non_zero_bytes.
+    ///      op-geth applies this twice: pre-execution it rejects the tx (ErrFloorDataGas) when
+    ///      gasLimit < floor; post-execution it sets receipt.gasUsed = max(execution_gas, floor).
+    /// @param _data The transaction calldata.
+    /// @return gas_ The EIP-7623 floor gas (includes the 21_000 base).
+    function computeFloorDataGas(bytes memory _data) internal pure returns (uint64 gas_) {
+        uint64 tokens;
+        for (uint256 i = 0; i < _data.length; i++) {
+            tokens += _data[i] == 0 ? 1 : 4;
+        }
+        gas_ = 21_000 + tokens * 10;
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.
