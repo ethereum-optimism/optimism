@@ -66,6 +66,12 @@ fs_permissions = [
   { access='read', path='./deploy-config-periphery/' },
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
+  # Profile.lite writes to forge-artifacts-lite/ (see [profile.lite].out).
+  # Tests run under FOUNDRY_PROFILE=lite read the OUT dir dynamically via
+  # ForgeArtifacts._getForgeArtifactPath -> `forge config --json | jq -r .out`,
+  # then vm.exists() against it. Without this permission, every test that
+  # touches ForgeArtifacts (e.g. AnchorStateRegistry.t.sol) fails under lite.
+  { access='read', path = './forge-artifacts-lite/' },
   { access='read-write', path='./.testdata/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
