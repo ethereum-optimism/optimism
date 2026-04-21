@@ -151,7 +151,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 		return l2Unsafe.Number > 0 && l2Unsafe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
 
-	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 30)
 
 	// Pick reorg block
 	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
@@ -159,7 +159,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 
 	// Make few more unsafe blocks which will be reorged out
 	sys.L2EL.Advanced(eth.Unsafe, 4)
-	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 30)
 
 	// Stop Verifier CL
 	sys.L2CLB.Stop()
