@@ -145,17 +145,13 @@ library Predeploys {
     }
 
     /// @notice Returns the name of the predeploy at the given address.
+    ///         Always returns the primary, non-variant, record name for a given proxy address.
+    ///         e.g. getName(L1_BLOCK_ATTRIBUTES) always returns "L1Block", not "L1BlockCGT".
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
-
-        // Get default name for CGT variants
-        if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
-        if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
-
-        // Get name from record
         PredeployRecord[] memory records = getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].proxy == _addr) {
+            if (records[i].proxy == _addr && !records[i].isVariant) {
                 return records[i].name;
             }
         }
