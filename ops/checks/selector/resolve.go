@@ -50,6 +50,18 @@ func Resolve(
 		return nil
 	}
 
+	// Split the diff into semantic-impacting files vs text-only edits
+	// (comments, whitespace). Comment-only changes should fire
+	// text-concerned checks (linters, formatters, semgrep) but not
+	// semantic-concerned ones (tests, snapshots, AST validators).
+	semanticDiffs := make([]diff.FileDiff, 0, len(diffs))
+	for _, d := range diffs {
+		if diff.Classify(d) == diff.ImpactSemantic {
+			semanticDiffs = append(semanticDiffs, d)
+		}
+	}
+	semanticPaths := extractPaths(semanticDiffs)
+
 	// Step 1: seed set. Direct path→node lookups + config-diff
 	// expansions (go.mod dep table → mod: nodes; structural changes
 	// seed every same-language node, replacing blast-radius fanout).
@@ -67,8 +79,37 @@ func Resolve(
 		seedIDs = append(seedIDs, allRustSourceNodes(g)...)
 	}
 
-	// Step 2: dataflow walk picks check_types.
+	// Parallel seed set restricted to semantic-impacting files. Used
+	// to prune semantic-concerned checks that would otherwise be
+	// triggered by comment/whitespace-only edits.
+	semanticFileIDs, _ := diff.FilesToNodeIDs(g, semanticPaths)
+	semanticSeedIDs := make([]string, 0, len(semanticFileIDs)+len(goSeeds.sourceNodes)+len(rsSeeds.sourceNodes))
+	semanticSeedIDs = append(semanticSeedIDs, semanticFileIDs...)
+	// go.mod / Cargo.toml dep expansions always count as semantic —
+	// dependency updates can't be comment-only. Keep them in both
+	// seed sets.
+	semanticSeedIDs = append(semanticSeedIDs, goSeeds.sourceNodes...)
+	semanticSeedIDs = append(semanticSeedIDs, rsSeeds.sourceNodes...)
+	if goSeeds.forceAll {
+		semanticSeedIDs = append(semanticSeedIDs, allGoSourceNodes(g)...)
+	}
+	if rsSeeds.forceAll {
+		semanticSeedIDs = append(semanticSeedIDs, allRustSourceNodes(g)...)
+	}
+
+	// Step 2: dataflow walk picks check_types. Two passes: full (for
+	// text-concerned checks) and semantic-only (for semantic-concerned
+	// checks).
 	selected := selectViaDataflow(g, seedIDs, filePaths, cat)
+	if len(selected) == 0 {
+		return nil
+	}
+	semanticSelected := selectViaDataflow(g, semanticSeedIDs, semanticPaths, cat)
+	for id := range selected {
+		if isSemanticConcern(cat.ByID(id)) && !semanticSelected[id] {
+			delete(selected, id)
+		}
+	}
 	if len(selected) == 0 {
 		return nil
 	}
@@ -86,6 +127,25 @@ func Resolve(
 	cands = applyCorrelationSignal(g, cands, changedIDs, fresh)
 
 	return cands
+}
+
+// isSemanticConcern reports whether a check's Concern field indicates
+// it should skip text-only edits. Default (empty) is "semantic" — the
+// safe interpretation is that most checks care about real source
+// changes. Only checks explicitly tagged concern: text fire on
+// comment/whitespace-only diffs.
+func isSemanticConcern(ct *catalog.CheckType) bool {
+	if ct == nil {
+		return true
+	}
+	switch ct.Concern {
+	case "", "semantic":
+		return true
+	case "text":
+		return false
+	default:
+		return true
+	}
 }
 
 func uniqueStrings(in []string) []string {

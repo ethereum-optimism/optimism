@@ -69,6 +69,26 @@ type CheckType struct {
 	// downstream consumers are active.
 	Assertion string `yaml:"assertion,omitempty"`
 
+	// Concern declares what kind of source change this check reacts
+	// to. Paired with diff.Classify() per changed file:
+	//
+	//   "semantic" (default): fires only when at least one changed
+	//       file has a potentially-semantic edit (not comment- or
+	//       whitespace-only). Use for tests, snapshots, AST
+	//       validators, bytecode checks — anything that compiles or
+	//       inspects behavior.
+	//   "text": fires on any change, including comment- or
+	//       whitespace-only edits. Use for linters, formatters,
+	//       security scanners that operate on source text
+	//       (semgrep, forge fmt, clippy text rules).
+	//
+	// A check with Concern="semantic" is skipped when every changed
+	// file it would have consumed is classified as text-only. A
+	// check with Concern="text" fires on any file change that
+	// dataflow-reaches it. Unset = "semantic" (the safe default:
+	// assume the check cares about real source changes).
+	Concern string `yaml:"concern,omitempty"`
+
 	// Tags classify the check for stage-level acceptance filtering.
 	// Canonical tags:
 	//   profile:prod — the CI-fidelity implementation; optimized

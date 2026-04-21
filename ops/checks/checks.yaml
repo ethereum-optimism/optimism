@@ -432,6 +432,9 @@ check_types:
     name: "Semgrep scan"
     kind: lint
     language: "*"
+    # Text concern: semgrep scans source text for patterns (including
+    # comments). Must run on comment-only edits too.
+    concern: text
     command: "mise exec -- semgrep scan --timeout=100 --config .semgrep/rules/ --error ."
     scopeable: false
     tools: [semgrep]
@@ -453,6 +456,10 @@ check_types:
     name: "Forge test naming lint"
     kind: lint
     language: solidity
+    # Text concern: forge fmt enforces formatting on source text,
+    # including line length after edits. A typo fix that lengthens a
+    # comment could trip fmt limits, so fire on comment-only edits too.
+    concern: text
     command: "cd packages/contracts-bedrock && mise exec -- just lint-forge-tests-check-no-build"
     scopeable: false
     tools: [forge, mise]
@@ -506,6 +513,11 @@ check_types:
     name: "Semver diff check"
     kind: check
     language: solidity
+    # Text concern: semver-lock.json pins sourceCodeHash, which is a
+    # hash of source text. Comment-only edits change it and would
+    # drift silently if this check didn't fire. Runs on every source
+    # change regardless of semantic impact.
+    concern: text
     command: "cd packages/contracts-bedrock && FOUNDRY_ARTIFACTS=forge-artifacts-src-prod mise exec -- just semver-diff-check-no-build"
     scopeable: false
     tools: [forge, mise]
@@ -596,6 +608,8 @@ check_types:
     name: "Mintlify docs build"
     kind: build
     language: "*"
+    # Text concern: docs ARE content. Every markdown edit counts.
+    concern: text
     command: "cd docs && pnpm build"
     scopeable: false
     tools: [node, pnpm]
