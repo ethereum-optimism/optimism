@@ -30,6 +30,9 @@ contract GenerateNUTBundle is Script {
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
+    /// @notice EIP-7825 per-transaction gas limit cap (2 ** 24).
+    uint256 public constant MAX_TX_GAS_LIMIT = 16777216;
+
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
     struct Output {
@@ -113,7 +116,7 @@ contract GenerateNUTBundle is Script {
             output_.txns[i] = txns[i];
         }
 
-        _assertValidOutput(output_);
+        assertValidOutput(output_);
 
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
@@ -123,7 +126,7 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Asserts the output is valid.
     /// @param _output The output to assert.
-    function _assertValidOutput(Output memory _output) internal pure {
+    function assertValidOutput(Output memory _output) public pure {
         uint256 transactionCount = UpgradeUtils.getTransactionCount();
         uint256 txnsLength = _output.txns.length;
         require(txnsLength == transactionCount, "GenerateNUTBundle: invalid transaction count");
@@ -132,7 +135,10 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
             require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
+            require(
+                _output.txns[i].gasLimit > 0 && _output.txns[i].gasLimit <= MAX_TX_GAS_LIMIT,
+                "GenerateNUTBundle: invalid transaction gasLimit"
+            );
 
             if (_output.txns[i].from == address(0)) {
                 // Transactions must have a from address except for ProxyAdmin and ConditionalDeployer upgrades

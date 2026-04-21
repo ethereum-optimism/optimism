@@ -137,4 +137,16 @@ contract GenerateNUTBundleTest is Test {
         string[] memory names = UpgradeUtils.getImplementationsNamesToUpgrade();
         assertEq(names.length, structFieldCount, "Deployment list must equal Implementations struct field count");
     }
+
+    /// @notice Tests that a transaction exceeding the per-transaction gas limit cap is rejected.
+    function testFuzz_assertValidOutput_gasLimitExceedsMax_reverts(uint256 _index, uint64 _gasLimit) public {
+        GenerateNUTBundle.Output memory output = script.run();
+
+        _index = bound(_index, 0, output.txns.length - 1);
+        _gasLimit = uint64(bound(_gasLimit, script.MAX_TX_GAS_LIMIT() + 1, type(uint64).max));
+        output.txns[_index].gasLimit = _gasLimit;
+
+        vm.expectRevert("GenerateNUTBundle: invalid transaction gasLimit");
+        script.assertValidOutput(output);
+    }
 }
