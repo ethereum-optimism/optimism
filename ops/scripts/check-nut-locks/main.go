@@ -5,19 +5,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-
+	"github.com/ethereum-optimism/optimism/op-core/nuts"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
 // nutBundleGlobs are the locations where NUT bundle JSON files may live.
 // Update this list when adding new bundle locations.
 var nutBundleGlobs = []string{
-	"op-node/rollup/derive/*_nut_bundle.json",
-	"op-core/nuts/*_nut_bundle.json",
+	"op-core/nuts/bundles/*_nut_bundle.json",
 }
 
 // checkAllBundlesLocked searches known paths for *_nut_bundle.json files and
@@ -44,9 +43,36 @@ func checkAllBundlesLocked(root string, lockedBundles map[string]bool) error {
 	return nil
 }
 
-type forkLockEntry struct {
-	Bundle string `toml:"bundle"`
-	Hash   string `toml:"hash"`
+// validateEntry checks a single fork lock entry against its bundle file content.
+func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) error {
+	hash := sha256.Sum256(bundleContent)
+	actual := "sha256:" + hex.EncodeToString(hash[:])
+
+	expectedHash := strings.TrimSpace(entry.Hash)
+	if actual != expectedHash {
+		return fmt.Errorf(
+			"bundle hash mismatch for fork %s: expected=%s actual=%s. "+
+				"If this change is intentional, update the hash in op-core/nuts/fork_lock.toml",
+			fork, expectedHash, actual,
+		)
+	}
+
+	if entry.Commit == "" {
+		return fmt.Errorf("fork %s has no commit recorded; "+
+			"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
+	}
+
+	return nil
+}
+
+// checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
+func checkCommitAncestry(root, fork string, commit string) error {
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, "origin/develop")
+	cmd.Dir = root
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop", fork, commit[:12])
+	}
+	return nil
 }
 
 func main() {
@@ -62,10 +88,9 @@ func run(dir string) error {
 		return fmt.Errorf("finding monorepo root: %w", err)
 	}
 
-	lockPath := filepath.Join(root, "op-core", "nuts", "fork_lock.toml")
-	var locks map[string]forkLockEntry
-	if _, err := toml.DecodeFile(lockPath, &locks); err != nil {
-		return fmt.Errorf("reading fork lock file: %w", err)
+	locks, _, err := nuts.ReadLockFile(dir)
+	if err != nil {
+		return err
 	}
 
 	lockedBundles := make(map[string]bool)
@@ -78,16 +103,12 @@ func run(dir string) error {
 			return fmt.Errorf("fork %s: reading bundle %s: %w", fork, entry.Bundle, err)
 		}
 
-		hash := sha256.Sum256(content)
-		actual := "sha256:" + hex.EncodeToString(hash[:])
+		if err := validateEntry(fork, entry, content); err != nil {
+			return err
+		}
 
-		locked := strings.TrimSpace(entry.Hash)
-		if actual != locked {
-			return fmt.Errorf(
-				"bundle hash mismatch for fork %s: locked=%s actual=%s. "+
-					"If this change is intentional, update the hash in op-core/nuts/fork_lock.toml",
-				fork, locked, actual,
-			)
+		if err := checkCommitAncestry(root, fork, entry.Commit); err != nil {
+			return err
 		}
 
 		fmt.Printf("fork %s: bundle hash OK\n", fork)

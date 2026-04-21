@@ -30,12 +30,13 @@ import (
 // It reduces boilerplate by handling common setup: temp directories, mock chains,
 // interop creation, context assignment, and cleanup.
 type interopTestHarness struct {
-	t              *testing.T
-	interop        *Interop
-	mocks          map[eth.ChainID]*mockChainContainer
-	activationTime uint64
-	dataDir        string
-	skipBuild      bool // for tests that need custom construction
+	t                *testing.T
+	interop          *Interop
+	mocks            map[eth.ChainID]*mockChainContainer
+	activationTime   uint64
+	logBackfillDepth time.Duration
+	dataDir          string
+	skipBuild        bool // for tests that need custom construction
 }
 
 // newInteropTestHarness creates a new test harness with sensible defaults.
@@ -53,6 +54,12 @@ func newInteropTestHarness(t *testing.T) *interopTestHarness {
 // WithActivation sets the interop activation timestamp.
 func (h *interopTestHarness) WithActivation(ts uint64) *interopTestHarness {
 	h.activationTime = ts
+	return h
+}
+
+// WithLogBackfillDepth sets op-supernode's --interop.log-backfill-depth for the built Interop.
+func (h *interopTestHarness) WithLogBackfillDepth(d time.Duration) *interopTestHarness {
+	h.logBackfillDepth = d
 	return h
 }
 
@@ -89,7 +96,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, chains, h.dataDir, nil)
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth)
 	if h.interop != nil {
 		h.interop.ctx = context.Background()
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
@@ -129,7 +136,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
 				require.NotNil(t, interop)
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
@@ -152,7 +159,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, h.Chains(), h.dataDir, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
 				require.Nil(t, interop)
 			},
 		},
@@ -165,6 +172,12 @@ func TestNew(t *testing.T) {
 			tc.run(t, h)
 		})
 	}
+}
+
+func TestInteropActivationTimestampFlagEnvVar(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, InteropActivationTimestampFlag.GetEnvVars(), "OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP")
 }
 
 // =============================================================================
@@ -621,8 +634,8 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 					return Result{
 						Timestamp: ts,
 						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain8453: blocks[chain8453],
+						InvalidHeads: map[eth.ChainID]InvalidHead{
+							chain8453: {BlockID: blocks[chain8453]},
 						},
 					}, nil
 				}
@@ -675,8 +688,8 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 					return Result{
 						Timestamp: ts,
 						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain10: blocks[chain10],
+						InvalidHeads: map[eth.ChainID]InvalidHead{
+							chain10: {BlockID: blocks[chain10]},
 						},
 					}, nil
 				}
@@ -686,8 +699,8 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 					return Result{
 						Timestamp: ts,
 						L2Heads:   blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{
-							chain8453: blocks[chain8453],
+						InvalidHeads: map[eth.ChainID]InvalidHead{
+							chain8453: {BlockID: blocks[chain8453]},
 						},
 					}, nil
 				}
@@ -855,8 +868,8 @@ func TestApplyResultCompat(t *testing.T) {
 					L2Heads: map[eth.ChainID]eth.BlockID{
 						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 					},
-					InvalidHeads: map[eth.ChainID]eth.BlockID{
-						mock.id: {Number: 500, Hash: common.HexToHash("0xBAD")},
+					InvalidHeads: map[eth.ChainID]InvalidHead{
+						mock.id: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
 					},
 				}
 
@@ -901,7 +914,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0)
+				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 				require.NoError(t, err)
 
 				require.Len(t, mock.invalidateBlockCalls, 1)
@@ -918,7 +931,7 @@ func TestInvalidateBlock(t *testing.T) {
 				mock := h.Mock(10)
 				unknownChain := eth.ChainIDFromUInt64(999)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID, 0)
+				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not found")
@@ -935,7 +948,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0)
+				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "engine failure")
@@ -957,9 +970,9 @@ func TestInvalidateBlock(t *testing.T) {
 						mock1.id: {Number: 500, Hash: common.HexToHash("0xL2-1")},
 						mock2.id: {Number: 600, Hash: common.HexToHash("0xL2-2")},
 					},
-					InvalidHeads: map[eth.ChainID]eth.BlockID{
-						mock1.id: {Number: 500, Hash: common.HexToHash("0xBAD1")},
-						mock2.id: {Number: 600, Hash: common.HexToHash("0xBAD2")},
+					InvalidHeads: map[eth.ChainID]InvalidHead{
+						mock1.id: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD1")}},
+						mock2.id: {BlockID: eth.BlockID{Number: 600, Hash: common.HexToHash("0xBAD2")}},
 					},
 				}
 
@@ -1090,7 +1103,7 @@ func TestProgressAndRecord(t *testing.T) {
 						Timestamp:    ts,
 						L1Inclusion:  eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
 						L2Heads:      blocks,
-						InvalidHeads: map[eth.ChainID]eth.BlockID{mock.id: {Number: 100}},
+						InvalidHeads: map[eth.ChainID]InvalidHead{mock.id: {BlockID: eth.BlockID{Number: 100}}},
 					}, nil
 				}
 
@@ -1139,7 +1152,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.ChainContainer{mock.id: mock}
-	interop := New(testLogger(), 100, chains, dataDir, nil)
+	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0)
 	require.NotNil(t, interop)
 	interop.ctx = context.Background()
 
@@ -1201,7 +1214,7 @@ func TestResult_IsEmpty(t *testing.T) {
 		{"only timestamp", Result{Timestamp: 1000}, true},
 		{"with L1Head", Result{Timestamp: 1000, L1Inclusion: eth.BlockID{Number: 100}}, false},
 		{"with L2Heads", Result{Timestamp: 1000, L2Heads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
-		{"with InvalidHeads", Result{Timestamp: 1000, InvalidHeads: map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 50}}}, false},
+		{"with InvalidHeads", Result{Timestamp: 1000, InvalidHeads: map[eth.ChainID]InvalidHead{eth.ChainIDFromUInt64(10): {BlockID: eth.BlockID{Number: 50}}}}, false},
 	}
 
 	for _, tt := range tests {
@@ -1301,17 +1314,42 @@ type mockChainContainer struct {
 	optimisticL1    eth.BlockID
 	optimisticAtErr error
 
+	// If set, SyncStatus returns this instead of synthesizing from currentL1 only.
+	syncStatusFull     *eth.SyncStatus
+	syncStatusOverride func() (*eth.SyncStatus, error)
+
 	// PauseAndStopVN / Resume tracking
 	pauseAndStopVNCalls int
 	pauseAndStopVNErr   error
 	resumeCalls         int
 	resumeErr           error
 	callLog             *callLog // shared ordered call log across mocks
+
+	outputV0Override func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+
+	// timestampToBlockNumberOverride lets tests decouple TimestampToBlockNumber
+	// from the default ts==blockNum identity. Used by
+	// TestLogBackfill_FailsWhenChainBehindLowerBound to simulate the
+	// inconsistent-SyncStatus case that runLogBackfill must reject.
+	timestampToBlockNumberOverride func(ctx context.Context, ts uint64) (uint64, error)
+
+	// blockTimeOverride, when >0, is returned by BlockTime(). Used by tests
+	// that exercise chains whose blockTime is not 1 (e.g. misaligned
+	// activation timestamps).
+	blockTimeOverride uint64
+
+	// blockInfoTimeFn, when non-nil, computes the timestamp reported by
+	// FetchReceipts' returned blockInfo for a given block number. Used
+	// together with timestampToBlockNumberOverride to simulate a chain with
+	// a blockTime > 1 and genesis-offset scheduling.
+	blockInfoTimeFn func(blockNum uint64) uint64
 }
 
 type invalidateBlockCall struct {
-	height      uint64
-	payloadHash common.Hash
+	height                   uint64
+	payloadHash              common.Hash
+	stateRoot                eth.Bytes32
+	messagePasserStorageRoot eth.Bytes32
 }
 
 func newMockChainContainer(id uint64) *mockChainContainer {
@@ -1401,16 +1439,26 @@ func (m *mockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.B
 func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
-func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
 func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	ts := m.lastRequestedTimestamp
+	ts := blockID.Number
+	if ts == 0 {
+		ts = m.lastRequestedTimestamp
+	}
+	if m.blockInfoTimeFn != nil {
+		ts = m.blockInfoTimeFn(blockID.Number)
+	}
+	// parentHash is derived from the parent block's number (matching how
+	// OutputV0AtBlockNumber produces block hashes), not from ts-1. When
+	// blockNum != ts (e.g. blockTime > 1), these diverge; using
+	// blockID.Number-1 keeps the chain linkage consistent.
 	var parentHash common.Hash
-	if ts > 0 {
-		parentHash = common.BigToHash(big.NewInt(int64(ts - 1)))
+	if blockID.Number > 0 {
+		parentHash = common.BigToHash(new(big.Int).SetUint64(blockID.Number - 1))
 	}
 	blockInfo := &mockBlockInfo{
 		hash:       blockID.Hash,
@@ -1423,10 +1471,22 @@ func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.Bloc
 func (m *mockChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.syncStatusOverride != nil {
+		return m.syncStatusOverride()
+	}
 	if m.currentL1Err != nil {
 		return nil, m.currentL1Err
 	}
+	if m.syncStatusFull != nil {
+		return m.syncStatusFull, nil
+	}
 	return &eth.SyncStatus{CurrentL1: m.currentL1}, nil
+}
+func (m *mockChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	if m.timestampToBlockNumberOverride != nil {
+		return m.timestampToBlockNumberOverride(ctx, ts)
+	}
+	return ts, nil
 }
 func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	m.mu.Lock()
@@ -1434,15 +1494,35 @@ func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64,
 	m.rewindEngineCalls = append(m.rewindEngineCalls, timestamp)
 	return m.rewindEngineErr
 }
-func (m *mockChainContainer) BlockTime() uint64 { return 1 }
-func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64) (bool, error) {
+func (m *mockChainContainer) BlockTime() uint64 {
+	if m.blockTimeOverride > 0 {
+		return m.blockTimeOverride
+	}
+	return 1
+}
+func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	m.mu.Lock()
-	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{height: height, payloadHash: payloadHash})
+	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{
+		height: height, payloadHash: payloadHash, stateRoot: stateRoot, messagePasserStorageRoot: messagePasserStorageRoot,
+	})
 	m.mu.Unlock()
 	if m.callLog != nil {
 		m.callLog.record(m.id, "InvalidateBlock")
 	}
 	return m.invalidateBlockRet, m.invalidateBlockErr
+}
+func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if m.outputV0Override != nil {
+		return m.outputV0Override(ctx, l2BlockNum)
+	}
+	return &eth.OutputV0{
+		StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+		BlockHash:                common.BigToHash(new(big.Int).SetUint64(l2BlockNum)),
+	}, nil
+}
+func (m *mockChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
 }
 func (m *mockChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	if m.pruneDeniedResult != nil {
@@ -1484,8 +1564,8 @@ func TestWAL_PreservedOnInvalidationFailure(t *testing.T) {
 		L2Heads: map[eth.ChainID]eth.BlockID{
 			mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
 		},
-		InvalidHeads: map[eth.ChainID]eth.BlockID{
-			mock.id: {Number: 500, Hash: common.HexToHash("0xBAD")},
+		InvalidHeads: map[eth.ChainID]InvalidHead{
+			mock.id: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
 		},
 	}
 
@@ -1533,8 +1613,8 @@ func TestPendingTransition_RecoverInvalidatePreservedOnFailure(t *testing.T) {
 		Result: &Result{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xL1"), Number: 100},
-			InvalidHeads: map[eth.ChainID]eth.BlockID{
-				mock.id: {Hash: common.HexToHash("0xBAD"), Number: 500},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				mock.id: {BlockID: eth.BlockID{Hash: common.HexToHash("0xBAD"), Number: 500}},
 			},
 		},
 	}
@@ -2107,8 +2187,8 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
 				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
 			},
-			InvalidHeads: map[eth.ChainID]eth.BlockID{
-				chain10: {Number: 500, Hash: common.HexToHash("0xBAD")},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
 			},
 		}
 
@@ -2178,9 +2258,9 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
 				chain42:   {Number: 700, Hash: common.HexToHash("0xL2-42")},
 			},
-			InvalidHeads: map[eth.ChainID]eth.BlockID{
-				chain10:   {Number: 500, Hash: common.HexToHash("0xBAD10")},
-				chain8453: {Number: 600, Hash: common.HexToHash("0xBAD8453")},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10:   {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD10")}},
+				chain8453: {BlockID: eth.BlockID{Number: 600, Hash: common.HexToHash("0xBAD8453")}},
 			},
 		}
 
@@ -2223,8 +2303,8 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
 				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
 			},
-			InvalidHeads: map[eth.ChainID]eth.BlockID{
-				chain10: {Number: 500, Hash: common.HexToHash("0xBAD")},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
 			},
 		}
 
@@ -2276,8 +2356,8 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			L2Heads: map[eth.ChainID]eth.BlockID{
 				chain10: {Number: 500, Hash: common.HexToHash("0xL2-10")},
 			},
-			InvalidHeads: map[eth.ChainID]eth.BlockID{
-				chain10: {Number: 500, Hash: common.HexToHash("0xBAD")},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
 			},
 		}
 

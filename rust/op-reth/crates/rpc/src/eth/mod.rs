@@ -38,7 +38,7 @@ use reth_rpc_eth_api::{
     RpcNodeCoreExt, RpcTypes,
     helpers::{
         EthApiSpec, EthFees, EthState, LoadFee, LoadPendingBlock, LoadState, SpawnBlocking, Trace,
-        pending_block::BuildPendingEnv,
+        bal::GetBlockAccessList, pending_block::BuildPendingEnv,
     },
 };
 use reth_rpc_eth_types::{
@@ -46,7 +46,7 @@ use reth_rpc_eth_types::{
 };
 use reth_storage_api::ProviderHeader;
 use reth_tasks::{
-    TaskSpawner,
+    Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
 };
 use std::{
@@ -304,7 +304,7 @@ where
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     #[inline]
-    fn io_task_spawner(&self) -> impl TaskSpawner {
+    fn io_task_spawner(&self) -> &Runtime {
         self.inner.eth_api.task_spawner()
     }
 
@@ -386,6 +386,14 @@ where
 {
 }
 
+impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
+where
+    N: RpcNodeCore,
+    OpEthApiError: FromEvmError<N::Evm>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
+{
+}
+
 impl<N: RpcNodeCore, Rpc: RpcConvert> fmt::Debug for OpEthApi<N, Rpc> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OpEthApi").finish_non_exhaustive()
@@ -434,6 +442,9 @@ pub type OpRpcConvert<N, NetworkT> = RpcConverter<
     OpReceiptConverter<<N as FullNodeTypes>::Provider>,
     (),
     OpTxInfoMapper<<N as FullNodeTypes>::Provider>,
+    (),
+    (),
+    reth_optimism_evm::tx::OpTxEnvConverter,
 >;
 
 /// Builds [`OpEthApi`] for Optimism.
@@ -554,7 +565,8 @@ where
         } = self;
         let rpc_converter =
             RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
-                .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()));
+                .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
+                .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(

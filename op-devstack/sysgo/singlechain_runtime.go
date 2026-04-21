@@ -348,6 +348,7 @@ func startMinimalChallenger(
 		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
+		t.Ctx(),
 		t.TempDir(),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,
@@ -399,11 +400,16 @@ func applyMinimalGameTypeOptions(
 	}
 	l1ChainID := l1Net.ChainID()
 
+	// Filter out permissioned game type — it's always included by the V2 upgrade.
+	var filteredGameTypes []gameTypes.GameType
 	for _, gameType := range addedGameTypes {
 		if gameType == gameTypes.PermissionedGameType {
 			continue
 		}
-		addGameTypeForRuntime(t, keys, PrestateForGameType(t, gameType), gameType, l1ChainID, l1EL.UserRPC(), l2Net)
+		filteredGameTypes = append(filteredGameTypes, gameType)
+	}
+	if len(filteredGameTypes) > 0 {
+		addGameTypesForRuntime(t, keys, filteredGameTypes, l1ChainID, l1EL.UserRPC(), l2Net)
 	}
 	for _, gameType := range respectedGameTypes {
 		setRespectedGameTypeForRuntime(t, keys, gameType, l1ChainID, l1EL.UserRPC(), l2Net)

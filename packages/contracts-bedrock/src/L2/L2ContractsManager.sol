@@ -10,8 +10,6 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
@@ -35,8 +33,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -101,9 +99,6 @@ contract L2ContractsManager is ISemver {
     address internal immutable NATIVE_ASSET_LIQUIDITY_IMPL;
     /// @notice LiquidityController implementation.
     address internal immutable LIQUIDITY_CONTROLLER_IMPL;
-    // TODO(#19600): Remove FEE_SPLITTER_IMPL as part of revenue sharing deprecation.
-    /// @notice FeeSplitter implementation.
-    address internal immutable FEE_SPLITTER_IMPL;
     /// @notice CONDITIONAL_DEPLOYER implementation.
     address internal immutable CONDITIONAL_DEPLOYER_IMPL;
     /// @notice L2DevFeatureFlags implementation.
@@ -142,8 +137,6 @@ contract L2ContractsManager is ISemver {
         ETH_LIQUIDITY_IMPL = _implementations.ethLiquidityImpl;
         NATIVE_ASSET_LIQUIDITY_IMPL = _implementations.nativeAssetLiquidityImpl;
         LIQUIDITY_CONTROLLER_IMPL = _implementations.liquidityControllerImpl;
-        // TODO(#19600): Remove FEE_SPLITTER_IMPL as part of revenue sharing deprecation.
-        FEE_SPLITTER_IMPL = _implementations.feeSplitterImpl;
         CONDITIONAL_DEPLOYER_IMPL = _implementations.conditionalDeployerImpl;
         L2_DEV_FEATURE_FLAGS_IMPL = _implementations.l2DevFeatureFlagsImpl;
     }
@@ -237,24 +230,6 @@ contract L2ContractsManager is ISemver {
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
         }
-
-        // TODO(#19600): Remove FeeSplitter loading config as part of revenue sharing deprecation.
-        // FeeSplitter
-        ISharesCalculator sharesCalculator;
-
-        // FeeSplitter may not be deployed at the predeploy address, since fee vaults on
-        // earlier contract versions only support L1 withdrawals. We initialize with sharesCalculator as address(0)
-        // to preserve this behavior.
-        // eip150-safe
-        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
-            ISharesCalculator sharesCalculator_
-        ) {
-            sharesCalculator = sharesCalculator_;
-        } catch {
-            sharesCalculator = ISharesCalculator(address(0));
-        }
-
-        fullConfig_.feeSplitter = L2ContractsManagerTypes.FeeSplitterConfig({ sharesCalculator: sharesCalculator });
     }
 
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
@@ -333,24 +308,8 @@ contract L2ContractsManager is ISemver {
                 INITIALIZABLE_SLOT_OZ_V4,
                 0
             );
-
-            // NativeAssetLiquidity
-            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
         }
 
-        // TODO(#19600): Remove FeeSplitter upgrade as part of revenue sharing deprecation.
-        // FeeSplitter
-        L2ContractsManagerUtils.upgradeToAndCall(
-            Predeploys.FEE_SPLITTER,
-            FEE_SPLITTER_IMPL,
-            STORAGE_SETTER_IMPL,
-            abi.encodeCall(IFeeSplitter.initialize, (ISharesCalculator(_config.feeSplitter.sharesCalculator))),
-            INITIALIZABLE_SLOT_OZ_V4,
-            0
-        );
-
-        // TODO(#19600): Remove withdrawalNetwork arg from fee vault initializers as part of revenue sharing
-        // deprecation.
         // SequencerFeeVault
         L2ContractsManagerUtils.upgradeToAndCall(
             Predeploys.SEQUENCER_FEE_WALLET,
@@ -442,6 +401,9 @@ contract L2ContractsManager is ISemver {
         );
         L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
         L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
+        if (_config.isCustomGasToken) {
+            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
+        }
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         if (_config.isInterop) {
@@ -500,7 +462,6 @@ contract L2ContractsManager is ISemver {
         implementations_.ethLiquidityImpl = ETH_LIQUIDITY_IMPL;
         implementations_.nativeAssetLiquidityImpl = NATIVE_ASSET_LIQUIDITY_IMPL;
         implementations_.liquidityControllerImpl = LIQUIDITY_CONTROLLER_IMPL;
-        implementations_.feeSplitterImpl = FEE_SPLITTER_IMPL;
         implementations_.conditionalDeployerImpl = CONDITIONAL_DEPLOYER_IMPL;
         implementations_.l2DevFeatureFlagsImpl = L2_DEV_FEATURE_FLAGS_IMPL;
     }

@@ -83,17 +83,11 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-		OpcmImpl:                         dio.Opcm,
-		OpcmGameTypeAdderImpl:            dio.OpcmGameTypeAdder,
-		OpcmDeployerImpl:                 dio.OpcmDeployer,
-		OpcmUpgraderImpl:                 dio.OpcmUpgrader,
-		OpcmInteropMigratorImpl:          dio.OpcmInteropMigrator,
 		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
 		OpcmV2Impl:                       dio.OpcmV2,
 		OpcmContainerImpl:                dio.OpcmContainer,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
 		OptimismPortalImpl:               dio.OptimismPortalImpl,
-		OptimismPortalInteropImpl:        dio.OptimismPortalInteropImpl,
 		EthLockboxImpl:                   dio.ETHLockboxImpl,
 		PreimageOracleImpl:               dio.PreimageOracleSingleton,
 		MipsImpl:                         dio.MipsSingleton,

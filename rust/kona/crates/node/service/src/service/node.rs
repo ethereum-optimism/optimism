@@ -6,8 +6,7 @@ use crate::{
     NetworkActor, NetworkBuilder, NetworkConfig, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RollupBoostAdminApiClient, RollupBoostHealthRpcClient, RpcActor, RpcContext, SequencerActor,
-    SequencerConfig,
+    RpcActor, RpcContext, SequencerActor, SequencerConfig,
     actors::{BlockStream, NetworkInboundData, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
@@ -15,6 +14,7 @@ use alloy_provider::RootProvider;
 use kona_derive::StatefulAttributesBuilder;
 use kona_engine::{Engine, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_protocol::L2BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
@@ -67,6 +67,10 @@ pub struct RollupNode {
     pub(crate) sequencer_config: SequencerConfig,
     /// Optional derivation delegate provider.
     pub(crate) derivation_delegate_provider: Option<DerivationDelegateClient>,
+    /// The interop dependency set for this chain.
+    /// Mirrors op-node's `--interop.dependency-set`.
+    /// [`StatefulAttributesBuilder`] constructor panics otherwise.
+    pub(crate) dependency_set: Option<Arc<DependencySet>>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -142,6 +146,7 @@ impl RollupNode {
             self.l1_config.chain_config.clone(),
             l2_derivation_provider,
             l1_derivation_provider,
+            self.dependency_set.clone(),
         )
     }
 
@@ -166,6 +171,7 @@ impl RollupNode {
                 OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
                 l1_derivation_provider,
                 l2_derivation_provider,
+                self.dependency_set.clone(),
             ),
             InteropMode::Indexed => OnlinePipeline::new_indexed(
                 self.config.clone(),
@@ -173,6 +179,7 @@ impl RollupNode {
                 OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
                 l1_derivation_provider,
                 l2_derivation_provider,
+                self.dependency_set.clone(),
             ),
         }
     }
@@ -203,10 +210,7 @@ impl RollupNode {
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
 
-        let engine_client = Arc::new(self.engine_config().build_engine_client().map_err(|e| {
-            error!(target: "service", error = ?e, "engine client build failed");
-            format!("Engine client build failed: {e:?}")
-        })?);
+        let engine_client = Arc::new(self.engine_config().build_engine_client());
 
         let engine_processor = EngineProcessor::new(
             engine_client.clone(),
@@ -217,8 +221,7 @@ impl RollupNode {
         );
 
         let engine_rpc_processor = EngineRpcProcessor::new(
-            engine_client.clone(),
-            engine_client.rollup_boost.clone(),
+            engine_client,
             self.config.clone(),
             engine_state_rx,
             engine_queue_length_rx,
@@ -391,12 +394,6 @@ impl RollupNode {
             RpcActor::new(
                 b,
                 QueuedEngineRpcClient::new(engine_actor_request_tx.clone()),
-                RollupBoostAdminApiClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
-                RollupBoostHealthRpcClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
                 sequencer_admin_client,
             )
         });

@@ -42,7 +42,7 @@ impl Batch {
         }
 
         // Read the batch type
-        let batch_type = BatchType::from(r[0]);
+        let batch_type = BatchType::try_from(r[0]).map_err(BatchDecodingError::UnknownBatchType)?;
         r.advance(1);
 
         match batch_type {
@@ -129,6 +129,13 @@ mod tests {
             txs: SpanBatchTransactions::default(),
             ..Default::default()
         }), decoded);
+    }
+
+    #[test]
+    fn test_unknown_batch_type_returns_error() {
+        let data = [0xFF, 0x00]; // unknown batch type 0xFF followed by dummy data
+        let result = Batch::decode(&mut data.as_slice(), &RollupConfig::default());
+        assert_eq!(result, Err(BatchDecodingError::UnknownBatchType(0xFF)));
     }
 
     #[test]

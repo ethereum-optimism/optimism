@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 # reth
+reth-codecs.workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
@@ -80,13 +81,11 @@ serial_test.workspace = true
 
 [features]
 serde-bincode-compat = [
-	"reth-primitives-traits/serde-bincode-compat",
 	"reth-trie-common/serde-bincode-compat",
 	"alloy-consensus/serde-bincode-compat",
 	"alloy-eips/serde-bincode-compat",
 	"reth-trie/serde-bincode-compat",
 	"dep:reth-ethereum-primitives",
-	"reth-ethereum-primitives?/serde-bincode-compat",
 	"reth-ethereum-primitives?/serde",
 ]
 metrics = [

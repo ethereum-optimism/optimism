@@ -3,7 +3,9 @@
 use alloy_eips::BlockId;
 use derive_more::Constructor;
 use jsonrpsee_types::error::ErrorObject;
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, provider::OpProofsStateProviderRef};
+use reth_optimism_trie::{
+    OpProofsStorage, OpProofsStore, api::OpProofsProviderRO, provider::OpProofsStateProviderRef,
+};
 use reth_provider::{BlockIdReader, ProviderError, ProviderResult, StateProvider};
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
@@ -38,13 +40,11 @@ where
         let historical_provider =
             self.eth_api.state_at_block_id(block_id).await.map_err(ProviderError::other)?;
 
+        let provider_ro = self.preimage_store.provider_ro().map_err(ProviderError::from)?;
+
         let (Some((latest_block_number, _)), Some((earliest_block_number, _))) = (
-            self.preimage_store
-                .get_latest_block_number()
-                .map_err(|e| ProviderError::Database(e.into()))?,
-            self.preimage_store
-                .get_earliest_block_number()
-                .map_err(|e| ProviderError::Database(e.into()))?,
+            provider_ro.get_latest_block_number().map_err(ProviderError::from)?,
+            provider_ro.get_earliest_block_number().map_err(ProviderError::from)?,
         ) else {
             // if no earliest block, db is empty, return error
             return Err(ProviderError::StateForNumberNotFound(block_number));
@@ -55,7 +55,7 @@ where
         }
 
         let external_overlay_provider =
-            OpProofsStateProviderRef::new(historical_provider, &self.preimage_store, block_number);
+            OpProofsStateProviderRef::new(historical_provider, provider_ro, block_number);
 
         Ok(Box::new(external_overlay_provider))
     }

@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
@@ -30,7 +30,7 @@ import (
 
 func withSuperProofsDeployerFeature(cfg PresetConfig) PresetConfig {
 	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(deployer.OptimismPortalInteropDevFlag),
+		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}, cfg.DeployerOptions...)
 	return cfg
 }
@@ -289,6 +289,7 @@ func startInteropChallenger(
 		)
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
+		t.Ctx(),
 		t.TempDir(),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,

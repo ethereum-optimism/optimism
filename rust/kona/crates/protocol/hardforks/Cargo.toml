@@ -27,8 +27,8 @@ op-alloy-consensus.workspace = true
 
 [dev-dependencies]
 alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
-revm = { version = "34.0.0", default-features = false }
-op-revm = { version = "15.0.0", default-features = false }
+revm.workspace = true
+op-revm.workspace = true
 
 [features]
 default = []

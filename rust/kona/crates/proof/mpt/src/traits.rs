@@ -41,12 +41,12 @@ pub trait TrieHinter {
     ///
     /// ## Takes
     /// - `address` - The address of the contract whose trie node preimages are to be fetched.
-    /// - `block_number` - The block number at which the trie node preimages are to be fetched.
+    /// - `block_hash` - The block hash at which the trie node preimages are to be fetched.
     ///
     /// ## Returns
     /// - Ok(()): If the hint was successful.
     /// - `Err(Self::Error)`: If the hint was unsuccessful.
-    fn hint_account_proof(&self, address: Address, block_number: u64) -> Result<(), Self::Error>;
+    fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the trie node preimages on the path to the storage slot within the
     /// given account's storage trie.
@@ -54,7 +54,7 @@ pub trait TrieHinter {
     /// ## Takes
     /// - `address` - The address of the contract whose trie node preimages are to be fetched.
     /// - `slot` - The storage slot whose trie node preimages are to be fetched.
-    /// - `block_number` - The block number at which the trie node preimages are to be fetched.
+    /// - `block_hash` - The block hash at which the trie node preimages are to be fetched.
     ///
     /// ## Returns
     /// - Ok(()): If the hint was successful.
@@ -63,7 +63,7 @@ pub trait TrieHinter {
         &self,
         address: Address,
         slot: U256,
-        block_number: u64,
+        block_hash: B256,
     ) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the execution witness for the [`OpPayloadAttributes`] applied on top

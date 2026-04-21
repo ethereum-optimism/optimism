@@ -10,12 +10,6 @@ type L1Deployment struct {
 }
 
 type Implementations struct {
-	Opcm                             common.Address `json:"OPCM"`
-	OpcmContractsContainer           common.Address `json:"OPCMContractsContainer"`
-	OpcmGameTypeAdder                common.Address `json:"OPCMGameTypeAdder"`
-	OpcmDeployer                     common.Address `json:"OPCMDeployer"`
-	OpcmUpgrader                     common.Address `json:"OPCMUpgrader"`
-	OpcmInteropMigrator              common.Address `json:"OPCMInteropMigrator"`
 	OpcmStandardValidator            common.Address `json:"OPCMStandardValidator"`
 	OpcmUtils                        common.Address `json:"OPCMUtils"`
 	OpcmMigrator                     common.Address `json:"OPCMMigrator"`
@@ -23,7 +17,6 @@ type Implementations struct {
 	OpcmContainer                    common.Address `json:"OPCMContainer"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
-	OptimismPortalInteropImpl        common.Address `json:"OptimismPortalInteropImpl"`
 	ETHLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`
 	MipsSingleton                    common.Address `json:"MipsSingleton"`
@@ -40,6 +33,7 @@ type Implementations struct {
 	PermissionedDisputeGameImpl      common.Address `json:"PermissionedDisputeGameImpl"`
 	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
+	ZkDisputeGameImpl                common.Address `json:"ZkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
 }
 

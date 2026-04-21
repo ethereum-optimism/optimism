@@ -102,27 +102,11 @@ library Predeploys {
     /// @notice Address of the ETHLiquidity predeploy.
     address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
 
-    /// @notice Address of the OptimismSuperchainERC20Factory predeploy.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20_FACTORY = 0x4200000000000000000000000000000000000026;
-
-    /// @notice Address of the OptimismSuperchainERC20Beacon predeploy.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20_BEACON = 0x4200000000000000000000000000000000000027;
-
-    // TODO: Precalculate the address of the implementation contract
-    /// @notice Arbitrary address of the OptimismSuperchainERC20 implementation contract.
-    address internal constant OPTIMISM_SUPERCHAIN_ERC20 = 0xB9415c6cA93bdC545D4c5177512FCC22EFa38F28;
-
-    /// @notice Address of the SuperchainTokenBridge predeploy.
-    address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
-
     /// @notice Address of the NativeAssetLiquidity predeploy.
     address internal constant NATIVE_ASSET_LIQUIDITY = 0x4200000000000000000000000000000000000029;
 
     /// @notice Address of the LiquidityController predeploy.
     address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
-
-    /// @notice Address of the FeeSplitter predeploy.
-    address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
 
     /// @notice Address of the ConditionalDeployer predeploy.
     address internal constant CONDITIONAL_DEPLOYER = 0x420000000000000000000000000000000000002C;
@@ -217,7 +201,7 @@ library Predeploys {
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
     ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
-        records_ = new PredeployRecord[](31);
+        records_ = new PredeployRecord[](30);
 
         // ── Core predeploys ────────────────────────────────────────────────────────────────
         // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
@@ -445,25 +429,12 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
-        records_[17] = PredeployRecord({
-            proxy: FEE_SPLITTER,
-            name: "FeeSplitter",
-            artifactPath: "FeeSplitter.sol:FeeSplitter",
-            deployGasLimit: 1_700_000,
-            devFeatureGate: bytes32(0),
-            isCustomGasToken: false,
-            isInterop: false,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
 
         // ── Interop predeploys ─────────────────────────────────────────────────────────────
         // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
         // feature. Both gates mirror the full condition checked in L2Genesis.
         // Gas profiling: 385,975 gas used → 578,962 recommended → 600K with safety margin
-        records_[18] = PredeployRecord({
+        records_[17] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
             name: "CrossL2Inbox",
             artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
@@ -476,7 +447,7 @@ library Predeploys {
             isVariant: false
         });
         // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
-        records_[19] = PredeployRecord({
+        records_[18] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             name: "L2ToL2CrossDomainMessenger",
             artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
@@ -489,7 +460,7 @@ library Predeploys {
             isVariant: false
         });
         // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
-        records_[20] = PredeployRecord({
+        records_[19] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
             name: "SuperchainETHBridge",
             artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
@@ -502,7 +473,7 @@ library Predeploys {
             isVariant: false
         });
         // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
-        records_[21] = PredeployRecord({
+        records_[20] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
             name: "ETHLiquidity",
             artifactPath: "ETHLiquidity.sol:ETHLiquidity",
@@ -517,7 +488,7 @@ library Predeploys {
 
         // ── CGT predeploys ─────────────────────────────────────────────────────────────────
         // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
-        records_[22] = PredeployRecord({
+        records_[21] = PredeployRecord({
             proxy: NATIVE_ASSET_LIQUIDITY,
             name: "NativeAssetLiquidity",
             artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
@@ -530,7 +501,7 @@ library Predeploys {
             isVariant: false
         });
         // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
-        records_[23] = PredeployRecord({
+        records_[22] = PredeployRecord({
             proxy: LIQUIDITY_CONTROLLER,
             name: "LiquidityController",
             artifactPath: "LiquidityController.sol:LiquidityController",
@@ -545,7 +516,7 @@ library Predeploys {
 
         // ── L2CM predeploys ────────────────────────────────────────────────────────────────
         // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
-        records_[24] = PredeployRecord({
+        records_[23] = PredeployRecord({
             proxy: CONDITIONAL_DEPLOYER,
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
@@ -558,7 +529,7 @@ library Predeploys {
             isVariant: false
         });
         // Gas profiling: 167,063 gas used → 250,594 recommended → 260K with safety margin
-        records_[25] = PredeployRecord({
+        records_[24] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
@@ -574,7 +545,7 @@ library Predeploys {
         // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
         // These are etched directly (no Proxy wrapper, no implementation slot).
         // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
-        records_[26] = PredeployRecord({
+        records_[25] = PredeployRecord({
             proxy: WETH,
             name: "WETH",
             artifactPath: "WETH.sol:WETH",
@@ -586,7 +557,7 @@ library Predeploys {
             isDeprecated: false,
             isVariant: false
         });
-        records_[27] = PredeployRecord({
+        records_[26] = PredeployRecord({
             proxy: GOVERNANCE_TOKEN,
             name: "GovernanceToken",
             artifactPath: "GovernanceToken.sol:GovernanceToken",
@@ -602,7 +573,7 @@ library Predeploys {
         // ── Deprecated predeploys ──────────────────────────────────────────────────────────
         // Present on-chain for backwards compatibility but excluded from proxy setup loops,
         // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
-        records_[28] = PredeployRecord({
+        records_[27] = PredeployRecord({
             proxy: LEGACY_MESSAGE_PASSER,
             name: "LegacyMessagePasser",
             artifactPath: "LegacyMessagePasser.sol:LegacyMessagePasser",
@@ -614,7 +585,7 @@ library Predeploys {
             isDeprecated: true,
             isVariant: false
         });
-        records_[29] = PredeployRecord({
+        records_[28] = PredeployRecord({
             proxy: DEPLOYER_WHITELIST,
             name: "DeployerWhitelist",
             artifactPath: "DeployerWhitelist.sol:DeployerWhitelist",
@@ -626,7 +597,7 @@ library Predeploys {
             isDeprecated: true,
             isVariant: false
         });
-        records_[30] = PredeployRecord({
+        records_[29] = PredeployRecord({
             proxy: L1_BLOCK_NUMBER,
             name: "L1BlockNumber",
             artifactPath: "L1BlockNumber.sol:L1BlockNumber",

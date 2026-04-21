@@ -139,6 +139,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
+        // Single-chain fault proof: no interop dependency set. If this chain
+        // ever schedules interop, the StatefulAttributesBuilder constructor
+        // will panic.
+        None,
     )
     .await?;
 

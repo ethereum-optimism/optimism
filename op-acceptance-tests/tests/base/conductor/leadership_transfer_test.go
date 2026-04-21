@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,12 @@ type conductorWithInfo struct {
 // TestConductorLeadershipTransfer checks if the leadership transfer works correctly on the conductors
 func TestConductorLeadershipTransfer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	// --- FAIL: TestConductorLeadershipTransfer (63.04s)
+	// panic: interface conversion: sysgo.L2CLNode is *sysgo.KonaNode, not *sysgo.OpNode [recovered]
+	//    panic: interface conversion: sysgo.L2CLNode is *sysgo.KonaNode, not *sysgo.OpNode
+	sysgo.SkipOnKonaNode(t, "not supported")
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
 
 	sys := presets.NewMinimalWithConductors(t)

@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 // Utilities
 import { Vm } from "forge-std/Vm.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 /// @title NetworkUpgradeTxns
 /// @notice Standard library for generating Network Upgrade Transaction (NUT) artifacts.
@@ -12,6 +13,9 @@ library NetworkUpgradeTxns {
     using stdJson for string;
 
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    /// @notice The only bundle schema version this library accepts when reading artifacts.
+    string internal constant BUNDLE_VERSION = "1.0.0";
 
     /// @notice Metadata for the Network Upgrade Transaction bundle.
     /// @param version Bundle format version for compatibility tracking.
@@ -98,6 +102,13 @@ library NetworkUpgradeTxns {
     /// @return txns_ The array of upgrade transactions.
     function readArtifact(string memory _inputPath) internal view returns (NetworkUpgradeTxn[] memory txns_) {
         string memory json = vm.readFile(_inputPath);
+        // Verify the bundle version before decoding to catch schema mismatches early.
+        bytes memory versionBytes = vm.parseJson(json, ".metadata.version");
+        string memory version = abi.decode(versionBytes, (string));
+        require(
+            LibString.eq(version, BUNDLE_VERSION),
+            string.concat("NetworkUpgradeTxns: unsupported bundle version: ", version)
+        );
         // Parse the transactions array from the bundle structure
         bytes memory parsedData = vm.parseJson(json, ".transactions");
         txns_ = abi.decode(parsedData, (NetworkUpgradeTxns.NetworkUpgradeTxn[]));

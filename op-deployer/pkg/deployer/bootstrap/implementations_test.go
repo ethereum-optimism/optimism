@@ -97,9 +97,9 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 	// Assert that addresses stay the same between runs
 	t.Log("Deploying first implementation contracts bundle")
 	deployment1 := deploy()
-	require.NotEqual(t, common.Address{}, deployment1.Opcm, "Opcm address should be set")
+	require.NotEqual(t, common.Address{}, deployment1.OpcmV2, "OpcmV2 address should be set")
 	t.Log("Deploying second implementation contracts bundle")
 	deployment2 := deploy()
-	require.NotEqual(t, common.Address{}, deployment2.Opcm, "Opcm address should be set")
+	require.NotEqual(t, common.Address{}, deployment2.OpcmV2, "OpcmV2 address should be set")
 	require.Equal(t, deployment1, deployment2)
 }

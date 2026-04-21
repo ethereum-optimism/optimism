@@ -66,7 +66,11 @@ func (n *OpNode) Start() {
 	}
 	n.logger.Info("Starting op-node")
 	opNode, err := opnode.NewOpnode(n.logger, n.cfg, n.clock, func(err error) {
-		n.p.Require().NoError(err, "op-node critical error")
+		// Use Errorf (non-fatal) instead of Require().NoError (fatal) because this
+		// callback is invoked from the event-processing goroutine, not the test
+		// goroutine. Require/FailNow calls runtime.Goexit() which would only exit
+		// the event goroutine, not the test, leaving the test to hang until timeout.
+		n.p.Errorf("op-node critical error: %v", err)
 	})
 	n.p.Require().NoError(err, "op-node failed to start")
 	n.logger.Info("Started op-node")

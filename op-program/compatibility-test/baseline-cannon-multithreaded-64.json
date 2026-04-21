@@ -163,6 +163,167 @@
   },
   {
     "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "06ae1d22c0f1c73614b534e885f5b4db6075d279f6dffe775df78c23cf5e0eb8"
+  },
+  {
+    "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                  "callStack": {
+                                    "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                    "callStack": {
+                                                      "function": "main.main"
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "0996b58ff9dbdf45b77daa8f6146209bf63638e958dc8ee72a9b4da5f92763bd"
+  },
+  {
+    "callStack": {
       "function": "syscall.Getdents",
       "callStack": {
         "function": "internal/poll.(*FD).ReadDirent",
@@ -443,6 +604,91 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "0f56d4e8e81f5e0c3269a52f5765470380a9dc5219a365b5557faa140abe826c"
+  },
+  {
+    "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "0fa8a9246a03516588d4a1760b9cb6120c0fc83f032a8ac57d67beb819c43a54"
   },
   {
     "callStack": {
@@ -1063,6 +1309,85 @@
   },
   {
     "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "2b22c1446e342415958c2a2d3fe3fee1e2a2d79c22512331600e50b0fa16cb5b"
+  },
+  {
+    "callStack": {
       "function": "syscall.lstat",
       "callStack": {
         "function": "syscall.Lstat",
@@ -1456,6 +1781,82 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "38cd7836fbadcf343f4d284aa10b7dc8a1eec575e9418b2693cc06699d24f1db"
+  },
+  {
+    "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                "callStack": {
+                                                  "function": "main.main"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "3b5c34daa2681b5a44c61c53e3712bf443f75a565e3f474807eacc066ee3f5e6"
   },
   {
     "callStack": {
@@ -2429,6 +2830,76 @@
   },
   {
     "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                            "callStack": {
+                                              "function": "main.main"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "61f3423bb7162c0f7dfcf8406644452ff6f0e95195a4a581dce0891b29c52d00"
+  },
+  {
+    "callStack": {
       "function": "syscall.getsockname",
       "callStack": {
         "function": "syscall.Getsockname",
@@ -2958,76 +3429,6 @@
           "callStack": {
             "function": "os.Lstat",
             "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.cleanup",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                        "callStack": {
-                          "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                          "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                            "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                              "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                            "callStack": {
-                                              "function": "main.main"
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "6d5047b0af006821b7cc913288761108f536df9958ba8b5ad350a765cec6c6f3"
-  },
-  {
-    "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
               "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
               "callStack": {
                 "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
@@ -3081,76 +3482,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "6d87b8772a23ccd1f6646911bfd16f29f4da1c80302c3d122b82d186d4ba3d32"
-  },
-  {
-    "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.cleanup",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                        "callStack": {
-                          "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                          "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                            "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                              "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                            "callStack": {
-                                              "function": "main.main"
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "6dd853e3a5b17ed9b4b5dd2ee09ae51b202df9f3bd1b878aab86b7b5142345ba"
   },
   {
     "callStack": {
@@ -3209,73 +3540,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "6df1d7fe5b04c477158fbb622ffb2e20d12cde4a5d5e575ee66cf4aea5fa5941"
-  },
-  {
-    "callStack": {
-      "function": "syscall.Renameat",
-      "callStack": {
-        "function": "os.rename",
-        "callStack": {
-          "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
-          "callStack": {
-            "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
-            "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                          "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                            "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                              "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                          "callStack": {
-                                            "function": "main.main"
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5254",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "7264bfa70c46f9429fae6fcfabbb33969282137e01a60e0e616fe1c705fe7c2e"
   },
   {
     "callStack": {
@@ -3553,6 +3817,79 @@
   },
   {
     "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                              "callStack": {
+                                                "function": "main.main"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "78716f755caf94c6c96b11050154bc60dcb4ce95940f4c9fc707b81a134478b7"
+  },
+  {
+    "callStack": {
       "function": "syscall.lstat",
       "callStack": {
         "function": "syscall.Lstat",
@@ -3561,35 +3898,59 @@
           "callStack": {
             "function": "os.Lstat",
             "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.cleanup",
+              "function": "os.rename",
               "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
                 "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
                   "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
                     "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
                       "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
                         "callStack": {
-                          "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
                           "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
                             "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                              "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
                               "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
                                 "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
                                   "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                    "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
                                     "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
                                       "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
                                         "callStack": {
-                                          "function": "main.main"
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                      "callStack": {
+                                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                        "callStack": {
+                                                          "function": "main.main"
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
                                         }
                                       }
                                     }
@@ -3613,7 +3974,7 @@
     "severity": "CRITICAL",
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "7b89a7bb52f9d3eed3ae13645aaa749b11ce906c25ed416cfcc53df7bee9a636"
+    "hash": "7b57d9f36615c7f04a543ef1907e0a7737d9ed8aea1b74744d5c1ec8750e3cad"
   },
   {
     "callStack": {
@@ -3791,6 +4152,85 @@
   },
   {
     "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "8412c11a24a875e9d52d1633ecf24a20bca0cbff3fe5bb14fd631f9202706125"
+  },
+  {
+    "callStack": {
       "function": "syscall.Mkdirat",
       "callStack": {
         "function": "os.MkdirAll",
@@ -3925,97 +4365,33 @@
   },
   {
     "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.cleanup",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                        "callStack": {
-                          "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                          "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                            "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                              "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                        "callStack": {
-                                          "function": "main.main"
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "8a7a2d8f73ec3aa3965a28c463f58beee81aca199ade15ae318b01f9cb26d6ca"
-  },
-  {
-    "callStack": {
       "function": "syscall.Renameat",
       "callStack": {
         "function": "os.rename",
         "callStack": {
-          "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
           "callStack": {
-            "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
             "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
               "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
                 "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
                   "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
                     "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
                       "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
                         "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
                           "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
                             "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                              "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
                               "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
                                 "callStack": {
                                   "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
                                   "callStack": {
@@ -4058,7 +4434,7 @@
     "severity": "CRITICAL",
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "8f8d0e96f43d447cb45e3b02240ad9c72b8550eb34338f645fc7fd5cd72c5d80"
+    "hash": "8a0fe9cd4a47c59d80a971cbc9364081ef57e2b82cbf395596dbe6275fc6ff6f"
   },
   {
     "callStack": {
@@ -5709,6 +6085,94 @@
   },
   {
     "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                  "callStack": {
+                                    "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                      "callStack": {
+                                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                        "callStack": {
+                                                          "function": "main.main"
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "c426099923bba4df822f5f375db183685b2c1b9e64ebb329721153c1b16ba727"
+  },
+  {
+    "callStack": {
       "function": "internal/syscall/unix.Unlinkat",
       "callStack": {
         "function": "os.removeAllFrom",
@@ -5780,41 +6244,53 @@
       "callStack": {
         "function": "os.rename",
         "callStack": {
-          "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
           "callStack": {
-            "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
             "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
               "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
                 "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
                   "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
                     "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
                       "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
                         "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
                           "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
                             "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                              "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
                               "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
                                 "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
                                   "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
                                     "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
                                       "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
                                         "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
                                           "callStack": {
-                                            "function": "main.main"
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
                                           }
                                         }
                                       }
@@ -5839,7 +6315,7 @@
     "severity": "CRITICAL",
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "c9b1d2531f91d2624fafd956e704578acfabc1e8dc8397f304cc3c3227d1eaa0"
+    "hash": "c9d98ec1249362ee6592736b088f256e856fdacf8eb8c0fa286c253713b38153"
   },
   {
     "callStack": {
@@ -6184,82 +6660,6 @@
   },
   {
     "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
-              "function": "os.rename",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                "callStack": {
-                                                  "function": "main.main"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "d686f160fce1c757640f7bd3cf27a9bcef6be580d9013eb97c5d90e3894e3353"
-  },
-  {
-    "callStack": {
       "function": "syscall.Getdents",
       "callStack": {
         "function": "internal/poll.(*FD).ReadDirent",
@@ -6327,79 +6727,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "d989a5623edef4b247a30334fc72fc256705ebd0248dfbbcc8f3af968e4e0aa2"
-  },
-  {
-    "callStack": {
-      "function": "syscall.Renameat",
-      "callStack": {
-        "function": "os.rename",
-        "callStack": {
-          "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
-          "callStack": {
-            "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
-            "callStack": {
-              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                          "callStack": {
-                            "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                            "callStack": {
-                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                              "callStack": {
-                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                              "callStack": {
-                                                "function": "main.main"
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5254",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "dc67d1106742a2d594a32323fb1fc0a8a708dc1269d21e8a40d7828efe6a4e11"
   },
   {
     "callStack": {
@@ -6744,6 +7071,88 @@
   },
   {
     "callStack": {
+      "function": "syscall.lstat",
+      "callStack": {
+        "function": "syscall.Lstat",
+        "callStack": {
+          "function": "os.lstatNolog",
+          "callStack": {
+            "function": "os.Lstat",
+            "callStack": {
+              "function": "os.rename",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                  "callStack": {
+                                    "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                    "callStack": {
+                                                      "function": "main.main"
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5006",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "e7cfe92b0bf574605afe59d9486f60bef5fb314999f59f750026a7ffd7bfa915"
+  },
+  {
+    "callStack": {
       "function": "syscall.sendto",
       "callStack": {
         "function": "syscall.Sendto",
@@ -6803,6 +7212,76 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "eb3121306d79c84b8f563cde55139daae0c0c84d01e15d996d229beb70b06ffd"
+  },
+  {
+    "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                            "callStack": {
+                                              "function": "main.main"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "ebac7f7a781278a9fd169f67e2bf60731c703a46985a763c6165d208acdb30df"
   },
   {
     "callStack": {
@@ -6940,6 +7419,82 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "eded605ed37bcf2d0ce4a8b37be3f344c36d4e4ab9aa80e1040de8bdcd498f68"
+  },
+  {
+    "callStack": {
+      "function": "syscall.Renameat",
+      "callStack": {
+        "function": "os.rename",
+        "callStack": {
+          "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
+          "callStack": {
+            "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                "callStack": {
+                                                  "function": "main.main"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential Incompatible Syscall Detected: 5254",
+    "severity": "CRITICAL",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "f0fa68c170ab0df57af3bad8c760d1dba7c80f44fc36e797a6c87a8002876770"
   },
   {
     "callStack": {
@@ -7090,45 +7645,48 @@
             "callStack": {
               "function": "os.rename",
               "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.atomicRename",
                 "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
                   "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
                     "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
                       "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
                         "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
                           "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
                             "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
                               "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
                                 "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
                                   "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
                                     "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
                                       "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
                                         "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
                                           "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
                                             "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
                                               "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
                                                 "callStack": {
-                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
                                                   "callStack": {
-                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
                                                     "callStack": {
-                                                      "function": "main.main"
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
                                                     }
                                                   }
                                                 }
@@ -7158,7 +7716,7 @@
     "severity": "CRITICAL",
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "f3a50db8c83833e7d4c35d7a6478aff93d9cd4c1c3eb1f743f5f1279735f69ae"
+    "hash": "f4bf045e983c5146fa01ea1b023acb1a2ef3c29012b7cc969c966c5c6df0aaa4"
   },
   {
     "callStack": {
@@ -7266,164 +7824,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "f65acfc158aa93245e1a287676efcd7cafc14d65a2d2c2b9da5dc114e016c55c"
-  },
-  {
-    "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
-              "function": "os.rename",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                "callStack": {
-                                                  "function": "main.main"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "fdbf630978d296817cc6c5ef543cefc7b7961bf3fd35b783c96a05d7564e7554"
-  },
-  {
-    "callStack": {
-      "function": "syscall.lstat",
-      "callStack": {
-        "function": "syscall.Lstat",
-        "callStack": {
-          "function": "os.lstatNolog",
-          "callStack": {
-            "function": "os.Lstat",
-            "callStack": {
-              "function": "os.rename",
-              "callStack": {
-                "function": "github.com/ethereum/go-ethereum/core/rawdb.copyFrom",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                                "callStack": {
-                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                                  "callStack": {
-                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                    "callStack": {
-                                                      "function": "main.main"
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential Incompatible Syscall Detected: 5006",
-    "severity": "CRITICAL",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "ff622f26ef2663958e5f8aa8ac981fd832eff1a3dc04fbc9cc0b6030f9d2be67"
   },
   {
     "callStack": {
@@ -7976,6 +8376,91 @@
   },
   {
     "callStack": {
+      "function": "runtime.netpollclose",
+      "callStack": {
+        "function": "internal/poll.runtime_pollClose",
+        "callStack": {
+          "function": "internal/poll.(*FD).destroy",
+          "callStack": {
+            "function": "internal/poll.(*FD).decref",
+            "callStack": {
+              "function": "internal/poll.(*FD).Close",
+              "callStack": {
+                "function": "os.(*file).close",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5208",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "0aa642315864f7a6cea348d9b0223af648aa8c1e145272f76147904e78476bac"
+  },
+  {
+    "callStack": {
       "function": "runtime.rtsigprocmask",
       "callStack": {
         "function": "runtime.schedinit",
@@ -8222,88 +8707,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "0fd0807c39d90eac11f7ba18640a8d84c4ff43e4f0ee5a0a3d241d0c221cdbe6"
-  },
-  {
-    "callStack": {
-      "function": "runtime.netpollclose",
-      "callStack": {
-        "function": "internal/poll.runtime_pollClose",
-        "callStack": {
-          "function": "internal/poll.(*FD).destroy",
-          "callStack": {
-            "function": "internal/poll.(*FD).decref",
-            "callStack": {
-              "function": "internal/poll.(*FD).Close",
-              "callStack": {
-                "function": "os.(*file).close",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).Close",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newTable",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                                "callStack": {
-                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                                  "callStack": {
-                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                    "callStack": {
-                                                      "function": "main.main"
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5208",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "10381145148ea319e3bb3b16d0a8394de1387598cfaa2eafb8540d143859dc9d"
   },
   {
     "callStack": {
@@ -8984,88 +9387,6 @@
   },
   {
     "callStack": {
-      "function": "runtime.netpollclose",
-      "callStack": {
-        "function": "internal/poll.runtime_pollClose",
-        "callStack": {
-          "function": "internal/poll.(*FD).destroy",
-          "callStack": {
-            "function": "internal/poll.(*FD).decref",
-            "callStack": {
-              "function": "internal/poll.(*FD).Close",
-              "callStack": {
-                "function": "os.(*file).close",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).Close",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newTable",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                                "callStack": {
-                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                                  "callStack": {
-                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                    "callStack": {
-                                                      "function": "main.main"
-                                                    }
-                                                  }
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5208",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "1c8054618e5968fa625805588ab6e40d870aaacf30b4d508f5013c32bf6c21ec"
-  },
-  {
-    "callStack": {
       "function": "runtime.netpollinit",
       "callStack": {
         "function": "runtime.netpollGenericInit",
@@ -9412,68 +9733,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "25aa292de24f2ca6b4287b07e22698bbcf7879d563a237abd6100e67c35e74b1"
-  },
-  {
-    "callStack": {
-      "function": "syscall.openat",
-      "callStack": {
-        "function": "os.open",
-        "callStack": {
-          "function": "os.openFileNolog",
-          "callStack": {
-            "function": "os.OpenFile",
-            "callStack": {
-              "function": "github.com/tklauser/numcpus.getConfigured",
-              "callStack": {
-                "function": "github.com/tklauser/go-sysconf.getNprocsConf",
-                "callStack": {
-                  "function": "github.com/tklauser/go-sysconf.sysconf",
-                  "callStack": {
-                    "function": "github.com/shirou/gopsutil/cpu.init.1"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5247",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "25cc5ca17434c74a54e80ce5d474e3147988aaf330ec85bf8917387940beff93"
-  },
-  {
-    "callStack": {
-      "function": "syscall.openat",
-      "callStack": {
-        "function": "os.open",
-        "callStack": {
-          "function": "os.openFileNolog",
-          "callStack": {
-            "function": "os.OpenFile",
-            "callStack": {
-              "function": "github.com/tklauser/go-sysconf.getNprocsProcStat",
-              "callStack": {
-                "function": "github.com/tklauser/go-sysconf.getNprocs",
-                "callStack": {
-                  "function": "github.com/tklauser/go-sysconf.sysconf",
-                  "callStack": {
-                    "function": "github.com/shirou/gopsutil/cpu.init.1"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5247",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "264a9b6bf20decd921bcba30b021003c7e58808a9e6255df08fb2d477d5d7e41"
   },
   {
     "callStack": {
@@ -10496,82 +10755,6 @@
   },
   {
     "callStack": {
-      "function": "runtime.netpollclose",
-      "callStack": {
-        "function": "internal/poll.runtime_pollClose",
-        "callStack": {
-          "function": "internal/poll.(*FD).destroy",
-          "callStack": {
-            "function": "internal/poll.(*FD).decref",
-            "callStack": {
-              "function": "internal/poll.(*FD).Close",
-              "callStack": {
-                "function": "os.(*file).close",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).Close",
-                  "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newTable",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                "callStack": {
-                                                  "function": "main.main"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5208",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "3db51aeb89a6648e72f98a600abe8652c317376f06e37993409d1cc8123a8f3e"
-  },
-  {
-    "callStack": {
       "function": "syscall.Seek",
       "callStack": {
         "function": "internal/poll.(*FD).Seek",
@@ -10828,6 +11011,170 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "4073c2fd1c0a33923b3f4b1133ad274f7e6d9c6fb63934b178deeb43ab91c525"
+  },
+  {
+    "callStack": {
+      "function": "runtime.netpollclose",
+      "callStack": {
+        "function": "internal/poll.runtime_pollClose",
+        "callStack": {
+          "function": "internal/poll.(*FD).destroy",
+          "callStack": {
+            "function": "internal/poll.(*FD).decref",
+            "callStack": {
+              "function": "internal/poll.(*FD).Close",
+              "callStack": {
+                "function": "os.(*file).close",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5208",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "411c4d176eaff3c3b1554710268b4a624c1b39229515fd631d78dcdd447f59b5"
+  },
+  {
+    "callStack": {
+      "function": "syscall.openat",
+      "callStack": {
+        "function": "os.open",
+        "callStack": {
+          "function": "os.openFileNolog",
+          "callStack": {
+            "function": "os.OpenFile",
+            "callStack": {
+              "function": "os.CreateTemp",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5247",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "4411d60f4ac9fe15bdc7f0c0a39f507f1c4b7fd0aa136835f3bfcea28542dd1f"
   },
   {
     "callStack": {
@@ -12143,6 +12490,91 @@
   },
   {
     "callStack": {
+      "function": "syscall.openat",
+      "callStack": {
+        "function": "os.open",
+        "callStack": {
+          "function": "os.openFileNolog",
+          "callStack": {
+            "function": "os.OpenFile",
+            "callStack": {
+              "function": "os.CreateTemp",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5247",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "60037b72581e16f39e1686ca7432c99a9d7d77df96c7ddba2a221b0bccbe0bc1"
+  },
+  {
+    "callStack": {
       "function": "syscall.pread",
       "callStack": {
         "function": "internal/poll.(*FD).Pread",
@@ -13251,6 +13683,85 @@
   },
   {
     "callStack": {
+      "function": "runtime.netpollclose",
+      "callStack": {
+        "function": "internal/poll.runtime_pollClose",
+        "callStack": {
+          "function": "internal/poll.(*FD).destroy",
+          "callStack": {
+            "function": "internal/poll.(*FD).decref",
+            "callStack": {
+              "function": "internal/poll.(*FD).Close",
+              "callStack": {
+                "function": "os.(*file).close",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewTrienodeFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5208",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "7958ada6f12bf691f2b12e9b1f747a24d155195af86aaad97c8851bdbaf0dc1a"
+  },
+  {
+    "callStack": {
       "function": "syscall.pread",
       "callStack": {
         "function": "internal/poll.(*FD).Pread",
@@ -13842,11 +14353,68 @@
           "callStack": {
             "function": "os.OpenFile",
             "callStack": {
-              "function": "github.com/shirou/gopsutil/internal/common.ReadLinesOffsetN",
+              "function": "os.CreateTemp",
               "callStack": {
-                "function": "github.com/shirou/gopsutil/cpu.TimesWithContext",
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
                 "callStack": {
-                  "function": "github.com/shirou/gopsutil/cpu.init.0"
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                                  "callStack": {
+                                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                    "callStack": {
+                                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                      "callStack": {
+                                                        "function": "main.main"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -13858,7 +14426,7 @@
     "severity": "WARNING",
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "8d38f688701e814346859fe44684daab1dc85265ed6085e72bed1fdca7229992"
+    "hash": "8f1b3fc4a8635bc8496e217b9f22ca9d3d9865998f118bbf5b29f73ba7d37e0a"
   },
   {
     "callStack": {
@@ -15795,6 +16363,85 @@
   },
   {
     "callStack": {
+      "function": "runtime.netpollclose",
+      "callStack": {
+        "function": "internal/poll.runtime_pollClose",
+        "callStack": {
+          "function": "internal/poll.(*FD).destroy",
+          "callStack": {
+            "function": "internal/poll.(*FD).decref",
+            "callStack": {
+              "function": "internal/poll.(*FD).Close",
+              "callStack": {
+                "function": "os.(*file).close",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5208",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "b3e41a10c92847dc56df6b5179354de7e286cbe71c442dc60dbb8c988e9c409d"
+  },
+  {
+    "callStack": {
       "function": "runtime.netpollinit",
       "callStack": {
         "function": "runtime.netpollGenericInit",
@@ -16695,82 +17342,6 @@
                 "callStack": {
                   "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).Close",
                   "callStack": {
-                    "function": "github.com/ethereum/go-ethereum/core/rawdb.newTable",
-                    "callStack": {
-                      "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
-                      "callStack": {
-                        "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
-                        "callStack": {
-                          "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
-                          "callStack": {
-                            "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
-                            "callStack": {
-                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
-                              "callStack": {
-                                "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
-                                "callStack": {
-                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
-                                  "callStack": {
-                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
-                                    "callStack": {
-                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
-                                      "callStack": {
-                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
-                                        "callStack": {
-                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
-                                          "callStack": {
-                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
-                                            "callStack": {
-                                              "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
-                                              "callStack": {
-                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
-                                                "callStack": {
-                                                  "function": "main.main"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5208",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "d251796d0ea009aca0fd38f5a7077750b11a78b763a676cee7dac43fb43615ff"
-  },
-  {
-    "callStack": {
-      "function": "runtime.netpollclose",
-      "callStack": {
-        "function": "internal/poll.runtime_pollClose",
-        "callStack": {
-          "function": "internal/poll.(*FD).destroy",
-          "callStack": {
-            "function": "internal/poll.(*FD).decref",
-            "callStack": {
-              "function": "internal/poll.(*FD).Close",
-              "callStack": {
-                "function": "os.(*file).close",
-                "callStack": {
-                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).Close",
-                  "callStack": {
                     "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
                     "callStack": {
                       "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
@@ -17645,6 +18216,85 @@
   },
   {
     "callStack": {
+      "function": "syscall.openat",
+      "callStack": {
+        "function": "os.open",
+        "callStack": {
+          "function": "os.openFileNolog",
+          "callStack": {
+            "function": "os.OpenFile",
+            "callStack": {
+              "function": "os.CreateTemp",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/core/rawdb.reset",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).resetTo",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/core/rawdb.(*freezerTable).truncateTail",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/core/rawdb.(*Freezer).repair",
+                      "callStack": {
+                        "function": "github.com/ethereum/go-ethereum/core/rawdb.NewFreezer",
+                        "callStack": {
+                          "function": "github.com/ethereum/go-ethereum/core/rawdb.newResettableFreezer",
+                          "callStack": {
+                            "function": "github.com/ethereum/go-ethereum/core/rawdb.NewStateFreezer",
+                            "callStack": {
+                              "function": "github.com/ethereum/go-ethereum/triedb/pathdb.repairHistory",
+                              "callStack": {
+                                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                                "callStack": {
+                                  "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                          "callStack": {
+                                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                            "callStack": {
+                                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                              "callStack": {
+                                                "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                                "callStack": {
+                                                  "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                                  "callStack": {
+                                                    "function": "main.main"
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5247",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "ebe12d2516a9f6cffdfb698c5c027d3b14fc8afcf7d2168dbd7e7da3100124b8"
+  },
+  {
+    "callStack": {
       "function": "syscall.pread",
       "callStack": {
         "function": "internal/poll.(*FD).Pread",
@@ -17785,40 +18435,6 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "eee60140bf86c881f8591fb1a8fc80b0e98758fa1ce3d71d087d18b8f45d143b"
-  },
-  {
-    "callStack": {
-      "function": "syscall.openat",
-      "callStack": {
-        "function": "os.open",
-        "callStack": {
-          "function": "os.openFileNolog",
-          "callStack": {
-            "function": "os.OpenFile",
-            "callStack": {
-              "function": "github.com/tklauser/go-sysconf.getNprocsProcStat",
-              "callStack": {
-                "function": "github.com/tklauser/go-sysconf.getNprocs",
-                "callStack": {
-                  "function": "github.com/tklauser/go-sysconf.getNprocsConf",
-                  "callStack": {
-                    "function": "github.com/tklauser/go-sysconf.sysconf",
-                    "callStack": {
-                      "function": "github.com/shirou/gopsutil/cpu.init.1"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "message": "Potential NOOP Syscall Detected: 5247",
-    "severity": "WARNING",
-    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
-    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
-    "hash": "f22bbb65001661cbee435b60d3b67dc0de1d695dfc5a80dab1094098648b204d"
   },
   {
     "callStack": {

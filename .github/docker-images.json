@@ -129,6 +129,10 @@
       "type": "rust",
       "check": "none",
       "paths": ["rust/kona/docker/cannon/**"]
+    },
+    "ci-base-clang": {
+      "check": "none",
+      "paths": ["ops/docker/ci-base-clang/**"]
     }
   }
 }

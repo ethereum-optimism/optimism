@@ -21,7 +21,7 @@ build-kona PROFILE="release":
   #!/bin/bash
   cd {{SOURCE}}/.. && cargo build --bin kona-node --profile {{PROFILE}}
 
-acceptance-tests CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
+acceptance-tests CL_TYPE="kona-node" EL_TYPE="op-reth":
   #!/bin/bash
   if [ "{{CL_TYPE}}" = "kona-node" ] ; then
     echo "Building kona-node..."
@@ -33,11 +33,10 @@ acceptance-tests CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
     just build-reth
   fi
 
-  just acceptance-tests-run {{CL_TYPE}} {{EL_TYPE}} {{GATE}}
+  just acceptance-tests-run {{CL_TYPE}} {{EL_TYPE}}
 
 # Run acceptance tests for the rust stack. By default runs the acceptance tests for kona-node with op-reth.
-# Uses the jovian gate by default.
-acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
+acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth":
   #!/bin/bash
   if [ "{{CL_TYPE}}" = "kona-node" ] ; then
     echo "Running acceptance tests for kona-node"
@@ -49,12 +48,12 @@ acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth" GATE="jovian":
     export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
   fi
 
-  echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}} on gate {{GATE}}..."
+  echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}}..."
 
   export DEVSTACK_L2CL_KIND="{{CL_TYPE}}"
   export DEVSTACK_L2EL_KIND="{{EL_TYPE}}"
   export LOG_LEVEL="debug"
-  cd {{SOURCE}}/optimism/op-acceptance-tests && just acceptance-test "" "{{GATE}}"
+  cd {{SOURCE}}/optimism/op-acceptance-tests && just acceptance-test
 
 # Run the e2e tests for the sysgo orchestrator.
 # Builds the kona-node and op-reth binaries and runs the tests.

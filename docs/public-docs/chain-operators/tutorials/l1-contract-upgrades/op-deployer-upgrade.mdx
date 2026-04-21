@@ -1,25 +1,28 @@
 ---
-title: Upgrade L1 contracts using op-deployer (Deprecated)
-description: The op-deployer upgrade command has been deprecated. This page documents which versions it was available for.
+title: Upgrade L1 contracts using op-deployer
+description: Learn how to use the op-deployer upgrade command to upgrade L1 contracts up to op-contracts/v5.0.0.
 ---
 
 <Warning>
-The `op-deployer upgrade` command has been deprecated and is no longer maintained. For L1 contract upgrades, use
+The `op-deployer upgrade` command can be used for upgrades up to `op-contracts/v5.0.0`. It does **not** support
+upgrading from `op-contracts/v5.0.0` to `op-contracts/v6.0.0`. For upgrades beyond v5.0.0, use
 [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) or interact with the
 OPCM directly. See the [deprecation notice](/notices/op-deployer-upgrade-deprecation) for details.
 </Warning>
 
 ## Version availability
 
-The `op-deployer upgrade` command supported the following contract upgrade paths:
+The `op-deployer upgrade` command supports the following contract upgrade paths (upgrades must be performed in steps):
 
 | Upgrade path | op-deployer version | Status |
 |---|---|---|
-| op-contracts/v1.8.0 to op-contracts/v2.0.0 | v0.2.x | Deprecated |
-| op-contracts/v2.0.0 to op-contracts/v3.0.0 | v0.3.x | Deprecated |
+| op-contracts/v1.8.0 to op-contracts/v2.0.0 | v0.2.x | Available |
+| op-contracts/v2.0.0 to op-contracts/v3.0.0 | v0.3.x | Available |
+| op-contracts/v3.0.0 to op-contracts/v4.0.0 | v0.4.x | Available |
+| op-contracts/v4.0.0 to op-contracts/v5.0.0 | v0.5.x | Available |
 
 Each minor version of `op-deployer` supported a single release of the governance-approved smart contracts. See the [releases guide](/chain-operators/tools/op-deployer/reference/releases) for more information on versioning.
 
 ## Migration
 
-For all future L1 contract upgrades, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide). For non-Optimism governed chains, you can interact with the OPCM directly using your own tooling.
+For L1 contract upgrades beyond `op-contracts/v5.0.0`, use [superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide). For non-Optimism governed chains, you can interact with the OPCM directly using your own tooling.

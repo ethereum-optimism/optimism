@@ -10,9 +10,8 @@ use jsonrpsee::{
 use kona_gossip::P2pRpcRequest;
 use kona_rpc::{
     AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, EngineRpcClient, HealthzApiServer,
-    HealthzRpc, L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc,
-    RollupBoostAdminClient, RollupBoostHealthzApiServer, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, SequencerAdminAPIClient, WsRPC, WsServer,
+    HealthzRpc, L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer,
+    RollupRpc, RpcBuilder, SequencerAdminAPIClient, WsRPC, WsServer,
 };
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -20,23 +19,15 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 /// An actor that handles the RPC server for the rollup node.
 #[derive(Constructor, Debug)]
-pub struct RpcActor<
-    EngineRpcClient_,
-    RollupBoostAdminClient_,
-    RollupBoostHealth,
-    SequencerAdminApiClient_,
-> where
+pub struct RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
+where
     EngineRpcClient_: EngineRpcClient,
-    RollupBoostAdminClient_: RollupBoostAdminClient,
-    RollupBoostHealth: RollupBoostHealthzApiServer,
     SequencerAdminApiClient_: SequencerAdminAPIClient,
 {
     /// A launcher for the rpc.
     config: RpcBuilder,
 
     engine_rpc_client: EngineRpcClient_,
-    rollup_boost_admin_rpc_client: RollupBoostAdminClient_,
-    rollup_boost_health_rpc_client: RollupBoostHealth,
     sequencer_admin_rpc_client: Option<SequencerAdminApiClient_>,
 }
 
@@ -72,11 +63,8 @@ async fn launch(
 ) -> Result<ServerHandle, std::io::Error> {
     let middleware = tower::ServiceBuilder::new()
         .layer(
-            ProxyGetRequestLayer::new([
-                ("/healthz", "healthz"),
-                ("/kona-rollup-boost/healthz", "kona-rollup-boost_healthz"),
-            ])
-            .expect("Critical: Failed to build GET method proxy"),
+            ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                .expect("Critical: Failed to build GET method proxy"),
         )
         .timeout(Duration::from_secs(2));
     let server = Server::builder().set_http_middleware(middleware).build(config.socket).await?;
@@ -91,18 +79,10 @@ async fn launch(
 }
 
 #[async_trait]
-impl<EngineRpcClient_, RollupBoostAdminClient_, RollupBoostHealth, SequencerAdminApiClient_>
-    NodeActor
-    for RpcActor<
-        EngineRpcClient_,
-        RollupBoostAdminClient_,
-        RollupBoostHealth,
-        SequencerAdminApiClient_,
-    >
+impl<EngineRpcClient_, SequencerAdminApiClient_> NodeActor
+    for RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
 where
     EngineRpcClient_: EngineRpcClient + 'static,
-    RollupBoostAdminClient_: RollupBoostAdminClient + 'static,
-    RollupBoostHealth: RollupBoostHealthzApiServer + 'static,
     SequencerAdminApiClient_: SequencerAdminAPIClient + 'static,
 {
     type Error = RpcActorError;
@@ -120,21 +100,12 @@ where
         let mut modules = RpcModule::new(());
 
         modules.merge(HealthzApiServer::into_rpc(HealthzRpc {}))?;
-        modules
-            .merge(RollupBoostHealthzApiServer::into_rpc(self.rollup_boost_health_rpc_client))?;
 
         // Build the p2p rpc module.
         modules.merge(P2pRpc::new(p2p_network).into_rpc())?;
 
         // Build the admin rpc module.
-        modules.merge(
-            AdminRpc::new(
-                self.sequencer_admin_rpc_client,
-                network_admin,
-                Some(self.rollup_boost_admin_rpc_client),
-            )
-            .into_rpc(),
-        )?;
+        modules.merge(AdminRpc::new(self.sequencer_admin_rpc_client, network_admin).into_rpc())?;
 
         // Create context for communication between actors.
         let rollup_rpc = RollupRpc::new(self.engine_rpc_client.clone(), l1_watcher_queries);

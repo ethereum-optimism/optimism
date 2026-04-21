@@ -15,7 +15,8 @@ use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
-    OpProofStoragePrunerTask, OpProofsStorage, OpProofsStore, live::LiveTrieCollector,
+    OpProofStoragePrunerTask, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
+    live::LiveTrieCollector,
 };
 use reth_provider::{BlockNumReader, BlockReader, TransactionVariant};
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
@@ -246,7 +247,8 @@ where
     /// Ensure proofs storage is initialized
     fn ensure_initialized(&self) -> eyre::Result<()> {
         // Check if proofs storage is initialized
-        let earliest_block_number = match self.storage.get_earliest_block_number()? {
+        let provider_ro = self.storage.provider_ro()?;
+        let earliest_block_number = match provider_ro.get_earliest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!(
@@ -255,7 +257,7 @@ where
             }
         };
 
-        let latest_block_number = match self.storage.get_latest_block_number()? {
+        let latest_block_number: u64 = match provider_ro.get_latest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!(
@@ -327,7 +329,7 @@ where
 
         loop {
             let target = *sync_target_rx.borrow_and_update();
-            let latest = match storage.get_latest_block_number() {
+            let latest = match storage.provider_ro().and_then(|p| p.get_latest_block_number()) {
                 Ok(Some((n, _))) => n,
                 Ok(None) => {
                     error!(target: "optimism::exex", "No blocks stored in proofs storage during sync loop");
@@ -390,7 +392,7 @@ where
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         sync_target_tx: &watch::Sender<u64>,
     ) -> eyre::Result<()> {
-        let latest_stored = match self.storage.get_latest_block_number()? {
+        let latest_stored = match self.storage.provider_ro()?.get_latest_block_number()? {
             Some((n, _)) => n,
             None => {
                 return Err(eyre::eyre!("No blocks stored in proofs storage"));
@@ -645,8 +647,13 @@ mod tests {
     use reth_ethereum_primitives::{Block, Receipt};
     use reth_execution_types::{Chain, ExecutionOutcome};
     use reth_optimism_trie::{
-        BlockStateDiff, OpProofsStorage, OpProofsStore, db::MdbxProofsStorage,
+        BlockStateDiff, OpProofsProviderRO, OpProofsProviderRw, OpProofsStorage, OpProofsStore,
+        db::MdbxProofsStorage,
     };
+
+    fn get_latest<S: OpProofsStore>(proofs: &OpProofsStorage<S>) -> Option<(u64, B256)> {
+        proofs.provider_ro().expect("provider_ro").get_latest_block_number().expect("get latest")
+    }
     use reth_primitives_traits::RecoveredBlock;
     use reth_trie::{HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted};
     use std::{collections::BTreeMap, default::Default, sync::Arc, time::Duration};
@@ -712,15 +719,17 @@ mod tests {
     // Init_storage to the genesis block
     fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
         let genesis_block = NumHash::new(0, b256(0x00));
-        storage
+        let provider_rw = storage.provider_rw().expect("provider_rw");
+        provider_rw
             .set_earliest_block_number(genesis_block.number, genesis_block.hash)
             .expect("set earliest");
-        storage
+        provider_rw
             .store_trie_updates(
                 BlockWithParent::new(genesis_block.hash, genesis_block),
                 BlockStateDiff::default(),
             )
             .expect("store trie update");
+        provider_rw.commit().expect("commit");
     }
 
     // Initialize exex with config
@@ -766,7 +775,7 @@ mod tests {
 
         exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 1);
     }
 
@@ -799,14 +808,14 @@ mod tests {
                 .expect("handle chain commit");
         }
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 5);
 
         // Try to handle already processed notification
         let new_chain = Arc::new(mk_chain_with_updates(5, 5, Some(hash_for_num(10))));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
         exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok");
+        let latest = get_latest(&proofs).expect("ok");
         assert_eq!(latest.0, 5);
         assert_eq!(latest.1, hash_for_num(5)); // block was not updated
     }
@@ -840,7 +849,7 @@ mod tests {
                 .expect("handle chain commit");
         }
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to reorg from block 6..12
@@ -852,7 +861,7 @@ mod tests {
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
             .expect("handle chain re-orged");
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 12);
     }
 
@@ -886,7 +895,7 @@ mod tests {
                 .expect("handle chain commit");
         }
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to reorg from block 12..15
@@ -898,7 +907,7 @@ mod tests {
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
             .expect("handle chain re-orged");
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 10);
     }
 
@@ -932,7 +941,7 @@ mod tests {
                 .expect("handle chain commit");
         }
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -943,7 +952,7 @@ mod tests {
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
             .expect("handle chain reverted");
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 8);
     }
 
@@ -977,7 +986,7 @@ mod tests {
                 .expect("handle chain commit");
         }
 
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 5);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -988,7 +997,7 @@ mod tests {
 
         exex.handle_notification(notif, &collector, &sync_target_tx)
             .expect("handle chain reverted");
-        let latest = proofs.get_latest_block_number().expect("get latest block").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 5);
     }
 
@@ -1016,15 +1025,13 @@ mod tests {
         init_storage(proofs.clone());
 
         for i in 1..1100 {
-            proofs
-                .store_trie_updates(
-                    BlockWithParent::new(
-                        hash_for_num(i - 1),
-                        BlockNumHash::new(i, hash_for_num(i)),
-                    ),
-                    BlockStateDiff::default(),
-                )
-                .expect("store trie update");
+            let p = proofs.provider_rw().expect("provider_rw");
+            p.store_trie_updates(
+                BlockWithParent::new(hash_for_num(i - 1), BlockNumHash::new(i, hash_for_num(i))),
+                BlockStateDiff::default(),
+            )
+            .expect("store trie update");
+            p.commit().expect("commit");
         }
 
         let (ctx, _handle) =
@@ -1118,7 +1125,7 @@ mod tests {
         // Because we didn't spawn the actual worker thread in this test, storage should still be at
         // 0. This proves the 'handle_notification' returned instantly without doing the
         // heavy lifting.
-        let latest = proofs.get_latest_block_number().expect("get").expect("ok").0;
+        let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 0, "Main thread should not have processed the blocks synchronously");
     }
 }

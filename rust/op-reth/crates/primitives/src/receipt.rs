@@ -46,21 +46,17 @@ pub(super) mod serde_bincode_compat {
     ///
     /// Intended to use with the [`serde_with::serde_as`] macro in the following way:
     /// ```rust
-    /// use reth_optimism_primitives::OpReceipt;
-    /// use reth_primitives_traits::serde_bincode_compat::SerdeBincodeCompat;
-    /// use serde::{Deserialize, Serialize, de::DeserializeOwned};
+    /// use reth_optimism_primitives::{OpReceipt, serde_bincode_compat};
+    /// use serde::{Deserialize, Serialize};
     /// use serde_with::serde_as;
     ///
     /// #[serde_as]
     /// #[derive(Serialize, Deserialize)]
     /// struct Data {
-    ///     #[serde_as(
-    ///         as = "reth_primitives_traits::serde_bincode_compat::BincodeReprFor<'_, OpReceipt>"
-    ///     )]
+    ///     #[serde_as(as = "serde_bincode_compat::OpReceipt<'_>")]
     ///     receipt: OpReceipt,
     /// }
     /// ```
-    #[allow(rustdoc::private_doc_tests)]
     #[derive(Debug, Serialize, Deserialize)]
     pub enum OpReceipt<'a> {
         /// Legacy receipt
@@ -71,6 +67,8 @@ pub(super) mod serde_bincode_compat {
         Eip1559(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
         /// EIP-7702 receipt
         Eip7702(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
+        /// Post-exec receipt
+        PostExec(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
         /// Deposit receipt
         Deposit(
             op_alloy_consensus::serde_bincode_compat::OpDepositReceipt<'a, alloy_primitives::Log>,
@@ -84,6 +82,7 @@ pub(super) mod serde_bincode_compat {
                 super::OpReceipt::Eip2930(receipt) => Self::Eip2930(receipt.into()),
                 super::OpReceipt::Eip1559(receipt) => Self::Eip1559(receipt.into()),
                 super::OpReceipt::Eip7702(receipt) => Self::Eip7702(receipt.into()),
+                super::OpReceipt::PostExec(receipt) => Self::PostExec(receipt.into()),
                 super::OpReceipt::Deposit(receipt) => Self::Deposit(receipt.into()),
             }
         }
@@ -96,6 +95,7 @@ pub(super) mod serde_bincode_compat {
                 OpReceipt::Eip2930(receipt) => Self::Eip2930(receipt.into()),
                 OpReceipt::Eip1559(receipt) => Self::Eip1559(receipt.into()),
                 OpReceipt::Eip7702(receipt) => Self::Eip7702(receipt.into()),
+                OpReceipt::PostExec(receipt) => Self::PostExec(receipt.into()),
                 OpReceipt::Deposit(receipt) => Self::Deposit(receipt.into()),
             }
         }

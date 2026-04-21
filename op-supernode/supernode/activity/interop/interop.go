@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
@@ -28,13 +29,21 @@ var (
 
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
-	Name:  "interop.activation-timestamp",
-	Usage: "The timestamp at which interop should start",
+	Name:    "interop.activation-timestamp",
+	Usage:   "Override the interop activation timestamp derived from rollup configs",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_ACTIVATION_TIMESTAMP"),
+	Value:   0,
+}
+
+// InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
+var InteropLogBackfillDepthFlag = &cli.DurationFlag{
+	Name:  "interop.log-backfill-depth",
+	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
 	Value: 0,
 }
 
 func init() {
-	flags.RegisterActivityFlags(InteropActivationTimestampFlag)
+	flags.RegisterActivityFlags(InteropActivationTimestampFlag, InteropLogBackfillDepthFlag)
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
@@ -76,8 +85,18 @@ type StepOutput struct {
 type Interop struct {
 	log                 log.Logger
 	chains              map[eth.ChainID]cc.ChainContainer
-	activationTimestamp uint64
-	dataDir             string
+	activationTimestamp uint64 // immutable protocol activation timestamp
+
+	// runtimeActivationTimestamp is the effective activation timestamp used
+	// by the main loop and backfill. It starts equal to activationTimestamp
+	// and is advanced past the backfilled range after log backfill completes.
+	// Protocol-facing queries (VerifiedAtTimestamp, VerifiedBlockAtL1, etc.)
+	// always use the original activationTimestamp.
+	runtimeActivationTimestamp uint64
+
+	dataDir string
+
+	messageExpiryWindow uint64
 
 	verifiedDB *VerifiedDB
 	logsDBs    map[eth.ChainID]LogsDB
@@ -101,8 +120,17 @@ type Interop struct {
 	// if the next timestamp to process is >= this value.
 	pauseAtTimestamp atomic.Uint64
 
+	// backfillAttempts counts the number of times runLogBackfill was invoked
+	// since Start. Read by integration tests to confirm the retry loop is engaged.
+	backfillAttempts atomic.Int32
+	// backfillCompleted is set to true once runLogBackfill returns nil (or was skipped
+	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
+	backfillCompleted atomic.Bool
+
 	l1Checker    *byNumberConsistencyChecker
 	frontierView *frontierVerificationView
+
+	logBackfillDepth time.Duration
 }
 
 func (i *Interop) Name() string {
@@ -113,9 +141,11 @@ func (i *Interop) Name() string {
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
+	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.ChainContainer,
 	dataDir string,
 	l1Source l1ByNumberSource,
+	logBackfillDepth time.Duration,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -139,13 +169,19 @@ func New(
 		logsDBs[chainID] = logsDB
 	}
 
+	if messageExpiryWindow == 0 {
+		messageExpiryWindow = defaultMessageExpiryWindow
+	}
 	i := &Interop{
-		log:                 log,
-		chains:              chains,
-		verifiedDB:          verifiedDB,
-		logsDBs:             logsDBs,
-		dataDir:             dataDir,
-		activationTimestamp: activationTimestamp,
+		log:                        log,
+		chains:                     chains,
+		verifiedDB:                 verifiedDB,
+		logsDBs:                    logsDBs,
+		dataDir:                    dataDir,
+		activationTimestamp:        activationTimestamp,
+		runtimeActivationTimestamp: activationTimestamp,
+		messageExpiryWindow:        messageExpiryWindow,
+		logBackfillDepth:           logBackfillDepth,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -166,6 +202,24 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.ctx, i.cancel = context.WithCancel(ctx)
 	i.started = true
 	i.mu.Unlock()
+
+	if i.logBackfillDepth > 0 {
+		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
+		for {
+			i.backfillAttempts.Add(1)
+			err := i.runLogBackfill()
+			if err == nil {
+				break
+			}
+			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("log backfill interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.backfillCompleted.Store(true)
 
 	for {
 		select {
@@ -205,23 +259,6 @@ func (i *Interop) Stop(ctx context.Context) error {
 		return i.verifiedDB.Close()
 	}
 	return nil
-}
-
-// PauseAt sets a timestamp at which the interop activity should pause.
-// When progressInterop encounters this timestamp or any later timestamp, it returns early without processing.
-// Uses >= check so that if the activity is already beyond the pause point, it will still stop.
-// This function is for integration test control only.
-// Pass 0 to clear the pause (equivalent to calling Resume).
-func (i *Interop) PauseAt(ts uint64) {
-	i.pauseAtTimestamp.Store(ts)
-	i.log.Info("interop pause set", "pauseAtTimestamp", ts)
-}
-
-// Resume clears any pause timestamp, allowing normal processing to continue.
-// This function is for integration test control only.
-func (i *Interop) Resume() {
-	i.pauseAtTimestamp.Store(0)
-	i.log.Info("interop pause cleared")
 }
 
 // checkPreconditions determines whether observation alone already implies an
@@ -337,7 +374,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.activationTimestamp
+		obs.NextTimestamp = i.runtimeActivationTimestamp
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -400,7 +437,7 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 
 	if len(cycleResult.InvalidHeads) > 0 {
 		if result.InvalidHeads == nil {
-			result.InvalidHeads = make(map[eth.ChainID]eth.BlockID)
+			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
 		}
 		for chainID, invalidBlock := range cycleResult.InvalidHeads {
 			result.InvalidHeads[chainID] = invalidBlock
@@ -408,6 +445,29 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 	}
 
 	return result, nil
+}
+
+// newInvalidHead constructs a fully-formed InvalidHead with the output preimage
+// fields already attached. Returns an error if the output cannot be computed —
+// at verification time the engine should always have the block, so failure
+// indicates a transient RPC issue or a serious invariant violation.
+func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (InvalidHead, error) {
+	head := InvalidHead{BlockID: blockID}
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return head, fmt.Errorf("chain %s not found", chainID)
+	}
+	outputV0, err := chain.OutputV0AtBlockNumber(i.ctx, blockID.Number)
+	if err != nil {
+		return head, fmt.Errorf("chain %s: failed to compute OutputV0 for block %d: %w", chainID, blockID.Number, err)
+	}
+	if outputV0.BlockHash != blockID.Hash {
+		return head, fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg",
+			chainID, blockID.Number, blockID.Hash, outputV0.BlockHash)
+	}
+	head.StateRoot = outputV0.StateRoot
+	head.MessagePasserStorageRoot = outputV0.MessagePasserStorageRoot
+	return head, nil
 }
 
 func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation) (PendingTransition, error) {
@@ -457,11 +517,13 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, nil
 		}
 		invalidations := make([]PendingInvalidation, 0, len(pending.Result.InvalidHeads))
-		for chainID, blockID := range pending.Result.InvalidHeads {
+		for chainID, invalidHead := range pending.Result.InvalidHeads {
 			invalidations = append(invalidations, PendingInvalidation{
-				ChainID:   chainID,
-				BlockID:   blockID,
-				Timestamp: pending.Result.Timestamp,
+				ChainID:                  chainID,
+				BlockID:                  invalidHead.BlockID,
+				Timestamp:                pending.Result.Timestamp,
+				StateRoot:                invalidHead.StateRoot,
+				MessagePasserStorageRoot: invalidHead.MessagePasserStorageRoot,
 			})
 		}
 		sort.Slice(invalidations, func(i, j int) bool {
@@ -482,7 +544,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		}
 		var failedAny bool
 		for _, p := range invalidations {
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp); err != nil {
+			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
@@ -548,7 +610,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.activationTimestamp {
+	if lastTS <= i.runtimeActivationTimestamp {
 		return plan, nil
 	}
 
@@ -795,11 +857,11 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 
 // invalidateBlock notifies the chain container to add the block to the denylist
 // and potentially rewind if the chain is currently using that block.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64) error {
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp)
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
 	return err
 }

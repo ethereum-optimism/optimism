@@ -3,10 +3,10 @@ package interopgen
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
+	"slices"
 	"sort"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -18,10 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -194,7 +193,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		DevFeatureBitmap:                deployer.OptimismPortalInteropDevFlag,
+		DevFeatureBitmap:                devfeatures.OptimismPortalInteropFlag,
 		FaultGameV2MaxGameDepth:         big.NewInt(73),
 		FaultGameV2SplitDepth:           big.NewInt(30),
 		FaultGameV2ClockExtension:       big.NewInt(10800),
@@ -243,7 +242,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		BasefeeScalar:                cfg.GasPriceOracleBaseFeeScalar,
 		BlobBaseFeeScalar:            cfg.GasPriceOracleBlobBaseFeeScalar,
 		L2ChainId:                    new(big.Int).SetUint64(cfg.L2ChainID),
-		Opcm:                         superDeployment.Opcm,
+		Opcm:                         superDeployment.OpcmV2,
 		SaltMixer:                    cfg.SaltMixer,
 		GasLimit:                     cfg.GasLimit,
 		DisputeGameType:              cfg.DisputeGameType,
@@ -271,41 +270,59 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 func MigrateInterop(
 	l1Host *script.Host, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
 ) (*InteropDeployment, error) {
-	l2ChainIDs := maps.Keys(l2Deployments)
+	l2ChainIDs := slices.Collect(maps.Keys(l2Deployments))
 	sort.Strings(l2ChainIDs)
-	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
-	for i, l2ChainID := range l2ChainIDs {
-		l2Deployment := l2Deployments[l2ChainID]
-		chainConfigs[i] = manage.OPChainConfig{
-			SystemConfigProxy:  l2Deployment.SystemConfigProxy,
-			CannonPrestate:     l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
-			CannonKonaPrestate: l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate,
-		}
-	}
 
-	// For now get the fault game parameters from the first chain
-	l2ChainID := l2ChainIDs[0]
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
 	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
+
+	// Build chain system config addresses for V2 migrate input.
+	chainSystemConfigs := make([]common.Address, len(l2Deployments))
+	for i, l2ChainID := range l2ChainIDs {
+		chainSystemConfigs[i] = l2Deployments[l2ChainID].SystemConfigProxy
+	}
+
+	// ABI-encode the cannon prestates as game args (from the first chain config).
+	l2ChainID := l2ChainIDs[0]
+	cannonGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeAbsolutePrestate.Bytes(), 32)
+	cannonKonaGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate.Bytes(), 32)
+
+	const (
+		GameTypeCannon          = uint32(0)
+		GameTypeSuperCannon     = uint32(4)
+		GameTypeSuperCannonKona = uint32(9)
+	)
+
 	imi := manage.InteropMigrationInput{
 		Prank: superCfg.ProxyAdminOwner,
-		Opcm:  superDeployment.Opcm,
-		MigrateInputV1: &manage.MigrateInputV1{
-			UsePermissionlessGame: true,
+		Opcm:  superDeployment.OpcmV2,
+		MigrateInputV2: &manage.MigrateInputV2{
+			ChainSystemConfigs: chainSystemConfigs,
+			DisputeGameConfigs: []manage.DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeCannon,
+					GameArgs: cannonGameArgs,
+				},
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeSuperCannon,
+					GameArgs: cannonGameArgs,
+				},
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeSuperCannonKona,
+					GameArgs: cannonKonaGameArgs,
+				},
+			},
 			StartingAnchorRoot: manage.Proposal{
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			GameParameters: manage.GameParameters{
-				Proposer:         l2Cfgs[l2ChainID].Proposer,
-				Challenger:       l2Cfgs[l2ChainID].Challenger,
-				MaxGameDepth:     l2Cfgs[l2ChainID].DisputeMaxGameDepth,
-				SplitDepth:       l2Cfgs[l2ChainID].DisputeSplitDepth,
-				InitBond:         big.NewInt(0),
-				ClockExtension:   l2Cfgs[l2ChainID].DisputeClockExtension,
-				MaxClockDuration: l2Cfgs[l2ChainID].DisputeMaxClockDuration,
-			},
-			OpChainConfigs: chainConfigs,
+			StartingRespectedGameType: GameTypeSuperCannon,
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)
@@ -347,9 +364,6 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
-		UseRevenueShare:                          cfg.UseRevenueShare,
-		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
-		L1FeesDepositor:                          standard.L1FeesDepositor,
 		UseCustomGasToken:                        cfg.UseCustomGasToken,
 		GasPayingTokenName:                       cfg.GasPayingTokenName,
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
@@ -370,7 +384,7 @@ func devFeatureBitmapForL2Genesis(multichainDepSet bool) common.Hash {
 	// TODO(#19102): add support for L2CM
 	var bitmap common.Hash
 	if multichainDepSet {
-		bitmap = deployer.EnableDevFeature(bitmap, deployer.OptimismPortalInteropDevFlag)
+		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
 	}
 	return bitmap
 }

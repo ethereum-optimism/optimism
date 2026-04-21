@@ -2,7 +2,7 @@
 name = "op-alloy-network"
 description = "Optimism blockchain RPC behavior abstraction"
 
-version = "0.23.1"
+version = "0.24.0"
 edition.workspace = true
 rust-version.workspace = true
 authors = ["Alloy Contributors"]

@@ -9,11 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/opcmregistry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
-	v6_0_0 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v6_0_0"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -61,11 +59,6 @@ func TestCLIUpgrade(t *testing.T) {
 			version:     "v5.0.0",
 			forkBlock:   9629972, // one block past the opcm deployment block
 		},
-		{
-			contractTag: standard.ContractsV600Tag,
-			version:     "v6.0.0-rc.2",
-			forkBlock:   10101510, // one block past the opcm deployment block
-		},
 	}
 
 	for _, tc := range testCases {
@@ -82,41 +75,18 @@ func TestCLIUpgrade(t *testing.T) {
 			opcm, err := standard.OPCMImplAddressFor(11155111, tc.contractTag)
 			require.NoError(t, err)
 
-			versionStr := strings.TrimPrefix(tc.version, "v") // Remove "v" prefix for parsing
-			version, err := opcmregistry.ParseSemver(versionStr)
-			require.NoError(t, err, "failed to parse version %s", versionStr)
-
-			v6Semver := opcmregistry.Semver{Major: 6, Minor: 0, Patch: 0}
-			var configData []byte
-			if version.Compare(v6Semver) >= 0 {
-				// v6.0.0+ uses a different input structure
-				testConfig := v6_0_0.UpgradeOPChainInput{
-					Prank: l1ProxyAdminOwner,
-					Opcm:  opcm,
-					EncodedChainConfigs: []v6_0_0.OPChainConfig{
-						{
-							SystemConfigProxy:  systemConfigProxy,
-							CannonPrestate:     common.HexToHash("0x0abc"),
-							CannonKonaPrestate: common.HexToHash("0x0def"),
-						},
+			testConfig := v2_0_0.UpgradeOPChainInput{
+				Prank: l1ProxyAdminOwner,
+				Opcm:  opcm,
+				EncodedChainConfigs: []v2_0_0.OPChainConfig{
+					{
+						SystemConfigProxy: systemConfigProxy,
+						ProxyAdmin:        proxyAdminImpl,
+						AbsolutePrestate:  common.HexToHash("0x0abc"),
 					},
-				}
-				configData, err = json.MarshalIndent(testConfig, "", "  ")
-			} else {
-				// Older versions use v2_0_0 structure
-				testConfig := v2_0_0.UpgradeOPChainInput{
-					Prank: l1ProxyAdminOwner,
-					Opcm:  opcm,
-					EncodedChainConfigs: []v2_0_0.OPChainConfig{
-						{
-							SystemConfigProxy: systemConfigProxy,
-							ProxyAdmin:        proxyAdminImpl,
-							AbsolutePrestate:  common.HexToHash("0x0abc"),
-						},
-					},
-				}
-				configData, err = json.MarshalIndent(testConfig, "", "  ")
+				},
 			}
+			configData, err := json.MarshalIndent(testConfig, "", "  ")
 			require.NoError(t, err)
 
 			configFile := filepath.Join(workDir, "upgrade_config_"+tc.version+".json")
@@ -148,14 +118,7 @@ func TestCLIUpgrade(t *testing.T) {
 			require.Equal(t, l1ProxyAdminOwner.Hex(), dump[0].To.Hex())
 			dataHex := hex.EncodeToString(dump[0].Data)
 
-			// v6.0.0+ uses a different function signature: upgrade((address,bytes32,bytes32)[])
-			// Older versions use: upgrade((address,address,bytes32)[])
-			var expectedSelector string
-			if version.Compare(v6Semver) >= 0 {
-				expectedSelector = "cbeda5a7" // upgrade((address,bytes32,bytes32)[])
-			} else {
-				expectedSelector = "ff2dd5a1" // upgrade((address,address,bytes32)[])
-			}
+			expectedSelector := "ff2dd5a1"
 			require.True(t, strings.HasPrefix(dataHex, expectedSelector),
 				"calldata should have opcm.upgrade fcn selector %s, got: %s", expectedSelector, dataHex[:8])
 		})

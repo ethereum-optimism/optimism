@@ -19,14 +19,12 @@ kona-engine.workspace = true
 kona-sources.workspace = true
 kona-genesis.workspace = true
 kona-derive.workspace = true
+kona-interop.workspace = true
 kona-protocol.workspace = true
 kona-providers-alloy.workspace = true
 kona-rpc = { workspace = true, features = ["client"] }
 kona-peers.workspace = true
 kona-macros.workspace = true
-
-# rollup-boost
-rollup-boost.workspace = true
 
 # alloy
 alloy-chains.workspace = true
@@ -75,7 +73,6 @@ arbitrary.workspace = true
 rand.workspace = true
 anyhow.workspace = true
 backon.workspace = true
-http.workspace = true
 mockall.workspace = true
 alloy-primitives = { workspace = true, features = ["k256"] }
 alloy-rpc-types-engine = { workspace = true, features = ["arbitrary"] }

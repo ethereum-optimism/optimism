@@ -6,10 +6,8 @@ use alloy_consensus::{
     transaction::{SignerRecoverable, TxHashRef},
 };
 use alloy_primitives::{Address, B256, Sealed};
-use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxDeposit};
-use reth_ethereum::primitives::{
-    InMemorySize, SignedTransaction, serde_bincode_compat::RlpBincode,
-};
+use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxDeposit, TxPostExec};
+use reth_primitives_traits::InMemorySize;
 
 #[derive(Clone, Debug, TransactionEnvelope)]
 #[envelope(tx_type_name = CustomPooledTxType)]
@@ -44,14 +42,16 @@ impl TryFrom<CustomTransaction> for CustomPooledTransaction {
     }
 }
 
-impl RlpBincode for CustomPooledTransaction {}
-
 impl OpTransaction for CustomPooledTransaction {
     fn is_deposit(&self) -> bool {
         false
     }
 
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
+        None
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
         None
     }
 }
@@ -80,8 +80,6 @@ impl TxHashRef for CustomPooledTransaction {
         }
     }
 }
-
-impl SignedTransaction for CustomPooledTransaction {}
 
 impl InMemorySize for CustomPooledTransaction {
     fn size(&self) -> usize {

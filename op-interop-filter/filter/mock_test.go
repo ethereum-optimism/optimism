@@ -24,6 +24,9 @@ type mockChainIngester struct {
 	// Logs stored by their identifying query
 	logs map[logKey]types.BlockSeal
 
+	// Blocks keyed by block number
+	blocks map[uint64]eth.BlockID
+
 	// Executing messages with their inclusion context
 	execMsgs []IncludedMessage
 
@@ -47,6 +50,7 @@ type logKey struct {
 func newMockChainIngester() *mockChainIngester {
 	return &mockChainIngester{
 		logs:     make(map[logKey]types.BlockSeal),
+		blocks:   make(map[uint64]eth.BlockID),
 		execMsgs: make([]IncludedMessage, 0),
 		ready:    true, // Default to ready for simple tests
 	}
@@ -70,10 +74,11 @@ func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, ch
 		Checksum:  checksum,
 	}
 	m.logs[key] = seal
+	m.blocks[blockNum] = eth.BlockID{Hash: seal.Hash, Number: blockNum}
 
 	// Update latest block/timestamp if needed
 	if blockNum > m.latestBlock.Number {
-		m.latestBlock = eth.BlockID{Number: blockNum}
+		m.latestBlock = eth.BlockID{Hash: seal.Hash, Number: blockNum}
 		m.latestTimestamp = timestamp
 	}
 	if m.earliestIngestedBlock == 0 || blockNum < m.earliestIngestedBlock {
@@ -95,6 +100,17 @@ func (m *mockChainIngester) AddExecMsg(msg IncludedMessage) {
 	}
 	if m.earliestIngestedBlock == 0 || msg.InclusionBlockNum < m.earliestIngestedBlock {
 		m.earliestIngestedBlock = msg.InclusionBlockNum
+	}
+}
+
+// AddBlock adds a block directly to the ingester.
+func (m *mockChainIngester) AddBlock(block eth.BlockID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.blocks[block.Number] = block
+	if block.Number >= m.latestBlock.Number {
+		m.latestBlock = block
 	}
 }
 
@@ -133,6 +149,18 @@ func (m *mockChainIngester) LatestBlock() (eth.BlockID, bool) {
 		return eth.BlockID{}, false
 	}
 	return m.latestBlock, true
+}
+
+// BlockHashByNumber implements ChainIngester.
+func (m *mockChainIngester) BlockHashByNumber(number uint64) (common.Hash, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	block, ok := m.blocks[number]
+	if !ok {
+		return common.Hash{}, false
+	}
+	return block.Hash, true
 }
 
 // LatestTimestamp implements ChainIngester.

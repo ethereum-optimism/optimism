@@ -9,7 +9,7 @@ mod models;
 pub use models::*;
 
 mod store;
-pub use store::MdbxProofsStorage;
+pub use store::{MdbxProofsProvider, MdbxProofsStorage};
 
 mod cursor;
 pub use cursor::{

@@ -19,14 +19,14 @@ optimizer_runs = 999999
 # entire build directory.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 5000 },
+  { name = "validator", optimizer_runs = 200 },
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 200 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 5000 },
@@ -61,7 +61,6 @@ fs_permissions = [
   { access='read-write', path='./.resource-metering.csv' },
   { access='read-write', path='./snapshots/' },
   { access='read-write', path='./deployments/' },
-  { access='read', path='./deploy-config/' },
   { access='read', path='./deploy-config-periphery/' },
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
@@ -140,7 +139,6 @@ compilation_restrictions = [
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
@@ -182,7 +180,6 @@ compilation_restrictions = [
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
@@ -219,7 +216,6 @@ compilation_restrictions = [
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -11,6 +12,18 @@ import (
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.
 func TestSyncAfterInitialELSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// Example error with kona-node:
+	//
+	//  assertions.go:387:  ERROR[03-31|10:38:08.992]
+	// "\n\tError Trace:\t/optimism/op-devstack/dsl/l2_el.go:192\n\t
+	// \t\t\t\t/optimism/op-acceptance-tests/tests/sync/clsync/gap_clp2p/sync_test.go:46
+	// \n\tError:
+	// \tReceived unexpected error:\n\t
+	// \toperation failed permanently after 2 attempts: expected head for label=latest to advance to target=5,
+	// but got current=2
+	// \tTest:      \tTestSyncAfterInitialELSync\n"
+
+	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 

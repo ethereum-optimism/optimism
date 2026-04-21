@@ -115,18 +115,6 @@ const messageExpiryTime = 120 // 2 minutes
 
 type setupOption func(*interopgen.InteropDevRecipe)
 
-func SetBlockTimeForChainA(blockTime uint64) setupOption {
-	return func(recipe *interopgen.InteropDevRecipe) {
-		recipe.L2s[0].BlockTime = blockTime
-	}
-}
-
-func SetBlockTimeForChainB(blockTime uint64) setupOption {
-	return func(recipe *interopgen.InteropDevRecipe) {
-		recipe.L2s[1].BlockTime = blockTime
-	}
-}
-
 func SetMessageExpiryTime(expiryTime uint64) setupOption {
 	return func(recipe *interopgen.InteropDevRecipe) {
 		recipe.ExpiryTime = expiryTime

@@ -368,7 +368,6 @@ contract GenerateNUTBundle is Script {
             ethLiquidityImpl: findImplByName("ETHLiquidity"),
             nativeAssetLiquidityImpl: findImplByName("NativeAssetLiquidity"),
             liquidityControllerImpl: findImplByName("LiquidityController"),
-            feeSplitterImpl: findImplByName("FeeSplitter"),
             conditionalDeployerImpl: findImplByName("ConditionalDeployer"),
             l2DevFeatureFlagsImpl: findImplByName("L2DevFeatureFlags")
         });
