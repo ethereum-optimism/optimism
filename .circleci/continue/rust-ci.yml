@@ -697,7 +697,7 @@ jobs:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: cargo hack build --target <<parameters.target>> <<parameters.flags>>
+          command: rustup target add <<parameters.target>> && cargo hack build --target <<parameters.target>> <<parameters.flags>>
       - rust-save-build-cache: *hack-build-cache-args
 
   # Shared cargo hack job
