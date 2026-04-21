@@ -215,18 +215,25 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 		initial := cl.HeadBlockRef(lvl)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
 		logger.Info("Expecting chain not to advance")
+		var lastErr error
+		successes := 0
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head, err := cl.headBlockRef(lvl)
 			if err != nil {
-				logger.Warn("SyncStatus RPC failed; treating as no advance and retrying", "err", err)
+				lastErr = err
+				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
 				continue
 			}
+			successes++
 			logger.Info("Chain sync status", "current", head.Number)
 			if head.Hash == initial.Hash {
 				continue
 			}
 			return fmt.Errorf("expected head not to advance: %s", lvl)
+		}
+		if successes == 0 {
+			return fmt.Errorf("could not read %s head across %d attempts: %w", lvl, attempts, lastErr)
 		}
 		logger.Info("Chain not advanced")
 		return nil
