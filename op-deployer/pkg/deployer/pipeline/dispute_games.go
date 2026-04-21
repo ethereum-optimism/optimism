@@ -126,7 +126,7 @@ func deployDisputeGame(
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
 		if zkImpl == (common.Address{}) {
-			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameDevFlag is set in devFeatureBitmap")
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
 		}
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")

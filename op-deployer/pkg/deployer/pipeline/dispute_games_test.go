@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -176,12 +177,11 @@ func TestDeployDisputeGame_UnsupportedVMType(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported VM type")
 }
 
-// TestZKDisputeGameDevFlag validates that zkDisputeGameDevFlag matches the expected value.
-// The expected value must equal deployer.ZKDisputeGameDevFlag (0x...01000000).
-func TestZKDisputeGameDevFlag(t *testing.T) {
+// TestZKDisputeGameFlag validates that devfeatures.ZKDisputeGameFlag matches the expected value.
+func TestZKDisputeGameFlag(t *testing.T) {
 	expected := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
-	require.Equal(t, expected, zkDisputeGameDevFlag,
-		"zkDisputeGameDevFlag must match deployer.ZKDisputeGameDevFlag")
+	require.Equal(t, expected, devfeatures.ZKDisputeGameFlag,
+		"devfeatures.ZKDisputeGameFlag must match the expected value")
 }
 
 // TestZKDevFlagAutoEnable validates that DeployImplementations auto-enables
@@ -215,8 +215,8 @@ func TestZKDevFlagAutoEnable(t *testing.T) {
 		bitmap := computeDevFeatureBitmap(intentWithZK)
 		// ZK flag bit (0x01000000) should be set
 		require.NotEqual(t, common.Hash{}, bitmap)
-		for i := range zkDisputeGameDevFlag {
-			require.Equal(t, zkDisputeGameDevFlag[i], bitmap[i]&zkDisputeGameDevFlag[i],
+		for i := range devfeatures.ZKDisputeGameFlag {
+			require.Equal(t, devfeatures.ZKDisputeGameFlag[i], bitmap[i]&devfeatures.ZKDisputeGameFlag[i],
 				"ZK dev flag bit %d should be set in bitmap", i)
 		}
 	})
@@ -235,7 +235,7 @@ outer:
 		for _, game := range chain.AdditionalDisputeGames {
 			if game.VMType == state.VMTypeZK {
 				for i := range bitmap {
-					bitmap[i] |= zkDisputeGameDevFlag[i]
+					bitmap[i] |= devfeatures.ZKDisputeGameFlag[i]
 				}
 				break outer
 			}

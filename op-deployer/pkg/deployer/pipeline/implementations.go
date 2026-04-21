@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -43,14 +44,12 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	// Auto-enable zkDisputeGameDevFlag if any chain has a ZK dispute game in AdditionalDisputeGames.
+	// Auto-enable ZKDisputeGameFlag if any chain has a ZK dispute game in AdditionalDisputeGames.
 outer:
 	for _, chain := range intent.Chains {
 		for _, game := range chain.AdditionalDisputeGames {
 			if game.VMType == state.VMTypeZK {
-				for i := range proofParams.DevFeatureBitmap {
-					proofParams.DevFeatureBitmap[i] |= zkDisputeGameDevFlag[i]
-				}
+				proofParams.DevFeatureBitmap = devfeatures.EnableDevFeature(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
 				break outer
 			}
 		}
@@ -124,6 +123,3 @@ func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {
 	return st.ImplementationsDeployment == nil
 }
 
-// zkDisputeGameDevFlag mirrors deployer.ZKDisputeGameDevFlag.
-// Defined locally to avoid an import cycle between pipeline and deployer packages.
-var zkDisputeGameDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
