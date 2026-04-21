@@ -16,10 +16,9 @@ import (
 )
 
 func TestPostInbox(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	offset := uint64(30)
-	sys := presets.NewSingleChainInterop(t, presets.WithDeployerOptions(
+	sys := presets.NewSingleChainInteropSupernodeProofs(t, presets.WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
 				l2Cfg.WithForkAtOffset(forks.Interop, &offset)

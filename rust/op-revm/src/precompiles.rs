@@ -94,11 +94,11 @@ pub fn karst() -> &'static Precompiles {
         let mut precompiles = jovian().clone();
 
         let mut to_remove = Precompiles::default();
-        to_remove.extend([modexp::BERLIN]);
+        to_remove.extend([modexp::BERLIN, secp256r1::P256VERIFY]);
 
         precompiles.difference(&to_remove);
 
-        precompiles.extend([modexp::OSAKA]);
+        precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA]);
 
         precompiles
     })
@@ -473,6 +473,14 @@ mod tests {
 
         // jovian contains all precompiles that were new in prague, without modifications
         assert!(new_prague_precompiles.difference(jovian()).is_empty())
+    }
+
+    #[test]
+    fn test_osaka_precompiles_in_karst() {
+        let new_osaka_precompiles = Precompiles::osaka().difference(Precompiles::prague());
+
+        // karst contains all precompiles that were new in karst, without modifications
+        assert!(new_osaka_precompiles.difference(karst()).is_empty())
     }
 
     /// All the addresses of the precompiles in isthmus should be in jovian

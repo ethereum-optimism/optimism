@@ -1,6 +1,8 @@
 package presets
 
 import (
+	"time"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -304,4 +306,20 @@ func WithMessageExpiryWindow(window uint64) Option {
 // time in seconds for that chain.
 func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
 	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
+}
+
+// WithInteropLogBackfillDepth configures the supernode to pre-ingest
+// initiating-message logs backward from the tip by the given duration at
+// startup. Zero disables backfill (the default).
+func WithInteropLogBackfillDepth(d time.Duration) Option {
+	var kinds optionKinds
+	if d > 0 {
+		kinds = optionKindInteropLogBackfill
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropLogBackfillDepth = d
+		},
+	}
 }
