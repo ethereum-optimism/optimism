@@ -11,13 +11,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -243,6 +248,58 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
 	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
 	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
+}
+
+// TestEIP7825DepositBypassesTxGasLimitCap proves that deposit transactions are not
+// subject to the EIP-7825 2^24 gas cap introduced by Karst. Deposits are forced onto
+// L2 by the derivation pipeline rather than passing through the txpool, so the cap
+// — which is a tx validity rule — must not apply to them; otherwise an attacker could
+// trivially brick the rollup by submitting deposits that can never be included.
+func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+	sys.L1Network.WaitForOnline()
+
+	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	alicel2 := alice.AsEL(sys.L2EL)
+
+	portalAddr := sys.L2Chain.Escape().RollupConfig().DepositContractAddress
+	portal := bindings.NewBindings[bindings.OptimismPortal2](
+		bindings.WithClient(sys.L1EL.EthClient()),
+		bindings.WithTo(portalAddr),
+		bindings.WithTest(t),
+	)
+
+	// Deposit with gas limit above the EIP-7825 cap of 2^24 = 16,777,216.
+	depositGasLimit := params.MaxTxGas + 1
+	depositAmount := eth.OneHundredthEther
+	args := portal.DepositTransaction(alice.Address(), depositAmount, depositGasLimit, false, []byte{})
+	// Skip eth_estimateGas: the estimator in txplan caps its binary search at
+	// params.MaxTxGas, but ResourceMetering's Burn.gas inside depositTransaction
+	// needs to burn ~depositGasLimit gas on L1, so estimation would run out of gas.
+	l1Receipt := contract.Write(alice, args,
+		txplan.WithValue(depositAmount),
+		txplan.WithGasLimit(depositGasLimit+1_000_000),
+	)
+	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status)
+
+	var l2DepositTx *ethtypes.DepositTx
+	for _, log := range l1Receipt.Logs {
+		var err error
+		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
+			break
+		}
+	}
+	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
+	t.Require().Equal(depositGasLimit, l2DepositTx.Gas, "L2 deposit tx gas should match the requested gas limit")
+
+	sys.L2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
+	l2Receipt := sys.L2EL.WaitForReceipt(ethtypes.NewTx(l2DepositTx).Hash())
+	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit should be included and succeed on L2")
+
+	alicel2.WaitForBalance(depositAmount)
 }
 
 // TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block
