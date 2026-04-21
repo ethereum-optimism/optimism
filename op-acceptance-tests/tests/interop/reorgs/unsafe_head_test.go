@@ -1,6 +1,7 @@
 package reorgs
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -84,6 +85,21 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	// start batcher on chain A
 	sys.L2BatcherA.Start()
+
+	// Wait for EL to adopt the conflicting block as its canonical head at the
+	// divergence block number. op-test-sequencer's committer sends engine_newPayload
+	// and engine_forkchoiceUpdated for the conflicting block synchronously, but the
+	// EL's "latest" label can briefly lag the FCU under CI load. Without this wait,
+	// the next BlockRefByLabel(eth.Unsafe) read below can return originalRef_A, the
+	// next block is then built on top of the original chain, and the intended reorg
+	// is silently undone.
+	waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+	err := wait.For(waitCtx, 100*time.Millisecond, func() (bool, error) {
+		head := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		return head.Number == divergenceBlockNumber_A && head.Hash != originalRef_A.Hash, nil
+	})
+	waitCancel()
+	require.NoError(t, err, "L2ELA never adopted the conflicting block as canonical head at number %d", divergenceBlockNumber_A)
 
 	// sequence a second block with op-test-sequencer (no L1 origin override)
 	{
