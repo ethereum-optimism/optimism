@@ -31,6 +31,13 @@ type CheckType struct {
 	Scopeable       bool     `yaml:"scopeable"`
 	ScopeFlag       string   `yaml:"scope_flag"`
 	ScopeType       string   `yaml:"scope_type"`
+	// ScopeJoin controls how multiple scopes are combined into a
+	// single command. "" (default) repeats ScopeFlag per scope
+	// ("-p a -p b" for cargo, "./a ./b" positional for go test).
+	// "brace" emits a single ScopeFlag with a brace-alternated glob,
+	// required by tools (e.g. forge test --match-path) that accept the
+	// flag only once but support glob brace expansion.
+	ScopeJoin       string   `yaml:"scope_join,omitempty"`
 	Inputs          []string `yaml:"inputs,omitempty"`
 	Outputs         []string `yaml:"outputs,omitempty"`
 	Tools           []string `yaml:"tools,omitempty"`

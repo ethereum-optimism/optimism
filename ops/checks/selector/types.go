@@ -44,11 +44,24 @@ func (e *ExecutionItem) ResolvedCommandWithCatalog(ct *catalog.CheckType, cat *c
 
 	// Build scope args
 	var scopeParts []string
-	for _, s := range e.Scope {
-		if ct.ScopeFlag != "" {
-			scopeParts = append(scopeParts, fmt.Sprintf("%s '%s'", ct.ScopeFlag, s))
+	if ct.ScopeFlag != "" && ct.ScopeJoin == "brace" {
+		// Tools like `forge test --match-path` accept the flag once
+		// but support brace-alternated globs. Emit a single flag with
+		// {p1,p2,...}. Single-element scopes stay unbracketed for
+		// readability and to avoid the empty-brace edge case.
+		scopes := stripLeadingDotSlash(e.Scope)
+		if len(scopes) == 1 {
+			scopeParts = []string{fmt.Sprintf("%s '%s'", ct.ScopeFlag, scopes[0])}
 		} else {
-			scopeParts = append(scopeParts, s)
+			scopeParts = []string{fmt.Sprintf("%s '{%s}'", ct.ScopeFlag, strings.Join(scopes, ","))}
+		}
+	} else {
+		for _, s := range e.Scope {
+			if ct.ScopeFlag != "" {
+				scopeParts = append(scopeParts, fmt.Sprintf("%s '%s'", ct.ScopeFlag, s))
+			} else {
+				scopeParts = append(scopeParts, s)
+			}
 		}
 	}
 
@@ -61,6 +74,17 @@ func (e *ExecutionItem) ResolvedCommandWithCatalog(ct *catalog.CheckType, cat *c
 	// For flagged scope (forge test --match-path), scope comes after command, then knobs
 	cmd = cmd + " " + strings.Join(scopeParts, " ")
 	return prependEnv(appendKnobFlags(cmd, ct, e.Config), e.Profile, cat)
+}
+
+// stripLeadingDotSlash drops the "./" prefix if present. Brace-alternated
+// globs in forge's globset parser fail when the pattern starts with "./"
+// inside the braces; paths like "test/L1/X.t.sol" work identically.
+func stripLeadingDotSlash(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i] = strings.TrimPrefix(p, "./")
+	}
+	return out
 }
 
 // prependEnv prepends profile env vars to the command.

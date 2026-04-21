@@ -235,6 +235,7 @@ check_types:
     command: "cd packages/contracts-bedrock && mise exec -- just test"
     scopeable: true
     scope_flag: "--match-path"
+    scope_join: brace
     scope_type: paths
     tools: [forge, mise]
     inputs:
@@ -294,6 +295,7 @@ check_types:
     command: "cd packages/contracts-bedrock && mise exec -- just test-dev"
     scopeable: true
     scope_flag: "--match-path"
+    scope_join: brace
     scope_type: paths
     tools: [forge, mise]
     inputs:
