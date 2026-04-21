@@ -98,11 +98,62 @@ func (a *SolidityAdapter) Analyze(g *graph.Graph, rootDir string) error {
 		}
 	}
 
-	// Cross-language dataflow (src → generated-interfaces, src → Go
-	// bindings) is now handled by gen-* check_types declaring those
-	// artifacts as outputs, plus the builder's bridge-imports step.
+	// Bridge src ↔ interface: this repo's convention is that every
+	// src/<path>/Foo.sol has a hand-maintained interfaces/<path>/IFoo.sol
+	// whose shape mirrors the src contract. Tests typically import the
+	// interface (not the concrete src), so without a graph-level bridge
+	// a change to src/.../Foo.sol leaves the test importers unreachable
+	// by the reverse-imports scope walk.
+	//
+	// Emit edges `sol:interfaces/<path>/IFoo.sol → sol:src/<path>/Foo.sol`
+	// with kind=imports, semantically "the interface mirrors the src".
+	// walkForScope's reverse-imports walk then propagates: src change →
+	// interface invalidated → test importers of the interface surface as
+	// scope candidates.
+	//
+	// (Cross-language dataflow for src → Go bindings is handled
+	// separately via the builder's bridge-imports step.)
+	for _, path := range solFiles {
+		relPath, _ := filepath.Rel(solDir, path)
+		if !strings.HasPrefix(relPath, "src/") {
+			continue
+		}
+		ifaceRel := srcToInterface(relPath)
+		if ifaceRel == "" {
+			continue
+		}
+		ifaceID := "sol:" + ifaceRel
+		srcID := "sol:" + relPath
+		if g.GetNode(ifaceID) == nil {
+			continue
+		}
+		_ = g.AddEdge(&graph.Edge{
+			From:       ifaceID,
+			To:         srcID,
+			Kind:       graph.EdgeImports,
+			Source:     graph.SourceStatic,
+			Confidence: 1.0,
+			Strength:   1.0,
+		})
+	}
 
 	return nil
+}
+
+// srcToInterface maps src/<path>/Foo.sol → interfaces/<path>/IFoo.sol
+// by the repo's naming convention. Returns "" if relPath isn't under
+// src/.
+func srcToInterface(relPath string) string {
+	if !strings.HasPrefix(relPath, "src/") {
+		return ""
+	}
+	trimmed := strings.TrimPrefix(relPath, "src/")
+	dir := filepath.Dir(trimmed)
+	base := filepath.Base(trimmed)
+	if dir == "." {
+		return filepath.Join("interfaces", "I"+base)
+	}
+	return filepath.Join("interfaces", dir, "I"+base)
 }
 
 
