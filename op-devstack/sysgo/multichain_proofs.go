@@ -116,8 +116,10 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	}
 
 	superrootTime := awaitSuperrootTime(t, cls...)
-	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
-	migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	if cfg.PreGenesisSuperGame == nil {
+		superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
+		migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	}
 
 	challenger := startInteropChallenger(
 		t,

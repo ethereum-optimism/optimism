@@ -323,3 +323,25 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 		},
 	}
 }
+
+// WithPreGenesisSuperGame seeds one invalid super dispute game before the
+// rollup start block so tests can exercise supernode/challenger behaviour
+// when a game's L1 head predates rollup genesis. The claimed outputs follow
+// the preset chain order (`l2a`, `l2b` for two-chain presets).
+func WithPreGenesisSuperGame(claimedOutputs ...eth.Bytes32) Option {
+	var kinds optionKinds
+	if len(claimedOutputs) > 0 {
+		kinds = optionKindPreGenesisSuperGame
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if len(claimedOutputs) == 0 {
+				return
+			}
+			cfg.PreGenesisSuperGame = &sysgo.PreGenesisSuperGameConfig{
+				ClaimedOutputs: append([]eth.Bytes32(nil), claimedOutputs...),
+			}
+		},
+	}
+}

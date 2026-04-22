@@ -168,6 +168,21 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
+func (f *DisputeGameFactory) SuperGameAtIndex(idx int64) *SuperFaultDisputeGame {
+	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
+	gameType := gameTypes.GameType(gameInfo.GameType)
+	f.require.Truef(
+		gameType == gameTypes.SuperCannonGameType ||
+			gameType == gameTypes.SuperPermissionedGameType ||
+			gameType == gameTypes.SuperCannonKonaGameType,
+		"game at index %d is not a supported super game: %v",
+		idx,
+		gameType,
+	)
+	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
+	return NewSuperFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
+}
+
 func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))

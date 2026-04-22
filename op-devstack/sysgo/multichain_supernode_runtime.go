@@ -214,6 +214,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -222,6 +223,9 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	if cfg.PreGenesisSuperGame != nil {
+		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.EnableCannonKonaForChall, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
+	}
 
 	var l2AEL, l2BEL L2ELNode
 	var interopFilter *InteropFilter
@@ -320,7 +324,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 
 	return &MultiChainRuntime{
 		Keys:          keys,
-		Migration:     newInteropMigrationState(wb),
+		Migration:     migration,
 		DependencySet: runtimeDepSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
