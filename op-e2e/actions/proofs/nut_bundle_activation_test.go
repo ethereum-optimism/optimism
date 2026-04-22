@@ -25,22 +25,12 @@ import (
 func TestActivationBlockNUTBundle(gt *testing.T) {
 	matrix := helpers.NewMatrix[forks.Name]()
 
-	// Resolve Karst's index in forks.All so we can reach the immediately preceding
-	// fork for each entry yielded by forks.From(Karst).
-	karstIdx := -1
-	for i, f := range forks.All {
-		if f == forks.Karst {
-			karstIdx = i
-			break
-		}
-	}
-	require.Greater(gt, karstIdx, 0, "Karst must not be first in forks.All")
-
-	for i, fork := range forks.From(forks.Karst) {
+	for _, fork := range forks.From(forks.Karst) {
 		_, _, err := derive.UpgradeTransactions(fork)
 		require.NoError(gt, err, "fork %s from Karst onward must have a NUT bundle", fork)
 
-		preFork := forks.All[karstIdx+i-1]
+		preFork := forks.Prev(fork)
+		require.NotEqual(gt, forks.None, preFork, "fork %s has no preceding fork in forks.All", fork)
 		preHelper := lookupHardforkHelper(preFork)
 		require.NotNil(gt, preHelper,
 			"no pre-fork helper registered for NUT-bundle fork %s (prior fork: %s); add %s to helpers.Hardforks",
