@@ -1,13 +1,17 @@
 package proofs
 
 import (
+	"context"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -15,13 +19,18 @@ import (
 
 // TestActivationBlockNUTBundle verifies that, for every fork from Karst onward,
 // the fork's activation block contains exactly the bundle's deposit transactions
-// in order and that every upgrade tx executes successfully.
+// in order, every upgrade tx executes successfully, and the fault-proof program
+// can prove the result.
 //
 // Discovery runs through [forks.From]([forks.Karst]), so any future fork is
 // covered automatically — and required to have a NUT bundle registered with
 // [derive.UpgradeTransactions]. The only per-fork requirement beyond that is
 // that the fork immediately preceding it is registered in [helpers.Hardforks]
 // — a one-line entry needed for any fork-parametrized test in this package.
+//
+// Fork-specific state assertions (e.g. Karst's proxy implementation swap) are
+// dispatched via the switch in [testActivationBlockNUTBundle]. Future forks
+// with their own post-activation invariants register a case there.
 func TestActivationBlockNUTBundle(gt *testing.T) {
 	matrix := helpers.NewMatrix[forks.Name]()
 
@@ -101,6 +110,57 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	for i, r := range receipts {
 		require.Equal(t, types.ReceiptStatusSuccessful, r.Status,
 			"activation-block tx %d reverted", i)
+	}
+
+	// Fork-specific post-activation assertions. Future forks register cases here.
+	switch fork {
+	case forks.Karst:
+		assertKarstActivation(t, env, actHeader)
+	}
+
+	// Advance the safe head across the activation boundary so the fault-proof
+	// program verifies a non-trivial span including the upgrade block.
+	env.BatchMineAndSync(t)
+	l2SafeHead := env.Sequencer.L2Safe()
+	require.GreaterOrEqual(t, l2SafeHead.Number, actHeader.Number.Uint64(),
+		"safe head must have progressed past the %s activation block", fork)
+
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+}
+
+// assertKarstActivation verifies Karst-specific state changes: representative
+// predeploy proxies' EIP-1967 implementation slots must change across the
+// activation block and the new implementations must have code. This is a
+// smoke test that the bundle's upgrade transactions actually rewrote proxy
+// implementation pointers, not a check of what the new implementations do.
+func assertKarstActivation(t actionsHelpers.StatefulTesting, env *helpers.L2FaultProofEnv, actHeader *types.Header) {
+	ethCl := env.Engine.EthClient()
+	postBlock := actHeader.Number
+	preBlock := new(big.Int).Sub(postBlock, big.NewInt(1))
+
+	// L1Block and GasPriceOracle mirror the proxies asserted by earlier fork
+	// tests (ecotone, isthmus); covering them keeps vocabulary consistent
+	// across fork tests.
+	proxies := []struct {
+		name string
+		addr common.Address
+	}{
+		{"L1Block", predeploys.L1BlockAddr},
+		{"GasPriceOracle", predeploys.GasPriceOracleAddr},
+	}
+	for _, p := range proxies {
+		preImpl, err := ethCl.StorageAt(context.Background(), p.addr, genesis.ImplementationSlot, preBlock)
+		require.NoError(t, err, "read %s impl slot pre-activation", p.name)
+		postImpl, err := ethCl.StorageAt(context.Background(), p.addr, genesis.ImplementationSlot, postBlock)
+		require.NoError(t, err, "read %s impl slot post-activation", p.name)
+
+		require.NotEqualf(t, preImpl, postImpl,
+			"%s (%s) implementation slot must change across Karst activation", p.name, p.addr)
+
+		newImplAddr := common.BytesToAddress(postImpl)
+		code, err := ethCl.CodeAt(context.Background(), newImplAddr, postBlock)
+		require.NoError(t, err, "read code at new %s impl", p.name)
+		require.NotEmptyf(t, code, "new %s impl %s must have code", p.name, newImplAddr)
 	}
 }
 
