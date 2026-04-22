@@ -23,6 +23,15 @@ contract SP1PlonkAdapter_Constructor_Test is SP1PlonkAdapter_TestInit {
     function test_sp1Verifier_succeeds() external view {
         assertEq(address(adapter.sp1Verifier()), address(mockVerifier));
     }
+
+    /// @notice Tests that construction reverts when the verifier address has no code.
+    function test_constructor_verifierHasNoCode_reverts() external {
+        address emptyVerifier = makeAddr("emptyVerifier");
+        assertEq(emptyVerifier.code.length, 0);
+
+        vm.expectRevert(ISP1PlonkAdapter.SP1PlonkAdapter_InvalidVerifier.selector);
+        vm.deployCode("SP1PlonkAdapter.sol:SP1PlonkAdapter", abi.encode(emptyVerifier));
+    }
 }
 
 contract SP1PlonkAdapter_Version_Test is SP1PlonkAdapter_TestInit {

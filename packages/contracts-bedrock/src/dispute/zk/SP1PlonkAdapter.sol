@@ -8,6 +8,9 @@ import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 /// @notice Adapter that wraps an SP1 PLONK verifier behind the IZKVerifier interface.
 ///         Deployed as a singleton (not proxied), following the MIPS.sol pattern.
 contract SP1PlonkAdapter is IZKVerifier {
+    /// @notice Thrown when the provided verifier address has no code.
+    error SP1PlonkAdapter_InvalidVerifier();
+
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -19,6 +22,7 @@ contract SP1PlonkAdapter is IZKVerifier {
     ///
     /// @param _sp1Verifier The SP1 verifier contract.
     constructor(ISP1Verifier _sp1Verifier) {
+        if (address(_sp1Verifier).code.length == 0) revert SP1PlonkAdapter_InvalidVerifier();
         SP1_VERIFIER = _sp1Verifier;
     }
 

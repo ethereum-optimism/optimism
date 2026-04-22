@@ -71,5 +71,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SP1PlonkAdapter_InvalidVerifier",
+    "type": "error"
   }
 ]
