@@ -148,6 +148,18 @@ func TestBeaconHTTPClient(t *testing.T) {
 	require.Equal(t, err.Error(), fmt.Sprintf("#returned blobs(%d) != #requested blobs(%d)", 0, len(hashes)))
 }
 
+func TestBeaconHTTPClientConfigSpecOverride(t *testing.T) {
+	// With override set, ConfigSpec must return the synthesized value without
+	// touching the underlying HTTP client. client_mocks.NewHTTP sets up strict
+	// expectations, so an unexpected Get call would fail the test.
+	c := client_mocks.NewHTTP(t)
+	b := NewBeaconHTTPClient(c, WithSlotDurationOverride(7))
+
+	resp, err := b.ConfigSpec(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, eth.Uint64String(7), resp.Data.SecondsPerSlot)
+}
+
 func TestClientPoolSingle(t *testing.T) {
 	p := NewClientPool(1)
 	for i := 0; i < 10; i++ {
