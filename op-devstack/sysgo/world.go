@@ -87,15 +87,16 @@ func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, in
 		blockTime: 6,
 	}
 	l2Net := &L2Network{
-		name:       "l2a",
-		chainID:    l2ID,
-		l1ChainID:  l1ID,
-		genesis:    wb.outL2Genesis[l2ID],
-		rollupCfg:  wb.outL2RollupCfg[l2ID],
-		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
+		name:          "l2a",
+		chainID:       l2ID,
+		l1ChainID:     l1ID,
+		genesis:       wb.outL2Genesis[l2ID],
+		rollupCfg:     wb.outL2RollupCfg[l2ID],
+		deployment:    wb.outL2Deployment[l2ID],
+		opcmImpl:      wb.output.ImplementationsDeployment.OpcmV2Impl,
+		opcmContainer: wb.output.ImplementationsDeployment.OpcmContainerImpl,
+		mipsImpl:      wb.output.ImplementationsDeployment.MipsImpl,
+		keys:          keys,
 	}
 	var depSet depset.DependencySet
 	if wb.outFullCfgSet.DependencySet != nil {
@@ -130,26 +131,28 @@ func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis b
 	t.Require().True(ok, "missing L2B genesis")
 
 	l2A := &L2Network{
-		name:       "l2a",
-		chainID:    DefaultL2AID,
-		l1ChainID:  l1ID,
-		genesis:    l2ANet,
-		rollupCfg:  wb.outL2RollupCfg[DefaultL2AID],
-		deployment: wb.outL2Deployment[DefaultL2AID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
+		name:          "l2a",
+		chainID:       DefaultL2AID,
+		l1ChainID:     l1ID,
+		genesis:       l2ANet,
+		rollupCfg:     wb.outL2RollupCfg[DefaultL2AID],
+		deployment:    wb.outL2Deployment[DefaultL2AID],
+		opcmImpl:      wb.output.ImplementationsDeployment.OpcmV2Impl,
+		opcmContainer: wb.output.ImplementationsDeployment.OpcmContainerImpl,
+		mipsImpl:      wb.output.ImplementationsDeployment.MipsImpl,
+		keys:          keys,
 	}
 	l2B := &L2Network{
-		name:       "l2b",
-		chainID:    DefaultL2BID,
-		l1ChainID:  l1ID,
-		genesis:    l2BNet,
-		rollupCfg:  wb.outL2RollupCfg[DefaultL2BID],
-		deployment: wb.outL2Deployment[DefaultL2BID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
+		name:          "l2b",
+		chainID:       DefaultL2BID,
+		l1ChainID:     l1ID,
+		genesis:       l2BNet,
+		rollupCfg:     wb.outL2RollupCfg[DefaultL2BID],
+		deployment:    wb.outL2Deployment[DefaultL2BID],
+		opcmImpl:      wb.output.ImplementationsDeployment.OpcmV2Impl,
+		opcmContainer: wb.output.ImplementationsDeployment.OpcmContainerImpl,
+		mipsImpl:      wb.output.ImplementationsDeployment.MipsImpl,
+		keys:          keys,
 	}
 	return newInteropMigrationState(wb), l1Net, l2A, l2B, wb.outFullCfgSet
 }

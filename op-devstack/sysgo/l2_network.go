@@ -12,15 +12,16 @@ import (
 )
 
 type L2Network struct {
-	name       string
-	chainID    eth.ChainID
-	l1ChainID  eth.ChainID
-	genesis    *core.Genesis
-	rollupCfg  *rollup.Config
-	deployment *L2Deployment
-	opcmImpl   common.Address
-	mipsImpl   common.Address
-	keys       devkeys.Keys
+	name          string
+	chainID       eth.ChainID
+	l1ChainID     eth.ChainID
+	genesis       *core.Genesis
+	rollupCfg     *rollup.Config
+	deployment    *L2Deployment
+	opcmImpl      common.Address
+	opcmContainer common.Address
+	mipsImpl      common.Address
+	keys          devkeys.Keys
 }
 
 func (c *L2Network) Name() string {

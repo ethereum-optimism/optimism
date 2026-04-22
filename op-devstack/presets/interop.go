@@ -119,7 +119,7 @@ func NewSimpleInteropSupernodeProofs(t devtest.T, opts ...Option) *SimpleInterop
 // current test using the single-chain super-root proofs system backed by op-supernode.
 func NewSingleChainInteropSupernodeProofs(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSupernodeProofs", opts, supernodeProofsPresetSupportedOptionKinds)
-	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, true, presetCfg))
+	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
 // NewSimpleInteropIsthmusSuper creates a fresh SimpleInterop target for the current test

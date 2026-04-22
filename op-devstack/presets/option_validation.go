@@ -161,7 +161,8 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindChallengerCannonKona |
 	optionKindL1EL |
 	optionKindTimeTravel |
-	optionKindMessageExpiryWindow
+	optionKindMessageExpiryWindow |
+	optionKindAddedGameType
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL

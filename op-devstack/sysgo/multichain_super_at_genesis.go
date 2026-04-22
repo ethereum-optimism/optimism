@@ -20,7 +20,19 @@ func withSuperRootGamesAtGenesisDeployerFeatures(cfg PresetConfig) PresetConfig 
 func NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	runtime := newSingleChainSupernodeRuntimeWithConfig(t, true, cfg)
+	registerAddedSuperGameTypes(t, runtime, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperPermissionedGameType)
 	return runtime
+}
+
+func registerAddedSuperGameTypes(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) {
+	if len(cfg.AddedSuperGameTypes) == 0 {
+		return
+	}
+	for _, chain := range orderedRuntimeChains(runtime) {
+		for _, add := range cfg.AddedSuperGameTypes {
+			registerSuperDisputeGameForRuntime(t, runtime.Keys, runtime.L1Network.ChainID(), runtime.L1EL, chain.Network, add.GameType, add.Prestate)
+		}
+	}
 }

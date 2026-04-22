@@ -3,6 +3,8 @@ package presets
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -217,6 +219,22 @@ func WithGameTypeAdded(gameType gameTypes.GameType) Option {
 		kinds: optionKindAddedGameType,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameType)
+		},
+	}
+}
+
+// WithSuperGameTypeAdded registers a super dispute game type on each L2's
+// DisputeGameFactory after initial deploy. Unlike WithGameTypeAdded, super
+// types require a prestate; the impl itself is the shared one on the
+// OPCMContainer. Requires the SuperRootGamesMigration dev flag at deploy.
+func WithSuperGameTypeAdded(gameType gameTypes.GameType, prestate common.Hash) Option {
+	return option{
+		kinds: optionKindAddedGameType,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.AddedSuperGameTypes = append(cfg.AddedSuperGameTypes, sysgo.AddedSuperGameType{
+				GameType: gameType,
+				Prestate: prestate,
+			})
 		},
 	}
 }

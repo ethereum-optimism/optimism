@@ -234,6 +234,10 @@ func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.
 		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
 	case gameTypes.CannonKonaGameType:
 		return getCannonKonaAbsolutePrestate(t)
+	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
+		return getInteropCannonAbsolutePrestate(t)
+	case gameTypes.SuperCannonKonaGameType:
+		return getCannonKonaAbsolutePrestate(t)
 	default:
 		t.Require().Fail("no prestate available for game type", gameType)
 		return common.Hash{}

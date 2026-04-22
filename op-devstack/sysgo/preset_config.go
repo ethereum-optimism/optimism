@@ -4,7 +4,16 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum/go-ethereum/common"
 )
+
+// AddedSuperGameType requests that a super dispute game type be registered on
+// the chain's DisputeGameFactory after initial deploy. Super game impls live
+// on the shared OPCMContainer, so this records only the (type, prestate) pair.
+type AddedSuperGameType struct {
+	GameType gameTypes.GameType
+	Prestate common.Hash
+}
 
 // PresetConfig captures preset constructor mutations.
 // It is independent from orchestrator lifecycle hooks.
@@ -19,6 +28,7 @@ type PresetConfig struct {
 	L1ELKind                   string
 	L1GethExecPath             string
 	AddedGameTypes             []gameTypes.GameType
+	AddedSuperGameTypes        []AddedSuperGameType
 	RespectedGameTypes         []gameTypes.GameType
 	EnableCannonKonaForChall   bool
 	EnableTimeTravel           bool
