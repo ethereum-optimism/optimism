@@ -461,6 +461,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         if (status != GameStatus.IN_PROGRESS) revert ClaimAlreadyResolved();
 
         // INVARIANT: Cannot resolve a game if the parent game has not been resolved.
+        // Note: Parent blacklisting or retirement is NOT propagated automatically to descendants.
+        // resolve() only checks the parent's GameStatus. If a parent is blacklisted after a child is created,
+        // the child must be manually blacklisted by the guardian to enter REFUND mode.
         GameStatus parentGameStatus = getParentGameStatus();
         if (parentGameStatus == GameStatus.IN_PROGRESS) revert ParentGameNotResolved();
 
