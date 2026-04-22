@@ -25,7 +25,7 @@ build-deps:
     cd {{REPO_ROOT}}
     just cannon-prestates
 
-    echo "Building Rust binaries (kona-node, op-rbuilder, rollup-boost)..."
+    echo "Building Rust binaries (kona-node, kona-host, op-reth, op-rbuilder, rollup-boost)..."
     cd {{REPO_ROOT}}
     just build-rust-release
 
