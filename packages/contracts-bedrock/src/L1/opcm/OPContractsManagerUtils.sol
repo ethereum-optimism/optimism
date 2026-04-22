@@ -124,7 +124,11 @@ contract OPContractsManagerUtils {
     /// @param _key The key of the instruction to check for.
     /// @param _data The data of the instruction to check for.
     /// @return True if the instruction matches, false otherwise.
-    function isMatchingInstruction(ExtraInstruction memory _instruction, string memory _key, bytes memory _data)
+    function isMatchingInstruction(
+        ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
         public
         pure
         returns (bool)
@@ -138,7 +142,11 @@ contract OPContractsManagerUtils {
     /// @param _key The key of the instruction to check for.
     /// @param _data The data of the instruction to check for.
     /// @return True if the instruction is present, false otherwise.
-    function hasInstruction(ExtraInstruction[] memory _instructions, string memory _key, bytes memory _data)
+    function hasInstruction(
+        ExtraInstruction[] memory _instructions,
+        string memory _key,
+        bytes memory _data
+    )
         public
         pure
         returns (bool)
@@ -174,7 +182,12 @@ contract OPContractsManagerUtils {
     /// @param _name The name of the field to load.
     /// @param _instructions The extra upgrade instructions for the data load.
     /// @return Data retrieved from the source contract.
-    function loadBytes(address _source, bytes4 _selector, string memory _name, ExtraInstruction[] memory _instructions)
+    function loadBytes(
+        address _source,
+        bytes4 _selector,
+        string memory _name,
+        ExtraInstruction[] memory _instructions
+    )
         external
         view
         returns (bytes memory)

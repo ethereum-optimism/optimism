@@ -85,12 +85,20 @@ interface IOPContractsManagerUtils {
         pure
         returns (bool);
 
-    function isMatchingInstruction(ExtraInstruction memory _instruction, string memory _key, bytes memory _data)
+    function isMatchingInstruction(
+        ExtraInstruction memory _instruction,
+        string memory _key,
+        bytes memory _data
+    )
         external
         pure
         returns (bool);
 
-    function hasInstruction(ExtraInstruction[] memory _instructions, string memory _key, bytes memory _data)
+    function hasInstruction(
+        ExtraInstruction[] memory _instructions,
+        string memory _key,
+        bytes memory _data
+    )
         external
         pure
         returns (bool);
@@ -100,7 +108,12 @@ interface IOPContractsManagerUtils {
         pure
         returns (ExtraInstruction memory);
 
-    function loadBytes(address _source, bytes4 _selector, string memory _name, ExtraInstruction[] memory _instructions)
+    function loadBytes(
+        address _source,
+        bytes4 _selector,
+        string memory _name,
+        ExtraInstruction[] memory _instructions
+    )
         external
         view
         returns (bytes memory);

@@ -20,6 +20,14 @@ import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
 ///      identical to an "external library" contract. You could use a real external library, but
 ///      this is much easier for humans to read and for us to validate offchain.
 abstract contract OPContractsManagerUtilsCaller {
+    /// @notice Selector for `upgrade(address,address,address,bytes,bytes32,uint8)`.
+    bytes4 internal constant UPGRADE_SELECTOR =
+        bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8)"));
+
+    /// @notice Selector for `upgrade(address,address,address,bytes,bytes32,uint8,bytes32)`.
+    bytes4 internal constant UPGRADE_WITH_V5_SLOT_SELECTOR =
+        bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8,bytes32)"));
+
     /// @notice Address of the OPContractsManagerUtils contract.
     IOPContractsManagerUtils public immutable opcmUtils;
 
@@ -157,17 +165,9 @@ abstract contract OPContractsManagerUtilsCaller {
         bytes32 _slot,
         uint8 _offset
     ) internal {
-        _delegatecall(
-            abi.encodeWithSelector(
-                bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8)")),
-                _proxyAdmin,
-                _target,
-                _implementation,
-                _data,
-                _slot,
-                _offset
-            )
-        );
+        _delegatecall(bytes.concat(
+            UPGRADE_SELECTOR, abi.encode(_proxyAdmin, _target, _implementation, _data, _slot, _offset)
+        ));
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
@@ -187,18 +187,10 @@ abstract contract OPContractsManagerUtilsCaller {
         uint8 _offset,
         bytes32 _ozV5Slot
     ) internal {
-        _delegatecall(
-            abi.encodeWithSelector(
-                bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8,bytes32)")),
-                _proxyAdmin,
-                _target,
-                _implementation,
-                _data,
-                _slot,
-                _offset,
-                _ozV5Slot
-            )
-        );
+        _delegatecall(bytes.concat(
+            UPGRADE_WITH_V5_SLOT_SELECTOR,
+            abi.encode(_proxyAdmin, _target, _implementation, _data, _slot, _offset, _ozV5Slot)
+        ));
     }
 
     /// @notice Helper calling the utils contract (via delegatecall).
