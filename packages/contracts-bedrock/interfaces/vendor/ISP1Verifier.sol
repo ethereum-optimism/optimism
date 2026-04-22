@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 /// @title ISP1Verifier
 /// @notice Interface for Succinct's SP1 verifier.
-///         Derived from https://github.com/succinctlabs/sp1-contracts.
+///         Derived from https://github.com/succinctlabs/sp1-contracts/tree/v6.0.0.
 interface ISP1Verifier {
     /// @notice Verifies a proof with given public values and vkey.
     ///
