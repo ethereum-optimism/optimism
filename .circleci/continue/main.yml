@@ -4,6 +4,9 @@ parameters:
   c-default_docker_image:
     type: string
     default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   c-base_image:
     type: string
     default: default
@@ -89,6 +92,9 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -317,18 +323,6 @@ commands:
       - apt-install:
           packages: "zstd=1.4.8*"
 
-  install-cargo-binstall:
-    description: "Install cargo-binstall for fast binary installations"
-    steps:
-      - run:
-          name: Install cargo-binstall
-          command: |
-            if command -v cargo-binstall >/dev/null 2>&1; then
-              echo "cargo-binstall already installed"
-              exit 0
-            fi
-            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -432,38 +426,6 @@ commands:
           key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
   # --- Rust environment setup commands ---
-  rust-install-toolchain:
-    description: "Install Rust toolchain via rustup"
-    parameters:
-      channel:
-        description: The Rust channel release to use (stable, nightly, etc.)
-        type: string
-        default: "stable"
-      components:
-        description: Components to install (space or comma separated)
-        type: string
-        default: ""
-      toolchain_version:
-        description: The specific toolchain version for stable channel
-        type: string
-        default: "1.92.0"
-      target:
-        description: A custom target architecture to add to the toolchain
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: Install Rust toolchain (<< parameters.channel >>)
-          command: |
-            rustup default << parameters.toolchain_version >>
-
-            if [ -n "<< parameters.components >>" ]; then
-              rustup component add << parameters.components >>
-            fi
-            if [ -n "<< parameters.target >>" ]; then
-              rustup target add << parameters.target >>
-            fi
-
   rust-setup-env:
     description: "Fix rust mise environment variables"
     steps:
@@ -495,9 +457,9 @@ commands:
       - when:
           condition: << parameters.needs_clang >>
           steps:
-            - apt-install:
-                packages: "clang llvm-dev libclang-dev"
-                extra_flags: "--no-install-recommends"
+            - run:
+                name: Ensure clang available
+                command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -636,10 +598,6 @@ commands:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
-      toolchain:
-        description: "Rust toolchain version to install before building (empty = use default)"
-        type: string
-        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -657,11 +615,6 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
-      - when:
-          condition: << parameters.toolchain >>
-          steps:
-            - rust-install-toolchain:
-                toolchain_version: << parameters.toolchain >>
       - run:
           name: Build << parameters.directory >>
           command: |
@@ -721,21 +674,20 @@ jobs:
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
     steps:
-      - utils/ci-gate
-
-  ci-gate-skip:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
-    steps:
-      - run: echo "Skipped — docs-only change"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -765,10 +717,6 @@ jobs:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
-      toolchain:
-        description: "Rust toolchain version to install before building (empty = use default)"
-        type: string
-        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -790,7 +738,6 @@ jobs:
           features: << parameters.features >>
           package: << parameters.package >>
           binary: << parameters.binary >>
-          toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
           rust_files_changed: << parameters.rust_files_changed >>
       - when:
@@ -806,7 +753,7 @@ jobs:
   # Build a single Rust binary from a submodule.
   rust-build-submodule:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parameters:
       directory:
@@ -869,7 +816,7 @@ jobs:
             # restore cannot make the submodule path non-empty (which breaks `git submodule update --init`).
             git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
 
-            if [ "<< parameters.needs_clang >>" = "true" ]; then
+            if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
               for i in 1 2 3; do
                 if sudo apt-get -o Acquire::Retries=5 update; then
                   break
@@ -1554,13 +1501,13 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     parameters:
-      always-succed:
+      always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
         type: boolean
         default: false
     steps:
       - utils/ci-gate:
-          always-succeed: << parameters.always-succed >>
+          always-succeed: << parameters.always-succeed >>
 
   contracts-bedrock-checks-fast:
     docker:
@@ -2725,12 +2672,6 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # Aggregator for all memory-all acceptance test variants
-      - memory-all:
-          requires:
-            - memory-all-opn-op-geth
-            - memory-all-opn-op-reth
-            - memory-all-kona-op-reth
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
@@ -2742,7 +2683,9 @@ workflows:
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - go-tests-short: terminal
-            - memory-all: terminal
+            - memory-all-opn-op-geth: terminal
+            - memory-all-opn-op-reth: terminal
+            - memory-all-kona-op-reth: terminal
           context:
             - circleci-api-token
           filters:
@@ -2762,18 +2705,10 @@ workflows:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-non_docs_changes >>
     jobs:
-      - ci-gate-skip:
-          name: check-kontrol-build
-      - ci-gate-skip:
-          name: shell-check
-      - ci-gate-skip:
-          name: go-lint
-      - ci-gate-skip:
-          name: semgrep-scan-local
-      - ci-gate-skip:
-          name: go-tests-short
-      - ci-gate-skip:
-          name: memory-all
+      - ci-gate:
+          always-succeed: true
+          context:
+            - circleci-api-token
 
   go-release-op-deployer:
     jobs:
@@ -3284,6 +3219,6 @@ workflows:
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
-          always-succed: true
+          always-succeed: true
           context:
             - circleci-api-token

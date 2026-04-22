@@ -21,10 +21,9 @@ import (
 // the chain reorgs because of it, and that the chain then recovers.
 // This test can take 3 minutes to run.
 func TestSequencingWindowExpiry(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 
-	sys := presets.NewSimpleInterop(t,
+	sys := presets.NewTwoL2SupernodeInterop(t, 0,
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
 		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
 			// Span-batches during recovery don't appear to align well with the starting-point.
@@ -46,8 +45,11 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	// Wait for the first tx to become cross-safe.
 	// We are not interested in the sequencing window to expire and revert all the way back to 0.
 	require.Eventually(func() bool {
-		stat, err := sys.L2CLA.Escape().RollupAPI().SyncStatus(t.Ctx())
-		require.NoError(err)
+		stat, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		if err != nil {
+			t.Logger().Error("Failed to fetch sync status", "err", err)
+			return false
+		}
 		return stat.SafeL2.Number > bigs.Uint64Strict(receipt1.BlockNumber)
 	}, time.Second*45, time.Second, "wait for tx 1 to be safe")
 	t.Logger().Info("Tx 1 is safe now")
@@ -57,19 +59,19 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	sys.L2BatcherA.Stop()
 
 	stoppedAt := sys.L1Network.WaitForBlock() // wait for new block, in case there is any batch left
-	// Make sure the supervisor has synced enough of the L1, for the local-safe query to work.
-	sys.Supervisor.AwaitMinL1(stoppedAt.Number)
+	// Make sure the CL has synced enough of the L1, for the local-safe query to work.
+	sys.L2ACL.AwaitMinL1Processed(stoppedAt.Number)
 
-	// The latest local-safe L2 block is derived from the L1 block with the last batch.
+	// The latest local-safe L2 block is derived from the L1 chain.
 	// After this L1 block the sequence-window expiry starts ticking.
-	last, err := sys.Supervisor.Escape().QueryAPI().LocalSafe(t.Ctx(), sys.L2ChainA.ChainID())
-	require.NoError(err)
+	status := sys.L2ACL.SyncStatus()
+	lastLocalSafe := status.LocalSafeL2
 
 	t.Logger().Info("Safe when stopping batch-submitter",
-		"source", last.Source, "derived", last.Derived)
-	seqWindowSize := sys.L2ChainA.Escape().RollupConfig().SeqWindowSize
-	estimatedExpiryNum := last.Source.Number + seqWindowSize
-	lastRef, err := sys.L1EL.Escape().EthClient().BlockRefByHash(t.Ctx(), last.Source.Hash)
+		"l1_origin", lastLocalSafe.L1Origin, "local_safe", lastLocalSafe.ID())
+	seqWindowSize := sys.L2A.Escape().RollupConfig().SeqWindowSize
+	estimatedExpiryNum := lastLocalSafe.L1Origin.Number + seqWindowSize
+	lastRef, err := sys.L1EL.Escape().EthClient().BlockRefByHash(t.Ctx(), lastLocalSafe.L1Origin.Hash)
 	require.NoError(err)
 	lastTime := time.Unix(int64(lastRef.Time), 0)
 	l1BlockTime := sys.L1EL.EstimateBlockTime()
@@ -97,7 +99,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	// It may reorg once more, but then stays compatible.
 	// For a while we'll have to build blocks that are not going to be reorged out due to subtle L1 origin divergence.
 	t.Logger().Info("Turning on recovery-mode")
-	t.Require().NoError(sys.L2CLA.Escape().RollupAPI().SetRecoverMode(t.Ctx(), true))
+	t.Require().NoError(sys.L2ACL.Escape().RollupAPI().SetRecoverMode(t.Ctx(), true))
 
 	t.Logger().Info("Waiting for sequencing window expiry induced reorg now", "windowDuration", windowDuration)
 
@@ -117,25 +119,26 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 		return latestNonce <= tx2.Nonce.Value()
 	}, windowDuration+time.Second*60, 5*time.Second, "tx should be reorged out and not come back")
 
-	t.Logger().Info("Waiting for supervisor to surpass pre-reorg chain now")
-	// Monitor that the supervisor can continue to sync.
+	t.Logger().Info("Waiting for CL to surpass pre-reorg chain now")
+	// Monitor that the CL can continue to sync.
 	// A lot more blocks will expire first; the local-safe chain will be entirely force-derived blocks.
 	require.Eventually(func() bool {
-		safe, err := sys.Supervisor.Escape().QueryAPI().CrossSafe(t.Ctx(), sys.L2ChainA.ChainID())
-		require.NoError(err)
-		return safe.Source.Number > estimatedExpiryNum
-	}, windowDuration+time.Second*60, 5*time.Second, "expecting supervisor to sync cross-safe data, after resolving sequencing window expiry")
+		stat, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		if err != nil {
+			t.Logger().Error("Failed to fetch sync status", "err", err)
+			return false
+		}
+		return stat.SafeL2.L1Origin.Number > estimatedExpiryNum
+	}, windowDuration+time.Second*60, 5*time.Second, "expecting CL to sync cross-safe data, after resolving sequencing window expiry")
 
 	t.Logger().Info("Sanity-checking now")
-	// Sanity-check the unsafe head of the supervisor is also updated
-	tip, err := sys.Supervisor.Escape().QueryAPI().LocalUnsafe(t.Ctx(), sys.L2ChainA.ChainID())
-	require.NoError(err)
-	require.True(tip.Number > estimatedExpiryNum)
-	// Sanity-check the supervisor is on the right chain
-	safe, err := sys.Supervisor.Escape().QueryAPI().CrossSafe(t.Ctx(), sys.L2ChainA.ChainID())
-	require.NoError(err)
-	other := sys.L2ELA.BlockRefByNumber(safe.Derived.Number)
-	require.Equal(safe.Derived.Hash, other.Hash, "supervisor must match chain with EL")
+	// Sanity-check the unsafe head is also updated
+	syncStatus := sys.L2ACL.SyncStatus()
+	require.True(syncStatus.UnsafeL2.L1Origin.Number > estimatedExpiryNum)
+	// Sanity-check we are on the right chain
+	safeHead := syncStatus.SafeL2
+	other := sys.L2ELA.BlockRefByNumber(safeHead.Number)
+	require.Equal(safeHead.Hash, other.Hash, "CL safe must match chain with EL")
 
 	t.Logger().Info("Re-enabling batch-submitter")
 	// re-enable the batcher now that we are done with the test.
@@ -145,17 +148,17 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 
 	// Build the missing blocks, catch up on local-safe chain
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(types.LocalSafe, 20, 100),
-		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 20, 100),
+		sys.L2ACL.AdvancedFn(types.LocalSafe, 20, 100),
+		sys.L2ACL.AdvancedFn(types.LocalUnsafe, 20, 100),
 	)
 
-	syncStatus := sys.L2CLA.SyncStatus()
-	t.Logger().Info("Sync status for L2CLA", "local-unsafe", syncStatus.UnsafeL2, "local-safe", syncStatus.LocalSafeL2)
+	syncStatus = sys.L2ACL.SyncStatus()
+	t.Logger().Info("Sync status for L2ACL", "local-unsafe", syncStatus.UnsafeL2, "local-safe", syncStatus.LocalSafeL2)
 
 	// Once we have enough margin to not get reorged again before the batch-submitter acts,
 	// exit recovery mode, so we can include txs again.
 	t.Logger().Info("Exiting recovery mode")
-	t.Require().NoError(sys.L2CLA.Escape().RollupAPI().SetRecoverMode(t.Ctx(), false))
+	t.Require().NoError(sys.L2ACL.Escape().RollupAPI().SetRecoverMode(t.Ctx(), false))
 
 	// Now confirm a tx, chain should be healthy again.
 	tx3 := alice.Transfer(common.HexToAddress("0x7777"), eth.GWei(100))
@@ -166,7 +169,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	// Wait for the first tx to become cross-safe.
 	// We are not interested in the sequencing window to expire and revert all the way back to 0.
 	require.Eventually(func() bool {
-		status := sys.L2CLA.SyncStatus()
+		status := sys.L2ACL.SyncStatus()
 		t.Logger().Info("Awaiting tx safety",
 			"local-unsafe", status.UnsafeL2, "local-safe", status.LocalSafeL2)
 		return status.SafeL2.Number > bigs.Uint64Strict(receipt3.BlockNumber)

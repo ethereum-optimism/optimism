@@ -160,29 +160,14 @@ impl Interop {
         Bytes::copy_from_slice(&Self::ETH_LIQUIDITY_FUND_SELECTOR)
     }
 
-    /// Returns the list of [`TxDeposit`]s for the network upgrade.
+    /// Returns the list of always-on [`TxDeposit`]s for the Interop network upgrade.
+    ///
+    /// Mirrors op-node's `InteropNetworkUpgradeTransactions()` in
+    /// `op-node/rollup/derive/interop_upgrade_transactions.go`. The `CrossL2Inbox`
+    /// deploy+upgrade pair is emitted separately by [`Self::cross_l2_inbox_deposits`]
+    /// and is gated on the dependency set containing more than one chain.
     pub fn deposits() -> impl Iterator<Item = TxDeposit> {
         ([
-            TxDeposit {
-                source_hash: Self::deploy_cross_l2_inbox_source(),
-                from: Self::CROSS_L2_INBOX_DEPLOYER,
-                to: TxKind::Create,
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 420_000,
-                is_system_transaction: false,
-                input: Self::cross_l2_inbox_deployment_bytecode(),
-            },
-            TxDeposit {
-                source_hash: Self::upgrade_cross_l2_inbox_proxy_source(),
-                from: Address::ZERO,
-                to: TxKind::Call(Predeploys::CROSS_L2_INBOX),
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 50_000,
-                is_system_transaction: false,
-                input: super::upgrade_to_calldata(Self::NEW_CROSS_L2_INBOX_IMPL),
-            },
             TxDeposit {
                 source_hash: Self::deploy_l2_to_l2_xdm_source(),
                 from: Self::L2_TO_L2_XDM_DEPLOYER,
@@ -256,6 +241,43 @@ impl Interop {
         ])
         .into_iter()
     }
+
+    /// Returns the list of `CrossL2Inbox` [`TxDeposit`]s that are only emitted when
+    /// the interop dependency set contains more than one chain.
+    ///
+    /// Mirrors op-node's `InteropActivateCrossL2InboxTransactions()`. The gate lives
+    /// in `StatefulAttributesBuilder::prepare_payload_attributes`.
+    pub fn cross_l2_inbox_deposits() -> impl Iterator<Item = TxDeposit> {
+        ([
+            TxDeposit {
+                source_hash: Self::deploy_cross_l2_inbox_source(),
+                from: Self::CROSS_L2_INBOX_DEPLOYER,
+                to: TxKind::Create,
+                mint: 0,
+                value: U256::ZERO,
+                gas_limit: 420_000,
+                is_system_transaction: false,
+                input: Self::cross_l2_inbox_deployment_bytecode(),
+            },
+            TxDeposit {
+                source_hash: Self::upgrade_cross_l2_inbox_proxy_source(),
+                from: Address::ZERO,
+                to: TxKind::Call(Predeploys::CROSS_L2_INBOX),
+                mint: 0,
+                value: U256::ZERO,
+                gas_limit: 50_000,
+                is_system_transaction: false,
+                input: super::upgrade_to_calldata(Self::NEW_CROSS_L2_INBOX_IMPL),
+            },
+        ])
+        .into_iter()
+    }
+
+    /// Returns the list of encoded `CrossL2Inbox` upgrade [`Bytes`] txs. Convenience
+    /// wrapper for callers that already 2718-encode the base upgrade stream.
+    pub fn cross_l2_inbox_txs() -> impl Iterator<Item = Bytes> {
+        Self::cross_l2_inbox_deposits().map(|tx| tx.encoded_2718().into())
+    }
 }
 
 impl Hardfork for Interop {
@@ -270,7 +292,7 @@ mod test {
     use alloc::{vec, vec::Vec};
 
     use super::*;
-    use crate::{test_utils::check_deployment_code, upgrade_to_calldata};
+    use crate::test_utils::check_deployment_code;
 
     #[test]
     fn test_deploy_cross_l2_inbox_source() {
@@ -346,7 +368,7 @@ mod test {
 
     #[test]
     fn test_deploy_cross_l2_inbox_address_and_code() {
-        let txs = Interop::deposits().collect::<Vec<_>>();
+        let txs = Interop::cross_l2_inbox_deposits().collect::<Vec<_>>();
         check_deployment_code(
             txs[0].clone(),
             Interop::NEW_CROSS_L2_INBOX_IMPL,
@@ -358,93 +380,64 @@ mod test {
     fn test_deploy_l2_to_l2_xdm_address_and_code() {
         let txs = Interop::deposits().collect::<Vec<_>>();
         check_deployment_code(
-            txs[2].clone(),
+            txs[0].clone(),
             Interop::NEW_L2_TO_L2_XDM_IMPL,
             Interop::L2_TO_L2_XDM_IMPL_CODE_HASH,
         );
     }
 
     #[test]
-    fn test_interop_txs_encoded() {
+    fn test_interop_base_txs_encoded() {
         let interop_upgrade_tx = Interop.txs().collect::<Vec<_>>();
-        assert_eq!(interop_upgrade_tx.len(), 9);
+        assert_eq!(interop_upgrade_tx.len(), 7);
 
         let expected_txs: Vec<Bytes> = vec![
-            hex::decode(include_str!("./bytecode/interop_tx_0.hex").replace('\n', ""))
+            hex::decode(include_str!("./bytecode/interop_base_tx_0.hex").replace('\n', ""))
                 .unwrap()
                 .into(),
-            hex::decode(include_str!("./bytecode/interop_tx_1.hex").replace('\n', ""))
+            hex::decode(include_str!("./bytecode/interop_base_tx_1.hex").replace('\n', ""))
                 .unwrap()
                 .into(),
-            hex::decode(include_str!("./bytecode/interop_tx_2.hex").replace('\n', ""))
+            hex::decode(include_str!("./bytecode/interop_base_tx_2.hex").replace('\n', ""))
                 .unwrap()
                 .into(),
-            hex::decode(include_str!("./bytecode/interop_tx_3.hex").replace('\n', ""))
+            hex::decode(include_str!("./bytecode/interop_base_tx_3.hex").replace('\n', ""))
                 .unwrap()
                 .into(),
-            TxDeposit {
-                source_hash: Interop::deploy_superchain_eth_bridge_source(),
-                from: Interop::SUPERCHAIN_ETH_BRIDGE_DEPLOYER,
-                to: TxKind::Create,
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 500_000,
-                is_system_transaction: false,
-                input: Interop::superchain_eth_bridge_deployment_bytecode(),
-            }
-            .encoded_2718()
-            .into(),
-            TxDeposit {
-                source_hash: Interop::upgrade_superchain_eth_bridge_proxy_source(),
-                from: Address::ZERO,
-                to: TxKind::Call(Interop::SUPERCHAIN_ETH_BRIDGE),
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 50_000,
-                is_system_transaction: false,
-                input: upgrade_to_calldata(Interop::NEW_SUPERCHAIN_ETH_BRIDGE_IMPL),
-            }
-            .encoded_2718()
-            .into(),
-            TxDeposit {
-                source_hash: Interop::deploy_eth_liquidity_source(),
-                from: Interop::ETH_LIQUIDITY_DEPLOYER,
-                to: TxKind::Create,
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 375_000,
-                is_system_transaction: false,
-                input: Interop::eth_liquidity_deployment_bytecode(),
-            }
-            .encoded_2718()
-            .into(),
-            TxDeposit {
-                source_hash: Interop::upgrade_eth_liquidity_proxy_source(),
-                from: Address::ZERO,
-                to: TxKind::Call(Interop::ETH_LIQUIDITY),
-                mint: 0,
-                value: U256::ZERO,
-                gas_limit: 50_000,
-                is_system_transaction: false,
-                input: upgrade_to_calldata(Interop::NEW_ETH_LIQUIDITY_IMPL),
-            }
-            .encoded_2718()
-            .into(),
-            TxDeposit {
-                source_hash: Interop::fund_eth_liquidity_source(),
-                from: Interop::DEPOSITOR_ACCOUNT,
-                to: TxKind::Call(Interop::ETH_LIQUIDITY),
-                mint: u128::MAX,
-                value: U256::from(u128::MAX),
-                gas_limit: 50_000,
-                is_system_transaction: false,
-                input: Interop::eth_liquidity_fund_calldata(),
-            }
-            .encoded_2718()
-            .into(),
+            hex::decode(include_str!("./bytecode/interop_base_tx_4.hex").replace('\n', ""))
+                .unwrap()
+                .into(),
+            hex::decode(include_str!("./bytecode/interop_base_tx_5.hex").replace('\n', ""))
+                .unwrap()
+                .into(),
+            hex::decode(include_str!("./bytecode/interop_base_tx_6.hex").replace('\n', ""))
+                .unwrap()
+                .into(),
         ];
         for (i, expected) in expected_txs.iter().enumerate() {
             assert_eq!(interop_upgrade_tx[i], *expected);
+        }
+    }
+
+    #[test]
+    fn test_interop_cross_l2_inbox_txs_encoded() {
+        let cross_l2_inbox_tx = Interop::cross_l2_inbox_txs().collect::<Vec<_>>();
+        assert_eq!(cross_l2_inbox_tx.len(), 2);
+
+        let expected_txs: Vec<Bytes> = vec![
+            hex::decode(
+                include_str!("./bytecode/interop_cross_l2_inbox_tx_0.hex").replace('\n', ""),
+            )
+            .unwrap()
+            .into(),
+            hex::decode(
+                include_str!("./bytecode/interop_cross_l2_inbox_tx_1.hex").replace('\n', ""),
+            )
+            .unwrap()
+            .into(),
+        ];
+        for (i, expected) in expected_txs.iter().enumerate() {
+            assert_eq!(cross_l2_inbox_tx[i], *expected);
         }
     }
 }

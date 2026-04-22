@@ -37,7 +37,7 @@ echo "✅ llvm-objdump found at $(which llvm-objdump)"
 if ! command -v vm-compat &> /dev/null; then
   echo "❌ Error: 'vm-compat' is required but not found in \$PATH"
   echo "Please install it using:"
-  echo "  mise use -g ubi:ChainSafe/vm-compat@1.1.0"
+  echo "  mise use -g github:ChainSafe/vm-compat@1.1.0"
   echo "Or manually download from:"
   echo "  https://github.com/ChainSafe/vm-compat/releases"
   exit 1
