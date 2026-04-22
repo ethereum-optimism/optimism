@@ -323,18 +323,6 @@ commands:
       - apt-install:
           packages: "zstd=1.4.8*"
 
-  install-cargo-binstall:
-    description: "Install cargo-binstall for fast binary installations"
-    steps:
-      - run:
-          name: Install cargo-binstall
-          command: |
-            if command -v cargo-binstall >/dev/null 2>&1; then
-              echo "cargo-binstall already installed"
-              exit 0
-            fi
-            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
