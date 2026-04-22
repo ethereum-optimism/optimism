@@ -1,9 +1,9 @@
 //! Node builder setup tests.
 
-use alloy_op_evm::OpTxError;
+use alloy_op_evm::{OpEvmContext, OpTxError};
 use alloy_primitives::{Bytes, address};
 use core::marker::PhantomData;
-use op_revm::{OpContext, OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
+use op_revm::{OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
 use reth_db::test_utils::create_test_rw_db;
 use reth_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
 use reth_node_api::{FullNodeComponents, NodeTypesWithDBAdapter};
@@ -85,8 +85,9 @@ fn test_setup_custom_precompiles() {
     struct UniEvmFactory;
 
     impl EvmFactory for UniEvmFactory {
-        type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles, OpTx>;
-        type Context<DB: Database> = OpContext<DB>;
+        type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> =
+            OpEvm<DB, I, Self::Precompiles, OpTx>;
+        type Context<DB: Database> = OpEvmContext<DB>;
         type Tx = OpTx;
         type Error<DBError: core::error::Error + Send + Sync + 'static> =
             EVMError<DBError, OpTxError>;

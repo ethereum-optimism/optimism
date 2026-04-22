@@ -14,8 +14,7 @@ use alloy_evm::{
     },
     precompiles::PrecompilesMap,
 };
-use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, block::OpTxResult};
-use op_revm::OpContext;
+use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext, block::OpTxResult};
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
 use revm::Inspector;
 use std::sync::Arc;
@@ -93,7 +92,7 @@ impl BlockExecutorFactory for CustomEvmConfig {
     ) -> impl BlockExecutorFor<'a, Self, DB, I>
     where
         DB: StateDB + 'a,
-        I: Inspector<OpContext<DB>> + 'a,
+        I: Inspector<OpEvmContext<DB>> + 'a,
     {
         CustomBlockExecutor {
             inner: OpBlockExecutor::new(
