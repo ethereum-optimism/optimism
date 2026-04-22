@@ -801,6 +801,39 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 }
 
 // =============================================================================
+// TestIsActiveAt
+// =============================================================================
+
+// TestIsActiveAt verifies that Interop.IsActiveAt reports the verifier as
+// inactive for timestamps strictly before the configured activation timestamp
+// and active at or after it. This is the per-verifier hook super_authority
+// consults to decide whether pre-interop L2 content can bypass the verifier
+// and fall back to local-safe / local-finalized.
+func TestIsActiveAt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		activation uint64
+		ts         uint64
+		want       bool
+	}{
+		{"before activation returns false", 1000, 999, false},
+		{"well before activation returns false", 1000, 0, false},
+		{"at activation returns true", 1000, 1000, true},
+		{"after activation returns true", 1000, 9999, true},
+		{"activation zero always active", 0, 0, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t).WithActivation(tc.activation).Build()
+			require.Equal(t, tc.want, h.interop.IsActiveAt(tc.ts))
+		})
+	}
+}
+
+// =============================================================================
 // TestApplyResultCompat
 // =============================================================================
 

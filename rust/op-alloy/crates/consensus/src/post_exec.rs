@@ -1,6 +1,8 @@
 //! Post-execution transaction types.
 
 use alloc::vec::Vec;
+#[cfg(feature = "serde")]
+use alloy_consensus::Sealed;
 use alloy_consensus::{Sealable, Transaction, Typed2718, transaction::RlpEcdsaEncodableTx};
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718, IsTyped2718},
@@ -11,6 +13,9 @@ use alloy_rlp::{BufMut, Decodable, Encodable, Header, RlpDecodable, RlpEncodable
 
 /// Type byte for the post-execution transaction.
 pub const POST_EXEC_TX_TYPE_ID: u8 = 0x7D;
+
+/// Current format version for [`PostExecPayload`].
+pub const POST_EXEC_PAYLOAD_VERSION: u8 = 1;
 
 /// Per-transaction gas refund entry within a [`PostExecPayload`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, RlpEncodable, RlpDecodable)]
@@ -29,16 +34,29 @@ pub struct SDMGasEntry {
 /// Today this only carries the SDM gas refund data, but additional post-exec fields may
 /// be added in the future.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, RlpEncodable, RlpDecodable)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PostExecPayload {
     /// Format version.
-    pub version: u64,
+    pub version: u8,
     /// L2 block number this synthetic payload is anchored to.
     pub block_number: u64,
     /// Initial SDM gas refund entries keyed by transaction index.
     pub gas_refund_entries: Vec<SDMGasEntry>,
+}
+
+// `version` is pinned rather than left arbitrary because `decode_checked` rejects any
+// non-`POST_EXEC_PAYLOAD_VERSION` value, which would break encode/decode roundtrip
+// property tests (and any downstream fuzzer using arbitrary-generated payloads).
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for PostExecPayload {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self {
+            version: POST_EXEC_PAYLOAD_VERSION,
+            block_number: u64::arbitrary(u)?,
+            gas_refund_entries: <Vec<SDMGasEntry>>::arbitrary(u)?,
+        })
+    }
 }
 
 impl PostExecPayload {
@@ -54,10 +72,26 @@ impl PostExecPayload {
         buf.into()
     }
 
+    /// Decode a payload from an RLP stream, validating the payload version.
+    ///
+    /// Advances `buf` past the consumed bytes. Unlike [`Self::from_rlp_bytes`], trailing bytes
+    /// are left in place for the caller to consume; this is the decoder to use on the EIP-2718
+    /// path where the envelope already framed the packet exactly.
+    pub fn decode_checked(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let payload = Self::decode(buf)?;
+        if payload.version != POST_EXEC_PAYLOAD_VERSION {
+            return Err(alloy_rlp::Error::Custom("unsupported post-exec payload version"));
+        }
+        Ok(payload)
+    }
+
     /// Decode a payload from RLP bytes.
+    ///
+    /// Rejects payloads whose `version` is not [`POST_EXEC_PAYLOAD_VERSION`] and rejects any
+    /// trailing bytes after the RLP structure.
     pub fn from_rlp_bytes(data: &[u8]) -> alloy_rlp::Result<Self> {
         let mut buf = data;
-        let payload = Self::decode(&mut buf)?;
+        let payload = Self::decode_checked(&mut buf)?;
         if !buf.is_empty() {
             return Err(alloy_rlp::Error::UnexpectedLength);
         }
@@ -252,11 +286,11 @@ impl Decodable2718 for TxPostExec {
         if ty != POST_EXEC_TX_TYPE_ID {
             return Err(Eip2718Error::UnexpectedType(ty));
         }
-        Ok(Self::new(PostExecPayload::decode(data)?))
+        Ok(Self::new(PostExecPayload::decode_checked(data)?))
     }
 
     fn fallback_decode(data: &mut &[u8]) -> Eip2718Result<Self> {
-        Ok(Self::new(PostExecPayload::decode(data)?))
+        Ok(Self::new(PostExecPayload::decode_checked(data)?))
     }
 }
 
@@ -272,7 +306,7 @@ impl Encodable for TxPostExec {
 
 impl Decodable for TxPostExec {
     fn decode(data: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        Ok(Self::new(PostExecPayload::decode(data)?))
+        Ok(Self::new(PostExecPayload::decode_checked(data)?))
     }
 }
 
@@ -299,7 +333,47 @@ impl From<TxPostExec> for alloy_rpc_types_eth::TransactionRequest {
 
 /// Build a post-execution transaction from a block number and refund entries.
 pub fn build_post_exec_tx(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> TxPostExec {
-    TxPostExec::new(PostExecPayload { version: 1, block_number, gas_refund_entries })
+    TxPostExec::new(PostExecPayload {
+        version: POST_EXEC_PAYLOAD_VERSION,
+        block_number,
+        gas_refund_entries,
+    })
+}
+
+/// Post-exec transactions serialize as full RPC transaction objects when embedded in a
+/// [`crate::OpTxEnvelope`] response.
+///
+/// Unlike the standalone [`TxPostExec`] serde form, RPC consumers such as op-node expect the
+/// canonical `input` field to be present so the transaction can be decoded by go-ethereum types.
+#[cfg(feature = "serde")]
+pub fn serde_post_exec_tx_rpc<S>(
+    value: &Sealed<TxPostExec>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct SerdeHelper<'a> {
+        hash: B256,
+        #[serde(rename = "type", with = "alloy_serde::quantity")]
+        tx_type: u8,
+        #[serde(with = "alloy_serde::quantity")]
+        gas: u64,
+        value: U256,
+        input: &'a Bytes,
+    }
+
+    SerdeHelper {
+        hash: value.hash(),
+        tx_type: POST_EXEC_TX_TYPE_ID,
+        gas: 0,
+        value: U256::ZERO,
+        input: &value.inner().input,
+    }
+    .serialize(serializer)
 }
 
 #[cfg(test)]
@@ -318,6 +392,20 @@ mod tests {
         let decoded = PostExecPayload::from_rlp_bytes(encoded.as_ref()).expect("decode payload");
 
         assert_eq!(decoded, payload);
+    }
+
+    #[test]
+    fn post_exec_payload_rlp_decode_rejects_unknown_version() {
+        let payload = PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 42,
+            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
+        };
+
+        let encoded = payload.to_rlp_bytes();
+        let err =
+            PostExecPayload::from_rlp_bytes(encoded.as_ref()).expect_err("reject unknown version");
+        assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
     }
 
     #[test]
@@ -360,6 +448,46 @@ mod tests {
         let decoded = TxPostExec::decode_2718(&mut buf.as_slice()).expect("decode 2718");
         assert_eq!(decoded, tx);
         assert_eq!(decoded.tx_hash(), tx.tx_hash());
+    }
+
+    #[test]
+    fn post_exec_tx_eip2718_decode_rejects_unknown_version() {
+        let payload = PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 42,
+            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
+        };
+
+        let mut buf = Vec::new();
+        buf.put_u8(POST_EXEC_TX_TYPE_ID);
+        payload.encode(&mut buf);
+
+        let err = TxPostExec::decode_2718(&mut buf.as_slice())
+            .expect_err("2718 decode must reject unknown version");
+        assert!(
+            matches!(
+                err,
+                Eip2718Error::RlpError(alloy_rlp::Error::Custom(
+                    "unsupported post-exec payload version"
+                ))
+            ),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn post_exec_tx_rlp_decode_rejects_unknown_version() {
+        let payload = PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 42,
+            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
+        };
+        let mut buf = Vec::new();
+        payload.encode(&mut buf);
+
+        let err = TxPostExec::decode(&mut buf.as_slice())
+            .expect_err("rlp decode must reject unknown version");
+        assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
     }
 
     #[test]

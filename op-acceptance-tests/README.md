@@ -69,4 +69,6 @@ LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervis
 
 Add new acceptance tests as ordinary Go tests under [`tests`](./tests). There is no external gate or manifest to update.
 
+See [`docs/ai/writing-acceptance-tests.md`](../docs/ai/writing-acceptance-tests.md) for guidance on writing tests that read as requirements — DSL patterns, naming, no-sleep discipline, and what to avoid.
+
 If a test is currently flaky in the normal acceptance run, mark it in code with `devtest.T.MarkFlaky(...)`. That keeps the source of truth next to the test itself while the acceptance logs and flaky-test artifacts provide the review surface for recent failures.

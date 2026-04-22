@@ -438,38 +438,6 @@ commands:
           key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
   # --- Rust environment setup commands ---
-  rust-install-toolchain:
-    description: "Install Rust toolchain via rustup"
-    parameters:
-      channel:
-        description: The Rust channel release to use (stable, nightly, etc.)
-        type: string
-        default: "stable"
-      components:
-        description: Components to install (space or comma separated)
-        type: string
-        default: ""
-      toolchain_version:
-        description: The specific toolchain version for stable channel
-        type: string
-        default: "1.92.0"
-      target:
-        description: A custom target architecture to add to the toolchain
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: Install Rust toolchain (<< parameters.channel >>)
-          command: |
-            rustup default << parameters.toolchain_version >>
-
-            if [ -n "<< parameters.components >>" ]; then
-              rustup component add << parameters.components >>
-            fi
-            if [ -n "<< parameters.target >>" ]; then
-              rustup target add << parameters.target >>
-            fi
-
   rust-setup-env:
     description: "Fix rust mise environment variables"
     steps:
@@ -642,10 +610,6 @@ commands:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
-      toolchain:
-        description: "Rust toolchain version to install before building (empty = use default)"
-        type: string
-        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -663,11 +627,6 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
-      - when:
-          condition: << parameters.toolchain >>
-          steps:
-            - rust-install-toolchain:
-                toolchain_version: << parameters.toolchain >>
       - run:
           name: Build << parameters.directory >>
           command: |
@@ -727,15 +686,14 @@ jobs:
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
     steps:
-      - utils/ci-gate
-
-  ci-gate-skip:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
-    steps:
-      - run: echo "Skipped — docs-only change"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -771,10 +729,6 @@ jobs:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
-      toolchain:
-        description: "Rust toolchain version to install before building (empty = use default)"
-        type: string
-        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -796,7 +750,6 @@ jobs:
           features: << parameters.features >>
           package: << parameters.package >>
           binary: << parameters.binary >>
-          toolchain: << parameters.toolchain >>
           save_cache: << parameters.save_cache >>
           rust_files_changed: << parameters.rust_files_changed >>
       - when:
@@ -1560,13 +1513,13 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: small
     parameters:
-      always-succed:
+      always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
         type: boolean
         default: false
     steps:
       - utils/ci-gate:
-          always-succeed: << parameters.always-succed >>
+          always-succeed: << parameters.always-succeed >>
 
   contracts-bedrock-checks-fast:
     docker:
@@ -2731,12 +2684,6 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
-      # Aggregator for all memory-all acceptance test variants
-      - memory-all:
-          requires:
-            - memory-all-opn-op-geth
-            - memory-all-opn-op-reth
-            - memory-all-kona-op-reth
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
@@ -2748,7 +2695,9 @@ workflows:
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - go-tests-short: terminal
-            - memory-all: terminal
+            - memory-all-opn-op-geth: terminal
+            - memory-all-opn-op-reth: terminal
+            - memory-all-kona-op-reth: terminal
           context:
             - circleci-api-token
           filters:
@@ -2769,7 +2718,7 @@ workflows:
         - not: << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - ci-gate:
-          always-succed: true
+          always-succeed: true
           context:
             - circleci-api-token
 
@@ -3282,6 +3231,6 @@ workflows:
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
-          always-succed: true
+          always-succeed: true
           context:
             - circleci-api-token

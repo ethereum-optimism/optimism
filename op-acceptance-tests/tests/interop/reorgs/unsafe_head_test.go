@@ -1,6 +1,7 @@
 package reorgs
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -93,12 +94,28 @@ func TestReorgUnsafeHead(gt *testing.T) {
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
 
 		err = ia.Next(ctx)
 		require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
 	}
+
+	// Before resuming op-node sequencing, wait until the CL's sync status reflects the
+	// test-sequencer's final committed block. The EL is updated synchronously by
+	// CommitBlock (via engine.NewPayload + forkchoice update), but the op-node's
+	// StatusTracker and Sequencer.latestHead are updated via asynchronous events.
+	// Without this wait, StartSequencer() can observe a stale local unsafe head, pass
+	// that stale hash to Sequencer.Start (which validates against its equally-stale
+	// latestHead), and then build on top of the original chain — silently reorging
+	// the EL back off the test-sequencer's conflicting fork.
+	expectedUnsafe := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	l.Info("Waiting for op-node local-unsafe to match test-sequencer's committed head",
+		"number", expectedUnsafe.Number, "hash", expectedUnsafe.Hash)
+	waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+	err := wait.For(waitCtx, 100*time.Millisecond, func() (bool, error) {
+		return sys.L2ACL.SyncStatus().UnsafeL2.Hash == expectedUnsafe.Hash, nil
+	})
+	waitCancel()
+	require.NoError(t, err, "op-node never observed test-sequencer's committed unsafe head %s", expectedUnsafe.Hash)
 
 	// continue sequencing with consensus node (op-node)
 	sys.L2ACL.StartSequencer()
