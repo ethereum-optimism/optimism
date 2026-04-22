@@ -7,13 +7,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -30,7 +27,7 @@ func upgradeToSuperRoots(
 	superRoot eth.Bytes32,
 	superrootTime uint64,
 	primaryL2 eth.ChainID,
-) common.Address {
+) {
 	require := t.Require()
 	require.NotNil(migration, "interop migration state is required")
 	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
@@ -40,89 +37,41 @@ func upgradeToSuperRoots(
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
-	w3Client := w3.NewClient(rpcClient)
 
 	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
 	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
-	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
-	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
+	l2Ops := devkeys.ChainOperatorKeys(primaryL2.ToBig())
+	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
-	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
+	challenger, err := keys.Address(l2Ops(devkeys.ChallengerRole))
 	require.NoError(err, "must have configured challenger")
 
-	l1Ops := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-	l1PAO, err := keys.Address(l1Ops(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "must have configured L1 proxy admin owner")
-	l1PAOKey, err := keys.Secret(l1Ops(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "must have configured L1 proxy admin owner key")
+	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	anchorRootData := encodeStartingAnchorRoot(t, superRoot, superrootTime)
 	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonGameType)
 
-	loc := LocalArtifacts(t)
-	artifactsFS, err := artifacts.Download(t.Ctx(), loc, ioutil.NoopProgressor(), t.TempDir())
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
 	require.NoError(err, "failed to download artifacts")
 
 	for _, l2Deployment := range migration.l2Deployments {
-		configs := buildSuperRootUpgradeGameConfigs(
-			absoluteCannonPrestate, absoluteCannonKonaPrestate, proposer, challenger,
-		)
-
-		upgradeInput := embedded.UpgradeOPChainInput{
+		executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 			Prank: l1PAO,
 			Opcm:  migration.opcmImpl,
 			UpgradeInputV2: &embedded.UpgradeInputV2{
-				SystemConfig:       l2Deployment.SystemConfigProxyAddr(),
-				DisputeGameConfigs: configs,
+				SystemConfig: l2Deployment.SystemConfigProxyAddr(),
+				DisputeGameConfigs: buildSuperRootUpgradeGameConfigs(
+					absoluteCannonPrestate, absoluteCannonKonaPrestate, proposer, challenger,
+				),
 				ExtraInstructions: []embedded.ExtraInstruction{
 					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
 					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
 					{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 				},
 			},
-		}
-
-		bcaster := new(broadcaster.CalldataBroadcaster)
-		host, err := env.DefaultForkedScriptHost(
-			t.Ctx(),
-			bcaster,
-			t.Logger(),
-			common.Address{'D'},
-			artifactsFS,
-			rpcClient,
-		)
-		require.NoError(err, "failed to create script host")
-
-		err = embedded.Upgrade(host, upgradeInput)
-		require.NoError(err, "failed to run upgrade script for super-root upgrade")
-
-		calldata, err := bcaster.Dump()
-		require.NoError(err, "failed to dump calldata")
-		require.Len(calldata, 1, "calldata must contain one entry")
-
-		t.Log("Executing opcmV2.upgrade via SetCode delegatecall for super-root upgrade")
-		delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, calldata[0].Data)
+		})
 	}
-
-	var sharedDGF common.Address
-	for _, l2Deployment := range migration.l2Deployments {
-		portal := getOptimismPortal(t, w3Client, l2Deployment.SystemConfigProxyAddr())
-		addr := getDisputeGameFactory(t, w3Client, portal)
-		if sharedDGF == (common.Address{}) {
-			sharedDGF = addr
-		} else {
-			require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
-		}
-	}
-	require.NotEmpty(getSuperGameImpl(t, w3Client, sharedDGF), "super-root game impl must be installed after upgrade")
-
-	for chainID, l2Deployment := range migration.l2Deployments {
-		l2Deployment.disputeGameFactoryProxy = sharedDGF
-		migration.l2Deployments[chainID] = l2Deployment
-	}
-	t.Log("Interop super-root upgrade complete")
-	return sharedDGF
 }
 
 func buildSuperRootUpgradeGameConfigs(
@@ -131,19 +80,16 @@ func buildSuperRootUpgradeGameConfigs(
 	proposer common.Address,
 	challenger common.Address,
 ) []embedded.DisputeGameConfig {
-	zero := func() *big.Int { return new(big.Int) }
-	initBond := zero()
-
 	return []embedded.DisputeGameConfig{
-		{Enabled: false, InitBond: zero(), GameType: embedded.GameTypeCannon},
-		{Enabled: false, InitBond: zero(), GameType: embedded.GameTypePermissionedCannon},
-		{Enabled: false, InitBond: zero(), GameType: embedded.GameTypeCannonKona},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: initBond, GameType: embedded.GameTypeSuperCannon,
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonPrestate},
 		},
 		{
-			Enabled: true, InitBond: initBond, GameType: embedded.GameTypeSuperPermCannon,
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
 				AbsolutePrestate: absoluteCannonPrestate,
 				Proposer:         proposer,
@@ -151,10 +97,10 @@ func buildSuperRootUpgradeGameConfigs(
 			},
 		},
 		{
-			Enabled: true, InitBond: initBond, GameType: embedded.GameTypeSuperCannonKona,
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonKonaPrestate},
 		},
-		{Enabled: false, InitBond: zero(), GameType: embedded.GameTypeZKDisputeGame},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 	}
 }
 

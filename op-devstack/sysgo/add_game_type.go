@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"net/url"
@@ -8,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -28,6 +30,44 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// resolveL1ProxyAdminOwner returns the L1 proxy-admin owner address and key.
+func resolveL1ProxyAdminOwner(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID) (common.Address, *ecdsa.PrivateKey) {
+	require := t.Require()
+	role := devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole)
+	addr, err := keys.Address(role)
+	require.NoError(err, "failed to resolve L1 proxy-admin owner address")
+	key, err := keys.Secret(role)
+	require.NoError(err, "failed to resolve L1 proxy-admin owner key")
+	return addr, key
+}
+
+// executeOPCMUpgrade simulates input against a forked UpgradeOPChain.s.sol
+// script host and submits the resulting calldata on L1 as a SetCode
+// delegatecall from l1PAOKey.
+func executeOPCMUpgrade(
+	t devtest.T,
+	rpcClient *rpc.Client,
+	client *ethclient.Client,
+	l1PAOKey *ecdsa.PrivateKey,
+	artifactsFS foundry.StatDirFs,
+	input embedded.UpgradeOPChainInput,
+) {
+	require := t.Require()
+	bcaster := new(broadcaster.CalldataBroadcaster)
+	host, err := env.DefaultForkedScriptHost(
+		t.Ctx(), bcaster, t.Logger(), common.Address{'D'}, artifactsFS, rpcClient,
+	)
+	require.NoError(err, "failed to create script host")
+	require.NoError(embedded.Upgrade(host, input), "failed to run UpgradeOPChain.s.sol")
+
+	calldata, err := bcaster.Dump()
+	require.NoError(err, "failed to dump calldata")
+	require.Len(calldata, 1, "calldata must contain one entry")
+
+	t.Log("Executing opcm.upgrade via SetCode delegatecall")
+	delegateCallWithSetCode(t, l1PAOKey, client, input.Opcm, calldata[0].Data)
+}
 
 func setRespectedGameTypeForRuntime(
 	t devtest.T,
@@ -83,8 +123,7 @@ func setRespectedGameTypeForRuntime(
 }
 
 // addGameTypesForRuntime uses OPCMv2.upgrade to configure dispute game types.
-// The V2 upgrade requires exactly 3 game configs (CANNON, PERMISSIONED_CANNON, CANNON_KONA)
-// in that order. Game types in enabledGameTypes are enabled; the rest are disabled.
+// Game types in enabledGameTypes are enabled; the rest are disabled.
 func addGameTypesForRuntime(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -103,27 +142,20 @@ func addGameTypesForRuntime(
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
+	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-
-	l1PAO, err := keys.Address(chainOps(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner address")
-
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
-
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
 	require.NoError(err, "failed to get challenger address")
 
-	// Build enabled set for quick lookup.
 	enabled := make(map[gameTypes.GameType]bool)
 	for _, gt := range enabledGameTypes {
 		enabled[gt] = true
 	}
-
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	// OPCMv2 requires all 7 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
@@ -154,28 +186,11 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperPermCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannonKona,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeZKDisputeGame,
-		},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 	}
-
 	// Zero out init bond for disabled games.
 	for i := range configs {
 		if !configs[i].Enabled {
@@ -183,49 +198,20 @@ func addGameTypesForRuntime(
 		}
 	}
 
-	upgradeInput := embedded.UpgradeOPChainInput{
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
 		Opcm:  l2Net.opcmImpl,
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
 			ExtraInstructions: []embedded.ExtraInstruction{
-				{
-					Key:  "PermittedProxyDeployment",
-					Data: []byte("DelayedWETH"),
-				},
+				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 			},
 		},
-	}
-
-	// Run UpgradeOPChain.s.sol via a forked script host to produce calldata.
-	loc := LocalArtifacts(t)
-	artifactsFS, err := artifacts.Download(t.Ctx(), loc, ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
-	bcaster := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		t.Ctx(),
-		bcaster,
-		t.Logger(),
-		common.Address{'D'},
-		artifactsFS,
-		rpcClient,
-	)
-	require.NoError(err, "failed to create script host")
-
-	err = embedded.Upgrade(host, upgradeInput)
-	require.NoError(err, "failed to run upgrade script for add game types")
-
-	calldata, err := bcaster.Dump()
-	require.NoError(err, "failed to dump calldata")
-	require.Len(calldata, 1, "calldata must contain one entry")
-
-	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner key")
-
-	t.Log("Executing opcmV2.upgrade via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, calldata[0].Data)
+	})
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {

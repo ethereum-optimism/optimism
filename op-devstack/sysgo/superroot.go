@@ -271,8 +271,7 @@ func migrateSuperRoots(
 	migrateCallData, err := migrateCall.Pack()
 	require.NoError(err)
 
-	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "must have configured L1 proxy admin owner")
+	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	t.Log("Executing OPCM migration via SetCode delegatecall")
 	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, migrateCallData)
