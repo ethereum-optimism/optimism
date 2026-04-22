@@ -467,7 +467,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: If the parent game's claim is invalid, then the current game's claim is invalid.
         if (parentGameStatus == GameStatus.CHALLENGER_WINS) {
             // Parent game is invalid so this game is invalid too. Therefore the challenger wins and gets all bonds.
-            // If the game has not been challenged then there will not be any challenger address and the bond is burned.
+            // Note: If unchallenged, the bond is credited to address(0) and burned. Proposers who build
+            // on a parent later invalidated by governance lose their bond with no on-chain remedy and should wait
+            // for sufficient finality confidence in the parent before extending it.
             status = GameStatus.CHALLENGER_WINS;
             normalModeCredit[claimData.challenger] = totalBonds;
         } else {
