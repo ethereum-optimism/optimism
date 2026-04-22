@@ -122,11 +122,35 @@ check_types:
       - "artifact:forge-artifacts-src-prod/**"
       - "packages/contracts-bedrock/src/**/*.sol"
     outputs:
-      - "op-e2e/bindings/**/*.go"
-      - "op-service/txintent/bindings/**/*.go"
-      - "op-chain-ops/crossdomain/bindings/**/*.go"
-      - "op-node/bindings/**/*.go"
+      - "artifact:op-e2e/bindings/**/*.go"
+      - "artifact:op-service/txintent/bindings/**/*.go"
+      - "artifact:op-chain-ops/crossdomain/bindings/**/*.go"
+      - "artifact:op-node/bindings/**/*.go"
     avg_duration: 90
+
+  - id: verify-go-bindings
+    name: "Verify Go bindings not drifted"
+    kind: check
+    language: go
+    # The dev workflow is: edit contracts, run the pipeline locally,
+    # gen-go-bindings regenerates the binding files, user commits the
+    # regen output. In CI, whoever opened the PR was supposed to have
+    # committed fresh bindings — if `git diff` shows anything after
+    # the regen ran, the PR is stale. Tag profile:prod so this only
+    # fires at pr+ stages; at save/commit the regen alone is all you
+    # want.
+    command: "git diff --exit-code -- op-e2e/bindings/ op-service/txintent/bindings/ op-chain-ops/crossdomain/bindings/ op-node/bindings/"
+    scopeable: false
+    # git is always available — don't declare as a mise-managed tool.
+    tools: []
+    tags: [profile:prod]
+    inputs:
+      - "artifact:op-e2e/bindings/**/*.go"
+      - "artifact:op-service/txintent/bindings/**/*.go"
+      - "artifact:op-chain-ops/crossdomain/bindings/**/*.go"
+      - "artifact:op-node/bindings/**/*.go"
+    outputs: []
+    avg_duration: 2
 
   # === Build Steps ===
   # Four forge-build variants along two orthogonal axes:
@@ -502,6 +526,28 @@ check_types:
     # since these checks rarely fail independently.
     ci_job_names:
       - contracts-bedrock-checks-fast
+
+  - id: verify-snapshots
+    name: "Verify snapshots not drifted"
+    kind: check
+    language: solidity
+    # Pair with regen-snapshots. Locally, the regen writes fresh ABI /
+    # storage / semver-lock files and the user commits them — no throw
+    # wanted, the diff IS the point. In CI, whoever opened the PR was
+    # supposed to have committed fresh snapshots; a post-regen git diff
+    # means the PR is stale. Tag profile:prod so this only fires at
+    # pr+ stages.
+    command: "git diff --exit-code -- packages/contracts-bedrock/snapshots/"
+    scopeable: false
+    # git is always available — don't declare as a mise-managed tool.
+    tools: []
+    tags: [profile:prod]
+    inputs:
+      - "artifact:packages/contracts-bedrock/snapshots/semver-lock.json"
+      - "artifact:packages/contracts-bedrock/snapshots/abi/**"
+      - "artifact:packages/contracts-bedrock/snapshots/storageLayout/**"
+    outputs: []
+    avg_duration: 2
 
   - id: interfaces-check
     name: "Interface ABI match"
