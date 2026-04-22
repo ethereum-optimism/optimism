@@ -99,7 +99,8 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     // ─────────────────────────────────────────────────────────────────────────
 
     function test_integration_fullLifecycleWithAnchorAdvancement_succeeds() public {
-        (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        (Hash anchorHashBefore, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        Claim anchorRootBefore = Claim.wrap(anchorHashBefore.raw());
 
         // ── Game A: Created from anchor, goes unchallenged ──
         uint256 seqNumA = anchorSeqNum + 1000;
@@ -151,6 +152,9 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         // ── Finalization: claim credits and verify anchor advancement ──
         // Warp once past the latest resolution + finality delay (covers all games).
         _waitForFinality(gameC);
+
+        // Sanity check: anchor has NOT advanced yet (no credits claimed / games closed).
+        _assertAnchor(anchorRootBefore, anchorSeqNum);
 
         // Game A: proposer gets bond back → closing A advances anchor to A.
         _claimCreditAndAssert(gameA, proposer, bond);
