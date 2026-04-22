@@ -2,14 +2,14 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { GameType } from "src/dispute/lib/Types.sol";
+import {GameType} from "src/dispute/lib/Types.sol";
 
 // Interfaces
-import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import {IOPContractsManagerUtils} from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import {IProxyAdmin} from "interfaces/universal/IProxyAdmin.sol";
+import {IDisputeGame} from "interfaces/dispute/IDisputeGame.sol";
+import {IAnchorStateRegistry} from "interfaces/dispute/IAnchorStateRegistry.sol";
+import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -46,11 +46,7 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _saltMixer The salt mixer to use for the deployment.
     /// @param _contractName The name of the contract to deploy.
     /// @return The computed salt.
-    function _computeSalt(
-        uint256 _l2ChainId,
-        string memory _saltMixer,
-        string memory _contractName
-    )
+    function _computeSalt(uint256 _l2ChainId, string memory _saltMixer, string memory _contractName)
         internal
         view
         returns (bytes32)
@@ -68,11 +64,7 @@ abstract contract OPContractsManagerUtilsCaller {
     function _isMatchingInstructionByKey(
         IOPContractsManagerUtils.ExtraInstruction memory _instruction,
         string memory _key
-    )
-        internal
-        view
-        returns (bool)
-    {
+    ) internal view returns (bool) {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstructionByKey, (_instruction, _key))),
             (bool)
@@ -88,11 +80,7 @@ abstract contract OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction memory _instruction,
         string memory _key,
         bytes memory _data
-    )
-        internal
-        view
-        returns (bool)
-    {
+    ) internal view returns (bool) {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstruction, (_instruction, _key, _data))),
             (bool)
@@ -110,11 +98,7 @@ abstract contract OPContractsManagerUtilsCaller {
         bytes4 _selector,
         string memory _name,
         IOPContractsManagerUtils.ExtraInstruction[] memory _instructions
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
+    ) internal view returns (bytes memory) {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.loadBytes, (_source, _selector, _name, _instructions))),
             (bytes)
@@ -137,12 +121,8 @@ abstract contract OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ProxyDeployArgs memory _args,
         string memory _contractName,
         IOPContractsManagerUtils.ExtraInstruction[] memory _instructions
-    )
-        internal
-        returns (address payable)
-    {
-        return payable(
-            abi.decode(
+    ) internal returns (address payable) {
+        return payable(abi.decode(
                 _delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerUtils.loadOrDeployProxy,
@@ -150,8 +130,7 @@ abstract contract OPContractsManagerUtilsCaller {
                     )
                 ),
                 (address)
-            )
-        );
+            ));
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
@@ -177,12 +156,47 @@ abstract contract OPContractsManagerUtilsCaller {
         bytes memory _data,
         bytes32 _slot,
         uint8 _offset
-    )
-        internal
-    {
+    ) internal {
         _delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerUtils.upgrade, (_proxyAdmin, _target, _implementation, _data, _slot, _offset)
+            abi.encodeWithSelector(
+                bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8)")),
+                _proxyAdmin,
+                _target,
+                _implementation,
+                _data,
+                _slot,
+                _offset
+            )
+        );
+    }
+
+    /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
+    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _target The target of the contract.
+    /// @param _implementation The implementation of the contract.
+    /// @param _data The data to call the initializer with.
+    /// @param _slot The slot where the initialized value is located.
+    /// @param _offset The offset of the initializer value in the slot.
+    /// @param _ozV5Slot The ERC-7201 Initializable slot for OZ v5 contracts.
+    function _upgrade(
+        IProxyAdmin _proxyAdmin,
+        address _target,
+        address _implementation,
+        bytes memory _data,
+        bytes32 _slot,
+        uint8 _offset,
+        bytes32 _ozV5Slot
+    ) internal {
+        _delegatecall(
+            abi.encodeWithSelector(
+                bytes4(keccak256("upgrade(address,address,address,bytes,bytes32,uint8,bytes32)")),
+                _proxyAdmin,
+                _target,
+                _implementation,
+                _data,
+                _slot,
+                _offset,
+                _ozV5Slot
             )
         );
     }
@@ -232,11 +246,7 @@ abstract contract OPContractsManagerUtilsCaller {
         IAnchorStateRegistry _anchorStateRegistry,
         IDelayedWETH _delayedWETH,
         IOPContractsManagerUtils.DisputeGameConfig memory _gcfg
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
+    ) internal view returns (bytes memory) {
         return abi.decode(
             _staticcall(
                 abi.encodeCall(

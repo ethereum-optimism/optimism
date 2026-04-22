@@ -2,26 +2,30 @@
 pragma solidity 0.8.15;
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
-import { SemverComp } from "src/libraries/SemverComp.sol";
-import { Blueprint } from "src/libraries/Blueprint.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import {LibString} from "@solady/utils/LibString.sol";
+import {SemverComp} from "src/libraries/SemverComp.sol";
+import {Blueprint} from "src/libraries/Blueprint.sol";
+import {Constants} from "src/libraries/Constants.sol";
+import {GameType, GameTypes} from "src/dispute/lib/Types.sol";
 
 // Interfaces
-import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
-import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
-import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import {IOPContractsManagerContainer} from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import {IOPContractsManagerUtils} from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import {IProxyAdmin} from "interfaces/universal/IProxyAdmin.sol";
+import {IAddressManager} from "interfaces/legacy/IAddressManager.sol";
+import {IStorageSetter} from "interfaces/universal/IStorageSetter.sol";
+import {ISemver} from "interfaces/universal/ISemver.sol";
+import {IDisputeGame} from "interfaces/dispute/IDisputeGame.sol";
+import {IAnchorStateRegistry} from "interfaces/dispute/IAnchorStateRegistry.sol";
+import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
 contract OPContractsManagerUtils {
+    /// @notice Default ERC-7201 Initializable slot used by OpenZeppelin v5.
+    bytes32 internal constant DEFAULT_OZ_V5_INITIALIZABLE_SLOT =
+        bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+
     /// @notice Helper struct for deploying proxies, keeps code cleaner.
     struct ProxyDeployArgs {
         IProxyAdmin proxyAdmin;
@@ -53,6 +57,12 @@ contract OPContractsManagerUtils {
 
     /// @notice Thrown when a contract has `_initializing` as true during an upgrade.
     error OPContractsManagerUtils_InitializingDuringUpgrade();
+
+    /// @notice Thrown when the initializer offset is outside the bounds of a 32-byte slot.
+    error OPContractsManagerUtils_InvalidInitializerOffset();
+
+    /// @notice Thrown when a v5 Initializable slot is provided with a non-zero `_initialized` offset.
+    error OPContractsManagerUtils_InvalidV5Offset();
 
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
@@ -89,11 +99,7 @@ contract OPContractsManagerUtils {
     /// @param _saltMixer The salt mixer to use for the deployment.
     /// @param _contractName The name of the contract to deploy.
     /// @return The computed salt.
-    function computeSalt(
-        uint256 _l2ChainId,
-        string memory _saltMixer,
-        string memory _contractName
-    )
+    function computeSalt(uint256 _l2ChainId, string memory _saltMixer, string memory _contractName)
         public
         pure
         returns (bytes32)
@@ -105,10 +111,7 @@ contract OPContractsManagerUtils {
     /// @param _instruction The instruction to check.
     /// @param _key The key of the instruction to check for.
     /// @return True if the instruction matches, false otherwise.
-    function isMatchingInstructionByKey(
-        ExtraInstruction memory _instruction,
-        string memory _key
-    )
+    function isMatchingInstructionByKey(ExtraInstruction memory _instruction, string memory _key)
         public
         pure
         returns (bool)
@@ -121,11 +124,7 @@ contract OPContractsManagerUtils {
     /// @param _key The key of the instruction to check for.
     /// @param _data The data of the instruction to check for.
     /// @return True if the instruction matches, false otherwise.
-    function isMatchingInstruction(
-        ExtraInstruction memory _instruction,
-        string memory _key,
-        bytes memory _data
-    )
+    function isMatchingInstruction(ExtraInstruction memory _instruction, string memory _key, bytes memory _data)
         public
         pure
         returns (bool)
@@ -139,11 +138,7 @@ contract OPContractsManagerUtils {
     /// @param _key The key of the instruction to check for.
     /// @param _data The data of the instruction to check for.
     /// @return True if the instruction is present, false otherwise.
-    function hasInstruction(
-        ExtraInstruction[] memory _instructions,
-        string memory _key,
-        bytes memory _data
-    )
+    function hasInstruction(ExtraInstruction[] memory _instructions, string memory _key, bytes memory _data)
         public
         pure
         returns (bool)
@@ -160,10 +155,7 @@ contract OPContractsManagerUtils {
     /// @param _instructions The list of extra upgrade instructions.
     /// @param _key The key of the instruction to get.
     /// @return The instruction, or an empty instruction if the instruction is not found.
-    function getInstructionByKey(
-        ExtraInstruction[] memory _instructions,
-        string memory _key
-    )
+    function getInstructionByKey(ExtraInstruction[] memory _instructions, string memory _key)
         public
         pure
         returns (ExtraInstruction memory)
@@ -173,7 +165,7 @@ contract OPContractsManagerUtils {
                 return _instructions[i];
             }
         }
-        return ExtraInstruction({ key: "", data: bytes("") });
+        return ExtraInstruction({key: "", data: bytes("")});
     }
 
     /// @notice Helper function to load data from a source contract as bytes.
@@ -182,12 +174,7 @@ contract OPContractsManagerUtils {
     /// @param _name The name of the field to load.
     /// @param _instructions The extra upgrade instructions for the data load.
     /// @return Data retrieved from the source contract.
-    function loadBytes(
-        address _source,
-        bytes4 _selector,
-        string memory _name,
-        ExtraInstruction[] memory _instructions
-    )
+    function loadBytes(address _source, bytes4 _selector, string memory _name, ExtraInstruction[] memory _instructions)
         external
         view
         returns (bytes memory)
@@ -230,10 +217,7 @@ contract OPContractsManagerUtils {
         ProxyDeployArgs memory _args,
         string memory _contractName,
         ExtraInstruction[] memory _instructions
-    )
-        external
-        returns (address payable)
-    {
+    ) external returns (address payable) {
         // Loads are allowed to fail ONLY if the user explicitly permitted it (or if this is a
         // deployment and the "ALL" permission is set).
         bool loadCanFail = hasInstruction(_instructions, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes(_contractName))
@@ -307,9 +291,40 @@ contract OPContractsManagerUtils {
         bytes memory _data,
         bytes32 _slot,
         uint8 _offset
-    )
-        external
-    {
+    ) external {
+        _upgrade(_proxyAdmin, _target, _implementation, _data, _slot, _offset, DEFAULT_OZ_V5_INITIALIZABLE_SLOT);
+    }
+
+    /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
+    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _target The target of the contract.
+    /// @param _implementation The implementation of the contract.
+    /// @param _data The data to call the initializer with.
+    /// @param _slot The slot where the initialized value is located.
+    /// @param _offset The offset of the initializer value in the slot.
+    /// @param _ozV5Slot The ERC-7201 Initializable slot for OZ v5 contracts.
+    function upgrade(
+        IProxyAdmin _proxyAdmin,
+        address _target,
+        address _implementation,
+        bytes memory _data,
+        bytes32 _slot,
+        uint8 _offset,
+        bytes32 _ozV5Slot
+    ) external {
+        _upgrade(_proxyAdmin, _target, _implementation, _data, _slot, _offset, _ozV5Slot);
+    }
+
+    /// @notice Shared implementation for upgrade flows.
+    function _upgrade(
+        IProxyAdmin _proxyAdmin,
+        address _target,
+        address _implementation,
+        bytes memory _data,
+        bytes32 _slot,
+        uint8 _offset,
+        bytes32 _ozV5Slot
+    ) internal {
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
         // dangerous or not. It's easier to just revert instead.
@@ -333,25 +348,30 @@ contract OPContractsManagerUtils {
             revert OPContractsManagerUtils_ExtraTagInProd(_implementation);
         }
 
+        if (_offset >= 32) {
+            revert OPContractsManagerUtils_InvalidInitializerOffset();
+        }
+
+        if (_slot == _ozV5Slot && _offset != 0) {
+            revert OPContractsManagerUtils_InvalidV5Offset();
+        }
+
         // Upgrade to StorageSetter.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
         // We need to reset the initialized slot and call the initializer.
-        // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
-        bytes32 current = IStorageSetter(_target).getBytes32(_slot);
-        uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
-        IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
+        // Skip the generic one-byte clear when `_slot` is the OZ v5 slot because the v5
+        // `_initializing` flag shares that slot and must be checked before any writes occur.
+        if (_slot != _ozV5Slot) {
+            bytes32 current = IStorageSetter(_target).getBytes32(_slot);
+            uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
+            IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
+        }
 
         // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
         // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
         // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
-        // Slot derivation (ERC-7201):
-        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
-        // ~bytes32(uint256(0xff))
-        // Ref:
-        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
-        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
-        bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
+        bytes32 v5Current = IStorageSetter(_target).getBytes32(_ozV5Slot);
         uint256 v5Value = uint256(v5Current);
 
         // A contract should never be mid-initialization during an upgrade. The `_initializing`
@@ -362,7 +382,7 @@ contract OPContractsManagerUtils {
 
         // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
         uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
-        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
+        IStorageSetter(_target).setBytes32(_ozV5Slot, bytes32(v5Value & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
@@ -415,11 +435,7 @@ contract OPContractsManagerUtils {
         IAnchorStateRegistry _anchorStateRegistry,
         IDelayedWETH _delayedWETH,
         IOPContractsManagerUtils.DisputeGameConfig memory _gcfg
-    )
-        public
-        view
-        returns (bytes memory)
-    {
+    ) public view returns (bytes memory) {
         IOPContractsManagerContainer.Implementations memory impls = implementations();
 
         // Super game types require l2ChainId=0 in game args because the chain ID is

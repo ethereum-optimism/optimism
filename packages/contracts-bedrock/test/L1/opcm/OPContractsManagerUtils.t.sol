@@ -2,32 +2,32 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "test/setup/Test.sol";
-import { FeatureFlags } from "test/setup/FeatureFlags.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import {Test} from "test/setup/Test.sol";
+import {FeatureFlags} from "test/setup/FeatureFlags.sol";
+import {DevFeatures} from "src/libraries/DevFeatures.sol";
 
 // Contracts
-import { OPContractsManagerUtils } from "src/L1/opcm/OPContractsManagerUtils.sol";
-import { OPContractsManagerContainer } from "src/L1/opcm/OPContractsManagerContainer.sol";
+import {OPContractsManagerUtils} from "src/L1/opcm/OPContractsManagerUtils.sol";
+import {OPContractsManagerContainer} from "src/L1/opcm/OPContractsManagerContainer.sol";
 
 // Libraries
-import { Constants } from "src/libraries/Constants.sol";
-import { Blueprint } from "src/libraries/Blueprint.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import {Constants} from "src/libraries/Constants.sol";
+import {Blueprint} from "src/libraries/Blueprint.sol";
+import {DeployUtils} from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
-import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
-import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
-import { Claim, Duration } from "src/dispute/lib/LibUDT.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
+import {IOPContractsManagerContainer} from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import {IOPContractsManagerUtils} from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import {IProxyAdmin} from "interfaces/universal/IProxyAdmin.sol";
+import {IProxy} from "interfaces/universal/IProxy.sol";
+import {IAddressManager} from "interfaces/legacy/IAddressManager.sol";
+import {ISemver} from "interfaces/universal/ISemver.sol";
+import {IStorageSetter} from "interfaces/universal/IStorageSetter.sol";
+import {Claim, Duration} from "src/dispute/lib/LibUDT.sol";
+import {GameTypes} from "src/dispute/lib/Types.sol";
+import {IAnchorStateRegistry} from "interfaces/dispute/IAnchorStateRegistry.sol";
+import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
+import {IZKVerifier} from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
@@ -35,7 +35,7 @@ contract OPContractsManagerUtils_ImplV1_Harness is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    function initialize() external { }
+    function initialize() external {}
 }
 
 /// @title ImplV1b_Harness
@@ -44,7 +44,7 @@ contract OPContractsManagerUtils_ImplV1b_Harness is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    function initialize() external { }
+    function initialize() external {}
 }
 
 /// @title ImplV2_Harness
@@ -53,7 +53,7 @@ contract OPContractsManagerUtils_ImplV2_Harness is ISemver {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
-    function initialize() external { }
+    function initialize() external {}
 }
 
 /// @title ImplV2Beta_Harness
@@ -62,7 +62,7 @@ contract OPContractsManagerUtils_ImplV2Beta_Harness is ISemver {
     /// @custom:semver 2.0.0-beta.1
     string public constant version = "2.0.0-beta.1";
 
-    function initialize() external { }
+    function initialize() external {}
 }
 
 /// @title ImplV2Interop_Harness
@@ -71,7 +71,7 @@ contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
     /// @custom:semver 2.0.0+interop
     string public constant version = "2.0.0+interop";
 
-    function initialize() external { }
+    function initialize() external {}
 }
 
 /// @title OPContractsManagerUtils_TestInit
@@ -140,17 +140,14 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
     /// @param _key The key of the instruction.
     /// @param _data The data of the instruction.
     /// @return The array of extra instructions.
-    function _createInstructions(
-        string memory _key,
-        bytes memory _data
-    )
+    function _createInstructions(string memory _key, bytes memory _data)
         internal
         pure
         returns (OPContractsManagerUtils.ExtraInstruction[] memory)
     {
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new OPContractsManagerUtils.ExtraInstruction[](1);
-        instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: _key, data: _data });
+        instructions[0] = OPContractsManagerUtils.ExtraInstruction({key: _key, data: _data});
         return instructions;
     }
 
@@ -180,10 +177,7 @@ contract OPContractsManagerUtils_ChainIdToBatchInboxAddress_Test is OPContractsM
     /// @notice Tests that different chain IDs produce different batch inbox addresses.
     /// @param _chainId1 The first chain ID.
     /// @param _chainId2 The second chain ID.
-    function testFuzz_chainIdToBatchInboxAddress_differentInputs_succeeds(
-        uint256 _chainId1,
-        uint256 _chainId2
-    )
+    function testFuzz_chainIdToBatchInboxAddress_differentInputs_succeeds(uint256 _chainId1, uint256 _chainId2)
         public
         view
     {
@@ -203,11 +197,7 @@ contract OPContractsManagerUtils_ComputeSalt_Test is OPContractsManagerUtils_Tes
     /// @param _chainId The chain ID.
     /// @param _mixer The salt mixer.
     /// @param _name The contract name.
-    function testFuzz_computeSalt_succeeds(
-        uint256 _chainId,
-        string calldata _mixer,
-        string calldata _name
-    )
+    function testFuzz_computeSalt_succeeds(uint256 _chainId, string calldata _mixer, string calldata _name)
         public
         view
     {
@@ -237,7 +227,7 @@ contract OPContractsManagerUtils_HasInstruction_Test is OPContractsManagerUtils_
     function testFuzz_hasInstruction_exists_succeeds(string calldata _key, bytes calldata _data) public view {
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new OPContractsManagerUtils.ExtraInstruction[](1);
-        instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: _key, data: _data });
+        instructions[0] = OPContractsManagerUtils.ExtraInstruction({key: _key, data: _data});
 
         assertTrue(utils.hasInstruction(instructions, _key, _data), "Should find matching instruction");
         assertFalse(utils.hasInstruction(instructions, "nonexistent", _data), "Wrong key returns false");
@@ -248,9 +238,9 @@ contract OPContractsManagerUtils_HasInstruction_Test is OPContractsManagerUtils_
     function test_hasInstruction_multipleInstructions_succeeds() public view {
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new OPContractsManagerUtils.ExtraInstruction[](3);
-        instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: "Key1", data: bytes("Data1") });
-        instructions[1] = OPContractsManagerUtils.ExtraInstruction({ key: "Key2", data: bytes("Data2") });
-        instructions[2] = OPContractsManagerUtils.ExtraInstruction({ key: "Key3", data: bytes("Data3") });
+        instructions[0] = OPContractsManagerUtils.ExtraInstruction({key: "Key1", data: bytes("Data1")});
+        instructions[1] = OPContractsManagerUtils.ExtraInstruction({key: "Key2", data: bytes("Data2")});
+        instructions[2] = OPContractsManagerUtils.ExtraInstruction({key: "Key3", data: bytes("Data3")});
 
         assertTrue(utils.hasInstruction(instructions, "Key1", "Data1"), "First instruction should be found");
         assertTrue(utils.hasInstruction(instructions, "Key2", "Data2"), "Second instruction should be found");
@@ -278,7 +268,7 @@ contract OPContractsManagerUtils_GetInstructionByKey_Test is OPContractsManagerU
     function testFuzz_getInstructionByKey_succeeds(string calldata _key, bytes calldata _data) public view {
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new OPContractsManagerUtils.ExtraInstruction[](1);
-        instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: _key, data: _data });
+        instructions[0] = OPContractsManagerUtils.ExtraInstruction({key: _key, data: _data});
 
         // Should find the instruction.
         OPContractsManagerUtils.ExtraInstruction memory found = utils.getInstructionByKey(instructions, _key);
@@ -295,8 +285,8 @@ contract OPContractsManagerUtils_GetInstructionByKey_Test is OPContractsManagerU
     function test_getInstructionByKey_duplicateKeys_succeeds() public view {
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new OPContractsManagerUtils.ExtraInstruction[](2);
-        instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: "DupeKey", data: bytes("FirstData") });
-        instructions[1] = OPContractsManagerUtils.ExtraInstruction({ key: "DupeKey", data: bytes("SecondData") });
+        instructions[0] = OPContractsManagerUtils.ExtraInstruction({key: "DupeKey", data: bytes("FirstData")});
+        instructions[1] = OPContractsManagerUtils.ExtraInstruction({key: "DupeKey", data: bytes("SecondData")});
 
         OPContractsManagerUtils.ExtraInstruction memory result = utils.getInstructionByKey(instructions, "DupeKey");
 
@@ -417,10 +407,7 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
         proxyAdmin.setAddressManager(addressManager);
 
         deployArgs = OPContractsManagerUtils.ProxyDeployArgs({
-            proxyAdmin: proxyAdmin,
-            addressManager: addressManager,
-            l2ChainId: 42,
-            saltMixer: "testMixer"
+            proxyAdmin: proxyAdmin, addressManager: addressManager, l2ChainId: 42, saltMixer: "testMixer"
         });
     }
 
@@ -690,9 +677,26 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implBeta));
     }
 
+    /// @notice Tests that upgrade reverts when `_offset` points outside the 32-byte storage slot.
+    function test_upgrade_invalidInitializerOffset_reverts() public {
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_InvalidInitializerOffset.selector);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV1),
+            abi.encodeCall(OPContractsManagerUtils_ImplV1_Harness.initialize, ()),
+            TEST_SLOT,
+            32
+        );
+    }
+
     /// @notice ERC-7201 Initializable slot used by OZ v5.
     bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
         bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+
+    /// @notice Custom ERC-7201 Initializable slot used to simulate `_initializableStorageSlot()` overrides.
+    bytes32 internal constant CUSTOM_OZ_V5_INITIALIZABLE_SLOT =
+        bytes32(uint256(0x111122223333444455556666777788889999AAAABBBBCCCCDDDDEEEEFFFF0000));
 
     /// @notice Tests that v4 contracts are unaffected by the v5 slot clearing logic. For v4
     ///         contracts the ERC-7201 slot is all zeros, so the new code is a no-op.
@@ -789,6 +793,21 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         );
     }
 
+    /// @notice Tests that using the v5 slot as the generic initializer slot with a non-zero
+    ///         offset reverts before any storage writes can mask `_initializing`.
+    function test_upgrade_v5SlotNonZeroOffset_reverts() public {
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_InvalidV5Offset.selector);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            OZ_V5_INITIALIZABLE_SLOT,
+            8,
+            OZ_V5_INITIALIZABLE_SLOT
+        );
+    }
+
     /// @notice Tests that the upper bytes of the ERC-7201 slot beyond the Initializable struct
     ///         are preserved when clearing the `_initialized` field.
     function test_upgrade_v5SlotPreservesUpperBytes_succeeds() public {
@@ -816,6 +835,31 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
         // The upper bytes should be preserved, only the low 8 bytes should be zeroed.
         assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(upperData));
+    }
+
+    /// @notice Tests that callers can provide a custom OZ v5 Initializable slot instead of using
+    ///         the default ERC-7201 slot.
+    function test_upgrade_customV5SlotCleared_succeeds() public {
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        vm.store(address(proxy), CUSTOM_OZ_V5_INITIALIZABLE_SLOT, bytes32(uint256(type(uint64).max)));
+        vm.store(address(proxy), OZ_V5_INITIALIZABLE_SLOT, bytes32(uint256(0xBEEF)));
+
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            CUSTOM_OZ_V5_INITIALIZABLE_SLOT,
+            0,
+            CUSTOM_OZ_V5_INITIALIZABLE_SLOT
+        );
+
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
+        assertEq(vm.load(address(proxy), CUSTOM_OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(uint256(0xBEEF)));
     }
 }
 
@@ -860,10 +904,7 @@ contract OPContractsManagerUtils_IsMatchingInstruction_Test is OPContractsManage
     /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the key.
     function testFuzz_isMatchingInstruction_notMatchingKey_fails(
         OPContractsManagerUtils.ExtraInstruction memory _instruction
-    )
-        public
-        view
-    {
+    ) public view {
         // Create a key that is not the same as the instruction key.
         string memory _key = string.concat("not:", _instruction.key);
 
@@ -873,10 +914,7 @@ contract OPContractsManagerUtils_IsMatchingInstruction_Test is OPContractsManage
     /// @notice Tests that isMatchingInstruction returns false when the instruction does not match the data.
     function testFuzz_isMatchingInstruction_notMatchingData_fails(
         OPContractsManagerUtils.ExtraInstruction memory _instruction
-    )
-        public
-        view
-    {
+    ) public view {
         // Create a data that is not the same as the instruction data.
         bytes memory _data = bytes.concat("not:", _instruction.data);
 
@@ -898,10 +936,7 @@ contract OPContractsManagerUtils_IsMatchingInstructionByKey_Test is OPContractsM
     /// @notice Tests that isMatchingInstructionKey returns false when the instruction does not match the key.
     function testFuzz_isMatchingInstructionByKey_notMatchingKey_fails(
         OPContractsManagerUtils.ExtraInstruction memory _instruction
-    )
-        public
-        view
-    {
+    ) public view {
         // Create a key that is not the same as the instruction key.
         string memory _key = string.concat("not:", _instruction.key);
         assertFalse(utils.isMatchingInstructionByKey(_instruction, _key));
@@ -976,10 +1011,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
     /// @notice Tests that makeGameArgs reverts for an unsupported game type.
     function test_makeGameArgs_unsupportedType_reverts() public {
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0,
-            gameType: GameTypes.KAILUA,
-            gameArgs: bytes("")
+            enabled: true, initBond: 0, gameType: GameTypes.KAILUA, gameArgs: bytes("")
         });
         vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType.selector);
         utils.makeGameArgs(1, IAnchorStateRegistry(address(0)), IDelayedWETH(payable(address(0))), cfg);
