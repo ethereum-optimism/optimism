@@ -56,17 +56,6 @@ Requires `forge` for the provenance check (step 2).
 
 - **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, and every `*_nut_bundle.json` file has a corresponding lock entry. Runs in CI on every PR.
 
-## Reading a bundle diff
-
-A single predeploy edit can cascade into multiple bundle entries. For example, a patch bump to `L1Block.sol` typically produces four diffs:
-
-1. **Deploy L1Block Implementation** — new bytecode (source changed).
-2. **Deploy L1BlockCGT Implementation** — new bytecode (inherits the new version string via `super.version()`).
-3. **Deploy L2ContractsManager Implementation** — new bytecode (hardcodes predeploy impl addresses, which shift when their bytecode changes).
-4. **L2ProxyAdmin Upgrade Predeploys** — new calldata (batch upgrade now points at the new impl addresses).
-
-When reviewing a bundle diff, check that every changed entry traces back to an intentional source change. Unexpected entries indicate a deeper impact than the diff suggests.
-
 ## fork_lock.toml schema
 
 ```toml
@@ -75,12 +64,3 @@ bundle = "op-core/nuts/bundles/<fork>_nut_bundle.json"  # repo-relative path
 hash = "sha256:<hex>"                                      # sha256 of bundle contents
 commit = "<full-sha>"                                      # commit that produced the bundle
 ```
-
-## Troubleshooting
-
-### `FAIL: provenance verification: regenerated bundle at commit <X> differs from committed bundle`
-
-The commit recorded in `fork_lock.toml` does not, when checked out, produce the bundle that is currently committed to the repo. The most common cause is running `just nut-snapshot-for <fork>` on a branch whose contracts source has not yet landed on `develop` — the merge-base with `origin/develop` resolves to a commit that predates the change being bundled.
-
-**Fix:** merge the contracts PR to `develop` first, then create a new branch from the updated `develop` and re-run `just nut-snapshot-for <fork>`.
-

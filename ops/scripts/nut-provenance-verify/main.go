@@ -131,10 +131,7 @@ func verifyFromCommit(root string, fork forks.Name, entry nuts.ForkLockEntry, ge
 
 	if !bytes.Equal(regenContent, committedContent) {
 		return fmt.Errorf(
-			"bundle regenerated from commit %s does not match committed bundle %s for fork %s. "+
-				"This usually means the recorded commit predates the contracts source being bundled. "+
-				"Merge the contracts PR to develop, then re-run 'just nut-snapshot-for %s' from "+
-				"a branch based on the updated develop. See op-core/nuts/README.md.",
+			"the bundle regenerated from commit %s does not match the committed bundle at %s for the %s fork . See op-core/nuts/README.md for details on how to lock a new bundle.",
 			entry.Commit[:12], entry.Bundle, fork, fork,
 		)
 	}
