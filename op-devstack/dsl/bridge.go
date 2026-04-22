@@ -121,6 +121,15 @@ func (b *StandardBridge) RespectedGameType() uint32 {
 	return gameType
 }
 
+// VerifyRespectedGameType asserts that the OptimismPortal's
+// AnchorStateRegistry reports the expected respected game type.
+func (b *StandardBridge) VerifyRespectedGameType(expected gameTypes.GameType) {
+	actual := gameTypes.GameType(b.RespectedGameType())
+	b.require.Equalf(expected, actual,
+		"respected game type mismatch: expected %s (%d), got %s (%d)",
+		expected, uint32(expected), actual, uint32(actual))
+}
+
 func (b *StandardBridge) PortalVersion() string {
 	version, err := contractio.Read(b.l1Portal.Version(), b.ctx)
 	b.require.NoError(err, "Failed to read portal version")

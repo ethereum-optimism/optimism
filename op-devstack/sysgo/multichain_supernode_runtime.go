@@ -138,7 +138,12 @@ func startSupernodeELWithSupervisorURL(
 	}
 }
 
-func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+// newSingleChainSupernodeRuntimeWithConfig builds a single-chain runtime with
+// an op-supernode attached. If startMinimalProposer is true, a standard
+// permissioned-cannon proposer (game type 1) is started alongside the
+// batcher. Callers that install super dispute games at initial deploy
+// should pass false and start a super proposer separately.
+func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, startMinimalProposerDaemon bool, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -173,7 +178,10 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
+	var l2Proposer *L2Proposer
+	if startMinimalProposerDaemon {
+		l2Proposer = startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
+	}
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	// Use the potentially-overridden depSetStatic if available.
