@@ -597,8 +597,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert GameNotResolved();
         }
 
+        IDisputeGame self = IDisputeGame(address(this));
+
         // Game must be finalized according to the AnchorStateRegistry.
-        bool finalized = anchorStateRegistry().isGameFinalized(IDisputeGame(address(this)));
+        bool finalized = anchorStateRegistry().isGameFinalized(self);
         if (!finalized) {
             revert GameNotFinalized();
         }
@@ -606,10 +608,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Try to update the anchor game first. Won't always succeed because delays can lead
         // to situations in which this game might not be eligible to be a new anchor game.
         // nosemgrep: sol-safety-trycatch-eip150
-        try anchorStateRegistry().setAnchorState(IDisputeGame(address(this))) { } catch { }
+        try anchorStateRegistry().setAnchorState(self) { } catch { }
 
         // Check if the game is a proper game, which will determine the bond distribution mode.
-        bool properGame = anchorStateRegistry().isGameProper(IDisputeGame(address(this)));
+        bool properGame = anchorStateRegistry().isGameProper(self);
 
         // If the game is a proper game, the bonds should be distributed normally. Otherwise, go
         // into refund mode and distribute bonds back to their original depositors.
