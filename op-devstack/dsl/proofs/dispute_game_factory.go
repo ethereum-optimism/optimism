@@ -174,16 +174,12 @@ func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDispute
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
-// VerifyGameImplPresent asserts the DisputeGameFactory has a non-zero
-// implementation registered for the given game type.
 func (f *DisputeGameFactory) VerifyGameImplPresent(gameType gameTypes.GameType) {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	f.require.NotEqualf(common.Address{}, implAddr,
 		"expected DisputeGameFactory to have an implementation for %s (%d)", gameType, uint32(gameType))
 }
 
-// VerifyGameImplAbsent asserts the DisputeGameFactory has no implementation
-// registered for the given game type (the slot is address(0)).
 func (f *DisputeGameFactory) VerifyGameImplAbsent(gameType gameTypes.GameType) {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	f.require.Equalf(common.Address{}, implAddr,

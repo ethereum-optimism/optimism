@@ -138,11 +138,6 @@ func startSupernodeELWithSupervisorURL(
 	}
 }
 
-// newSingleChainSupernodeRuntimeWithConfig builds a single-chain runtime with
-// an op-supernode attached. If startMinimalProposer is true, a standard
-// permissioned-cannon proposer (game type 1) is started alongside the
-// batcher. Callers that install super dispute games at initial deploy
-// should pass false and start a super proposer separately.
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, startMinimalProposerDaemon bool, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 

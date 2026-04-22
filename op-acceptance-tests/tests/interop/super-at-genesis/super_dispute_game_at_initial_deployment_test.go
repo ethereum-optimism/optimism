@@ -9,12 +9,9 @@ import (
 )
 
 // TestSuperPermissionedDisputeGameInstalledAtInitialDeployment verifies that
-// when a chain is deployed via op-deployer with the SuperRootGamesMigration
-// dev feature flag set, SuperPermissionedDisputeGame is installed in the
-// permissioned slot as part of the initial op-deployer apply - no post-deploy
-// OPCMv2 migration is required.
-//
-// Tracks ethereum-optimism/optimism#18729.
+// a chain deployed with the SuperRootGamesMigration dev feature flag has
+// SuperPermissionedDisputeGame in the permissioned slot at initial deploy,
+// without requiring a post-deploy OPCMv2 migration.
 func TestSuperPermissionedDisputeGameInstalledAtInitialDeployment(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainInteropSuperRootAtGenesis(t)

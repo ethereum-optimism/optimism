@@ -12,8 +12,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
-	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -116,18 +116,12 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
 	migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
 
-	// After migration all three super types are enabled; the proposer
-	// defaults to SUPER_CANNON (matching the migrated StartingRespectedGameType).
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
 	return runtime
 }
 
-// attachSuperChallengerAndProposer wires a shared interop challenger and a
-// super proposer into a supernode-backed runtime. proposerGameType selects
-// which super game type the proposer creates: SUPER_CANNON for post-migration
-// chains (all three super types enabled) or SUPER_PERMISSIONED_CANNON for
-// initial-deploy super chains where only the permissioned super slot is
-// active.
+// attachSuperChallengerAndProposer wires an interop challenger and a super
+// proposer for proposerGameType into a supernode-backed runtime.
 func attachSuperChallengerAndProposer(
 	t devtest.T,
 	runtime *MultiChainRuntime,

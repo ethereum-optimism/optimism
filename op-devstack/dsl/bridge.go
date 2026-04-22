@@ -121,8 +121,6 @@ func (b *StandardBridge) RespectedGameType() uint32 {
 	return gameType
 }
 
-// VerifyRespectedGameType asserts that the OptimismPortal's
-// AnchorStateRegistry reports the expected respected game type.
 func (b *StandardBridge) VerifyRespectedGameType(expected gameTypes.GameType) {
 	actual := gameTypes.GameType(b.RespectedGameType())
 	b.require.Equalf(expected, actual,
