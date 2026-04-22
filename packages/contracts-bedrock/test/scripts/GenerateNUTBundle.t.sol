@@ -190,7 +190,7 @@ contract GenerateNUTBundleTest is Test {
         script.assertValidOutput(output);
     }
 
-    /// @notice Tests that a transaction exceeding the per-transaction gas limit cap is rejected.
+    /// @notice Tests that a transaction exceeding the EIP-7825 per-tx gas limit cap is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitExceedsMax_reverts(uint256 _index, uint64 _gasLimit) public {
         GenerateNUTBundle.Output memory output = script.run();
@@ -199,11 +199,18 @@ contract GenerateNUTBundleTest is Test {
         _gasLimit = uint64(bound(_gasLimit, script.MAX_TX_GAS_LIMIT() + 1, type(uint64).max));
         output.txns[_index].gasLimit = _gasLimit;
 
-        vm.expectRevert("GenerateNUTBundle: invalid transaction gasLimit");
+        vm.expectRevert(
+            bytes(
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ",
+                    output.txns[_index].intent
+                )
+            )
+        );
         script.assertValidOutput(output);
     }
 
-    /// @notice Tests that a transaction with a zero gas limit is rejected.
+    /// @notice Tests that a transaction with a zero gas limit is rejected by the EIP-7623 floor.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroGasLimit_reverts(uint256 _index) public {
         GenerateNUTBundle.Output memory output = script.run();
@@ -211,7 +218,34 @@ contract GenerateNUTBundleTest is Test {
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].gasLimit = 0;
 
-        vm.expectRevert("GenerateNUTBundle: invalid transaction gasLimit");
+        vm.expectRevert(
+            bytes(
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ",
+                    output.txns[_index].intent
+                )
+            )
+        );
+        script.assertValidOutput(output);
+    }
+
+    /// @notice Tests that a transaction whose gasLimit is one below the EIP-7623 floor is rejected.
+    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
+    function testFuzz_assertValidOutput_gasLimitBelowFloor_reverts(uint256 _index) public {
+        GenerateNUTBundle.Output memory output = script.run();
+
+        _index = bound(_index, 0, output.txns.length - 1);
+        uint64 floor = UpgradeUtils.computeFloorDataGas(output.txns[_index].data);
+        output.txns[_index].gasLimit = floor - 1;
+
+        vm.expectRevert(
+            bytes(
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ",
+                    output.txns[_index].intent
+                )
+            )
+        );
         script.assertValidOutput(output);
     }
 

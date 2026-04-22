@@ -135,16 +135,16 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
             require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            require(
-                _output.txns[i].gasLimit > 0 && _output.txns[i].gasLimit <= MAX_TX_GAS_LIMIT,
-                "GenerateNUTBundle: invalid transaction gasLimit"
-            );
-
-            // EIP-7623: op-geth rejects the tx (ErrFloorDataGas) if gasLimit < floorDataGas.
+            // Lower bound: EIP-7623 calldata floor (op-geth rejects with ErrFloorDataGas below this).
+            // Upper bound: EIP-7825 per-tx gas cap (2 ** 24). The floor dominates `> 0`, so the
+            // floor is the only lower bound we need here, assuming every NUT is a CALL, which is
+            // guaranteed by the `to != address(0)` check above.
             uint64 floorDataGas = UpgradeUtils.computeFloorDataGas(_output.txns[i].data);
             require(
-                _output.txns[i].gasLimit >= floorDataGas,
-                string.concat("GenerateNUTBundle: gasLimit below EIP-7623 floor for ", _output.txns[i].intent)
+                _output.txns[i].gasLimit >= floorDataGas && _output.txns[i].gasLimit <= MAX_TX_GAS_LIMIT,
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ", _output.txns[i].intent
+                )
             );
 
             if (_output.txns[i].from == address(0)) {
