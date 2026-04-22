@@ -19,13 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-// upgradeToSuperRoots uses OPCMv2.upgrade to switch each chain in the migration
-// state over to super-root dispute games (SUPER_CANNON / SUPER_PERMISSIONED_CANNON
-// / SUPER_CANNON_KONA) with the supplied super root as the starting anchor.
-//
-// This is the counterpart to migrateSuperRoots, which delegatecalls
-// opcmMigrator.migrate(...) instead. The goal is to exercise the standard upgrade
-// entrypoint so we can eventually retire the one-off migrator.
+// upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state
+// to enable all three super-root game types with the supplied starting anchor.
 func upgradeToSuperRoots(
 	t devtest.T,
 	keys devkeys.Keys,

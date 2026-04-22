@@ -120,10 +120,8 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	return runtime
 }
 
-// attachSupernodeSuperProofsViaUpgrade is the opcm.upgrade counterpart to
-// attachSupernodeSuperProofs. It installs the super-root dispute games through
-// the standard OPCMv2 upgrade entrypoint, then wires the interop challenger and
-// super proposer exactly like the migration-based helper does.
+// attachSupernodeSuperProofsViaUpgrade adds permissionless super games via
+// opcm.upgrade, then wires the interop challenger and super proposer.
 func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
 	chains := orderedRuntimeChains(runtime)
 	t.Require().NotEmpty(chains, "supernode superproofs runtime must contain at least one chain")
@@ -211,26 +209,12 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 
-// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single-chain interop
-// runtime and switches it over to super-root dispute games via opcm.upgrade.
-//
-// The OPCM is deployed with SUPER_ROOT_GAMES_MIGRATION enabled, which puts
-// SuperPermissionedCannon in the permissioned slot at genesis (the standard
-// output→super switch). Once a real super root is available, opcm.upgrade adds
-// SUPER_CANNON / SUPER_CANNON_KONA, overrides the starting anchor root, and
-// sets the respected game type to SUPER_CANNON.
-//
-// Unlike opcmMigrator.migrate — which is about moving multiple chains onto a
-// shared DisputeGameFactory and stays in use for the multi-chain runtime —
-// opcm.upgrade is the standard per-chain upgrade entrypoint, which is what
-// single-chain interop tests need.
+// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
+// SuperPermissionedCannon at genesis, then uses opcm.upgrade to add the
+// permissionless super games and set the real starting anchor root.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	runtime := newSingleChainSupernodeRuntimeWithConfig(t, interopAtGenesis, cfg)
-	// No minimal output-root proposer: with SUPER_ROOT_GAMES_MIGRATION enabled
-	// the chain has no PermissionedCannon game at genesis, so a legacy proposer
-	// would just loop on NoImplementation reverts. The super proposer is
-	// attached by attachSupernodeSuperProofsViaUpgrade.
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	return attachSupernodeSuperProofsViaUpgrade(t, runtime, cfg)
 }
