@@ -8,13 +8,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
-// TestSuperRootGamesInstalledViaOPCMUpgrade verifies that super-root dispute
-// games can be installed on a vanilla-interop deployment by calling OPCMv2.upgrade
-// — the standard upgrade entrypoint — instead of the one-off
-// opcmMigrator.migrate path exercised by TestInteropSingleChainFaultProofs.
+// TestSuperRootGamesInstalledViaOPCMUpgrade verifies that the single-chain
+// interop preset installs super-root dispute games via OPCMv2.upgrade — the
+// standard upgrade entrypoint — and ends up with SUPER_CANNON respected, the
+// super game impls present, and no legacy PermissionedCannon game.
 func TestSuperRootGamesInstalledViaOPCMUpgrade(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainInteropSupernodeProofsViaUpgrade(t)
+	sys := presets.NewSingleChainInteropSupernodeProofs(t)
 
 	sys.StandardBridge(sys.L2ChainA).VerifyRespectedGameType(gameTypes.SuperCannonGameType)
 	sys.DisputeGameFactory().VerifyGameImplPresent(gameTypes.SuperCannonGameType)

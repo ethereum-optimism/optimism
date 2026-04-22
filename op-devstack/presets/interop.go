@@ -146,15 +146,6 @@ func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *Singl
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
-// NewSingleChainInteropSupernodeProofsViaUpgrade creates a fresh
-// SingleChainInterop target that switches a vanilla-interop deployment over to
-// super-root dispute games through opcm.upgrade, replacing the one-off
-// opcmMigrator.migrate entrypoint used by NewSingleChainInteropSupernodeProofs.
-func NewSingleChainInteropSupernodeProofsViaUpgrade(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSupernodeProofsViaUpgrade", opts, supernodeProofsPresetSupportedOptionKinds)
-	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsUpgradeRuntimeWithConfig(t, true, presetCfg))
-}
-
 // NewSimpleInterop creates a fresh SimpleInterop target for the current test.
 //
 // The target is created from the interop runtime plus any additional preset options.
