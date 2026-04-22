@@ -40,6 +40,9 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         // Skip if L2CM dev feature is not enabled
         skipIfDevFeatureDisabled(DevFeatures.L2CM);
 
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Initialize scripts
         executeScript = new ExecuteNUTBundle();
         generateScript = new GenerateNUTBundle();
