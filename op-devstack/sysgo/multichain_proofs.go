@@ -81,7 +81,7 @@ func attachSupervisorSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pr
 		false,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
+		cfg.EnableCannonKonaForChallenger,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -152,7 +152,7 @@ func attachSuperChallengerAndProposer(
 		true,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
+		cfg.EnableCannonKonaForChallenger,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 

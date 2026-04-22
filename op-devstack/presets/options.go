@@ -252,7 +252,7 @@ func WithCannonKonaGameTypeAdded() Option {
 	return option{
 		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
 		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
+			cfg.EnableCannonKonaForChallenger = true
 			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
 		},
 	}
@@ -262,7 +262,7 @@ func WithChallengerCannonKonaEnabled() Option {
 	return option{
 		kinds: optionKindChallengerCannonKona,
 		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
+			cfg.EnableCannonKonaForChallenger = true
 		},
 	}
 }

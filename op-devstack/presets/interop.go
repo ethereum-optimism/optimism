@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -117,8 +118,18 @@ func NewSimpleInteropSupernodeProofs(t devtest.T, opts ...Option) *SimpleInterop
 
 // NewSingleChainInteropSupernodeProofs creates a fresh SingleChainInterop target for the
 // current test using the single-chain super-root proofs system backed by op-supernode.
+//
+// When WithChallengerCannonKonaEnabled is passed, SUPER_CANNON_KONA is
+// automatically registered on the DisputeGameFactory so tests can use it
+// without explicit WithSuperGameTypeAdded calls.
 func NewSingleChainInteropSupernodeProofs(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSupernodeProofs", opts, supernodeProofsPresetSupportedOptionKinds)
+	if presetCfg.EnableCannonKonaForChallenger {
+		presetCfg.AddedSuperGameTypes = append(presetCfg.AddedSuperGameTypes, sysgo.AddedSuperGameType{
+			GameType: gameTypes.SuperCannonKonaGameType,
+			Prestate: sysgo.PrestateForGameType(t, gameTypes.SuperCannonKonaGameType),
+		})
+	}
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 

@@ -43,12 +43,13 @@ type DisputeGameFactory struct {
 	FindLatestGames func(gameType uint32, start *big.Int, n *big.Int) TypedCall[[]GameSearchResult]       `sol:"findLatestGames"`
 
 	// Write functions
-	Create            func(gameType uint32, rootClaim common.Hash, extraData []byte) TypedCall[common.Address] `sol:"create"`
-	Initialize        func(owner common.Address) TypedCall[any]                                                `sol:"initialize"`
-	RenounceOwnership func() TypedCall[any]                                                                    `sol:"renounceOwnership"`
-	SetImplementation func(gameType uint32, impl common.Address) TypedCall[any]                                `sol:"setImplementation"`
-	SetInitBond       func(gameType uint32, initBond *big.Int) TypedCall[any]                                  `sol:"setInitBond"`
-	TransferOwnership func(newOwner common.Address) TypedCall[any]                                             `sol:"transferOwnership"`
+	Create                    func(gameType uint32, rootClaim common.Hash, extraData []byte) TypedCall[common.Address] `sol:"create"`
+	Initialize                func(owner common.Address) TypedCall[any]                                                `sol:"initialize"`
+	RenounceOwnership         func() TypedCall[any]                                                                    `sol:"renounceOwnership"`
+	SetImplementation         func(gameType uint32, impl common.Address) TypedCall[any]                                `sol:"setImplementation"`
+	SetImplementationWithArgs func(gameType uint32, impl common.Address, args []byte) TypedCall[any]                   `sol:"setImplementation"`
+	SetInitBond               func(gameType uint32, initBond *big.Int) TypedCall[any]                                  `sol:"setInitBond"`
+	TransferOwnership         func(newOwner common.Address) TypedCall[any]                                             `sol:"transferOwnership"`
 }
 
 func NewDisputeGameFactory(opts ...CallFactoryOption) *DisputeGameFactory {

@@ -32,7 +32,7 @@ func registerAddedSuperGameTypes(t devtest.T, runtime *MultiChainRuntime, cfg Pr
 	}
 	for _, chain := range orderedRuntimeChains(runtime) {
 		for _, add := range cfg.AddedSuperGameTypes {
-			registerSuperDisputeGameForRuntime(t, runtime.Keys, runtime.L1Network.ChainID(), runtime.L1EL, chain.Network, add.GameType, add.Prestate)
+			registerSuperDisputeGameForRuntime(t, runtime.Keys, runtime.L1Network.ChainID(), runtime.L1EL.UserRPC(), chain.Network, add.GameType, add.Prestate)
 		}
 	}
 }
