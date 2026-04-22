@@ -19,7 +19,7 @@ func withSuperRootGamesAtGenesisDeployerFeatures(cfg PresetConfig) PresetConfig 
 // permissioned slot at initial deploy.
 func NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
-	runtime := newSingleChainSupernodeRuntimeWithConfig(t, true, false, cfg)
+	runtime := newSingleChainSupernodeRuntimeWithConfig(t, true, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperPermissionedGameType)
 	return runtime

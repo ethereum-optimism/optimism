@@ -189,7 +189,9 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperProofsDeployerFeature(cfg)
-	runtime := newSingleChainSupernodeRuntimeWithConfig(t, interopAtGenesis, true, cfg)
+	runtime := newSingleChainSupernodeRuntimeWithConfig(t, interopAtGenesis, cfg)
+	chain := runtime.Chains["l2a"]
+	chain.Proposer = startMinimalProposer(t, runtime.Keys, chain.Network, runtime.L1EL, chain.CL, cfg.ProposerOptions...)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
