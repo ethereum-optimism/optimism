@@ -165,6 +165,7 @@ contract L2ContractsManager is ISemver {
         // Uses try/catch because isFeatureEnabled() may not exist on pre-upgrade L1Block contracts.
         // The INTEROP feature is enabled after genesis via a Network Upgrade Transaction (NUT) issued
         // by the consensus client at the start of the hard fork block.
+        // TODO(#19468): Remove the fallback after the Karst upgrade.
         // eip150-safe
         try IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP) returns (bool isInterop_) {
             fullConfig_.isInterop = isInterop_;
