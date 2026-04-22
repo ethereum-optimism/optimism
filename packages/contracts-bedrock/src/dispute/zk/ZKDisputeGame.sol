@@ -436,6 +436,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Returns the status of the parent game.
+    /// @dev A parentIndex of uint32.max is the sentinel value representing the absence of a parent game
+    ///      Treating the anchor as DEFENDER_WINS is safe because the anchor
+    ///      state is only ever updated from a previously resolved DEFENDER_WINS game, so its root
+    ///      is already trusted. Any other parentIndex fetches the actual parent from the factory.
     function getParentGameStatus() private view returns (GameStatus) {
         if (parentIndex() != type(uint32).max) {
             (,, IDisputeGame parentGame) = disputeGameFactory.gameAtIndex(parentIndex());
