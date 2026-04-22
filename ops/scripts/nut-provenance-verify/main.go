@@ -73,7 +73,7 @@ func run(fork forks.Name) error {
 	}
 
 	fmt.Printf("Verifying bundle provenance from commit %s...\n", entry.Commit[:12])
-	if err := verifyFromCommit(root, entry, func(contractsDir string) error {
+	if err := verifyFromCommit(root, fork, entry, func(contractsDir string) error {
 		cmd := exec.Command("just", "generate-nut-bundle")
 		cmd.Dir = contractsDir
 		cmd.Stdout = os.Stdout
@@ -89,7 +89,7 @@ func run(fork forks.Name) error {
 
 // verifyFromCommit creates a temporary worktree at the recorded commit,
 // regenerates the NUT bundle, and compares it against the locked bundle.
-func verifyFromCommit(root string, entry nuts.ForkLockEntry, generate bundleGenerator) error {
+func verifyFromCommit(root string, fork forks.Name, entry nuts.ForkLockEntry, generate bundleGenerator) error {
 	worktreeDir, err := os.MkdirTemp("", "verify-nuts-*")
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
@@ -130,8 +130,13 @@ func verifyFromCommit(root string, entry nuts.ForkLockEntry, generate bundleGene
 	}
 
 	if !bytes.Equal(regenContent, committedContent) {
-		return fmt.Errorf("regenerated bundle at commit %s differs from committed bundle %s",
-			entry.Commit[:12], entry.Bundle)
+		return fmt.Errorf(
+			"bundle regenerated from commit %s does not match committed bundle %s for fork %s. "+
+				"This usually means the recorded commit predates the contracts source being bundled. "+
+				"Merge the contracts PR to develop, then re-run 'just nut-snapshot-for %s' from "+
+				"a branch based on the updated develop. See op-core/nuts/README.md.",
+			entry.Commit[:12], entry.Bundle, fork, fork,
+		)
 	}
 
 	return nil
