@@ -5,10 +5,28 @@
         "internalType": "contract ISP1Verifier",
         "name": "_sp1Verifier",
         "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_proofSystem",
+        "type": "string"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "proofSystem",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [],
@@ -74,7 +92,12 @@
   },
   {
     "inputs": [],
-    "name": "SP1PlonkAdapter_InvalidVerifier",
+    "name": "SP1Adapter_InvalidProofSystem",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SP1Adapter_InvalidVerifier",
     "type": "error"
   }
 ]

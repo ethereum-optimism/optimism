@@ -219,9 +219,9 @@
     "initCodeHash": "0xa080730728e812e8b02d03b5857b23d16ade46f1656f26f22274835a3100edd7",
     "sourceCodeHash": "0x314b6e0412f698ce3531e8176ce8e5b8a3976cc3fa9d7ecb1f3278612f90ed4e"
   },
-  "src/dispute/zk/SP1PlonkAdapter.sol:SP1PlonkAdapter": {
-    "initCodeHash": "0x86e0b79d15c85268155e304dd1d68d1a26782303bb86d44387ee938b0ca45c5c",
-    "sourceCodeHash": "0x2cc9c53d544e5715e38a50ad266551fe7b0f05488e7a66f3f70bca618fbd7fc7"
+  "src/dispute/zk/SP1Adapter.sol:SP1Adapter": {
+    "initCodeHash": "0x31973ee69e07215fb76a35586fe8ed68e7683e8061b009c4ff0dcdaaa2724bd9",
+    "sourceCodeHash": "0x70c2e9520b26cb7068ff3cfe660192f700cdc54141011c20d9aca91fafa12bdd"
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
     "initCodeHash": "0x3bc850847e9972890c6a4695a47c2553a3095718504157b35875339ee7d7b19e",
