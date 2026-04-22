@@ -74,6 +74,17 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 ///  4. After finality, closeGame() calls isGameProper() → false (blacklisted) → REFUND mode.
 ///  5. Proposer reclaims original initBond; challenger reclaims original challengerBond.
 ///     Bond distribution ignores the CHALLENGER_WINS outcome entirely.
+///
+/// Scenario 6 — Blacklisted parent does not automatically invalidate in-flight child
+/// ──────────────────────────────────────────────────────────────────────────────────
+///  1. A parent game is created and resolved DEFENDER_WINS.
+///  2. A child game is created referencing the parent before the parent is closed.
+///  3. The guardian blacklists the parent after the child is already initialized.
+///  4. The child resolves DEFENDER_WINS: resolve() reads parent's GameStatus (unchanged by
+///     blacklisting), so the blacklist is invisible to the child's resolution path.
+///  5. closeGame() on the child sees isGameProper()=true (child not blacklisted) → NORMAL mode.
+///  6. Proposer claims full bond back. The guardian must explicitly blacklist the child to
+///     invalidate it — parent blacklisting does not propagate automatically.
 contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
@@ -430,6 +441,46 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         // ── Both participants reclaim their original deposits; outcome is irrelevant ──
         _claimCreditAndAssert(game, proposer, bond);
         _claimCreditAndAssert(game, challenger, bond);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 6 — Blacklisted parent does not automatically invalidate child
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice Blacklisting a parent after a child is initialized does not affect the child.
+    ///         resolve() checks parent GameStatus only — blacklisting does not change GameStatus.
+    ///         The child resolves DEFENDER_WINS, enters NORMAL mode, and the proposer reclaims
+    ///         the bond. The guardian must explicitly blacklist the child to invalidate it.
+    function test_integration_blacklistedParentDoesNotInvalidateChild_succeeds() public {
+        (, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+
+        // ── Create and resolve a parent game ──
+        uint256 parentSeqNum = anchorSeqBefore + 1000;
+        Claim parentClaim = Claim.wrap(keccak256("parentClaim"));
+        (ZKDisputeGame parentGame, uint32 parentIdx) = _createGame(parentClaim, parentSeqNum, type(uint32).max);
+        _resolveUnchallenged(parentGame);
+
+        // ── Create child referencing parent before parent is closed ──
+        uint256 childSeqNum = parentSeqNum + 1000;
+        Claim childClaim = Claim.wrap(keccak256("childClaim"));
+        (ZKDisputeGame childGame,) = _createGame(childClaim, childSeqNum, parentIdx);
+
+        // ── Guardian blacklists the parent after the child is already in-flight ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(parentGame)));
+
+        // ── Child resolves normally — blacklisting does not change parent's GameStatus ──
+        _resolveUnchallenged(childGame);
+        assertEq(uint8(childGame.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── closeGame() sees isGameProper(child)=true (child is not blacklisted) → NORMAL mode ──
+        _waitForFinality(childGame);
+        childGame.closeGame();
+
+        assertEq(uint8(childGame.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+
+        // ── Proposer claims full bond back ──
+        _claimCreditAndAssert(childGame, proposer, bond);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
