@@ -68,20 +68,17 @@ func TestPreNoInbox(gt *testing.T) {
 
 	// Phase 2: Verify the derivation pipeline works pre-interop by checking
 	// that both chains advance their local-safe heads (batcher submits to L1,
-	// supernode derives from it).
-	//
-	// TODO(#20191): also assert CrossSafe and Finalized advance pre-interop.
-	// Currently the supernode stalls both heads at block 0 until interop
-	// activates, which would cause a chain-visible stall for any network
-	// with interop scheduled in the future. Once fixed, enable:
-	//
-	//   sys.L2ACL.AdvancedFn(types.CrossSafe, 5, 100),
-	//   sys.L2BCL.AdvancedFn(types.CrossSafe, 5, 100),
-	//   sys.L2ACL.AdvancedFn(types.Finalized, 1, 100),
-	//   sys.L2BCL.AdvancedFn(types.Finalized, 1, 100),
+	// supernode derives from it), and that CrossSafe and Finalized heads also
+	// advance. Pre-activation, the supernode must not gate these heads on the
+	// interop verifier and must instead fall through to local-safe /
+	// local-finalized. See issue #20191.
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(types.LocalSafe, 5, 100),
 		sys.L2BCL.AdvancedFn(types.LocalSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(types.CrossSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(types.CrossSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(types.Finalized, 1, 100),
+		sys.L2BCL.AdvancedFn(types.Finalized, 1, 100),
 	)
 
 	// Phase 3: Try interop before the upgrade, confirm that messages do not get included

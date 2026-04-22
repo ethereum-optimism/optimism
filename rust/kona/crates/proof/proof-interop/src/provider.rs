@@ -13,7 +13,6 @@ use kona_preimage::{CommsClient, PreimageKey, PreimageKeyType, errors::PreimageO
 use kona_proof::{eip_2935_history_lookup, errors::OracleProviderError};
 use kona_registry::HashMap;
 use op_alloy_consensus::OpReceiptEnvelope;
-use spin::RwLock;
 
 /// A [`CommsClient`] backed [`InteropProvider`] implementation.
 #[derive(Debug, Clone)]
@@ -24,8 +23,18 @@ pub struct OracleInteropProvider<C> {
     boot: BootInfo,
     /// The local safe head block header cache.
     local_safe_heads: HashMap<u64, Sealed<Header>>,
-    /// The chain ID for the current call context. Used to declare the chain ID for the trie hints.
-    chain_id: Arc<RwLock<Option<u64>>>,
+}
+
+/// A chain-scoped [`TrieHinter`] that annotates all hints with a fixed chain ID.
+///
+/// Created via [`OracleInteropProvider::scoped_hinter`]. This avoids storing mutable chain ID
+/// state in the provider, making it explicit which chain ID is used for each trie hint.
+#[derive(Debug, Clone)]
+pub struct ChainScopedHinter<'a, C> {
+    /// The oracle client, borrowed from the parent provider.
+    oracle: &'a Arc<C>,
+    /// The chain ID to annotate hints with.
+    chain_id: u64,
 }
 
 impl<C> OracleInteropProvider<C>
@@ -33,17 +42,12 @@ where
     C: CommsClient + Send + Sync,
 {
     /// Creates a new [`OracleInteropProvider`] with the given oracle client and [`BootInfo`].
-    pub fn new(
+    pub const fn new(
         oracle: Arc<C>,
         boot: BootInfo,
         local_safe_headers: HashMap<u64, Sealed<Header>>,
     ) -> Self {
-        Self {
-            oracle,
-            boot,
-            local_safe_heads: local_safe_headers,
-            chain_id: Arc::new(RwLock::new(None)),
-        }
+        Self { oracle, boot, local_safe_heads: local_safe_headers }
     }
 
     /// Sends an [`HintType::L2Transactions`] hint for the given block, instructing the host to
@@ -62,6 +66,15 @@ where
     /// Returns a reference to the local safe heads map.
     pub const fn local_safe_heads(&self) -> &HashMap<u64, Sealed<Header>> {
         &self.local_safe_heads
+    }
+
+    /// Creates a [`ChainScopedHinter`] bound to the given chain ID.
+    ///
+    /// The returned hinter implements [`TrieHinter`] and annotates all hints with the specified
+    /// chain ID. This makes the chain context explicit at each call site rather than relying on
+    /// mutable state within the provider.
+    pub const fn scoped_hinter(&self, chain_id: u64) -> ChainScopedHinter<'_, C> {
+        ChainScopedHinter { oracle: &self.oracle, chain_id }
     }
 
     /// Replaces a local safe head with the given header.
@@ -139,15 +152,11 @@ where
             return Err(OracleProviderError::BlockNumberPastHead(number, header.number));
         }
 
-        // Set the chain ID for the trie hints, and explicitly drop the lock.
-        let mut chain_id_lock = self.chain_id.write();
-        *chain_id_lock = Some(chain_id);
-        drop(chain_id_lock);
-
         // Walk back the block headers to the desired block number.
         let rollup_config = self.boot.rollup_config(chain_id).ok_or_else(|| {
             PreimageOracleError::Other("Missing rollup config for chain ID".to_string())
         })?;
+        let hinter = self.scoped_hinter(chain_id);
         let mut linear_fallback = false;
 
         while header.number > number {
@@ -155,23 +164,18 @@ where
                 // If Isthmus is active, the EIP-2935 contract is used to perform leaping lookbacks
                 // through consulting the ring buffer within the contract. If this
                 // lookup fails for any reason, we fall back to linear walk back.
-                let block_hash = match eip_2935_history_lookup(
-                    &header,
-                    number,
-                    current_hash,
-                    self,
-                    self,
-                )
-                .await
-                {
-                    Ok(hash) => hash,
-                    Err(_) => {
-                        // If the EIP-2935 lookup fails for any reason, attempt fallback to
-                        // linear walk back.
-                        linear_fallback = true;
-                        continue;
-                    }
-                };
+                let block_hash =
+                    match eip_2935_history_lookup(&header, number, current_hash, self, &hinter)
+                        .await
+                    {
+                        Ok(hash) => hash,
+                        Err(_) => {
+                            // If the EIP-2935 lookup fails for any reason, attempt fallback to
+                            // linear walk back.
+                            linear_fallback = true;
+                            continue;
+                        }
+                    };
 
                 current_hash = block_hash;
                 header = self.header_by_hash(chain_id, block_hash).await?;
@@ -224,16 +228,14 @@ where
     }
 }
 
-impl<C: CommsClient> TrieHinter for OracleInteropProvider<C> {
+impl<C: CommsClient> TrieHinter for ChainScopedHinter<'_, C> {
     type Error = OracleProviderError;
 
     fn hint_trie_node(&self, hash: B256) -> Result<(), Self::Error> {
         kona_proof::block_on(async move {
             HintType::L2StateNode
                 .with_data(&[hash.as_slice()])
-                .with_data(
-                    self.chain_id.read().map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()),
-                )
+                .with_data(self.chain_id.to_be_bytes())
                 .send(self.oracle.as_ref())
                 .await
         })
@@ -243,9 +245,7 @@ impl<C: CommsClient> TrieHinter for OracleInteropProvider<C> {
         kona_proof::block_on(async move {
             HintType::L2AccountProof
                 .with_data(&[block_hash.as_slice(), address.as_slice()])
-                .with_data(
-                    self.chain_id.read().map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()),
-                )
+                .with_data(self.chain_id.to_be_bytes())
                 .send(self.oracle.as_ref())
                 .await
         })
@@ -264,9 +264,7 @@ impl<C: CommsClient> TrieHinter for OracleInteropProvider<C> {
                     address.as_slice(),
                     slot.to_be_bytes::<32>().as_ref(),
                 ])
-                .with_data(
-                    self.chain_id.read().map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()),
-                )
+                .with_data(self.chain_id.to_be_bytes())
                 .send(self.oracle.as_ref())
                 .await
         })
@@ -283,9 +281,7 @@ impl<C: CommsClient> TrieHinter for OracleInteropProvider<C> {
 
             HintType::L2PayloadWitness
                 .with_data(&[parent_hash.as_slice(), &encoded_attributes])
-                .with_data(
-                    self.chain_id.read().map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()),
-                )
+                .with_data(self.chain_id.to_be_bytes())
                 .send(self.oracle.as_ref())
                 .await
         })

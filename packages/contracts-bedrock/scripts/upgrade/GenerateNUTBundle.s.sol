@@ -152,6 +152,13 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
             require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
 
+            // EIP-7623: op-geth rejects the tx (ErrFloorDataGas) if gasLimit < floorDataGas.
+            uint64 floorDataGas = UpgradeUtils.computeFloorDataGas(_output.txns[i].data);
+            require(
+                _output.txns[i].gasLimit >= floorDataGas,
+                string.concat("GenerateNUTBundle: gasLimit below EIP-7623 floor for ", _output.txns[i].intent)
+            );
+
             if (_output.txns[i].from == address(0)) {
                 // Transactions must have a from address except for ProxyAdmin and ConditionalDeployer upgrades
                 if (
@@ -378,7 +385,7 @@ contract GenerateNUTBundle is Script {
     ///      All records are deployed unconditionally. L2CM selects the correct variant at runtime.
     ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
     function buildImplementationDeploymentConfigs() public {
-        _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 500_000));
+        _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 498_000));
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         for (uint256 i = 0; i < records.length; i++) {
@@ -410,10 +417,7 @@ contract GenerateNUTBundle is Script {
         });
     }
 
-    /// @notice Returns the implementation configurations.
-    /// @dev This function is used to get the implementation configurations for testing.
-    /// @return implementationConfigs_ The implementation configurations.
-    function implementationConfigs() public view returns (ImplementationConfig[] memory implementationConfigs_) {
-        implementationConfigs_ = _implementationConfigs;
+    function implementationConfigs() public view returns (ImplementationConfig[] memory) {
+        return _implementationConfigs;
     }
 }
