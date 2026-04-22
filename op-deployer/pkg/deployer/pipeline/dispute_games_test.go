@@ -183,4 +183,3 @@ func TestZKDisputeGameFlag(t *testing.T) {
 	require.Equal(t, expected, devfeatures.ZKDisputeGameFlag,
 		"devfeatures.ZKDisputeGameFlag must match the expected value")
 }
-
