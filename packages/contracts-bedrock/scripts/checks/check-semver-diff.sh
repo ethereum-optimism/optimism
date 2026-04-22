@@ -19,10 +19,13 @@ SEMVER_LOCK="snapshots/semver-lock.json"
 EXCLUDED_CONTRACTS=(
 )
 
-# Helper function to check if a contract is excluded.
+# Helper function to check if a contract is excluded. The :- default
+# guards against bash 3.2's unbound-variable error on empty arrays
+# expanded under set -u (which fires even when the loop body never
+# executes).
 is_excluded() {
   local contract="$1"
-  for excluded in "${EXCLUDED_CONTRACTS[@]}"; do
+  for excluded in "${EXCLUDED_CONTRACTS[@]:-}"; do
     if [[ "$contract" == "$excluded" ]]; then
       return 0
     fi
@@ -30,9 +33,11 @@ is_excluded() {
   return 1
 }
 
-# Create a temporary directory.
+# Create a temporary directory. The EXIT trap captures the failing
+# exit code before cleanup so that set -e errors propagate; without
+# this, rm -rf's success (0) overwrites the real failure code.
 temp_dir=$(mktemp -d)
-trap 'rm -rf "$temp_dir"' EXIT
+trap 'rc=$?; rm -rf "$temp_dir"; exit "$rc"' EXIT
 
 # Exit early if semver-lock.json has not changed.
 UPSTREAM_REF="origin/${TARGET_BRANCH}"
