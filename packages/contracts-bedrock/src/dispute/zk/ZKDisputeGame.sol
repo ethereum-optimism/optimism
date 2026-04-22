@@ -304,21 +304,21 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // The first game is initialized with a parent index of uint32.max
         if (parentIndex() != type(uint32).max) {
             // For subsequent games, get the parent game's information
-            (,, IDisputeGame proxy) = disputeGameFactory.gameAtIndex(parentIndex());
+            (,, IDisputeGame parent) = disputeGameFactory.gameAtIndex(parentIndex());
 
             // Verify parent game is not blacklisted or retired.
-            if (anchorStateRegistry().isGameBlacklisted(proxy) || anchorStateRegistry().isGameRetired(proxy)) {
+            if (anchorStateRegistry().isGameBlacklisted(parent) || anchorStateRegistry().isGameRetired(parent)) {
                 revert InvalidParentGame();
             }
 
             // INVARIANT: The parent game must be of the same game type.
-            if (IDisputeGame(payable(address(proxy))).gameType().raw() != gameType().raw()) {
+            if (IDisputeGame(payable(address(parent))).gameType().raw() != gameType().raw()) {
                 revert UnexpectedGameType();
             }
 
             startingProposal = Proposal({
-                l2SequenceNumber: IDisputeGame(payable(address(proxy))).l2SequenceNumber(),
-                root: Hash.wrap(IDisputeGame(payable(address(proxy))).rootClaim().raw())
+                l2SequenceNumber: IDisputeGame(payable(address(parent))).l2SequenceNumber(),
+                root: Hash.wrap(IDisputeGame(payable(address(parent))).rootClaim().raw())
             });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
@@ -326,7 +326,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
 
             // INVARIANT: The parent game must be a valid game.
-            if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
+            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
