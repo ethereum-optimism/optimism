@@ -1,29 +1,39 @@
 ---
-title: Upgrade 19 - L2 Contract Manager and Kona Respected Game Type
+title: Upgrade 19 - L2 Contract Manager, Fusaka on L2, and Kona Respected Game Type
 description: Learn how to prepare for Upgrade 19.
 ---
 
-Upgrade 19 is a proposed network upgrade for OP Stack chains, which **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new onchain mechanism, and **promotes `CANNON_KONA` to the respected game type**, making the Rust-based `kona-client` the primary fault proof program used for withdrawals.
+Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new onchain mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Fusaka (Osaka) EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** limiting BN256 pairing precompile input sizes.
 
-{/* TODO: Confirm whether L2CM activation constitutes a hard fork or is purely a contract upgrade. The Notion feature page tags it as "Hard Fork, Client" — if confirmed, uncomment the callout below and add activation timestamps. */}
+<Info>
+  Upgrade 19 includes hard fork changes (Fusaka on L2 and Glamsterdam Defense). Node operators must upgrade before the activation timestamp.
+</Info>
 
-{/* <Info>
-  Upgrade 19 includes a hard fork (L2CM). Node operators must upgrade before the activation timestamp.
-</Info> */}
+{/* TODO: Add activation timestamps for each network once finalized */}
 
 ## What's included in Upgrade 19
 
 Upgrade 19 introduces the following changes:
 
-*   **L2 Contract Manager (L2CM):** introduces an onchain mechanism for upgrading L2 predeploy smart contracts as part of a network upgrade. L2CM enables governance to approve and execute L2 predeploy upgrades in a structured, auditable way — reducing the need for a hard fork for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
+* **L2 Contract Manager (L2CM):** introduces an onchain mechanism for upgrading L2 predeploy smart contracts as part of a network upgrade. L2CM enables governance to approve and execute L2 predeploy upgrades in a structured, auditable way — reducing the need for a hard fork for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details. Tracking issue: [#18871](https://github.com/ethereum-optimism/optimism/issues/18871).
 
-{/* TODO: Add details on L2CM mechanism — new predeploy address, upgrade transaction format, any changes to existing predeploy interfaces. Tracking issue: https://github.com/ethereum-optimism/optimism/issues/18871 */}
+{/* TODO: Add details on L2CM mechanism — new predeploy address, upgrade transaction format, any changes to existing predeploy interfaces. */}
 
-*   **`CANNON_KONA` promoted to respected game type:** changes the respected game type from `CANNON` (0) to `CANNON_KONA` (8), making the Rust-based `kona-client` (`kona-node` + `op-reth`) the primary fault proof program used for withdrawals. The `CANNON` (0) game type is retained as a fallback alongside `op-program` until the full transition to `op-reth` is complete. This builds on the `CANNON_KONA` game type support introduced in [Upgrade 18](/notices/archive/upgrade-18).
+* **Fusaka on L2:** activates Fusaka (formerly Osaka) EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit. Deposit transactions are **exempt** from the EIP-7825 gas limit because they are already capped at 20M gas per L1 block — enforcing the limit on deposits could cause permanent loss of deposited ETH. See the [Fusaka on L2 design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/fusaka-on-l2.md) for details. Tracking issue: [#18215](https://github.com/ethereum-optimism/optimism/issues/18215).
 
-*   **New Kona absolute prestate:** ships an updated `cannon64-kona` absolute prestate hash embedding the latest chain configurations and vulnerability fixes since Upgrade 18.
+{/* TODO: List all Fusaka EIPs being activated on L2 and any that are excluded */}
+
+* **Glamsterdam Defense (BN256 pairing input size limitation):** as a preemptive measure ahead of the Glamsterdam L1 hard fork, Upgrade 19 includes a hard fork change that limits the input size for BN256 pairing precompile calls. This change is being shipped now because it is easier to include a hard fork change in a planned upgrade than to force one between upgrades. The full Glamsterdam Defense smart contract changes (absolute pre-state upgrade) are deferred and will be slotted in before or after interop, once final L1 gas pricing values are confirmed.
+
+{/* TODO: Add link to BN256 pairing limitation design doc / P-PS once public. See Notion P/PS: https://www.notion.so/oplabs/P-PS-Glamsterdam-Defense-Timing-345f153ee16280d2bf6aeee756aea93a */}
+
+* **`CANNON_KONA` promoted to respected game type:** changes the respected game type from `CANNON` (0) to `CANNON_KONA` (8), making the Rust-based `kona-client` (`kona-node` + `op-reth`) the primary fault proof program used for withdrawals. The `CANNON` (0) game type is retained as a fallback alongside `op-program` until the full transition to `op-reth` is complete. This builds on the `CANNON_KONA` game type support introduced in [Upgrade 18](/notices/archive/upgrade-18).
+
+* **New Kona absolute prestate:** ships an updated `cannon64-kona` absolute prestate hash embedding the latest chain configurations and vulnerability fixes since Upgrade 18.
 
 {/* TODO: Add prestate hash and kona-client version once finalized */}
+
+* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 was audited in February 2026 with fix review rolling into the holistic U19 audit.
 
 <Info>
   This upgrade uses OPCMv2, the new default OP Contracts Manager. Chain operators calling `OPCM.upgrade()` directly or using `op-deployer` should ensure they are targeting the correct OPCMv2 contract version.
@@ -31,20 +41,38 @@ Upgrade 19 introduces the following changes:
 
 ## Breaking Changes
 
+### Fusaka on L2: EIP-7825 transaction gas limit
+
+After Upgrade 19, L2 transactions are subject to the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) per-transaction gas limit. Transactions requesting gas above this limit will be invalid.
+
+* **Deposit transactions are exempt** from the EIP-7825 limit. Deposits are already capped at 20M gas total per L1 block, and rejecting deposits on L2 that were accepted on L1 could cause permanent ETH loss. Deposits will continue to land on L2 even if their gas limit exceeds the EIP-7825 threshold.
+* **For app developers:** if your application submits L2 transactions with very high gas limits (above the EIP-7825 limit), those transactions will no longer be valid after this upgrade. In practice, very few transactions are expected to exceed this limit.
+* **For node operators:** execution clients (`op-reth`, `op-geth`) must be updated to enforce the new gas limit rules. System deposit transactions (e.g., network upgrade transactions) are also exempt from the limit.
+
+{/* TODO: Confirm the exact EIP-7825 gas limit value being used. Confirm whether op-geth receives this change or only op-reth. */}
+
+### Glamsterdam Defense: BN256 pairing input size limitation
+
+Upgrade 19 introduces a limit on the input size for `ecPairing` (BN256 pairing) precompile calls. This is a preemptive change to protect against potential gas repricing in the upcoming Glamsterdam L1 hard fork.
+
+* **For app developers:** if your contracts make calls to the BN256 pairing precompile (`0x08`) with very large inputs, verify that your usage stays within the new limits. Standard ZK proof verification (e.g., Groth16) uses a small number of pairings and is not affected.
+
+{/* TODO: Add the specific input size limit value once implementation is finalized */}
+
 ### `CANNON_KONA` as respected game type: withdrawal proving changes
 
 After Upgrade 19, the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Withdrawals must be proven against `CANNON_KONA` games.
 
-*   **For users proving withdrawals:** no action required — the `OptimismPortal` will automatically recognize `CANNON_KONA` as the respected game type after the upgrade.
-*   **For chain operators running permissionless fault proofs:** `op-challenger` must be configured to support `cannon-kona` trace types **prior** to the upgrade. Failure to update `op-challenger` may result in uncontested invalid games.
+* **For users proving withdrawals:** no action required — the `OptimismPortal` will automatically recognize `CANNON_KONA` as the respected game type after the upgrade.
+* **For chain operators running permissionless fault proofs:** `op-challenger` must be configured to support `cannon-kona` trace types **prior** to the upgrade. Failure to update `op-challenger` may result in uncontested invalid games.
 
 {/* TODO: Detail any new OPCM upgrade parameters specific to the respected game type change (e.g., new OpChainConfig fields) */}
 
 ### L2CM: L2 predeploy contracts may be upgraded via governance
 
-{/* TODO: Confirm whether L2CM introduces breaking changes to existing predeploy ABIs or interfaces in this specific upgrade, or whether U19 only introduces the mechanism itself. Detail any specific predeploy changes shipping with U19. */}
-
 L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM governance transactions, in addition to hard forks. If your application depends on specific predeploy behavior or interfaces, verify compatibility after each upgrade.
+
+{/* TODO: Confirm whether L2CM introduces breaking changes to existing predeploy ABIs or interfaces in this specific upgrade, or whether U19 only introduces the mechanism itself. Detail any specific predeploy changes shipping with U19. */}
 
 ## For chain operators
 
@@ -52,11 +80,16 @@ Update the following components:
 
 {/* TODO: Add exact version tags once release candidates are cut */}
 
-| Component        | Version | Notes |
+| Component | Version | Notes |
 | ---------------- | ------- | ----- |
-| `op-challenger`  | `TBD`   | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
-| `op-dispute-mon` | `TBD`   | Must be updated **prior** to the upgrade. |
-| `op-contracts`   | `TBD`   | Required for L2CM and `CANNON_KONA` respected game type support. Uses OPCMv2. |
+| `op-node` | `TBD` | Must be updated **prior** to the activation timestamp. Required for Fusaka on L2 and Glamsterdam Defense hard fork changes. |
+| `op-reth` | `TBD` | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement and BN256 pairing input size limitation. |
+| `op-geth` | `TBD` | Must be updated **prior** to the activation timestamp if still running `op-geth`. Required for EIP-7825 gas limit enforcement and BN256 pairing input size limitation. |
+| `op-challenger` | `TBD` | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
+| `op-dispute-mon` | `TBD` | Must be updated **prior** to the upgrade. |
+| `op-contracts` | `TBD` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
+
+{/* TODO: Confirm whether op-geth receives the Fusaka on L2 and Glamsterdam Defense changes, or only op-reth. If op-geth is deprecated by U19 ship date, remove the op-geth row and add a note. See Slack discussion on op-geth deprecation timeline. */}
 
 ### For permissionless fault proof enabled chains
 
@@ -121,10 +154,32 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
   </Step>
 </Steps>
 
+### For node operators: hard fork preparation
+
+Because Upgrade 19 includes hard fork changes (Fusaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
+
+<Steps>
+  <Step title="Update op-node">
+  Update `op-node` to the version specified in the component table above. The new version includes consensus rules for the Fusaka on L2 activation and Glamsterdam Defense changes.
+  </Step>
+
+  <Step title="Update your execution client">
+  Update `op-reth` (or `op-geth` if still in use) to the version specified above. The new version enforces the EIP-7825 transaction gas limit and BN256 pairing input size limitation.
+  </Step>
+
+  <Step title="Verify activation configuration">
+  Ensure your node configuration includes the correct activation timestamps for your network. Check the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) for the official activation times.
+
+  {/* TODO: Add specific activation timestamps per network */}
+  </Step>
+</Steps>
+
 ## For app developers
 
-*   **L2 predeploy upgrades:** L2CM introduces the ability to upgrade L2 predeploy contracts through governance without a hard fork. If your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the specific changes included in this upgrade to ensure compatibility.
-*   **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
+* **EIP-7825 transaction gas limit (Fusaka on L2):** L2 transactions are now subject to a per-transaction gas limit. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
+* **BN256 pairing input size limit (Glamsterdam Defense):** if your contracts call the `ecPairing` precompile with large inputs, verify compatibility. Standard ZK proof verification is not affected.
+* **L2 predeploy upgrades:** L2CM introduces the ability to upgrade L2 predeploy contracts through governance without a hard fork. If your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the specific changes included in this upgrade to ensure compatibility.
+* **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
 
 ## Execute the L1 Contract Upgrade
 
