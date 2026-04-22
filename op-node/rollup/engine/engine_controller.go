@@ -164,6 +164,18 @@ type EngineController struct {
 	superAuthority rollup.SuperAuthority
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+
+	// unsafeBlockValidator, when non-nil, vets each new unsafe payload after
+	// NewPayload but before ForkchoiceUpdate. A non-nil error aborts promotion.
+	unsafeBlockValidator UnsafeBlockValidator
+}
+
+// UnsafeBlockValidator validates a newly-executed unsafe payload before it is
+// promoted to the unsafe head via forkchoiceUpdated. Implementations should be
+// self-contained (e.g. scan receipts, call out to remote RPCs, etc.) and bound
+// their own wall-time via ctx.
+type UnsafeBlockValidator interface {
+	Validate(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error
 }
 
 var _ event.Deriver = (*EngineController)(nil)
@@ -570,6 +582,15 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	return e.insertUnsafePayload(ctx, envelope, ref)
 }
 
+// SetUnsafeBlockValidator installs an optional hook that runs between
+// NewPayload and ForkchoiceUpdate on every inserted unsafe payload. Passing
+// nil disables the hook. Intended to be called once at node startup.
+func (e *EngineController) SetUnsafeBlockValidator(v UnsafeBlockValidator) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.unsafeBlockValidator = v
+}
+
 func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
@@ -607,6 +628,18 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			payload.ID(), payload.ParentID(), eth.NewPayloadErr(payload, status)))
 	}
 	newPayloadFinish := time.Now()
+
+	validationStart := time.Now()
+	if e.unsafeBlockValidator != nil {
+		if err := e.unsafeBlockValidator.Validate(ctx, envelope); err != nil {
+			e.log.Warn("rejecting unsafe payload: executing-message validation failed",
+				"hash", envelope.ExecutionPayload.BlockHash,
+				"number", uint64(envelope.ExecutionPayload.BlockNumber),
+				"err", err)
+			return derive.NewTemporaryError(fmt.Errorf("executing-message validation failed: %w", err))
+		}
+	}
+	validationFinish := time.Now()
 
 	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
@@ -686,6 +719,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		"hash", envelope.ExecutionPayload.BlockHash,
 		"number", uint64(envelope.ExecutionPayload.BlockNumber),
 		"newpayload_time", common.PrettyDuration(newPayloadFinish.Sub(newPayloadStart)),
+		"validation_time", common.PrettyDuration(validationFinish.Sub(validationStart)),
 		"fcu2_time", common.PrettyDuration(fcu2Finish.Sub(fcu2Start)),
 		"total_time", common.PrettyDuration(totalTime),
 		"mgas", float64(envelope.ExecutionPayload.GasUsed)/1000000,

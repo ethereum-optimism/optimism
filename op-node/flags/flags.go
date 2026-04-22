@@ -452,6 +452,22 @@ var (
 		TakesFile: true,
 		Category:  InteropCategory,
 	}
+	InteropRPCOverrides = &cli.StringFlag{
+		Name: "interop.rpc-overrides",
+		Usage: "Comma-separated chainID=URL pairs. When set, every newly-received unsafe block is validated " +
+			"by looking up each executing-message's initiating log via eth_getLogs on the configured remote chain's RPC. " +
+			"Intended for light-CL operators running without op-supervisor. Example: --interop.rpc-overrides=10=https://mainnet.optimism.io,8453=https://mainnet.base.org",
+		EnvVars:  prefixEnvVars("INTEROP_RPC_OVERRIDES"),
+		Value:    "",
+		Category: InteropCategory,
+	}
+	InteropRPCValidatorTimeout = &cli.DurationFlag{
+		Name:     "interop.rpc-validator.timeout",
+		Usage:    "Per-block budget for remote eth_getLogs validation. A block is rejected if not fully validated within this duration.",
+		EnvVars:  prefixEnvVars("INTEROP_RPC_VALIDATOR_TIMEOUT"),
+		Value:    60 * time.Second,
+		Category: InteropCategory,
+	}
 
 	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
 		Name: "ignore-missing-pectra-blob-schedule",
@@ -525,6 +541,8 @@ var optionalFlags = []cli.Flag{
 	InteropRPCPort,
 	InteropJWTSecret,
 	InteropDependencySet,
+	InteropRPCOverrides,
+	InteropRPCValidatorTimeout,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,
 }

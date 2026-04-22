@@ -620,6 +620,23 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		}
 	}
 
+	// Wire the optional RPC-based executing-message validator into the engine
+	// controller so every newly-inserted unsafe block is vetted before FCU.
+	if interopCfg, ok := cfg.InteropConfig.(*interop.Config); ok {
+		validator, err := interop.NewRPCExecMsgValidator(
+			node.log, &cfg.Rollup, l2Source,
+			interopCfg.RPCOverrides, interopCfg.RPCValidatorTimeout,
+		)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to setup executing-message RPC validator: %w", err)
+		}
+		if validator != nil {
+			l2Driver.SyncDeriver.Engine.SetUnsafeBlockValidator(validator)
+			node.log.Info("Executing-message RPC validator enabled",
+				"timeout", interopCfg.RPCValidatorTimeout)
+		}
+	}
+
 	return l2Source, sys, l2Driver, safeDB, nil
 }
 

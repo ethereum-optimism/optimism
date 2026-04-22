@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -23,6 +24,13 @@ type Config struct {
 	RPCPort int
 	// RPCJwtSecretPath path of JWT secret file to apply authentication to the interop server address.
 	RPCJwtSecretPath string
+
+	// RPCOverrides is a raw comma-separated list of chainID=URL pairs used to
+	// validate executing messages against remote chains via eth_getLogs. Empty
+	// disables the RPC-based validator. Intended for light-CL operators.
+	RPCOverrides string
+	// RPCValidatorTimeout caps how long a single block's validation may take.
+	RPCValidatorTimeout time.Duration
 }
 
 func (cfg *Config) Check() error {
