@@ -453,7 +453,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ///         `CHALLENGER_WINS` when the proposer's claim has been challenged, but the proposer has not proven
     ///         its claim within the `MAX_PROVE_DURATION`.
     function resolve() external returns (GameStatus) {
-        // INVARIANT: Resolution cannot occur unless the game has already been resolved.
+        // INVARIANT: Resolution cannot occur if the game has already been resolved.
         if (status != GameStatus.IN_PROGRESS) revert ClaimAlreadyResolved();
 
         // INVARIANT: Cannot resolve a game if the parent game has not been resolved.
