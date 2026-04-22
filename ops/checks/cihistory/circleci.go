@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +44,15 @@ type CircleCIConfig struct {
 	MaxPages              int           // safety cap on pipeline pagination; 0 = 10
 	RepoRoot              string        // local checkout used by FilesFor's default
 	FilesFor              func(revision string) ([]string, error)
+
+	// PRFor attributes a PR number to a pipeline's commit. The
+	// default parses `(#NNNN)` out of the commit subject via
+	// ResolvePRViaGit — correct for squash-merges on develop and
+	// noop (returns 0) for pre-merge PR-branch commits whose
+	// subjects don't yet embed a PR reference. Replay uses the
+	// result only for display/filtering; a 0 means "unknown" and
+	// the event is still replayed.
+	PRFor                 func(revision string) int
 }
 
 // CircleCIFetcher implements cihistory.Fetcher against CircleCI's v2 API.
@@ -66,6 +77,11 @@ func NewCircleCIFetcher(cfg CircleCIConfig, jobToCheck map[string]string) *Circl
 	if cfg.FilesFor == nil {
 		cfg.FilesFor = func(rev string) ([]string, error) {
 			return ResolveFilesViaGit(cfg.RepoRoot, rev)
+		}
+	}
+	if cfg.PRFor == nil {
+		cfg.PRFor = func(rev string) int {
+			return ResolvePRViaGit(cfg.RepoRoot, rev)
 		}
 	}
 	return &CircleCIFetcher{cfg: cfg, jobToCheck: jobToCheck}
@@ -98,14 +114,18 @@ func (f *CircleCIFetcher) Fetch(since time.Time) ([]Event, error) {
 	var events []Event
 	for _, p := range pipelines {
 		// Branch filter: if a specific branch is configured, only
-		// include its pipelines. Empty Branch means "all branches,"
-		// in which case we still want to skip branches the operator
-		// asked to exclude (typically the post-merge trunk they
-		// already fetched separately).
-		if f.cfg.Branch != "" && p.VCS.Branch != f.cfg.Branch {
-			continue
-		}
-		if hasBranchPrefix(p.VCS.Branch, f.cfg.ExcludeBranchPrefixes) {
+		// include its pipelines and don't apply the exclude-prefix
+		// list (the explicit request wins — otherwise the default
+		// exclude "develop,main,master,release/" silently drops
+		// `--circleci-branch develop`, since develop is on both
+		// sides). Empty Branch means "all branches," where the
+		// exclude filter is what keeps post-merge trunks and the
+		// operator's opt-out prefixes out.
+		if f.cfg.Branch != "" {
+			if p.VCS.Branch != f.cfg.Branch {
+				continue
+			}
+		} else if hasBranchPrefix(p.VCS.Branch, f.cfg.ExcludeBranchPrefixes) {
 			continue
 		}
 		checks, err := f.fetchPipelineChecks(p.ID)
@@ -127,7 +147,7 @@ func (f *CircleCIFetcher) Fetch(since time.Time) ([]Event, error) {
 		}
 
 		events = append(events, Event{
-			PR:       0, // CircleCI doesn't know PR # directly; merge commit message has it but parsing is brittle
+			PR:       f.cfg.PRFor(p.VCS.Revision),
 			MergedAt: p.CreatedAt,
 			Files:    files,
 			Checks:   checks,
@@ -288,6 +308,28 @@ func (f *CircleCIFetcher) jobsForWorkflow(workflowID string) (map[string]string,
 // --- HTTP plumbing ---
 
 func (f *CircleCIFetcher) get(path string, params url.Values, into interface{}) error {
+	// CircleCI's edge occasionally RSTs long polling sessions mid-page.
+	// Retry a handful of times on transient network / 5xx errors so an
+	// hour-long ingest doesn't bomb on a single connection reset.
+	const maxAttempts = 4
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt*attempt) * time.Second)
+		}
+		err := f.getOnce(path, params, into)
+		if err == nil {
+			return nil
+		}
+		if !isTransientHTTPError(err) {
+			return err
+		}
+		lastErr = err
+	}
+	return fmt.Errorf("after %d attempts: %w", maxAttempts, lastErr)
+}
+
+func (f *CircleCIFetcher) getOnce(path string, params url.Values, into interface{}) error {
 	u := f.cfg.BaseURL + path
 	if len(params) > 0 {
 		u += "?" + params.Encode()
@@ -315,6 +357,26 @@ func (f *CircleCIFetcher) get(path string, params url.Values, into interface{}) 
 		return fmt.Errorf("CircleCI %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return json.NewDecoder(resp.Body).Decode(into)
+}
+
+// isTransientHTTPError reports whether err is worth retrying. Covers
+// connection resets, broken pipes, EOFs mid-response, request timeouts,
+// and 5xx responses wrapped into errors by getOnce.
+func isTransientHTTPError(err error) bool {
+	s := err.Error()
+	for _, marker := range []string{
+		"connection reset by peer",
+		"broken pipe",
+		"EOF",
+		"i/o timeout",
+		"Client.Timeout",
+		"returned 5",
+	} {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // --- status classification ---
@@ -387,4 +449,37 @@ func ResolveFilesViaGit(rootDir, revision string) ([]string, error) {
 		}
 	}
 	return filtered, nil
+}
+
+// prSubjectRef matches squash-merge commit subjects like
+// "feat(op-node): fooize bar (#20164)" — the conventional format
+// GitHub's squash-merge button produces on ethereum-optimism/optimism.
+// Not brittle because squash-merge is the only supported merge mode
+// on the repo.
+var prSubjectRef = regexp.MustCompile(`\(#(\d+)\)\s*$`)
+
+// ResolvePRViaGit parses the PR number out of a commit's subject
+// line. Returns 0 when the commit message doesn't reference a PR
+// (pre-merge PR-branch commits, merge commits from other repos) or
+// when git fails. The returned integer is display/filter metadata
+// only — replay doesn't gate on it.
+func ResolvePRViaGit(rootDir, revision string) int {
+	if rootDir == "" {
+		return 0
+	}
+	cmd := exec.Command("git", "log", "-1", "--format=%s", revision)
+	cmd.Dir = rootDir
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	m := prSubjectRef.FindStringSubmatch(strings.TrimSpace(string(out)))
+	if len(m) < 2 {
+		return 0
+	}
+	n, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0
+	}
+	return n
 }
