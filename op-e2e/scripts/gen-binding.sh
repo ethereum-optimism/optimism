@@ -11,7 +11,14 @@ if [[ $# -lt 1 ]]; then
 fi
 
 CONTRACT="$1"
-ARTIFACT_DIR="packages/contracts-bedrock/forge-artifacts/${CONTRACT}.sol"
+
+# Resolve the artifact directory. Default is
+# packages/contracts-bedrock/forge-artifacts/ (matches `just build`
+# output). Override with FOUNDRY_ARTIFACTS when the caller builds
+# into a non-default tree (e.g. the pipeline's forge-artifacts-src-prod/).
+# FOUNDRY_ARTIFACTS is interpreted relative to packages/contracts-bedrock.
+ARTIFACT_ROOT="packages/contracts-bedrock/${FOUNDRY_ARTIFACTS:-forge-artifacts}"
+ARTIFACT_DIR="${ARTIFACT_ROOT}/${CONTRACT}.sol"
 ARTIFACT_PATH="${ARTIFACT_DIR}/${CONTRACT}.json"
 
 if [[ ! -f "${ARTIFACT_PATH}" ]]; then

@@ -75,3 +75,24 @@ fuzz:
 gen-binding CONTRACT:
     cd ../packages/contracts-bedrock && just build
     ./scripts/gen-binding.sh {{CONTRACT}}
+
+# Regenerate every binding under bindings/ from the current forge
+# artifacts. Rebuilds contracts first (see gen-bindings-all-no-build
+# for the variant that skips the build).
+gen-bindings-all:
+    cd ../packages/contracts-bedrock && just build
+    ./scripts/gen-bindings-all.sh
+
+# Regenerate every binding from existing forge artifacts without
+# rebuilding contracts. Used by the pipeline selector when the
+# forge-build check has already produced fresh artifacts in the
+# same layer.
+gen-bindings-all-no-build:
+    ./scripts/gen-bindings-all.sh
+
+# Regenerate bindings matching a bash extglob pattern from existing
+# artifacts (no contract rebuild). Example:
+#   just gen-bindings-match 'L1*'        # only L1-prefixed
+#   just gen-bindings-match 'FaultDisputeGame'
+gen-bindings-match PATTERN:
+    ./scripts/gen-bindings-all.sh '{{PATTERN}}'
