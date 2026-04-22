@@ -20,7 +20,7 @@ import {IAnchorStateRegistry} from "interfaces/dispute/IAnchorStateRegistry.sol"
 import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManagerUtils
-/// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
+/// @notice OPContractsManagerUtils provides utility functions for the OPContractsManager.
 contract OPContractsManagerUtils {
     /// @notice Default ERC-7201 Initializable slot used by OpenZeppelin v5.
     bytes32 internal constant DEFAULT_OZ_V5_INITIALIZABLE_SLOT =
@@ -316,6 +316,13 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Shared implementation for upgrade flows.
+    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _target The target of the contract.
+    /// @param _implementation The implementation of the contract.
+    /// @param _data The data to call the initializer with.
+    /// @param _slot The slot where the initialized value is located.
+    /// @param _offset The offset of the initializer value in the slot.
+    /// @param _ozV5Slot The ERC-7201 Initializable slot for OZ v5 contracts.
     function _upgrade(
         IProxyAdmin _proxyAdmin,
         address _target,
