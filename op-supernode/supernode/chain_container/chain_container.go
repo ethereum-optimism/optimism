@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -115,8 +116,9 @@ type simpleChainContainer struct {
 	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
-	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
-	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
+	virtualNodeFactory virtualNodeFactory          // Factory function to create virtual node (for testing)
+	rollupClient       *sources.RollupClient       // In-proc rollup RPC client bound to rpcHandler
+	metrics            *resources.SupernodeMetrics
 
 	// verifiersMu guards writes and reads of the verifiers slice. Concurrent
 	// readers (VerifiedAt, VerifierCurrentL1s) can race with the test-only
@@ -140,7 +142,11 @@ func NewChainContainer(
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
+	metrics *resources.SupernodeMetrics,
 ) ChainContainer {
+	if metrics == nil {
+		metrics = resources.NewSupernodeMetrics()
+	}
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
 		cfg:                cfg,
@@ -153,6 +159,7 @@ func NewChainContainer(
 		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
+		metrics:            metrics,
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
@@ -307,6 +314,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			c.log.Info("chain container stop requested, stopping restart loop")
 			break
 		}
+
+		c.metrics.VNRestarts.WithLabelValues(c.chainID.String()).Inc()
 	}
 	c.log.Info("chain container exiting")
 	return nil
