@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -42,17 +41,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	)
 	if err != nil {
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
-	}
-
-	// Auto-enable ZKDisputeGameFlag if any chain has a ZK dispute game in AdditionalDisputeGames.
-outer:
-	for _, chain := range intent.Chains {
-		for _, game := range chain.AdditionalDisputeGames {
-			if game.VMType == state.VMTypeZK {
-				proofParams.DevFeatureBitmap = devfeatures.EnableDevFeature(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
-				break outer
-			}
-		}
 	}
 
 	var dio opcm.DeployImplementationsOutput
