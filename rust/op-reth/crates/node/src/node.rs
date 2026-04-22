@@ -96,6 +96,7 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
                 .chain_spec
                 .is_cancun_active_at_timestamp(timestamp)
                 .then(alloy_primitives::B256::random),
+            slot_number: None,
         };
 
         /// Dummy system transaction for dev mode.

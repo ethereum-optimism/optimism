@@ -109,6 +109,8 @@ where
             excess_blob_gas: excess_blob_gas.and_then(|x| x.try_into().ok()),
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             extra_data: encoded_base_fee_params,
+            block_access_list_hash: Default::default(),
+            slot_number: Default::default(),
         }
         .seal_slow();
 

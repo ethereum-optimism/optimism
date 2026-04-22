@@ -45,6 +45,12 @@ type mockVirtualNode struct {
 	safeHeadL1  eth.BlockID
 	safeHeadL2  eth.BlockID
 	safeHeadErr error
+
+	// syncStatusOverride lets tests return a fully-formed eth.SyncStatus
+	// (e.g. populated LocalSafeL2.Time / LocalFinalizedL2 / FinalizedL1)
+	// instead of the synthesised default built from safeHeadL1/safeHeadL2.
+	// When nil, the default synthesis below is used.
+	syncStatusOverride func() (*eth.SyncStatus, error)
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -109,6 +115,9 @@ func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 
 // SyncStatus implements virtual_node.VirtualNode SyncStatus
 func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if m.syncStatusOverride != nil {
+		return m.syncStatusOverride()
+	}
 	if m.safeHeadErr != nil {
 		return nil, m.safeHeadErr
 	}
@@ -181,6 +190,7 @@ func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, 
 func (m *mockVerificationActivity) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
 	return eth.BlockID{}, 0
 }
+func (m *mockVerificationActivity) IsActiveAt(ts uint64) bool { return true }
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {

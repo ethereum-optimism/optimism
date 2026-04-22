@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Scripts
 import { Script } from "forge-std/Script.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -24,11 +25,36 @@ contract ExecuteNUTBundle is Script {
         _executeAll(txns);
     }
 
+    /// @notice Executes a single NUT bundle transaction with deposit-faithful body gas semantics.
+    /// @dev Intrinsic gas is deducted from the forwarded amount before the call so the body runs
+    ///      with the same budget op-geth gives it in production (gasLimit - intrinsic). Body gas
+    ///      is measured via vm.lastCallGas() (callee frame only, net of refunds), excluding CALL
+    ///      opcode overhead. This is not the same as op-geth's receipt.gasUsed: op-geth applies
+    ///      the EIP-7623 floor post-execution (receipt.gasUsed = max(intrinsic+body, floor)),
+    ///      so for txs where execution lands below the floor, receipt.gasUsed will exceed
+    ///      intrinsic + bodyGasUsed_.
+    /// @param _txn The Network Upgrade Transaction to execute.
+    /// @return success_ Whether the call succeeded.
+    /// @return returnData_ The return data from the call.
+    /// @return bodyGasUsed_ Gas consumed by the contract body, net of refunds, excluding intrinsic.
+    /// @return intrinsicGas_ Intrinsic gas cost for this transaction.
+    function executeSingle(NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn)
+        public
+        returns (bool success_, bytes memory returnData_, uint64 bodyGasUsed_, uint64 intrinsicGas_)
+    {
+        intrinsicGas_ = UpgradeUtils.computeIntrinsicGas(_txn.data);
+        require(
+            _txn.gasLimit > intrinsicGas_, string.concat("ExecuteNUTBundle: gasLimit < intrinsicGas for ", _txn.intent)
+        );
+
+        vm.prank(_txn.from);
+
+        (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
+        VmSafe.Gas memory gasResult = vm.lastCallGas();
+        bodyGasUsed_ = uint64(gasResult.gasTotalUsed);
+    }
+
     /// @notice Executes all transactions in the bundle sequentially.
-    /// @dev Each transaction is executed with:
-    ///      - The correct sender via vm.prank()
-    ///      - Sufficient ETH balance via vm.deal()
-    ///      - The specified gas limit
     ///      Failures are reported with the transaction intent for debugging.
     /// @param _txns Array of Network Upgrade Transactions to execute.
     function _executeAll(NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _txns) internal {
@@ -43,12 +69,8 @@ contract ExecuteNUTBundle is Script {
             console.log("  to:", txn.to);
             console.log("  gasLimit:", txn.gasLimit);
 
-            // Ensure sender has sufficient balance
-            vm.deal(txn.from, 100 ether);
-
-            // Execute transaction as the specified sender
-            vm.prank(txn.from);
-            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
+            // Execute the transaction
+            (bool success, bytes memory returnData,,) = executeSingle(txn);
 
             if (!success) {
                 // Decode revert reason if available
