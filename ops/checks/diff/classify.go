@@ -48,7 +48,22 @@ func Classify(fd FileDiff) Impact {
 	if fd.IsNew || fd.IsDelete || fd.IsRename {
 		return ImpactSemantic
 	}
+	// Text-only file formats have no semantic dimension — every
+	// edit is by definition "text". Catches .md READMEs inside
+	// code subtrees that shouldn't trigger test runs just because
+	// they happen to live under op-acceptance-tests/** or rust/**.
+	if isTextOnlyLang(fd.Path) {
+		return ImpactTextOnly
+	}
 	if !supportedLang(fd.Path) {
+		return ImpactSemantic
+	}
+	// Some upstreams (CI-history replay events from CircleCI,
+	// `git diff --name-only`, etc.) give us file paths with zero
+	// hunks. We can't prove the edit is inert, so classify as
+	// semantic — the safe default. Same conservatism applies when
+	// any individual hunk has no populated Added/Removed content.
+	if len(fd.Hunks) == 0 {
 		return ImpactSemantic
 	}
 	for _, h := range fd.Hunks {
@@ -59,9 +74,31 @@ func Classify(fd FileDiff) Impact {
 	return ImpactTextOnly
 }
 
+// supportedLang reports whether this file's extension is one we
+// have a comment-stripping rule for. Used to decide whether hunk-
+// level text-only classification can even be attempted.
 func supportedLang(path string) bool {
 	switch filepath.Ext(path) {
 	case ".sol", ".go", ".rs":
+		return true
+	}
+	return false
+}
+
+// isTextOnlyLang reports whether a file extension has no semantic
+// dimension — every edit is by definition textual. Used to
+// unconditionally classify .md, .txt, etc. as ImpactTextOnly
+// regardless of hunk content. Docs-only edits then only trigger
+// concern=text checks (semgrep, lint, docs-build).
+func isTextOnlyLang(path string) bool {
+	switch filepath.Ext(path) {
+	case ".md", ".markdown", ".txt", ".rst":
+		return true
+	}
+	// Top-level AGENTS.md / NOTICE / LICENSE-style files without
+	// an extension are also docs.
+	switch filepath.Base(path) {
+	case "AGENTS", "AGENTS.md", "NOTICE", "LICENSE", "LICENSE.md":
 		return true
 	}
 	return false

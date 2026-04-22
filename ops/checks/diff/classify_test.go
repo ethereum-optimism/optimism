@@ -94,6 +94,16 @@ func TestClassify_EmptyHunkIsSemantic(t *testing.T) {
 	}
 }
 
+func TestClassify_NoHunksIsSemantic(t *testing.T) {
+	// CI-history replay events and `git diff --name-only` style
+	// inputs populate Path but no Hunks at all. Without hunk
+	// content we can't prove text-only, so classify semantic.
+	fd := FileDiff{Path: "src/Foo.sol"}
+	if got := Classify(fd); got != ImpactSemantic {
+		t.Fatalf("no hunks: want ImpactSemantic, got %v", got)
+	}
+}
+
 func TestClassify_StringLiteralNotComment(t *testing.T) {
 	// A // inside a string literal shouldn't be mistaken for a
 	// comment marker. Same code both sides → text-only.
