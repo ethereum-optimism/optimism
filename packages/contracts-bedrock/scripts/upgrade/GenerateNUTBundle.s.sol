@@ -20,6 +20,9 @@ import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 /// @notice Generates Network Upgrade Transaction (NUT) bundles for L2 hardfork upgrades.
 /// @dev This script creates deterministic upgrade transaction bundles for L2 hardfork upgrades
 ///      using the L2ContractsManager (L2CM) system.
+/// @dev Gas limits in the generated bundle are computed from optimized contract bytecode. Any test
+///      that executes the bundle against those gas limits must be built with the optimized
+///      Foundry profile and should call skipIfUnoptimized() to skip otherwise.
 contract GenerateNUTBundle is Script {
     /// @notice CREATE2 salt for deterministic deployments.
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
