@@ -11,7 +11,7 @@ For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interop
 
 ## The expiry window
 
-The expiry window is an offchain constant, defined by [OP-Supervisor](/chain-operators/reference/components/op-supervisor), that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
+The expiry window is an offchain constant that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
 
 After this period, a message can no longer be referenced unless the event is remitted.
 
@@ -27,7 +27,7 @@ The process to reemit an expired message:
 
 2.  [Relay the new message](/interop/message-passing#executing-message) as normal.
 
-Note: Re-emitting an already relayed message will have no effect on the destination chain since the re-emitted event won't be logged by OP-Supervisor. 
+Note: Re-emitting an already relayed message will have no effect on the destination chain, since the destination chain only honors the original initiating message. 
 
 ## Next steps
 
