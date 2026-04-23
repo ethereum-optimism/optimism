@@ -76,8 +76,8 @@
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xcdd15d96a0a09d402831f85185feb38965c028e652cb964ed1766ab6605b2f3e",
-    "sourceCodeHash": "0x32a643e52d73d47d7984fd8f4301c8cec47719bab66e64843ad3f72194eeb9cf"
+    "initCodeHash": "0x456e507f28c72c3fcb686640fa29d1ada79783f70b04242f8a0ff4fb9ba64f4d",
+    "sourceCodeHash": "0xd0c183050caa1f3287758ad86933faa077b3a3827abe4cbb9a70c218853b4a44"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -178,6 +178,10 @@
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
     "initCodeHash": "0xa080730728e812e8b02d03b5857b23d16ade46f1656f26f22274835a3100edd7",
     "sourceCodeHash": "0x314b6e0412f698ce3531e8176ce8e5b8a3976cc3fa9d7ecb1f3278612f90ed4e"
+  },
+  "src/dispute/zk/SP1PlonkAdapter.sol:SP1PlonkAdapter": {
+    "initCodeHash": "0x86e0b79d15c85268155e304dd1d68d1a26782303bb86d44387ee938b0ca45c5c",
+    "sourceCodeHash": "0x2cc9c53d544e5715e38a50ad266551fe7b0f05488e7a66f3f70bca618fbd7fc7"
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
     "initCodeHash": "0xc78c8c200f5655b83c366c3b6c0e71a8630deede19f7a30575fd31959a64f87f",

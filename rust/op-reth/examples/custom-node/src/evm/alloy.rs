@@ -1,10 +1,8 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
-use alloy_op_evm::{OpEvm, OpEvmFactory, OpTx, OpTxError};
+use alloy_op_evm::{OpEvm, OpEvmContext, OpEvmFactory, OpTx, OpTxError};
 use alloy_primitives::{Address, Bytes};
-use op_revm::{
-    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
-};
+use op_revm::{L1BlockInfo, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles};
 use revm::{
     Context, Inspector, Journal,
     context::{BlockEnv, CfgEnv, result::ResultAndState},
@@ -32,8 +30,8 @@ impl<DB: Database, I, P> CustomEvm<DB, I, P> {
 impl<DB, I, P> Evm for CustomEvm<DB, I, P>
 where
     DB: Database,
-    I: Inspector<OpContext<DB>>,
-    P: PrecompileProvider<OpContext<DB>, Output = InterpreterResult>,
+    I: Inspector<OpEvmContext<DB>>,
+    P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
 {
     type DB = DB;
     type Tx = CustomTxEnv;
@@ -98,8 +96,8 @@ impl CustomEvmFactory {
 }
 
 impl EvmFactory for CustomEvmFactory {
-    type Evm<DB: Database, I: Inspector<OpContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
-    type Context<DB: Database> = OpContext<DB>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
+    type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = CustomTxEnv;
     type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;

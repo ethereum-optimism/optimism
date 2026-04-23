@@ -481,15 +481,15 @@ mod tests {
     use alloy_primitives::{Address, Signature, U256, uint};
     use op_alloy::consensus::OpTxEnvelope;
     use op_revm::{
-        DefaultOp, L1BlockInfo, OpBuilder, OpSpecId,
+        L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
         constants::{
             BASE_FEE_SCALAR_OFFSET, ECOTONE_L1_BLOB_BASE_FEE_SLOT, ECOTONE_L1_FEE_SCALARS_SLOT,
             L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, OPERATOR_FEE_SCALARS_SLOT,
         },
     };
     use revm::{
-        Context,
-        context::BlockEnv,
+        Context, MainContext,
+        context::{BlockEnv, CfgEnv},
         database::{CacheDB, EmptyDB, InMemoryDB, State},
         inspector::NoOpInspector,
         primitives::HashMap,
@@ -583,7 +583,10 @@ mod tests {
         &'a OpAlloyReceiptBuilder,
         &'a OpChainHardforks,
     > {
-        let ctx = Context::op()
+        let ctx = Context::mainnet()
+            .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
             .with_db(db)
             .with_chain(L1BlockInfo {
                 operator_fee_scalar: Some(U256::from(2)),

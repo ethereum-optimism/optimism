@@ -136,6 +136,16 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
+// NewSingleChainInteropSuperRootAtGenesis creates a fresh SingleChainInterop
+// target where SuperPermissionedDisputeGame is installed in the permissioned
+// slot as part of the initial op-deployer apply - no post-deploy OPCMv2
+// migration runs. This exercises the initial-deploy path for super-root
+// dispute games tracked by ethereum-optimism/optimism#18729.
+func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *SingleChainInterop {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSuperRootAtGenesis", opts, supernodeProofsPresetSupportedOptionKinds)
+	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
+}
+
 // NewSimpleInterop creates a fresh SimpleInterop target for the current test.
 //
 // The target is created from the interop runtime plus any additional preset options.
