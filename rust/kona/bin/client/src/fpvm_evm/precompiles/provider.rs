@@ -297,11 +297,15 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloy_op_evm::{OpEvmContext, OpTx};
     use kona_preimage::{HintWriterClient, PreimageOracleClient};
-    use op_revm::{DefaultOp as _, OpContext, OpSpecId};
-    use revm::{Context, database::EmptyDB, handler::PrecompileProvider, interpreter::CallInput};
+    use op_revm::{L1BlockInfo, OpSpecId, OpTransaction};
+    use revm::{
+        Context, MainContext, database::EmptyDB, handler::PrecompileProvider,
+        interpreter::CallInput,
+    };
 
-    type TestContext = OpContext<EmptyDB>;
+    type TestContext = OpEvmContext<EmptyDB>;
 
     fn create_call_inputs(address: Address, input: Bytes, gas_limit: u64) -> CallInputs {
         CallInputs {
@@ -319,7 +323,11 @@ mod test {
     }
 
     fn create_test_context() -> TestContext {
-        Context::op().with_db(EmptyDB::new())
+        Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(revm::context::CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(EmptyDB::new())
     }
 
     /// A mock accelerated precompile function that returns a fixed output.
