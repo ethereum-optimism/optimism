@@ -48,14 +48,17 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when attempting to migrate a CGT chain.
     error OPContractsManagerMigrator_CustomGasTokenNotSupported();
 
-    /// @notice Thrown when the chainSystemConfigs array is empty.
-    error OPContractsManagerMigrator_NoChains();
+    /// @notice Thrown when the chainSystemConfigs array has fewer than two chains.
+    error OPContractsManagerMigrator_TooFewChains();
 
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
     /// @notice Thrown when a chain's SystemConfig does not have Features.INTEROP enabled.
     error OPContractsManagerMigrator_InteropFeatureNotEnabled();
+
+    /// @notice Thrown when a chain's SystemConfig does not have Features.ETH_LOCKBOX enabled.
+    error OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
 
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
@@ -84,9 +87,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      upgraded to the current OPCM release version before calling migrate.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
-        // Check that at least one chain is being migrated.
-        if (_input.chainSystemConfigs.length == 0) {
-            revert OPContractsManagerMigrator_NoChains();
+        // Check that at least two chains are being migrated. Single-chain migration is not a
+        // supported scenario — this function exists to merge N independent chains into an
+        // interop set.
+        if (_input.chainSystemConfigs.length < 2) {
+            revert OPContractsManagerMigrator_TooFewChains();
         }
 
         // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
@@ -263,6 +268,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // migrateToSharedDisputeGame requires both INTEROP and ETH_LOCKBOX.
         if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
             revert OPContractsManagerMigrator_InteropFeatureNotEnabled();
+        }
+        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            revert OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
         }
 
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.

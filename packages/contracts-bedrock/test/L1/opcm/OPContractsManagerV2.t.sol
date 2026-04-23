@@ -2343,7 +2343,16 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function test_migrate_noChains_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         input.chainSystemConfigs = new ISystemConfig[](0);
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_TooFewChains.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when only a single chain is provided.
+    function test_migrate_singleChain_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        ISystemConfig[] memory single = new ISystemConfig[](1);
+        single[0] = chainContracts1.systemConfig;
+        input.chainSystemConfigs = single;
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_TooFewChains.selector);
     }
 
     /// @notice Tests that the migration function reverts when a chain uses a custom gas token.
@@ -2406,6 +2415,21 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
 
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropFeatureNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
+    ///         Features.ETH_LOCKBOX enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
+    function test_migrate_ethLockboxFeatureNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Mock one chain's SystemConfig to report Features.ETH_LOCKBOX as disabled.
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_EthLockboxFeatureNotEnabled.selector);
     }
 }
 
