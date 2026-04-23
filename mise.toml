@@ -21,7 +21,16 @@ just = "1.46.0"
 make = "4.4.1"
 
 svm-rs = "0.5.19"
+
+# Rust tooling
 "github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
+"github:EmbarkStudios/cargo-deny" = "0.19.4"
+"github:ggwpez/zepter" = { version = "1.88.0", version_prefix = "v" }
+"github:crate-ci/typos" = { version = "1.45.1", version_prefix = "v" }
+"github:est31/cargo-udeps" = { version = "0.1.60", version_prefix = "v" }
+"github:taiki-e/cargo-hack" = { version = "0.6.44", version_prefix = "v" }
+"github:taiki-e/cargo-llvm-cov" = { version = "0.8.5", version_prefix = "v" }
+"github:lycheeverse/lychee" = { version = "0.23.0", version_prefix = "lychee-v", bin = "lychee" }
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
@@ -44,7 +53,6 @@ anvil = "1.2.3"
 # Other dependencies
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.11.2"
-kurtosis = "1.8.1"
 git-cliff = "2.12.0"
 
 # Fake dependencies
@@ -55,20 +63,19 @@ kontrol = "1.0.90"
 binary_signer = "1.0.4"
 
 [tool_alias]
-forge = "ubi:foundry-rs/foundry[exe=forge]"
-cast = "ubi:foundry-rs/foundry[exe=cast]"
-anvil = "ubi:foundry-rs/foundry[exe=anvil]"
-just = "ubi:casey/just"
-codecov-uploader = "ubi:codecov/uploader"
-goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
-gotestsum = "ubi:gotestyourself/gotestsum"
-kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
-mockery = "ubi:vektra/mockery"
-svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
+forge = "github:foundry-rs/foundry[bin=forge,version_prefix=v]"
+cast = "github:foundry-rs/foundry[bin=cast,version_prefix=v]"
+anvil = "github:foundry-rs/foundry[bin=anvil,version_prefix=v]"
+just = "github:casey/just"
+codecov-uploader = "github:codecov/uploader[version_prefix=v]"
+goreleaser-pro = "github:goreleaser/goreleaser-pro[bin=goreleaser,version_prefix=v]"
+gotestsum = "github:gotestyourself/gotestsum[version_prefix=v]"
+mockery = "github:vektra/mockery[version_prefix=v]"
+svm-rs = "github:alloy-rs/svm-rs[bin=svm,version_prefix=v]"
 # These are disabled, but latest mise versions error if they don't have a known
 # install source even though it won't ever actually use that source.
-kontrol = "ubi:ethereum-optimism/fake-kontrol"
-binary_signer = "ubi:ethereum-optimism/fake-binary_signer"
+kontrol = "github:ethereum-optimism/fake-kontrol"
+binary_signer = "github:ethereum-optimism/fake-binary_signer"
 
 [settings]
 experimental = true
