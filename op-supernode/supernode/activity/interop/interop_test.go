@@ -286,6 +286,30 @@ func TestStartStop(t *testing.T) {
 				require.Error(t, err)
 			},
 		},
+		{
+			// Permanent SafeDB gap must halt Start cleanly (no retry loop).
+			name: "Start halts when a chain reports ErrHistoryUnavailable",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 50}
+					m.optimisticAtErr = cc.ErrHistoryUnavailable
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				done := make(chan error, 1)
+				go func() { done <- h.interop.Start(context.Background()) }()
+
+				// Must halt well under one errorBackoffPeriod (2s).
+				var err error
+				select {
+				case err = <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("Start did not halt within 5s after ErrHistoryUnavailable")
+				}
+				require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+			},
+		},
 	}
 
 	for _, tc := range tests {

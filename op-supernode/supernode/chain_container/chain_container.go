@@ -30,6 +30,12 @@ import (
 
 const virtualNodeVersion = "0.1.0"
 
+// ErrHistoryUnavailable is the permanent counterpart of ethereum.NotFound:
+// SafeDB on this node cannot and will not contain the requested history
+// (e.g. snap/CL-sync bootstrap gap). Interop halts on this rather than
+// retrying; recovery requires operator intervention.
+var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node")
+
 type ChainContainer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -435,7 +441,11 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
 	l1, err := c.vn.L1AtSafeHead(ctx, l2)
 	if err != nil {
-		// Map L1AtSafeHeadNotFound to ethereum.NotFound so callers treat chain lag as "not ready"
+		// Permanent history gap -> ErrHistoryUnavailable (interop halts).
+		// Transient lag -> ethereum.NotFound (callers back off and retry).
+		if errors.Is(err, virtual_node.ErrL1AtSafeHeadUnavailable) {
+			return eth.BlockID{}, fmt.Errorf("L1 at safe head unavailable for L2 %s: %w", l2, ErrHistoryUnavailable)
+		}
 		if errors.Is(err, virtual_node.ErrL1AtSafeHeadNotFound) {
 			return eth.BlockID{}, fmt.Errorf("L1 at safe head not available for L2 %s: %w", l2, ethereum.NotFound)
 		}

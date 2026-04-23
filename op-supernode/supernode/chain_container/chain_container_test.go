@@ -1049,6 +1049,52 @@ func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncS
 
 var _ virtual_node.VirtualNode = (*mockVNForL1AtSafeHeadError)(nil)
 
+// ErrL1AtSafeHeadUnavailable from the VN must map to ErrHistoryUnavailable
+// (and NOT to ethereum.NotFound) so interop halts instead of treating it as
+// transient chain lag.
+func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadUnavailable(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	mockEngine := &mockEngineController{
+		l2BlockRefByNumberResult: eth.L2BlockRef{
+			Hash:   common.Hash{0x01},
+			Number: 5,
+			Time:   1010,
+		},
+	}
+	impl.engine = mockEngine
+
+	mockVN := &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+		l1AtSafeHeadErr: virtual_node.ErrL1AtSafeHeadUnavailable,
+	}
+	impl.vn = mockVN
+
+	ctx := context.Background()
+	_, _, err := container.OptimisticAt(ctx, 1010)
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrHistoryUnavailable),
+		"ErrL1AtSafeHeadUnavailable should be mapped to ErrHistoryUnavailable, got: %v", err)
+	require.False(t, errors.Is(err, ethereum.NotFound),
+		"ErrL1AtSafeHeadUnavailable must NOT be mapped to ethereum.NotFound — that would make it look transient. got: %v", err)
+}
+
 // TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
 func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	t.Parallel()

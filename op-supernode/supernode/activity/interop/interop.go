@@ -228,7 +228,12 @@ func (i *Interop) Start(ctx context.Context) error {
 		default:
 			madeProgress, err := i.progressAndRecord()
 			if err != nil {
-				// Error: back off before next attempt
+				// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
+				if errors.Is(err, cc.ErrHistoryUnavailable) {
+					i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+						"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+					return fmt.Errorf("interop halted due to unavailable history: %w", err)
+				}
 				i.log.Error("failed to progress and record interop", "err", err)
 				time.Sleep(errorBackoffPeriod)
 				continue
