@@ -31,6 +31,7 @@ src_validation = [
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
     "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
     "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
+    "test/dispute/zk/ZKDisputeGameIntegration.t.sol", # Integration tests for ZK dispute game lifecycle
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
