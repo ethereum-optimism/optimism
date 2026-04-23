@@ -59,7 +59,7 @@ func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.B
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp <= executing message timestamp
 //   - Verify the initiating message hasn't expired (within message expiry window)
-func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain) (Result, error) {
+func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain, view *frontierVerificationView) (Result, error) {
 	result := Result{
 		Timestamp:    ts,
 		L2Heads:      make(blockPerChain),
@@ -78,7 +78,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 			execMsgs map[uint32]*types.ExecutingMessage
 			err      error
 		)
-		if frontierBlock, ok := i.frontierView.block(chainID); ok {
+		if frontierBlock, ok := view.block(chainID); ok {
 			blockRef = frontierBlock.ref
 			execMsgs = frontierBlock.execMsgs
 		} else {
@@ -141,7 +141,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 		// Verify each executing message
 		blockValid := true
 		for logIdx, execMsg := range execMsgs {
-			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg)
+			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg, view)
 			if err != nil {
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
@@ -172,7 +172,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 //  1. The initiating message exists in the source chain's database
 //  2. The initiating message's timestamp is not greater than the executing block's timestamp
 //  3. The initiating message hasn't expired (timestamp + messageExpiryWindow >= executing timestamp)
-func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage, view *frontierVerificationView) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
@@ -202,7 +202,7 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	// Same-timestamp dependencies may live in the current frontier view rather
 	// than accepted-history logsDB.
 	if execMsg.Timestamp == executingTimestamp {
-		if _, ok := i.frontierView.contains(execMsg.ChainID, query); ok {
+		if _, ok := view.contains(execMsg.ChainID, query); ok {
 			return nil
 		}
 	}

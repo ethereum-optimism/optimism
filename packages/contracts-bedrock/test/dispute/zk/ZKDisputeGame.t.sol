@@ -8,6 +8,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
+    BadExtraData,
     IncorrectBondAmount,
     UnexpectedRootClaim,
     UnexpectedGameType,
@@ -516,6 +517,52 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(anchorGame.parentIndex(), type(uint32).max);
     }
 
+    function test_initialize_notRespectedGameType_succeeds() public {
+        // Change the respected game type so our game type is no longer respected.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameType.wrap(250));
+
+        // Create a game after the respected type has changed.
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        ZKDisputeGame notRespectedGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: 1 ether }(
+                        gameType,
+                        Claim.wrap(keccak256("not-respected-claim")),
+                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+                    )
+                )
+            )
+        );
+        vm.stopPrank();
+
+        // The game was created while its game type was NOT respected.
+        assertFalse(notRespectedGame.wasRespectedGameTypeWhenCreated());
+    }
+
+    function test_initialize_invalidCalldataSize_reverts() public {
+        // The initialize function checks calldatasize() == 0x12E via assembly.
+        // Valid extraData is 36 bytes (32 for childL2SequenceNumber + 4 for parentGameIndex).
+        vm.startPrank(proposer);
+        vm.deal(proposer, 2 ether);
+
+        // Case 1: oversized extraData (37 bytes instead of 36) makes calldata larger than expected.
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00))
+        );
+
+        // Case 2: undersized extraData (35 bytes instead of 36) makes calldata smaller than expected.
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, uint24(parentGameIndex))
+        );
+
+        vm.stopPrank();
+    }
+
     function test_initialize_alreadyInitialized_reverts() public {
         // The game is already initialized in setUp. Calling initialize again should revert.
         vm.expectRevert(AlreadyInitialized.selector);
@@ -563,8 +610,23 @@ contract ZKDisputeGame_Challenge_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
+    function test_challenge_atExactDeadline_succeeds() public {
+        // Warp to exactly the challenge deadline. gameOver() uses strict `<`, so at
+        // exactly deadline the game is NOT over and challenge should succeed.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw());
+
+        vm.startPrank(challenger);
+        vm.deal(challenger, 1 ether);
+        game.challenge{ value: 1 ether }();
+        vm.stopPrank();
+
+        (,, address challenger_,,,) = game.claimData();
+        assertEq(challenger_, challenger);
+    }
+
     function test_challenge_afterDeadline_reverts() public {
-        // Warp past the challenge deadline so the game is over.
+        // Warp one second past the challenge deadline so the game is over.
         (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
 
@@ -661,12 +723,46 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
         childGame.prove(bytes(""));
     }
 
+    function test_prove_publicValuesEncoding_succeeds() public {
+        // Build the expected public values that prove() should pass to the verifier.
+        bytes memory expectedPublicValues = abi.encode(
+            game.l1Head(),
+            game.startingRootHash(),
+            game.rootClaim(),
+            game.l2SequenceNumber(),
+            game.l2ChainId(),
+            prover // msg.sender inside prove()
+        );
+
+        // Expect the verifier to be called with exactly these arguments.
+        vm.expectCall(
+            address(game.verifier()),
+            abi.encodeCall(IZKVerifier.verify, (game.absolutePrestate(), expectedPublicValues, bytes("")))
+        );
+
+        vm.prank(prover);
+        game.prove(bytes(""));
+    }
+
     function test_prove_emitsProvedEvent_succeeds() public {
         vm.expectEmit(true, false, false, false, address(game));
         emit Proved(prover);
 
         vm.prank(prover);
         game.prove(bytes(""));
+    }
+
+    function test_prove_nonProposerCanProve_succeeds() public {
+        // Verify the prover is not the game creator.
+        assertFalse(prover == game.gameCreator());
+
+        vm.prank(prover);
+        game.prove(bytes(""));
+
+        // The claimData.prover should be set to the actual caller, not the proposer.
+        (,,, address prover_,,) = game.claimData();
+        assertEq(prover_, prover);
+        assertFalse(prover_ == game.gameCreator());
     }
 
     function test_prove_invalidProof_reverts() public {

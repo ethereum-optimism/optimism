@@ -431,7 +431,7 @@ func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T)
 
 	var verifyCalls atomic.Int32
 	var firstVerifyTS atomic.Uint64
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		if verifyCalls.Add(1) == 1 {
 			firstVerifyTS.Store(ts)
 		}
