@@ -195,7 +195,6 @@ library Predeploys {
 
     /// @notice Returns all predeploy implementation records.
     /// @dev THE SINGLE SOURCE OF TRUTH for predeploy configuration.
-    ///      Records are ordered to match the L2ContractsManagerTypes.Implementations struct field order.
     ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
@@ -503,7 +502,7 @@ library Predeploys {
             proxy: L2_DEV_FEATURE_FLAGS,
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deployGasLimit: 315055,
+            deployGasLimit: 315_217,
             devFeatureGate: DevFeatures.L2CM,
             isCustomGasToken: false,
             isInterop: false,
