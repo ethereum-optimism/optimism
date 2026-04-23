@@ -38,7 +38,7 @@ just nut-snapshot-for <fork>
 
 This copies `current-upgrade-bundle.json` to `op-core/nuts/bundles/<fork>_nut_bundle.json` and updates `fork_lock.toml` with the sha256 hash and the merge-base commit with `origin/develop`.
 
-**Why merge-base, not HEAD?** The recorded commit is the merge-base with `develop`, not HEAD, so the reference survives squash-merge. That only works if the contracts source that produced the bundle is already on `develop` — which is why PR 1 must land first.
+**Why merge-base, not HEAD?** The recorded commit is the [merge-base](https://git-scm.com/docs/git-merge-base) with `develop`. By ensuring that the recorded commit is a recent ancestor of `develop`, we can ensure that the reference will survives a squash-merge and persist in the history of the `develop` branch. This is why PR 1 must be merged first.
 
 ### Verifying a bundle
 
