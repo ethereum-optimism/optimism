@@ -23,8 +23,8 @@ phases:
     parallel: false
     checks:
       - name: lint-fix
-        description: Fix code formatting
-        command: forge fmt || true
+        description: Fix code formatting locally
+        command: '[ -n "${CI:-}" ] || forge fmt || true'
 
   # Phase 2: Pre-build checks - no compilation needed
   - name: pre-build
