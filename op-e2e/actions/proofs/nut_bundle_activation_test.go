@@ -79,9 +79,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 
 	engine := env.Engine
 	actHeader := engine.L2Chain().CurrentHeader()
-	blockTime := env.Sd.RollupCfg.BlockTime
-	require.Equal(t, fork,
-		env.Sd.RollupCfg.IsActivationBlock(actHeader.Time-blockTime, actHeader.Time),
+	require.True(t,
+		env.Sd.RollupCfg.IsActivationBlockForFork(actHeader.Time, fork),
 		"expected activation block for %s at time %d", fork, actHeader.Time)
 
 	actBlock := engine.L2Chain().GetBlockByHash(actHeader.Hash())
@@ -119,11 +118,13 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	}
 
 	// Advance the safe head across the activation boundary so the fault-proof
-	// program verifies a non-trivial span including the upgrade block.
+	// program verifies a non-trivial span including the upgrade block. No new
+	// L2 blocks are produced past the activation block, so the safe head should
+	// land exactly on it.
 	env.BatchMineAndSync(t)
 	l2SafeHead := env.Sequencer.L2Safe()
-	require.GreaterOrEqual(t, l2SafeHead.Number, actHeader.Number.Uint64(),
-		"safe head must have progressed past the %s activation block", fork)
+	require.Equal(t, actHeader.Number.Uint64(), l2SafeHead.Number,
+		"safe head must be exactly the %s activation block", fork)
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
