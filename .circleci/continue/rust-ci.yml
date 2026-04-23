@@ -898,11 +898,11 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
       - run:
           name: Generate prestate artifacts
-          working_directory: rust/kona
+          working_directory: rust
           no_output_timeout: 60m
           command: |
-            cd docker/fpvm-prestates
-            just "<<parameters.kind>>" "<<parameters.version>>" "../../prestate-artifacts-<<parameters.kind>>"
+            just build-kona-reproducible-prestate-variant "<<parameters.version>>" "prestate-artifacts-<<parameters.kind>>"
+
       - run:
           name: Upload prestates to GCS
           working_directory: rust/kona
