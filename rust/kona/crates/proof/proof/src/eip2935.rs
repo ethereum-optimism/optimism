@@ -23,6 +23,7 @@ const HISTORY_SERVE_WINDOW: u64 = 2u64.pow(13) - 1;
 pub async fn eip_2935_history_lookup<P, H>(
     header: &Header,
     block_number: u64,
+    block_hash: B256,
     provider: &P,
     hinter: &H,
 ) -> Result<B256, OracleProviderError>
@@ -42,7 +43,7 @@ where
 
     // Send a hint to fetch the storage slot proof prior to traversing the state / account tries.
     hinter
-        .hint_storage_proof(HISTORY_STORAGE_ADDRESS, U256::from(slot), header.number)
+        .hint_storage_proof(HISTORY_STORAGE_ADDRESS, U256::from(slot), block_hash)
         .map_err(|e| PreimageOracleError::Other(e.to_string()))?;
 
     // Fetch the trie account for the history accumulator.
@@ -158,10 +159,16 @@ mod tests {
             ..Default::default()
         };
 
-        let result =
-            eip_2935_history_lookup(&header, target_block_number, &provider, &NoopTrieHinter)
-                .await
-                .unwrap();
+        let block_hash = B256::from([0xAA; 32]);
+        let result = eip_2935_history_lookup(
+            &header,
+            target_block_number,
+            block_hash,
+            &provider,
+            &NoopTrieHinter,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(result, expected_hash);
     }

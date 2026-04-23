@@ -118,6 +118,10 @@ func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) 
 }
 func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
+func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {

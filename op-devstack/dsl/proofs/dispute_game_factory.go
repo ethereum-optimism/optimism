@@ -174,6 +174,18 @@ func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDispute
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
+func (f *DisputeGameFactory) VerifyGameImplPresent(gameType gameTypes.GameType) {
+	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
+	f.require.NotEqualf(common.Address{}, implAddr,
+		"expected DisputeGameFactory to have an implementation for %s (%d)", gameType, uint32(gameType))
+}
+
+func (f *DisputeGameFactory) VerifyGameImplAbsent(gameType gameTypes.GameType) {
+	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
+	f.require.Equalf(common.Address{}, implAddr,
+		"expected DisputeGameFactory to have no implementation for %s (%d), got %s", gameType, uint32(gameType), implAddr)
+}
+
 func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 	return contract.Read(f.dgf.GameArgs(uint32(gameType)))
 }

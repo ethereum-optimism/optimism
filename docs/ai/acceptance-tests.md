@@ -1,6 +1,6 @@
-# Acceptance Tests
+# Running Acceptance Tests
 
-Guidance for AI agents building and running acceptance tests in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions and general workflow.
+Guidance for AI agents building and running acceptance tests in the Optimism monorepo. For guidance on *writing* new tests — DSL patterns, naming, what to avoid — see [writing-acceptance-tests.md](writing-acceptance-tests.md). See [dev-workflow.md](dev-workflow.md) for tool versions and general workflow.
 
 ## What Are Acceptance Tests?
 

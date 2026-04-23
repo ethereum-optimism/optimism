@@ -117,6 +117,10 @@ func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]c
 
 func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
+func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSupernode_SyncStatus_Succeeds(t *testing.T) {

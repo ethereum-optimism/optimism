@@ -39,9 +39,12 @@ func ensureDir(dirPath string) error {
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func findMonorepoRoot(testPath string) (string, error) {
 	path := "./"
-	// Only search up 6 directories
-	// Avoids infinite recursion if the root isn't found for some reason
-	for i := 0; i < 6; i++ {
+	// Only search up 10 directories
+	// Avoids infinite recursion if the root isn't found for some reason.
+	// 10 is enough to cover deeply-nested test packages (e.g.
+	// op-acceptance-tests/tests/supernode/interop/backfill/happy/ is 6
+	// levels deep); 6 used to be enough before those were added.
+	for i := 0; i < 10; i++ {
 		_, err := os.Stat(path + testPath)
 		if errors.Is(err, os.ErrNotExist) {
 			path = path + "../"

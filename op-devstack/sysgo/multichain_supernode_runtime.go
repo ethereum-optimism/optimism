@@ -100,7 +100,7 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 }
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
-// respecting DEVSTACK_L2EL_KIND (defaults to op-geth when unset).
+// respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
 func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
@@ -173,7 +173,6 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	// Use the potentially-overridden depSetStatic if available.
@@ -193,12 +192,11 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		L1CL:          l1CL,
 		Chains: map[string]*MultiChainNodeRuntime{
 			"l2a": {
-				Name:     "l2a",
-				Network:  l2Net,
-				EL:       l2EL,
-				CL:       l2CL,
-				Batcher:  l2Batcher,
-				Proposer: l2Proposer,
+				Name:    "l2a",
+				Network: l2Net,
+				EL:      l2EL,
+				CL:      l2CL,
+				Batcher: l2Batcher,
 			},
 		},
 		Supernode:     supernode,
@@ -213,7 +211,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -288,6 +286,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l2BEL,
 		depSet,
 		interopActivationTimestamp,
+		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 	)
 
@@ -349,7 +348,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}, activationTime
 }
 
-func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, delaySeconds uint64, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -367,7 +366,16 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			if delaySeconds > 0 {
+				// Set all forks up to but not including Interop at genesis,
+				// then set Interop at offset so the L2 chain starts in a
+				// pre-interop state. This matches the supernode's
+				// InteropActivationTimestamp and allows testing the fork transition.
+				l2Cfg.WithForkAtGenesis(opforks.Karst)
+				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+			} else {
+				l2Cfg.WithForkAtGenesis(opforks.Interop)
+			}
 		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
@@ -457,6 +465,7 @@ func startTwoL2SharedSupernode(
 	l2BEL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	interopActivationTimestamp *uint64,
+	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
@@ -523,6 +532,7 @@ func startTwoL2SharedSupernode(
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: interopActivationTimestamp,
+		InteropLogBackfillDepth:    interopLogBackfillDepth,
 	}
 
 	supernode := &SuperNode{
