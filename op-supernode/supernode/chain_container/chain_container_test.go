@@ -20,11 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1006,10 +1006,11 @@ func TestChainContainer_VerifiedAt(t *testing.T) {
 	})
 }
 
-// TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound tests that
-// ErrL1AtSafeHeadNotFound from the virtual node is mapped to ethereum.NotFound
-// by OptimisticAt (via safeDBAtL2), so callers treat chain lag as "not ready".
-func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
+// TestChainContainer_OptimisticAt_UsesL1Origin tests that OptimisticAt uses
+// L1Origin from the L2 block ref directly, without querying SafeDB. This avoids
+// a circular dependency where the interop verifier needs OptimisticAt to verify
+// blocks, but SafeDB only has entries after blocks are promoted to cross-safe.
+func TestChainContainer_OptimisticAt_UsesL1Origin(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
@@ -1024,18 +1025,21 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
-	// Set up engine that returns a valid block ref
+	expectedL1Origin := eth.BlockID{Hash: common.Hash{0xaa}, Number: 42}
+
+	// Set up engine that returns a block ref with an L1Origin
 	mockEngine := &mockEngineController{
 		l2BlockRefByNumberResult: eth.L2BlockRef{
-			Hash:   common.Hash{0x01},
-			Number: 5,
-			Time:   1010,
+			Hash:     common.Hash{0x01},
+			Number:   5,
+			Time:     1010,
+			L1Origin: expectedL1Origin,
 		},
 	}
 	impl.engine = mockEngine
 
-	// Use a mock VN that returns valid SyncStatus (so LocalSafeBlockAtTimestamp succeeds)
-	// but returns ErrL1AtSafeHeadNotFound from L1AtSafeHead (so safeDBAtL2 fails).
+	// Use a mock VN that returns valid SyncStatus. Even though SafeDB would fail,
+	// OptimisticAt no longer queries it — it uses L1Origin directly.
 	mockVN := &mockVNForL1AtSafeHeadError{
 		syncStatusResult: &eth.SyncStatus{
 			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
@@ -1046,11 +1050,12 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	impl.vn = mockVN
 
 	ctx := context.Background()
-	_, _, err := container.OptimisticAt(ctx, 1010)
+	l2, l1, err := container.OptimisticAt(ctx, 1010)
 
-	require.Error(t, err)
-	require.True(t, errors.Is(err, ethereum.NotFound),
-		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+	require.NoError(t, err)
+	require.Equal(t, common.Hash{0x01}, l2.Hash)
+	require.Equal(t, uint64(5), l2.Number)
+	require.Equal(t, expectedL1Origin, l1)
 }
 
 // mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus

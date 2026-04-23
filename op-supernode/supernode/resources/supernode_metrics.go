@@ -14,6 +14,8 @@ type SupernodeMetrics struct {
 	InteropVerifiedTimestamp  prometheus.Gauge
 	InteropRoundDecisions     *prometheus.CounterVec
 	InteropRewinds            prometheus.Counter
+	InteropChainNotReady      *prometheus.CounterVec
+	InteropVerificationLag    prometheus.Gauge
 
 	registry *prometheus.Registry
 }
@@ -52,6 +54,16 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_rewinds_total",
 			Help:      "Total number of interop rewinds due to L1 consistency failures.",
 		}),
+		InteropChainNotReady: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "interop_chain_not_ready_total",
+			Help:      "Total times a chain was not ready during interop verification.",
+		}, []string{"chain_id"}),
+		InteropVerificationLag: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_verification_lag_seconds",
+			Help:      "Seconds between the latest verified timestamp and the latest unsafe L2 timestamp.",
+		}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -61,6 +73,8 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.InteropVerifiedTimestamp,
 		m.InteropRoundDecisions,
 		m.InteropRewinds,
+		m.InteropChainNotReady,
+		m.InteropVerificationLag,
 	)
 	return m
 }

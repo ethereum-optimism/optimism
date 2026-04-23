@@ -613,6 +613,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
 		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
+		i.updateVerificationLag(pending.Result.Timestamp)
 		// L1Inclusion is the max L1 block used for derivation across all chains at this
 		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
 		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
@@ -776,6 +777,7 @@ func (i *Interop) checkChainsReady(ts uint64) (chainsReadyResult, error) {
 	for range i.chains {
 		r := <-results
 		if r.err != nil {
+			i.metrics.InteropChainNotReady.WithLabelValues(r.chainID.String()).Inc()
 			if firstErr == nil {
 				firstErr = r.err
 			}
@@ -814,6 +816,26 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)
+}
+
+// updateVerificationLag computes the gap between the verified timestamp and
+// the latest unsafe L2 time across all chains, and records it as a metric.
+func (i *Interop) updateVerificationLag(verifiedTS uint64) {
+	var maxUnsafeTime uint64
+	for _, chain := range i.chains {
+		ss, err := chain.SyncStatus(i.ctx)
+		if err != nil {
+			continue
+		}
+		if ss.UnsafeL2.Time > maxUnsafeTime {
+			maxUnsafeTime = ss.UnsafeL2.Time
+		}
+	}
+	if maxUnsafeTime > verifiedTS {
+		i.metrics.InteropVerificationLag.Set(float64(maxUnsafeTime - verifiedTS))
+	} else {
+		i.metrics.InteropVerificationLag.Set(0)
+	}
 }
 
 // LatestVerifiedL2Block returns the latest L2 block which has been verified,

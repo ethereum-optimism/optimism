@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -116,8 +116,8 @@ type simpleChainContainer struct {
 	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
-	virtualNodeFactory virtualNodeFactory          // Factory function to create virtual node (for testing)
-	rollupClient       *sources.RollupClient       // In-proc rollup RPC client bound to rpcHandler
+	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
 	// verifiersMu guards writes and reads of the verifiers slice. Concurrent
@@ -461,11 +461,6 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
-	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
-	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
 
 	c.verifiersMu.RLock()
 	verifiers := append([]activity.VerificationActivity(nil), c.verifiers...)
@@ -482,26 +477,22 @@ func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l
 		}
 	}
 
-	return l2Block.ID(), l1Block, nil
+	return l2Block.ID(), l2Block.L1Origin, nil
 }
 
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
+// It uses the L2 block's L1Origin directly rather than querying SafeDB, because SafeDB is only
+// populated after blocks are promoted to cross-safe. Using SafeDB here would create a circular
+// dependency: the interop verifier needs OptimisticAt to verify blocks, but SafeDB requires
+// blocks to already be verified (cross-safe) before it has entries for them.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
 		c.log.Error("error determining l2 block at given timestamp", "error", err)
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
-	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
-	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
 
-	// VerifiedAt only constrains the result when registered verification
-	// activities report that the timestamp is not yet verified. Otherwise the
-	// current safe L2/L1 pair can be returned directly.
-	return l2Block.ID(), l1Block, nil
+	return l2Block.ID(), l2Block.L1Origin, nil
 }
 
 // OptimisticOutputAtTimestamp returns the OutputV0 for the "optimistic" L2 block at the given timestamp.
