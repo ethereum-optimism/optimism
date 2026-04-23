@@ -75,9 +75,13 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
-    /// @custom:semver 1.9.0
+    /// @custom:semver 1.10.0
     function version() public pure virtual returns (string memory) {
-        return "1.9.0";
+        return "1.10.0";
+    }
+
+    function newGetter() public pure returns (string memory) {
+        return "You got me!";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
