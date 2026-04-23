@@ -22,7 +22,23 @@ func (m *mockL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.
 	return ref, nil
 }
 
-func TestByNumberConsistencyChecker_SameL1Chain(t *testing.T) {
+// noopL1Checker treats every set of heads as canonical. Intended for tests that
+// do not exercise L1 consistency — production must always use the real checker.
+type noopL1Checker struct{}
+
+func (noopL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
+	return true, nil
+}
+
+// inconsistentL1Checker always reports that heads disagree on the canonical L1
+// chain. Tests use it to drive observeRound into a rewind decision.
+type inconsistentL1Checker struct{}
+
+func (inconsistentL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
+	return false, nil
+}
+
+func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {
 	t.Parallel()
 
 	hashA := common.HexToHash("0xaaaa")
@@ -34,7 +50,7 @@ func TestByNumberConsistencyChecker_SameL1Chain(t *testing.T) {
 			200: {Hash: hashB, Number: 200},
 		},
 	}
-	checker := newByNumberConsistencyChecker(source)
+	checker := newL1ConsistencyChecker(source)
 
 	t.Run("all match canonical", func(t *testing.T) {
 		same, err := checker.SameL1Chain(context.Background(), []eth.BlockID{
@@ -71,7 +87,7 @@ func TestByNumberConsistencyChecker_SameL1Chain(t *testing.T) {
 	})
 
 	t.Run("nil checker returns nil", func(t *testing.T) {
-		nilChecker := newByNumberConsistencyChecker(nil)
+		nilChecker := newL1ConsistencyChecker(nil)
 		require.Nil(t, nilChecker)
 	})
 }
