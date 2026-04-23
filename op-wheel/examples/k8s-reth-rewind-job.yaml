@@ -1,5 +1,10 @@
 # K8s Job to rewind a reth node using op-wheel.
 #
+# For most users, prefer the wrapper script that auto-discovers your setup:
+#   ./reth-rewind.sh -n <namespace> -t <target-block> -i <op-wheel-image>
+# This file is the static template the script is based on, useful if you want
+# to customize manually.
+#
 # Based on the op-reth Helm chart (optimism-charts/charts/node/charts/op-reth)
 # and the prod-mainnet deployment (k8s/opc/oplabs-prod-mainnet/op-opn-reth-f-snapsync-0).
 #
@@ -11,6 +16,21 @@
 #   - Mount path:       "/db"
 #   - Binary path:      "/usr/local/bin/op-reth"
 #   - Chain:            "optimism"  (RETH_CHAIN env var)
+#
+# Why the main container uses the op-reth image (not the op-wheel image):
+#   op-reth is a dynamically-linked glibc binary, while the default op-wheel
+#   image is Alpine (musl-only). Running op-reth from the op-wheel image fails
+#   with `fork/exec: no such file or directory` because the glibc dynamic
+#   linker (/lib64/ld-linux-x86-64.so.2) isn't present. op-wheel itself is a
+#   static Go binary (CGO_ENABLED=0), so we copy it into the op-reth image
+#   instead — portable in that direction.
+#
+# Caveat — reth's history-pruning limit:
+#   reth nodes configured with pruning only retain the last ~10k blocks of
+#   account/storage history. `reth stage unwind` to a target older than
+#   (latest - history_limit) will fail with "Cannot unwind to block N as it
+#   is beyond the AccountHistory limit". For deeper rewinds, restore from a
+#   snapshot (via OHM) rather than rewinding in place.
 #
 # Usage:
 #   1. Scale down the reth StatefulSet:
@@ -47,32 +67,36 @@ spec:
           value: "nvme"
           effect: "NoSchedule"
 
-      # Copy the reth binary from the reth image into a shared volume
-      # so the op-wheel container can invoke it.
+      # Stage the op-wheel binary into a shared volume so the main container
+      # (running the op-reth image) can exec it. op-wheel is CGO_ENABLED=0
+      # static, so it runs in any Linux image regardless of libc.
       initContainers:
-        - name: copy-reth
-          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v1.11.5-rc.1
-          command: ["cp", "/usr/local/bin/op-reth", "/shared/op-reth"]
+        - name: copy-wheel
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-wheel:latest
+          command: ["cp", "/usr/local/bin/op-wheel", "/shared/op-wheel"]
           volumeMounts:
             - name: shared-bin
               mountPath: /shared
 
       containers:
         - name: rewind
-          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-wheel:latest
-          command: ["op-wheel"]
+          # Use the op-reth image so the glibc runtime op-reth needs is present.
+          # Pin this to the SAME tag as the StatefulSet — the binary and the
+          # on-disk DB schema must match.
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v1.11.5-rc.1
+          command: ["/shared/op-wheel"]
           args:
             - engine
             - rewind-reth
             - offline
             - --to
-            - "12345678"          # <-- Set target block number
+            - "12345678"                   # <-- Set target block number
             - --reth-binary
-            - /shared/op-reth     # Copied from init container
+            - /usr/local/bin/op-reth       # Native path inside the op-reth image
             - --reth-datadir
-            - /db                 # Matches RETH_DATADIR from chart defaults
+            - /db                          # Matches RETH_DATADIR from chart defaults
             - --reth-chain
-            - optimism            # Matches RETH_CHAIN from prod-mainnet config
+            - optimism                     # Matches RETH_CHAIN from prod-mainnet config
           resources:
             requests:
               cpu: "2"
