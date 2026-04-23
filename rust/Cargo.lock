@@ -7783,12 +7783,15 @@ dependencies = [
 [[package]]
 name = "op-revm"
 version = "19.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4c545fc4e916747afe36bcf36d6f8b46255b6a1b688f5ca8016e449f258e510"
 dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
  "auto_impl",
  "revm",
+ "rstest",
  "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -12574,6 +12577,7 @@ dependencies = [
  "ripemd",
  "secp256k1 0.31.1",
  "sha2",
+ "substrate-bn",
 ]
 
 [[package]]
@@ -13717,6 +13721,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "substrate-bn"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
+dependencies = [
+ "byteorder",
+ "crunchy",
+ "lazy_static",
+ "rand 0.8.6",
+ "rustc-hex",
 ]
 
 [[package]]

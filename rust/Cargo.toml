@@ -49,6 +49,9 @@ members = [
 
   # Alloy OP Hardforks
   "alloy-op-hardforks/",
+
+  # Op-Revm
+  "op-revm/",
 ]
 default-members = [
   "kona/bin/host",
@@ -386,7 +389,7 @@ revm-state = { version = "11.0.0", default-features = false }
 revm-primitives = { version = "23.0.0", default-features = false }
 revm-interpreter = { version = "35.0.0", default-features = false }
 revm-database-interface = { version = "11.0.0", default-features = false }
-op-revm = { version = "19.0.0", default-features = false }
+op-revm = { version = "19.0.0", path = "op-revm/", default-features = false }
 revm-inspectors = "0.39.0"
 
 # ==================== ALLOY ====================
