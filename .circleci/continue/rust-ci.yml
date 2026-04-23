@@ -954,67 +954,54 @@ workflows:
       - rust-ci-fmt:
           name: rust-fmt
           directory: rust
-          context: &rust-ci-context
-            - circleci-repo-readonly-authenticated-github-token
 
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
           command: "cargo clippy --workspace --all-targets --all-features --locked"
-          context: *rust-ci-context
 
       - rust-ci-deny:
           name: rust-deny
           directory: rust
           command: "just deny"
-          context: *rust-ci-context
 
       - rust-ci-typos:
           name: rust-typos
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-zepter:
           name: rust-zepter
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
           command: "cargo test --doc --workspace --all-features"
-          context: *rust-ci-context
 
       - rust-ci-docs:
           name: rust-docs
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-udeps:
           name: rust-udeps
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-cargo-hack:
           name: rust-cargo-hack
           parallelism: 6
-          context: *rust-ci-context
 
       - rust-build-binary:
           name: rust-build
           directory: rust
-          context: *rust-ci-context
 
       - rust-build-binary:
           name: rust-build-release
           directory: rust
           profile: release
-          context: *rust-ci-context
 
       # -----------------------------------------------------------------------
       # Unified cross-compilation jobs
@@ -1024,34 +1011,29 @@ workflows:
           directory: rust
           command: |
             just check-no-std
-          context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:
           name: rust-wasm-unknown
           directory: rust
           target: wasm32-unknown-unknown
           flags: "-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features"
-          context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:
           name: rust-wasm-wasi
           directory: rust
           target: wasm32-wasip1
           flags: "-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm"
-          context: *rust-ci-context
 
       # -----------------------------------------------------------------------
       # OP-Reth crate-specific jobs
       # -----------------------------------------------------------------------
       - op-reth-compact-codec:
-          context: *rust-ci-context
 
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
           cache_profile: debug
-          context: *rust-ci-context
 
       # -----------------------------------------------------------------------
       # Kona crate-specific jobs (lint, FPVM builds, benches, coverage)
@@ -1059,21 +1041,17 @@ workflows:
       - kona-cargo-lint:
           name: kona-lint-cannon
           target: "cannon"
-          context: *rust-ci-context
 
       - kona-build-fpvm:
           name: kona-build-fpvm-cannon-client
           target: "cannon-client"
-          context: *rust-ci-context
 
       - kona-coverage:
-          context: *rust-ci-context
           requires:
             - rust-tests
 
       - kona-host-client-offline:
           name: kona-host-client-offline-cannon
-          context: *rust-ci-context
 
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
@@ -1098,19 +1076,16 @@ workflows:
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
-          context: *rust-ci-context
 
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
           cache_profile: debug
-          context: *rust-ci-context
 
       - kona-build-fpvm:
           name: kona-build-fpvm-cannon-client
           target: "cannon-client"
-          context: *rust-ci-context
 
       - required-rust-ci:
           requires:
@@ -1126,8 +1101,6 @@ workflows:
       equal: [build_weekly, <<pipeline.schedule.name>>]
     jobs:
       - kona-link-checker:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
@@ -1142,6 +1115,3 @@ workflows:
           matrix:
             parameters:
               version: ["kona-client", "kona-client-int"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - oplabs-network-optimism-io-bucket

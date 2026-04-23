@@ -311,38 +311,26 @@ workflows:
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - cannon-prestate: &rust-e2e-job-base
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate: &rust-e2e-job-base {}
       - rust-build-binary: &cannon-kona-host
           name: cannon-kona-host
           directory: rust
           profile: release
           binary: "kona-host"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
           profile: release
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
           name: op-reth-build
           directory: rust
           profile: release
           binary: "op-reth"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-e2e-sysgo-tests:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
             parameters:
               devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -369,8 +357,6 @@ workflows:
           requires:
             - kona-build-release
             - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
@@ -393,14 +379,10 @@ workflows:
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
           name: kona-build-release
           directory: rust
           profile: release
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       # Proof tests - single kind only, interop excluded per original config
       - kona-proof-action-tests:
           name: kona-proof-action-single
@@ -408,8 +390,6 @@ workflows:
           requires:
             - kona-build-release
             - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
       - required-rust-e2e:
           requires:

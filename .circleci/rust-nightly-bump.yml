@@ -59,5 +59,3 @@ workflows:
                 - main
     jobs:
       - bump-nightly:
-          context:
-            - circleci-repo-optimism
