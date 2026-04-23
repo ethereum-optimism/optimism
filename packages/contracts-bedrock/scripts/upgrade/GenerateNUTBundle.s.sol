@@ -72,7 +72,22 @@ contract GenerateNUTBundle is Script {
         gasLimits = UpgradeUtils.gasLimits();
     }
 
-    /// @notice Generates the complete upgrade transaction bundle.
+    /// @notice Generates the upgrade transaction bundle and writes the artifact to disk.
+    /// @return output_ Output containing all generated transactions in execution order.
+    function run() public returns (Output memory output_) {
+        setUp();
+
+        output_ = _buildOutput();
+
+        _assertValidOutput(output_);
+
+        // Write transactions to artifact with metadata
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
+    }
+
+    /// @notice Builds the upgrade transaction bundle Output struct.
     /// @dev Executes 5 phases in fixed order:
     ///      1. Pre-implementation deployments [CUSTOM]
     ///      2. Implementation deployments [FIXED]
@@ -81,9 +96,7 @@ contract GenerateNUTBundle is Script {
     ///      5. Upgrade execution [FIXED]
     /// @dev Only modify phases 1 and 3 for fork-specific logic. Other phases must remain unchanged.
     /// @return output_ Output containing all generated transactions in execution order.
-    function run() public returns (Output memory output_) {
-        setUp();
-
+    function _buildOutput() internal returns (Output memory output_) {
         // Build implementation deployment configurations
         _buildImplementationDeploymentConfigs();
 
@@ -115,18 +128,11 @@ contract GenerateNUTBundle is Script {
         for (uint256 i = 0; i < txnsLength; i++) {
             output_.txns[i] = txns[i];
         }
-
-        assertValidOutput(output_);
-
-        // Write transactions to artifact with metadata
-        NetworkUpgradeTxns.BundleMetadata memory metadata =
-            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Asserts the output is valid.
     /// @param _output The output to assert.
-    function assertValidOutput(Output memory _output) public pure {
+    function _assertValidOutput(Output memory _output) internal pure {
         uint256 transactionCount = UpgradeUtils.getTransactionCount();
         uint256 txnsLength = _output.txns.length;
         require(txnsLength == transactionCount, "GenerateNUTBundle: invalid transaction count");

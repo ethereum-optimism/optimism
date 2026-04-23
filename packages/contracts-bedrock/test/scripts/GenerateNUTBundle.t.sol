@@ -14,16 +14,30 @@ import { Constants } from "src/libraries/Constants.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+/// @title GenerateNUTBundle_Harness
+/// @notice Harness contract that exposes internal functions for testing.
+contract GenerateNUTBundle_Harness is GenerateNUTBundle {
+    /// @notice Builds the upgrade transaction bundle Output struct without writing to disk.
+    function buildOutput() external returns (Output memory) {
+        return _buildOutput();
+    }
+
+    /// @notice Asserts that the given output is valid.
+    function assertValidOutput(Output memory _output) external pure {
+        _assertValidOutput(_output);
+    }
+}
+
 /// @title GenerateNUTBundleTest
 /// @notice Tests that GenerateNUTBundle correctly generates Network Upgrade Transaction bundles
 ///         for L2 hardfork upgrades.
 contract GenerateNUTBundleTest is Test {
-    GenerateNUTBundle script;
+    GenerateNUTBundle_Harness script;
 
     uint256 constant TEST_L1_CHAIN_ID = 1;
 
     function setUp() public {
-        script = new GenerateNUTBundle();
+        script = new GenerateNUTBundle_Harness();
         script.setUp();
     }
 
@@ -142,7 +156,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a bundle with an incorrect number of transactions is rejected.
     /// @dev Builds a valid bundle, then mutates the array length to trigger the assertion.
     function testFuzz_assertValidOutput_transactionCountMismatch_reverts(uint256 _newLength) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _newLength = bound(_newLength, 0, output.txns.length - 1);
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = output.txns;
@@ -157,7 +171,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction with empty data is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyData_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].data = new bytes(0);
@@ -169,7 +183,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction with an empty intent is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyIntent_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].intent = "";
@@ -181,7 +195,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction with a zero destination address is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroTo_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].to = address(0);
@@ -193,7 +207,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction exceeding the EIP-7825 per-tx gas limit cap is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitExceedsMax_reverts(uint256 _index, uint64 _gasLimit) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         _gasLimit = uint64(bound(_gasLimit, script.MAX_TX_GAS_LIMIT() + 1, type(uint64).max));
@@ -213,7 +227,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction with a zero gas limit is rejected by the EIP-7623 floor.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroGasLimit_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].gasLimit = 0;
@@ -232,7 +246,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction whose gasLimit is one below the EIP-7623 floor is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitBelowFloor_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         uint64 floor = UpgradeUtils.computeFloorDataGas(output.txns[_index].data);
@@ -252,7 +266,7 @@ contract GenerateNUTBundleTest is Test {
     /// @notice Tests that a transaction with a zero sender and a non-privileged destination is rejected.
     /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroFromNonPrivilegedTo_reverts(uint256 _index, address _to) public {
-        GenerateNUTBundle.Output memory output = script.run();
+        GenerateNUTBundle.Output memory output = script.buildOutput();
 
         vm.assume(_to != address(0));
         vm.assume(_to != Predeploys.PROXY_ADMIN && _to != Predeploys.CONDITIONAL_DEPLOYER);
