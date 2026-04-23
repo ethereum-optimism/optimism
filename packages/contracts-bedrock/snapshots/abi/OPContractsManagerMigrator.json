@@ -132,17 +132,17 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_NoChains",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ProxyAdminOwnerMismatch",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SuperchainConfigMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerMigrator_TooFewChains",
     "type": "error"
   }
 ]

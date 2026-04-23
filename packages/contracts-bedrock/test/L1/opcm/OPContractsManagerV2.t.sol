@@ -2343,16 +2343,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function test_migrate_noChains_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         input.chainSystemConfigs = new ISystemConfig[](0);
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_TooFewChains.selector);
-    }
-
-    /// @notice Tests that the migration function reverts when only a single chain is provided.
-    function test_migrate_singleChain_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-        ISystemConfig[] memory single = new ISystemConfig[](1);
-        single[0] = chainContracts1.systemConfig;
-        input.chainSystemConfigs = single;
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_TooFewChains.selector);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector);
     }
 
     /// @notice Tests that the migration function reverts when a chain uses a custom gas token.
