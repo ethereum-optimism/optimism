@@ -551,17 +551,13 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Case 1: oversized extraData (37 bytes instead of 36) makes calldata larger than expected.
         vm.expectRevert(BadExtraData.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            rootClaim,
-            abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00))
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00))
         );
 
         // Case 2: undersized extraData (35 bytes instead of 36) makes calldata smaller than expected.
         vm.expectRevert(BadExtraData.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            rootClaim,
-            abi.encodePacked(childL2SequenceNumber, uint24(parentGameIndex))
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, uint24(parentGameIndex))
         );
 
         vm.stopPrank();
