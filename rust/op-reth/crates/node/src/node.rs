@@ -79,6 +79,12 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
         use alloy_consensus::BlockHeader;
         use alloy_primitives::{Address, B64};
 
+        // Dummy system transaction for dev mode.
+        // OP Mainnet transaction at index 0 in block 124665056.
+        const TX_SET_L1_BLOCK: [u8; 251] = alloy_primitives::hex!(
+            "7ef8f8a0683079df94aa5b9cf86687d739a60a9b4f0835e520ec4d664e2e415dca17a6df94deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e200000146b000f79c500000000000000040000000066d052e700000000013ad8a3000000000000000000000000000000000000000000000000000000003ef1278700000000000000000000000000000000000000000000000000000000000000012fdf87b89884a61e74b322bbcf60386f543bfae7827725efaaf0ab1de2294a590000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985"
+        );
+
         let timestamp = std::cmp::max(
             parent.timestamp().saturating_add(1),
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs(),
@@ -99,21 +105,17 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
             slot_number: None,
         };
 
-        /// Dummy system transaction for dev mode.
-        /// OP Mainnet transaction at index 0 in block 124665056.
-        const TX_SET_L1_BLOCK: [u8; 251] = alloy_primitives::hex!(
-            "7ef8f8a0683079df94aa5b9cf86687d739a60a9b4f0835e520ec4d664e2e415dca17a6df94deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e200000146b000f79c500000000000000040000000066d052e700000000013ad8a3000000000000000000000000000000000000000000000000000000003ef1278700000000000000000000000000000000000000000000000000000000000000012fdf87b89884a61e74b322bbcf60386f543bfae7827725efaaf0ab1de2294a590000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985"
-        );
-
         let default_params = BaseFeeParams::optimism();
+        // Base fee params are u128 on revm but fit in u32 for all chains in practice.
+        // Saturate rather than wrap if an out-of-range override is ever added.
         let denominator = std::env::var("OP_DEV_EIP1559_DENOMINATOR")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(default_params.max_change_denominator as u32);
+            .unwrap_or_else(|| u32::try_from(default_params.max_change_denominator).unwrap_or(u32::MAX));
         let elasticity = std::env::var("OP_DEV_EIP1559_ELASTICITY")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(default_params.elasticity_multiplier as u32);
+            .unwrap_or_else(|| u32::try_from(default_params.elasticity_multiplier).unwrap_or(u32::MAX));
         let gas_limit = std::env::var("OP_DEV_GAS_LIMIT").ok().and_then(|v| v.parse::<u64>().ok());
 
         let mut eip1559_bytes = [0u8; 8];
@@ -434,6 +436,10 @@ where
     }
 }
 
+#[allow(
+    clippy::mismatching_type_param_order,
+    reason = "generics follow the builder argument order, not the declaration order of OpAddOns"
+)]
 impl<N, NetworkT, RpcMiddleware>
     OpAddOns<
         N,
@@ -574,6 +580,7 @@ where
     }
 
     /// Sets the hook that is run once the rpc server is started.
+    #[must_use]
     pub fn on_rpc_started<F>(mut self, hook: F) -> Self
     where
         F: FnOnce(RpcContext<'_, N, EthB::EthApi>, RethRpcServerHandles) -> eyre::Result<()>
@@ -585,6 +592,7 @@ where
     }
 
     /// Sets the hook that is run to configure the rpc modules.
+    #[must_use]
     pub fn extend_rpc_modules<F>(mut self, hook: F) -> Self
     where
         F: FnOnce(RpcContext<'_, N, EthB::EthApi>) -> eyre::Result<()> + Send + 'static,
@@ -815,42 +823,49 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
 
 impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     /// With a [`SequencerClient`].
+    #[must_use]
     pub fn with_sequencer(mut self, sequencer_client: Option<String>) -> Self {
         self.sequencer_url = sequencer_client;
         self
     }
 
     /// With headers to use for the sequencer client requests.
+    #[must_use]
     pub fn with_sequencer_headers(mut self, sequencer_headers: Vec<String>) -> Self {
         self.sequencer_headers = sequencer_headers;
         self
     }
 
     /// Configure the data availability configuration for the OP builder.
+    #[must_use]
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
         self.da_config = Some(da_config);
         self
     }
 
     /// Configure the gas limit configuration for the OP payload builder.
+    #[must_use]
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
         self.gas_limit_config = Some(gas_limit_config);
         self
     }
 
     /// Configure if transaction conditional should be enabled.
+    #[must_use]
     pub const fn with_enable_tx_conditional(mut self, enable_tx_conditional: bool) -> Self {
         self.enable_tx_conditional = enable_tx_conditional;
         self
     }
 
     /// Configure the minimum priority fee (tip)
+    #[must_use]
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
         self
     }
 
     /// Configures the endpoint for historical RPC forwarding.
+    #[must_use]
     pub fn with_historical_rpc(mut self, historical_rpc: Option<String>) -> Self {
         self.historical_rpc = historical_rpc;
         self
@@ -859,12 +874,17 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     /// Configures a custom tokio runtime for the RPC server.
     ///
     /// Caution: This runtime must not be created from within asynchronous context.
+    #[must_use]
     pub fn with_tokio_runtime(mut self, tokio_runtime: Option<tokio::runtime::Handle>) -> Self {
         self.tokio_runtime = tokio_runtime;
         self
     }
 
     /// Configure the RPC middleware to use
+    #[allow(
+        clippy::used_underscore_binding,
+        reason = "`_nt` is the struct field name; renaming would ripple across callers"
+    )]
     pub fn with_rpc_middleware<T>(self, rpc_middleware: T) -> OpAddOnsBuilder<NetworkT, T> {
         let Self {
             sequencer_url,
@@ -897,12 +917,14 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     }
 
     /// With a URL pointing to a flashblocks secure websocket subscription.
+    #[must_use]
     pub fn with_flashblocks(mut self, flashblocks_url: Option<Url>) -> Self {
         self.flashblocks_url = flashblocks_url;
         self
     }
 
     /// With a flashblock consensus client to drive chain forward.
+    #[must_use]
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
         self
@@ -1003,11 +1025,11 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
 impl<T> Default for OpPoolBuilder<T> {
     fn default() -> Self {
         Self {
-            pool_config_overrides: Default::default(),
+            pool_config_overrides: PoolBuilderConfigOverrides::default(),
             enable_tx_conditional: false,
             supervisor_http: None,
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
-            _pd: Default::default(),
+            _pd: core::marker::PhantomData,
         }
     }
 }
@@ -1318,6 +1340,11 @@ impl OpNetworkBuilder {
     /// Returns the [`NetworkConfig`] that contains the settings to launch the p2p network.
     ///
     /// This applies the configured [`OpNetworkBuilder`] settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`eyre::Report`] produced while building the network config (e.g. when
+    /// an extra-protocol handler fails to install).
     pub fn network_config<Node, NetworkP>(
         &self,
         ctx: &BuilderContext<Node>,

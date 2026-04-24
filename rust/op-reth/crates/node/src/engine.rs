@@ -95,7 +95,7 @@ where
             inner: OpExecutionPayloadValidator::new(self.inner.clone()),
             provider: self.provider.clone(),
             hashed_addr_l2tol1_msg_passer: self.hashed_addr_l2tol1_msg_passer,
-            phantom: Default::default(),
+            phantom: core::marker::PhantomData,
         }
     }
 }
@@ -257,6 +257,11 @@ where
 ///
 /// Canyon activates the Shanghai EIPs, see the Canyon specs for more details:
 /// <https://github.com/ethereum-optimism/optimism/blob/ab926c5fd1e55b5c864341c44842d6d1ca679d99/specs/superchain-upgrades.md#canyon>
+///
+/// # Errors
+///
+/// Returns [`EngineObjectValidationError::InvalidParams`] if withdrawals are present pre-Canyon
+/// or absent post-Canyon for the given `version` and `message_validation_kind`.
 pub fn validate_withdrawals_presence(
     chain_spec: impl OpHardforks,
     version: EngineApiMessageVersion,
@@ -297,6 +302,11 @@ pub fn validate_withdrawals_presence(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::default_trait_access,
+    reason = "test-only code; numeric literals match on-chain values verbatim"
+)]
 mod test {
     use super::*;
 

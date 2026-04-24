@@ -21,6 +21,16 @@ use tracing::info;
 /// - no proofs history (plain node),
 /// - in-mem proofs storage,
 /// - MDBX proofs storage.
+///
+/// # Errors
+///
+/// Returns any [`ErrReport`] produced while opening the MDBX proofs storage, installing the
+/// proofs-history ExEx, replacing RPC modules, or while the node's exit future resolves.
+///
+/// # Panics
+///
+/// Panics if `proofs_history` is enabled but `proofs_history_storage_path` was not supplied
+/// (CLI configuration error).
 pub async fn launch_node_with_proof_history(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
@@ -54,7 +64,7 @@ pub async fn launch_node_with_proof_history(
         node_builder = node_builder
             .on_node_started(move |node| {
                 spawn_proofs_db_metrics(
-                    node.task_executor,
+                    &node.task_executor,
                     mdbx,
                     node.config.metrics.push_gateway_interval,
                 );
@@ -92,7 +102,7 @@ pub async fn launch_node_with_proof_history(
 }
 /// Spawns a task that periodically reports metrics for the proofs DB.
 fn spawn_proofs_db_metrics(
-    executor: TaskExecutor,
+    executor: &TaskExecutor,
     storage: Arc<MdbxProofsStorage>,
     metrics_report_interval: Duration,
 ) {

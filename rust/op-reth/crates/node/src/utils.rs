@@ -17,9 +17,22 @@ pub(crate) type OpNode =
     NodeHelperType<OtherOpNode, BlockchainProvider<NodeTypesWithDBAdapter<OtherOpNode, TmpDB>>>;
 
 /// Creates the initial setup with `num_nodes` of the node config, started and connected.
+///
+/// # Errors
+///
+/// Returns any [`eyre::Report`] produced while building the chain spec or spawning the test
+/// nodes via [`reth_e2e_test_utils::setup_engine`].
+///
+/// # Panics
+///
+/// Panics if the bundled genesis JSON cannot be parsed (test-utils bug).
 pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
     let genesis: Genesis =
         serde_json::from_str(include_str!("../tests/assets/genesis.json")).unwrap();
+    #[allow(
+        clippy::default_trait_access,
+        reason = "avoid adding reth_engine_primitives dep solely for TreeConfig default"
+    )]
     reth_e2e_test_utils::setup_engine(
         num_nodes,
         Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build()),
@@ -31,12 +44,24 @@ pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
 }
 
 /// Advance the chain with sequential payloads returning them in the end.
+///
+/// # Errors
+///
+/// Forwards any [`eyre::Report`] produced while advancing the test node `length` blocks.
+#[allow(
+    clippy::future_not_send,
+    reason = "OpNode helper is `!Send` by design in reth test-utils"
+)]
+#[allow(
+    clippy::significant_drop_tightening,
+    reason = "wallet mutex must span the whole tx-construction future"
+)]
 pub async fn advance_chain(
     length: usize,
     node: &mut OpNode,
     wallet: Arc<Mutex<Wallet>>,
 ) -> eyre::Result<Vec<OpBuiltPayload>> {
-    node.advance(length as u64, |_| {
+    node.advance(length.try_into().unwrap_or(u64::MAX), |_| {
         let wallet = wallet.clone();
         Box::pin(async move {
             let mut wallet = wallet.lock().await;

@@ -10,6 +10,10 @@ use url::Url;
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "CLI-driven rollup flags; each bool maps to a distinct command-line switch"
+)]
 pub struct RollupArgs {
     /// Endpoint for the sequencer mempool (can be both HTTP and WS)
     #[arg(long = "rollup.sequencer", visible_aliases = ["rollup.sequencer-http", "rollup.sequencer-ws"])]
