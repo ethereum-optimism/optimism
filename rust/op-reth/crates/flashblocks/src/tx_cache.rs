@@ -40,6 +40,10 @@
 //!   -> Execute A, D, E
 //! ```
 
+// `tx_cache` is a private module; `pub(crate)` markers are equivalent to `pub`
+// but keep the intended crate-visibility boundary obvious.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::B256;
 use reth_primitives_traits::NodePrimitives;

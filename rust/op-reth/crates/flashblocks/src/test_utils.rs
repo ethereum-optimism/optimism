@@ -48,6 +48,10 @@
 //!     .build();
 //! ```
 
+// Module is private; the exported factory types keep `pub(crate)` for clarity even
+// though `pub` would be equivalent here. Test fixtures rely on `Default` via `..`.
+#![allow(clippy::redundant_pub_crate, clippy::default_trait_access)]
+
 use crate::FlashBlock;
 use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
 use alloy_rpc_types_engine::PayloadId;

@@ -4,6 +4,10 @@
 //! enabling speculative building of subsequent blocks before their parent canonical
 //! block arrives via P2P.
 
+// `before`/`after`-style naming in the state-transition helpers trips
+// `similar_names`, but the shorter names read best at those call sites.
+#![allow(clippy::similar_names)]
+
 use alloy_primitives::B256;
 use reth_execution_types::BlockExecutionOutput;
 use reth_primitives_traits::{HeaderTy, NodePrimitives, SealedHeader};
@@ -70,6 +74,7 @@ impl<N: NodePrimitives> PendingBlockState<N> {
     }
 
     /// Attaches a sealed header for use as parent context in speculative builds.
+    #[must_use]
     pub fn with_sealed_header(mut self, sealed_header: SealedHeader<HeaderTy<N>>) -> Self {
         self.sealed_header = Some(sealed_header);
         self

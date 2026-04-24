@@ -5,6 +5,11 @@ use std::io;
 /// A trait for decoding flashblocks from bytes.
 pub trait FlashBlockDecoder: Send + 'static {
     /// Decodes `bytes` into a [`FlashBlock`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bytes cannot be parsed as a brotli-compressed or JSON-encoded
+    /// [`FlashBlock`] payload.
     fn decode(&self, bytes: Bytes) -> eyre::Result<FlashBlock>;
 }
 

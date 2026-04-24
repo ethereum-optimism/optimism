@@ -1,3 +1,12 @@
+// Module is internal; the `build_block` driver is a single long routine by design
+// (it reads the full flashblocks sequence into a PendingBlockState and commits it).
+#![allow(
+    clippy::redundant_pub_crate,
+    clippy::too_many_lines,
+    clippy::default_trait_access,
+    clippy::missing_panics_doc
+)]
+
 use crate::{
     PendingFlashBlock,
     pending_state::PendingBlockState,

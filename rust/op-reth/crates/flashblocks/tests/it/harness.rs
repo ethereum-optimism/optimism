@@ -3,6 +3,11 @@
 //! Provides utilities for testing the service's coordination logic
 //! without requiring full EVM execution.
 
+// Integration-test harness: `harness` is rooted inside the `it` binary (private module).
+// `pub(crate)` keeps the intended visibility boundary obvious. The `_unused`-prefixed
+// binding in `TestState` mirrors a field only consumed by the drop impl.
+#![allow(clippy::redundant_pub_crate, clippy::unused_self)]
+
 use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_rpc_types_engine::{

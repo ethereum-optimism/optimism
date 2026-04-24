@@ -3,6 +3,20 @@
 //! The `SequenceManager` maintains a ring buffer of recently completed flashblock sequences
 //! and intelligently selects which sequence to build based on the local chain tip.
 
+// The module is internal (`mod cache`); per-item `pub(crate)` is equivalent to `pub` here
+// but keeps the intended crate-visibility boundary obvious. Integration tests dominate the
+// file with hex-derived gas/nonce/timestamp literals and before/after block naming.
+#![allow(
+    clippy::redundant_pub_crate,
+    clippy::unreadable_literal,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::needless_pass_by_value,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::default_trait_access
+)]
+
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, PendingFlashBlock,
     pending_state::PendingBlockState,

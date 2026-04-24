@@ -31,6 +31,12 @@ where
     P::ExecutionData: for<'a> TryFrom<&'a FlashBlockCompleteSequence, Error: std::fmt::Display>,
 {
     /// Create a new `FlashBlockConsensusClient` with the given Op engine and sequence receiver.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible, but returns a `Result` so future construction-time validation
+    /// (e.g. verifying that the sequence receiver is wired up) can be added without a
+    /// breaking API change.
     pub const fn new(
         engine_handle: ConsensusEngineHandle<P>,
         sequence_receiver: FlashBlockCompleteSequenceRx,

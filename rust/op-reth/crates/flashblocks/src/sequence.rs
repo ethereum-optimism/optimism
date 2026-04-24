@@ -1,3 +1,13 @@
+// `FlashBlockPendingSequence` and `SequenceExecutionOutcome` expose many short
+// helpers that share the `FlashBlockValidationError`/`eyre::Report` error type; an
+// "# Errors" section on every method would restate the return type. Panic paths
+// wrap `expect("...")` on fields populated by `replay_from_base`.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::cast_possible_truncation
+)]
+
 use crate::{FlashBlock, FlashBlockCompleteSequenceRx};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::PayloadId;

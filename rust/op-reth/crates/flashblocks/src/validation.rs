@@ -287,9 +287,8 @@ impl CanonicalBlockReconciler {
         reorg_detected: bool,
     ) -> ReconciliationStrategy {
         // Check if pending state exists
-        let latest = match (pending_earliest_block, pending_latest_block) {
-            (Some(_e), Some(l)) => l,
-            _ => return ReconciliationStrategy::NoPendingState,
+        let (Some(_e), Some(latest)) = (pending_earliest_block, pending_latest_block) else {
+            return ReconciliationStrategy::NoPendingState;
         };
 
         // Check if canonical has caught up or passed pending
@@ -359,7 +358,7 @@ mod tests {
                 SequenceValidationResult::FirstOfNextBlock
             );
             assert_eq!(
-                FlashblockSequenceValidator::validate(999999, 10, 1000000, 0),
+                FlashblockSequenceValidator::validate(999_999, 10, 1_000_000, 0),
                 SequenceValidationResult::FirstOfNextBlock
             );
         }

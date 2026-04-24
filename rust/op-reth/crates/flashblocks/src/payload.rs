@@ -1,3 +1,7 @@
+// `PendingFlashBlock::into_pending_block` composes the block body, receipts and
+// execution outcome from the full flashblocks sequence in a single pass.
+#![allow(clippy::too_many_lines)]
+
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
 use derive_more::Deref;

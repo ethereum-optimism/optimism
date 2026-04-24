@@ -49,6 +49,7 @@ impl WsFlashBlockStream<WsStream, WsSink, WsConnector> {
     }
 
     /// Sets the [`FlashBlock`] decoder for the websocket stream.
+    #[must_use]
     pub fn with_decoder(self, decoder: Box<dyn FlashBlockDecoder>) -> Self {
         Self { decoder, ..self }
     }
@@ -424,18 +425,21 @@ mod tests {
     fn to_json_message<B: TryFrom<Bytes, Error: Debug>, F: Fn(B) -> Message>(
         wrapper_f: F,
     ) -> impl Fn(&FlashBlock) -> Result<Message, Error> + use<F, B> {
-        move |block| to_json_message_using(block, &wrapper_f)
+        move |block| Ok(to_json_message_using(block, &wrapper_f))
     }
 
+    // Wraps the infallible JSON encoder in a `Result` so callers can treat it like
+    // the fallible `to_brotli_message` in `FakeConnector::from([...])` arrays.
+    #[allow(clippy::unnecessary_wraps)]
     fn to_json_binary_message(block: &FlashBlock) -> Result<Message, Error> {
-        to_json_message_using(block, Message::Binary)
+        Ok(to_json_message_using(block, Message::Binary))
     }
 
     fn to_json_message_using<B: TryFrom<Bytes, Error: Debug>, F: Fn(B) -> Message>(
         block: &FlashBlock,
         wrapper_f: F,
-    ) -> Result<Message, Error> {
-        Ok(wrapper_f(B::try_from(Bytes::from(serde_json::to_vec(block).unwrap())).unwrap()))
+    ) -> Message {
+        wrapper_f(B::try_from(Bytes::from(serde_json::to_vec(block).unwrap())).unwrap())
     }
 
     fn to_brotli_message(block: &FlashBlock) -> Result<Message, Error> {
@@ -451,7 +455,7 @@ mod tests {
     }
 
     fn flashblock() -> FlashBlock {
-        Default::default()
+        FlashBlock::default()
     }
 
     #[test_case::test_case(to_json_message(Message::Binary); "json binary")]

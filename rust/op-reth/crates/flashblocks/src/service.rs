@@ -1,3 +1,12 @@
+// `run` is the service's long tokio::select driver loop and panic paths wrap
+// take/expect on state we know is populated at that point. Metrics cast block/
+// sequence counters into `f64` space (loss past 2^53 is not a concern).
+#![allow(
+    clippy::too_many_lines,
+    clippy::missing_panics_doc,
+    clippy::cast_precision_loss
+)]
+
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
     PendingFlashBlock,
@@ -144,6 +153,7 @@ where
     ///
     /// The channel should be bounded to prevent unbounded memory growth. Use
     /// [`create_canonical_block_channel`] to create a properly sized channel.
+    #[must_use]
     pub fn with_canonical_block_rx(
         mut self,
         rx: mpsc::Receiver<CanonicalBlockNotification>,
@@ -156,6 +166,7 @@ where
     ///
     /// If pending blocks get too far ahead of the canonical chain, the pending
     /// state will be cleared to prevent unbounded memory growth.
+    #[must_use]
     pub const fn with_max_depth(mut self, max_depth: u64) -> Self {
         self.max_depth = max_depth;
         self
