@@ -1,11 +1,7 @@
 // `run` is the service's long tokio::select driver loop and panic paths wrap
 // take/expect on state we know is populated at that point. Metrics cast block/
 // sequence counters into `f64` space (loss past 2^53 is not a concern).
-#![allow(
-    clippy::too_many_lines,
-    clippy::missing_panics_doc,
-    clippy::cast_precision_loss
-)]
+#![allow(clippy::too_many_lines, clippy::missing_panics_doc, clippy::cast_precision_loss)]
 
 use crate::{
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,

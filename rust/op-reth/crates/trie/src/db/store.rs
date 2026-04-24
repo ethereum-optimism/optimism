@@ -13,7 +13,8 @@
     clippy::needless_pass_by_value,
     clippy::unreadable_literal,
     clippy::uninlined_format_args,
-    clippy::default_trait_access
+    clippy::default_trait_access,
+    clippy::cast_precision_loss
 )]
 
 use super::{BlockNumberHash, ProofWindow, ProofWindowKey, Tables};

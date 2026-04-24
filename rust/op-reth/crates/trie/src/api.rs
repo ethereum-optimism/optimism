@@ -6,11 +6,7 @@
 // `OpProofsStorageError` enum docs. Similar rationale applies to the handful of
 // struct-field-name and similar-name lints that fire on the cursor associated
 // types.
-#![allow(
-    clippy::missing_errors_doc,
-    clippy::struct_field_names,
-    clippy::similar_names
-)]
+#![allow(clippy::missing_errors_doc, clippy::struct_field_names, clippy::similar_names)]
 
 use crate::{
     OpProofsStorageResult,

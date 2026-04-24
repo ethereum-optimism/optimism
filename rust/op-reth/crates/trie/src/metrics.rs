@@ -1,5 +1,16 @@
 //! Storage wrapper that records metrics for all operations.
 
+// Metrics counters are cast into `f64` space for `Histogram::record`/`Gauge::set`
+// (loss of precision past 2^53 is not a concern for our metrics). Some helpers
+// use `_prefixed` bindings that are subsequently consumed — the `_` is a stylistic
+// prefix left over from feature-gated branches.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::default_trait_access
+)]
+
 use crate::{
     BlockStateDiff, OpProofsStorageResult, OpProofsStore,
     api::{

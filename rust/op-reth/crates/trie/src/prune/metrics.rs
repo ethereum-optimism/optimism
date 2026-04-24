@@ -1,3 +1,12 @@
+// Counters are cast into `f64` space for the metrics sink; loss past 2^53 is not
+// a concern. The `PrunerOutput` stat blob is a tiny Copy struct, so the
+// `needless_pass_by_value` lint doesn't reflect a real cost here.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::needless_pass_by_value
+)]
+
 use crate::PrunerOutput;
 use reth_metrics::{
     Metrics,
