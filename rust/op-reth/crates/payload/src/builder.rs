@@ -36,7 +36,7 @@ use reth_primitives_traits::{
     HeaderTy, NodePrimitives, SealedHeader, SealedHeaderFor, SignedTransaction, TxTy,
 };
 use reth_revm::{
-    cancelled::CancelOnDrop, database::StateProviderDatabase, db::State,
+    cached::CachedReads, cancelled::CancelOnDrop, database::StateProviderDatabase, db::State,
     witness::ExecutionWitnessRecord,
 };
 use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
@@ -96,7 +96,7 @@ impl<Pool, Client, Evm, Attrs> OpPayloadBuilder<Pool, Client, Evm, (), Attrs> {
     ///
     /// Configures the builder with the default settings.
     pub fn new(pool: Pool, client: Client, evm_config: Evm) -> Self {
-        Self::with_builder_config(pool, client, evm_config, Default::default())
+        Self::with_builder_config(pool, client, evm_config, OpBuilderConfig::default())
     }
 
     /// Configures the builder with the given [`OpBuilderConfig`].
@@ -120,6 +120,7 @@ impl<Pool, Client, Evm, Attrs> OpPayloadBuilder<Pool, Client, Evm, (), Attrs> {
 
 impl<Pool, Client, Evm, Txs, Attrs> OpPayloadBuilder<Pool, Client, Evm, Txs, Attrs> {
     /// Sets the rollup's compute pending block configuration option.
+    #[must_use]
     pub const fn set_compute_pending_block(mut self, compute_pending_block: bool) -> Self {
         self.compute_pending_block = compute_pending_block;
         self
@@ -127,6 +128,7 @@ impl<Pool, Client, Evm, Txs, Attrs> OpPayloadBuilder<Pool, Client, Evm, Txs, Att
 
     /// Configures the type responsible for yielding the transactions that should be included in the
     /// payload.
+    #[must_use]
     pub fn with_transactions<T>(
         self,
         best_transactions: T,
@@ -144,6 +146,7 @@ impl<Pool, Client, Evm, Txs, Attrs> OpPayloadBuilder<Pool, Client, Evm, Txs, Att
     }
 
     /// Enables the rollup's compute pending block configuration option.
+    #[must_use]
     pub const fn compute_pending_block(self) -> Self {
         self.set_compute_pending_block(true)
     }
@@ -199,15 +202,20 @@ where
         let state = StateProviderDatabase::new(&state_provider);
 
         if ctx.attributes().no_tx_pool() {
-            builder.build(state, &state_provider, ctx)
+            builder.build(state, &state_provider, &ctx)
         } else {
             // sequencer mode we can reuse cachedreads from previous runs
-            builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+            builder.build(cached_reads.as_db_mut(state), &state_provider, &ctx)
         }
         .map(|out| out.with_cached_reads(cached_reads))
     }
 
     /// Computes the witness for the payload.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`PayloadBuilderError`] produced while constructing attributes, loading
+    /// the parent state provider, or executing the witness build.
     pub fn payload_witness(
         &self,
         parent: SealedHeader<N::BlockHeader>,
@@ -222,8 +230,8 @@ where
             builder_config: self.config.clone(),
             chain_spec: self.client.chain_spec(),
             config,
-            cancel: Default::default(),
-            best_payload: Default::default(),
+            cancel: CancelOnDrop::default(),
+            best_payload: Option::default(),
         };
 
         let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
@@ -284,10 +292,10 @@ where
     ) -> Result<Self::BuiltPayload, PayloadBuilderError> {
         let args = BuildArguments {
             config,
-            cached_reads: Default::default(),
+            cached_reads: CachedReads::default(),
             execution_cache: None,
             trie_handle: None,
-            cancel: Default::default(),
+            cancel: CancelOnDrop::default(),
             best_payload: None,
         };
         let converted_args = convert_build_args::<N>(args)?;
@@ -359,11 +367,16 @@ impl<'a, Txs> OpBuilder<'a, Txs> {
 
 impl<Txs> OpBuilder<'_, Txs> {
     /// Builds the payload on top of the state.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`PayloadBuilderError`] produced while configuring the EVM, executing
+    /// sequencer/payload transactions, or finalizing the built block.
     pub fn build<Evm, ChainSpec, N, Attrs>(
         self,
         db: impl Database<Error = ProviderError>,
         state_provider: impl StateProvider,
-        ctx: OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
+        ctx: &OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
         Evm: ConfigureEvm<
@@ -445,6 +458,11 @@ impl<Txs> OpBuilder<'_, Txs> {
     }
 
     /// Builds the payload and returns its [`ExecutionWitness`] based on the state after execution.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`PayloadBuilderError`] produced while configuring the EVM, executing
+    /// sequencer transactions, or generating the witness.
     pub fn witness<Evm, ChainSpec, N, Attrs>(
         self,
         state_provider: impl StateProvider,
@@ -476,15 +494,30 @@ impl<Txs> OpBuilder<'_, Txs> {
             _ = db.load_cache_account(L2_TO_L1_MESSAGE_PASSER_ADDRESS)?;
         }
 
+        // Default::default() avoids pulling reth_trie_common into this crate's deps just for
+        // ExecutionWitnessMode/TrieInput.
+        #[allow(
+            clippy::default_trait_access,
+            reason = "avoid adding reth_trie_common dep solely for an enum default"
+        )]
         let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number: _ } =
             ExecutionWitnessRecord::from_executed_state(&db, Default::default());
+        #[allow(
+            clippy::default_trait_access,
+            reason = "avoid adding reth_trie_common dep solely for TrieInput/ExecutionWitnessMode"
+        )]
         let state = state_provider.witness(Default::default(), hashed_state, Default::default())?;
-        Ok(ExecutionWitness {
+        #[allow(
+            clippy::default_trait_access,
+            reason = "ExecutionWitness struct-update syntax uses Default for private fields"
+        )]
+        let witness = ExecutionWitness {
             state: state.into_iter().collect(),
             codes,
             keys,
             ..Default::default()
-        })
+        };
+        Ok(witness)
     }
 }
 
@@ -623,7 +656,11 @@ where
     pub fn best_transaction_attributes(&self, block_env: impl Block) -> BestTransactionsAttributes {
         BestTransactionsAttributes::new(
             block_env.basefee(),
-            block_env.blob_gasprice().map(|p| p as u64),
+            block_env.blob_gasprice().map(|p| {
+                // Blob gas price is u128 in revm but u64 in the pool attributes. Saturate to
+                // u64::MAX rather than wrap or panic.
+                u64::try_from(p).unwrap_or(u64::MAX)
+            }),
         )
     }
 
@@ -638,6 +675,11 @@ where
     }
 
     /// Prepares a [`BlockBuilder`] for the next block.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PayloadBuilderError`] if the EVM's next-block env cannot be built or the
+    /// builder cannot be constructed on top of `db`.
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -663,6 +705,11 @@ where
     }
 
     /// Executes all sequencer transactions that are included in the payload attributes.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PayloadBuilderError`] if a sequencer transaction is an EIP-4844 blob tx,
+    /// fails signer recovery, or the builder rejects it with a fatal [`BlockExecutionError`].
     pub fn execute_sequencer_transactions(
         &self,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
@@ -710,6 +757,16 @@ where
     /// Executes the given best transactions and updates the execution info.
     ///
     /// Returns `Ok(Some(())` if the job was cancelled.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PayloadBuilderError`] if transaction execution surfaces a fatal
+    /// [`BlockExecutionError`] (non-recoverable validation error).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the DA footprint scalar is unavailable after the Jovian hardfork — it is
+    /// expected to be populated on every post-Jovian block.
     pub fn execute_best_transactions<Builder>(
         &self,
         info: &mut ExecutionInfo,

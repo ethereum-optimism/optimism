@@ -258,7 +258,7 @@ impl<T> Default for OpPayloadBuilderAttributes<T> {
             timestamp: 0,
             suggested_fee_recipient: Address::default(),
             prev_randao: B256::default(),
-            withdrawals: Default::default(),
+            withdrawals: Withdrawals::default(),
             parent_beacon_block_root: None,
             no_tx_pool: false,
             transactions: Vec::new(),
@@ -272,6 +272,11 @@ impl<T> Default for OpPayloadBuilderAttributes<T> {
 impl<T> OpPayloadBuilderAttributes<T> {
     /// Extracts the extra data parameters post-Holocene hardfork.
     /// In Holocene, those parameters are the EIP-1559 base fee parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EIP1559ParamError`] if the attributes have no `eip_1559_params` populated or
+    /// the encoding of the extra data fails.
     pub fn get_holocene_extra_data(
         &self,
         default_base_fee_params: BaseFeeParams,
@@ -283,6 +288,11 @@ impl<T> OpPayloadBuilderAttributes<T> {
 
     /// Extracts the extra data parameters post-Jovian hardfork.
     /// Those parameters are the EIP-1559 parameters from Holocene and the minimum base fee.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EIP1559ParamError`] if the attributes lack `min_base_fee`, lack
+    /// `eip_1559_params`, or the encoding of the extra data fails.
     pub fn get_jovian_extra_data(
         &self,
         default_base_fee_params: BaseFeeParams,
@@ -298,6 +308,11 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderA
     /// Creates a new payload builder for the given parent block and the attributes.
     ///
     /// Derives the unique [`PayloadId`] for the given parent and attributes
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`alloy_rlp::Error`] if any of the sequencer transaction byte blobs fail
+    /// EIP-2718 decoding.
     pub fn try_new(
         parent: B256,
         attributes: OpPayloadAttributes,
@@ -334,6 +349,11 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderA
     ///
     /// This is used when the payload ID has already been computed (e.g., by the payload service)
     /// and we just need to decode the transaction bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`alloy_rlp::Error`] if any of the sequencer transaction byte blobs fail
+    /// EIP-2718 decoding.
     pub fn from_rpc_attrs(
         parent: B256,
         id: PayloadId,
@@ -588,6 +608,11 @@ where
 ///
 /// Note: This must be updated whenever the [`OpPayloadAttributes`] changes for a hardfork.
 /// See also <https://github.com/ethereum-optimism/op-geth/blob/d401af16f2dd94b010a72eaef10e07ac10b31931/miner/payload_building.go#L59-L59>
+///
+/// # Panics
+///
+/// Panics if the sha256 digest is shorter than 8 bytes, which cannot happen for a standard
+/// sha2 implementation.
 #[must_use]
 pub fn payload_id_optimism(
     parent: &B256,
@@ -670,7 +695,7 @@ where
                 )
                 .map_err(PayloadBuilderError::other)?
         } else {
-            Default::default()
+            Bytes::default()
         };
 
         Ok(Self {
@@ -685,6 +710,11 @@ where
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::default_trait_access,
+    reason = "test-only code; numeric literals and Default::default() match on-chain values verbatim"
+)]
 mod tests {
     use super::*;
     use crate::OpPayloadAttributes;

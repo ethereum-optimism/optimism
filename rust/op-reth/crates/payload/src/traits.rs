@@ -46,6 +46,11 @@ pub trait OpAttributes: Send + Sync + core::fmt::Debug + 'static {
     type RpcPayloadAttributes;
 
     /// Creates a new instance from the parent hash and RPC payload attributes.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PayloadBuilderError`] if the RPC payload attributes cannot be converted
+    /// into this type's builder representation.
     fn try_new(
         parent: B256,
         attributes: Self::RpcPayloadAttributes,

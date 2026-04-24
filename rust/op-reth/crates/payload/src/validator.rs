@@ -31,6 +31,10 @@ where
     /// layout.
     ///
     /// See also [`ensure_well_formed_payload`].
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`OpPayloadError`] produced by [`ensure_well_formed_payload`].
     pub fn ensure_well_formed_payload<T: SignedTransaction>(
         &self,
         payload: OpExecutionData,
@@ -57,6 +61,12 @@ where
 /// are empty as well as those passed in the sidecar. If the payload fields are not provided.
 ///
 /// Validation according to specs <https://specs.optimism.io/protocol/exec-engine.html#engine-api>.
+///
+/// # Errors
+///
+/// Returns an [`OpPayloadError`] if the payload is malformed, its block hash doesn't match
+/// the decoded block, its base fee / extra data / withdrawals / blob fields are invalid, or
+/// the transactions fail consensus-level layout validation.
 pub fn ensure_well_formed_payload<ChainSpec, T>(
     chain_spec: ChainSpec,
     payload: OpExecutionData,
