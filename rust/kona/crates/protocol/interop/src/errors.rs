@@ -1,7 +1,7 @@
 //! Error types for the `kona-interop` crate.
 
-use alloc::vec::Vec;
 use crate::InteropProvider;
+use alloc::vec::Vec;
 use alloy_primitives::{Address, B256};
 use core::fmt::Debug;
 use kona_registry::HashMap;

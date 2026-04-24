@@ -133,8 +133,8 @@ fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u
             // Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx).
             let target_chain = nodes[node_idx].target_chain_id;
             let target_log_idx = nodes[node_idx].target_log_index;
-            if let Some(target_indices) = chain_nodes.get(&target_chain)
-                && let Some(dep_idx) =
+            if let Some(target_indices) = chain_nodes.get(&target_chain) &&
+                let Some(dep_idx) =
                     executing_message_before(&nodes, target_indices, target_log_idx)
             {
                 depends_on[node_idx].push(dep_idx);
@@ -355,8 +355,8 @@ where
                 max: message.executing_timestamp,
                 actual: initiating_timestamp,
             });
-        } else if initiating_timestamp
-            < rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+        } else if initiating_timestamp <
+            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
         {
             return Err(MessageGraphError::InitiatedTooEarly {
                 activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
@@ -367,8 +367,8 @@ where
         // Message expiry invariant: The timestamp of the initiating message must be no more than
         // `MESSAGE_EXPIRY_WINDOW` seconds in the past, relative to the timestamp of the executing
         // message.
-        if initiating_timestamp
-            < message.executing_timestamp.saturating_sub(self.message_expiry_window)
+        if initiating_timestamp <
+            message.executing_timestamp.saturating_sub(self.message_expiry_window)
         {
             return Err(MessageGraphError::MessageExpired {
                 initiating_timestamp,
@@ -436,8 +436,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::MessageGraph;
-    use super::detect_cycles;
+    use super::{MessageGraph, detect_cycles};
     use crate::{
         MESSAGE_EXPIRY_WINDOW, MessageGraphError,
         message::EnrichedExecutingMessage,

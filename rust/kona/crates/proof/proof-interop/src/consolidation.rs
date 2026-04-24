@@ -81,8 +81,10 @@ where
                     info!(target: "superchain_consolidator", "Superchain consolidation complete");
                     return Ok(());
                 }
-                Err(ConsolidationError::MessageGraph(MessageGraphError::InvalidMessages(_)))
-                | Err(ConsolidationError::MessageGraph(MessageGraphError::CyclicDependency { .. })) => {
+                Err(ConsolidationError::MessageGraph(
+                    MessageGraphError::InvalidMessages(_) |
+                    MessageGraphError::CyclicDependency { .. },
+                )) => {
                     // If invalid messages or cyclic dependencies are found, continue the loop.
                     // The affected chains have been replaced with deposit-only blocks by
                     // consolidate_once, so the next iteration will exclude them.
