@@ -29,7 +29,7 @@ use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes, ProtocolVersion,
+    OpPayloadAttributes,
 };
 use std::{future::Future, sync::Arc, time::Instant};
 use thiserror::Error;
@@ -345,19 +345,6 @@ where
         <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_client_version_v1(
             &self.engine,
             client_version,
-        )
-        .await
-    }
-
-    async fn signal_superchain_v1(
-        &self,
-        recommended: ProtocolVersion,
-        required: ProtocolVersion,
-    ) -> TransportResult<ProtocolVersion> {
-        <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::signal_superchain_v1(
-            &self.engine,
-            recommended,
-            required,
         )
         .await
     }

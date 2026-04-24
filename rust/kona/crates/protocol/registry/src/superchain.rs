@@ -46,10 +46,6 @@ impl Registry {
                     a.zero_proof_addresses();
                 }
                 let mut rollup = chain_config.as_rollup_config();
-                rollup.protocol_versions_address = superchain
-                    .config
-                    .protocol_versions_addr
-                    .expect("Missing protocol versions address");
                 rollup.superchain_config_address = superchain.config.superchain_config_addr;
                 rollup_configs.insert(chain_config.chain_id, rollup);
                 op_chains.insert(chain_config.chain_id, chain_config);

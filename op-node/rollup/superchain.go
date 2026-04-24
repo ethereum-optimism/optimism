@@ -71,18 +71,17 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		// therefore they are read from the superchain-registry configs.
 		// Note: hardcoded values are not yet represented in the registry but should be
 		// soon, then will be read and set in the same fashion.
-		BlockTime:               chConfig.BlockTime,
-		MaxSequencerDrift:       chConfig.MaxSequencerDrift,
-		SeqWindowSize:           chConfig.SeqWindowSize,
-		ChannelTimeoutBedrock:   300,
-		L1ChainID:               new(big.Int).SetUint64(superConfig.L1.ChainID),
-		L2ChainID:               new(big.Int).SetUint64(chConfig.ChainID),
-		BatchInboxAddress:       chConfig.BatchInboxAddr,
-		DepositContractAddress:  *addrs.OptimismPortalProxy,
-		L1SystemConfigAddress:   *addrs.SystemConfigProxy,
-		ProtocolVersionsAddress: superConfig.ProtocolVersionsAddr,
-		AltDAConfig:             altDA,
-		ChainOpConfig:           chOpConfig,
+		BlockTime:              chConfig.BlockTime,
+		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
+		SeqWindowSize:          chConfig.SeqWindowSize,
+		ChannelTimeoutBedrock:  300,
+		L1ChainID:              new(big.Int).SetUint64(superConfig.L1.ChainID),
+		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
+		BatchInboxAddress:      chConfig.BatchInboxAddr,
+		DepositContractAddress: *addrs.OptimismPortalProxy,
+		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
+		AltDAConfig:            altDA,
+		ChainOpConfig:          chOpConfig,
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
