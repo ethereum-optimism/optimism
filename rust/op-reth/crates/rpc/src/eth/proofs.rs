@@ -58,6 +58,12 @@ where
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
 {
+    // `Default::default()` below avoids pulling `reth_trie` into this crate just to name
+    // `TrieInput`.
+    #[allow(
+        clippy::default_trait_access,
+        reason = "avoid reth_trie dep solely for TrieInput default"
+    )]
     async fn get_proof(
         &self,
         address: Address,
@@ -71,22 +77,13 @@ where
             keys.iter().map(alloy_serde::JsonStorageKey::as_b256).collect::<Vec<_>>();
 
         let result = async {
-            let proof = self
+            let state_provider = self
                 .state_provider_factory
                 .state_provider(block_number)
                 .await
-                .map_err(Into::into)?
-                .proof(
-                    {
-                        #[allow(
-                            clippy::default_trait_access,
-                            reason = "avoid pulling reth_trie into deps just for TrieInput default"
-                        )]
-                        Default::default()
-                    },
-                    address,
-                    &storage_keys,
-                )
+                .map_err(Into::into)?;
+            let proof = state_provider
+                .proof(Default::default(), address, &storage_keys)
                 .map_err(Into::into)?;
 
             Ok(proof.into_eip1186_response(keys))

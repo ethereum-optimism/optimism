@@ -463,6 +463,13 @@ impl<Txs> OpBuilder<'_, Txs> {
     ///
     /// Forwards any [`PayloadBuilderError`] produced while configuring the EVM, executing
     /// sequencer transactions, or generating the witness.
+    // `Default::default()` below avoids pulling `reth_trie_common` into this crate just to
+    // name `TrieInput` / `ExecutionWitnessMode`; the `ExecutionWitness` struct update uses
+    // it for private fields.
+    #[allow(
+        clippy::default_trait_access,
+        reason = "avoid reth_trie_common dep; ExecutionWitness struct-update needs Default for private fields"
+    )]
     pub fn witness<Evm, ChainSpec, N, Attrs>(
         self,
         state_provider: impl StateProvider,
@@ -494,30 +501,15 @@ impl<Txs> OpBuilder<'_, Txs> {
             _ = db.load_cache_account(L2_TO_L1_MESSAGE_PASSER_ADDRESS)?;
         }
 
-        // Default::default() avoids pulling reth_trie_common into this crate's deps just for
-        // ExecutionWitnessMode/TrieInput.
-        #[allow(
-            clippy::default_trait_access,
-            reason = "avoid adding reth_trie_common dep solely for an enum default"
-        )]
         let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number: _ } =
             ExecutionWitnessRecord::from_executed_state(&db, Default::default());
-        #[allow(
-            clippy::default_trait_access,
-            reason = "avoid adding reth_trie_common dep solely for TrieInput/ExecutionWitnessMode"
-        )]
         let state = state_provider.witness(Default::default(), hashed_state, Default::default())?;
-        #[allow(
-            clippy::default_trait_access,
-            reason = "ExecutionWitness struct-update syntax uses Default for private fields"
-        )]
-        let witness = ExecutionWitness {
+        Ok(ExecutionWitness {
             state: state.into_iter().collect(),
             codes,
             keys,
             ..Default::default()
-        };
-        Ok(witness)
+        })
     }
 }
 

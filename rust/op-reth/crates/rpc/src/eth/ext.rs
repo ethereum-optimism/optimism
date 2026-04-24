@@ -58,11 +58,13 @@ where
     }
 
     /// Validates the conditional's `known accounts` settings against the current state.
-    // `Pool`/`Provider` are not required to be `Send + Sync` — the future can only run on the
-    // RPC executor which holds them by reference. jsonrpsee handles the thread marshalling.
+    // `Pool`/`Provider` are not required to be `Send + Sync` — the future runs on the RPC
+    // executor which holds them by reference. The `Default::default()` in the `storage_root`
+    // call avoids pulling `reth_trie` in as a dep solely to name `HashedStorage`.
     #[allow(
         clippy::future_not_send,
-        reason = "Pool/Provider are not required to be Send+Sync; the jsonrpsee executor pins this future"
+        clippy::default_trait_access,
+        reason = "Pool/Provider are not required to be Send+Sync; HashedStorage default avoids a reth_trie dep"
     )]
     async fn validate_known_accounts(
         &self,
@@ -95,10 +97,6 @@ where
                     }
                 }
                 AccountStorage::RootHash(expected_root) => {
-                    #[allow(
-                        clippy::default_trait_access,
-                        reason = "avoid pulling reth_trie into deps just for HashedStorage default"
-                    )]
                     let actual_root = state
                         .storage_root(*address, Default::default())
                         .map_err(TxConditionalErr::internal)?;

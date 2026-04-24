@@ -254,6 +254,13 @@ where
             .await
     }
 
+    // `Default::default()` below avoids pulling `reth_trie_common` into this crate just to
+    // name `TrieInput` / `ExecutionWitnessMode`; the `ExecutionWitness` struct update also
+    // uses it for private fields.
+    #[allow(
+        clippy::default_trait_access,
+        reason = "avoid reth_trie_common dep; ExecutionWitness struct-update needs Default for private fields"
+    )]
     async fn execution_witness(&self, block_id: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
         self.inner
             .metrics
@@ -280,12 +287,6 @@ where
 
                 let mut witness_record = ExecutionWitnessRecord::default();
 
-                // Default::default() avoids importing `ExecutionWitnessMode` / `TrieInput` from
-                // reth_trie_common into this crate.
-                #[allow(
-                    clippy::default_trait_access,
-                    reason = "avoid pulling reth_trie_common into deps just for enum defaults"
-                )]
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
                         witness_record.record_executed_state(statedb, Default::default());
@@ -295,17 +296,9 @@ where
                 let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
                     witness_record;
 
-                #[allow(
-                    clippy::default_trait_access,
-                    reason = "avoid pulling reth_trie_common into deps just for enum defaults"
-                )]
                 let state = state_provider
                     .witness(Default::default(), hashed_state, Default::default())
                     .map_err(EthApiError::from)?;
-                #[allow(
-                    clippy::default_trait_access,
-                    reason = "ExecutionWitness struct update uses Default for private fields"
-                )]
                 let mut exec_witness =
                     ExecutionWitness { state, codes, keys, ..Default::default() };
 
