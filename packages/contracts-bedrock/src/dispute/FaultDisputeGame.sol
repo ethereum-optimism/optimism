@@ -147,9 +147,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.1
+    /// @custom:semver 2.4.2
     function version() public pure virtual returns (string memory) {
-        return "2.4.1";
+        return "2.4.2";
     }
 
     /// @notice The starting timestamp of the game
@@ -792,7 +792,7 @@ contract FaultDisputeGame is Clone, ISemver {
             // The left-most correct counter is preferred in bond payouts in order to discourage attackers
             // from countering invalid subgame roots via an invalid defense position. As such positions
             // cannot be correctly countered.
-            // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
+            // Note that correctly positioned defense, but invalid claims can still be successfully countered.
             if (claim.counteredBy == address(0) && checkpoint.leftmostPosition.raw() > claim.position.raw()) {
                 checkpoint.counteredBy = claim.claimant;
                 checkpoint.leftmostPosition = claim.position;

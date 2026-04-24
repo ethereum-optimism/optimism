@@ -146,9 +146,9 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.7.1
+    /// @custom:semver 0.7.2
     function version() public pure virtual returns (string memory) {
-        return "0.7.1";
+        return "0.7.2";
     }
 
     /// @notice The starting timestamp of the game
@@ -776,7 +776,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
             // The left-most correct counter is preferred in bond payouts in order to discourage attackers
             // from countering invalid subgame roots via an invalid defense position. As such positions
             // cannot be correctly countered.
-            // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
+            // Note that correctly positioned defense, but invalid claims can still be successfully countered.
             if (claim.counteredBy == address(0) && checkpoint.leftmostPosition.raw() > claim.position.raw()) {
                 checkpoint.counteredBy = claim.claimant;
                 checkpoint.leftmostPosition = claim.position;
