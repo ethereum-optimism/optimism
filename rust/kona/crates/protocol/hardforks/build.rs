@@ -8,7 +8,7 @@
 
 use std::{env, fs, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 #[path = "build_helpers.rs"]
 mod build_helpers;
@@ -17,8 +17,8 @@ use build_helpers::{capitalize, format_bundle, parse_bundle};
 
 /// Read the bundle JSON, generate Rust source, and write it to `out_dir`.
 fn generate(name: &str, json_path: &PathBuf, out_dir: &str) -> Result<()> {
-    let json = fs::read_to_string(json_path)
-        .with_context(|| format!("read {}", json_path.display()))?;
+    let json =
+        fs::read_to_string(json_path).with_context(|| format!("read {}", json_path.display()))?;
     let bundle = parse_bundle(&json).with_context(|| format!("parse {}", json_path.display()))?;
     let code = format_bundle(name, &capitalize(name), &bundle);
     let out_path = PathBuf::from(out_dir).join(format!("{name}_nut_bundle.rs"));
@@ -35,10 +35,7 @@ fn run() -> Result<()> {
         .ancestors()
         .find(|p| p.join("op-core").is_dir())
         .ok_or_else(|| {
-            anyhow!(
-                "could not find op-core/ in any ancestor of {}",
-                manifest_dir.display()
-            )
+            anyhow!("could not find op-core/ in any ancestor of {}", manifest_dir.display())
         })?
         .to_path_buf();
 

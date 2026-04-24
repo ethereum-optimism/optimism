@@ -9,7 +9,7 @@
 // per-compilation-unit dead-code warnings rather than gating every item.
 #![allow(dead_code, unreachable_pub)]
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
 /// Supported NUT bundle schema version.
@@ -55,9 +55,7 @@ pub fn parse_bundle(json: &str) -> Result<BundleFile> {
 /// match the capitalized form used by op-node.
 pub fn capitalize(name: &str) -> String {
     let mut c = name.chars();
-    c.next().map_or_else(String::new, |first| {
-        first.to_uppercase().collect::<String>() + c.as_str()
-    })
+    c.next().map_or_else(String::new, |first| first.to_uppercase().collect::<String>() + c.as_str())
 }
 
 /// Generate the Rust source for a `fn {name}_nut_bundle() -> &'static NutBundle` constructor.
@@ -81,13 +79,15 @@ pub fn format_bundle(name: &str, fork_display: &str, bundle: &BundleFile) -> Str
     ));
 
     for tx in &bundle.transactions {
-        let to_expr = match &tx.to {
-            Some(addr) => format!(
-                "Some(alloy_primitives::address!({:?}))",
-                addr.strip_prefix("0x").unwrap_or(addr)
-            ),
-            None => "None".to_string(),
-        };
+        let to_expr = tx.to.as_ref().map_or_else(
+            || "None".to_string(),
+            |addr| {
+                format!(
+                    "Some(alloy_primitives::address!({:?}))",
+                    addr.strip_prefix("0x").unwrap_or(addr)
+                )
+            },
+        );
         let data_hex = tx.data.strip_prefix("0x").unwrap_or(&tx.data);
         let from_hex = tx.from.strip_prefix("0x").unwrap_or(&tx.from);
 

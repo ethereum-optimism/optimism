@@ -19,10 +19,7 @@ const EXPECTED_OUTPUT: &str = include_str!("fixtures/test_bundle_expected.rs");
 fn generates_expected_rust_source() {
     let bundle = parse_bundle(INPUT_JSON).expect("parse fixture bundle");
     let generated = format_bundle("test", &capitalize("test"), &bundle);
-    assert_eq!(
-        generated, EXPECTED_OUTPUT,
-        "generated source does not match expected fixture"
-    );
+    assert_eq!(generated, EXPECTED_OUTPUT, "generated source does not match expected fixture");
 }
 
 /// Regenerate `tests/fixtures/test_bundle_expected.rs` from the current
@@ -33,9 +30,6 @@ fn generates_expected_rust_source() {
 fn regenerate_expected() {
     let bundle = parse_bundle(INPUT_JSON).expect("parse fixture bundle");
     let generated = format_bundle("test", &capitalize("test"), &bundle);
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/test_bundle_expected.rs"
-    );
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test_bundle_expected.rs");
     std::fs::write(path, generated).expect("write expected fixture");
 }
