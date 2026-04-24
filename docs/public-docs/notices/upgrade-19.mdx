@@ -3,7 +3,7 @@ title: Upgrade 19 - L2 Contract Manager, Osaka on L2, and Kona Respected Game Ty
 description: Learn how to prepare for Upgrade 19.
 ---
 
-Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new onchain mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
+Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling L2 smart contract upgrades through a new onchain mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
 
 <Info>
   Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense). Node operators must upgrade before the activation timestamp. Activation timestamps for each network will be communicated once finalized.
@@ -13,7 +13,7 @@ Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces th
 
 Upgrade 19 introduces the following changes:
 
-* **L2 Contract Manager (L2CM):** introduces an onchain mechanism for upgrading L2 predeploy smart contracts as part of a network upgrade. L2CM enables governance to approve and execute L2 predeploy upgrades in a structured, auditable way — reducing the need for a hard fork for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
+* **L2 Contract Manager (L2CM):** introduces an onchain mechanism for upgrading L2 predeploy smart contracts as part of a network upgrade. L2CM enables the execution of L2 predeploy upgrades in a structured, auditable way. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
 
 * **Osaka on L2:** activates Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
 
@@ -56,9 +56,9 @@ After Upgrade 19, the respected game type changes from `CANNON` (0) to `CANNON_K
 * **For users proving withdrawals:** no action required, the `OptimismPortal` will automatically recognize `CANNON_KONA` as the respected game type after the upgrade.
 * **For chain operators running permissionless fault proofs:** `op-challenger` must be configured to support `cannon-kona` trace types **prior** to the upgrade. Failure to update `op-challenger` may result in uncontested invalid games.
 
-### L2CM: L2 predeploy contracts may be upgraded via governance
+### L2CM: new L2 predeploy upgrade mechanism
 
-L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM governance transactions, in addition to hard forks. If your application depends on specific predeploy behavior or interfaces, verify compatibility after each upgrade.
+L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM transactions. If your application depends on specific predeploy behavior or interfaces, verify compatibility after each upgrade.
 
 ## For chain operators
 
@@ -157,7 +157,7 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
 * **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
 * **MODEXP and P256VERIFY gas changes (Osaka on L2):** the gas costs for `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles are updated. A new input size limit is also introduced for `MODEXP`. If your contracts call these precompiles, update your gas estimates and verify inputs are within the new limits.
 * **BN256 pairing input size limit (Glamsterdam Defense):** the maximum input for `ecPairing` (`0x08`) is reduced from 427 to 390 pairs (74,880 bytes). If your contracts call the BN256 pairing precompile with more than 390 pairs, those calls will fail. Standard ZK proof verification (e.g., Groth16) is not affected.
-* **L2 predeploy upgrades:** L2CM introduces the ability to upgrade L2 predeploy contracts through governance without a hard fork. If your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the specific changes included in this upgrade to ensure compatibility.
+* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the specific changes included in this upgrade to ensure compatibility.
 * **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
 
 ## Execute the L1 Contract Upgrade
