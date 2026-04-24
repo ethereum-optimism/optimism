@@ -56,8 +56,12 @@ contract ClaimCreditReenter {
     }
 }
 
+/// @notice Minimal dispute game interface used by shared test helpers.
 interface IBondedDisputeGame {
-    function claimData(uint256)
+    /// @notice Returns claim data for a given claim index.
+    ///
+    /// @param _claimIndex Index of the claim to read.
+    function claimData(uint256 _claimIndex)
         external
         view
         returns (
@@ -69,6 +73,12 @@ interface IBondedDisputeGame {
             Position position_,
             Clock clock_
         );
+
+    /// @notice Returns the required bond for a move at a given position.
+    ///
+    /// @param _position Position to compute the required bond for.
+    ///
+    /// @return requiredBond_ Required bond amount.
     function getRequiredBond(Position _position) external view returns (uint256 requiredBond_);
 }
 
@@ -84,18 +94,30 @@ function _dummyClaim() view returns (Claim) {
     return Claim.wrap(keccak256(abi.encode(gasleft())));
 }
 
-function _copyBytes(bytes memory src, bytes memory dest) pure returns (bytes memory) {
-    uint256 byteCount = src.length < dest.length ? src.length : dest.length;
+/// @notice Copies bytes from `_src` into `_dest`, stopping at the shorter array length.
+///
+/// @param _src Source bytes to copy from.
+/// @param _dest Destination bytes to copy into.
+///
+/// @return copied_ Destination bytes after copying.
+function _copyBytes(bytes memory _src, bytes memory _dest) pure returns (bytes memory copied_) {
+    uint256 byteCount = _src.length < _dest.length ? _src.length : _dest.length;
     for (uint256 i = 0; i < byteCount; i++) {
-        dest[i] = src[i];
+        _dest[i] = _src[i];
     }
-    return dest;
+    copied_ = _dest;
 }
 
+/// @notice Computes the required bond to attack a claim in a dispute game.
+///
+/// @param _gameProxy Dispute game proxy address.
+/// @param _claimIndex Index of the claim whose next attack bond is needed.
+///
+/// @return bond_ Required bond for the next attack position.
 function _requiredBondForGame(address _gameProxy, uint256 _claimIndex) view returns (uint256 bond_) {
-    (,,,,, Position parent,) = IBondedDisputeGame(_gameProxy).claimData(_claimIndex);
-    Position pos = parent.move(true);
-    bond_ = IBondedDisputeGame(_gameProxy).getRequiredBond(pos);
+    (,,,,, Position parentPosition,) = IBondedDisputeGame(_gameProxy).claimData(_claimIndex);
+    Position attackPosition = parentPosition.move(true);
+    bond_ = IBondedDisputeGame(_gameProxy).getRequiredBond(attackPosition);
 }
 
 /// @title BaseFaultDisputeGame_TestInit
