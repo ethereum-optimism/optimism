@@ -1,5 +1,10 @@
 //! Interop [`MessageGraph`].
 
+// Reason: async functions on `MessageGraph<P>` are generic over an `InteropProvider` without a
+// `Send` bound; requiring `Send` on the trait would leak into every caller. Keeping the futures
+// non-`Send` is intentional.
+#![allow(clippy::future_not_send)]
+
 use crate::{
     RawMessagePayload,
     errors::{MessageGraphError, MessageGraphResult},
@@ -218,7 +223,7 @@ where
         // to find it.
         let remote_log = remote_receipts
             .iter()
-            .flat_map(|receipt| receipt.logs())
+            .flat_map(op_alloy_consensus::OpReceiptEnvelope::logs)
             .nth(message.inner.identifier.logIndex.saturating_to())
             .ok_or(MessageGraphError::RemoteMessageNotFound {
                 chain_id: message.inner.identifier.chainId.to(),

@@ -210,6 +210,9 @@ where
     /// - Memory usage scales with witness size rather than full state
     /// - CPU overhead from cryptographic proof verification
     /// - I/O patterns optimized through trie hinter guidance
+    // Reason: `attrs.transactions` is moved out when iterating transactions, so the value is
+    // consumed. Clippy cannot see the partial-move through references.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn build_block(
         &mut self,
         attrs: OpPayloadAttributes,
@@ -244,7 +247,7 @@ where
             block_number = %block_env.number,
             block_timestamp = %block_env.timestamp,
             block_gas_limit = block_env.gas_limit,
-            transactions = attrs.transactions.as_ref().map_or(0, |txs| txs.len()),
+            transactions = attrs.transactions.as_ref().map_or(0, Vec::len),
             "Beginning block building."
         );
 
@@ -277,7 +280,7 @@ where
         // Step 4. Merge state transitions and seal the block.
         state.merge_transitions(BundleRetention::Reverts);
         let bundle = state.take_bundle();
-        let header = self.seal_block(&attrs, parent_hash, &block_env, &ex_result, bundle)?;
+        let header = self.seal_block(&attrs, parent_hash, &block_env, &ex_result, &bundle)?;
 
         info!(
             target: "block_builder",

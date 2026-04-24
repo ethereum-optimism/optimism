@@ -32,12 +32,12 @@ where
         parent_hash: B256,
         block_env: &BlockEnv,
         ex_result: &BlockExecutionResult<OpReceiptEnvelope>,
-        bundle: BundleState,
+        bundle: &BundleState,
     ) -> ExecutorResult<Sealed<Header>> {
         let timestamp = block_env.timestamp.saturating_to::<u64>();
 
         // Compute the roots for the block header.
-        let state_root = self.trie_db.state_root(&bundle)?;
+        let state_root = self.trie_db.state_root(bundle)?;
         let transactions_root = ordered_trie_with_encoder(
             // SAFETY: The OP Stack protocol will never generate a payload attributes with an empty
             // transactions field. Panicking here is the desired behavior, as it indicates a severe
@@ -56,7 +56,8 @@ where
         };
 
         // Compute the logs bloom from the receipts generated during block execution.
-        let logs_bloom = logs_bloom(ex_result.receipts.iter().flat_map(|r| r.logs()));
+        let logs_bloom =
+            logs_bloom(ex_result.receipts.iter().flat_map(OpReceiptEnvelope::logs));
 
         // Compute Cancun fields, if active.
         let (blob_gas_used, excess_blob_gas) = if self.config.is_jovian_active(timestamp) {

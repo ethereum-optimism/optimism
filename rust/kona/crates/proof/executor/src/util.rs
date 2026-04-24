@@ -1,5 +1,9 @@
 //! Contains utilities for the L2 executor.
 
+// Reason: items in this private module are crate-internal; `pub(crate)` is intentional but
+// conflicts with `redundant_pub_crate` under pedantic, while `pub` would trip `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::{Eip1559ValidationError, ExecutorError, ExecutorResult};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::eip1559::BaseFeeParams;
