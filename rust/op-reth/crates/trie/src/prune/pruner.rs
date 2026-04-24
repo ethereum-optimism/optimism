@@ -1,3 +1,13 @@
+// Pruner helpers surface `OpProofsStorageError`; the rare panic paths wrap cursor
+// invariants already exposed by reth-mdbx.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::items_after_statements,
+    clippy::significant_drop_tightening
+)]
+
 #[cfg(feature = "metrics")]
 use crate::prune::metrics::Metrics;
 use crate::{
@@ -30,6 +40,9 @@ pub struct OpProofStoragePruner<P, H> {
 
 impl<P, H> OpProofStoragePruner<P, H> {
     /// Create a new pruner.
+    // Not `const`: the `metrics` field (under the `metrics` feature) is populated via
+    // `Metrics::default()`, which is not a const fn.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn new(
         provider: P,
         block_hash_reader: H,
@@ -180,6 +193,11 @@ where
 }
 
 #[cfg(test)]
+// `mockall::mock!` generates trait-impl bodies with `_`-prefixed argument names that
+// the macro still uses, tripping `used_underscore_binding`. The integration test
+// `run_inner_and_and_verify_updated_state` is deliberately long-form to exercise
+// several pruning passes with shared fixtures.
+#[allow(clippy::used_underscore_binding, clippy::too_many_lines)]
 mod tests {
     use super::*;
     use crate::{

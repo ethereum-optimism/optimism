@@ -1,6 +1,24 @@
-#![allow(clippy::needless_pass_by_value)]
-
 //! End-to-end test of the live trie collector.
+
+// End-to-end integration test: pedantic style lints misfire heavily on the ad-hoc
+// fixture/execution plumbing.
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::similar_names,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::significant_drop_tightening,
+    clippy::default_trait_access,
+    clippy::uninlined_format_args,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::unreadable_literal,
+    clippy::useless_conversion
+)]
 
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};

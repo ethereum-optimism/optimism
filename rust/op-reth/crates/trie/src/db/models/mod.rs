@@ -13,7 +13,7 @@ mod storage;
 pub use storage::*;
 mod change_set;
 /// Key/value helper traits for table serialization.
-pub(crate) mod kv;
+pub mod kv;
 pub use change_set::*;
 pub use kv::*;
 

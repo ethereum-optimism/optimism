@@ -1,5 +1,11 @@
 //! Provides proof operation implementations for [`crate::OpProofsStorage`].
 
+// All methods forward to reth proof machinery and return `Result<_, StateProofError>`
+// (or one of its sibling types); documenting each error is boilerplate that
+// restates the return type, and `default_trait_access` fires on ergonomic
+// `Vec::default()` call sites used for empty proof vectors.
+#![allow(clippy::missing_errors_doc, clippy::default_trait_access)]
+
 use crate::{
     OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory, api::OpProofsProviderRO,
 };

@@ -1,5 +1,16 @@
 //! Live trie collector for external proofs storage.
 
+// Result-returning helpers all surface `OpProofsStorageError`/`OpProofsStorageResult`;
+// a panic-path covers mdbx-side invariants that upstream callers already document.
+// `needless_pass_by_value` fires on small `Arc`-wrapped storage handles passed by
+// value into executor closures.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::needless_pass_by_value
+)]
+
 use crate::{
     BlockStateDiff, OpProofsStorage, OpProofsStorageError, OpProofsStore,
     api::{OpProofsProviderRO, OpProofsProviderRw, OperationDurations},

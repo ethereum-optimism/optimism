@@ -1,5 +1,17 @@
 //! Storage API for external storage of intermediary trie nodes.
 
+// Every trait method here returns `OpProofsStorageResult<...>` and the error
+// type (`OpProofsStorageError`) is uniform; an "# Errors" block on every method
+// would be boilerplate that restates the return type. Callers consult the
+// `OpProofsStorageError` enum docs. Similar rationale applies to the handful of
+// struct-field-name and similar-name lints that fire on the cursor associated
+// types.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::struct_field_names,
+    clippy::similar_names
+)]
+
 use crate::{
     OpProofsStorageResult,
     db::{HashedStorageKey, StorageTrieKey},

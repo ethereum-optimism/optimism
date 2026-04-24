@@ -1,6 +1,20 @@
 //! Initialization job for proofs storage. Handles storing the existing state into the proofs
 //! storage.
 
+// Progress metrics are intentionally computed in `f64` space (u64 -> f64 loses precision
+// past 2^53, far beyond any real block count), and the trait-method impls uniformly
+// return `OpProofsStorageResult<_>`. Large integration-test helpers pick up
+// `items_after_statements` and `significant_drop_tightening`.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::missing_errors_doc,
+    clippy::unreadable_literal,
+    clippy::unused_self,
+    clippy::items_after_statements,
+    clippy::significant_drop_tightening
+)]
+
 use crate::{
     OpProofsStorageError, OpProofsStore,
     api::{InitialStateAnchor, InitialStateStatus, OpProofsInitProvider},

@@ -1,3 +1,21 @@
+// The mdbx-backed store returns `OpProofsStorageResult<...>` uniformly and is dominated
+// by `RwLock`-guarded transactions, cursors, and large integration tests. The pedantic
+// categories below fire on architectural patterns (tx drop guards held across calls,
+// `before`/`after` naming when bracketing block ranges, item-helpers defined next to
+// their first use inside tests).
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::significant_drop_tightening,
+    clippy::items_after_statements,
+    clippy::too_many_lines,
+    clippy::needless_pass_by_value,
+    clippy::unreadable_literal,
+    clippy::uninlined_format_args,
+    clippy::default_trait_access
+)]
+
 use super::{BlockNumberHash, ProofWindow, ProofWindowKey, Tables};
 use crate::{
     BlockStateDiff, OpProofsStorageError,

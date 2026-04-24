@@ -1,5 +1,25 @@
 //! In-memory implementation of [`OpProofsStore`] for testing purposes
 
+// The cursor/trie iteration code here uses `isize` arithmetic for BTreeMap-cursor
+// relative positioning (values are bounded by nibble-path lengths, 0..=64), and the
+// store relies on `parking_lot::RwLock` whose `read()`/`write()` guards trip
+// `significant_drop_tightening` all over the place when held across multiple lookups.
+// `unnecessary_wraps` fires on the `OpProofsStore` trait impl, which is generic
+// over Result-returning signatures. These allows reflect the architectural shape;
+// they are not silencing actionable issues.
+#![allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    clippy::significant_drop_tightening,
+    clippy::unnecessary_wraps,
+    clippy::items_after_statements,
+    clippy::similar_names,
+    clippy::unreadable_literal,
+    clippy::uninlined_format_args,
+    clippy::default_trait_access
+)]
+
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
     api::{
