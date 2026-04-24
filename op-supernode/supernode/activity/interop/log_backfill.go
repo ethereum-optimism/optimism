@@ -25,9 +25,19 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 		if err != nil {
 			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
 		}
+		if syncStatus.SafeL2.Number == 0 {
+			return 0, fmt.Errorf("chain %s: safe L2 number is 0", chain.ID())
+		}
 		i.log.Debug("log backfill: sync status",
 			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
 		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
+	}
+
+	// if activation falls after the backfill range end, don't backfill
+	if i.activationTimestamp > minCrossSafeTime {
+		i.log.Info("log backfill: activation timestamp falls after backfill range end, skipping backfill",
+			"activationTimestamp", i.activationTimestamp, "minCrossSafeTime", minCrossSafeTime)
+		return 0, nil
 	}
 
 	// naively, end minus depth is the ideal backfill start.
@@ -47,13 +57,14 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	for _, chain := range i.chains {
 		go func(chain cc.ChainContainer) {
 			defer wg.Done()
-			// if activation falls after the backfill range end, don't backfill
-			if i.activationTimestamp > minCrossSafeTime {
-				i.log.Info("log backfill: activation timestamp falls after backfill range end, skipping backfill",
-					"activationTimestamp", i.activationTimestamp, "minCrossSafeTime", minCrossSafeTime)
-				return
+			chainStartTime := startTime
+			// if we can identify the genesis time, use it to clamp the start time
+			// if we can't, we'd either fail now or later when trying to use the value
+			if genesisTime, err := chain.BlockNumberToTimestamp(i.ctx, 0); err == nil &&
+				genesisTime > startTime {
+				chainStartTime = genesisTime
 			}
-			startNum, err := chain.TimestampToBlockNumber(i.ctx, startTime)
+			startNum, err := chain.TimestampToBlockNumber(i.ctx, chainStartTime)
 			if err != nil {
 				errCh <- fmt.Errorf("chain %s: timestamp to block number for start %d: %w", chain.ID(), startTime, err)
 				i.log.Error("log backfill: timestamp to block number for start", "chain", chain.ID(), "err", err)

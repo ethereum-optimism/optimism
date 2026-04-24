@@ -1400,6 +1400,11 @@ type mockChainContainer struct {
 	// together with timestampToBlockNumberOverride to simulate a chain with
 	// a blockTime > 1 and genesis-offset scheduling.
 	blockInfoTimeFn func(blockNum uint64) uint64
+
+	// blockNumberToTimestampOverride lets tests report a non-trivial genesis
+	// time (and per-block timestamps) through BlockNumberToTimestamp. Used
+	// by tests that exercise the genesis-clamp path in runLogBackfill.
+	blockNumberToTimestampOverride func(ctx context.Context, blocknum uint64) (uint64, error)
 }
 
 type invalidateBlockCall struct {
@@ -1425,6 +1430,13 @@ func (m *mockChainContainer) Resume(ctx context.Context) error {
 		m.callLog.record(m.id, "Resume")
 	}
 	return m.resumeErr
+}
+
+func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	if m.blockNumberToTimestampOverride != nil {
+		return m.blockNumberToTimestampOverride(ctx, blocknum)
+	}
+	return 0, nil
 }
 func (m *mockChainContainer) PauseAndStopVN(ctx context.Context) error {
 	m.mu.Lock()

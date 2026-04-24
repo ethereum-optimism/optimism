@@ -498,13 +498,13 @@ func TestLogBackfill_NoOpWhenNoChains(t *testing.T) {
 }
 
 // TestLogBackfill_ActivationInFuture asserts the edge case where the
-// configured activation is ahead of every chain's cross-safe tip. The
-// window start clamps to activationTimestamp, producing startTime >
-// minCrossSafeTime (i.e. startNum > endNum). runLogBackfill must still
-// return minCrossSafeTime without error; the per-chain backfill loop is
-// a no-op because startNum > endNum. Operationally this means the main
-// loop will wait for the chain to advance past activation before doing
-// any verification work — no blocks get sealed eagerly.
+// configured activation is ahead of every chain's cross-safe tip.
+// runLogBackfill must short-circuit with (0, nil) — the "backfill did
+// not run" convention — rather than claiming minCrossSafeTime was
+// sealed when nothing was. This keeps backfillEndTimestamp honest for
+// external observers (devstack/integration assertions) and routes the
+// main loop through the activationTimestamp path of
+// firstVerifiableTimestamp().
 func TestLogBackfill_ActivationInFuture(t *testing.T) {
 	const act = uint64(2000)
 	depth := 100 * time.Second
@@ -536,15 +536,85 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 
 	end, err := h.interop.runLogBackfill()
 	require.NoError(t, err)
-	require.Equal(t, uint64(1000), end,
-		"return value is still minCrossSafeTime even when activation is in the future")
+	require.Zero(t, end,
+		"activation-in-future must short-circuit with end=0 (backfill did not run)")
 	require.Zero(t, outputCalls.Load(),
-		"no blocks fetched: startNum > endNum when activation is ahead of cross-safe")
+		"no blocks fetched: backfill is skipped when activation is ahead of cross-safe")
 
 	chain10 := h.Mock(10)
 	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
-	require.False(t, has, "logs DB must remain empty when the window is inverted")
+	require.False(t, has, "logs DB must remain empty when backfill is skipped")
 
 	require.Equal(t, act, h.interop.activationTimestamp,
 		"protocol activation must not change")
+
+	// With end==0 the main loop falls through to activationTimestamp,
+	// which is the correct handoff when activation is still in the future.
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
+		"main loop resumes at activationTimestamp when backfill is skipped")
+}
+
+// TestLogBackfill_ClampsStartToGenesis asserts that when a chain's genesis
+// timestamp is later than the computed backfill startTime, the per-chain
+// start is clamped up to genesis. Without this clamp, runLogBackfill would
+// ask TimestampToBlockNumber for a pre-genesis timestamp and then try to
+// seal blocks before the chain existed.
+//
+// Setup: activation=50, depth=50s, crossSafe=110 → idealStart=60,
+// startTime=max(60, 50)=60. Chain's genesis time is 100, which is > 60,
+// so the clamp fires and the chain should backfill [100..110] (11 blocks)
+// instead of [60..110] (51 blocks).
+func TestLogBackfill_ClampsStartToGenesis(t *testing.T) {
+	const (
+		act          uint64 = 50
+		genesisTime  uint64 = 100
+		crossSafeTip uint64 = 110
+	)
+	depth := 50 * time.Second // idealStart = 110-50 = 60; clamps up to genesisTime=100
+
+	var outputCalls atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+				SafeL2:      eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+				LocalSafeL2: eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+			}
+			// Report genesis time strictly ahead of the pre-clamp startTime.
+			m.blockNumberToTimestampOverride = func(ctx context.Context, blocknum uint64) (uint64, error) {
+				if blocknum == 0 {
+					return genesisTime, nil
+				}
+				return blocknum, nil
+			}
+			m.outputV0Override = func(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+				outputCalls.Add(1)
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(num)),
+				}, nil
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, crossSafeTip, end,
+		"return value is still minCrossSafeTime regardless of the genesis clamp")
+
+	chain10 := h.Mock(10)
+	latest, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, crossSafeTip, latest.Number)
+
+	// 11 = blocks 100..110 (clamped at genesis=100), NOT 51 = blocks 60..110.
+	require.Equal(t, int32(11), outputCalls.Load(),
+		"backfill must start at genesis (%d), not the pre-clamp startTime (60)", genesisTime)
 }

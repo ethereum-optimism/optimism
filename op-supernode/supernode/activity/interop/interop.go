@@ -87,13 +87,10 @@ type Interop struct {
 	chains              map[eth.ChainID]cc.ChainContainer
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
-	// backfillEndTimestamp is the (inclusive) last timestamp whose logs
-	// were sealed by runLogBackfill. Zero means backfill has not yet run
-	// (or was skipped because logBackfillDepth <= 0). The main loop reads
-	// this via firstVerifiableTimestamp() so it starts verification at
-	// backfillEndTimestamp+1 — the first timestamp not already covered
-	// by pre-ingested logs. Protocol-facing queries (VerifiedAtTimestamp,
-	// VerifiedBlockAtL1, etc.) always use activationTimestamp.
+	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
+	// this is used for loop handoff from log backfill to main processing.
+	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1,
+	// or activationTimestamp if backfill was not used.
 	backfillEndTimestamp uint64
 
 	dataDir string

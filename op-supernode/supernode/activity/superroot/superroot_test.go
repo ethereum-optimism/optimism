@@ -122,6 +122,10 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 	return ts, nil
 }
 
+func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	return 0, nil
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {

@@ -838,6 +838,9 @@ type algoMockLogsDB struct {
 	containsErr  error
 }
 
+func (m *algoMockLogsDB) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	return 0, nil
+}
 func (m *algoMockLogsDB) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
 func (m *algoMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
 	if m.firstSealedBlockErr != nil {
@@ -915,6 +918,9 @@ type algoMockChain struct {
 	blockHashes     map[uint64]common.Hash
 }
 
+func (m *algoMockChain) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	return 0, nil
+}
 func (m *algoMockChain) ID() eth.ChainID                                  { return m.id }
 func (m *algoMockChain) Start(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Stop(ctx context.Context) error                   { return nil }

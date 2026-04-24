@@ -389,7 +389,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	invalidatedBlock := currentBlock.BlockRef()
 
 	// Rewind to the prior block's timestamp
-	priorTimestamp, err := c.blockNumberToTimestamp(height - 1)
+	priorTimestamp, err := c.BlockNumberToTimestamp(ctx, height-1)
 	if err != nil {
 		return false, fmt.Errorf("failed to compute rewind timestamp: %w", err)
 	}
