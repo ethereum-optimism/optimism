@@ -198,8 +198,11 @@ impl<T> serde::Serialize for OpPayloadBuilderAttributes<T> {
         s.serialize_field("parentBeaconBlockRoot", &self.parent_beacon_block_root)?;
         s.serialize_field("noTxPool", &self.no_tx_pool)?;
         // Serialize transactions as encoded bytes
-        let tx_bytes: Vec<&alloy_primitives::Bytes> =
-            self.transactions.iter().map(|t| t.encoded_bytes()).collect();
+        let tx_bytes: Vec<&alloy_primitives::Bytes> = self
+            .transactions
+            .iter()
+            .map(reth_primitives_traits::WithEncoded::encoded_bytes)
+            .collect();
         s.serialize_field("transactions", &tx_bytes)?;
         s.serialize_field("gasLimit", &self.gas_limit)?;
         s.serialize_field("eip1559Params", &self.eip_1559_params)?;
@@ -362,36 +365,43 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> OpPayloadBuilderA
     }
 
     /// Returns the identifier of the payload.
+    #[must_use]
     pub const fn payload_id(&self) -> PayloadId {
         self.id
     }
 
     /// Returns the parent block hash.
+    #[must_use]
     pub const fn parent(&self) -> B256 {
         self.parent
     }
 
     /// Returns the timestamp for the payload.
+    #[must_use]
     pub const fn timestamp(&self) -> u64 {
         self.timestamp
     }
 
     /// Returns the parent beacon block root.
+    #[must_use]
     pub const fn parent_beacon_block_root(&self) -> Option<B256> {
         self.parent_beacon_block_root
     }
 
     /// Returns the suggested fee recipient.
+    #[must_use]
     pub const fn suggested_fee_recipient(&self) -> Address {
         self.suggested_fee_recipient
     }
 
     /// Returns the prev randao value.
+    #[must_use]
     pub const fn prev_randao(&self) -> B256 {
         self.prev_randao
     }
 
     /// Returns the withdrawals.
+    #[must_use]
     pub const fn withdrawals(&self) -> &Withdrawals {
         &self.withdrawals
     }
@@ -420,25 +430,29 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
         fees: U256,
         executed_block: Option<BuiltPayloadExecutedBlock<N>>,
     ) -> Self {
-        Self { id, block, fees, executed_block }
+        Self { id, block, executed_block, fees }
     }
 
     /// Returns the identifier of the payload.
+    #[must_use]
     pub const fn id(&self) -> PayloadId {
         self.id
     }
 
     /// Returns the built block(sealed)
+    #[must_use]
     pub fn block(&self) -> &SealedBlock<N::Block> {
         &self.block
     }
 
     /// Fees of the block
+    #[must_use]
     pub const fn fees(&self) -> U256 {
         self.fees
     }
 
     /// Converts the value into [`SealedBlock`].
+    #[must_use]
     pub fn into_sealed_block(self) -> SealedBlock<N::Block> {
         Arc::unwrap_or_clone(self.block)
     }
@@ -574,6 +588,7 @@ where
 ///
 /// Note: This must be updated whenever the [`OpPayloadAttributes`] changes for a hardfork.
 /// See also <https://github.com/ethereum-optimism/op-geth/blob/d401af16f2dd94b010a72eaef10e07ac10b31931/miner/payload_building.go#L59-L59>
+#[must_use]
 pub fn payload_id_optimism(
     parent: &B256,
     attributes: &OpPayloadAttributes,
@@ -597,8 +612,8 @@ pub fn payload_id_optimism(
 
     let no_tx_pool = attributes.no_tx_pool.unwrap_or_default();
     if no_tx_pool || attributes.transactions.as_ref().is_some_and(|txs| !txs.is_empty()) {
-        hasher.update([no_tx_pool as u8]);
-        let txs_len = attributes.transactions.as_ref().map(|txs| txs.len()).unwrap_or_default();
+        hasher.update([u8::from(no_tx_pool)]);
+        let txs_len = attributes.transactions.as_ref().map(std::vec::Vec::len).unwrap_or_default();
         hasher.update(&txs_len.to_be_bytes()[..]);
         if let Some(txs) = &attributes.transactions {
             for tx in txs {
@@ -606,7 +621,7 @@ pub fn payload_id_optimism(
                 // the transactions here which really isn't ideal
                 let tx_hash = keccak256(tx);
                 // maybe we can try just taking the hash and not decoding
-                hasher.update(tx_hash)
+                hasher.update(tx_hash);
             }
         }
     }

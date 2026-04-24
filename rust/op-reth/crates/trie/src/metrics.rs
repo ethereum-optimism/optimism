@@ -71,6 +71,7 @@ pub enum StorageOperation {
 
 impl StorageOperation {
     /// Returns the operation as a string for metrics labels.
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::StoreAccountBranch => "store_account_branch",
@@ -98,6 +99,7 @@ pub struct StorageMetrics {
 
 impl StorageMetrics {
     /// Create a new metrics instance with pre-allocated handles.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             operations: Self::generate_operation_handles(),
@@ -140,6 +142,7 @@ impl StorageMetrics {
     }
 
     /// Get block metrics for recording high-level timing.
+    #[must_use]
     pub const fn block_metrics(&self) -> &BlockMetrics {
         &self.block_metrics
     }
@@ -285,14 +288,14 @@ impl<C: TrieCursor> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        self.cursor.reset()
+        self.cursor.reset();
     }
 }
 
 impl<C: TrieStorageCursor> TrieStorageCursor for OpProofsTrieCursorWithMetrics<C> {
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
-        self.cursor.set_hashed_address(_hashed_address)
+        self.cursor.set_hashed_address(_hashed_address);
     }
 }
 
@@ -318,7 +321,7 @@ impl<C: HashedCursor> HashedCursor for OpProofsHashedCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        self.cursor.reset()
+        self.cursor.reset();
     }
 }
 
@@ -330,7 +333,7 @@ impl<C: HashedStorageCursor> HashedStorageCursor for OpProofsHashedCursorWithMet
 
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
-        self.cursor.set_hashed_address(_hashed_address)
+        self.cursor.set_hashed_address(_hashed_address);
     }
 }
 
@@ -377,15 +380,15 @@ where
     where
         Self: 'a;
 
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+    fn provider_ro(&self) -> OpProofsStorageResult<Self::ProviderRO<'_>> {
         Ok(OpProofsProviderROWithMetrics::new(self.storage.provider_ro()?, self.metrics.clone()))
     }
 
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+    fn provider_rw(&self) -> OpProofsStorageResult<Self::ProviderRw<'_>> {
         Ok(OpProofsProviderRwWithMetrics::new(self.storage.provider_rw()?, self.metrics.clone()))
     }
 
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+    fn initialization_provider(&self) -> OpProofsStorageResult<Self::Initializer<'_>> {
         Ok(OpProofsInitProviderWithMetrics::new(
             self.storage.initialization_provider()?,
             self.metrics.clone(),

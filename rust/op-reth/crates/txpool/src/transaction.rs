@@ -93,7 +93,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
 
 impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Pooled> {
     fn set_conditional(&mut self, conditional: TransactionConditional) {
-        self.conditional = Some(Box::new(conditional))
+        self.conditional = Some(Box::new(conditional));
     }
 
     fn conditional(&self) -> Option<&TransactionConditional> {

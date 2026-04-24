@@ -223,7 +223,7 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         for it in items {
             let (k, vv) = it.into_kv(block_number);
             pairs.push((k.clone(), vv));
-            keys.push(k)
+            keys.push(k);
         }
 
         if append_mode {
@@ -989,15 +989,15 @@ impl OpProofsStore for MdbxProofsStorage {
     type ProviderRw<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
     type Initializer<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
 
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+    fn provider_ro(&self) -> OpProofsStorageResult<Self::ProviderRO<'_>> {
         Ok(Arc::new(MdbxProofsProvider::new(self.env.tx()?)))
     }
 
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+    fn provider_rw(&self) -> OpProofsStorageResult<Self::ProviderRw<'_>> {
         Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
     }
 
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+    fn initialization_provider(&self) -> OpProofsStorageResult<Self::Initializer<'_>> {
         Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
     }
 }
@@ -1078,7 +1078,7 @@ impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
 
         if let Ok(stat) = self.env.stat().map_err(|error| error!(%error, "Failed to read db.stat"))
         {
-            metrics.push(("optimism_proof_storage.page_size", stat.page_size() as f64, vec![]));
+            metrics.push(("optimism_proof_storage.page_size", f64::from(stat.page_size()), vec![]));
         }
 
         metrics.push((
@@ -3039,11 +3039,7 @@ mod tests {
                 let vv =
                     cur.seek_by_key_subkey(key, BLOCK.block.number).expect("seek").expect("exists");
                 assert_eq!(vv.block_number, BLOCK.block.number);
-                assert!(
-                    vv.value.0.is_none(),
-                    "expected tombstone at wipe block for path {:?}",
-                    path
-                );
+                assert!(vv.value.0.is_none(), "expected tombstone at wipe block for path {path:?}");
             }
         }
 

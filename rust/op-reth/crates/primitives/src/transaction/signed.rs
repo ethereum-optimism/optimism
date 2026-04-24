@@ -35,6 +35,9 @@ use reth_primitives_traits::{
 #[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Eq)]
+// Legacy type used only through public trait impls; the `pub type OpTransactionSigned` alias in
+// transaction/mod.rs is the exported surface. Keep this struct internal.
+#[allow(unnameable_types)]
 pub(crate) struct OpTransactionSigned {
     /// Transaction hash
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -293,13 +296,13 @@ impl Encodable2718 for OpTransactionSigned {
         match &transaction {
             OpTypedTransaction::Legacy(legacy_tx) => {
                 // do nothing w/ with_header
-                legacy_tx.eip2718_encode(signature, out)
+                legacy_tx.eip2718_encode(signature, out);
             }
             OpTypedTransaction::Eip2930(access_list_tx) => {
-                access_list_tx.eip2718_encode(signature, out)
+                access_list_tx.eip2718_encode(signature, out);
             }
             OpTypedTransaction::Eip1559(dynamic_fee_tx) => {
-                dynamic_fee_tx.eip2718_encode(signature, out)
+                dynamic_fee_tx.eip2718_encode(signature, out);
             }
             OpTypedTransaction::Eip7702(set_code_tx) => set_code_tx.eip2718_encode(signature, out),
             OpTypedTransaction::Deposit(deposit_tx) => deposit_tx.encode_2718(out),
@@ -490,7 +493,7 @@ impl reth_codecs::Compact for OpTransactionSigned {
         };
 
         // Replace bitflags with the actual values
-        buf.as_mut()[start] = sig_bit | (tx_bits << 1) | ((zstd_bit as u8) << 3);
+        buf.as_mut()[start] = sig_bit | (tx_bits << 1) | (u8::from(zstd_bit) << 3);
 
         buf.as_mut().len() - start
     }

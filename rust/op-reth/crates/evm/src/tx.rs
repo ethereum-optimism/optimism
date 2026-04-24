@@ -12,7 +12,7 @@ pub struct OpTxEnvConverter;
 
 #[cfg(feature = "rpc")]
 mod rpc_impl {
-    use super::*;
+    use super::{OpTx, OpTxEnvConverter};
     use alloy_evm::rpc::{EthTxEnvError, TryIntoTxEnv};
     use op_alloy_rpc_types::OpTransactionRequest;
     use reth_evm::ConfigureEvm;

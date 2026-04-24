@@ -22,7 +22,7 @@ pub struct CustomEvm<DB: Database, I, P = OpPrecompiles> {
 }
 
 impl<DB: Database, I, P> CustomEvm<DB, I, P> {
-    pub fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
+    pub const fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
         Self { inner: op }
     }
 }
@@ -78,7 +78,7 @@ where
     }
 
     fn set_inspector_enabled(&mut self, enabled: bool) {
-        self.inner.set_inspector_enabled(enabled)
+        self.inner.set_inspector_enabled(enabled);
     }
 
     fn components(&self) -> (&Self::DB, &Self::Inspector, &Self::Precompiles) {

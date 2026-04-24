@@ -31,15 +31,15 @@ pub enum CustomTransaction {
 impl reth_codecs::alloy::transaction::Envelope for CustomTransaction {
     fn signature(&self) -> &Signature {
         match self {
-            CustomTransaction::Op(tx) => reth_codecs::alloy::transaction::Envelope::signature(tx),
-            CustomTransaction::Payment(tx) => tx.signature(),
+            Self::Op(tx) => reth_codecs::alloy::transaction::Envelope::signature(tx),
+            Self::Payment(tx) => tx.signature(),
         }
     }
 
     fn tx_type(&self) -> Self::TxType {
         match self {
-            CustomTransaction::Op(tx) => TxTypeCustom::Op(tx.tx_type()),
-            CustomTransaction::Payment(_) => TxTypeCustom::Payment,
+            Self::Op(tx) => TxTypeCustom::Op(tx.tx_type()),
+            Self::Payment(_) => TxTypeCustom::Payment,
         }
     }
 }
@@ -68,8 +68,8 @@ impl FromTxCompact for CustomTransaction {
 impl ToTxCompact for CustomTransaction {
     fn to_tx_compact(&self, buf: &mut (impl BufMut + AsMut<[u8]>)) {
         match self {
-            CustomTransaction::Op(tx) => tx.to_tx_compact(buf),
-            CustomTransaction::Payment(tx) => {
+            Self::Op(tx) => tx.to_tx_compact(buf),
+            Self::Payment(tx) => {
                 tx.tx().to_compact(buf);
             }
         }
@@ -92,22 +92,22 @@ impl Compact for CustomTransaction {
 impl OpTransaction for CustomTransaction {
     fn is_deposit(&self) -> bool {
         match self {
-            CustomTransaction::Op(op) => op.is_deposit(),
-            CustomTransaction::Payment(_) => false,
+            Self::Op(op) => op.is_deposit(),
+            Self::Payment(_) => false,
         }
     }
 
     fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
         match self {
-            CustomTransaction::Op(op) => op.as_deposit(),
-            CustomTransaction::Payment(_) => None,
+            Self::Op(op) => op.as_deposit(),
+            Self::Payment(_) => None,
         }
     }
 
     fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
         match self {
-            CustomTransaction::Op(op) => op.as_post_exec(),
-            CustomTransaction::Payment(_) => None,
+            Self::Op(op) => op.as_post_exec(),
+            Self::Payment(_) => None,
         }
     }
 }
@@ -115,15 +115,15 @@ impl OpTransaction for CustomTransaction {
 impl SignerRecoverable for CustomTransaction {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         match self {
-            CustomTransaction::Op(tx) => SignerRecoverable::recover_signer(tx),
-            CustomTransaction::Payment(tx) => SignerRecoverable::recover_signer(tx),
+            Self::Op(tx) => SignerRecoverable::recover_signer(tx),
+            Self::Payment(tx) => SignerRecoverable::recover_signer(tx),
         }
     }
 
     fn recover_signer_unchecked(&self) -> Result<Address, RecoveryError> {
         match self {
-            CustomTransaction::Op(tx) => SignerRecoverable::recover_signer_unchecked(tx),
-            CustomTransaction::Payment(tx) => SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Op(tx) => SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Payment(tx) => SignerRecoverable::recover_signer_unchecked(tx),
         }
     }
 }
@@ -131,8 +131,8 @@ impl SignerRecoverable for CustomTransaction {
 impl TxHashRef for CustomTransaction {
     fn tx_hash(&self) -> &B256 {
         match self {
-            CustomTransaction::Op(tx) => TxHashRef::tx_hash(tx),
-            CustomTransaction::Payment(tx) => tx.hash(),
+            Self::Op(tx) => TxHashRef::tx_hash(tx),
+            Self::Payment(tx) => tx.hash(),
         }
     }
 }
@@ -140,8 +140,8 @@ impl TxHashRef for CustomTransaction {
 impl InMemorySize for CustomTransaction {
     fn size(&self) -> usize {
         match self {
-            CustomTransaction::Op(tx) => InMemorySize::size(tx),
-            CustomTransaction::Payment(tx) => InMemorySize::size(tx),
+            Self::Op(tx) => InMemorySize::size(tx),
+            Self::Payment(tx) => InMemorySize::size(tx),
         }
     }
 }

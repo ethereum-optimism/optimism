@@ -29,6 +29,7 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
 
 impl<N: NodePrimitives> PendingFlashBlock<N> {
     /// Create new pending flashblock.
+    #[must_use]
     pub const fn new(
         pending: PendingBlock<N>,
         canonical_anchor_hash: B256,
@@ -46,6 +47,7 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
     }
 
     /// Returns the properly calculated state root for that block if it was computed.
+    #[must_use]
     pub fn computed_state_root(&self) -> Option<B256> {
         self.has_computed_state_root.then_some(self.pending.block().state_root())
     }

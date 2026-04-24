@@ -113,7 +113,7 @@ impl CompletionEstimatable for B256 {
         let progress = self.0[..3].to_vec();
         let mut val: u64 = 0;
         for nibble in &progress {
-            val = (val << 8) | *nibble as u64;
+            val = (val << 8) | u64::from(*nibble);
         }
         val as f64 / (256u64.pow(3)) as f64
     }
@@ -126,7 +126,7 @@ impl CompletionEstimatable for PackedStoredNibbles {
             if self.0.is_empty() { Nibbles::new() } else { self.0.slice(0..(self.0.len().min(6))) };
         let mut val: u64 = 0;
         for nibble in progress_nibbles.iter() {
-            val = (val << 4) | nibble as u64;
+            val = (val << 4) | u64::from(nibble);
         }
         val as f64 / (16u64.pow(progress_nibbles.len() as u32)) as f64
     }
@@ -1394,15 +1394,15 @@ mod tests {
         type Initializer<'a> =
             RecordingInitProvider<<MdbxProofsStorage as OpProofsStore>::Initializer<'a>>;
 
-        fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+        fn provider_ro(&self) -> OpProofsStorageResult<Self::ProviderRO<'_>> {
             self.inner.provider_ro()
         }
 
-        fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+        fn provider_rw(&self) -> OpProofsStorageResult<Self::ProviderRw<'_>> {
             self.inner.provider_rw()
         }
 
-        fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+        fn initialization_provider(&self) -> OpProofsStorageResult<Self::Initializer<'_>> {
             Ok(RecordingInitProvider {
                 inner: self.inner.initialization_provider()?,
                 hashed_storage_addresses: self.hashed_storage_addresses.clone(),

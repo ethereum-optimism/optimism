@@ -66,7 +66,7 @@ where
     }
 
     fn set_state_hook(&mut self, _hook: Option<Box<dyn OnStateHook>>) {
-        self.inner.set_state_hook(_hook)
+        self.inner.set_state_hook(_hook);
     }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {

@@ -56,11 +56,11 @@ impl SupervisorMetrics {
                 SuperchainDAError::IneffectiveData => self.ineffective_data_count.increment(1),
                 SuperchainDAError::OutOfOrder => self.out_of_order_count.increment(1),
                 SuperchainDAError::AwaitingReplacement => {
-                    self.awaiting_replacement_count.increment(1)
+                    self.awaiting_replacement_count.increment(1);
                 }
                 SuperchainDAError::OutOfScope => self.out_of_scope_count.increment(1),
                 SuperchainDAError::NoParentForFirstBlock => {
-                    self.no_parent_for_first_block_count.increment(1)
+                    self.no_parent_for_first_block_count.increment(1);
                 }
                 SuperchainDAError::FutureData => self.future_data_count.increment(1),
                 SuperchainDAError::MissedData => self.missed_data_count.increment(1),

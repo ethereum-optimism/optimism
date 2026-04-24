@@ -97,7 +97,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
                         return false;
                     }
                     true
-                })
+                });
             }
 
             let (mut pipeline, events) = build_import_pipeline(
@@ -166,6 +166,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
 
 impl<C: ChainSpecParser> ImportOpCommand<C> {
     /// Returns the underlying chain being used to run this command
+    #[must_use]
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)
     }

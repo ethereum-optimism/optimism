@@ -23,7 +23,7 @@ use reth_revm::cached::CachedReads;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::collections::{BTreeMap, HashSet};
 use tokio::sync::broadcast;
-use tracing::*;
+use tracing::{trace, warn};
 
 /// Maximum number of cached sequences in the ring buffer.
 const CACHE_SIZE: usize = 3;
@@ -767,8 +767,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
         // Only run reorg detection if we actually track the canonical block number.
         let reorg_detected = self
             .tracked_fingerprint_for_block(canonical_block_number)
-            .map(|tracked| ReorgDetector::detect(&tracked, &canonical).is_reorg())
-            .unwrap_or(false);
+            .is_some_and(|tracked| ReorgDetector::detect(&tracked, &canonical).is_reorg());
 
         // Determine reconciliation strategy
         let strategy = CanonicalBlockReconciler::reconcile(

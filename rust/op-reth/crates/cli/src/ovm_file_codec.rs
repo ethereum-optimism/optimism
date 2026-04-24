@@ -253,7 +253,7 @@ impl Encodable2718 for OvmTransactionSigned {
     }
 
     fn encode_2718(&self, out: &mut dyn alloy_rlp::BufMut) {
-        self.transaction.eip2718_encode(&self.signature, out)
+        self.transaction.eip2718_encode(&self.signature, out);
     }
 }
 

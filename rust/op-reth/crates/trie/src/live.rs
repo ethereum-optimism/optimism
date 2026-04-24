@@ -88,7 +88,7 @@ where
             state_provider.state_root_with_updates(hashed_state.clone())?;
 
         operation_durations.state_root_duration_seconds =
-            start.elapsed() - operation_durations.execution_duration_seconds;
+            start.elapsed().checked_sub(operation_durations.execution_duration_seconds).unwrap();
 
         if state_root != block.state_root() {
             return Err(OpProofsStorageError::StateRootMismatch {
@@ -109,9 +109,12 @@ where
         provider_rw.commit()?;
 
         operation_durations.total_duration_seconds = start.elapsed();
-        operation_durations.write_duration_seconds = operation_durations.total_duration_seconds -
-            operation_durations.state_root_duration_seconds -
-            operation_durations.execution_duration_seconds;
+        operation_durations.write_duration_seconds = operation_durations
+            .total_duration_seconds
+            .checked_sub(operation_durations.state_root_duration_seconds)
+            .unwrap()
+            .checked_sub(operation_durations.execution_duration_seconds)
+            .unwrap();
 
         #[cfg(feature = "metrics")]
         {

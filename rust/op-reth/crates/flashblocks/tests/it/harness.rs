@@ -141,7 +141,7 @@ impl TestSequenceManager {
         // If index 0, finalize previous and start new sequence
         if fb.index == 0 && !self.pending_flashblocks.is_empty() {
             let block_number =
-                self.pending_flashblocks.first().map(|f| f.metadata.block_number).unwrap_or(0);
+                self.pending_flashblocks.first().map_or(0, |f| f.metadata.block_number);
             let completed = std::mem::take(&mut self.pending_flashblocks);
             self.completed_cache.push((completed, block_number));
 
@@ -317,20 +317,19 @@ impl TestFlashBlockFactory {
     /// Creates a flashblock after the previous one in the same sequence.
     pub(crate) fn flashblock_after(&self, previous: &FlashBlock) -> TestFlashBlockBuilder {
         let parent_hash =
-            previous.base.as_ref().map(|b| b.parent_hash).unwrap_or(previous.diff.block_hash);
+            previous.base.as_ref().map_or(previous.diff.block_hash, |b| b.parent_hash);
 
         self.builder()
             .index(previous.index + 1)
             .block_number(previous.metadata.block_number)
             .payload_id(previous.payload_id)
             .parent_hash(parent_hash)
-            .timestamp(previous.base.as_ref().map(|b| b.timestamp).unwrap_or(self.base_timestamp))
+            .timestamp(previous.base.as_ref().map_or(self.base_timestamp, |b| b.timestamp))
     }
 
     /// Creates a flashblock for the next block.
     pub(crate) fn flashblock_for_next_block(&self, previous: &FlashBlock) -> TestFlashBlockBuilder {
-        let prev_timestamp =
-            previous.base.as_ref().map(|b| b.timestamp).unwrap_or(self.base_timestamp);
+        let prev_timestamp = previous.base.as_ref().map_or(self.base_timestamp, |b| b.timestamp);
 
         self.builder()
             .index(0)

@@ -26,13 +26,14 @@ where
     let base_fee_params = if elasticity == 0 && denominator == 0 {
         chain_spec.base_fee_params_at_timestamp(timestamp)
     } else {
-        BaseFeeParams::new(denominator as u128, elasticity as u128)
+        BaseFeeParams::new(u128::from(denominator), u128::from(elasticity))
     };
 
     Ok(parent.next_block_base_fee(base_fee_params).unwrap_or_default())
 }
 
 /// Extracts the Jovian 1599 parameters from the encoded extra data from the parent header.
+///
 /// Additionally to [`decode_holocene_base_fee`], checks if the next block base fee is less than the
 /// minimum base fee, then the minimum base fee is returned.
 ///
@@ -53,7 +54,7 @@ where
     let base_fee_params = if elasticity == 0 && denominator == 0 {
         chain_spec.base_fee_params_at_timestamp(timestamp)
     } else {
-        BaseFeeParams::new(denominator as u128, elasticity as u128)
+        BaseFeeParams::new(u128::from(denominator), u128::from(elasticity))
     };
 
     // Starting from Jovian, we use the maximum of the gas used and the blob gas used to calculate
@@ -139,7 +140,7 @@ mod tests {
                 parent.base_fee_per_gas().unwrap_or_default(),
                 BaseFeeParams::base_sepolia(),
             )
-        )
+        );
     }
 
     #[test]

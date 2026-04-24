@@ -22,6 +22,7 @@ where
     ChainSpec: OpHardforks,
 {
     /// Returns reference to chain spec.
+    #[must_use]
     pub fn chain_spec(&self) -> &ChainSpec {
         &self.inner
     }

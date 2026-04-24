@@ -104,30 +104,36 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     }
 
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
+    #[must_use]
     pub const fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
     }
 
     /// Returns a reference to the [`EthApiNodeBackend`].
+    #[must_use]
     pub fn eth_api(&self) -> &EthApiNodeBackend<N, Rpc> {
         self.inner.eth_api()
     }
     /// Returns the configured sequencer client, if any.
+    #[must_use]
     pub fn sequencer_client(&self) -> Option<&SequencerClient> {
         self.inner.sequencer_client()
     }
 
     /// Returns a cloned pending block receiver, if any.
+    #[must_use]
     pub fn pending_block_rx(&self) -> Option<PendingBlockRx<N::Primitives>> {
         self.inner.flashblocks.as_ref().map(|f| f.pending_block_rx.clone())
     }
 
     /// Returns a new subscription to received flashblocks.
+    #[must_use]
     pub fn subscribe_received_flashblocks(&self) -> Option<FlashBlockRx> {
         self.inner.flashblocks.as_ref().map(|f| f.received_flashblocks.subscribe())
     }
 
     /// Returns a new subscription to flashblock sequences.
+    #[must_use]
     pub fn subscribe_flashblock_sequence(&self) -> Option<FlashBlockCompleteSequenceRx> {
         self.inner.flashblocks.as_ref().map(|f| f.flashblocks_sequence.subscribe())
     }
@@ -486,6 +492,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
 
 impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// Creates a [`OpEthApiBuilder`] instance from core components.
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             sequencer_url: None,
@@ -498,30 +505,35 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     }
 
     /// With a [`SequencerClient`].
+    #[must_use]
     pub fn with_sequencer(mut self, sequencer_url: Option<String>) -> Self {
         self.sequencer_url = sequencer_url;
         self
     }
 
     /// With headers to use for the sequencer client requests.
+    #[must_use]
     pub fn with_sequencer_headers(mut self, sequencer_headers: Vec<String>) -> Self {
         self.sequencer_headers = sequencer_headers;
         self
     }
 
     /// With minimum suggested priority fee (tip).
+    #[must_use]
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
         self
     }
 
     /// With a subscription to flashblocks secure websocket connection.
+    #[must_use]
     pub fn with_flashblocks(mut self, flashblocks_url: Option<Url>) -> Self {
         self.flashblocks_url = flashblocks_url;
         self
     }
 
     /// With flashblock consensus client enabled to drive chain forward
+    #[must_use]
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
         self

@@ -58,6 +58,7 @@ pub struct OpTransactionValidator<Client, Tx, Evm> {
 
 impl<Client, Tx, Evm> OpTransactionValidator<Client, Tx, Evm> {
     /// Returns the configured chain spec
+    #[must_use]
     pub fn chain_spec(&self) -> Arc<Client::ChainSpec>
     where
         Client: ChainSpecProvider,
@@ -66,6 +67,7 @@ impl<Client, Tx, Evm> OpTransactionValidator<Client, Tx, Evm> {
     }
 
     /// Returns the configured client
+    #[must_use]
     pub fn client(&self) -> &Client {
         self.inner.client()
     }
@@ -77,12 +79,14 @@ impl<Client, Tx, Evm> OpTransactionValidator<Client, Tx, Evm> {
 
     /// Whether to ensure that the transaction's sender has enough balance to also cover the L1 gas
     /// fee.
+    #[must_use]
     pub fn require_l1_data_gas_fee(self, require_l1_data_gas_fee: bool) -> Self {
         Self { require_l1_data_gas_fee, ..self }
     }
 
     /// Returns whether this validator also requires the transaction's sender to have enough balance
     /// to cover the L1 gas fee.
+    #[must_use]
     pub const fn requires_l1_data_gas_fee(&self) -> bool {
         self.require_l1_data_gas_fee
     }
@@ -128,6 +132,7 @@ where
     }
 
     /// Set the supervisor client and safety level
+    #[must_use]
     pub fn with_supervisor(mut self, supervisor_client: SupervisorClient) -> Self {
         self.supervisor_client = Some(supervisor_client);
         self
@@ -201,7 +206,7 @@ where
                 };
                 return TransactionValidationOutcome::Invalid(transaction, err);
             }
-            Some(Ok(_)) => {
+            Some(Ok(())) => {
                 // valid interop tx
                 transaction
                     .set_interop_deadline(self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS);

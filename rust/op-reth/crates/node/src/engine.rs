@@ -144,7 +144,7 @@ where
             )
             .map_err(|err| {
                 ConsensusError::Other(format!("failed to verify block post-execution: {err}"))
-            })?
+            })?;
         }
 
         Ok(())
@@ -291,7 +291,7 @@ pub fn validate_withdrawals_presence(
                     .to_error(VersionSpecificValidationError::HasWithdrawalsPreShanghai));
             }
         }
-    };
+    }
 
     Ok(())
 }

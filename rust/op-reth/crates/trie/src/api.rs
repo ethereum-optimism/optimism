@@ -181,13 +181,13 @@ pub trait OpProofsStore: Send + Sync + Debug {
         Self: 'a;
 
     /// Create a read-only provider for interacting with the proofs storage.
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>>;
+    fn provider_ro(&self) -> OpProofsStorageResult<Self::ProviderRO<'_>>;
 
     /// Create a read-write provider for interacting with the proofs storage.
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>>;
+    fn provider_rw(&self) -> OpProofsStorageResult<Self::ProviderRw<'_>>;
 
     /// Create an initialization provider for interacting with the proofs storage.
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
+    fn initialization_provider(&self) -> OpProofsStorageResult<Self::Initializer<'_>>;
 }
 
 /// Status of the initial state anchor.

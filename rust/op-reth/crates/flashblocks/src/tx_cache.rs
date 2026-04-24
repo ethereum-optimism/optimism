@@ -102,6 +102,7 @@ impl<N: NodePrimitives> Default for TransactionCache<N> {
 
 impl<N: NodePrimitives> TransactionCache<N> {
     /// Creates a new empty transaction cache.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             block_number: 0,
@@ -114,51 +115,61 @@ impl<N: NodePrimitives> TransactionCache<N> {
     }
 
     /// Creates a new cache for a specific block number.
+    #[must_use]
     pub fn for_block(block_number: u64) -> Self {
         Self { block_number, ..Self::new() }
     }
 
     /// Returns the block number this cache is valid for.
+    #[must_use]
     pub const fn block_number(&self) -> u64 {
         self.block_number
     }
 
     /// Returns the parent hash this cache is valid for, if tracked.
+    #[must_use]
     pub const fn parent_hash(&self) -> Option<B256> {
         self.cached_parent_hash
     }
 
     /// Checks if this cache is valid for the given block number.
+    #[must_use]
     pub const fn is_valid_for_block(&self, block_number: u64) -> bool {
         self.block_number == block_number
     }
 
     /// Checks if this cache is valid for the given block number and parent hash.
+    #[must_use]
     pub fn is_valid_for_block_parent(&self, block_number: u64, parent_hash: B256) -> bool {
         self.block_number == block_number && self.cached_parent_hash == Some(parent_hash)
     }
 
     /// Returns the number of cached transactions.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.executed_tx_hashes.len()
     }
 
     /// Returns true if the cache is empty.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.executed_tx_hashes.is_empty()
     }
 
     /// Returns the cached transaction hashes.
+    #[must_use]
     pub fn executed_tx_hashes(&self) -> &[B256] {
         &self.executed_tx_hashes
     }
 
     /// Returns the cached receipts.
+    #[must_use]
     pub fn receipts(&self) -> &[N::Receipt] {
         &self.receipts
     }
 
     /// Returns the cumulative bundle state.
+    #[must_use]
     pub const fn bundle(&self) -> &BundleState {
         &self.cumulative_bundle
     }
@@ -191,6 +202,7 @@ impl<N: NodePrimitives> TransactionCache<N> {
     ///
     /// Returns the number of transactions that can be skipped because they
     /// match the cached execution results.
+    #[must_use]
     pub fn matching_prefix_len(&self, tx_hashes: &[B256]) -> usize {
         self.executed_tx_hashes
             .iter()
@@ -212,6 +224,7 @@ impl<N: NodePrimitives> TransactionCache<N> {
     /// - The cache is empty
     /// - No prefix matches (first transaction differs)
     /// - Block number doesn't match
+    #[must_use]
     pub fn get_resumable_state(
         &self,
         block_number: u64,

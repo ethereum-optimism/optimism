@@ -5,7 +5,7 @@ use op_alloy_rpc_types_engine::OpExecutionData;
 use reth_engine_primitives::ConsensusEngineHandle;
 use reth_optimism_payload_builder::OpPayloadTypes;
 use reth_payload_primitives::{ExecutionPayload, PayloadTypes};
-use tracing::*;
+use tracing::{debug, error, trace};
 
 /// Consensus client that sends FCUs and new payloads using blocks from a [`FlashBlockService`].
 ///
@@ -74,7 +74,7 @@ where
                         %validation_error,
                         "Payload validation error",
                     );
-                };
+                }
             }
             Err(err) => {
                 error!(
@@ -115,7 +115,7 @@ where
                     %finalized_hash,
                     ?result,
                     "Submitted engine_forkChoiceUpdated",
-                )
+                );
             }
             Err(err) => {
                 error!(

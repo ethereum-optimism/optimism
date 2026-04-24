@@ -70,13 +70,15 @@ pub struct TxPayment {
 impl TxPayment {
     /// Get the transaction type
     #[doc(alias = "transaction_type")]
+    #[must_use]
     pub const fn tx_type() -> super::tx::TxTypeCustom {
         super::tx::TxTypeCustom::Payment
     }
 
-    /// Calculates a heuristic for the in-memory size of the [TxPayment] transaction.
+    /// Calculates a heuristic for the in-memory size of the [`TxPayment`] transaction.
     #[inline]
-    pub fn size(&self) -> usize {
+    #[must_use]
+    pub const fn size(&self) -> usize {
         size_of::<Self>()
     }
 }
@@ -109,7 +111,7 @@ impl RlpEcdsaEncodableTx for TxPayment {
 impl RlpEcdsaDecodableTx for TxPayment {
     const DEFAULT_TX_TYPE: u8 = { PAYMENT_TX_TYPE_ID };
 
-    /// Decodes the inner [TxPayment] fields from RLP bytes.
+    /// Decodes the inner [`TxPayment`] fields from RLP bytes.
     ///
     /// NOTE: This assumes a RLP header has already been decoded, and _just_
     /// decodes the following RLP fields in the following order:
@@ -181,9 +183,9 @@ impl Transaction for TxPayment {
         base_fee.map_or(self.max_fee_per_gas, |base_fee| {
             // if the tip is greater than the max priority fee per gas, set it to the max
             // priority fee per gas + base fee
-            let tip = self.max_fee_per_gas.saturating_sub(base_fee as u128);
+            let tip = self.max_fee_per_gas.saturating_sub(u128::from(base_fee));
             if tip > self.max_priority_fee_per_gas {
-                self.max_priority_fee_per_gas + base_fee as u128
+                self.max_priority_fee_per_gas + u128::from(base_fee)
             } else {
                 // otherwise return the max fee per gas
                 self.max_fee_per_gas
@@ -247,7 +249,7 @@ impl SignableTransaction<Signature> for TxPayment {
 
     fn encode_for_signing(&self, out: &mut dyn alloy_rlp::BufMut) {
         out.put_u8(Self::tx_type().ty());
-        self.encode(out)
+        self.encode(out);
     }
 
     fn payload_len_for_signature(&self) -> usize {
@@ -273,6 +275,6 @@ impl Decodable for TxPayment {
 
 impl InMemorySize for TxPayment {
     fn size(&self) -> usize {
-        TxPayment::size(self)
+        Self::size(self)
     }
 }

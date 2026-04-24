@@ -53,6 +53,7 @@ pub async fn advance_chain(
 }
 
 /// Helper function to create a new eth payload attributes
+#[must_use]
 pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
     OpPayloadAttrs(OpPayloadAttributes {
         payload_attributes: alloy_rpc_types_engine::PayloadAttributes {

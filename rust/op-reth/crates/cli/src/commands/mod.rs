@@ -73,6 +73,7 @@ impl<
 > Commands<C, Ext>
 {
     /// Returns the underlying chain being used for commands
+    #[must_use]
     pub fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         match self {
             Self::Node(cmd) => cmd.chain_spec(),

@@ -218,15 +218,14 @@ where
 
         // Set up cached reads
         let cache_key = if is_canonical { latest_hash } else { args.base.parent_hash };
-        let mut request_cache = args
-            .cached_state
-            .take()
-            .filter(|(hash, _)| hash == &cache_key)
-            .map(|(_, state)| state)
-            .unwrap_or_else(|| {
-                // For speculative builds, use cached reads from pending parent
-                args.pending_parent.as_ref().map(|p| p.cached_reads.clone()).unwrap_or_default()
-            });
+        let mut request_cache =
+            args.cached_state.take().filter(|(hash, _)| hash == &cache_key).map_or_else(
+                || {
+                    // For speculative builds, use cached reads from pending parent
+                    args.pending_parent.as_ref().map(|p| p.cached_reads.clone()).unwrap_or_default()
+                },
+                |(_, state)| state,
+            );
 
         let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
 

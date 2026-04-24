@@ -143,6 +143,7 @@ impl Default for InMemoryProofsStorage {
 
 impl InMemoryProofsStorage {
     /// Create a new in-memory op proofs storage instance
+    #[must_use]
     pub fn new() -> Self {
         Self { inner: Arc::new(RwLock::new(InMemoryStorageInner::default())) }
     }
@@ -494,15 +495,15 @@ impl OpProofsStore for InMemoryProofsStorage {
     type ProviderRw<'a> = InMemoryProofsProvider;
     type Initializer<'a> = InMemoryProofsProvider;
 
-    fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
+    fn provider_ro(&self) -> OpProofsStorageResult<Self::ProviderRO<'_>> {
         Ok(InMemoryProofsProvider { inner: self.inner.clone() })
     }
 
-    fn provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRw<'a>> {
+    fn provider_rw(&self) -> OpProofsStorageResult<Self::ProviderRw<'_>> {
         Ok(InMemoryProofsProvider { inner: self.inner.clone() })
     }
 
-    fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+    fn initialization_provider(&self) -> OpProofsStorageResult<Self::Initializer<'_>> {
         Ok(InMemoryProofsProvider { inner: self.inner.clone() })
     }
 }

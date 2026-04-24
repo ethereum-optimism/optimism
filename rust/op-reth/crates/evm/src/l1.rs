@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn test_verify_set_jovian() {
         let hash = &keccak256("setL1BlockValuesJovian()")[..4];
-        assert_eq!(hash, L1_BLOCK_JOVIAN_SELECTOR)
+        assert_eq!(hash, L1_BLOCK_JOVIAN_SELECTOR);
     }
 
     #[test]

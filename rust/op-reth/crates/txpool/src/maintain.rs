@@ -254,6 +254,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
 }
 
 /// Background task that polls the supervisor for failsafe state every second.
+///
 /// When failsafe transitions from disabled to enabled, evicts all interop txs
 /// from the pool immediately (does not wait for the next block event).
 /// Matches op-geth's `startBackgroundInteropFailsafeDetection` (miner/miner.go:140-165).

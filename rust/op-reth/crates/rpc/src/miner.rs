@@ -19,6 +19,7 @@ pub struct OpMinerExtApi {
 impl OpMinerExtApi {
     /// Instantiate the miner API extension with the given, sharable data availability
     /// configuration.
+    #[must_use]
     pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
         Self { da_config, gas_limit_config, metrics: OpMinerMetrics::default() }
     }

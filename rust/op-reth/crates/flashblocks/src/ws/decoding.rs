@@ -15,7 +15,7 @@ impl FlashBlockDecoder for () {
     }
 }
 
-pub(crate) fn decode_flashblock(bytes: Bytes) -> eyre::Result<FlashBlock> {
+pub(super) fn decode_flashblock(bytes: Bytes) -> eyre::Result<FlashBlock> {
     let bytes = crate::ws::decoding::try_parse_message(bytes)?;
 
     let payload: FlashBlock =

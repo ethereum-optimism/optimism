@@ -123,7 +123,7 @@ where
                     block = end_block,
                     ?err,
                     "Failed to fetch block hash for new earliest block during pruning"
-                )
+                );
             })?
             .ok_or(PrunerError::BlockNotFound(end_block))?;
 
@@ -137,7 +137,7 @@ where
                     block = parent_block_num,
                     ?err,
                     "Failed to fetch block hash for parent block during pruning"
-                )
+                );
             })?
             .ok_or(PrunerError::BlockNotFound(parent_block_num))?;
 

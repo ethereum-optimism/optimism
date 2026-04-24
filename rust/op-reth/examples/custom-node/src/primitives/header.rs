@@ -36,7 +36,7 @@ pub struct CustomHeader {
 
 impl From<Header> for CustomHeader {
     fn from(value: Header) -> Self {
-        CustomHeader { inner: value, extension: 0 }
+        Self { inner: value, extension: 0 }
     }
 }
 

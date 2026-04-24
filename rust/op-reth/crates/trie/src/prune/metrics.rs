@@ -6,7 +6,7 @@ use reth_metrics::{
 
 #[derive(Metrics)]
 #[metrics(scope = "optimism_trie.pruner")]
-pub(crate) struct Metrics {
+pub(super) struct Metrics {
     /// Pruning duration
     pub(crate) total_duration_seconds: Histogram,
     /// Number of pruned blocks

@@ -311,7 +311,7 @@ where
     where
         A: reth_eth_wire_types::HandleMempoolData,
     {
-        self.inner.retain_unknown(announcement)
+        self.inner.retain_unknown(announcement);
     }
 
     delegate!(fn get(&self, tx_hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>>);
@@ -469,7 +469,7 @@ mod tests {
     ) {
         if let Some(state) = &pool.reorg_state {
             *state.last_reorg_at.write().unwrap() =
-                Some(Instant::now() - REORG_WINDOW - Duration::from_secs(1));
+                Some(Instant::now().checked_sub(REORG_WINDOW).unwrap() - Duration::from_secs(1));
         }
     }
 

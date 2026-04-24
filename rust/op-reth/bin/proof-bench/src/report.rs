@@ -37,7 +37,7 @@ impl BenchMetrics {
         Self { block, p95_ms, min_ms, max_ms, errors, throughput }
     }
 
-    fn empty(block: u64) -> Self {
+    const fn empty(block: u64) -> Self {
         Self { block, p95_ms: 0.0, min_ms: 0.0, max_ms: 0.0, errors: 0, throughput: 0.0 }
     }
 }

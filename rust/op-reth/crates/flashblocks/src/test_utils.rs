@@ -121,14 +121,14 @@ impl TestFlashBlockFactory {
     /// ```
     pub(crate) fn flashblock_after(&self, previous: &FlashBlock) -> TestFlashBlockBuilder {
         let parent_hash =
-            previous.base.as_ref().map(|b| b.parent_hash).unwrap_or(previous.diff.block_hash);
+            previous.base.as_ref().map_or(previous.diff.block_hash, |b| b.parent_hash);
 
         self.builder()
             .index(previous.index + 1)
             .block_number(previous.metadata.block_number)
             .payload_id(previous.payload_id)
             .parent_hash(parent_hash)
-            .timestamp(previous.base.as_ref().map(|b| b.timestamp).unwrap_or(self.base_timestamp))
+            .timestamp(previous.base.as_ref().map_or(self.base_timestamp, |b| b.timestamp))
     }
 
     /// Creates a builder for a flashblock for the next block, starting a new sequence at index 0.
@@ -146,8 +146,7 @@ impl TestFlashBlockFactory {
     /// let fb2 = factory.flashblock_for_next_block(&fb1).transactions(txs).build(); // Customize
     /// ```
     pub(crate) fn flashblock_for_next_block(&self, previous: &FlashBlock) -> TestFlashBlockBuilder {
-        let prev_timestamp =
-            previous.base.as_ref().map(|b| b.timestamp).unwrap_or(self.base_timestamp);
+        let prev_timestamp = previous.base.as_ref().map_or(self.base_timestamp, |b| b.timestamp);
 
         self.builder()
             .index(0)

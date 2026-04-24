@@ -13,7 +13,7 @@ pub trait MaybeConditionalTransaction {
 
     /// Check if the conditional has exceeded the block attributes.
     fn has_exceeded_block_attributes(&self, block_attr: &BlockConditionalAttributes) -> bool {
-        self.conditional().map(|tc| tc.has_exceeded_block_attributes(block_attr)).unwrap_or(false)
+        self.conditional().is_some_and(|tc| tc.has_exceeded_block_attributes(block_attr))
     }
 
     /// Helper that sets the conditional and returns the instance again

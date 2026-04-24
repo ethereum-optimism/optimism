@@ -65,6 +65,7 @@ impl HistoricalRpcClient {
     }
 
     /// Returns the configured historical endpoint URL
+    #[must_use]
     pub fn endpoint(&self) -> &str {
         &self.inner.historical_endpoint
     }
@@ -256,44 +257,38 @@ where
 
     /// Determines if a transaction request should be forwarded
     fn should_forward_transaction(&self, req: &Request<'_>) -> bool {
-        parse_transaction_hash_from_params(&req.params())
-            .ok()
-            .map(|tx_hash| {
-                // Check if we can find the transaction locally and get its metadata
-                match self.provider.transaction_by_hash_with_meta(tx_hash) {
-                    Ok(Some((_, meta))) => {
-                        // Transaction found - check if it's pre-bedrock based on block number
-                        let is_pre_bedrock = meta.block_number < self.bedrock_block;
-                        if is_pre_bedrock {
-                            debug!(
-                                target: "rpc::historical",
-                                ?tx_hash,
-                                block_num = meta.block_number,
-                                bedrock = self.bedrock_block,
-                                "transaction found in pre-bedrock block, forwarding to historical endpoint"
-                            );
-                        }
-                        is_pre_bedrock
-                    }
-                    _ => {
-                        // Transaction not found locally, optimistically forward to historical endpoint
-                        debug!(
-                            target: "rpc::historical",
-                            ?tx_hash,
-                            "transaction not found locally, forwarding to historical endpoint"
-                        );
-                        true
-                    }
+        parse_transaction_hash_from_params(&req.params()).ok().is_some_and(|tx_hash| {
+            // Check if we can find the transaction locally and get its metadata
+            if let Ok(Some((_, meta))) = self.provider.transaction_by_hash_with_meta(tx_hash) {
+                // Transaction found - check if it's pre-bedrock based on block number
+                let is_pre_bedrock = meta.block_number < self.bedrock_block;
+                if is_pre_bedrock {
+                    debug!(
+                        target: "rpc::historical",
+                        ?tx_hash,
+                        block_num = meta.block_number,
+                        bedrock = self.bedrock_block,
+                        "transaction found in pre-bedrock block, forwarding to historical endpoint"
+                    );
                 }
-            })
-            .unwrap_or(false)
+                is_pre_bedrock
+            } else {
+                // Transaction not found locally, optimistically forward to historical endpoint
+                debug!(
+                    target: "rpc::historical",
+                    ?tx_hash,
+                    "transaction not found locally, forwarding to historical endpoint"
+                );
+                true
+            }
+        })
     }
 
     /// Determines if a block-based request should be forwarded
     fn should_forward_block_request(&self, method: &str, req: &Request<'_>) -> bool {
         let maybe_block_id = extract_block_id_for_method(method, &req.params());
 
-        maybe_block_id.map(|block_id| self.is_pre_bedrock(block_id)).unwrap_or(false)
+        maybe_block_id.is_some_and(|block_id| self.is_pre_bedrock(block_id))
     }
 
     /// Checks if a block ID refers to a pre-bedrock block
@@ -445,7 +440,7 @@ mod tests {
     /// Tests that the function doesn't parse anything if the parameter is not a valid block id.
     #[test]
     fn returns_error_for_invalid_input() {
-        let params = Params::new(Some(r#"[true]"#));
+        let params = Params::new(Some(r"[true]"));
         let result = parse_block_id_from_params(&params, 0);
         assert!(result.is_none());
     }
@@ -474,7 +469,7 @@ mod tests {
     /// Tests that missing parameter returns appropriate error.
     #[test]
     fn returns_error_for_missing_parameter() {
-        let params = Params::new(Some(r#"[]"#));
+        let params = Params::new(Some(r"[]"));
         let result = parse_transaction_hash_from_params(&params);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ParseError::MissingParameter));

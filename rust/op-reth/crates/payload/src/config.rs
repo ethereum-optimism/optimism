@@ -13,12 +13,14 @@ pub struct OpBuilderConfig {
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
+    #[must_use]
     pub const fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
         Self { da_config, gas_limit_config }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
     /// constraints.
+    #[must_use]
     pub fn constrained_da_config(&self) -> Option<&OpDAConfig> {
         if self.da_config.is_empty() { None } else { Some(&self.da_config) }
     }
@@ -35,6 +37,7 @@ pub struct OpDAConfig {
 
 impl OpDAConfig {
     /// Creates a new Data Availability configuration with the given maximum sizes.
+    #[must_use]
     pub fn new(max_da_tx_size: u64, max_da_block_size: u64) -> Self {
         let this = Self::default();
         this.set_max_da_size(max_da_tx_size, max_da_block_size);
@@ -42,17 +45,20 @@ impl OpDAConfig {
     }
 
     /// Returns whether the configuration is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.max_da_tx_size().is_none() && self.max_da_block_size().is_none()
     }
 
     /// Returns the max allowed data availability size per transactions, if any.
+    #[must_use]
     pub fn max_da_tx_size(&self) -> Option<u64> {
         let val = self.inner.max_da_tx_size.load(std::sync::atomic::Ordering::Relaxed);
         if val == 0 { None } else { Some(val) }
     }
 
     /// Returns the max allowed data availability size per block, if any.
+    #[must_use]
     pub fn max_da_block_size(&self) -> Option<u64> {
         let val = self.inner.max_da_block_size.load(std::sync::atomic::Ordering::Relaxed);
         if val == 0 { None } else { Some(val) }
@@ -104,12 +110,14 @@ pub struct OpGasLimitConfig {
 
 impl OpGasLimitConfig {
     /// Creates a new Gas Limit configuration with the given maximum gas limit.
+    #[must_use]
     pub fn new(max_gas_limit: u64) -> Self {
         let this = Self::default();
         this.set_gas_limit(max_gas_limit);
         this
     }
     /// Returns the gas limit for a transaction, if any.
+    #[must_use]
     pub fn gas_limit(&self) -> Option<u64> {
         let val = self.gas_limit.load(std::sync::atomic::Ordering::Relaxed);
         if val == 0 { None } else { Some(val) }

@@ -245,6 +245,7 @@ where
     Rpc: RpcConvert<Primitives = N::Primitives>,
 {
     /// Returns the [`SequencerClient`] if one is set.
+    #[must_use]
     pub fn raw_tx_forwarder(&self) -> Option<SequencerClient> {
         self.inner.sequencer_client.clone()
     }

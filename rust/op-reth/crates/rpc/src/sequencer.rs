@@ -120,11 +120,13 @@ impl SequencerClient {
     }
 
     /// Returns the network of the client
+    #[must_use]
     pub fn endpoint(&self) -> &str {
         &self.inner.sequencer_endpoint
     }
 
     /// Returns the client
+    #[must_use]
     pub fn client(&self) -> &Client {
         &self.inner.client
     }

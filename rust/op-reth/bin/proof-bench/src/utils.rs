@@ -3,7 +3,7 @@ use alloy_primitives::{Address, B256, U256, keccak256};
 pub const CONTRACT: &str = "0x4200000000000000000000000000000000000006";
 
 /// Calculate the storage slot for `balanceOf[addr]`
-/// Solidity mappings: keccak256(abi.encode(key, slot_position))
+/// Solidity mappings: keccak256(abi.encode(key, `slot_position`))
 pub fn balance_of_slot(addr: Address) -> B256 {
     // Left-pad address (20 bytes) to 32 bytes
     let mut data = Vec::with_capacity(64);

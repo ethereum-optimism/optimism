@@ -22,6 +22,7 @@ pub struct StorageTrieKey {
 
 impl StorageTrieKey {
     /// Create a new storage branch key
+    #[must_use]
     pub const fn new(hashed_address: B256, path: StoredNibbles) -> Self {
         Self { hashed_address, path }
     }
@@ -70,6 +71,7 @@ pub struct HashedStorageKey {
 
 impl HashedStorageKey {
     /// Create a new hashed storage key
+    #[must_use]
     pub const fn new(hashed_address: B256, hashed_storage_key: B256) -> Self {
         Self { hashed_address, hashed_storage_key }
     }

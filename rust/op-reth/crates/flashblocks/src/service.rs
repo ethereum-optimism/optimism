@@ -24,7 +24,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     time::sleep,
 };
-use tracing::*;
+use tracing::{trace, warn};
 
 const CONNECTION_BACKOUT_PERIOD: Duration = Duration::from_secs(5);
 
@@ -506,6 +506,7 @@ struct BuildJob<N: NodePrimitives> {
 /// block until space is available.
 ///
 /// Returns `(sender, receiver)` tuple for use with [`FlashBlockService::with_canonical_block_rx`].
+#[must_use]
 pub fn create_canonical_block_channel()
 -> (mpsc::Sender<CanonicalBlockNotification>, mpsc::Receiver<CanonicalBlockNotification>) {
     mpsc::channel(CANONICAL_BLOCK_CHANNEL_CAPACITY)

@@ -7,7 +7,7 @@ use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_revm::cached::CachedReads;
 use std::{collections::BTreeMap, ops::Deref};
 use tokio::sync::broadcast;
-use tracing::*;
+use tracing::trace;
 
 /// The size of the broadcast channel for completed flashblock sequences.
 const FLASHBLOCK_SEQUENCE_CHANNEL_SIZE: usize = 128;
@@ -57,6 +57,7 @@ pub struct FlashBlockPendingSequence {
 
 impl FlashBlockPendingSequence {
     /// Create a new pending sequence.
+    #[must_use]
     pub fn new() -> Self {
         // Note: if the channel is full, send will not block but rather overwrite the oldest
         // messages. Order is preserved.
@@ -70,6 +71,7 @@ impl FlashBlockPendingSequence {
     }
 
     /// Returns the sender half of the [`FlashBlockCompleteSequence`] channel.
+    #[must_use]
     pub const fn block_sequence_broadcaster(
         &self,
     ) -> &broadcast::Sender<FlashBlockCompleteSequence> {
@@ -77,6 +79,7 @@ impl FlashBlockPendingSequence {
     }
 
     /// Gets a subscriber to the flashblock sequences produced.
+    #[must_use]
     pub fn subscribe_block_sequence(&self) -> FlashBlockCompleteSequenceRx {
         self.block_broadcaster.subscribe()
     }
@@ -158,30 +161,36 @@ impl FlashBlockPendingSequence {
     }
 
     /// Returns the first block number
+    #[must_use]
     pub fn block_number(&self) -> Option<u64> {
         Some(self.inner.values().next()?.block_number())
     }
 
     /// Returns the payload base of the first tracked flashblock.
+    #[must_use]
     pub fn payload_base(&self) -> Option<OpFlashblockPayloadBase> {
         self.inner.values().next()?.base.clone()
     }
 
     /// Returns the number of tracked flashblocks.
+    #[must_use]
     pub fn count(&self) -> usize {
         self.inner.len()
     }
 
     /// Returns the reference to the last flashblock.
+    #[must_use]
     pub fn last_flashblock(&self) -> Option<&FlashBlock> {
         self.inner.last_key_value().map(|(_, b)| b)
     }
 
     /// Returns the current/latest flashblock index in the sequence
+    #[must_use]
     pub fn index(&self) -> Option<u64> {
         Some(self.inner.values().last()?.index)
     }
     /// Returns the payload id of the first tracked flashblock in the current sequence.
+    #[must_use]
     pub fn payload_id(&self) -> Option<PayloadId> {
         Some(self.inner.values().next()?.payload_id)
     }
@@ -253,31 +262,37 @@ impl FlashBlockCompleteSequence {
     }
 
     /// Returns the block number
+    #[must_use]
     pub fn block_number(&self) -> u64 {
         self.inner.first().unwrap().block_number()
     }
 
     /// Returns the payload base of the first flashblock.
+    #[must_use]
     pub fn payload_base(&self) -> &OpFlashblockPayloadBase {
         self.inner.first().unwrap().base.as_ref().unwrap()
     }
 
     /// Returns the payload id shared by all flashblocks in the sequence.
+    #[must_use]
     pub fn payload_id(&self) -> PayloadId {
         self.inner.first().unwrap().payload_id
     }
 
     /// Returns the number of flashblocks in the sequence.
+    #[must_use]
     pub const fn count(&self) -> usize {
         self.inner.len()
     }
 
     /// Returns the last flashblock in the sequence.
+    #[must_use]
     pub fn last(&self) -> &FlashBlock {
         self.inner.last().unwrap()
     }
 
     /// Returns the execution outcome of the sequence.
+    #[must_use]
     pub const fn execution_outcome(&self) -> Option<SequenceExecutionOutcome> {
         self.execution_outcome
     }
@@ -291,6 +306,7 @@ impl FlashBlockCompleteSequence {
     }
 
     /// Returns all transactions from all flashblocks in the sequence
+    #[must_use]
     pub fn all_transactions(&self) -> Vec<Bytes> {
         self.inner.iter().flat_map(|fb| fb.diff.transactions.iter().cloned()).collect()
     }

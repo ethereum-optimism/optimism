@@ -34,6 +34,7 @@ pub struct ExecutingDescriptor {
 
 impl ExecutingDescriptor {
     /// Create a new [`ExecutingDescriptor`] with chain ID, timestamp and timeout
+    #[must_use]
     pub const fn new(chain_id: u64, timestamp: u64, timeout: Option<u64>) -> Self {
         Self { chain_id, timestamp, timeout }
     }

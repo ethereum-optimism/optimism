@@ -361,7 +361,7 @@ where
     }
 
     fn set_hashed_address(&mut self, hashed_address: B256) {
-        self.hashed_address = hashed_address
+        self.hashed_address = hashed_address;
     }
 }
 

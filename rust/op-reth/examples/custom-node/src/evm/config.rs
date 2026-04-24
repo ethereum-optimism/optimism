@@ -171,7 +171,7 @@ where
         let inner =
             OpNextBlockEnvAttributes::build_next_env(&attributes.inner, parent, chain_spec)?;
 
-        Ok(CustomNextBlockEnvAttributes { inner, extension: attributes.extension })
+        Ok(Self { inner, extension: attributes.extension })
     }
 }
 
@@ -189,6 +189,6 @@ where
     ) -> Result<Self, PayloadBuilderError> {
         let inner = OpNextBlockEnvAttributes::build_next_env(attributes, parent, chain_spec)?;
 
-        Ok(CustomNextBlockEnvAttributes { inner, extension: 0 })
+        Ok(Self { inner, extension: 0 })
     }
 }

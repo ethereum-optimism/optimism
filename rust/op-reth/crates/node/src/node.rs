@@ -199,6 +199,7 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
 
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
+    #[must_use]
     pub fn new(args: RollupArgs) -> Self {
         Self {
             args,
@@ -208,18 +209,21 @@ impl OpNode {
     }
 
     /// Configure the data availability configuration for the OP builder.
+    #[must_use]
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
         self.da_config = da_config;
         self
     }
 
     /// Configure the gas limit configuration for the OP builder.
+    #[must_use]
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
         self.gas_limit_config = gas_limit_config;
         self
     }
 
     /// Returns the components for the given [`RollupArgs`].
+    #[must_use]
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
@@ -247,6 +251,7 @@ impl OpNode {
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
+    #[must_use]
     pub fn add_ons_builder<NetworkT: RpcTypes>(&self) -> OpAddOnsBuilder<NetworkT> {
         OpAddOnsBuilder::default()
             .with_sequencer(self.args.sequencer.clone())
@@ -295,6 +300,7 @@ impl OpNode {
     ///         .unwrap();
     /// }
     /// ```
+    #[must_use]
     pub fn provider_factory_builder() -> ProviderFactoryBuilder<Self> {
         ProviderFactoryBuilder::default()
     }
@@ -441,6 +447,7 @@ where
     OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
 {
     /// Build a [`OpAddOns`] using [`OpAddOnsBuilder`].
+    #[must_use]
     pub fn builder() -> OpAddOnsBuilder<NetworkT> {
         OpAddOnsBuilder::default()
     }
@@ -880,8 +887,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             da_config,
             gas_limit_config,
             enable_tx_conditional,
-            min_suggested_priority_fee,
             _nt,
+            min_suggested_priority_fee,
             rpc_middleware,
             tokio_runtime,
             flashblocks_url,
@@ -1019,12 +1026,14 @@ impl<T> Clone for OpPoolBuilder<T> {
 
 impl<T> OpPoolBuilder<T> {
     /// Sets the `enable_tx_conditional` flag on the pool builder.
+    #[must_use]
     pub const fn with_enable_tx_conditional(mut self, enable_tx_conditional: bool) -> Self {
         self.enable_tx_conditional = enable_tx_conditional;
         self
     }
 
     /// Sets the [`PoolBuilderConfigOverrides`] on the pool builder.
+    #[must_use]
     pub fn with_pool_config_overrides(
         mut self,
         pool_config_overrides: PoolBuilderConfigOverrides,
@@ -1034,6 +1043,7 @@ impl<T> OpPoolBuilder<T> {
     }
 
     /// Sets the supervisor client URL. Pass None to disable interop transaction validation.
+    #[must_use]
     pub fn with_supervisor(
         mut self,
         supervisor_client: Option<String>,
@@ -1195,6 +1205,7 @@ pub struct OpPayloadBuilder<Txs = ()> {
 impl OpPayloadBuilder {
     /// Create a new instance with the given `compute_pending_block` flag and data availability
     /// config.
+    #[must_use]
     pub fn new(compute_pending_block: bool) -> Self {
         Self {
             compute_pending_block,
@@ -1205,12 +1216,14 @@ impl OpPayloadBuilder {
     }
 
     /// Configure the data availability configuration for the OP payload builder.
+    #[must_use]
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
         self.da_config = da_config;
         self
     }
 
     /// Configure the gas limit configuration for the OP payload builder.
+    #[must_use]
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
         self.gas_limit_config = gas_limit_config;
         self
@@ -1295,6 +1308,7 @@ impl Clone for OpNetworkBuilder {
 
 impl OpNetworkBuilder {
     /// Creates a new `OpNetworkBuilder`.
+    #[must_use]
     pub const fn new(disable_txpool_gossip: bool, disable_discovery_v4: bool) -> Self {
         Self { disable_txpool_gossip, disable_discovery_v4 }
     }

@@ -161,6 +161,7 @@ pub struct OpReceiptFieldsBuilder {
 
 impl OpReceiptFieldsBuilder {
     /// Returns a new builder.
+    #[must_use]
     pub const fn new(block_timestamp: u64, block_number: u64) -> Self {
         Self {
             block_number,
@@ -235,24 +236,28 @@ impl OpReceiptFieldsBuilder {
     }
 
     /// Applies post-exec block-level warming refund metadata.
+    #[must_use]
     pub const fn op_gas_refund(mut self, op_gas_refund: Option<u64>) -> Self {
         self.op_gas_refund = op_gas_refund;
         self
     }
 
     /// Applies deposit transaction metadata: deposit nonce.
+    #[must_use]
     pub const fn deposit_nonce(mut self, nonce: Option<u64>) -> Self {
         self.deposit_nonce = nonce;
         self
     }
 
     /// Applies deposit transaction metadata: deposit receipt version.
+    #[must_use]
     pub const fn deposit_version(mut self, version: Option<u64>) -> Self {
         self.deposit_receipt_version = version;
         self
     }
 
     /// Builds the [`OpTransactionReceiptFields`] object.
+    #[must_use]
     pub const fn build(self) -> OpTransactionReceiptFields {
         let Self {
             block_number: _,    // used to compute other fields
@@ -357,6 +362,7 @@ impl OpReceiptBuilder {
 
     /// Builds [`OpTransactionReceipt`] by combining core (l1) receipt fields and additional OP
     /// receipt fields.
+    #[must_use]
     pub fn build(self) -> OpTransactionReceipt {
         let Self { core_receipt: inner, op_receipt_fields } = self;
 

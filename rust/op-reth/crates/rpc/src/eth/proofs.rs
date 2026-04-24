@@ -67,7 +67,8 @@ where
         let start = Instant::now();
         self.metrics.get_proof_requests.increment(1);
 
-        let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+        let storage_keys =
+            keys.iter().map(alloy_serde::JsonStorageKey::as_b256).collect::<Vec<_>>();
 
         let result = async {
             let proof = self

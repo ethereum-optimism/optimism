@@ -43,7 +43,7 @@ pub struct OpProofsStateProviderRef<'a, P> {
     block_number: BlockNumber,
 }
 
-impl<'a, P> Debug for OpProofsStateProviderRef<'a, P>
+impl<P> Debug for OpProofsStateProviderRef<'_, P>
 where
     P: Debug,
 {
@@ -61,7 +61,7 @@ impl From<OpProofsStorageError> for ProviderError {
     }
 }
 
-impl<'a, P> BlockHashReader for OpProofsStateProviderRef<'a, P> {
+impl<P> BlockHashReader for OpProofsStateProviderRef<'_, P> {
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         self.latest.block_hash(number)
     }
@@ -75,7 +75,7 @@ impl<'a, P> BlockHashReader for OpProofsStateProviderRef<'a, P> {
     }
 }
 
-impl<'a, P> StateRootProvider for OpProofsStateProviderRef<'a, P>
+impl<P> StateRootProvider for OpProofsStateProviderRef<'_, P>
 where
     P: OpProofsProviderRO + Clone,
 {
@@ -106,7 +106,7 @@ where
     }
 }
 
-impl<'a, P> StorageRootProvider for OpProofsStateProviderRef<'a, P>
+impl<P> StorageRootProvider for OpProofsStateProviderRef<'_, P>
 where
     P: OpProofsProviderRO + Clone,
 {
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl<'a, P> StateProofProvider for OpProofsStateProviderRef<'a, P>
+impl<P> StateProofProvider for OpProofsStateProviderRef<'_, P>
 where
     P: OpProofsProviderRO + Clone,
 {
@@ -189,13 +189,13 @@ where
     }
 }
 
-impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P> {
+impl<P> HashedPostStateProvider for OpProofsStateProviderRef<'_, P> {
     fn hashed_post_state(&self, bundle_state: &BundleState) -> HashedPostState {
         HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle_state.state())
     }
 }
 
-impl<'a, P> AccountReader for OpProofsStateProviderRef<'a, P>
+impl<P> AccountReader for OpProofsStateProviderRef<'_, P>
 where
     P: OpProofsProviderRO,
 {
@@ -211,7 +211,7 @@ where
     }
 }
 
-impl<'a, P> StateProvider for OpProofsStateProviderRef<'a, P>
+impl<P> StateProvider for OpProofsStateProviderRef<'_, P>
 where
     P: OpProofsProviderRO + Clone,
 {
@@ -227,7 +227,7 @@ where
     }
 }
 
-impl<'a, P> BytecodeReader for OpProofsStateProviderRef<'a, P> {
+impl<P> BytecodeReader for OpProofsStateProviderRef<'_, P> {
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         self.latest.bytecode_by_hash(code_hash)
     }

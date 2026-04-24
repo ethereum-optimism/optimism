@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// TOML to make it easier to work in a no-std environment.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) struct ChainMetadata {
+pub(super) struct ChainMetadata {
     pub chain_id: ChainId,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
@@ -18,7 +18,7 @@ pub(crate) struct ChainMetadata {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) struct HardforkConfig {
+pub(super) struct HardforkConfig {
     pub canyon_time: Option<u64>,
     pub delta_time: Option<u64>,
     pub ecotone_time: Option<u64>,
@@ -32,7 +32,7 @@ pub(crate) struct HardforkConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) struct OptimismConfig {
+pub(super) struct OptimismConfig {
     pub eip1559_elasticity: u64,
     pub eip1559_denominator: u64,
     pub eip1559_denominator_canyon: Option<u64>,
@@ -40,7 +40,7 @@ pub(crate) struct OptimismConfig {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ChainConfigExtraFields {
+pub(super) struct ChainConfigExtraFields {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bedrock_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,7 +70,7 @@ pub(crate) struct ChainConfigExtraFields {
 // Helper struct to serialize field for extra fields in ChainConfig
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ChainConfigExtraFieldsOptimism {
+pub(super) struct ChainConfigExtraFieldsOptimism {
     pub eip1559_elasticity: u64,
     pub eip1559_denominator: u64,
     pub eip1559_denominator_canyon: Option<u64>,
@@ -89,7 +89,7 @@ impl From<&OptimismConfig> for ChainConfigExtraFieldsOptimism {
 /// Returns a [`ChainConfig`] filled from [`ChainMetadata`] with extra fields and handling
 /// special case for Optimism chain.
 // Mimic the behavior from https://github.com/ethereum-optimism/op-geth/blob/35e2c852/params/superchain.go#L26
-pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConfig {
+pub(super) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConfig {
     let mut res = ChainConfig {
         chain_id: chain_config.chain_id,
         homestead_block: Some(0),
@@ -145,7 +145,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         isthmus_time: chain_config.hardforks.isthmus_time,
         jovian_time: chain_config.hardforks.jovian_time,
         karst_time: chain_config.hardforks.karst_time,
-        optimism: chain_config.optimism.as_ref().map(|o| o.into()),
+        optimism: chain_config.optimism.as_ref().map(std::convert::Into::into),
     };
     res.extra_fields =
         serde_json::to_value(extra_fields).unwrap_or_default().try_into().unwrap_or_default();

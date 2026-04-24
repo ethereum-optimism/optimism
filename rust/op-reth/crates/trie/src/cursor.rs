@@ -47,7 +47,7 @@ where
 
     #[inline]
     fn reset(&mut self) {
-        self.0.reset()
+        self.0.reset();
     }
 }
 
@@ -57,7 +57,7 @@ where
 {
     #[inline]
     fn set_hashed_address(&mut self, hashed_address: B256) {
-        self.0.set_hashed_address(hashed_address)
+        self.0.set_hashed_address(hashed_address);
     }
 }
 
@@ -83,7 +83,7 @@ where
 
     #[inline]
     fn reset(&mut self) {
-        self.0.reset()
+        self.0.reset();
     }
 }
 
@@ -109,7 +109,7 @@ where
 
     #[inline]
     fn reset(&mut self) {
-        self.0.reset()
+        self.0.reset();
     }
 }
 
@@ -124,6 +124,6 @@ where
 
     #[inline]
     fn set_hashed_address(&mut self, hashed_address: B256) {
-        self.0.set_hashed_address(hashed_address)
+        self.0.set_hashed_address(hashed_address);
     }
 }

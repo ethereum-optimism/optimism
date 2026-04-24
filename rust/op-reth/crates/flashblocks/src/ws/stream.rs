@@ -35,6 +35,7 @@ pub struct WsFlashBlockStream<Stream, Sink, Connector> {
 
 impl WsFlashBlockStream<WsStream, WsSink, WsConnector> {
     /// Creates a new websocket stream over `ws_url`.
+    #[must_use]
     pub fn new(ws_url: Url) -> Self {
         Self {
             ws_url,
@@ -126,7 +127,7 @@ where
                     Ok(Message::Ping(bytes)) => this.ping(bytes),
                     Ok(Message::Close(frame)) => this.close(frame),
                     Ok(msg) => {
-                        debug!(target: "flashblocks", "Received unexpected message: {:?}", msg)
+                        debug!(target: "flashblocks", "Received unexpected message: {:?}", msg);
                     }
                     Err(err) => return Poll::Ready(Some(Err(err.into()))),
                 }
@@ -484,7 +485,7 @@ mod tests {
         let actual_message =
             stream.next().await.expect("Binary message should not be ignored").unwrap();
 
-        assert_eq!(actual_message, expected_message)
+        assert_eq!(actual_message, expected_message);
     }
 
     #[tokio::test]

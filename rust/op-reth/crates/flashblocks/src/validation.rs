@@ -78,6 +78,7 @@ impl FlashblockSequenceValidator {
     /// - Same block and index → `Duplicate`
     /// - Same block, wrong index → `NonSequentialGap`
     /// - Different block, non-zero index or block gap → `InvalidNewBlockIndex`
+    #[must_use]
     pub const fn validate(
         latest_block_number: u64,
         latest_flashblock_index: u64,
@@ -149,12 +150,14 @@ pub enum ReorgDetectionResult {
 impl ReorgDetectionResult {
     /// Returns `true` if a reorganization was detected.
     #[inline]
+    #[must_use]
     pub const fn is_reorg(&self) -> bool {
         matches!(self, Self::ReorgDetected)
     }
 
     /// Returns `true` if no reorganization was detected.
     #[inline]
+    #[must_use]
     pub const fn is_no_reorg(&self) -> bool {
         matches!(self, Self::NoReorg)
     }
@@ -196,6 +199,7 @@ pub struct ReorgDetector;
 
 impl ReorgDetector {
     /// Compares tracked vs canonical block fingerprints to detect reorgs.
+    #[must_use]
     pub fn detect(
         tracked: &TrackedBlockFingerprint,
         canonical: &CanonicalBlockFingerprint,
@@ -274,6 +278,7 @@ impl CanonicalBlockReconciler {
     /// Returns the appropriate [`ReconciliationStrategy`] based on pending vs canonical state.
     ///
     /// Priority: `NoPendingState` → `CatchUp` → `HandleReorg` → `DepthLimitExceeded` → `Continue`
+    #[must_use]
     pub const fn reconcile(
         pending_earliest_block: Option<u64>,
         pending_latest_block: Option<u64>,

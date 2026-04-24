@@ -15,7 +15,7 @@ const MAX_GENESIS_SIZE: usize = 100 * 1024 * 1024; // 100MiB
 const SUPER_CHAIN_CONFIGS_TAR_BYTES: &[u8] = include_bytes!("../../res/superchain-configs.tar");
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum SuperchainConfigError {
+pub(super) enum SuperchainConfigError {
     #[error("Error reading archive due to corrupt data: {0}")]
     CorruptDataError(CorruptDataError),
     #[error("Error converting bytes to UTF-8 String: {0}")]
@@ -32,7 +32,7 @@ pub(crate) enum SuperchainConfigError {
 
 /// Reads the [`Genesis`] from the superchain config tar file for a superchain.
 /// For example, `read_genesis_from_superchain_config("unichain", "mainnet")`.
-pub(crate) fn read_superchain_genesis(
+pub(super) fn read_superchain_genesis(
     name: &str,
     environment: &str,
 ) -> Result<Genesis, SuperchainConfigError> {
@@ -134,7 +134,7 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .split('/')
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<String>>();
             if filename.first().unwrap().ne(&"genesis") {
                 continue;

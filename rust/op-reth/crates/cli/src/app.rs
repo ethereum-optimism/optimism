@@ -145,7 +145,7 @@ where
                     info!(target: "reth::cli", "Started OTLP {:?} tracing export to {endpoint}", self.cli.traces.protocol);
                 }
                 OtlpInitStatus::NoFeature => {
-                    warn!(target: "reth::cli", "Provided OTLP tracing arguments do not have effect, compile with the `otlp` feature")
+                    warn!(target: "reth::cli", "Provided OTLP tracing arguments do not have effect, compile with the `otlp` feature");
                 }
                 OtlpInitStatus::Disabled => {}
             }
@@ -155,7 +155,7 @@ where
                     info!(target: "reth::cli", "Started OTLP {:?} logs export to {endpoint}", self.cli.traces.protocol);
                 }
                 OtlpLogsStatus::NoFeature => {
-                    warn!(target: "reth::cli", "Provided OTLP logs arguments do not have effect, compile with the `otlp-logs` feature")
+                    warn!(target: "reth::cli", "Provided OTLP logs arguments do not have effect, compile with the `otlp-logs` feature");
                 }
                 OtlpLogsStatus::Disabled => {}
             }

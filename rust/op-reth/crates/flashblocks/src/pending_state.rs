@@ -49,6 +49,7 @@ pub struct PendingBlockState<N: NodePrimitives> {
 
 impl<N: NodePrimitives> PendingBlockState<N> {
     /// Creates a new pending block state.
+    #[must_use]
     pub const fn new(
         block_hash: B256,
         block_number: u64,
@@ -96,11 +97,13 @@ impl<N: NodePrimitives> PendingStateRegistry<N> {
     const DEFAULT_MAX_ENTRIES: usize = 64;
 
     /// Creates a new pending state registry.
+    #[must_use]
     pub fn new() -> Self {
         Self::with_max_entries(Self::DEFAULT_MAX_ENTRIES)
     }
 
     /// Creates a new pending state registry with an explicit entry bound.
+    #[must_use]
     pub fn with_max_entries(max_entries: usize) -> Self {
         let max_entries = max_entries.max(1);
         Self {
@@ -138,6 +141,7 @@ impl<N: NodePrimitives> PendingStateRegistry<N> {
     ///
     /// Returns `Some` if we have pending state whose `block_hash` matches the requested
     /// `parent_hash`.
+    #[must_use]
     pub fn get_state_for_parent(&self, parent_hash: B256) -> Option<&PendingBlockState<N>> {
         self.by_block_hash.get(&parent_hash)
     }
@@ -150,6 +154,7 @@ impl<N: NodePrimitives> PendingStateRegistry<N> {
     }
 
     /// Returns the current pending state, if any.
+    #[must_use]
     pub fn current(&self) -> Option<&PendingBlockState<N>> {
         self.latest_block_hash.and_then(|hash| self.by_block_hash.get(&hash))
     }

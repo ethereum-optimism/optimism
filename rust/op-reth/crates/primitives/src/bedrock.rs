@@ -41,6 +41,7 @@ pub const BLOCK_NUMS_REPLAYED_TX: [u64; 6] = [
 
 /// Returns `true` if transaction is the second or third appearance of the transaction. The blocks
 /// with replayed transaction happen to only contain the single transaction.
+#[must_use]
 pub fn is_dup_tx(block_number: u64) -> bool {
     if block_number > BLOCK_NUMS_REPLAYED_TX[5] {
         return false;

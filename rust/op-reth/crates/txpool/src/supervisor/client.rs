@@ -53,16 +53,19 @@ impl SupervisorClient {
     }
 
     /// Returns the configured request timeout.
+    #[must_use]
     pub fn timeout(&self) -> Duration {
         self.inner.timeout
     }
 
     /// Returns configured minimum safety level. See [`SupervisorClient`].
+    #[must_use]
     pub fn safety(&self) -> SafetyLevel {
         self.inner.safety
     }
 
     /// Executes a `supervisor_checkAccessList` with the configured safety level.
+    #[must_use]
     pub fn check_access_list<'a>(
         &self,
         inbox_entries: &'a [B256],
@@ -131,6 +134,7 @@ impl SupervisorClient {
     }
 
     /// Returns the cached failsafe state.
+    #[must_use]
     pub fn is_failsafe_enabled(&self) -> bool {
         self.inner.failsafe_enabled.load(Ordering::Acquire)
     }
@@ -237,12 +241,14 @@ impl SupervisorClientBuilder {
     }
 
     /// Configures a custom timeout
+    #[must_use]
     pub const fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// Sets minimum safety level to accept for cross chain transactions.
+    #[must_use]
     pub const fn minimum_safety(mut self, min_safety: SafetyLevel) -> Self {
         self.safety = min_safety;
         self
@@ -281,14 +287,16 @@ pub struct CheckAccessListRequest<'a> {
     metrics: SupervisorMetrics,
 }
 
-impl<'a> CheckAccessListRequest<'a> {
+impl CheckAccessListRequest<'_> {
     /// Configures the timeout to use for the request if any.
+    #[must_use]
     pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// Configures the [`SafetyLevel`] for this request
+    #[must_use]
     pub const fn with_safety(mut self, safety: SafetyLevel) -> Self {
         self.safety = safety;
         self

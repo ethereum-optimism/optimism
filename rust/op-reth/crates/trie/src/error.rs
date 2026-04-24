@@ -155,7 +155,7 @@ mod test {
         assert!(matches!(db_error, DatabaseError::Custom(_)));
 
         let converted_error = OpProofsStorageError::from(db_error);
-        assert!(matches!(converted_error, OpProofsStorageError::NoBlocksFound))
+        assert!(matches!(converted_error, OpProofsStorageError::NoBlocksFound));
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod test {
         ));
 
         let converted_error = DatabaseError::from(op_proofs_store_error);
-        assert!(matches!(converted_error, DatabaseError::Decode))
+        assert!(matches!(converted_error, DatabaseError::Decode));
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod test {
         let op_proofs_store_error = OpProofsStorageError::from(block_execution_error);
         assert!(
             matches!(op_proofs_store_error, OpProofsStorageError::ExecutionError(err) if matches!(*err, BlockExecutionError::Validation(BlockValidationError::IncrementBalanceFailed)))
-        )
+        );
     }
 
     #[test]
@@ -189,6 +189,6 @@ mod test {
         let op_proofs_store_error = OpProofsStorageError::from(provider_error);
         assert!(
             matches!(op_proofs_store_error, OpProofsStorageError::ProviderError(err) if matches!(*err, ProviderError::SenderRecoveryError))
-        )
+        );
     }
 }

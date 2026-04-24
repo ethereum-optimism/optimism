@@ -31,7 +31,7 @@ impl Compact for TxTypeCustom {
                 buf,
             ),
             v => {
-                let (inner, buf) = TxTypeCustom::from_compact(buf, v);
+                let (inner, buf) = Self::from_compact(buf, v);
                 (inner, buf)
             }
         }

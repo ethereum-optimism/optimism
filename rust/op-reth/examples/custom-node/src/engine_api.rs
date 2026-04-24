@@ -67,7 +67,7 @@ struct CustomEngineApiInner {
 }
 
 impl CustomEngineApiInner {
-    fn new(
+    const fn new(
         beacon_consensus: ConsensusEngineHandle<CustomPayloadTypes>,
         payload_store: PayloadStore<CustomPayloadTypes>,
     ) -> Self {

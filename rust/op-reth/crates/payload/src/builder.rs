@@ -9,7 +9,10 @@ use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
-use reth_basic_payload_builder::*;
+use reth_basic_payload_builder::{
+    BuildArguments, BuildOutcome, BuildOutcomeKind, MissingPayloadBehaviour, PayloadBuilder,
+    PayloadConfig, is_better_payload,
+};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     ConfigureEvm, Database,
@@ -532,6 +535,7 @@ pub struct ExecutionInfo {
 
 impl ExecutionInfo {
     /// Create a new instance with allocated slots.
+    #[must_use]
     pub const fn new() -> Self {
         Self { cumulative_gas_used: 0, cumulative_da_bytes_used: 0, total_fees: U256::ZERO }
     }
@@ -542,6 +546,7 @@ impl ExecutionInfo {
     ///   per tx.
     /// - block DA limit: if configured, ensures the transaction's DA size does not exceed the
     ///   maximum allowed DA limit per block.
+    #[must_use]
     pub fn is_tx_over_limits(
         &self,
         tx_da_size: u64,
@@ -564,7 +569,7 @@ impl ExecutionInfo {
         // Post Jovian: the tx DA footprint must be less than the block gas limit
         if let Some(da_footprint_gas_scalar) = da_footprint_gas_scalar {
             let tx_da_footprint =
-                total_da_bytes_used.saturating_mul(da_footprint_gas_scalar as u64);
+                total_da_bytes_used.saturating_mul(u64::from(da_footprint_gas_scalar));
             if tx_da_footprint > block_gas_limit {
                 return true;
             }
@@ -722,7 +727,7 @@ where
             // If a gas limit is configured, use that limit as target if it's smaller, otherwise use
             // the block's actual gas limit.
             block_gas_limit = gas_limit_config.min(block_gas_limit);
-        };
+        }
         let block_da_limit = self.builder_config.da_config.max_da_block_size();
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
         let base_fee = builder.evm_mut().block().basefee();

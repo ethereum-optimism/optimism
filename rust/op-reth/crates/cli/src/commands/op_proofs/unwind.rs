@@ -102,6 +102,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
 
 impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Returns the underlying chain being used to run this command
+    #[must_use]
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)
     }

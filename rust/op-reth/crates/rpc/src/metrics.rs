@@ -51,6 +51,7 @@ pub enum DebugApis {
 
 impl DebugApis {
     /// Returns the operation as a string for metrics labels.
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::DebugExecutePayload => "debug_execute_payload",
@@ -68,6 +69,7 @@ pub struct DebugApiExtMetrics {
 
 impl DebugApiExtMetrics {
     /// Initializes new `DebugApiExtMetrics`
+    #[must_use]
     pub fn new() -> Self {
         let mut apis = HashMap::default();
         for api in DebugApis::iter() {

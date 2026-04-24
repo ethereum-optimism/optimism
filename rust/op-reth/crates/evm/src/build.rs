@@ -1,7 +1,6 @@
 use alloc::sync::Arc;
 use alloy_consensus::{
-    Block, BlockBody, EMPTY_OMMER_ROOT_HASH, Header, TxReceipt, constants::EMPTY_WITHDRAWALS,
-    proofs,
+    Block, BlockBody, EMPTY_OMMER_ROOT_HASH, Header, constants::EMPTY_WITHDRAWALS, proofs,
 };
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::block::BlockExecutorFactory;
@@ -59,7 +58,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
         let transactions_root = proofs::calculate_transaction_root(&transactions);
         let receipts_root =
             calculate_receipt_root_no_memo_optimism(receipts, &self.chain_spec, timestamp);
-        let logs_bloom = logs_bloom(receipts.iter().flat_map(|r| r.logs()));
+        let logs_bloom = logs_bloom(receipts.iter().flat_map(alloy_consensus::TxReceipt::logs));
 
         let mut requests_hash = None;
 

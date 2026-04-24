@@ -59,15 +59,15 @@ impl OpTransaction for CustomPooledTransaction {
 impl SignerRecoverable for CustomPooledTransaction {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         match self {
-            CustomPooledTransaction::Op(tx) => SignerRecoverable::recover_signer(tx),
-            CustomPooledTransaction::Payment(tx) => SignerRecoverable::recover_signer(tx),
+            Self::Op(tx) => SignerRecoverable::recover_signer(tx),
+            Self::Payment(tx) => SignerRecoverable::recover_signer(tx),
         }
     }
 
     fn recover_signer_unchecked(&self) -> Result<Address, RecoveryError> {
         match self {
-            CustomPooledTransaction::Op(tx) => SignerRecoverable::recover_signer_unchecked(tx),
-            CustomPooledTransaction::Payment(tx) => SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Op(tx) => SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Payment(tx) => SignerRecoverable::recover_signer_unchecked(tx),
         }
     }
 }
@@ -75,8 +75,8 @@ impl SignerRecoverable for CustomPooledTransaction {
 impl TxHashRef for CustomPooledTransaction {
     fn tx_hash(&self) -> &B256 {
         match self {
-            CustomPooledTransaction::Op(tx) => tx.tx_hash(),
-            CustomPooledTransaction::Payment(tx) => tx.hash(),
+            Self::Op(tx) => tx.tx_hash(),
+            Self::Payment(tx) => tx.hash(),
         }
     }
 }
@@ -84,8 +84,8 @@ impl TxHashRef for CustomPooledTransaction {
 impl InMemorySize for CustomPooledTransaction {
     fn size(&self) -> usize {
         match self {
-            CustomPooledTransaction::Op(tx) => InMemorySize::size(tx),
-            CustomPooledTransaction::Payment(tx) => InMemorySize::size(tx),
+            Self::Op(tx) => InMemorySize::size(tx),
+            Self::Payment(tx) => InMemorySize::size(tx),
         }
     }
 }

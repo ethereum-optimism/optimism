@@ -84,6 +84,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportReceiptsOpCommand<C> {
 
 impl<C: ChainSpecParser> ImportReceiptsOpCommand<C> {
     /// Returns the underlying chain being used to run this command
+    #[must_use]
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         Some(&self.env.chain)
     }
@@ -223,7 +224,7 @@ where
         }
 
         // Update total_receipts after all filtering
-        total_receipts += receipts.iter().map(|v| v.len()).sum::<usize>();
+        total_receipts += receipts.iter().map(std::vec::Vec::len).sum::<usize>();
 
         let execution_outcome =
             ExecutionOutcome::new(Default::default(), receipts, first_block, Default::default());

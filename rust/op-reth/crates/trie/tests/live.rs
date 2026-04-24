@@ -1,3 +1,5 @@
+#![allow(clippy::needless_pass_by_value)]
+
 //! End-to-end test of the live trie collector.
 
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
