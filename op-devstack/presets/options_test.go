@@ -6,6 +6,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,6 +47,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
 		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
+		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
 }
@@ -105,11 +107,22 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want: optionKindOPRBuilder | optionKindAfterBuild | optionKindProofValidation,
 		},
 		{
-			name:      "supernode proofs allow challenger and time travel toggles",
+			name:      "shared supernode proofs reject pre-genesis super game",
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(
 				WithChallengerCannonKonaEnabled(),
 				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
+			),
+			want: optionKindPreGenesisSuperGame,
+		},
+		{
+			name:      "two l2 supernode proofs accept pre-genesis super game",
+			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
+			opts: Combine(
+				WithChallengerCannonKonaEnabled(),
+				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
 			),
 			want: 0,
 		},
@@ -122,8 +135,11 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 		{
 			name:      "two l2 supernode interop accepts time travel",
 			supported: twoL2SupernodeInteropPresetSupportedOptionKinds,
-			opts:      WithTimeTravelEnabled(),
-			want:      0,
+			opts: Combine(
+				WithTimeTravelEnabled(),
+				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
+			),
+			want: 0,
 		},
 		{
 			name:      "unsupported proof validation is called out separately from generic after build",

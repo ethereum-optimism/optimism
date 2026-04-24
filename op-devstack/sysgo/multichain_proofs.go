@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -106,18 +107,63 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 
 	proofChain := chains[0]
 	cls := make([]L2CLNode, 0, len(chains))
-	nets := make([]*L2Network, 0, len(chains))
-	els := make([]L2ELNode, 0, len(chains))
 	for _, chain := range chains {
 		t.Require().NotNil(chain, "runtime chain entry must not be nil")
 		cls = append(cls, chain.CL)
-		nets = append(nets, chain.Network)
-		els = append(els, chain.EL)
+	}
+
+	superrootTime := awaitSuperrootTime(t, cls...)
+	if cfg.PreGenesisSuperGame == nil {
+		superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
+		migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	}
+
+	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
+	return runtime
+}
+
+// attachSupernodeSuperProofsViaUpgrade adds permissionless super games via
+// opcm.upgrade, then wires the interop challenger and super proposer.
+func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
+	chains := orderedRuntimeChains(runtime)
+	t.Require().NotEmpty(chains, "supernode superproofs runtime must contain at least one chain")
+	t.Require().NotNil(runtime.Supernode, "supernode superproofs runtime must provide a supernode")
+
+	proofChain := chains[0]
+	cls := make([]L2CLNode, 0, len(chains))
+	for _, chain := range chains {
+		t.Require().NotNil(chain, "runtime chain entry must not be nil")
+		cls = append(cls, chain.CL)
 	}
 
 	superrootTime := awaitSuperrootTime(t, cls...)
 	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
-	migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+
+	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
+	return runtime
+}
+
+// attachSuperChallengerAndProposer wires an interop challenger and a super
+// proposer for proposerGameType into a supernode-backed runtime.
+func attachSuperChallengerAndProposer(
+	t devtest.T,
+	runtime *MultiChainRuntime,
+	cfg PresetConfig,
+	proposerGameType gameTypes.GameType,
+) {
+	chains := orderedRuntimeChains(runtime)
+	t.Require().NotEmpty(chains, "runtime must contain at least one chain")
+	t.Require().NotNil(runtime.Supernode, "runtime must provide a supernode")
+
+	proofChain := chains[0]
+	nets := make([]*L2Network, 0, len(chains))
+	els := make([]L2ELNode, 0, len(chains))
+	for _, chain := range chains {
+		t.Require().NotNil(chain, "runtime chain entry must not be nil")
+		nets = append(nets, chain.Network)
+		els = append(els, chain.EL)
+	}
 
 	challenger := startInteropChallenger(
 		t,
@@ -134,6 +180,12 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
+	proposerOpts := append([]ProposerOption{
+		func(_ ComponentTarget, c *ps.CLIConfig) {
+			c.DisputeGameType = uint32(proposerGameType)
+		},
+	}, cfg.ProposerOptions...)
+
 	_ = startSuperProposer(
 		t,
 		runtime.Keys,
@@ -143,10 +195,8 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 		proofChain.Network,
 		"",
 		runtime.Supernode.UserRPC(),
-		cfg.ProposerOptions...,
+		proposerOpts...,
 	)
-
-	return runtime
 }
 
 func NewSimpleInteropSuperProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
@@ -161,11 +211,14 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 
+// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
+// SuperPermissionedCannon at genesis, then uses opcm.upgrade to add the
+// permissionless super games and set the real starting anchor root.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
-	cfg = withSuperProofsDeployerFeature(cfg)
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	runtime := newSingleChainSupernodeRuntimeWithConfig(t, interopAtGenesis, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
-	return attachSupernodeSuperProofs(t, runtime, cfg)
+	return attachSupernodeSuperProofsViaUpgrade(t, runtime, cfg)
 }
 
 func startSuperProposer(

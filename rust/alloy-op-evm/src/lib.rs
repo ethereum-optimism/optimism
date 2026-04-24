@@ -27,11 +27,10 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use op_revm::{
-    DefaultOp, L1BlockInfo, OpBuilder, OpContext, OpHaltReason, OpSpecId, OpTransaction,
-    precompiles::OpPrecompiles,
+    L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
 };
 use revm::{
-    Context, ExecuteEvm, InspectEvm, Inspector, Journal, SystemCallEvm,
+    Context, ExecuteEvm, InspectEvm, Inspector, Journal, MainContext, SystemCallEvm,
     context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::result::{EVMError, ResultAndState},
     handler::{PrecompileProvider, instructions::EthInstructions},
@@ -58,7 +57,8 @@ pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journa
 /// [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
 pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
-    inner: op_revm::OpEvm<OpContext<DB>, I, EthInstructions<EthInterpreter, OpContext<DB>>, P>,
+    inner:
+        op_revm::OpEvm<OpEvmContext<DB>, I, EthInstructions<EthInterpreter, OpEvmContext<DB>>, P>,
     inspect: bool,
     _tx: PhantomData<Tx>,
 }
@@ -67,17 +67,18 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
-    ) -> op_revm::OpEvm<OpContext<DB>, I, EthInstructions<EthInterpreter, OpContext<DB>>, P> {
+    ) -> op_revm::OpEvm<OpEvmContext<DB>, I, EthInstructions<EthInterpreter, OpEvmContext<DB>>, P>
+    {
         self.inner
     }
 
     /// Provides a reference to the EVM context.
-    pub const fn ctx(&self) -> &OpContext<DB> {
+    pub const fn ctx(&self) -> &OpEvmContext<DB> {
         &self.inner.0.ctx
     }
 
     /// Provides a mutable reference to the EVM context.
-    pub const fn ctx_mut(&mut self) -> &mut OpContext<DB> {
+    pub const fn ctx_mut(&mut self) -> &mut OpEvmContext<DB> {
         &mut self.inner.0.ctx
     }
 }
@@ -88,7 +89,12 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
     /// The `inspect` argument determines whether the configured [`Inspector`] of the given
     /// [`OpEvm`](op_revm::OpEvm) should be invoked on [`Evm::transact`].
     pub const fn new(
-        evm: op_revm::OpEvm<OpContext<DB>, I, EthInstructions<EthInterpreter, OpContext<DB>>, P>,
+        evm: op_revm::OpEvm<
+            OpEvmContext<DB>,
+            I,
+            EthInstructions<EthInterpreter, OpEvmContext<DB>>,
+            P,
+        >,
         inspect: bool,
     ) -> Self {
         Self { inner: evm, inspect, _tx: PhantomData }
@@ -96,7 +102,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
 }
 
 impl<DB: Database, I, P, Tx> Deref for OpEvm<DB, I, P, Tx> {
-    type Target = OpContext<DB>;
+    type Target = OpEvmContext<DB>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -114,8 +120,8 @@ impl<DB: Database, I, P, Tx> DerefMut for OpEvm<DB, I, P, Tx> {
 impl<DB, I, P, Tx> Evm for OpEvm<DB, I, P, Tx>
 where
     DB: Database,
-    I: Inspector<OpContext<DB>>,
-    P: PrecompileProvider<OpContext<DB>, Output = InterpreterResult>,
+    I: Inspector<OpEvmContext<DB>>,
+    P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>>,
 {
     type DB = DB;
@@ -131,6 +137,10 @@ where
         &self.block
     }
 
+    fn cfg_env(&self) -> &CfgEnv<OpSpecId> {
+        &self.cfg
+    }
+
     fn chain_id(&self) -> u64 {
         self.cfg.chain_id
     }
@@ -139,11 +149,10 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        let inner_tx: OpTransaction<TxEnv> = tx.into();
         let result = if self.inspect {
-            self.inner.inspect_tx(inner_tx)
+            self.inner.inspect_tx(OpTx(tx.into()))
         } else {
-            self.inner.transact(inner_tx)
+            self.inner.transact(OpTx(tx.into()))
         };
         result.map_err(map_op_err)
     }
@@ -157,7 +166,7 @@ where
         self.inner.system_call_with_caller(caller, contract, data).map_err(map_op_err)
     }
 
-    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
+    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec, Self::BlockEnv>) {
         let Context { block: block_env, cfg: cfg_env, journaled_state, .. } = self.inner.0.ctx;
 
         (journaled_state.database, EvmEnv { block_env, cfg_env })
@@ -210,8 +219,8 @@ impl<Tx> EvmFactory for OpEvmFactory<Tx>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
 {
-    type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
-    type Context<DB: Database> = OpContext<DB>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
+    type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
     type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
@@ -222,11 +231,14 @@ where
     fn create_evm<DB: Database>(
         &self,
         db: DB,
-        input: EvmEnv<OpSpecId>,
+        input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
         let spec_id = input.cfg_env.spec;
         OpEvm {
-            inner: Context::op()
+            inner: Context::mainnet()
+                .with_tx(OpTx(OpTransaction::builder().build_fill()))
+                .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+                .with_chain(L1BlockInfo::default())
                 .with_db(db)
                 .with_block(input.block_env)
                 .with_cfg(input.cfg_env)
@@ -242,12 +254,15 @@ where
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
         &self,
         db: DB,
-        input: EvmEnv<OpSpecId>,
+        input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
         let spec_id = input.cfg_env.spec;
         OpEvm {
-            inner: Context::op()
+            inner: Context::mainnet()
+                .with_tx(OpTx(OpTransaction::builder().build_fill()))
+                .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+                .with_chain(L1BlockInfo::default())
                 .with_db(db)
                 .with_block(input.block_env)
                 .with_cfg(input.cfg_env)
@@ -263,14 +278,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::{string::ToString, vec};
+    use alloc::vec;
     use alloy_evm::{
         EvmInternals,
         precompiles::{Precompile, PrecompileInput},
     };
     use alloy_primitives::U256;
     use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileError};
+    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileHalt};
 
     use super::*;
 
@@ -284,64 +299,85 @@ mod tests {
         let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
 
         let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), PrecompileError::Bn254PairLength));
+        assert!(result.is_halt());
+        assert!(matches!(result.halt_reason(), Some(&PrecompileHalt::Bn254PairLength)));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("G1MSM input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("G1MSM input length too long")
+        ));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("G2MSM input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("G2MSM input length too long")
+        ));
 
         let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
-            gas: u64::MAX,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
+        let result = jovian_precompile
+            .call(PrecompileInput {
+                data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
+                gas: u64::MAX,
+                reservoir: 0,
+                caller: Address::ZERO,
+                value: U256::ZERO,
+                is_static: false,
+                target_address: Address::ZERO,
+                bytecode_address: Address::ZERO,
+                internals: EvmInternals::from_context(ctx),
+            })
+            .unwrap();
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Pairing input length too long"));
+        assert!(result.is_halt());
+        assert!(matches!(
+            result.halt_reason(),
+            Some(PrecompileHalt::Other(msg)) if msg.contains("Pairing input length too long")
+        ));
     }
 
     #[test]
@@ -355,6 +391,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -369,6 +406,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -383,6 +421,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,
@@ -397,6 +436,7 @@ mod tests {
         let result = jovian_precompile.call(PrecompileInput {
             data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE],
             gas: u64::MAX,
+            reservoir: 0,
             caller: Address::ZERO,
             value: U256::ZERO,
             is_static: false,

@@ -82,7 +82,7 @@ func TestVerifyFromCommit_MatchingBundle(t *testing.T) {
 	// Generator is a no-op: the bundle file already exists at the commit.
 	noopGenerator := func(contractsDir string) error { return nil }
 
-	err := verifyFromCommit(root, entry, noopGenerator)
+	err := verifyFromCommit(root, "test-fork", entry, noopGenerator)
 	require.NoError(t, err)
 }
 
@@ -106,8 +106,8 @@ func TestVerifyFromCommit_MismatchedBundle(t *testing.T) {
 
 	noopGenerator := func(contractsDir string) error { return nil }
 
-	err := verifyFromCommit(root, entry, noopGenerator)
-	require.ErrorContains(t, err, "regenerated bundle at commit")
+	err := verifyFromCommit(root, "test-fork", entry, noopGenerator)
+	require.ErrorContains(t, err, "bundle regenerated from commit")
 }
 
 func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
@@ -136,6 +136,6 @@ func TestVerifyFromCommit_GeneratorModifiesBundle(t *testing.T) {
 		return os.WriteFile(outPath, regeneratedContent, 0644)
 	}
 
-	err := verifyFromCommit(root, entry, modifyingGenerator)
+	err := verifyFromCommit(root, "test-fork", entry, modifyingGenerator)
 	require.NoError(t, err)
 }

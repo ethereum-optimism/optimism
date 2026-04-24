@@ -514,6 +514,7 @@ impl OpExecutionPayload {
             blob_gas_used: self.blob_gas_used(),
             difficulty: U256::ZERO,
             mix_hash: Some(self.prev_randao()),
+            slot_number: None,
         }
     }
 

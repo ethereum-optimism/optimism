@@ -96,6 +96,7 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
                 .chain_spec
                 .is_cancun_active_at_timestamp(timestamp)
                 .then(alloy_primitives::B256::random),
+            slot_number: None,
         };
 
         /// Dummy system transaction for dev mode.
@@ -940,6 +941,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                 EB::default(),
                 EVB::default(),
                 rpc_middleware,
+                reth_node_builder::rpc::Identity::new(),
             )
             .with_tokio_runtime(tokio_runtime),
             da_config.unwrap_or_default(),

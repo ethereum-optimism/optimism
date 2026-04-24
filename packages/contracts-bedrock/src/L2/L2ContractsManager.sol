@@ -33,8 +33,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.8.0
+    string public constant version = "1.8.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -224,8 +224,21 @@ contract L2ContractsManager is ISemver {
         // LiquidityController
         if (fullConfig_.isCustomGasToken) {
             ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
+
+            address _liquidityControllerOwner;
+            // X Layer removed the owner() getter from their LiquidityController fork.
+            // Fall back to ProxyAdmin.owner() so the upgrade can migrate them to the OP Stack
+            // implementation, which restores a standard Ownable owner initialized to that address.
+            // TODO(#19468): Remove the fallback after the Karst upgrade.
+            // eip150-safe
+            try liquidityController.owner() returns (address owner_) {
+                _liquidityControllerOwner = owner_;
+            } catch {
+                _liquidityControllerOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+            }
+
             fullConfig_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
-                owner: liquidityController.owner(),
+                owner: _liquidityControllerOwner,
                 gasPayingTokenName: liquidityController.gasPayingTokenName(),
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });

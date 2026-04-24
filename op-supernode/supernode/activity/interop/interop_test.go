@@ -286,6 +286,30 @@ func TestStartStop(t *testing.T) {
 				require.Error(t, err)
 			},
 		},
+		{
+			// Permanent SafeDB gap must halt Start cleanly (no retry loop).
+			name: "Start halts when a chain reports ErrHistoryUnavailable",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 50}
+					m.optimisticAtErr = cc.ErrHistoryUnavailable
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				done := make(chan error, 1)
+				go func() { done <- h.interop.Start(context.Background()) }()
+
+				// Must halt well under one errorBackoffPeriod (2s).
+				var err error
+				select {
+				case err = <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("Start did not halt within 5s after ErrHistoryUnavailable")
+				}
+				require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -796,6 +820,39 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 			h := newInteropTestHarness(t)
 			tc.setup(h)
 			tc.run(t, h)
+		})
+	}
+}
+
+// =============================================================================
+// TestIsActiveAt
+// =============================================================================
+
+// TestIsActiveAt verifies that Interop.IsActiveAt reports the verifier as
+// inactive for timestamps strictly before the configured activation timestamp
+// and active at or after it. This is the per-verifier hook super_authority
+// consults to decide whether pre-interop L2 content can bypass the verifier
+// and fall back to local-safe / local-finalized.
+func TestIsActiveAt(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		activation uint64
+		ts         uint64
+		want       bool
+	}{
+		{"before activation returns false", 1000, 999, false},
+		{"well before activation returns false", 1000, 0, false},
+		{"at activation returns true", 1000, 1000, true},
+		{"after activation returns true", 1000, 9999, true},
+		{"activation zero always active", 0, 0, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t).WithActivation(tc.activation).Build()
+			require.Equal(t, tc.want, h.interop.IsActiveAt(tc.ts))
 		})
 	}
 }

@@ -173,7 +173,6 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-	l2Proposer := startMinimalProposer(t, keys, l2Net, l1EL, l2CL, cfg.ProposerOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	// Use the potentially-overridden depSetStatic if available.
@@ -193,12 +192,11 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		L1CL:          l1CL,
 		Chains: map[string]*MultiChainNodeRuntime{
 			"l2a": {
-				Name:     "l2a",
-				Network:  l2Net,
-				EL:       l2EL,
-				CL:       l2CL,
-				Batcher:  l2Batcher,
-				Proposer: l2Proposer,
+				Name:    "l2a",
+				Network: l2Net,
+				EL:      l2EL,
+				CL:      l2CL,
+				Batcher: l2Batcher,
 			},
 		},
 		Supernode:     supernode,
@@ -214,6 +212,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
 	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -222,6 +221,9 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	if cfg.PreGenesisSuperGame != nil {
+		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.EnableCannonKonaForChall, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
+	}
 
 	var l2AEL, l2BEL L2ELNode
 	var interopFilter *InteropFilter
@@ -320,7 +322,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 
 	return &MultiChainRuntime{
 		Keys:          keys,
-		Migration:     newInteropMigrationState(wb),
+		Migration:     migration,
 		DependencySet: runtimeDepSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,

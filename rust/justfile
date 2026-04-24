@@ -121,9 +121,6 @@ check-no-std:
     op-alloy-consensus
     op-alloy-rpc-types
     op-alloy-rpc-types-engine
-
-    # op-revm
-    op-revm
   )
 
   # We need to install the riscv32imac-unknown-none-elf target before starting to build the no-std crates.

@@ -24,8 +24,11 @@ pub(crate) fn execute<T: Into<Bytes>>(address: Address, input: T, gas: u64) -> R
     if let Some(precompile) =
         ACCELERATED_PRECOMPILES.iter().find(|precompile| *precompile.address() == address)
     {
-        let output = precompile.precompile()(&input.into(), gas)
-            .map_err(|e| HostError::PrecompileExecutionFailed(e.to_string()))?;
+        let output = precompile.execute(&input.into(), gas, 0).map_err(
+            |e: revm::precompile::PrecompileError| {
+                HostError::PrecompileExecutionFailed(e.to_string())
+            },
+        )?;
 
         Ok(output.bytes.into())
     } else {

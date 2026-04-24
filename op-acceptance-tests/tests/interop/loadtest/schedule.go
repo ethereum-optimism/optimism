@@ -270,7 +270,11 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 					if errors.Is(err, t.Ctx().Err()) {
 						return
 					}
-					t.Require().NoError(err)
+					// A transient sampling failure (e.g. dial timeout under load) is
+					// not a test failure. Log and try again next tick; leave the AIMD
+					// state unchanged so the current RPS is preserved.
+					t.Logger().Warn("Steady sampler failed to read unsafe head", "err", err)
+					continue
 				}
 				gasTarget := unsafe.GasLimit() / s.elasticityMultiplier
 				// Apply backpressure when we meet or exceed the gas target.

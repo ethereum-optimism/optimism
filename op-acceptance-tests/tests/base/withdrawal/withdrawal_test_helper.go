@@ -40,10 +40,9 @@ func newSystem(t devtest.T, gameType gameTypes.GameType) *presets.Minimal {
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
 	t := devtest.ParallelT(gt)
 	sys := newSystem(t, gameType)
-	require := sys.T.Require()
 
 	bridge := sys.StandardBridge()
-	require.EqualValuesf(gameType, bridge.RespectedGameType(), "Respected game type must be %s", gameType)
+	bridge.VerifyRespectedGameType(gameType)
 
 	initialL1Balance := eth.OneThirdEther
 

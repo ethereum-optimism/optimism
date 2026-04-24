@@ -228,7 +228,12 @@ func (i *Interop) Start(ctx context.Context) error {
 		default:
 			madeProgress, err := i.progressAndRecord()
 			if err != nil {
-				// Error: back off before next attempt
+				// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
+				if errors.Is(err, cc.ErrHistoryUnavailable) {
+					i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+						"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+					return fmt.Errorf("interop halted due to unavailable history: %w", err)
+				}
 				i.log.Error("failed to progress and record interop", "err", err)
 				time.Sleep(errorBackoffPeriod)
 				continue
@@ -785,6 +790,13 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)
+}
+
+// IsActiveAt reports whether the interop verifier is responsible for verifying
+// L2 content at the given timestamp. Returns false for timestamps strictly
+// before the configured activation timestamp.
+func (i *Interop) IsActiveAt(ts uint64) bool {
+	return ts >= i.activationTimestamp
 }
 
 // LatestVerifiedL2Block returns the latest L2 block which has been verified,
