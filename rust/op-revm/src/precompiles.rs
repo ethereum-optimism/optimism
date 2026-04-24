@@ -27,10 +27,10 @@ impl OpPrecompiles {
     #[inline]
     pub fn new_with_spec(spec: OpSpecId) -> Self {
         let precompiles = match spec {
-            spec @ (OpSpecId::BEDROCK |
-            OpSpecId::REGOLITH |
-            OpSpecId::CANYON |
-            OpSpecId::ECOTONE) => Precompiles::new(spec.into_eth_spec().into()),
+            spec @ (OpSpecId::BEDROCK
+            | OpSpecId::REGOLITH
+            | OpSpecId::CANYON
+            | OpSpecId::ECOTONE) => Precompiles::new(spec.into_eth_spec().into()),
             OpSpecId::FJORD => fjord(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
@@ -554,9 +554,9 @@ mod tests {
 
         let res = run_g2_msm_jovian(&input, u64::MAX);
 
-        assert!(
-            matches!(res, Err(PrecompileHalt::Other(msg)) if msg.contains("input length too long"))
-        );
+        assert!(matches!(
+            res,
+            Err(PrecompileHalt::Other(msg)) if msg.contains("input length too long")));
     }
     #[test]
     fn test_pair_isthmus_max_size() {

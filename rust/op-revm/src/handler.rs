@@ -86,8 +86,8 @@ where
         let tx_type = tx.tx_type();
         if tx_type == DEPOSIT_TRANSACTION_TYPE {
             // Do not allow for a system transaction to be processed if Regolith is enabled.
-            if tx.is_system_transaction() &&
-                evm.ctx().cfg().spec().is_enabled_in(OpSpecId::REGOLITH)
+            if tx.is_system_transaction()
+                && evm.ctx().cfg().spec().is_enabled_in(OpSpecId::REGOLITH)
             {
                 return Err(OpTransactionError::DepositSystemTxPostRegolith.into());
             }
@@ -119,8 +119,8 @@ where
 
             let effective_balance_spending = tx
                 .effective_balance_spending(basefee, blob_price)
-                .expect("Deposit transaction effective balance spending overflow") -
-                tx.value();
+                .expect("Deposit transaction effective balance spending overflow")
+                - tx.value();
 
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
@@ -217,8 +217,7 @@ where
             //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
             //   - Regular transactions report their gas used as normal.
             if !is_deposit || is_regolith {
-                // For regular transactions prior to Regolith and all transactions after
-                // Regolith, gas is reported as normal.
+                // Return unused regular gas and unused reservoir gas.
                 gas.erase_cost(remaining);
                 gas.record_refund(refunded);
             } else if is_deposit && tx.is_system_transaction() {
@@ -240,12 +239,21 @@ where
             //     on failure. Refunds on remaining gas enabled.
             //   - Regular transactions receive a refund on remaining gas as normal.
             if !is_deposit || is_regolith {
+                // Return unused regular gas.
                 gas.erase_cost(remaining);
             }
         }
 
-        gas.set_state_gas_spent(state_gas_spent);
-        gas.set_reservoir(reservoir);
+        if instruction_result.is_ok() {
+            // Restore state_gas_spent on successful paths (lost by Gas::new_spent overwrite).
+            gas.set_state_gas_spent(state_gas_spent);
+            gas.set_reservoir(reservoir);
+        } else {
+            // On failure - zero execution state gas: [bal-devnet notes](<https://notes.ethereum.org/@ethpandaops/bal-devnet-4#Changes-vs-bal-devnet-3>)
+            // and [specs](<https://github.com/ethereum/EIPs/pull/11476>)
+            gas.set_state_gas_spent(0);
+            gas.set_reservoir(state_gas_spent + reservoir);
+        }
 
         Ok(())
     }
@@ -255,8 +263,8 @@ where
         evm: &mut Self::Evm,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
     ) -> Result<(), Self::Error> {
-        let additional_refund = if evm.ctx().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE &&
-            !evm.ctx().cfg().is_fee_charge_disabled()
+        let additional_refund = if evm.ctx().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE
+            && !evm.ctx().cfg().is_fee_charge_disabled()
         {
             let spec = evm.ctx().cfg().spec();
             evm.ctx().chain().operator_fee_refund(frame_result.gas(), spec)
@@ -314,6 +322,7 @@ where
         };
 
         let l1_cost = l1_block_info.calculate_tx_l1_cost(enveloped_tx, spec);
+        // Exclude reservoir gas (EIP-8037) from used gas — reservoir is unused and reimbursed.
         let effective_used =
             frame_result.gas().used().saturating_sub(frame_result.gas().reservoir());
         let operator_fee_cost = if spec.is_enabled_in(OpSpecId::ISTHMUS) {
