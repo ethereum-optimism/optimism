@@ -61,8 +61,11 @@ pub fn capitalize(name: &str) -> String {
 /// Generate the Rust source for a `fn {name}_nut_bundle() -> &'static NutBundle` constructor.
 ///
 /// The generated function wraps the bundle construction in a function-scoped
-/// `once_cell::sync::OnceCell` so the bundle is allocated at most once per
+/// `once_cell::race::OnceBox` so the bundle is allocated at most once per
 /// process, with subsequent calls returning a reference to the cached value.
+/// `OnceBox` is lock-free (AtomicPtr-based) and works on `no_std` targets
+/// without requiring a `critical-section` implementation — critical for the
+/// cannon/asterisc fault-proof VM targets.
 ///
 /// `fork_display` is the capitalized form of `name` (see [`capitalize`]).
 pub fn format_bundle(name: &str, fork_display: &str, bundle: &BundleFile) -> String {
@@ -72,10 +75,10 @@ pub fn format_bundle(name: &str, fork_display: &str, bundle: &BundleFile) -> Str
         "pub(crate) fn {name}_nut_bundle() -> &'static op_alloy_consensus::NutBundle {{\n"
     ));
     code.push_str(
-        "    static BUNDLE: once_cell::sync::OnceCell<op_alloy_consensus::NutBundle>\n        = once_cell::sync::OnceCell::new();\n",
+        "    static BUNDLE: once_cell::race::OnceBox<op_alloy_consensus::NutBundle>\n        = once_cell::race::OnceBox::new();\n",
     );
     code.push_str(&format!(
-        "    BUNDLE.get_or_init(|| op_alloy_consensus::NutBundle {{\n        fork_name: alloc::string::String::from({fork_display:?}),\n        transactions: alloc::vec![\n"
+        "    BUNDLE.get_or_init(|| alloc::boxed::Box::new(op_alloy_consensus::NutBundle {{\n        fork_name: alloc::string::String::from({fork_display:?}),\n        transactions: alloc::vec![\n"
     ));
 
     for tx in &bundle.transactions {
@@ -107,6 +110,6 @@ pub fn format_bundle(name: &str, fork_display: &str, bundle: &BundleFile) -> Str
         code.push_str("            },\n");
     }
 
-    code.push_str("        ],\n    })\n}\n");
+    code.push_str("        ],\n    }))\n}\n");
     code
 }

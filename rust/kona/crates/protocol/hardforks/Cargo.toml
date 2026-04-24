@@ -25,8 +25,10 @@ alloy-primitives = { workspace = true, features = ["rlp"] }
 # OP Alloy
 op-alloy-consensus.workspace = true
 
-# Caching for build-script-generated NUT bundle constructors.
-once_cell.workspace = true
+# Caching for build-script-generated NUT bundle constructors. The `race`
+# feature enables `once_cell::race::OnceBox`, which is lock-free and works
+# on `no_std` targets without a critical-section implementation.
+once_cell = { workspace = true, features = ["race"] }
 
 [build-dependencies]
 anyhow.workspace = true
