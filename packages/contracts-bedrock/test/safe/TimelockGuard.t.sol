@@ -34,11 +34,6 @@ library TransactionBuilder {
 
     address internal constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
-    /// @notice Sets a nonce value on the provided transaction struct.
-    function setNonce(Transaction memory _tx, uint256 _nonce) internal pure {
-        _tx.nonce = _nonce;
-    }
-
     /// @notice Computes and stores the Safe transaction hash for the struct.
     function setHash(Transaction memory _tx) internal view {
         _tx.hash = _tx.safeInstance.safe.getTransactionHash({

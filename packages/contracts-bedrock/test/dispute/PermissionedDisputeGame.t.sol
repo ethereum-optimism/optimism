@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
-import { _changeClaimStatus, _dummyClaim } from "test/dispute/FaultDisputeGame.t.sol";
+import { _changeClaimStatus, _copyBytes, _dummyClaim, _requiredBondForGame } from "test/dispute/FaultDisputeGame.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 // Libraries
@@ -112,22 +112,12 @@ abstract contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestIni
 
     /// @dev Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
-        (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
-        Position pos = parent.move(true);
-        bond_ = gameProxy.getRequiredBond(pos);
+        bond_ = _requiredBondForGame(address(gameProxy), _claimIndex);
     }
 
     fallback() external payable { }
 
     receive() external payable { }
-
-    function copyBytes(bytes memory src, bytes memory dest) internal pure returns (bytes memory) {
-        uint256 byteCount = src.length < dest.length ? src.length : dest.length;
-        for (uint256 i = 0; i < byteCount; i++) {
-            dest[i] = src[i];
-        }
-        return dest;
-    }
 }
 
 /// @title PermissionedDisputeGame_Version_Test
@@ -282,7 +272,7 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
         _extraByteCount = bound(_extraByteCount, 1, 23_500);
         bytes memory immutableArgs = new bytes(_extraByteCount + correctArgs.length);
         // Copy correct args into immutable args
-        copyBytes(correctArgs, immutableArgs);
+        _copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
         setupPermissionedDisputeGame(immutableArgs);
@@ -305,7 +295,7 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
         _truncatedByteCount = (_truncatedByteCount % correctArgs.length) + 1;
         bytes memory immutableArgs = new bytes(correctArgs.length - _truncatedByteCount);
         // Copy correct args into immutable args
-        copyBytes(correctArgs, immutableArgs);
+        _copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
         setupPermissionedDisputeGame(immutableArgs);

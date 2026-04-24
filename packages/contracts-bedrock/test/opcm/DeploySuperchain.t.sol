@@ -32,10 +32,6 @@ contract DeploySuperchain_Test is Test {
         return bytes32(ProtocolVersion.unwrap(_pv));
     }
 
-    function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
-        return keccak256(abi.encode(_seed, _i));
-    }
-
     function testFuzz_run_memory_succeeds(
         address _superchainProxyAdminOwner,
         address _protocolVersionsOwner,

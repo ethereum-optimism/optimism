@@ -56,6 +56,22 @@ contract ClaimCreditReenter {
     }
 }
 
+interface IBondedDisputeGame {
+    function claimData(uint256)
+        external
+        view
+        returns (
+            uint32 parentIndex,
+            address counteredBy,
+            address claimant,
+            uint128 bond,
+            Claim claim,
+            Position position,
+            Clock clock
+        );
+    function getRequiredBond(Position _position) external view returns (uint256 requiredBond_);
+}
+
 /// @notice Helper to change the VM status byte of a claim.
 function _changeClaimStatus(Claim _claim, VMStatus _status) pure returns (Claim out_) {
     assembly {
@@ -66,6 +82,20 @@ function _changeClaimStatus(Claim _claim, VMStatus _status) pure returns (Claim 
 /// @notice Helper to return a pseudo-random claim.
 function _dummyClaim() view returns (Claim) {
     return Claim.wrap(keccak256(abi.encode(gasleft())));
+}
+
+function _copyBytes(bytes memory src, bytes memory dest) pure returns (bytes memory) {
+    uint256 byteCount = src.length < dest.length ? src.length : dest.length;
+    for (uint256 i = 0; i < byteCount; i++) {
+        dest[i] = src[i];
+    }
+    return dest;
+}
+
+function _requiredBondForGame(address _gameProxy, uint256 _claimIndex) view returns (uint256 bond_) {
+    (,,,,, Position parent,) = IBondedDisputeGame(_gameProxy).claimData(_claimIndex);
+    Position pos = parent.move(true);
+    bond_ = IBondedDisputeGame(_gameProxy).getRequiredBond(pos);
 }
 
 /// @title BaseFaultDisputeGame_TestInit
@@ -135,14 +165,6 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     fallback() external payable { }
 
     receive() external payable { }
-
-    function copyBytes(bytes memory src, bytes memory dest) internal pure returns (bytes memory) {
-        uint256 byteCount = src.length < dest.length ? src.length : dest.length;
-        for (uint256 i = 0; i < byteCount; i++) {
-            dest[i] = src[i];
-        }
-        return dest;
-    }
 }
 
 /// @title FaultDisputeGame_TestInit
@@ -211,9 +233,7 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
 
     /// @notice Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
-        (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
-        Position pos = parent.move(true);
-        bond_ = gameProxy.getRequiredBond(pos);
+        bond_ = _requiredBondForGame(address(gameProxy), _claimIndex);
     }
 
     /// @notice Helper to get the localized key for an identifier in the context of the game proxy.
@@ -430,7 +450,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         _extraByteCount = bound(_extraByteCount, 1, 23_500);
         bytes memory immutableArgs = new bytes(_extraByteCount + correctArgs.length);
         // Copy correct args into immutable args
-        copyBytes(correctArgs, immutableArgs);
+        _copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
         setupFaultDisputeGame(immutableArgs);
@@ -452,7 +472,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         _truncatedByteCount = (_truncatedByteCount % correctArgs.length) + 1;
         bytes memory immutableArgs = new bytes(correctArgs.length - _truncatedByteCount);
         // Copy correct args into immutable args
-        copyBytes(correctArgs, immutableArgs);
+        _copyBytes(correctArgs, immutableArgs);
 
         // Set up dispute game implementation with target immutableArgs
         setupFaultDisputeGame(immutableArgs);

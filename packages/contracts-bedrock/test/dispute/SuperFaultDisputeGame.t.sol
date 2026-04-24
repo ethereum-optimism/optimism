@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 // Testing
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
-import { _changeClaimStatus, _dummyClaim } from "test/dispute/FaultDisputeGame.t.sol";
+import { _changeClaimStatus, _dummyClaim, _requiredBondForGame } from "test/dispute/FaultDisputeGame.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { ByteUtils } from "test/setup/ByteUtils.sol";
 import { stdError } from "forge-std/StdError.sol";
@@ -19,7 +19,6 @@ import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import "src/dispute/lib/Types.sol";
@@ -176,45 +175,9 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: absolutePrestate, _super: SUPER_ROOT_PROOF });
     }
 
-    /// @notice Helper to generate a mock RLP encoded header (with only a real block number) & an
-    ///         output root proof.
-    function _generateOutputRootProof(
-        bytes32 _storageRoot,
-        bytes32 _withdrawalRoot,
-        bytes memory _l2SequenceNumber
-    )
-        internal
-        pure
-        returns (Types.OutputRootProof memory proof_, bytes32 root_, bytes memory rlp_)
-    {
-        // L2 Block header
-        bytes[] memory rawHeaderRLP = new bytes[](9);
-        rawHeaderRLP[0] = hex"83FACADE";
-        rawHeaderRLP[1] = hex"83FACADE";
-        rawHeaderRLP[2] = hex"83FACADE";
-        rawHeaderRLP[3] = hex"83FACADE";
-        rawHeaderRLP[4] = hex"83FACADE";
-        rawHeaderRLP[5] = hex"83FACADE";
-        rawHeaderRLP[6] = hex"83FACADE";
-        rawHeaderRLP[7] = hex"83FACADE";
-        rawHeaderRLP[8] = RLPWriter.writeBytes(_l2SequenceNumber);
-        rlp_ = RLPWriter.writeList(rawHeaderRLP);
-
-        // Output root
-        proof_ = Types.OutputRootProof({
-            version: 0,
-            stateRoot: _storageRoot,
-            messagePasserStorageRoot: _withdrawalRoot,
-            latestBlockhash: keccak256(rlp_)
-        });
-        root_ = Hashing.hashOutputRootProof(proof_);
-    }
-
     /// @notice Helper to get the required bond for the given claim index.
     function _getRequiredBond(uint256 _claimIndex) internal view returns (uint256 bond_) {
-        (,,,,, Position parent,) = gameProxy.claimData(_claimIndex);
-        Position pos = parent.move(true);
-        bond_ = gameProxy.getRequiredBond(pos);
+        bond_ = _requiredBondForGame(address(gameProxy), _claimIndex);
     }
 
     /// @notice Helper to return a pseudo-random super root proof
@@ -233,11 +196,6 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         superRootProof_.version = bytes1(uint8(1));
         superRootProof_.timestamp = uint64(_l2SequenceNumber);
         superRootProof_.outputRoots = outputRoots;
-    }
-
-    /// @notice Helper to return a pseudo-random super root with the specified l2 sequence number
-    function _dummySuperRoot(uint64 _l2SequenceNumber) internal view returns (bytes32 superRoot_________) {
-        return Hashing.hashSuperRootProof(_dummySuper(_l2SequenceNumber));
     }
 
     /// @notice Helper to return a pseudo-random root claim with the specified l2 sequence number

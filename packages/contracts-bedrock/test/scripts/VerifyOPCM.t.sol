@@ -571,13 +571,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         }
     }
 
-    /// @notice Helper function to check if a field represents an OPCM component.
-    /// @param _field The field name to check.
-    /// @return True if the field represents an OPCM component (starts with "opcm"), false otherwise.
-    function _isOpcmComponent(string memory _field) internal pure returns (bool) {
-        return LibString.startsWith(_field, "opcm");
-    }
-
     /// @notice Helper function to check if a field represents an OPCM component that has contractsContainer().
     /// @param _field The field name to check.
     /// @return True if the field represents an OPCM component with contractsContainer(), false otherwise.
@@ -639,17 +632,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Environment variables are set in setUp() to match the actual OPCM addresses.
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertTrue(result, "OPCM immutable variables should be valid");
-    }
-
-    /// @notice Mocks a call to the OPCM contract and verifies validation fails.
-    /// @param _selector The function selector for the OPCM contract method to mock.
-    function _assertOnOpcmGetter(bytes4 _selector) internal {
-        bytes memory callData = abi.encodePacked(_selector);
-        vm.mockCall(address(opcm), callData, abi.encode(address(0x8888)));
-
-        // Verify that immutable variables fail validation
-        bool result = harness.verifyOpcmImmutableVariables(opcm);
-        assertFalse(result, "OPCM with invalid immutable variables should fail verification");
     }
 
     /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.

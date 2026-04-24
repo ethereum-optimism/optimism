@@ -35,27 +35,6 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
         );
     }
 
-    /// @notice Helper to disable the LivenessModule2 for a Safe
-    function _disableModule(SafeInstance memory _safe) internal {
-        // First disable the module at the Safe level
-        SafeTestLib.execTransaction(
-            _safe,
-            address(_safe.safe),
-            0,
-            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
-            Enum.Operation.Call
-        );
-
-        // Then clear the module configuration
-        SafeTestLib.execTransaction(
-            _safe,
-            address(livenessModule2),
-            0,
-            abi.encodeCall(LivenessModule2.clearLivenessModule, ()),
-            Enum.Operation.Call
-        );
-    }
-
     /// @notice Helper to respond to a challenge from a Safe
     function _respondToChallenge(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
