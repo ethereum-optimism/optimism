@@ -236,7 +236,7 @@ where
                     // can be produced.
                     if target.is_some() {
                         target = Some(tip_cursor.l2_safe_head.block_info.number);
-                    };
+                    }
 
                     // If we are in interop mode, this error must be handled by the caller.
                     // Otherwise, we continue the loop to halt derivation on the next iteration.

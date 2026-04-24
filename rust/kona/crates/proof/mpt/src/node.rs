@@ -165,10 +165,9 @@ impl TrieNode {
         match self {
             Self::Branch { stack } => {
                 let branch_nibble = path.get(0).ok_or(TrieNodeError::PathTooShort)? as usize;
-                stack
-                    .get_mut(branch_nibble)
-                    .map(|node| node.open(&path.slice(BRANCH_NODE_NIBBLES..), fetcher))
-                    .unwrap_or(Ok(None))
+                stack.get_mut(branch_nibble).map_or(Ok(None), |node| {
+                    node.open(&path.slice(BRANCH_NODE_NIBBLES..), fetcher)
+                })
             }
             Self::Leaf { prefix, value } => Ok((path == prefix).then_some(value)),
             Self::Extension { prefix, node } => {
@@ -406,7 +405,7 @@ impl TrieNode {
                     // If the child node is empty, convert the extension into an empty node.
                     *self = Self::Empty;
                 }
-                _ => {
+                Self::Branch { .. } | Self::Blinded { .. } => {
                     // If the child is a (blinded?) branch then no need for collapse
                     // because deletion did not collapse the (blinded?) branch
                 }
@@ -422,23 +421,27 @@ impl TrieNode {
                 if non_empty_children.len() == 1 {
                     let (index, non_empty_node) = &mut non_empty_children[0];
 
+                    // SAFETY: `index` is a branch-node child index in 0..16 (BRANCH_NODE_NIBBLES).
+                    #[allow(clippy::cast_possible_truncation)]
+                    let nibble = *index as u8;
+
                     // If only one non-empty child and no value, convert to extension or leaf
                     match non_empty_node {
                         Self::Leaf { prefix, value } => {
                             let new_prefix = Nibbles::from_nibbles_unchecked(
-                                [&[*index as u8], prefix.to_vec().as_slice()].concat(),
+                                [&[nibble], prefix.to_vec().as_slice()].concat(),
                             );
                             *self = Self::Leaf { prefix: new_prefix, value: value.clone() };
                         }
                         Self::Extension { prefix, node } => {
                             let new_prefix = Nibbles::from_nibbles_unchecked(
-                                [&[*index as u8], prefix.to_vec().as_slice()].concat(),
+                                [&[nibble], prefix.to_vec().as_slice()].concat(),
                             );
                             *self = Self::Extension { prefix: new_prefix, node: node.clone() };
                         }
                         Self::Branch { .. } => {
                             *self = Self::Extension {
-                                prefix: Nibbles::from_nibbles_unchecked([*index as u8]),
+                                prefix: Nibbles::from_nibbles_unchecked([nibble]),
                                 node: Box::new(non_empty_node.clone()),
                             };
                         }
@@ -453,11 +456,11 @@ impl TrieNode {
                             non_empty_node.unblind(fetcher)?;
                             self.collapse_if_possible(fetcher, hinter)?;
                         }
-                        _ => {}
-                    };
+                        Self::Empty => {}
+                    }
                 }
             }
-            _ => {}
+            Self::Empty | Self::Leaf { .. } | Self::Blinded { .. } => {}
         }
         Ok(())
     }

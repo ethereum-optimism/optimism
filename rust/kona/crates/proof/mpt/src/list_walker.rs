@@ -60,7 +60,7 @@ where
     /// `Self::inner` is [Some], this function will fail fast.
     pub fn hydrate(&mut self, fetcher: &F) -> OrderedListWalkerResult<()> {
         // Do not allow for re-hydration if `inner` is `Some` and still contains elements.
-        if self.inner.is_some() && self.inner.as_ref().map(|s| s.len()).unwrap_or_default() > 0 {
+        if self.inner.is_some() && self.inner.as_ref().map_or(0, VecDeque::len) > 0 {
             return Err(OrderedListWalkerError::AlreadyHydrated);
         }
 
@@ -135,7 +135,7 @@ where
                 }
             }
             TrieNode::Empty => Ok(VecDeque::new()),
-            _ => Err(TrieNodeError::InvalidNodeType.into()),
+            TrieNode::Blinded { .. } => Err(TrieNodeError::InvalidNodeType.into()),
         }
     }
 

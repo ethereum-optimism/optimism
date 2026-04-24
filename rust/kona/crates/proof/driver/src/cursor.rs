@@ -85,6 +85,8 @@ impl PipelineCursor {
         // NOTE: capacity must be greater than the `channel_timeout` to allow
         // for derivation to proceed through a deep reorg.
         // Ref: <https://specs.optimism.io/protocol/derivation.html#timeouts>
+        // SAFETY: channel_timeout values fit easily in usize on supported targets (≤64-bit).
+        #[allow(clippy::cast_possible_truncation)]
         let capacity = channel_timeout as usize + 5;
 
         let mut origins = VecDeque::with_capacity(capacity);
@@ -219,22 +221,19 @@ impl PipelineCursor {
     pub fn reset(&mut self, fork_block: u64) -> (TipCursor, BlockInfo) {
         let channel_start = fork_block - self.channel_timeout;
 
-        match self.tips.get(&channel_start) {
-            Some(l2_safe_tip) => {
-                // The channel start block is in the cache, we can use it to reset the cursor.
-                (l2_safe_tip.clone(), self.origin_infos[&channel_start])
-            }
-            None => {
-                // If the channel start block is not in the cache, we reset the cursor
-                // to the closest known L1 block for which we have a corresponding L2 block.
-                let (last_l1_known_tip, l2_known_tip) = self
-                    .tips
-                    .range(..=channel_start)
-                    .next_back()
-                    .expect("walked back to genesis without finding anchor origin block");
+        if let Some(l2_safe_tip) = self.tips.get(&channel_start) {
+            // The channel start block is in the cache, we can use it to reset the cursor.
+            (l2_safe_tip.clone(), self.origin_infos[&channel_start])
+        } else {
+            // If the channel start block is not in the cache, we reset the cursor
+            // to the closest known L1 block for which we have a corresponding L2 block.
+            let (last_l1_known_tip, l2_known_tip) = self
+                .tips
+                .range(..=channel_start)
+                .next_back()
+                .expect("walked back to genesis without finding anchor origin block");
 
-                (l2_known_tip.clone(), self.origin_infos[last_l1_known_tip])
-            }
+            (l2_known_tip.clone(), self.origin_infos[last_l1_known_tip])
         }
     }
 }

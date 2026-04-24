@@ -1,5 +1,10 @@
 //! Utilities for `kona-mpt`
 
+// Reason: the helpers in this private module are reachable crate-internally only; `pub(crate)`
+// is intentional but trips `redundant_pub_crate` under pedantic, while `pub` trips
+// `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloc::vec::Vec;
 use alloy_rlp::{Buf, BufMut, Encodable, Header};
 use alloy_trie::{HashBuilder, Nibbles, proof::ProofRetainer};
