@@ -58,4 +58,4 @@ workflows:
               only:
                 - main
     jobs:
-      - bump-nightly:
+      - bump-nightly

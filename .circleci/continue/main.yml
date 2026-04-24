@@ -2435,24 +2435,24 @@ workflows:
       # to the contracts-feature-tests workflow below, which is gated on
       # c-contracts_changed. Keeping them here as well was duplicating every
       # contracts run on PRs that touch non-contract files.
-      - l2-chains-sync-check:
+      - l2-chains-sync-check
       - contracts-bedrock-upload:
           requires:
             - contracts-bedrock-build
       - diff-fetcher-forge-artifacts:
           requires:
             - contracts-bedrock-build
-      - op-deployer-forge-version:
+      - op-deployer-forge-version
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-      - go-lint:
-      - check-op-geth-version:
-      - check-nut-locks:
-      - nut-provenance-verify:
+      - go-lint
+      - check-op-geth-version
+      - check-nut-locks
+      - nut-provenance-verify
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
@@ -2504,8 +2504,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - go-binaries-for-sysgo
-      - analyze-op-program-client:
-      - op-program-compat:
+      - analyze-op-program-client
+      - op-program-compat
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -2515,12 +2515,12 @@ workflows:
             - op-program-compat
             - go-tests-short
             - sanitize-op-program
-      - cannon-prestate:
+      - cannon-prestate
       - sanitize-op-program:
           requires:
             - cannon-prestate
-      - check-generated-mocks-op-node:
-      - check-generated-mocks-op-service:
+      - check-generated-mocks-op-node
+      - check-generated-mocks-op-service
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2560,7 +2560,7 @@ workflows:
             - rust-workspace-binaries
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
-      - go-binaries-for-sysgo:
+      - go-binaries-for-sysgo
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
@@ -2716,8 +2716,8 @@ workflows:
             - equal: [true, <<pipeline.parameters.c-fault_proofs_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - cannon-prestate:
-      - cannon-stf-verify:
+      - cannon-prestate
+      - cannon-stf-verify
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
       - rust-build-binary:
@@ -2753,7 +2753,7 @@ workflows:
             - equal: [true, <<pipeline.parameters.c-kontrol_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - kontrol-tests:
+      - kontrol-tests
 
   scheduled-cannon-full-tests:
     when:
@@ -2777,7 +2777,7 @@ workflows:
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.c-reproducibility_dispatch >>]
     jobs:
-      - preimage-reproducibility:
+      - preimage-reproducibility
 
   scheduled-stale-check:
     when:
@@ -2786,7 +2786,7 @@ workflows:
           # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.c-stale_check_dispatch >>]
     jobs:
-      - stale-check:
+      - stale-check
 
   scheduled-heavy-fuzz-tests:
     when:
@@ -2794,7 +2794,7 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.c-heavy_fuzz_dispatch >>]
     jobs:
-      - contracts-bedrock-heavy-fuzz-nightly:
+      - contracts-bedrock-heavy-fuzz-nightly
   close-issue-workflow:
     when:
       and:
@@ -2815,7 +2815,7 @@ workflows:
         - equal: [build_mon_thu, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.c-ai_contracts_test_dispatch >>]
     jobs:
-      - ai-contracts-test:
+      - ai-contracts-test
 
   l2-fork-test-workflow:
     when:

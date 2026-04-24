@@ -1027,7 +1027,7 @@ workflows:
       # -----------------------------------------------------------------------
       # OP-Reth crate-specific jobs
       # -----------------------------------------------------------------------
-      - op-reth-compact-codec:
+      - op-reth-compact-codec
 
       - rust-ci-cargo-tests:
           name: op-reth-integration-tests
@@ -1100,7 +1100,7 @@ workflows:
     when:
       equal: [build_weekly, <<pipeline.schedule.name>>]
     jobs:
-      - kona-link-checker:
+      - kona-link-checker
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
