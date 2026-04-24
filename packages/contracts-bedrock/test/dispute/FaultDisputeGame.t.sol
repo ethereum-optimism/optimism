@@ -1929,8 +1929,8 @@ contract FaultDisputeGame_Resolve_Test is FaultDisputeGame_TestInit {
         vm.deal(charlie, bal);
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the
-        // challenger charlie is successfully countered by alice alice is successfully countered by
-        // both bob and the test contract
+        // challenger. Charlie is successfully countered by alice. Alice is successfully countered
+        // by both bob and the test contract.
         uint256 firstBond = _getRequiredBond(0);
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
         vm.prank(alice);

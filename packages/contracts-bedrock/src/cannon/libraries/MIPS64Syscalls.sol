@@ -395,8 +395,8 @@ library MIPS64Syscalls {
     /// retrieve the file-descriptor R/W flags.
     /// @param _a0 The file descriptor.
     /// @param _a1 The control command.
-    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or error code on error.
-    /// @param v1_ 0 if there is no error, non-zero on error
+    /// @return v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or error code on error.
+    /// @return v1_ 0 if there is no error, non-zero on error
     function handleSysFcntl(uint64 _a0, uint64 _a1) internal pure returns (uint64 v0_, uint64 v1_) {
         unchecked {
             v0_ = uint64(0);
