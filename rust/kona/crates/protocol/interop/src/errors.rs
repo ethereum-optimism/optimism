@@ -1,5 +1,6 @@
 //! Error types for the `kona-interop` crate.
 
+use alloc::vec::Vec;
 use crate::InteropProvider;
 use alloy_primitives::{Address, B256};
 use core::fmt::Debug;
@@ -81,6 +82,12 @@ pub enum MessageGraphError<E: Debug> {
     /// Invalid messages were found
     #[error("Invalid messages found on chains: {0:?}")]
     InvalidMessages(HashMap<u64, Self>),
+    /// Cyclic dependency detected among same-timestamp executing messages
+    #[error("Cyclic dependency detected among chains: {chain_ids:?}")]
+    CyclicDependency {
+        /// The chain IDs participating in the cycle.
+        chain_ids: Vec<u64>,
+    },
 }
 
 /// A [Result] alias for the [`MessageGraphError`] type.
