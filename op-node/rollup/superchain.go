@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 9, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
-
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
@@ -73,21 +71,21 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		// therefore they are read from the superchain-registry configs.
 		// Note: hardcoded values are not yet represented in the registry but should be
 		// soon, then will be read and set in the same fashion.
-		BlockTime:              chConfig.BlockTime,
-		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
-		SeqWindowSize:          chConfig.SeqWindowSize,
-		ChannelTimeoutBedrock:  300,
-		L1ChainID:              new(big.Int).SetUint64(superConfig.L1.ChainID),
-		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
-		BatchInboxAddress:      chConfig.BatchInboxAddr,
-		DepositContractAddress: *addrs.OptimismPortalProxy,
-		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
-		AltDAConfig:            altDA,
-		ChainOpConfig:          chOpConfig,
+		BlockTime:               chConfig.BlockTime,
+		MaxSequencerDrift:       chConfig.MaxSequencerDrift,
+		SeqWindowSize:           chConfig.SeqWindowSize,
+		ChannelTimeoutBedrock:   300,
+		L1ChainID:               new(big.Int).SetUint64(superConfig.L1.ChainID),
+		L2ChainID:               new(big.Int).SetUint64(chConfig.ChainID),
+		BatchInboxAddress:       chConfig.BatchInboxAddr,
+		DepositContractAddress:  *addrs.OptimismPortalProxy,
+		L1SystemConfigAddress:   *addrs.SystemConfigProxy,
+		ProtocolVersionsAddress: superConfig.ProtocolVersionsAddr,
+		AltDAConfig:             altDA,
+		ChainOpConfig:           chOpConfig,
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
 	return cfg, nil
 }
 

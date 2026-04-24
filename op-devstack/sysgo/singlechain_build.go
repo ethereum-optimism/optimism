@@ -421,7 +421,6 @@ func startL2CLNode(
 		Metrics:                         opmetrics.CLIConfig{},
 		Pprof:                           oppprof.CLIConfig{},
 		SafeDBPath:                      cfg.SafeDBPath,
-		RollupHalt:                      "",
 		Cancel:                          nil,
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,

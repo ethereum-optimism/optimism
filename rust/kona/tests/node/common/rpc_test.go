@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -171,10 +170,6 @@ func rollupConfig(t devtest.T, node *dsl.L2CLNode) *rollup.Config {
 }
 
 func rollupConfigMatches(t devtest.T, configA *rollup.Config, configB *rollup.Config) {
-	// ProtocolVersionsAddress is deprecated in kona-node while not yet removed from the op-node.
-	configA.ProtocolVersionsAddress = common.Address{}
-	configB.ProtocolVersionsAddress = common.Address{}
-
 	require.Equal(t, configA, configB, "rollup config mismatch")
 }
 

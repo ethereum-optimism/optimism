@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
@@ -25,8 +25,8 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
 		Guardian:                   intent.SuperchainRoles.SuperchainGuardian,
 		Paused:                     false,
-		RequiredProtocolVersion:    rollup.OPStackSupport,
-		RecommendedProtocolVersion: rollup.OPStackSupport,
+		RequiredProtocolVersion:    params.OPStackSupport,
+		RecommendedProtocolVersion: params.OPStackSupport,
 	}
 
 	var dso opcm.DeploySuperchainOutput

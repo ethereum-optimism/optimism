@@ -128,8 +128,6 @@ type OpNode struct {
 
 	safeDB closableSafeDB
 
-	rollupHalt string // when to halt the rollup, disabled if empty
-
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
 
@@ -147,9 +145,8 @@ type OpNode struct {
 
 	closed atomic.Bool
 
-	// cancels execution prematurely, e.g. to halt. This may be nil.
+	// cancels execution prematurely. This may be nil.
 	cancel context.CancelCauseFunc
-	halted atomic.Bool
 
 	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
 }
@@ -176,7 +173,6 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 		clock:      clk,
 		appVersion: appVersion,
 		metrics:    m,
-		rollupHalt: cfg.RollupHalt,
 		cancel:     cfg.Cancel,
 		tracer:     cfg.Tracer,
 	}
@@ -260,7 +256,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		return fmt.Errorf("failed to init L1 Source: %w", err)
 	}
 
-	// initRuntimeConfig relies on side effects to set the runCfg, node.halted and call node.cancel if needed
+	// initRuntimeConfig relies on side effects to set the runCfg
 	if err := initRuntimeConfig(ctx, cfg, n); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
@@ -400,7 +396,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) error {
 	// attempt to load runtime config, repeat N times
 	runCfg := runcfg.NewRuntimeConfig(node.log, node.l1Source, &cfg.Rollup)
-	// Set node.runCfg early so handleProtocolVersionsUpdate can access it during initialization
 	node.runCfg = runCfg
 
 	confDepth := cfg.Driver.VerifierConfDepth
@@ -434,16 +429,12 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 			return l1Head, err
 		}
 
-		err = node.handleProtocolVersionsUpdate(ctx)
-		return l1Head, err
+		return l1Head, nil
 	}
 
 	// initialize the runtime config before unblocking
 	if err := retry.Do0(ctx, 5, retry.Fixed(time.Second*10), func() error {
 		_, err := reload(ctx)
-		if errors.Is(err, errNodeHalt) { // don't retry on halt error
-			err = nil
-		}
 		return err
 	}); err != nil {
 		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
@@ -464,17 +455,7 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) er
 				// Missing a runtime-config update is not critical, and we do not want to overwhelm the L1 RPC.
 				l1Head, err := reload(ctx)
 				if err != nil {
-					if errors.Is(err, errNodeHalt) {
-						node.halted.Store(true)
-						if node.cancel != nil { // node cancellation is always available when started as CLI app
-							node.cancel(errNodeHalt)
-							return
-						} else {
-							node.log.Debug("opted to halt, but cannot halt node", "l1_head", l1Head)
-						}
-					} else {
-						node.log.Warn("failed to reload runtime config", "err", err)
-					}
+					node.log.Warn("failed to reload runtime config", "err", err)
 				} else {
 					node.log.Debug("reloaded runtime config", "l1_head", l1Head)
 				}
@@ -954,18 +935,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		n.closed.Store(true)
 	}
 
-	if n.halted.Load() {
-		// if we had a halt upon initialization, idle for a while, with open metrics, to prevent a rapid restart-loop
-		tim := time.NewTimer(time.Minute * 5)
-		n.log.Warn("halted, idling to avoid immediate shutdown repeats")
-		defer tim.Stop()
-		select {
-		case <-tim.C:
-		case <-ctx.Done():
-		}
-	}
-
-	// Close metrics and pprof only after we are done idling
+	// Close metrics and pprof
 	if n.pprofService != nil {
 		if err := n.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))
