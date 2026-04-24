@@ -56,13 +56,23 @@ impl SequencerClient {
     /// Creates a new [`SequencerClient`] for the given URL.
     ///
     /// If the URL is a websocket endpoint we connect a websocket instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the endpoint cannot be parsed, the websocket connect fails,
+    /// or the HTTP client cannot be built.
     pub async fn new(sequencer_endpoint: impl Into<String>) -> Result<Self, Error> {
-        Self::new_with_headers(sequencer_endpoint, Default::default()).await
+        Self::new_with_headers(sequencer_endpoint, Vec::default()).await
     }
 
     /// Creates a new `SequencerClient` for the given URL with the given headers
     ///
     /// This expects headers in the form: `header=value`
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the endpoint cannot be parsed, a header is malformed, the
+    /// websocket connect fails, or the HTTP client cannot be built.
     pub async fn new_with_headers(
         sequencer_endpoint: impl Into<String>,
         headers: Vec<String>,
@@ -102,6 +112,10 @@ impl SequencerClient {
     }
 
     /// Creates a new [`SequencerClient`] with http transport with the given http client.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidUrl`] if `sequencer_endpoint` cannot be parsed as a URL.
     pub fn with_http_client(
         sequencer_endpoint: impl Into<String>,
         client: alloy_reqwest::Client,
@@ -137,6 +151,10 @@ impl SequencerClient {
     }
 
     /// Sends a [`alloy_rpc_client::RpcCall`] request to the sequencer endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`SequencerClientError`] produced by the underlying RPC client.
     pub async fn request<Params: RpcSend, Resp: RpcRecv>(
         &self,
         method: &str,
@@ -156,6 +174,10 @@ impl SequencerClient {
     }
 
     /// Forwards a transaction to the sequencer endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`SequencerClientError`] from the `eth_sendRawTransaction` call.
     pub async fn forward_raw_transaction(&self, tx: &[u8]) -> Result<B256, SequencerClientError> {
         let start = Instant::now();
         let rlp_hex = hex::encode_prefixed(tx);
@@ -172,6 +194,11 @@ impl SequencerClient {
     }
 
     /// Forwards a transaction conditional to the sequencer endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`SequencerClientError`] from the
+    /// `eth_sendRawTransactionConditional` call.
     pub async fn forward_raw_transaction_conditional(
         &self,
         tx: &[u8],

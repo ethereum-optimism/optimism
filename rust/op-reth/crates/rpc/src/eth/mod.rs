@@ -150,9 +150,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                 .scan(
                     None::<(u64, u64)>, // state buffers base block number and timestamp
                     move |state, result| {
-                        let fb = match result.ok() {
-                            Some(fb) => fb,
-                            None => return futures::future::ready(None),
+                        let Some(fb) = result.ok() else {
+                            return futures::future::ready(None);
                         };
 
                         // Update state from base flashblock for block level meta data.
@@ -191,7 +190,6 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
 
     /// Extracts the latest pending flashblock from flashblocks state, if available.
     fn extract_pending_flashblock(
-        &self,
         block: Option<&PendingFlashBlock<N::Primitives>>,
     ) -> Option<PendingFlashBlock<N::Primitives>> {
         block.cloned()
@@ -219,7 +217,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         }
 
         // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        Ok(Self::extract_pending_flashblock(rx.borrow().as_ref()))
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
@@ -227,6 +225,10 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     /// If flashblocks receiver is not set, then it always returns `None`.
     ///
     /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`eyre::Report`] surfaced while awaiting the pending flashblock receiver.
     pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,

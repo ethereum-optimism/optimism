@@ -24,6 +24,11 @@ where
     P: OpProofsStore + Clone + 'a,
 {
     /// Creates a state provider for the given block id.
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`ProviderError`] produced while resolving the block number or loading
+    /// the historical state provider.
     pub async fn state_provider(
         &'a self,
         block_id: Option<BlockId>,

@@ -183,6 +183,11 @@ impl OpReceiptFieldsBuilder {
     }
 
     /// Applies [`L1BlockInfo`](op_revm::L1BlockInfo).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OpEthApiError::L1BlockFeeError`] if the L1 fee or L1 data gas calculations
+    /// fail for the current hardfork.
     pub fn l1_block_info<T: Encodable2718 + OpTransaction>(
         mut self,
         chain_spec: &impl OpHardforks,
@@ -308,6 +313,11 @@ pub struct OpReceiptBuilder {
 
 impl OpReceiptBuilder {
     /// Returns a new builder.
+    ///
+    /// # Errors
+    ///
+    /// Forwards any [`OpEthApiError`] produced while applying [`L1BlockInfo`] to the receipt
+    /// fields (e.g. fee calculation errors for the current hardfork).
     pub fn new<N>(
         chain_spec: &impl OpHardforks,
         input: ConvertReceiptInput<'_, N>,
@@ -378,6 +388,11 @@ impl OpReceiptBuilder {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::default_trait_access,
+    reason = "test-only code; numeric literals match on-chain values verbatim"
+)]
 mod test {
     use super::*;
     use alloy_consensus::{

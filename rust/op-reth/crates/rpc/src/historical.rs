@@ -26,6 +26,10 @@ pub struct HistoricalRpcClient {
 
 impl HistoricalRpcClient {
     /// Constructs a new historical RPC client with the given endpoint URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidUrl`] if `endpoint` cannot be parsed as a [`reqwest::Url`].
     pub fn new(endpoint: &str) -> Result<Self, Error> {
         let client = RpcClient::new_http(
             endpoint.parse::<reqwest::Url>().map_err(|err| Error::InvalidUrl(err.to_string()))?,
@@ -45,6 +49,10 @@ impl HistoricalRpcClient {
     }
 
     /// Forwards a JSON-RPC request to the historical endpoint
+    ///
+    /// # Errors
+    ///
+    /// Returns any transport or server-side [`Error`] surfaced by the historical endpoint.
     pub async fn request<Params: RpcSend, Resp: RpcRecv>(
         &self,
         method: &str,

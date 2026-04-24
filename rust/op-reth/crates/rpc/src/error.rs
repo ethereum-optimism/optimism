@@ -162,8 +162,13 @@ impl From<SequencerClientError> for jsonrpsee_types::error::ErrorObject<'static>
                 code,
                 message,
                 data,
-            })) => jsonrpsee_types::error::ErrorObject::owned(code as i32, message, data),
-            err => jsonrpsee_types::error::ErrorObject::owned(
+            })) => {
+                // JSON-RPC error codes are defined to fit in an i32; saturate if upstream ever
+                // widens the payload type.
+                let code = i32::try_from(code).unwrap_or(INTERNAL_ERROR_CODE);
+                jsonrpsee_types::error::ErrorObject::owned(code, message, data)
+            }
+            err @ SequencerClientError::HttpError(_) => jsonrpsee_types::error::ErrorObject::owned(
                 INTERNAL_ERROR_CODE,
                 err.to_string(),
                 None::<String>,

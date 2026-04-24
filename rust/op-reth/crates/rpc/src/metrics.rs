@@ -26,6 +26,10 @@ impl SequencerMetrics {
 /// Optimism ETH API extension metrics
 #[derive(Metrics, Clone)]
 #[metrics(scope = "optimism_rpc.eth_api_ext")]
+#[allow(
+    clippy::struct_field_names,
+    reason = "field names match their metric keys emitted to the registry; renaming would break dashboards"
+)]
 pub struct EthApiExtMetrics {
     /// How long it takes to handle a `eth_getProof` request successfully
     pub(crate) get_proof_latency: Histogram,
@@ -79,6 +83,10 @@ impl DebugApiExtMetrics {
     }
 
     /// Record a Debug API call async (tracks latency, requests, success, failures).
+    ///
+    /// # Errors
+    ///
+    /// Forwards any error produced by the wrapped future `f`.
     pub async fn record_operation_async<F, T, E>(&self, api: DebugApis, f: F) -> Result<T, E>
     where
         F: Future<Output = Result<T, E>>,

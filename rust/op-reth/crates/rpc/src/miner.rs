@@ -61,18 +61,30 @@ pub struct OpMinerMetrics {
 impl OpMinerMetrics {
     /// Sets the max DA tx size gauge value
     #[inline]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "metric gauge; precision loss past 2^53 acceptable for DA sizing"
+    )]
     pub fn set_max_da_tx_size(&self, size: u64) {
         self.max_da_tx_size.set(size as f64);
     }
 
     /// Sets the max DA block size gauge value
     #[inline]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "metric gauge; precision loss past 2^53 acceptable for DA sizing"
+    )]
     pub fn set_max_da_block_size(&self, size: u64) {
         self.max_da_block_size.set(size as f64);
     }
 
     /// Sets the gas limit gauge value
     #[inline]
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "metric gauge; precision loss past 2^53 acceptable for gas limit sizing"
+    )]
     pub fn set_gas_limit(&self, gas_limit: u64) {
         self.gas_limit.set(gas_limit as f64);
     }

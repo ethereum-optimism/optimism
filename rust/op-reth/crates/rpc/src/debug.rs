@@ -20,6 +20,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpAttributes, OpPayloadPrimitives,
     builder::{OpBuilder, OpPayloadBuilderCtx},
+    config::OpBuilderConfig,
 };
 use reth_optimism_trie::{OpProofsStorage, OpProofsStore, api::OpProofsProviderRO};
 use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
@@ -29,7 +30,10 @@ use reth_provider::{
     BlockReaderIdExt, ChainSpecProvider, HeaderProvider, NodePrimitivesProvider, ProviderError,
     ProviderResult, StateProviderFactory,
 };
-use reth_revm::{State, database::StateProviderDatabase, witness::ExecutionWitnessRecord};
+use reth_revm::{
+    State, cancelled::CancelOnDrop, database::StateProviderDatabase,
+    witness::ExecutionWitnessRecord,
+};
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
@@ -217,9 +221,9 @@ where
                             evm_config: this.evm_config.clone(),
                             chain_spec: this.provider.chain_spec(),
                             config,
-                            cancel: Default::default(),
-                            best_payload: Default::default(),
-                            builder_config: Default::default(),
+                            cancel: CancelOnDrop::default(),
+                            best_payload: Option::default(),
+                            builder_config: OpBuilderConfig::default(),
                         };
 
                         let state_provider = this
@@ -276,6 +280,12 @@ where
 
                 let mut witness_record = ExecutionWitnessRecord::default();
 
+                // Default::default() avoids importing `ExecutionWitnessMode` / `TrieInput` from
+                // reth_trie_common into this crate.
+                #[allow(
+                    clippy::default_trait_access,
+                    reason = "avoid pulling reth_trie_common into deps just for enum defaults"
+                )]
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
                         witness_record.record_executed_state(statedb, Default::default());
@@ -285,9 +295,17 @@ where
                 let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
                     witness_record;
 
+                #[allow(
+                    clippy::default_trait_access,
+                    reason = "avoid pulling reth_trie_common into deps just for enum defaults"
+                )]
                 let state = state_provider
                     .witness(Default::default(), hashed_state, Default::default())
                     .map_err(EthApiError::from)?;
+                #[allow(
+                    clippy::default_trait_access,
+                    reason = "ExecutionWitness struct update uses Default for private fields"
+                )]
                 let mut exec_witness =
                     ExecutionWitness { state, codes, keys, ..Default::default() };
 

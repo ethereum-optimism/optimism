@@ -76,7 +76,17 @@ where
                 .state_provider(block_number)
                 .await
                 .map_err(Into::into)?
-                .proof(Default::default(), address, &storage_keys)
+                .proof(
+                    {
+                        #[allow(
+                            clippy::default_trait_access,
+                            reason = "avoid pulling reth_trie into deps just for TrieInput default"
+                        )]
+                        Default::default()
+                    },
+                    address,
+                    &storage_keys,
+                )
                 .map_err(Into::into)?;
 
             Ok(proof.into_eip1186_response(keys))
