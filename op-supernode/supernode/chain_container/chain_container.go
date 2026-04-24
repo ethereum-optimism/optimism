@@ -431,28 +431,6 @@ func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2
 	return eth.OutputRoot(out), nil
 }
 
-// safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
-func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
-	if c.vn == nil {
-		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
-	}
-	status, err := c.SyncStatus(ctx)
-	if err != nil {
-		return eth.BlockID{}, err
-	}
-	currentL1 := status.CurrentL1
-	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
-	l1, err := c.vn.L1AtSafeHead(ctx, l2)
-	if err != nil {
-		// Map L1AtSafeHeadNotFound to ethereum.NotFound so callers treat chain lag as "not ready"
-		if errors.Is(err, virtual_node.ErrL1AtSafeHeadNotFound) {
-			return eth.BlockID{}, fmt.Errorf("L1 at safe head not available for L2 %s: %w", l2, ethereum.NotFound)
-		}
-		return eth.BlockID{}, err
-	}
-	return l1, nil
-}
-
 // VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
 // Must return ethereum.NotFound if there is no safe block at the specified timestamp.
 func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
