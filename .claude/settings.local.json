@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build ./op-deployer/pkg/deployer/pipeline/... 2>&1)",
+      "Bash(go test -run 'TestPackZKGameArgs|TestDeployDisputeGame_ZK' -v ./op-deployer/pkg/deployer/pipeline/... 2>&1)"
+    ]
+  }
+}

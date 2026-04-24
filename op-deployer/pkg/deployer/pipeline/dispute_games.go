@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/lmittmann/w3"
 )
 
 func DeployAdditionalDisputeGames(
@@ -138,23 +137,22 @@ func deployDisputeGame(
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
 			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
 		}
-		challengerBond := zk.ChallengerBond.ToInt()
-		encoded, err := zkGameArgEncoder.EncodeArgs(&embedded.ZKDisputeGameConfig{
+		gameArgs := gameargs.ZKGameArgs{
 			AbsolutePrestate:     zk.AbsolutePrestate,
 			Verifier:             zk.Verifier,
 			MaxChallengeDuration: zk.MaxChallengeDuration,
 			MaxProveDuration:     zk.MaxProveDuration,
-			ChallengerBond:       challengerBond,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to encode ZK game args: %w", err)
-		}
+			ChallengerBond:       zk.ChallengerBond.ToInt(),
+			AnchorStateRegistry:  thisState.OpChainContracts.AnchorStateRegistryProxy,
+			Weth:                 thisState.OpChainContracts.DelayedWethPermissionlessGameProxy,
+			L2ChainID:            new(big.Int).SetBytes(thisIntent.ID[:]),
+		}.Pack()
 		zkInput := opcm.SetDisputeGameImplInput{
 			Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
 			Impl:                zkImpl,
 			AnchorStateRegistry: common.Address{},
 			GameType:            game.DisputeGameType,
-			GameArgs:            encoded[4:],
+			GameArgs:            gameArgs,
 		}
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
@@ -260,9 +258,6 @@ func deployDisputeGame(
 	return nil
 }
 
-// zkGameArgEncoder encodes the ZK dispute game args for SetDisputeGameImpl.
-// Mirrors the zkEncoder in upgrade/embedded/upgrade.go (same ABI signature).
-var zkGameArgEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
 func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState *state.ChainState) bool {
 	if len(thisIntent.AdditionalDisputeGames) == 0 {

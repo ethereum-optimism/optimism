@@ -117,16 +117,13 @@ func addGameTypesForRuntime(
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
-<<<<<<< HEAD
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
 	}
 
-=======
 	// OPCMv2 requires all 7 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
->>>>>>> 42f5117c2e7de0614cd3b96f274d0a3078f9701c
 	configs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  enabled[gameTypes.CannonGameType],
@@ -154,34 +151,15 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-<<<<<<< HEAD
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperPermCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannonKona,
-		},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
 			GameType:            embedded.GameTypeZKDisputeGame,
 			ZKDisputeGameConfig: zkDisputeGameConfig,
 		},
-=======
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
->>>>>>> 42f5117c2e7de0614cd3b96f274d0a3078f9701c
 	}
 	// Zero out init bond for disabled games.
 	for i := range configs {
