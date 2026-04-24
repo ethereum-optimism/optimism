@@ -392,10 +392,13 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Wait for finality then close the game ──
         // closeGame() sees isGameProper()=true → NORMAL mode.
-        // setAnchorState() is silently skipped: isGameClaimValid() fails on isGameRespected().
+        // setAnchorState() is still attempted but fails: isGameClaimValid() fails on isGameRespected().
         _waitForFinality(game);
         game.closeGame();
 
+        // Game is proper (not blacklisted/retired/paused) → NORMAL mode.
+        // Anchor does not advance. setAnchorState fails due to wasRespectedGameTypeWhenCreated=false.
+        assertTrue(anchorStateRegistry.isGameProper(IDisputeGame(address(game))));
         assertEq(uint8(game.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
         _assertAnchor(anchorClaimBefore, anchorSeqBefore);
 
@@ -425,11 +428,17 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
 
+        // Blacklist took effect: game is no longer proper.
+        assertFalse(anchorStateRegistry.isGameProper(IDisputeGame(address(game))));
+
         // ── Prove deadline expires without a proof → CHALLENGER_WINS ──
         (,,,, Timestamp deadline,) = game.claimData();
         vm.warp(deadline.raw() + 1);
         game.resolve();
         assertEq(uint8(game.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // resolve() credited the challenger via normalModeCredit, but REFUND mode will ignore it.
+        assertGt(game.normalModeCredit(challenger), 0);
 
         // ── closeGame() sees isGameProper()=false (blacklisted) → REFUND mode ──
         // setAnchorState() is still attempted but fails silently (CHALLENGER_WINS + blacklisted).
@@ -469,15 +478,22 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(parentGame)));
 
+        // Blacklisting changes isGameProper but not GameStatus.
+        assertEq(uint8(parentGame.status()), uint8(GameStatus.DEFENDER_WINS));
+        assertFalse(anchorStateRegistry.isGameProper(IDisputeGame(address(parentGame))));
+        assertTrue(anchorStateRegistry.isGameProper(IDisputeGame(address(childGame))));
+
         // ── Child resolves normally — blacklisting does not change parent's GameStatus ──
         _resolveUnchallenged(childGame);
         assertEq(uint8(childGame.status()), uint8(GameStatus.DEFENDER_WINS));
 
         // ── closeGame() sees isGameProper(child)=true (child is not blacklisted) → NORMAL mode ──
+        // setAnchorState(child) succeeds: child passes all validity checks independently of parent.
         _waitForFinality(childGame);
         childGame.closeGame();
 
         assertEq(uint8(childGame.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+        _assertAnchor(childClaim, childSeqNum);
 
         // ── Proposer claims full bond back ──
         _claimCreditAndAssert(childGame, proposer, bond);
