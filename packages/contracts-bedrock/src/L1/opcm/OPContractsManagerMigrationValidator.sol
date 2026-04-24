@@ -179,7 +179,7 @@ contract OPContractsManagerMigrationValidator {
         }
 
         // Per-chain migration checks.
-        _errors = assertValidPerChainMigration(_errors, _input.dgf, _input.chainSystemConfigs);
+        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -456,7 +456,6 @@ contract OPContractsManagerMigrationValidator {
     /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
     function assertValidPerChainMigration(
         string memory _errors,
-        IDisputeGameFactory _sharedDGF,
         ISystemConfig[] memory _chainSystemConfigs
     )
         internal
@@ -467,10 +466,13 @@ contract OPContractsManagerMigrationValidator {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
-        // Derive shared ASR and lockbox from first chain's portal.
+        // Derive shared ASR, DGF, and lockbox from first chain.
+        // After migration, systemConfig.disputeGameFactory() on the first chain is authoritative
+        // for the shared DGF — per-chain migration already wired portals to the shared ASR/DGF.
         IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
         address sharedASR = address(firstPortal.anchorStateRegistry());
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
+        IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -492,7 +494,7 @@ contract OPContractsManagerMigrationValidator {
             // portal → shared ASR → shared DGF. When the per-chain DGF IS the shared DGF,
             // skip these checks — the shared DGF is already validated by the shape checks above.
             IDisputeGameFactory perChainDGF = IDisputeGameFactory(_chainSystemConfigs[i].disputeGameFactory());
-            if (address(perChainDGF) != address(_sharedDGF)) {
+            if (address(perChainDGF) != address(sharedDGF)) {
                 _errors = internalRequire(
                     address(perChainDGF.gameImpls(GameTypes.CANNON)) == address(0),
                     string.concat("MIG-CHAIN-", idx, "-20"),
