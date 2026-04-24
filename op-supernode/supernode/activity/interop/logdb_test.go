@@ -222,9 +222,8 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			t.Parallel()
 
 			interop := &Interop{
-				log:                        gethlog.New(),
-				activationTimestamp:        tt.activationTS,
-				runtimeActivationTimestamp: tt.activationTS,
+				log:                 gethlog.New(),
+				activationTimestamp: tt.activationTS,
 			}
 			chainID := eth.ChainIDFromUInt64(10)
 			expectedHash := common.Hash{0x01}

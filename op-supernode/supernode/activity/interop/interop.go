@@ -87,12 +87,14 @@ type Interop struct {
 	chains              map[eth.ChainID]cc.ChainContainer
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
-	// runtimeActivationTimestamp is the effective activation timestamp used
-	// by the main loop and backfill. It starts equal to activationTimestamp
-	// and is advanced past the backfilled range after log backfill completes.
-	// Protocol-facing queries (VerifiedAtTimestamp, VerifiedBlockAtL1, etc.)
-	// always use the original activationTimestamp.
-	runtimeActivationTimestamp uint64
+	// backfillEndTimestamp is the (inclusive) last timestamp whose logs
+	// were sealed by runLogBackfill. Zero means backfill has not yet run
+	// (or was skipped because logBackfillDepth <= 0). The main loop reads
+	// this via firstVerifiableTimestamp() so it starts verification at
+	// backfillEndTimestamp+1 — the first timestamp not already covered
+	// by pre-ingested logs. Protocol-facing queries (VerifiedAtTimestamp,
+	// VerifiedBlockAtL1, etc.) always use activationTimestamp.
+	backfillEndTimestamp uint64
 
 	dataDir string
 
@@ -137,6 +139,21 @@ func (i *Interop) Name() string {
 	return "interop"
 }
 
+// firstVerifiableTimestamp is the earliest timestamp the main loop will
+// attempt to verify. It is activationTimestamp when backfill did not run,
+// or backfillEndTimestamp+1 when it did (clamped so it never falls below
+// activation, though by construction backfillEndTimestamp >= activation).
+func (i *Interop) firstVerifiableTimestamp() uint64 {
+	if i.backfillEndTimestamp == 0 {
+		return i.activationTimestamp
+	}
+	next := i.backfillEndTimestamp + 1
+	if next < i.activationTimestamp {
+		return i.activationTimestamp
+	}
+	return next
+}
+
 // New constructs a new Interop activity.
 func New(
 	log log.Logger,
@@ -173,15 +190,14 @@ func New(
 		messageExpiryWindow = defaultMessageExpiryWindow
 	}
 	i := &Interop{
-		log:                        log,
-		chains:                     chains,
-		verifiedDB:                 verifiedDB,
-		logsDBs:                    logsDBs,
-		dataDir:                    dataDir,
-		activationTimestamp:        activationTimestamp,
-		runtimeActivationTimestamp: activationTimestamp,
-		messageExpiryWindow:        messageExpiryWindow,
-		logBackfillDepth:           logBackfillDepth,
+		log:                 log,
+		chains:              chains,
+		verifiedDB:          verifiedDB,
+		logsDBs:             logsDBs,
+		dataDir:             dataDir,
+		activationTimestamp: activationTimestamp,
+		messageExpiryWindow: messageExpiryWindow,
+		logBackfillDepth:    logBackfillDepth,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -207,8 +223,9 @@ func (i *Interop) Start(ctx context.Context) error {
 		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
 		for {
 			i.backfillAttempts.Add(1)
-			err := i.runLogBackfill()
+			end, err := i.runLogBackfill()
 			if err == nil {
+				i.backfillEndTimestamp = end
 				break
 			}
 			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
@@ -220,6 +237,7 @@ func (i *Interop) Start(ctx context.Context) error {
 		}
 	}
 	i.backfillCompleted.Store(true)
+	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 
 	for {
 		select {
@@ -379,7 +397,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.runtimeActivationTimestamp
+		obs.NextTimestamp = i.firstVerifiableTimestamp()
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -615,7 +633,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.runtimeActivationTimestamp {
+	if lastTS <= i.firstVerifiableTimestamp() {
 		return plan, nil
 	}
 

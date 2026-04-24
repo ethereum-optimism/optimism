@@ -15,7 +15,8 @@ type Supernode interface {
 // InteropActivity; see op-supernode/supernode/activity/interop for the
 // methods available on the returned pointer (PauseAt, Resume,
 // BackfillAttempts, BackfillCompleted, ActivationTimestamp,
-// RuntimeActivationTimestamp, FirstSealedBlock, LatestSealedBlock, ...).
+// BackfillEndTimestamp, FirstVerifiableTimestamp, FirstSealedBlock,
+// LatestSealedBlock, ...).
 type InteropTestControl interface {
 	// InteropActivity returns the current interop activity, or nil if the
 	// supernode is not running or interop is not configured. Callers must

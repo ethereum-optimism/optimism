@@ -62,11 +62,19 @@ func (i *Interop) ActivationTimestamp() uint64 {
 	return i.activationTimestamp
 }
 
-// RuntimeActivationTimestamp returns the mutable activation timestamp used
-// by the main loop and backfill. It starts equal to ActivationTimestamp and
-// may be advanced past the backfilled range once backfill finishes.
-func (i *Interop) RuntimeActivationTimestamp() uint64 {
-	return i.runtimeActivationTimestamp
+// BackfillEndTimestamp returns the inclusive last timestamp whose logs were
+// sealed by runLogBackfill, or 0 if backfill has not run. The main loop
+// starts verification at BackfillEndTimestamp()+1 (or ActivationTimestamp()
+// when backfill was skipped).
+func (i *Interop) BackfillEndTimestamp() uint64 {
+	return i.backfillEndTimestamp
+}
+
+// FirstVerifiableTimestamp returns the timestamp at which the main loop
+// begins verification: ActivationTimestamp() when backfill did not run,
+// or BackfillEndTimestamp()+1 when it did.
+func (i *Interop) FirstVerifiableTimestamp() uint64 {
+	return i.firstVerifiableTimestamp()
 }
 
 // ---------------------------------------------------------------------------
