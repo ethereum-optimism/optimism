@@ -25,6 +25,9 @@ alloy-primitives = { workspace = true, features = ["rlp"] }
 # OP Alloy
 op-alloy-consensus.workspace = true
 
+# Caching for build-script-generated NUT bundle constructors.
+once_cell.workspace = true
+
 [build-dependencies]
 anyhow.workspace = true
 serde = { workspace = true, features = ["derive"] }

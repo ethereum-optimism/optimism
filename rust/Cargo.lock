@@ -5761,6 +5761,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "kona-protocol",
+ "once_cell",
  "op-alloy-consensus",
  "op-revm",
  "revm",
