@@ -64,7 +64,7 @@ pub enum DerivationStateTransitionError {
 
 // Details all valid state transitions.
 fn transition(
-    state: &DerivationState,
+    state: DerivationState,
     update: &DerivationStateUpdate,
 ) -> Result<DerivationState, DerivationStateTransitionError> {
     match state {
@@ -75,7 +75,7 @@ fn transition(
             DerivationStateUpdate::SignalProcessed |
             DerivationStateUpdate::L1DataReceived => Ok(DerivationState::AwaitingELSyncCompletion),
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -85,7 +85,7 @@ fn transition(
                 Ok(DerivationState::AwaitingUpdateAfterSignal)
             }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -98,7 +98,7 @@ fn transition(
                 Ok(DerivationState::AwaitingSafeHeadConfirmation)
             }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -110,7 +110,7 @@ fn transition(
                 Ok(DerivationState::AwaitingSignal)
             }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -121,7 +121,7 @@ fn transition(
                 Ok(DerivationState::AwaitingUpdateAfterSignal)
             }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -132,7 +132,7 @@ fn transition(
             DerivationStateUpdate::SignalNeeded => Ok(DerivationState::AwaitingSignal),
             DerivationStateUpdate::MoreDataNeeded => Ok(DerivationState::AwaitingL1Data),
             _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
+                state,
                 update: update.clone(),
             }),
         },
@@ -201,7 +201,7 @@ impl DerivationStateMachine {
         }
 
         info!(target: "derivation", state=?self.state, ?state_update, "Executing derivation state update.");
-        self.state = transition(&self.state, state_update)?;
+        self.state = transition(self.state, state_update)?;
 
         if let DerivationStateUpdate::NewAttributesConfirmed(safe_head) = state_update {
             self.confirmed_safe_head = **safe_head;
@@ -254,7 +254,9 @@ mod tests {
         Box::new(dummy_op_attributes())
     }
 
-    // This is just here to shrink the #[case(...)] statements below for readability.
+    // Box is intentional: matches the `Box<L2BlockInfo>` payload carried by the
+    // state-machine update variants so the `#[case(...)]` entries below stay compact.
+    #[allow(clippy::unnecessary_box_returns)]
     fn block() -> Box<L2BlockInfo> {
         Box::new(dummy_l2_block_info())
     }
@@ -289,7 +291,7 @@ mod tests {
         #[case] update: super::DerivationStateUpdate,
         #[case] expected_state: super::DerivationState,
     ) {
-        let result = transition(&state, &update);
+        let result = transition(state, &update);
         assert!(result.is_ok(), "Expected valid transition from {state:?} with {update:?}");
         assert_eq!(
             result.unwrap(),
@@ -333,7 +335,7 @@ mod tests {
         #[case] state: super::DerivationState,
         #[case] update: super::DerivationStateUpdate,
     ) {
-        let result = transition(&state, &update);
+        let result = transition(state, &update);
         assert!(result.is_err(), "Expected invalid transition from {state:?} with {update:?}");
         match result.unwrap_err() {
             DerivationStateTransitionError::InvalidTransition {

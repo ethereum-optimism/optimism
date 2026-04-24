@@ -93,8 +93,7 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
 
         if self
             .next
-            .map(|n| unsafe_head.block_info.timestamp + self.cfg.block_time < n.timestamp)
-            .unwrap_or(false)
+            .is_some_and(|n| unsafe_head.block_info.timestamp + self.cfg.block_time < n.timestamp)
         {
             // If the next L1 origin is ahead of the next L2 block's timestamp, return the current
             // origin.
@@ -138,9 +137,9 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
             return Ok(());
         }
 
-        if self.current.map(|c| c.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
+        if self.current.is_some_and(|c| c.hash == unsafe_head.l1_origin.hash) {
             // Do nothing; The next L2 block exists in the same epoch as the current L1 origin.
-        } else if self.next.map(|n| n.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
+        } else if self.next.is_some_and(|n| n.hash == unsafe_head.l1_origin.hash) {
             // Advance the origin.
             self.current = self.next.take();
             self.next = None;
@@ -173,7 +172,7 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
             // Ignore the eventuality that the block is not found, as the next L1 origin fetch is
             // performed on a best-effort basis.
             let next = self.l1.get_block_by_number(current.number + 1).await?;
-            if next.map(|n| n.parent_hash == current.hash).unwrap_or(false) {
+            if next.is_some_and(|n| n.parent_hash == current.hash) {
                 self.next = next;
             }
         }
@@ -327,7 +326,7 @@ mod test {
         // Initialize the provider with mock L1 blocks, equal to the number of epochs + 1
         // (such that the next logical origin is always available.)
         let mut provider = MockOriginSelectorProvider::default();
-        for i in 0..num_epochs + 1 {
+        for i in 0..=num_epochs {
             provider.with_block(BlockInfo {
                 parent_hash: B256::with_last_byte(i.saturating_sub(1) as u8),
                 hash: B256::with_last_byte(i as u8),

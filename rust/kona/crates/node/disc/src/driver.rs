@@ -92,7 +92,7 @@ impl Discv5Driver {
                 warn!(target: "discovery", ?err, "Failed to start discovery service [Duration: {:?}]", dur);
             })
             .await;
-        res.map(|_| s)
+        res.map(|()| s)
     }
 
     /// Bootstraps the [`Discv5`] table with bootnodes.

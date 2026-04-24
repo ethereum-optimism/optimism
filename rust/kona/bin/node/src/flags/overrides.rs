@@ -55,23 +55,19 @@ impl OverrideArgs {
     pub fn apply(&self, config: RollupConfig) -> RollupConfig {
         let hardforks = kona_genesis::HardForkConfig {
             regolith_time: config.hardforks.regolith_time,
-            canyon_time: self.canyon_override.map(Some).unwrap_or(config.hardforks.canyon_time),
-            delta_time: self.delta_override.map(Some).unwrap_or(config.hardforks.delta_time),
-            ecotone_time: self.ecotone_override.map(Some).unwrap_or(config.hardforks.ecotone_time),
-            fjord_time: self.fjord_override.map(Some).unwrap_or(config.hardforks.fjord_time),
-            granite_time: self.granite_override.map(Some).unwrap_or(config.hardforks.granite_time),
-            holocene_time: self
-                .holocene_override
-                .map(Some)
-                .unwrap_or(config.hardforks.holocene_time),
+            canyon_time: self.canyon_override.map_or(config.hardforks.canyon_time, Some),
+            delta_time: self.delta_override.map_or(config.hardforks.delta_time, Some),
+            ecotone_time: self.ecotone_override.map_or(config.hardforks.ecotone_time, Some),
+            fjord_time: self.fjord_override.map_or(config.hardforks.fjord_time, Some),
+            granite_time: self.granite_override.map_or(config.hardforks.granite_time, Some),
+            holocene_time: self.holocene_override.map_or(config.hardforks.holocene_time, Some),
             pectra_blob_schedule_time: self
                 .pectra_blob_schedule_override
-                .map(Some)
-                .unwrap_or(config.hardforks.pectra_blob_schedule_time),
-            isthmus_time: self.isthmus_override.map(Some).unwrap_or(config.hardforks.isthmus_time),
-            jovian_time: self.jovian_override.map(Some).unwrap_or(config.hardforks.jovian_time),
-            karst_time: self.karst_override.map(Some).unwrap_or(config.hardforks.karst_time),
-            interop_time: self.interop_override.map(Some).unwrap_or(config.hardforks.interop_time),
+                .map_or(config.hardforks.pectra_blob_schedule_time, Some),
+            isthmus_time: self.isthmus_override.map_or(config.hardforks.isthmus_time, Some),
+            jovian_time: self.jovian_override.map_or(config.hardforks.jovian_time, Some),
+            karst_time: self.karst_override.map_or(config.hardforks.karst_time, Some),
+            interop_time: self.interop_override.map_or(config.hardforks.interop_time, Some),
         };
         RollupConfig { hardforks, ..config }
     }
@@ -79,6 +75,9 @@ impl OverrideArgs {
 
 #[cfg(test)]
 mod tests {
+    // `Default::default()` keeps the test-case struct literals compact; the underscore
+    // grouping is an ergonomic win but not worth expanding every timestamp manually.
+    #![allow(clippy::default_trait_access, clippy::unreadable_literal)]
     use super::*;
 
     /// A mock command that uses the override args.

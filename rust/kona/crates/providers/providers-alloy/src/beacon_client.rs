@@ -95,7 +95,7 @@ pub trait BeaconClient {
     ) -> Result<Vec<BoxedBlob>, Self::Error>;
 }
 
-const BLOB_SIZE: usize = 131072;
+const BLOB_SIZE: usize = 131_072;
 
 /// [`blob_versioned_hash`] computes the versioned hash of a blob.
 fn blob_versioned_hash(blob: &FixedBytes<BLOB_SIZE>) -> Result<B256, BeaconClientError> {
@@ -168,7 +168,7 @@ impl OnlineBeaconClient {
         slot: u64,
         blob_hashes: &[B256],
     ) -> Result<Vec<BoxedBlob>, BeaconClientError> {
-        let params = blob_hashes.iter().map(|hash| hash.to_string()).collect::<Vec<_>>();
+        let params = blob_hashes.iter().map(ToString::to_string).collect::<Vec<_>>();
         let response = self
             .inner
             .get(format!("{}/{}/{}", self.base, BLOBS_METHOD_PREFIX, slot))
@@ -294,7 +294,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_filtered_beacon_blobs() {
-        let slot = 987654321;
+        let slot = 987_654_321;
         let slot_string = slot.to_string();
         let repeated_blob_data: Vec<Blob> = vec![TEST_BLOB_DATA, TEST_BLOB_DATA];
         let garbage_blob_data: Vec<Blob> = vec![FixedBytes::repeat_byte(2)];
@@ -346,10 +346,10 @@ mod tests {
                 Some(s) => {
                     let r = response.unwrap();
                     assert_eq!(r.len(), s.len(), "length mismatch{}", test_case.name);
-                    assert_eq!(r, s, "{}", test_case.name)
+                    assert_eq!(r, s, "{}", test_case.name);
                 }
                 None => {
-                    assert!(response.is_err(), "{}", test_case.name)
+                    assert!(response.is_err(), "{}", test_case.name);
                 }
             }
             blobs_mock.delete();
@@ -362,7 +362,7 @@ mod tests {
     /// and the pipeline to issue a reset rather than retrying indefinitely.
     #[tokio::test]
     async fn test_filtered_beacon_blobs_404_returns_slot_not_found() {
-        let slot = 13779552u64; // slot from the real-world missed-slot incident
+        let slot = 13_779_552u64; // slot from the real-world missed-slot incident
         let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
         let requested_blob_hashes: Vec<B256> = vec![test_blob_hash];
 

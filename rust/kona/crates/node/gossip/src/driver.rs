@@ -91,13 +91,13 @@ where
             swarm,
             addr,
             handler,
-            peerstore: Default::default(),
+            peerstore: HashMap::default(),
             peer_monitoring: None,
-            peer_connection_start: Default::default(),
+            peer_connection_start: HashMap::default(),
             sync_handler,
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
-            ping: Arc::new(Mutex::new(Default::default())),
+            ping: Arc::new(Mutex::new(HashMap::default())),
         }
     }
 
@@ -172,7 +172,7 @@ where
                     if let Err(e) = inbound_stream.write_all(&OUTPUT).await {
                         error!(target: "gossip", err = ?e, "Failed to write the sync response to {peer_id}");
                         return;
-                    };
+                    }
 
                     debug!(target: "gossip", bytes_sent = OUTPUT.len(), peer_id = ?peer_id, "Sent outbound sync response");
                 });
@@ -271,7 +271,7 @@ where
 
         // Dial
         match self.swarm.dial(addr.clone()) {
-            Ok(_) => {
+            Ok(()) => {
                 trace!(target: "gossip", peer=?addr, "Dialed peer");
                 self.connection_gate.dialed(&addr);
                 kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER, "peer" => peer_id.to_string());
@@ -323,7 +323,7 @@ where
             Event::Stream => {
                 error!(target: "gossip", "Stream events should not be emitted!");
             }
-        };
+        }
 
         None
     }
@@ -485,7 +485,7 @@ where
             _ => {
                 debug!(target: "gossip", ?event, "Ignoring non-behaviour in event handler");
             }
-        };
+        }
 
         None
     }

@@ -104,7 +104,7 @@ impl RemoteSigner {
         // Clone the builder to avoid borrowing issues
         let builder = self.clone();
         let mut watcher = notify::recommended_watcher(move |res| {
-            builder.handle_watcher_event(client.clone(), res)
+            builder.handle_watcher_event(client.clone(), res);
         })?;
 
         tracing::info!(target: "signer", "Starting certificate watcher for automatic TLS reload");

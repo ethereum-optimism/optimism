@@ -175,8 +175,7 @@ impl NodeCommand {
                     CliMetrics::P2P_ADVERTISE_IP,
                     self.p2p_flags
                         .advertise_ip
-                        .map(|ip| ip.to_string())
-                        .unwrap_or_else(|| String::from("0.0.0.0"))
+                        .map_or_else(|| String::from("0.0.0.0"), |ip| ip.to_string())
                 ),
                 (
                     CliMetrics::P2P_ADVERTISE_TCP_PORT,
@@ -346,10 +345,16 @@ impl NodeCommand {
         match &self.interop_dependency_set {
             Some(path) => {
                 let file = File::open(path).map_err(|e| {
-                    anyhow::anyhow!("Failed to open interop dependency-set file {path:?}: {e}")
+                    anyhow::anyhow!(
+                        "Failed to open interop dependency-set file {}: {e}",
+                        path.display()
+                    )
                 })?;
                 let dep_set: DependencySet = from_reader(file).map_err(|e| {
-                    anyhow::anyhow!("Failed to parse interop dependency-set {path:?}: {e}")
+                    anyhow::anyhow!(
+                        "Failed to parse interop dependency-set {}: {e}",
+                        path.display()
+                    )
                 })?;
                 Ok(Some(Arc::new(dep_set)))
             }
@@ -366,39 +371,33 @@ impl NodeCommand {
 
     /// Get the L1 config, either from a file or the known chains.
     pub fn get_l1_config(&self, l1_chain_id: u64) -> Result<L1ChainConfig> {
-        match &self.l1_config_file {
-            Some(path) => {
-                debug!("Loading l1 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
-            }
-            None => {
-                debug!("Loading l1 config from known chains");
-                let cfg = L1Config::get_l1_genesis(l1_chain_id).map_err(|e| {
-                    anyhow::anyhow!("Failed to find l1 config for chain ID {l1_chain_id}: {e}")
-                })?;
-                Ok(cfg.into())
-            }
+        if let Some(path) = &self.l1_config_file {
+            debug!("Loading l1 config from file: {:?}", path);
+            let file = File::open(path)
+                .map_err(|e| anyhow::anyhow!("Failed to open l1 config file: {e}"))?;
+            from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l1 config: {e}"))
+        } else {
+            debug!("Loading l1 config from known chains");
+            let cfg = L1Config::get_l1_genesis(l1_chain_id).map_err(|e| {
+                anyhow::anyhow!("Failed to find l1 config for chain ID {l1_chain_id}: {e}")
+            })?;
+            Ok(cfg.into())
         }
     }
 
     /// Get the L2 rollup config, either from a file or the superchain registry.
     pub fn get_l2_config(&self, args: &GlobalArgs) -> Result<RollupConfig> {
-        match &self.l2_config_file {
-            Some(path) => {
-                debug!("Loading l2 config from file: {:?}", path);
-                let file = File::open(path)
-                    .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
-                from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))
-            }
-            None => {
-                debug!("Loading l2 config from superchain registry");
-                let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
-                    bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
-                };
-                Ok(cfg.clone())
-            }
+        if let Some(path) = &self.l2_config_file {
+            debug!("Loading l2 config from file: {:?}", path);
+            let file = File::open(path)
+                .map_err(|e| anyhow::anyhow!("Failed to open l2 config file: {e}"))?;
+            from_reader(file).map_err(|e| anyhow::anyhow!("Failed to parse l2 config: {e}"))
+        } else {
+            debug!("Loading l2 config from superchain registry");
+            let Some(cfg) = scr_rollup_config_by_alloy_ident(&args.l2_chain_id) else {
+                bail!("Failed to find l2 config for chain ID {}", args.l2_chain_id);
+            };
+            Ok(cfg.clone())
         }
     }
 

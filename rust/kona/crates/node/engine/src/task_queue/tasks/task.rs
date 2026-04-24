@@ -117,7 +117,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
             Self::Build(task) => {
                 task.execute(state).await?;
             }
-        };
+        }
 
         Ok(())
     }

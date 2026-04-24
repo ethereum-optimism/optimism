@@ -296,7 +296,7 @@ mod tests {
 
         // ReceiptsConversion is a transient decode failure.
         let kind: PipelineErrorKind =
-            AlloyChainProviderError::ReceiptsConversion(Default::default()).into();
+            AlloyChainProviderError::ReceiptsConversion(B256::ZERO).into();
         assert!(matches!(kind, PipelineErrorKind::Temporary(_)));
 
         // Hash-based BlockNotFound: the block was reorged out. Retrying will never succeed

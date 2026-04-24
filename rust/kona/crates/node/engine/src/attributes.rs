@@ -396,6 +396,8 @@ impl From<AttributesMismatch> for AttributesMatch {
 
 #[cfg(test)]
 mod tests {
+    // Tests rely on `Default::default()` inference for compactness.
+    #![allow(clippy::default_trait_access)]
     use super::*;
     use crate::AttributesMismatch::EIP1559Parameters;
     use alloy_consensus::EMPTY_ROOT_HASH;
@@ -443,7 +445,7 @@ mod tests {
         let cfg = default_rollup_config();
         let attributes = default_attributes();
         let mut block = Block::<Transaction>::default();
-        block.header.inner.timestamp = 1234567890;
+        block.header.inner.timestamp = 1_234_567_890;
         let check = AttributesMatch::check(cfg, &attributes, &block);
         let expected: AttributesMatch = AttributesMismatch::Timestamp(
             attributes.attributes().payload_attributes.timestamp,
@@ -476,7 +478,7 @@ mod tests {
         let cfg = default_rollup_config();
         let attributes = default_attributes();
         let mut block = Block::<Transaction>::default();
-        block.header.inner.gas_limit = 123456;
+        block.header.inner.gas_limit = 123_456;
         let check = AttributesMatch::check(cfg, &attributes, &block);
         let expected: AttributesMatch = AttributesMismatch::MissingAttributesGasLimit.into();
         assert_eq!(check, expected);
@@ -487,9 +489,9 @@ mod tests {
     fn test_attributes_match_check_gas_limit() {
         let cfg = default_rollup_config();
         let mut attributes = default_attributes();
-        attributes.attributes.gas_limit = Some(123457);
+        attributes.attributes.gas_limit = Some(123_457);
         let mut block = Block::<Transaction>::default();
-        block.header.inner.gas_limit = 123456;
+        block.header.inner.gas_limit = 123_456;
         let check = AttributesMatch::check(cfg, &attributes, &block);
         let expected: AttributesMatch = AttributesMismatch::GasLimit(
             attributes.attributes().gas_limit.unwrap_or_default(),

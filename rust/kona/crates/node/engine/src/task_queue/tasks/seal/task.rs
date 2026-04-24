@@ -164,7 +164,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                 )
                 .await
                 {
-                    Ok(_) => {
+                    Ok(()) => {
                         info!(target: "engine", "Successfully imported deposits-only payload");
                         Err(SealTaskError::HoloceneInvalidFlush)
                     }
@@ -175,8 +175,8 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                 error!(target: "engine", "Payload import failed: {e}");
                 return Err(Box::new(e).into());
             }
-            Ok(_) => {
-                info!(target: "engine", "Successfully imported payload")
+            Ok(()) => {
+                info!(target: "engine", "Successfully imported payload");
             }
         }
 
@@ -255,7 +255,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
     async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
         debug!(
             target: "engine",
-            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            txs = self.attributes.attributes().transactions.as_ref().map_or(0, Vec::len),
             is_deposits = self.attributes.is_deposits_only(),
             "Starting new seal job"
         );

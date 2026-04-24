@@ -425,7 +425,7 @@ where
                 // We are using a biased select here to ensure that the admin queries are given priority over the block building task.
                 // This is important to limit the occurrence of race conditions where a stopped query is received when a sequencer is building a new block.
                 biased;
-                _ = self.cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     info!(
                         target: "sequencer",
                         "Received shutdown signal. Exiting sequencer task."
@@ -472,7 +472,7 @@ where
                         match next_block_time.duration_since(SystemTime::now()) {
                             Ok(duration) => build_ticker.reset_after(duration),
                             Err(_) => build_ticker.reset_immediately(),
-                        };
+                        }
                     } else {
                         build_ticker.reset_immediately();
                     }

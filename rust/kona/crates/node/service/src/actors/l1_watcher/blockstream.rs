@@ -58,7 +58,7 @@ impl<L1P: Provider> BlockStream<L1P> {
             while let Some(next) = poll_stream.next().await {
                 let info: BlockInfo = next.into_consensus().into();
 
-                if last_block.map(|b| b != info).unwrap_or(true) {
+                if last_block.is_none_or(|b| b != info) {
                     last_block = Some(info);
                     yield info;
                 }

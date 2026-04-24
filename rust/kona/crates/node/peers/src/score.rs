@@ -114,7 +114,7 @@ impl PeerScoreLevel {
         let one_hundred_epochs = epoch * 100;
         let penalty_decay = Self::score_decay(ten_epochs, slot);
         let topics =
-            if topic_scoring { Self::topic_scores(topics, block_time) } else { Default::default() };
+            if topic_scoring { Self::topic_scores(topics, block_time) } else { HashMap::default() };
         match self {
             Self::Off => None,
             Self::Light => Some(PeerScoreParams {
@@ -123,7 +123,7 @@ impl PeerScoreLevel {
                 app_specific_weight: 1.0,
                 ip_colocation_factor_weight: -35.0,
                 ip_colocation_factor_threshold: 10.0,
-                ip_colocation_factor_whitelist: Default::default(),
+                ip_colocation_factor_whitelist: std::collections::HashSet::new(),
                 behaviour_penalty_weight: -16.0,
                 behaviour_penalty_threshold: 6.0,
                 behaviour_penalty_decay: penalty_decay,

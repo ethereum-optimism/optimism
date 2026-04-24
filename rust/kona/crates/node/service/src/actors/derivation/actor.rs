@@ -83,9 +83,9 @@ where
         }
 
         match self.pipeline.signal(signal).await {
-            Ok(_) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
+            Ok(()) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
             Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline");
             }
         }
     }
@@ -278,7 +278,7 @@ where
             select! {
                 biased;
 
-                _ = self.cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     info!(
                         target: "derivation",
                         "Received shutdown signal. Exiting derivation task."

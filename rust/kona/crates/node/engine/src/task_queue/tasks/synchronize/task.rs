@@ -1,7 +1,8 @@
 //! A task for the `engine_forkchoiceUpdated` method, with no attributes.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, SynchronizeTaskError, state::EngineSyncStateUpdate,
+    EngineClient, EngineState, EngineSyncState, EngineTaskExt, SynchronizeTaskError,
+    state::EngineSyncStateUpdate,
 };
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -96,7 +97,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
         // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
         // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        if state.sync_state != EngineSyncState::default() && state.sync_state == new_sync_state {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }

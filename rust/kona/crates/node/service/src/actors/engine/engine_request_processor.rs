@@ -105,7 +105,7 @@ where
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
         match self.derivation_client.send_signal(signal).await {
-            Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
+            Ok(()) => info!(target: "engine", "Sent reset signal to derivation actor"),
             Err(err) => {
                 error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
                 return Err(EngineError::ChannelClosed);
@@ -120,7 +120,7 @@ where
     /// Drains the inner [`Engine`] task queue and attempts to update the safe head.
     async fn drain(&mut self) -> Result<(), EngineError> {
         match self.engine.drain().await {
-            Ok(_) => {
+            Ok(()) => {
                 trace!(target: "engine", "[ENGINE] tasks drained");
             }
             Err(err) => {
@@ -140,8 +140,8 @@ where
                         // the channel and any remaining buffered batches are flushed.
                         warn!(target: "engine", ?err, "Invalid payload, Flushing derivation pipeline.");
                         match self.derivation_client.send_signal(Signal::FlushChannel).await {
-                            Ok(_) => {
-                                debug!(target: "engine", "Sent flush signal to derivation actor")
+                            Ok(()) => {
+                                debug!(target: "engine", "Sent flush signal to derivation actor");
                             }
                             Err(err) => {
                                 error!(target: "engine", ?err, "Failed to send flush signal to the derivation actor.");
@@ -182,7 +182,7 @@ where
         self.derivation_client
             .notify_sync_completed(self.engine.state().sync_state.safe_head())
             .await
-            .map(|_| Ok(()))
+            .map(|()| Ok(()))
             .map_err(|e| {
                 error!(target: "engine", ?e, "Failed to notify sync completed");
                 EngineError::ChannelClosed
@@ -288,10 +288,10 @@ where
                         let reset_res = self.reset().await;
 
                         // Send the result.
-                        let response_payload = reset_res
-                            .as_ref()
-                            .map(|_| ())
-                            .map_err(|e| EngineClientError::ResetForkchoiceError(e.to_string()));
+                        let response_payload = match reset_res.as_ref() {
+                            Ok(()) => Ok(()),
+                            Err(e) => Err(EngineClientError::ResetForkchoiceError(e.to_string())),
+                        };
                         if reset_request.result_tx.send(response_payload).await.is_err() {
                             warn!(target: "engine", "Sending reset response failed");
                             // If there was an error and we couldn't notify the caller to handle it,

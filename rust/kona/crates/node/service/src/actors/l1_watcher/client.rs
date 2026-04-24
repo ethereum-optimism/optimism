@@ -31,8 +31,7 @@ pub struct QueuedL1WatcherDerivationClient {
 impl L1WatcherDerivationClient for QueuedL1WatcherDerivationClient {
     async fn send_finalized_l1_block(&self, block: BlockInfo) -> DerivationClientResult<()> {
         trace!(target: "l1_watcher", ?block, "Sending finalized l1 block to derivation actor.");
-        let _ = self
-            .derivation_actor_request_tx
+        self.derivation_actor_request_tx
             .send(DerivationActorRequest::ProcessFinalizedL1Block(Box::new(block)))
             .await
             .map_err(|_| {

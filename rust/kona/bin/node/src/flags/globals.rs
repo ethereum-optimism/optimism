@@ -63,7 +63,7 @@ mod tests {
     #[case::numeric_optimism("10", 10)]
     #[case::numeric_ethereum("1", 1)]
     #[case::numeric_base("8453", 8453)]
-    #[case::numeric_unknown("999999", 999999)]
+    #[case::numeric_unknown("999999", 999_999)]
     #[case::string_optimism("optimism", 10)]
     #[case::string_mainnet("mainnet", 1)]
     #[case::string_base("base", 8453)]

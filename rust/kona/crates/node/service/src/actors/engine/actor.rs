@@ -112,7 +112,7 @@ where
 
         loop {
             tokio::select! {
-                _ = self.cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     warn!(target: "engine", "EngineActor received shutdown signal. Awaiting task completion.");
 
                     rpc_handle.await?;

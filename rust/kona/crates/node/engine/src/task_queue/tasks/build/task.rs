@@ -159,7 +159,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
     async fn execute(&self, state: &mut EngineState) -> Result<PayloadId, BuildTaskError> {
         debug!(
             target: "engine_builder",
-            txs = self.attributes.attributes().transactions.as_ref().map_or(0, |txs| txs.len()),
+            txs = self.attributes.attributes().transactions.as_ref().map_or(0, Vec::len),
             is_deposits = self.attributes.is_deposits_only(),
             "Starting new build job"
         );

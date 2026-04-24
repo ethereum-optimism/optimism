@@ -101,6 +101,6 @@ pub fn init_rollup_config_metrics(config: &RollupConfig) {
         // Set the value of the metric for the given hardfork, using `-1` as a signal that the
         // fork is not scheduled.
         metrics::gauge!(CliMetrics::HARDFORK_ACTIVATION_TIMES, "fork" => fork_name)
-            .set(activation_time.map(|t| t as f64).unwrap_or(-1f64));
+            .set(activation_time.map_or(-1f64, |t| t as f64));
     }
 }

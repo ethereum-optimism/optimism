@@ -152,12 +152,9 @@ where
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
     async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
-            Ok(status) => status,
-            Err(_) => {
-                warn!(target: "derivation", "Failed to fetch sync status from delegate");
-                return Ok(());
-            }
+        let Ok(sync_status) = self.derivation_delegate_provider.fetch_sync_status().await else {
+            warn!(target: "derivation", "Failed to fetch sync status from delegate");
+            return Ok(());
         };
 
         if !self.validate_sync_status(&sync_status).await {
@@ -196,7 +193,7 @@ where
             select! {
                 biased;
 
-                _ = self.cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     info!(
                         target: "derivation",
                         "Received shutdown signal. Exiting derivation task."

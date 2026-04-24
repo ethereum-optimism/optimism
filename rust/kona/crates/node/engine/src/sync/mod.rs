@@ -49,28 +49,24 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
             "Searching for L2 unsafe block with canonical L1 origin"
         );
 
-        match l1_origin {
-            Some(_) => {
-                // Unsafe block has existing L1 origin. Continue with this head.
-                info!(
-                    target: "sync_start",
-                    l2_unsafe = %current_fc.un_safe.block_info.number,
-                    "Found L2 unsafe block with canonical L1 origin"
-                );
-                break;
-            }
-            None => {
-                let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
-                let l2_parent = engine_client
-                    .get_l2_block(l2_parent_hash)
-                    .full()
-                    .await?
-                    .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
-
-                current_fc.un_safe =
-                    L2BlockInfo::from_block_and_genesis(&l2_parent.into_consensus(), &cfg.genesis)?;
-            }
+        if l1_origin.is_some() {
+            // Unsafe block has existing L1 origin. Continue with this head.
+            info!(
+                target: "sync_start",
+                l2_unsafe = %current_fc.un_safe.block_info.number,
+                "Found L2 unsafe block with canonical L1 origin"
+            );
+            break;
         }
+        let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
+        let l2_parent = engine_client
+            .get_l2_block(l2_parent_hash)
+            .full()
+            .await?
+            .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
+
+        current_fc.un_safe =
+            L2BlockInfo::from_block_and_genesis(&l2_parent.into_consensus(), &cfg.genesis)?;
     }
 
     // Search for the highest `safe` block that's L1 origin is at least older than the sequencing
@@ -121,7 +117,7 @@ mod test {
     use kona_registry::ROLLUP_CONFIGS;
     use op_alloy_network::Optimism;
 
-    const OP_SEPOLIA_CHAIN_ID: u64 = 11155420;
+    const OP_SEPOLIA_CHAIN_ID: u64 = 11_155_420;
     const OP_SEPOLIA_GENESIS_RPC_RESPONSE: &str = "{\"hash\":\"0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d\",\"parentHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"sha3Uncles\":\"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347\",\"miner\":\"0x4200000000000000000000000000000000000011\",\"stateRoot\":\"0x06787a17a3ed87c339a39dbbeeb311578a0c83ed29daa2db95da62b28efce8a9\",\"transactionsRoot\":\"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421\",\"receiptsRoot\":\"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421\",\"logsBloom\":\"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\"difficulty\":\"0x0\",\"number\":\"0x0\",\"gasLimit\":\"0x1c9c380\",\"gasUsed\":\"0x0\",\"timestamp\":\"0x64d6dbac\",\"extraData\":\"0x424544524f434b\",\"mixHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"nonce\":\"0x0000000000000000\",\"baseFeePerGas\":\"0x3b9aca00\",\"size\":\"0x209\",\"uncles\":[],\"transactions\":[]}";
 
     /// Sanity regression test - `alloy_rpc_types`' `Block::into_consensus` failed to saturate the

@@ -19,13 +19,12 @@ async fn test_is_sequencer_active(
     actor.is_active = active;
 
     let result = async {
-        match via_channel {
-            false => actor.is_sequencer_active().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::SequencerActive(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::SequencerActive(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.is_sequencer_active().await
         }
     }
     .await;
@@ -42,17 +41,16 @@ async fn test_is_conductor_enabled(
 ) {
     let mut actor = test_actor();
     if conductor_exists {
-        actor.conductor = Some(MockConductor::new())
-    };
+        actor.conductor = Some(MockConductor::new());
+    }
 
     let result = async {
-        match via_channel {
-            false => actor.is_conductor_enabled().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ConductorEnabled(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::ConductorEnabled(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.is_conductor_enabled().await
         }
     }
     .await;
@@ -71,13 +69,12 @@ async fn test_in_recovery_mode(
     actor.in_recovery_mode = recovery_mode;
 
     let result = async {
-        match via_channel {
-            false => actor.in_recovery_mode().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::RecoveryMode(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::RecoveryMode(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.in_recovery_mode().await
         }
     }
     .await;
@@ -102,13 +99,12 @@ async fn test_start_sequencer(
 
     // start the sequencer
     let result = async {
-        match via_channel {
-            false => actor.start_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.start_sequencer().await
         }
     }
     .await;
@@ -146,13 +142,12 @@ async fn test_stop_sequencer_success(
 
     // stop the sequencer
     let result = async {
-        match via_channel {
-            false => actor.stop_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.stop_sequencer().await
         }
     }
     .await;
@@ -178,13 +173,12 @@ async fn test_stop_sequencer_error_fetching_unsafe_head(#[values(true, false)] v
     actor.engine_client = client;
 
     let result = async {
-        match via_channel {
-            false => actor.stop_sequencer().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::StopSequencer(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.stop_sequencer().await
         }
     }
     .await;
@@ -214,15 +208,12 @@ async fn test_set_recovery_mode(
 
     // set recovery mode
     let result = async {
-        match via_channel {
-            false => actor.set_recovery_mode(mode_to_set).await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor
-                    .handle_admin_query(SequencerAdminQuery::SetRecoveryMode(mode_to_set, tx))
-                    .await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::SetRecoveryMode(mode_to_set, tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.set_recovery_mode(mode_to_set).await
         }
     }
     .await;
@@ -268,13 +259,12 @@ async fn test_override_leader(
 
     // call to override leader
     let result = async {
-        match via_channel {
-            false => actor.override_leader().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::OverrideLeader(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.override_leader().await
         }
     }
     .await;
@@ -287,7 +277,7 @@ async fn test_override_leader(
             result.err().unwrap().to_string().contains(conductor_error_string)
         );
     } else {
-        assert!(result.is_ok())
+        assert!(result.is_ok());
     }
 }
 
@@ -301,13 +291,12 @@ async fn test_reset_derivation_pipeline_success(#[values(true, false)] via_chann
     actor.engine_client = client;
 
     let result = async {
-        match via_channel {
-            false => actor.reset_derivation_pipeline().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.reset_derivation_pipeline().await
         }
     }
     .await;
@@ -328,13 +317,12 @@ async fn test_reset_derivation_pipeline_error(#[values(true, false)] via_channel
     actor.engine_client = client;
 
     let result = async {
-        match via_channel {
-            false => actor.reset_derivation_pipeline().await,
-            true => {
-                let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
-                rx.await.unwrap()
-            }
+        if via_channel {
+            let (tx, rx) = oneshot::channel();
+            actor.handle_admin_query(SequencerAdminQuery::ResetDerivationPipeline(tx)).await;
+            rx.await.unwrap()
+        } else {
+            actor.reset_derivation_pipeline().await
         }
     }
     .await;

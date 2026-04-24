@@ -188,7 +188,9 @@ impl RollupNode {
     /// are not relevant to other actors or logic.
     /// Note: ignoring complex type warning. This type only pertains to this function, so it is
     /// better to have the full type here than have to piece it together from multiple type defs.
-    #[allow(clippy::type_complexity)]
+    // Returns `Result` for forward-compatibility — creation of the engine processor
+    // may grow fallible paths.
+    #[allow(clippy::type_complexity, clippy::unnecessary_wraps)]
     fn create_engine_actor(
         &self,
         cancellation_token: CancellationToken,

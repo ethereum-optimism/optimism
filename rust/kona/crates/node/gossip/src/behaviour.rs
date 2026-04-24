@@ -84,7 +84,7 @@ impl Behaviour {
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
-        Ok(Self { identify, ping, gossipsub, sync_req_resp })
+        Ok(Self { ping, gossipsub, identify, sync_req_resp })
     }
 }
 

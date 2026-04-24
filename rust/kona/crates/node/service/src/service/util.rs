@@ -90,10 +90,10 @@ pub(crate) async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {
+        () = ctrl_c => {
             tracing::info!(target: "rollup_node", "Received SIGINT (Ctrl+C)");
         },
-        _ = terminate => {
+        () = terminate => {
             tracing::info!(target: "rollup_node", "Received SIGTERM");
         },
     }

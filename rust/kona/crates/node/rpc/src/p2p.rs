@@ -109,7 +109,7 @@ impl OpP2PApiServer for P2pRpc {
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
         rx.await
-            .map(|peers| peers.iter().map(|p| p.to_string()).collect())
+            .map(|peers| peers.iter().map(ToString::to_string).collect())
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
     }
 
@@ -308,10 +308,7 @@ mod tests {
         let ma = "/ip4/127.0.0.1/udt";
         let multiaddr = libp2p::Multiaddr::from_str(ma).unwrap();
         let components = multiaddr.iter().collect::<Vec<_>>();
-        assert_eq!(
-            components[0],
-            libp2p::multiaddr::Protocol::Ip4(std::net::Ipv4Addr::new(127, 0, 0, 1))
-        );
+        assert_eq!(components[0], libp2p::multiaddr::Protocol::Ip4(std::net::Ipv4Addr::LOCALHOST));
         assert_eq!(components[1], libp2p::multiaddr::Protocol::Udt);
     }
 }

@@ -3,6 +3,9 @@
 use std::{net::SocketAddr, path::PathBuf};
 
 /// The RPC configuration.
+// Flags are set via CLI; grouping them in a struct rather than an enum keeps
+// the configuration flat and matches the op-node CLI layout.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct RpcBuilder {
     /// Prevent the rpc server from being restarted.

@@ -126,8 +126,9 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
                 let kzg_settings = EnvKzgSettings::Default;
 
                 // SAFETY: all types have the same size and alignment
-                let kzg_blob =
-                    unsafe { Box::from_raw(Box::<Blob>::into_raw(blob.blob) as *mut c_kzg::Blob) };
+                let kzg_blob = unsafe {
+                    Box::from_raw(Box::<Blob>::into_raw(blob.blob).cast::<c_kzg::Blob>())
+                };
 
                 let commitment = kzg_settings
                     .get()
@@ -140,7 +141,7 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
 
                 // SAFETY: all types have the same size and alignment
                 let alloy_blob =
-                    unsafe { Box::from_raw(Box::<c_kzg::Blob>::into_raw(kzg_blob) as *mut Blob) };
+                    unsafe { Box::from_raw(Box::<c_kzg::Blob>::into_raw(kzg_blob).cast::<Blob>()) };
 
                 Ok(BlobWithCommitmentAndProof {
                     blob: alloy_blob,
@@ -163,7 +164,7 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
         blob_hashes: &[B256],
     ) -> Result<Vec<BlobWithCommitmentAndProof>, BlobProviderError> {
         if blob_hashes.is_empty() {
-            return Ok(Default::default());
+            return Ok(Vec::new());
         }
 
         // Calculate the slot for the given timestamp.
@@ -193,7 +194,7 @@ where
         blob_hashes: &[B256],
     ) -> Result<Vec<Box<Blob>>, Self::Error> {
         if blob_hashes.is_empty() {
-            return Ok(Default::default());
+            return Ok(Vec::new());
         }
 
         // Calculate the slot for the given timestamp.

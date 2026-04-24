@@ -336,16 +336,18 @@ mod tests {
         let header1 = Header {
             number: 1,
             parent_hash: B256::ZERO,
-            timestamp: 1234567890,
+            timestamp: 1_234_567_890,
             ..Default::default()
         };
+        // Body uses the built-in `Default` for the inner BlockBody type.
+        #[allow(clippy::default_trait_access)]
         let block1 = OpBlock { header: header1, body: Default::default() };
         let l2_info1 = L2BlockInfo {
             block_info: BlockInfo {
                 hash: hash1,
                 number: 1,
                 parent_hash: B256::ZERO,
-                timestamp: 1234567890,
+                timestamp: 1_234_567_890,
             },
             l1_origin: BlockNumHash { number: 1, hash: B256::ZERO },
             seq_num: 0,
@@ -392,16 +394,18 @@ mod tests {
         let header = Header {
             number: 1,
             parent_hash: B256::ZERO,
-            timestamp: 1234567890,
+            timestamp: 1_234_567_890,
             ..Default::default()
         };
+        // Body uses the built-in `Default` for the inner BlockBody type.
+        #[allow(clippy::default_trait_access)]
         let block = OpBlock { header, body: Default::default() };
         let l2_info = L2BlockInfo {
             block_info: BlockInfo {
                 hash,
                 number: 1,
                 parent_hash: B256::ZERO,
-                timestamp: 1234567890,
+                timestamp: 1_234_567_890,
             },
             l1_origin: BlockNumHash { number: 1, hash: B256::ZERO },
             seq_num: 0,

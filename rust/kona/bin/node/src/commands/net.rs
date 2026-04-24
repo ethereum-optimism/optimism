@@ -130,7 +130,7 @@ impl NetCommand {
                         }
                     }).await.unwrap();
                 }
-                _ = OptionFuture::from(handle.clone().map(|h| h.stopped())) => {
+                _ = OptionFuture::from(handle.clone().map(jsonrpsee::server::ServerHandle::stopped)) => {
                     warn!(target: "net", "RPC server stopped");
                     return Ok(());
                 }

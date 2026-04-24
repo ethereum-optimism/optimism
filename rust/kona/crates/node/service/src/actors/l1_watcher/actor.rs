@@ -105,7 +105,7 @@ where
 
         loop {
             select! {
-                _ = cancel.cancelled() => {
+                () = cancel.cancelled() => {
                     // Exit the task on cancellation.
                     info!(
                         target: "l1_watcher",
@@ -161,8 +161,7 @@ where
                         })?;
                     }
                 },
-                inbound_query = self.inbound_queries.recv() => match inbound_query {
-                Some(query) => {
+                inbound_query = self.inbound_queries.recv() => if let Some(query) = inbound_query {
                     match query {
                         L1WatcherQueries::Config(sender) => {
                             if let Err(e) = sender.send((*self.rollup_config).clone()) {
@@ -204,12 +203,10 @@ where
                             }
                         }
                     }
-                },
-                None => {
+                } else {
                     error!(target: "l1_watcher", "L1 watcher query channel closed unexpectedly, exiting query processor task.");
-                    return Err(L1WatcherActorError::StreamEnded)
+                    return Err(L1WatcherActorError::StreamEnded);
                 }
-            }
             }
         }
     }

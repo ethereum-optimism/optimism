@@ -2,7 +2,6 @@
 
 use crate::BootNode;
 use derive_more::Deref;
-use lazy_static::lazy_static;
 
 use kona_registry::CHAINS;
 
@@ -20,7 +19,7 @@ impl BootNodes {
         };
         match chain.parent.chain_id() {
             1 => Self::mainnet(),
-            11155111 => Self::testnet(),
+            11_155_111 => Self::testnet(),
             _ => Self(vec![]),
         }
     }
@@ -46,17 +45,24 @@ impl BootNodes {
     }
 }
 
-lazy_static! {
-    /// Default op bootnodes to use.
-    static ref OP_BOOTNODES: Vec<BootNode> = OP_RAW_BOOTNODES.iter()
-        .map(|raw| BootNode::parse_bootnode(raw))
-        .collect();
+// Keep `lazy_static` here: the initializer references other `pub static` arrays
+// and the codebase historically uses `lazy_static` for gossip/discovery bootnodes.
+#[allow(clippy::non_std_lazy_statics)]
+mod bootnodes {
+    use super::{BootNode, OP_RAW_BOOTNODES, OP_RAW_TESTNET_BOOTNODES};
+    lazy_static::lazy_static! {
+        /// Default op bootnodes to use.
+        pub static ref OP_BOOTNODES: Vec<BootNode> = OP_RAW_BOOTNODES.iter()
+            .map(|raw| BootNode::parse_bootnode(raw))
+            .collect();
 
-    /// Default op testnet bootnodes to use.
-    static ref OP_TESTNET_BOOTNODES: Vec<BootNode> = OP_RAW_TESTNET_BOOTNODES.iter()
-        .map(|raw| BootNode::parse_bootnode(raw))
-        .collect();
+        /// Default op testnet bootnodes to use.
+        pub static ref OP_TESTNET_BOOTNODES: Vec<BootNode> = OP_RAW_TESTNET_BOOTNODES.iter()
+            .map(|raw| BootNode::parse_bootnode(raw))
+            .collect();
+    }
 }
+use bootnodes::{OP_BOOTNODES, OP_TESTNET_BOOTNODES};
 
 /// OP stack mainnet boot nodes.
 pub static OP_RAW_BOOTNODES: &[&str] = &[

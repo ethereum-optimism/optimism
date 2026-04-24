@@ -168,7 +168,7 @@ impl GossipDriverBuilder {
         match self.scoring {
             None => info!(target: "scoring", "Peer scoring not enabled"),
             Some(PeerScoreLevel::Off) => {
-                info!(target: "scoring", level = ?PeerScoreLevel::Off, "Peer scoring explicitly disabled")
+                info!(target: "scoring", level = ?PeerScoreLevel::Off, "Peer scoring explicitly disabled");
             }
             Some(level) => {
                 use crate::handler::Handler;
@@ -176,7 +176,7 @@ impl GossipDriverBuilder {
                     .to_params(handler.topics(), self.topic_scoring, block_time)
                     .unwrap_or_default();
                 match behaviour.gossipsub.with_peer_score(params, PeerScoreLevel::thresholds()) {
-                    Ok(_) => debug!(target: "scoring", "Peer scoring enabled successfully"),
+                    Ok(()) => debug!(target: "scoring", "Peer scoring enabled successfully"),
                     Err(e) => warn!(target: "scoring", "Peer scoring failed: {}", e),
                 }
             }

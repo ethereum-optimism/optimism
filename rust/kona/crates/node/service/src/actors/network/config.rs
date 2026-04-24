@@ -87,14 +87,14 @@ impl NetworkConfig {
             unsafe_block_signer,
             enr_update: true,
             keypair: Keypair::generate_secp256k1(),
-            bootnodes: Default::default(),
-            bootstore: Default::default(),
-            gater_config: Default::default(),
-            gossip_config: Default::default(),
-            scoring: Default::default(),
-            topic_scoring: Default::default(),
-            monitor_peers: Default::default(),
-            gossip_signer: Default::default(),
+            bootnodes: BootNodes::default(),
+            bootstore: None,
+            gater_config: GaterConfig::default(),
+            gossip_config: libp2p::gossipsub::Config::default(),
+            scoring: PeerScoreLevel::default(),
+            topic_scoring: false,
+            monitor_peers: None,
+            gossip_signer: None,
         }
     }
 }

@@ -346,9 +346,9 @@ mod tests {
         let header = Header {
             number,
             parent_hash,
-            timestamp: 1234567890,
-            gas_limit: 8000000,
-            gas_used: 5000000,
+            timestamp: 1_234_567_890,
+            gas_limit: 8_000_000,
+            gas_used: 5_000_000,
             base_fee_per_gas: Some(20_000_000_000u64),
             difficulty: U256::ZERO,
             nonce: FixedBytes::ZERO,

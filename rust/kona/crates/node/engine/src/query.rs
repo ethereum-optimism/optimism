@@ -108,7 +108,7 @@ impl EngineQueries {
                     } else {
                         // Fetch the storage root for the L2 head block.
                         let l2_to_l1_message_passer = client
-                            .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
+                            .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Vec::new())
                             .block_id(block.into())
                             .await?;
 

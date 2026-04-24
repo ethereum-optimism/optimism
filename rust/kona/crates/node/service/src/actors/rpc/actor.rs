@@ -127,7 +127,7 @@ where
 
         for _ in 0..=restarts {
             tokio::select! {
-                _ = handle.clone().stopped() => {
+                () = handle.clone().stopped() => {
                     match launch(&self.config, modules.clone()).await {
                         Ok(h) => handle = h,
                         Err(err) => {
@@ -137,7 +137,7 @@ where
                         }
                     }
                 }
-                _ = cancellation.cancelled() => {
+                () = cancellation.cancelled() => {
                     // The cancellation token has been triggered, so we should stop the server.
                     handle.stop().map_err(|_| RpcActorError::StopFailed)?;
                     // Since the RPC Server didn't originate the error, we should return Ok.

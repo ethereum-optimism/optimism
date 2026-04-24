@@ -153,7 +153,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
 
         loop {
             select! {
-                _ = self.cancellation_token.cancelled() => {
+                () = self.cancellation_token.cancelled() => {
                     info!(
                         target: "network",
                         "Received shutdown signal. Exiting network task."

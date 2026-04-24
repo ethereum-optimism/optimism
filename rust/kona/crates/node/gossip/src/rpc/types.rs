@@ -419,10 +419,17 @@ mod tests {
         assert_eq!(peer_info.chain_id, deserialized.chain_id);
         assert_eq!(peer_info.latency, deserialized.latency);
         assert_eq!(peer_info.gossip_blocks, deserialized.gossip_blocks);
-        assert_eq!(peer_info.peer_scores.gossip.total, deserialized.peer_scores.gossip.total);
-        assert_eq!(
-            peer_info.peer_scores.req_resp.valid_responses,
-            deserialized.peer_scores.req_resp.valid_responses
+        // Test-only bit-level compare of identical f64 values from round-trip.
+        assert!(
+            (peer_info.peer_scores.gossip.total - deserialized.peer_scores.gossip.total).abs() <
+                f64::EPSILON
+        );
+        // Test-only bit-level compare of identical f64 values from round-trip.
+        assert!(
+            (peer_info.peer_scores.req_resp.valid_responses -
+                deserialized.peer_scores.req_resp.valid_responses)
+                .abs() <
+                f64::EPSILON
         );
     }
 }

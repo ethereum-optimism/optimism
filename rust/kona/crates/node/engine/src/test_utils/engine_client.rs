@@ -716,10 +716,10 @@ mod tests {
         let payload = ExecutionPayloadInputV2 {
             execution_payload: ExecutionPayloadV1 {
                 parent_hash: B256::ZERO,
-                fee_recipient: Default::default(),
+                fee_recipient: alloy_primitives::Address::ZERO,
                 state_root: B256::ZERO,
                 receipts_root: B256::ZERO,
-                logs_bloom: Default::default(),
+                logs_bloom: alloy_primitives::Bloom::ZERO,
                 prev_randao: B256::ZERO,
                 block_number: 0,
                 gas_limit: 0,
@@ -779,10 +779,10 @@ mod tests {
         let payload = ExecutionPayloadInputV2 {
             execution_payload: ExecutionPayloadV1 {
                 parent_hash: B256::ZERO,
-                fee_recipient: Default::default(),
+                fee_recipient: alloy_primitives::Address::ZERO,
                 state_root: B256::ZERO,
                 receipts_root: B256::ZERO,
-                logs_bloom: Default::default(),
+                logs_bloom: alloy_primitives::Bloom::ZERO,
                 prev_randao: B256::ZERO,
                 block_number: 0,
                 gas_limit: 0,

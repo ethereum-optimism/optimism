@@ -1,4 +1,12 @@
 //! Integration tests for the local buffered provider.
+// Integration tests emphasize readability; broad pedantic lints aren't useful here.
+#![allow(
+    clippy::default_trait_access,
+    clippy::cast_possible_truncation,
+    clippy::used_underscore_binding,
+    clippy::wildcard_imports,
+    clippy::too_many_lines
+)]
 
 use alloy_consensus::Header;
 use alloy_eips::BlockNumHash;
@@ -25,7 +33,7 @@ fn create_test_block(number: u64, hash: B256, parent_hash: B256) -> (OpBlock, L2
     let header = Header {
         number,
         parent_hash,
-        timestamp: 1234567890 + number,
+        timestamp: 1_234_567_890 + number,
         gas_limit: 30_000_000,
         gas_used: 15_000_000,
         base_fee_per_gas: Some(7),

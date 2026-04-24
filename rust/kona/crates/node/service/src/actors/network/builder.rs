@@ -280,7 +280,7 @@ mod tests {
         let discovery_config =
             ConfigBuilder::new(ListenConfig::from_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9098))
                 .build();
-        let driver = network_builder(Default::default())
+        let driver = network_builder(NetworkBuilderParams::default())
             .with_gossip_address(gossip_addr)
             .with_discovery_address(disc)
             .with_discovery_config(discovery_config)

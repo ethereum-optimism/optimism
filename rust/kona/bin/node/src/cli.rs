@@ -68,7 +68,7 @@ impl Cli {
         match self.subcommand {
             Commands::Node(ref node) => node.init_cli_metrics(&self.global.metrics)?,
             _ => {
-                tracing::debug!(target: "cli", "No CLI metrics initialized for subcommand: {:?}", self.subcommand)
+                tracing::debug!(target: "cli", "No CLI metrics initialized for subcommand: {:?}", self.subcommand);
             }
         }
 
@@ -108,6 +108,8 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
+    // `Default::default()` keeps the rstest cases concise across many variants.
+    #![allow(clippy::default_trait_access)]
     use super::*;
     use rstest::rstest;
 

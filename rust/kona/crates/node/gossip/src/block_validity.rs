@@ -367,7 +367,7 @@ pub(crate) mod tests {
 
         let transactions_root =
             alloy_consensus::proofs::ordered_trie_root_with_encoder(&transactions, |item, buf| {
-                buf.put_slice(item)
+                buf.put_slice(item);
             });
 
         block.header.transactions_root = transactions_root;
@@ -393,8 +393,8 @@ pub(crate) mod tests {
         block.header.parent_beacon_block_root = None;
         block.header.requests_hash = None;
         block.header.ommers_hash = EMPTY_OMMER_ROOT_HASH;
-        block.header.difficulty = Default::default();
-        block.header.nonce = Default::default();
+        block.header.difficulty = alloy_primitives::U256::ZERO;
+        block.header.nonce = alloy_primitives::B64::ZERO;
 
         block
     }
@@ -430,8 +430,8 @@ pub(crate) mod tests {
 
         block.header.requests_hash = None;
         block.header.ommers_hash = EMPTY_OMMER_ROOT_HASH;
-        block.header.difficulty = Default::default();
-        block.header.nonce = Default::default();
+        block.header.difficulty = alloy_primitives::U256::ZERO;
+        block.header.nonce = alloy_primitives::B64::ZERO;
 
         block
     }
