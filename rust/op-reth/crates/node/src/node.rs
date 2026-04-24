@@ -111,11 +111,15 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
         let denominator = std::env::var("OP_DEV_EIP1559_DENOMINATOR")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or_else(|| u32::try_from(default_params.max_change_denominator).unwrap_or(u32::MAX));
+            .unwrap_or_else(|| {
+                u32::try_from(default_params.max_change_denominator).unwrap_or(u32::MAX)
+            });
         let elasticity = std::env::var("OP_DEV_EIP1559_ELASTICITY")
             .ok()
             .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or_else(|| u32::try_from(default_params.elasticity_multiplier).unwrap_or(u32::MAX));
+            .unwrap_or_else(|| {
+                u32::try_from(default_params.elasticity_multiplier).unwrap_or(u32::MAX)
+            });
         let gas_limit = std::env::var("OP_DEV_GAS_LIMIT").ok().and_then(|v| v.parse::<u64>().ok());
 
         let mut eip1559_bytes = [0u8; 8];

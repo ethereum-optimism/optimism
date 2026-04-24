@@ -21,7 +21,10 @@ use std::sync::{
 };
 
 /// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
-#[allow(clippy::redundant_pub_crate, reason = "pub(crate) is needed: module is private but re-used by sibling modules")]
+#[allow(
+    clippy::redundant_pub_crate,
+    reason = "pub(crate) is needed: module is private but re-used by sibling modules"
+)]
 pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 
 /// Tracks additional infos for the current block.

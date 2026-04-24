@@ -35,9 +35,9 @@ impl InteropTxValidatorError {
         E: error::Error + Send + Sync + 'static,
     {
         // Try to extract error details from the RPC error
-        if let Some(error_payload) = err.as_error_resp()
-            && let Ok(code) = i32::try_from(error_payload.code)
-            && let Ok(invalid_entry) = SuperchainDAError::try_from(code)
+        if let Some(error_payload) = err.as_error_resp() &&
+            let Ok(code) = i32::try_from(error_payload.code) &&
+            let Ok(invalid_entry) = SuperchainDAError::try_from(code)
         {
             return Self::InvalidEntry(invalid_entry);
         }

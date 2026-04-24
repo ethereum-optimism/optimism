@@ -48,10 +48,7 @@ pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
 /// # Errors
 ///
 /// Forwards any [`eyre::Report`] produced while advancing the test node `length` blocks.
-#[allow(
-    clippy::future_not_send,
-    reason = "OpNode helper is `!Send` by design in reth test-utils"
-)]
+#[allow(clippy::future_not_send, reason = "OpNode helper is `!Send` by design in reth test-utils")]
 #[allow(
     clippy::significant_drop_tightening,
     reason = "wallet mutex must span the whole tx-construction future"

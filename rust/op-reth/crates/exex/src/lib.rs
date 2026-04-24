@@ -293,7 +293,10 @@ where
         #[cfg(feature = "metrics")]
         {
             // SAFETY: block number gauge; precision loss past 2^53 is acceptable for a metric.
-            #[allow(clippy::cast_precision_loss, reason = "metric gauge; block number precision loss past 2^53 acceptable")]
+            #[allow(
+                clippy::cast_precision_loss,
+                reason = "metric gauge; block number precision loss past 2^53 acceptable"
+            )]
             self.storage
                 .metrics()
                 .block_metrics()
@@ -718,7 +721,10 @@ mod tests {
         }
 
         // Default::default() avoids importing the concrete revm bundle type into test-only code.
-        #[allow(clippy::default_trait_access, reason = "avoid importing revm internals in test-only code")]
+        #[allow(
+            clippy::default_trait_access,
+            reason = "avoid importing revm internals in test-only code"
+        )]
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
             bundle: Default::default(),
             receipts: Vec::new(),
