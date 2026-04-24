@@ -75,7 +75,7 @@ mod tests {
         assert_eq!(cli.metrics.port, 9090, "Default for metrics.port should be 9090.");
         assert_eq!(
             cli.metrics.addr,
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             "Default for metrics.addr should be 0.0.0.0."
         );
     }
@@ -94,7 +94,7 @@ mod tests {
         assert_eq!(cli.metrics.port, 9999, "metrics.port should be parsed from CLI.");
         assert_eq!(
             cli.metrics.addr,
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
             "metrics.addr should be parsed from CLI."
         );
     }

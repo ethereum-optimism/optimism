@@ -74,29 +74,15 @@ impl Hardforks {
 mod tests {
     use super::*;
     use crate::Hardfork;
-    use alloc::vec::Vec;
 
     #[test]
     fn test_hardforks() {
-        let ecotone_upgrade_tx = Hardforks::ECOTONE.txs();
-        assert_eq!(ecotone_upgrade_tx.collect::<Vec<_>>().len(), 6);
-
-        let fjord_upgrade_txs = Hardforks::FJORD.txs();
-        assert_eq!(fjord_upgrade_txs.collect::<Vec<_>>().len(), 3);
-
-        let isthmus_upgrade_tx = Hardforks::ISTHMUS.txs();
-        assert_eq!(isthmus_upgrade_tx.collect::<Vec<_>>().len(), 8);
-
-        let jovian_upgrade_tx = Hardforks::JOVIAN.txs();
-        assert_eq!(jovian_upgrade_tx.collect::<Vec<_>>().len(), 5);
-
-        let karst_upgrade_tx = Hardforks::KARST.txs();
-        assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 0);
-
-        let interop_upgrade_tx = Hardforks::INTEROP.txs();
-        assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 7);
-
-        let cross_l2_inbox_txs = Interop::cross_l2_inbox_txs();
-        assert_eq!(cross_l2_inbox_txs.collect::<Vec<_>>().len(), 2);
+        assert_eq!(Hardforks::ECOTONE.txs().count(), 6);
+        assert_eq!(Hardforks::FJORD.txs().count(), 3);
+        assert_eq!(Hardforks::ISTHMUS.txs().count(), 8);
+        assert_eq!(Hardforks::JOVIAN.txs().count(), 5);
+        assert_eq!(Hardforks::KARST.txs().count(), 0);
+        assert_eq!(Hardforks::INTEROP.txs().count(), 7);
+        assert_eq!(Interop::cross_l2_inbox_txs().count(), 2);
     }
 }

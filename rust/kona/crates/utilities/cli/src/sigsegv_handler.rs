@@ -40,6 +40,14 @@ macro_rules! raw_errln {
 }
 
 /// Signal handler installed for SIGSEGV
+// SAFETY: casts between `usize` and the C `int` type used by libc::backtrace are bounded by
+// MAX_FRAMES=256, so truncation/sign issues cannot occur in practice.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::similar_names
+)]
 extern "C" fn print_stack_trace(_: libc::c_int) {
     const MAX_FRAMES: usize = 256;
     let mut stack_trace: [*mut libc::c_void; MAX_FRAMES] = [ptr::null_mut(); MAX_FRAMES];
@@ -85,7 +93,7 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
             written += period + 4;
             consumed += period * cycles;
             cyclic = true;
-        };
+        }
     }
     let rem = &stack[consumed..];
     backtrace_stderr(rem);

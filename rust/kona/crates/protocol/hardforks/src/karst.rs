@@ -23,12 +23,10 @@ impl Hardfork for Karst {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec::Vec;
 
     #[test]
     fn test_karst_no_upgrade_txs() {
         let karst = Karst;
-        let txs: Vec<_> = karst.txs().collect();
-        assert!(txs.is_empty());
+        assert_eq!(karst.txs().count(), 0);
     }
 }

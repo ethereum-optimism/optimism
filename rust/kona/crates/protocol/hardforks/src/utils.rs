@@ -1,5 +1,10 @@
 //! Utilities for creating hardforks.
 
+// Reason: these items are only reachable within the crate; `pub(crate)` is correct here but
+// conflicts with `redundant_pub_crate` under pedantic. Using `pub` would trigger
+// `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloy_primitives::{Address, Bytes, hex};
 
 /// `UpgradeTo` Function 4Byte Signature

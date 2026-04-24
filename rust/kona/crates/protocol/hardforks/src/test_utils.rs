@@ -1,5 +1,9 @@
 //! Test utilities for the `kona-hardforks` crate.
 
+// Reason: `check_deployment_code` is reachable within the crate only; `pub(crate)` conflicts
+// with `redundant_pub_crate` under pedantic, while `pub` would trigger `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloy_eips::Encodable2718;
 use alloy_primitives::{Address, B256, keccak256};
 use op_alloy_consensus::{OpTxType, TxDeposit};
