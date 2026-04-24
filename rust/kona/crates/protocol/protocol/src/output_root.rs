@@ -31,16 +31,19 @@ impl OutputRoot {
 
     /// Returns the version of the [`OutputRoot`]. Currently, the protocol only supports the version
     /// number 0.
+    #[must_use]
     pub const fn version(&self) -> B256 {
         B256::ZERO
     }
 
     /// Constructs a V0 [`OutputRoot`] from its parts.
+    #[must_use]
     pub const fn from_parts(state_root: B256, bridge_storage_root: B256, block_hash: B256) -> Self {
         Self { state_root, bridge_storage_root, block_hash }
     }
 
     /// Encodes the [`OutputRoot`].
+    #[must_use]
     pub fn encode(&self) -> [u8; Self::ENCODED_LENGTH] {
         let mut encoded = [0u8; Self::ENCODED_LENGTH];
         encoded[31] = Self::VERSION;
@@ -51,6 +54,7 @@ impl OutputRoot {
     }
 
     /// Encodes and hashes the [`OutputRoot`].
+    #[must_use]
     pub fn hash(&self) -> B256 {
         keccak256(self.encode())
     }

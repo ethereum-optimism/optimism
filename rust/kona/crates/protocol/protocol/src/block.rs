@@ -33,16 +33,19 @@ pub struct BlockInfo {
 
 impl BlockInfo {
     /// Instantiates a new [`BlockInfo`].
+    #[must_use]
     pub const fn new(hash: B256, number: u64, parent_hash: B256, timestamp: u64) -> Self {
         Self { hash, number, parent_hash, timestamp }
     }
 
     /// Returns the block ID.
+    #[must_use]
     pub const fn id(&self) -> BlockNumHash {
         BlockNumHash { hash: self.hash, number: self.number }
     }
 
     /// Returns `true` if this [`BlockInfo`] is the direct parent of the given block.
+    #[must_use]
     pub fn is_parent_of(&self, block: &Self) -> bool {
         self.number + 1 == block.number && self.hash == block.parent_hash
     }
@@ -108,6 +111,7 @@ pub struct L2BlockInfo {
 
 impl L2BlockInfo {
     /// Returns the block hash.
+    #[must_use]
     pub const fn hash(&self) -> B256 {
         self.block_info.hash
     }
@@ -172,11 +176,20 @@ impl From<Eip2718Error> for FromBlockError {
 
 impl L2BlockInfo {
     /// Instantiates a new [`L2BlockInfo`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    #[must_use]
     pub const fn new(block_info: BlockInfo, l1_origin: BlockNumHash, seq_num: u64) -> Self {
         Self { block_info, l1_origin, seq_num }
     }
 
     /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
         block: &Block<T>,
         genesis: &ChainGenesis,
@@ -207,6 +220,10 @@ impl L2BlockInfo {
     }
 
     /// Constructs an [`L2BlockInfo`] From a given [`OpExecutionPayload`] and [`ChainGenesis`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn from_payload_and_genesis(
         payload: OpExecutionPayload,
         parent_beacon_block_root: Option<B256>,
@@ -330,7 +347,7 @@ mod tests {
             },
             l1_origin: BlockNumHash {
                 hash: b256!("392012032675be9f94aae5ab442de73c5f4fb1bf30fa7dd0d2442239899a40fc"),
-                number: 18334955,
+                number: 18_334_955,
             },
             seq_num: 4,
         };

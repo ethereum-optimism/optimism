@@ -71,6 +71,10 @@ impl BatchReader {
     }
 
     /// Helper method to decompress the data contained in the reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// No-op if the data has already been decompressed.
     pub fn decompress(&mut self) -> Result<(), DecompressionError> {
         if !self.decompressed.is_empty() {

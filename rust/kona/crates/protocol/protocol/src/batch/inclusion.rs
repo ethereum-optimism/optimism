@@ -14,6 +14,7 @@ pub struct BatchWithInclusionBlock {
 
 impl BatchWithInclusionBlock {
     /// Creates a new batch with inclusion block.
+    #[must_use]
     pub const fn new(inclusion_block: BlockInfo, batch: Batch) -> Self {
         Self { inclusion_block, batch }
     }

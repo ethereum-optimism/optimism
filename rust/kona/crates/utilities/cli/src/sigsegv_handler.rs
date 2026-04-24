@@ -114,6 +114,10 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
 
 /// Installs a SIGSEGV handler.
 ///
+/// # Panics
+///
+/// Panics if internal invariants are violated.
+///
 /// When SIGSEGV is delivered to the process, print a stack trace and then exit.
 pub fn install() {
     unsafe {

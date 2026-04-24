@@ -18,11 +18,16 @@ impl AsRef<[u8]> for SpanBatchBits {
 
 impl SpanBatchBits {
     /// Creates a new span batch bits.
+    #[must_use]
     pub const fn new(inner: Vec<u8>) -> Self {
         Self(inner)
     }
 
     /// Decodes a standard span-batch bitlist from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// The bitlist is encoded as big-endian integer, left-padded with zeroes to a multiple of 8
     /// bits. The encoded bitlist cannot be longer than `bit_length`.
     pub fn decode(b: &mut &[u8], bit_length: usize) -> Result<Self, SpanBatchError> {
@@ -47,6 +52,10 @@ impl SpanBatchBits {
     }
 
     /// Encodes a standard span-batch bitlist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// The bitlist is encoded as big-endian integer, left-padded with zeroes to a multiple of 8
     /// bits. The encoded bitlist cannot be longer than `bit_length`
     pub fn encode(
@@ -68,6 +77,7 @@ impl SpanBatchBits {
     }
 
     /// Get a bit from the [`SpanBatchBits`] bitlist.
+    #[must_use]
     pub fn get_bit(&self, index: usize) -> Option<u8> {
         let byte_index = index / 8;
         let bit_index = index % 8;
@@ -109,6 +119,7 @@ impl SpanBatchBits {
     }
 
     /// Calculates the bit length of the [`SpanBatchBits`] bitfield.
+    #[must_use]
     pub fn bit_len(&self) -> usize {
         // Iterate over the bytes from left to right to find the first non-zero byte
         for (i, &byte) in self.0.iter().enumerate() {

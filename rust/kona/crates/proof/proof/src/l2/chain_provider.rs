@@ -49,6 +49,10 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
     }
 
     /// Fetches the latest known safe head block hash according to the derivation pipeline cursor
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// or uses the initial `l2_head` value if no cursor is set.
     pub async fn l2_safe_head(&self) -> Result<B256, OracleProviderError> {
         self.cursor

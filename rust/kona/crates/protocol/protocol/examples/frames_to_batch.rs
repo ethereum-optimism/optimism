@@ -1,7 +1,19 @@
 //! This example decodes raw [Frame]s and reads them into a [Channel] and into a [`SingleBatch`].
 
+// Example allows mirror the crate-wide allows in `src/lib.rs`.
+#![allow(
+    clippy::unreadable_literal,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::cast_possible_truncation,
+    clippy::default_trait_access
+)]
+
 use alloy_consensus::{SignableTransaction, TxEip1559, TxEnvelope};
-use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+use alloy_eips::{
+    eip2718::{Decodable2718, Encodable2718},
+    eip2930::AccessList,
+};
 use alloy_primitives::{Address, BlockHash, Bytes, Signature, U256, hex};
 use kona_genesis::RollupConfig;
 use kona_protocol::{Batch, BlockInfo, Channel, Frame, SingleBatch, decompress_brotli};
@@ -68,7 +80,7 @@ fn example_transactions() -> Vec<Bytes> {
         to: Address::left_padding_from(&[6]).into(),
         value: U256::from(7_u64),
         input: vec![8].into(),
-        access_list: Default::default(),
+        access_list: AccessList::default(),
     };
     let sig = Signature::test_signature();
     let tx_signed = tx.into_signed(sig);
@@ -89,7 +101,7 @@ fn example_transactions() -> Vec<Bytes> {
         to: Address::left_padding_from(&[7]).into(),
         value: U256::from(7_u64),
         input: vec![8].into(),
-        access_list: Default::default(),
+        access_list: AccessList::default(),
     };
     let sig = Signature::test_signature();
     let tx_signed = tx.into_signed(sig);

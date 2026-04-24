@@ -106,7 +106,7 @@ mod test {
         decode_jovian_eip_1559_params_block_header, encode_holocene_eip_1559_params,
     };
     use alloy_consensus::Header;
-    use alloy_primitives::{B64, b64, bytes};
+    use alloy_primitives::{Address, B64, FixedBytes, b64, bytes};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{BaseFeeConfig, RollupConfig};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -115,11 +115,11 @@ mod test {
         OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
                 timestamp: 0,
-                prev_randao: Default::default(),
-                suggested_fee_recipient: Default::default(),
-                withdrawals: Default::default(),
-                parent_beacon_block_root: Default::default(),
-                slot_number: Default::default(),
+                prev_randao: FixedBytes::default(),
+                suggested_fee_recipient: Address::default(),
+                withdrawals: Option::default(),
+                parent_beacon_block_root: Option::default(),
+                slot_number: Option::default(),
             },
             transactions: None,
             no_tx_pool: None,

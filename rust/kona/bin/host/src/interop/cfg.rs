@@ -158,6 +158,10 @@ pub enum InteropHostError {
 
 impl InteropHost {
     /// Starts the [`InteropHost`] application.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn start(self) -> Result<(), InteropHostError> {
         self.require_dependency_set_if_interop_scheduled()?;
 
@@ -278,6 +282,10 @@ impl InteropHost {
     }
 
     /// Reads the [`L1ChainConfig`]s from the file system and returns a map of L1 chain ID ->
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// [`L1ChainConfig`]s.
     pub fn read_l1_config(&self) -> Result<L1ChainConfig, InteropHostError> {
         let path = self.l1_config_path.as_ref().ok_or_else(|| InteropHostError::NoL1Config)?;
@@ -358,6 +366,10 @@ pub struct InteropProviders {
 
 impl InteropProviders {
     /// Returns the L2 [`RootProvider`] for the given chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn l2(&self, chain_id: &u64) -> Result<&RootProvider<Optimism>, InteropHostError> {
         self.l2s.get(chain_id).ok_or_else(|| InteropHostError::RootProviderError(*chain_id))
     }

@@ -18,6 +18,10 @@ pub struct SpanBatchPrefix {
 
 impl SpanBatchPrefix {
     /// Decodes a [`SpanBatchPrefix`] from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_prefix(r: &mut &[u8]) -> Result<Self, SpanBatchError> {
         let mut prefix = Self::default();
         prefix.decode_rel_timestamp(r)?;
@@ -28,6 +32,10 @@ impl SpanBatchPrefix {
     }
 
     /// Decodes the relative timestamp from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_rel_timestamp(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let (rel_timestamp, remaining) = unsigned_varint::decode::u64(r)
             .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::RelativeTimestamp))?;
@@ -37,6 +45,10 @@ impl SpanBatchPrefix {
     }
 
     /// Decodes the L1 origin number from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_l1_origin_num(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let (l1_origin_num, remaining) = unsigned_varint::decode::u64(r)
             .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::L1OriginNumber))?;
@@ -46,6 +58,10 @@ impl SpanBatchPrefix {
     }
 
     /// Decodes the parent check from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_parent_check(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if r.len() < 20 {
             return Err(SpanBatchError::Decoding(SpanDecodingError::ParentCheck));
@@ -58,6 +74,10 @@ impl SpanBatchPrefix {
     }
 
     /// Decodes the L1 origin check from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_l1_origin_check(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if r.len() < 20 {
             return Err(SpanBatchError::Decoding(SpanDecodingError::L1OriginCheck));

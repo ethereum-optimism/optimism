@@ -19,6 +19,10 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::{fs, runtime::Handle, sync::Mutex};
 
 /// Executes a [`ExecutorTestFixture`] stored at the passed `fixture_path` and asserts that the
+///
+/// # Panics
+///
+/// Panics if internal invariants are violated.
 /// produced block hash matches the expected block hash.
 pub async fn run_test_fixture(fixture_path: PathBuf) {
     // First, untar the fixture.
@@ -88,6 +92,11 @@ pub struct ExecutorTestFixtureCreator {
 
 impl ExecutorTestFixtureCreator {
     /// Creates a new [`ExecutorTestFixtureCreator`] with the given parameters.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn new(provider_url: &str, block_number: u64, base_fixture_directory: PathBuf) -> Self {
         let base = base_fixture_directory.join(format!("block-{block_number}"));
 
@@ -107,6 +116,10 @@ impl ExecutorTestFixtureCreator {
 
 impl ExecutorTestFixtureCreator {
     /// Create a static test fixture with the configuration provided.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub async fn create_static_fixture(self) {
         let chain_id = self.provider.get_chain_id().await.expect("Failed to get chain ID");
         let rollup_config = ROLLUP_CONFIGS.get(&chain_id).expect("Rollup config not found");
@@ -149,9 +162,9 @@ impl ExecutorTestFixtureCreator {
                 timestamp: executing_header.timestamp,
                 parent_beacon_block_root: executing_header.parent_beacon_block_root,
                 prev_randao: executing_header.mix_hash,
-                withdrawals: Default::default(),
+                withdrawals: Option::default(),
                 suggested_fee_recipient: executing_header.beneficiary,
-                slot_number: Default::default(),
+                slot_number: Option::default(),
             },
             gas_limit: Some(executing_header.gas_limit),
             transactions: Some(encoded_executing_transactions),
@@ -315,6 +328,7 @@ pub struct DiskTrieNodeProvider {
 
 impl DiskTrieNodeProvider {
     /// Creates a new [`DiskTrieNodeProvider`] with the given [`rocksdb`] K/V store.
+    #[must_use]
     pub const fn new(kv_store: DB) -> Self {
         Self { kv_store }
     }

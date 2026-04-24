@@ -14,6 +14,10 @@ pub enum BrotliDecompressionError {
 }
 
 /// Decompresses the given bytes data using the Brotli decompressor implemented
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 /// in the [`brotli`](https://crates.io/crates/brotli) crate.
 #[allow(clippy::large_stack_frames)]
 pub fn decompress_brotli(

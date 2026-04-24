@@ -45,6 +45,7 @@ impl SystemConfigUpdate {
     }
 
     /// Returns the update kind.
+    #[must_use]
     pub const fn kind(&self) -> SystemConfigUpdateKind {
         match self {
             Self::Batcher(_) => SystemConfigUpdateKind::Batcher,

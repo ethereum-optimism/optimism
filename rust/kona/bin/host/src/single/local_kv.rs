@@ -18,6 +18,7 @@ pub struct SingleChainLocalInputs {
 
 impl SingleChainLocalInputs {
     /// Create a new [`SingleChainLocalInputs`] with the given [`SingleChainHost`] config.
+    #[must_use]
     pub const fn new(cfg: SingleChainHost) -> Self {
         Self { cfg }
     }

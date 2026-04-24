@@ -13,6 +13,10 @@ pub trait TrieProvider {
 
     /// Fetches the preimage for the given trie node hash.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// ## Takes
     /// - `key`: The key of the trie node to fetch.
     ///
@@ -30,6 +34,10 @@ pub trait TrieHinter {
 
     /// Hints the host to fetch the trie node preimage by hash.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// ## Takes
     /// - `hash`: The hash of the trie node to hint.
     ///
@@ -38,6 +46,10 @@ pub trait TrieHinter {
     fn hint_trie_node(&self, hash: B256) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the trie node preimages on the path to the given address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `address` - The address of the contract whose trie node preimages are to be fetched.
@@ -49,6 +61,10 @@ pub trait TrieHinter {
     fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the trie node preimages on the path to the storage slot within the
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// given account's storage trie.
     ///
     /// ## Takes
@@ -67,6 +83,10 @@ pub trait TrieHinter {
     ) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the execution witness for the [`OpPayloadAttributes`] applied on top
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// of the parent block's state.
     ///
     /// ## Takes

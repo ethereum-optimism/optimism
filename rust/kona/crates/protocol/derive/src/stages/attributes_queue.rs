@@ -58,6 +58,10 @@ where
     }
 
     /// Loads a [`SingleBatch`] from the [`AttributesProvider`] if needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn load_batch(&mut self, parent: L2BlockInfo) -> PipelineResult<SingleBatch> {
         if self.batch.is_none() {
             let batch = self.prev.next_batch(parent).await?;
@@ -68,6 +72,10 @@ where
     }
 
     /// Returns the next [`OpAttributesWithParent`] from the current batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn next_attributes(
         &mut self,
         parent: L2BlockInfo,
@@ -104,6 +112,10 @@ where
     }
 
     /// Creates the next attributes, transforming a [`SingleBatch`] into [`OpPayloadAttributes`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// This sets `no_tx_pool` and appends the batched txs to the attributes tx list.
     pub async fn create_next_attributes(
         &mut self,
@@ -288,10 +300,10 @@ mod tests {
     #[tokio::test]
     async fn test_load_batch_last_in_span() {
         let mut attributes_queue =
-            new_attributes_queue(None, None, vec![Ok(Default::default())], vec![]);
+            new_attributes_queue(None, None, vec![Ok(SingleBatch::default())], vec![]);
         let parent = L2BlockInfo::default();
         let result = attributes_queue.load_batch(parent).await.unwrap();
-        assert_eq!(result, Default::default());
+        assert_eq!(result, SingleBatch::default());
         assert!(attributes_queue.is_last_in_span);
     }
 
@@ -394,8 +406,10 @@ mod tests {
     #[tokio::test]
     async fn test_next_attributes_load_batch_last_in_span() {
         let cfg = RollupConfig::default();
-        let mock =
-            new_test_attributes_provider(Some(Default::default()), vec![Ok(Default::default())]);
+        let mock = new_test_attributes_provider(
+            Some(BlockInfo::default()),
+            vec![Ok(SingleBatch::default())],
+        );
         let mut pa = default_optimism_payload_attributes();
         let mock_builder = TestAttributesBuilder { attributes: vec![Ok(pa.clone())] };
         let mut aq = AttributesQueue::new(Arc::new(cfg), mock, mock_builder);

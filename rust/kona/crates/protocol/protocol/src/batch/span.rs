@@ -129,6 +129,7 @@ impl SpanBatch {
     /// # Usage
     /// Typically used during span batch validation to ensure proper temporal
     /// ordering with respect to the parent block and L1 derivation window.
+    #[must_use]
     pub fn starting_timestamp(&self) -> u64 {
         self.batches[0].timestamp
     }
@@ -147,6 +148,7 @@ impl SpanBatch {
     /// # Usage
     /// Used during validation to ensure the span doesn't exceed maximum
     /// temporal ranges and fits within L1 derivation windows.
+    #[must_use]
     pub fn final_timestamp(&self) -> u64 {
         self.batches[self.batches.len() - 1].timestamp
     }
@@ -165,6 +167,7 @@ impl SpanBatch {
     /// # Usage
     /// Used during validation to ensure proper L1 origin sequencing and
     /// that the span begins with the expected L1 context.
+    #[must_use]
     pub fn starting_epoch_num(&self) -> u64 {
         self.batches[0].epoch_num
     }
@@ -189,6 +192,7 @@ impl SpanBatch {
     ///
     /// Using only 20 bytes provides strong collision resistance (2^160 space)
     /// while saving 12 bytes per span compared to storing full hashes.
+    #[must_use]
     pub fn check_origin_hash(&self, hash: FixedBytes<32>) -> bool {
         self.l1_origin_check == hash[..20]
     }
@@ -213,6 +217,7 @@ impl SpanBatch {
     ///
     /// This validation is critical for maintaining the integrity of the L2
     /// chain and preventing insertion of span batches in wrong locations.
+    #[must_use]
     pub fn check_parent_hash(&self, hash: FixedBytes<32>) -> bool {
         self.parent_check == hash[..20]
     }
@@ -295,6 +300,10 @@ impl SpanBatch {
     }
 
     /// Converts all [`SpanBatchElement`]s after the L2 safe head to [`SingleBatch`]es. The
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// resulting [`SingleBatch`]es do not contain a parent hash, as it is populated by the
     /// Batch Queue stage.
     pub fn get_singular_batches(
@@ -335,6 +344,10 @@ impl SpanBatch {
     }
 
     /// Append a [`SingleBatch`] to the [`SpanBatch`]. Updates the L1 origin check if need be.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn append_singular_batch(
         &mut self,
         singular_batch: SingleBatch,
@@ -781,8 +794,10 @@ mod tests {
     fn test_timestamp() {
         let timestamp = 10;
         let first_element = SpanBatchElement { timestamp, ..Default::default() };
-        let batch =
-            SpanBatch { batches: vec![first_element, Default::default()], ..Default::default() };
+        let batch = SpanBatch {
+            batches: vec![first_element, SpanBatchElement::default()],
+            ..Default::default()
+        };
         assert_eq!(batch.starting_timestamp(), timestamp);
     }
 
@@ -790,8 +805,10 @@ mod tests {
     fn test_starting_timestamp() {
         let timestamp = 10;
         let first_element = SpanBatchElement { timestamp, ..Default::default() };
-        let batch =
-            SpanBatch { batches: vec![first_element, Default::default()], ..Default::default() };
+        let batch = SpanBatch {
+            batches: vec![first_element, SpanBatchElement::default()],
+            ..Default::default()
+        };
         assert_eq!(batch.starting_timestamp(), timestamp);
     }
 
@@ -799,8 +816,10 @@ mod tests {
     fn test_final_timestamp() {
         let timestamp = 10;
         let last_element = SpanBatchElement { timestamp, ..Default::default() };
-        let batch =
-            SpanBatch { batches: vec![Default::default(), last_element], ..Default::default() };
+        let batch = SpanBatch {
+            batches: vec![SpanBatchElement::default(), last_element],
+            ..Default::default()
+        };
         assert_eq!(batch.final_timestamp(), timestamp);
     }
 
@@ -808,8 +827,10 @@ mod tests {
     fn test_starting_epoch_num() {
         let epoch_num = 10;
         let first_element = SpanBatchElement { epoch_num, ..Default::default() };
-        let batch =
-            SpanBatch { batches: vec![first_element, Default::default()], ..Default::default() };
+        let batch = SpanBatch {
+            batches: vec![first_element, SpanBatchElement::default()],
+            ..Default::default()
+        };
         assert_eq!(batch.starting_epoch_num(), epoch_num);
     }
 
@@ -874,7 +895,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_missing_l1_block_input() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -896,7 +917,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batches_is_empty() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -954,7 +975,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eager_block_missing_origins() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -982,7 +1003,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_delta_inactive() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1014,7 +1035,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_out_of_order() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1047,7 +1068,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_no_new_blocks() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1078,7 +1099,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_overlapping_blocks_tx_count_mismatch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1144,7 +1165,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_overlapping_blocks_tx_mismatch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1223,7 +1244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_block_timestamp_lt_l1_origin() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1261,7 +1282,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_misaligned_timestamp() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1293,7 +1314,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_misaligned_without_overlap() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1325,7 +1346,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_failed_to_fetch_l2_block() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1358,7 +1379,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_parent_hash_fail() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1404,7 +1425,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_sequence_window_expired() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1452,7 +1473,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_starting_epoch_too_far_ahead() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1505,7 +1526,7 @@ mod tests {
     #[tokio::test]
     async fn test_check_batch_epoch_hash_mismatch() {
         use crate::alloc::string::ToString;
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1564,7 +1585,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_need_more_l1_blocks() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1618,7 +1639,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_batch_epoch_too_old() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1676,7 +1697,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_exceeds_max_seq_drif() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1727,7 +1748,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_continuing_with_empty_batch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default()
             .with(layer)
@@ -1787,7 +1808,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_exceeds_sequencer_time_drift() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1818,21 +1839,12 @@ mod tests {
         };
         let mut fetcher: TestBatchValidator =
             TestBatchValidator { blocks: vec![l2_block], ..Default::default() };
-        let first = SpanBatchElement {
-            epoch_num: 10,
-            timestamp: 20,
-            transactions: vec![Default::default()],
-        };
-        let second = SpanBatchElement {
-            epoch_num: 10,
-            timestamp: 20,
-            transactions: vec![Default::default()],
-        };
-        let third = SpanBatchElement {
-            epoch_num: 11,
-            timestamp: 20,
-            transactions: vec![Default::default()],
-        };
+        let first =
+            SpanBatchElement { epoch_num: 10, timestamp: 20, transactions: vec![Bytes::default()] };
+        let second =
+            SpanBatchElement { epoch_num: 10, timestamp: 20, transactions: vec![Bytes::default()] };
+        let third =
+            SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![Bytes::default()] };
         let batch = SpanBatch {
             batches: vec![first, second, third],
             parent_check: FixedBytes::<20>::from_slice(&parent_hash[..20]),
@@ -1851,7 +1863,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_empty_txs() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1890,16 +1902,10 @@ mod tests {
         };
         let mut fetcher: TestBatchValidator =
             TestBatchValidator { blocks: vec![l2_block], ..Default::default() };
-        let first = SpanBatchElement {
-            epoch_num: 10,
-            timestamp: 20,
-            transactions: vec![Default::default()],
-        };
-        let second = SpanBatchElement {
-            epoch_num: 10,
-            timestamp: 20,
-            transactions: vec![Default::default()],
-        };
+        let first =
+            SpanBatchElement { epoch_num: 10, timestamp: 20, transactions: vec![Bytes::default()] };
+        let second =
+            SpanBatchElement { epoch_num: 10, timestamp: 20, transactions: vec![Bytes::default()] };
         let third = SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![] };
         let batch = SpanBatch {
             batches: vec![first, second, third],
@@ -1919,7 +1925,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_with_deposit_tx() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -1981,7 +1987,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_with_eip7702_tx() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -2045,7 +2051,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_failed_to_fetch_payload() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -2099,7 +2105,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_failed_to_extract_l2_block_info() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -2168,7 +2174,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_overlapped_blocks_origin_mismatch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -2239,7 +2245,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_overlapped_blocks_origin_outdated() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -2309,7 +2315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_valid_with_genesis_epoch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);

@@ -34,6 +34,7 @@ pub enum PreState {
 
 impl PreState {
     /// Hashes the encoded [`PreState`] using [keccak256].
+    #[must_use]
     pub fn hash(&self) -> B256 {
         let mut rlp_buf = Vec::with_capacity(self.length());
         self.encode(&mut rlp_buf);
@@ -41,6 +42,7 @@ impl PreState {
     }
 
     /// Returns the timestamp of the [`PreState`].
+    #[must_use]
     pub const fn timestamp(&self) -> u64 {
         match self {
             Self::SuperRoot(super_root) => super_root.timestamp,
@@ -51,6 +53,7 @@ impl PreState {
     /// Returns the active L2 output root hash of the [`PreState`]. This is the output root that
     /// represents the pre-state of the chain that is to be committed to in the next transition
     /// step, or [None] if the [`PreState`] has already been fully saturated.
+    #[must_use]
     pub fn active_l2_output_root(&self) -> Option<&OutputRootWithChain> {
         match self {
             Self::SuperRoot(super_root) => super_root.output_roots.first(),
@@ -63,11 +66,13 @@ impl PreState {
     /// Returns the active L2 chain ID of the [`PreState`]. This is the chain ID of the output root
     /// that is to be committed to in the next transition step, or [None] if the [`PreState`]
     /// has already been fully saturated.
+    #[must_use]
     pub fn active_l2_chain_id(&self) -> Option<u64> {
         self.active_l2_output_root().map(|output_root| output_root.chain_id)
     }
 
     /// Transitions to the next state, appending the [`OptimisticBlock`] to the pending progress.
+    #[must_use]
     pub fn transition(self, optimistic_block: Option<OptimisticBlock>) -> Option<Self> {
         match self {
             Self::SuperRoot(super_root) => Some(Self::TransitionState(TransitionState::new(
@@ -161,6 +166,7 @@ pub struct TransitionState {
 impl TransitionState {
     /// Create a new [`TransitionState`] with the given pre-state, pending progress, and step
     /// number.
+    #[must_use]
     pub const fn new(
         pre_state: SuperRoot,
         pending_progress: Vec<OptimisticBlock>,
@@ -170,6 +176,7 @@ impl TransitionState {
     }
 
     /// Hashes the encoded [`TransitionState`] using [keccak256].
+    #[must_use]
     pub fn hash(&self) -> B256 {
         let mut rlp_buf = Vec::with_capacity(self.length());
         self.encode(&mut rlp_buf);
@@ -177,6 +184,7 @@ impl TransitionState {
     }
 
     /// Returns the RLP payload length of the [`TransitionState`].
+    #[must_use]
     pub fn payload_length(&self) -> usize {
         Header { list: false, payload_length: self.pre_state.encoded_length() }.length() +
             self.pre_state.encoded_length() +
@@ -248,6 +256,7 @@ pub struct OptimisticBlock {
 
 impl OptimisticBlock {
     /// Create a new [`OptimisticBlock`] with the given block hash and output root hash.
+    #[must_use]
     pub const fn new(block_hash: B256, output_root: B256) -> Self {
         Self { block_hash, output_root }
     }

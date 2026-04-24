@@ -36,6 +36,10 @@ impl SystemConfigLog {
     }
 
     /// Validate the log topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn validate_topic(&self) -> Result<(), LogProcessingError> {
         if self.log.topics().len() < 3 {
             return Err(LogProcessingError::InvalidTopicLen(self.log.topics().len()));
@@ -47,6 +51,10 @@ impl SystemConfigLog {
     }
 
     /// Validate the config update version.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn validate_version(&self) -> Result<(), LogProcessingError> {
         let version = self.log.topics()[1];
         if version != CONFIG_UPDATE_EVENT_VERSION_0 {
@@ -56,6 +64,10 @@ impl SystemConfigLog {
     }
 
     /// Extracts the update type from the log.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn update_type(&self) -> Result<SystemConfigUpdateKind, SystemConfigUpdateError> {
         if self.log.topics().len() < 3 {
             return Err(LogProcessingError::InvalidTopicLen(self.log.topics().len()).into());
@@ -72,6 +84,10 @@ impl SystemConfigLog {
     }
 
     /// Builds the [`SystemConfigUpdate`] from the log.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn build(&self) -> Result<SystemConfigUpdate, SystemConfigUpdateError> {
         self.validate_topic()?;
         self.validate_version()?;

@@ -102,14 +102,14 @@ mod tests {
     use crate::{errors::PipelineErrorKind, test_utils::TestChainProvider};
     use alloc::{vec, vec::Vec};
     use alloy_consensus::{Signed, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy};
-    use alloy_primitives::{Address, Signature, TxKind, address};
+    use alloy_primitives::{Address, FixedBytes, Signature, TxKind, address};
 
     pub(crate) fn test_legacy_tx(to: Address) -> TxEnvelope {
         let sig = Signature::test_signature();
         TxEnvelope::Legacy(Signed::new_unchecked(
             TxLegacy { to: TxKind::Call(to), ..Default::default() },
             sig,
-            Default::default(),
+            FixedBytes::default(),
         ))
     }
 
@@ -118,7 +118,7 @@ mod tests {
         TxEnvelope::Eip2930(Signed::new_unchecked(
             TxEip2930 { to: TxKind::Call(to), ..Default::default() },
             sig,
-            Default::default(),
+            FixedBytes::default(),
         ))
     }
 
@@ -127,7 +127,7 @@ mod tests {
         TxEnvelope::Eip7702(Signed::new_unchecked(
             TxEip7702 { to, ..Default::default() },
             sig,
-            Default::default(),
+            FixedBytes::default(),
         ))
     }
 
@@ -136,12 +136,12 @@ mod tests {
         TxEnvelope::Eip4844(Signed::new_unchecked(
             TxEip4844Variant::TxEip4844(TxEip4844 { to, ..Default::default() }),
             sig,
-            Default::default(),
+            FixedBytes::default(),
         ))
     }
 
     pub(crate) fn default_test_calldata_source() -> CalldataSource<TestChainProvider> {
-        CalldataSource::new(TestChainProvider::default(), Default::default())
+        CalldataSource::new(TestChainProvider::default(), Address::default())
     }
 
     #[tokio::test]

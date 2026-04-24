@@ -151,6 +151,7 @@ impl SystemConfig {
     }
 
     /// Returns the eip1559 parameters from a [`SystemConfig`] encoded as a [B64].
+    #[must_use]
     pub fn eip_1559_params(
         &self,
         rollup_config: &RollupConfig,
@@ -280,7 +281,7 @@ mod test {
             batcher_address: address!("6887246668a3b87F54DeB3b94Ba47a6f63F32985"),
             overhead: U256::from(0xbc),
             scalar: U256::from(0xa6fe0),
-            gas_limit: 30000000,
+            gas_limit: 30_000_000,
             ..Default::default()
         };
 

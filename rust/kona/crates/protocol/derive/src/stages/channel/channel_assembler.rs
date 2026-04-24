@@ -44,6 +44,10 @@ where
     }
 
     /// Returns whether or not the channel currently being assembled has timed out.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn is_timed_out(&self) -> PipelineResult<bool> {
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
         let is_timed_out = self.channel.as_ref().is_some_and(|c| {
@@ -236,7 +240,7 @@ mod test {
 
     #[tokio::test]
     async fn test_assembler_channel_timeout() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -299,7 +303,7 @@ mod test {
 
     #[tokio::test]
     async fn test_assembler_already_built() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -338,7 +342,7 @@ mod test {
 
     #[tokio::test]
     async fn test_assembler_size_limit_exceeded_bedrock() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -373,7 +377,7 @@ mod test {
 
     #[tokio::test]
     async fn test_assembler_size_limit_exceeded_fjord() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);

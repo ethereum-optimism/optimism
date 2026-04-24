@@ -25,6 +25,7 @@ pub struct TestChannelReaderProvider {
 
 impl TestChannelReaderProvider {
     /// Creates a new [`TestChannelReaderProvider`] with the given data.
+    #[must_use]
     pub fn new(data: Vec<PipelineResult<Option<Bytes>>>) -> Self {
         Self { data, block_info: Some(BlockInfo::default()), reset: false }
     }

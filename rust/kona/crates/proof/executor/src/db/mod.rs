@@ -104,7 +104,7 @@ where
     pub fn new(parent_block_header: Sealed<Header>, fetcher: F, hinter: H) -> Self {
         Self {
             root_node: TrieNode::new_blinded(parent_block_header.state_root),
-            storage_roots: Default::default(),
+            storage_roots: HashMap::default(),
             parent_block_header,
             fetcher,
             hinter,
@@ -142,6 +142,10 @@ where
 
     /// Applies a [`BundleState`] changeset to the [`TrieNode`] and recomputes the state root hash.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// ## Takes
     /// - `bundle`: The [`BundleState`] changeset to apply to the trie DB.
     ///
@@ -167,6 +171,10 @@ where
     }
 
     /// Fetches the [`TrieAccount`] of an account from the trie DB.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `address`: The address of the account.

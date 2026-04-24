@@ -84,6 +84,10 @@ pub enum DepositError {
 
 /// Derives a deposit transaction from an EVM log event emitted by the deposit contract.
 ///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
+///
 /// The emitted log must be in format:
 /// ```solidity
 /// event TransactionDeposited(

@@ -26,6 +26,10 @@ pub struct SpanBatchEip7702TransactionData {
 
 impl SpanBatchEip7702TransactionData {
     /// Converts [`SpanBatchEip7702TransactionData`] into a signed [`TxEip7702`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn to_signed_tx(
         &self,
         nonce: u64,

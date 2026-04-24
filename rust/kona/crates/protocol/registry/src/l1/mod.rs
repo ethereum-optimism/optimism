@@ -42,13 +42,17 @@ impl L1Config {
     const SEPOLIA_TTD: u128 = 17_000_000_000_000_000u128;
     const SEPOLIA_DEPOSIT_CONTRACT_ADDRESS: Address =
         address!("0x7f02c3e3c98b133055b8b348b2ac625669ed295d");
-    const SEPOLIA_MERGE_NETSPLIT_BLOCK: u64 = 1735371;
+    const SEPOLIA_MERGE_NETSPLIT_BLOCK: u64 = 1_735_371;
 
     const HOLESKY_TTD: u128 = 0;
     const HOLESKY_DEPOSIT_CONTRACT_ADDRESS: Address =
         address!("0x4242424242424242424242424242424242424242");
 
     /// Get the genesis for a given chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn get_l1_genesis(chain_id: u64) -> Result<Self, L1GenesisGetterErrors> {
         match NamedChain::try_from(chain_id)
             .map_err(|_| L1GenesisGetterErrors::ChainIDDoesNotExist(chain_id))?
@@ -86,6 +90,7 @@ impl L1Config {
     }
 
     /// Parse the mainnet genesis.
+    #[must_use]
     pub fn mainnet() -> Self {
         Self(L1ChainConfig {
             chain_id: NamedChain::Mainnet.into(),
@@ -143,6 +148,7 @@ impl L1Config {
     }
 
     /// Parse the sepolia genesis.
+    #[must_use]
     pub fn sepolia() -> Self {
         Self(L1ChainConfig {
             chain_id: NamedChain::Sepolia.into(),
@@ -198,6 +204,7 @@ impl L1Config {
     }
 
     /// Parse the holesky genesis.
+    #[must_use]
     pub fn holesky() -> Self {
         Self(L1ChainConfig {
             chain_id: NamedChain::Holesky.into(),
@@ -245,6 +252,7 @@ impl L1Config {
     }
 
     /// Build the l1 chain configurations from the genesis dump files.
+    #[must_use]
     pub fn build_l1_configs() -> HashMap<u64, L1ChainConfig> {
         let mut l1_configs = HashMap::default();
         l1_configs.insert(NamedChain::Mainnet.into(), Self::mainnet().0);
@@ -294,8 +302,8 @@ mod tests {
         let l1_config = L1Config::get_l1_genesis(NamedChain::Holesky.into()).unwrap();
         assert_eq!(l1_config.chain_id, u64::from(NamedChain::Holesky));
 
-        let l1_config = L1Config::get_l1_genesis(1000000).unwrap_err();
-        assert!(matches!(l1_config, L1GenesisGetterErrors::ChainIDDoesNotExist(1000000)));
+        let l1_config = L1Config::get_l1_genesis(1_000_000).unwrap_err();
+        assert!(matches!(l1_config, L1GenesisGetterErrors::ChainIDDoesNotExist(1_000_000)));
     }
 
     #[test]
@@ -329,10 +337,10 @@ mod tests {
     #[test]
     fn test_get_l1_bpo_sepolia() {
         /// BPO1 hardfork activation timestamp
-        const SEPOLIA_BPO1_TIMESTAMP: u64 = 1761017184;
+        const SEPOLIA_BPO1_TIMESTAMP: u64 = 1_761_017_184;
 
         /// BPO2 hardfork activation timestamp
-        const SEPOLIA_BPO2_TIMESTAMP: u64 = 1761607008;
+        const SEPOLIA_BPO2_TIMESTAMP: u64 = 1_761_607_008;
 
         let sepolia = L1Config::sepolia();
 
@@ -357,10 +365,10 @@ mod tests {
     #[test]
     fn test_get_l1_bpo_holesky() {
         /// BPO1 hardfork activation timestamp
-        const HOLESKY_BPO1_TIMESTAMP: u64 = 1759800000;
+        const HOLESKY_BPO1_TIMESTAMP: u64 = 1_759_800_000;
 
         /// BPO2 hardfork activation timestamp
-        const HOLESKY_BPO2_TIMESTAMP: u64 = 1760389824;
+        const HOLESKY_BPO2_TIMESTAMP: u64 = 1_760_389_824;
 
         let holesky = L1Config::holesky();
 

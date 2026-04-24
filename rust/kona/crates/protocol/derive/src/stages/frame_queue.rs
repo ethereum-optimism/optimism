@@ -57,6 +57,10 @@ where
     }
 
     /// Prunes frames if Holocene is active.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub fn prune(&mut self, origin: BlockInfo) {
         if !self.is_holocene_active(origin) {
             return;
@@ -106,6 +110,10 @@ where
     }
 
     /// Loads more frames into the [`FrameQueue`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn load_frames(&mut self) -> PipelineResult<()> {
         // Skip loading frames if the queue is not empty.
         if !self.queue.is_empty() {
@@ -227,7 +235,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn test_frame_queue_reset() {
         let mock = TestFrameQueueProvider::new(vec![]);
-        let mut frame_queue = FrameQueue::new(mock, Default::default());
+        let mut frame_queue = FrameQueue::new(mock, Arc::default());
         assert!(!frame_queue.prev.reset);
         frame_queue.reset(BlockNumHash::default(), SystemConfig::default()).await.unwrap();
         assert_eq!(frame_queue.queue.len(), 0);
@@ -239,7 +247,7 @@ pub(crate) mod tests {
         let data = vec![Ok(Bytes::from(vec![0x00]))];
         let mut mock = TestFrameQueueProvider::new(data);
         mock.set_origin(BlockInfo::default());
-        let mut frame_queue = FrameQueue::new(mock, Default::default());
+        let mut frame_queue = FrameQueue::new(mock, Arc::default());
         assert!(!frame_queue.is_holocene_active(BlockInfo::default()));
         let err = frame_queue.next_frame().await.unwrap_err();
         assert_eq!(err, PipelineError::NotEnoughData.temp());
@@ -250,7 +258,7 @@ pub(crate) mod tests {
         let data = vec![Err(PipelineError::Eof.temp()), Ok(Bytes::default())];
         let mut mock = TestFrameQueueProvider::new(data);
         mock.set_origin(BlockInfo::default());
-        let mut frame_queue = FrameQueue::new(mock, Default::default());
+        let mut frame_queue = FrameQueue::new(mock, Arc::default());
         assert!(!frame_queue.is_holocene_active(BlockInfo::default()));
         let err = frame_queue.next_frame().await.unwrap_err();
         assert_eq!(err, PipelineError::NotEnoughData.temp());

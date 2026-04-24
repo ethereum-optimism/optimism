@@ -89,6 +89,7 @@ pub const OP_MAINNET_BASE_FEE_PARAMS_CANYON: BaseFeeParams = BaseFeeParams {
 };
 
 /// Returns the [`BaseFeeParams`] for the given chain id.
+#[must_use]
 pub const fn base_fee_params(chain_id: u64) -> BaseFeeParams {
     match chain_id {
         OP_SEPOLIA_CHAIN_ID => OP_SEPOLIA_BASE_FEE_PARAMS,
@@ -98,6 +99,7 @@ pub const fn base_fee_params(chain_id: u64) -> BaseFeeParams {
 }
 
 /// Returns the [`BaseFeeParams`] for the given chain id, for canyon hardfork.
+#[must_use]
 pub const fn base_fee_params_canyon(chain_id: u64) -> BaseFeeParams {
     match chain_id {
         OP_SEPOLIA_CHAIN_ID => OP_SEPOLIA_BASE_FEE_PARAMS_CANYON,
@@ -107,6 +109,7 @@ pub const fn base_fee_params_canyon(chain_id: u64) -> BaseFeeParams {
 }
 
 /// Returns the [`BaseFeeConfig`] for the given chain id.
+#[must_use]
 pub const fn base_fee_config(chain_id: u64) -> BaseFeeConfig {
     match chain_id {
         OP_SEPOLIA_CHAIN_ID => OP_SEPOLIA_BASE_FEE_CONFIG,
@@ -171,6 +174,7 @@ pub struct BaseFeeConfig {
 
 impl BaseFeeConfig {
     /// Get the base fee parameters for Optimism Mainnet
+    #[must_use]
     pub const fn optimism() -> Self {
         Self {
             eip1559_elasticity: OP_MAINNET_EIP1559_DEFAULT_ELASTICITY_MULTIPLIER,
@@ -180,6 +184,7 @@ impl BaseFeeConfig {
     }
 
     /// Returns the [`BaseFeeParams`] before Canyon hardfork.
+    #[must_use]
     pub const fn pre_canyon_params(&self) -> BaseFeeParams {
         BaseFeeParams {
             max_change_denominator: self.eip1559_denominator as u128,
@@ -188,6 +193,7 @@ impl BaseFeeConfig {
     }
 
     /// Returns the [`BaseFeeParams`] since Canyon hardfork.
+    #[must_use]
     pub const fn post_canyon_params(&self) -> BaseFeeParams {
         BaseFeeParams {
             max_change_denominator: self.eip1559_denominator_canyon as u128,

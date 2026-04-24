@@ -11,6 +11,10 @@ use kona_mpt::{TrieNode, TrieProvider};
 pub trait TrieDBProvider: TrieProvider {
     /// Fetches the preimage of the bytecode hash provided.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// ## Takes
     /// - `hash`: The hash of the bytecode.
     ///
@@ -22,6 +26,10 @@ pub trait TrieDBProvider: TrieProvider {
     fn bytecode_by_hash(&self, code_hash: B256) -> Result<Bytes, Self::Error>;
 
     /// Fetches the preimage of [Header] hash provided.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `hash`: The hash of the RLP-encoded [Header].

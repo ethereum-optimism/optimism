@@ -32,7 +32,10 @@ where
 
         // Form the hint into a byte buffer. The format is a 4-byte big-endian length prefix
         // followed by the hint string.
-        self.channel.write(u32::to_be_bytes(hint.len() as u32).as_ref()).await?;
+        // Hints are bounded well below `u32::MAX` in practice.
+        #[allow(clippy::cast_possible_truncation)]
+        let hint_len = hint.len() as u32;
+        self.channel.write(u32::to_be_bytes(hint_len).as_ref()).await?;
         self.channel.write(hint.as_bytes()).await?;
 
         trace!(target: "hint_writer", "Successfully wrote hint");
@@ -154,7 +157,7 @@ mod test {
             hint_writer.write(unsafe { alloc::str::from_utf8_unchecked(&mock_data) }).await
         });
         let host = tokio::task::spawn(async move {
-            let router = TestRouter { incoming_hints: Default::default() };
+            let router = TestRouter { incoming_hints: Arc::default() };
 
             let hint_reader = HintReader::new(hint_channel.host);
             hint_reader.next_hint(&router).await
@@ -218,6 +221,7 @@ mod test {
 
         assert_eq!(hints.len(), 1);
         let h = hints.remove(0);
+        drop(hints);
         assert_eq!(h, MOCK_DATA);
     }
 }

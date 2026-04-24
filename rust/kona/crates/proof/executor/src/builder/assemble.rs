@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use alloy_consensus::{EMPTY_OMMER_ROOT_HASH, Header, Sealed};
 use alloy_eips::{Encodable2718, eip7685::EMPTY_REQUESTS_HASH};
 use alloy_evm::{EvmFactory, block::BlockExecutionResult};
-use alloy_primitives::{B256, Sealable, U256, logs_bloom};
+use alloy_primitives::{B256, Bytes, FixedBytes, Sealable, U256, logs_bloom};
 use alloy_trie::EMPTY_ROOT_HASH;
 use kona_genesis::RollupConfig;
 use kona_mpt::{TrieHinter, ordered_trie_with_encoder};
@@ -80,7 +80,7 @@ where
             config if config.is_holocene_active(timestamp) => {
                 encode_holocene_eip_1559_params(self.config, attrs)
             }
-            _ => Ok(Default::default()),
+            _ => Ok(Bytes::default()),
         }?;
 
         // The requests hash on the OP Stack, if Isthmus is active, is always the empty SHA256 hash.
@@ -103,14 +103,14 @@ where
             gas_used: ex_result.gas_used,
             timestamp,
             mix_hash: attrs.payload_attributes.prev_randao,
-            nonce: Default::default(),
+            nonce: FixedBytes::default(),
             base_fee_per_gas: Some(block_env.basefee),
             blob_gas_used,
             excess_blob_gas: excess_blob_gas.and_then(|x| x.try_into().ok()),
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             extra_data: encoded_base_fee_params,
-            block_access_list_hash: Default::default(),
-            slot_number: Default::default(),
+            block_access_list_hash: Option::default(),
+            slot_number: Option::default(),
         }
         .seal_slow();
 
@@ -118,6 +118,10 @@ where
     }
 
     /// Computes the current output root of the latest executed block, based on the parent header
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// and the underlying state trie.
     ///
     /// **CONSTRUCTION:**
@@ -168,6 +172,7 @@ where
 }
 
 /// Computes the receipts root from the given set of receipts.
+#[must_use]
 pub fn compute_receipts_root(
     receipts: &[OpReceiptEnvelope],
     config: &RollupConfig,
@@ -191,7 +196,7 @@ pub fn compute_receipts_root(
             .collect::<Vec<_>>();
 
         ordered_trie_with_encoder(receipts.as_ref(), |receipt, mut buf| {
-            receipt.encode_2718(&mut buf)
+            receipt.encode_2718(&mut buf);
         })
         .root()
     } else {

@@ -101,6 +101,7 @@ impl TrieNode {
     ///
     /// ## Returns
     /// - `Self` - The new blinded [`TrieNode`].
+    #[must_use]
     pub const fn new_blinded(commitment: B256) -> Self {
         Self::Blinded { commitment }
     }
@@ -120,6 +121,10 @@ impl TrieNode {
     }
 
     /// Unblinds the [`TrieNode`] if it is a [`TrieNode::Blinded`] node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn unblind<F: TrieProvider>(&mut self, fetcher: &F) -> TrieNodeResult<()> {
         if let Self::Blinded { commitment } = self {
             if *commitment == EMPTY_ROOT_HASH {
@@ -136,6 +141,10 @@ impl TrieNode {
     }
 
     /// Walks down the trie to a leaf value with the given key, if it exists. Preimages for blinded
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// nodes along the path are fetched using the `fetcher` function, and persisted in the inner
     /// [`TrieNode`] elements.
     ///
@@ -180,6 +189,10 @@ impl TrieNode {
     }
 
     /// Inserts a [`TrieNode`] at the given path into the trie rooted at Self.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `self` - The root trie node
@@ -303,6 +316,10 @@ impl TrieNode {
     }
 
     /// Deletes a node in the trie at the given path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `self` - The root trie node

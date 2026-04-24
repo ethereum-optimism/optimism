@@ -39,24 +39,32 @@ impl Fjord {
     );
 
     /// Returns the source hash for the deployment of the Fjord Gas Price Oracle.
+    #[must_use]
     pub fn deploy_fjord_gas_price_oracle_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the update of the Fjord Gas Price Oracle.
+    #[must_use]
     pub fn update_fjord_gas_price_oracle_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Proxy Update") }
             .source_hash()
     }
 
     /// [`UpgradeDepositSource`] for setting the Fjord Gas Price Oracle.
+    #[must_use]
     pub fn enable_fjord_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Fjord: Gas Price Oracle Set Fjord") }
             .source_hash()
     }
 
     /// Returns the fjord gas price oracle deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn gas_price_oracle_deployment_bytecode() -> alloy_primitives::Bytes {
         hex::decode(include_str!("./bytecode/gpo_fjord.hex").replace('\n', ""))
             .expect("Expected hex byte string")

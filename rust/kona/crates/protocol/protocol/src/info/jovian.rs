@@ -82,6 +82,7 @@ impl L1BlockInfoJovian {
     pub const L1_INFO_TX_SELECTOR: [u8; 4] = [0x3d, 0xb6, 0xbe, 0x2b];
 
     /// Encodes the [`L1BlockInfoJovian`] object into Ethereum transaction calldata.
+    #[must_use]
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
         self.encode_calldata_header(&mut buf);
@@ -101,6 +102,10 @@ impl L1BlockInfoJovian {
     }
 
     /// Decodes the [`L1BlockInfoJovian`] object from ethereum transaction calldata.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_calldata(r: &[u8]) -> Result<Self, DecodeError> {
         if r.len() != Self::L1_INFO_TX_LEN {
             return Err(DecodeError::InvalidJovianLength(Self::L1_INFO_TX_LEN, r.len()));
@@ -109,6 +114,10 @@ impl L1BlockInfoJovian {
     }
 
     /// Decodes the body of the [`L1BlockInfoJovian`] object.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_calldata_body(r: &[u8]) -> Result<Self, DecodeError> {
         // SAFETY: For all below slice operations, the full
         //         length is validated above to be `178`.
@@ -143,6 +152,7 @@ impl L1BlockInfoJovian {
 
     /// Construct from all values.
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub const fn new(
         number: u64,
         time: u64,

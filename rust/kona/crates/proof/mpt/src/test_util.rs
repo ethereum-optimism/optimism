@@ -22,7 +22,7 @@ pub(crate) async fn get_live_derivable_receipts_list()
     let provider =
         ProviderBuilder::new().connect_http(Url::parse(RPC_URL).expect("invalid rpc url"));
 
-    let block_number = 19005266;
+    let block_number = 19_005_266;
     let block = provider
         .get_block(block_number.into())
         .full()
@@ -66,7 +66,7 @@ pub(crate) async fn get_live_derivable_receipts_list()
     // Compute the derivable list
     let mut list =
         ordered_trie_with_encoder(consensus_receipts.as_ref(), |rlp: &ReceiptEnvelope, buf| {
-            rlp.encode_2718(buf)
+            rlp.encode_2718(buf);
         });
     let root = list.root();
 
@@ -92,7 +92,7 @@ pub(crate) async fn get_live_derivable_transactions_list()
     let provider =
         ProviderBuilder::new().connect_http(Url::parse(RPC_URL).expect("invalid rpc url"));
 
-    let block_number = 19005266;
+    let block_number = 19_005_266;
     let block = provider
         .get_block(block_number.into())
         .full()
@@ -107,7 +107,7 @@ pub(crate) async fn get_live_derivable_transactions_list()
 
     // Compute the derivable list
     let mut list = ordered_trie_with_encoder(consensus_txs.as_ref(), |rlp: &TxEnvelope, buf| {
-        rlp.encode_2718(buf)
+        rlp.encode_2718(buf);
     });
     let root = list.root();
 

@@ -37,11 +37,16 @@ impl GlobalArgs {
     /// Applies the specified overrides to the given rollup config.
     ///
     /// Transforms the rollup config and returns the updated config with the overrides applied.
+    #[must_use]
     pub fn apply_overrides(&self, config: RollupConfig) -> RollupConfig {
         self.override_args.apply(config)
     }
 
     /// Returns the signer [`Address`] from the rollup config for the given l2 chain id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn genesis_signer(&self) -> CliResult<Address> {
         let id = self.l2_chain_id;
         OPCHAINS
@@ -65,7 +70,7 @@ mod tests {
     #[case::numeric_optimism("10", 10)]
     #[case::numeric_ethereum("1", 1)]
     #[case::numeric_base("8453", 8453)]
-    #[case::numeric_unknown("999999", 999999)]
+    #[case::numeric_unknown("999999", 999_999)]
     #[case::string_optimism("optimism", 10)]
     #[case::string_mainnet("mainnet", 1)]
     #[case::string_base("base", 8453)]

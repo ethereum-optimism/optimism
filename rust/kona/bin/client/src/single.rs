@@ -38,6 +38,10 @@ pub enum FaultProofProgramError {
 }
 
 /// Executes the fault proof program with the given [PreimageOracleClient] and [HintWriterClient].
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 #[inline]
 pub async fn run<P, H>(oracle_client: P, hint_client: H) -> Result<(), FaultProofProgramError>
 where
@@ -187,6 +191,10 @@ where
 }
 
 /// Fetches the safe head hash of the L2 chain based on the agreed upon L2 output root in the
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 /// [BootInfo].
 pub async fn fetch_safe_head_hash<O>(
     caching_oracle: &O,

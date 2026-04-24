@@ -70,14 +70,18 @@ where
             cfg,
             prev,
             origin: None,
-            l1_blocks: Default::default(),
-            batches: Default::default(),
-            next_spans: Default::default(),
+            l1_blocks: Vec::default(),
+            batches: Vec::default(),
+            next_spans: Vec::default(),
             fetcher,
         }
     }
 
     /// Pops the next batch from the current queued up span-batch cache.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     /// The parent is used to set the parent hash of the batch.
     /// The parent is verified when the batch is later validated.
     pub fn pop_next_batch(&mut self, parent: L2BlockInfo) -> Option<SingleBatch> {
@@ -88,6 +92,10 @@ where
     }
 
     /// Derives the next batch to apply on top of the current L2 safe head.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// Follows the validity rules imposed on consecutive batches.
     /// Based on currently available buffered batch and L1 origin information.
     /// A [`PipelineError::Eof`] is returned if no batch can be derived yet.
@@ -231,6 +239,14 @@ where
     }
 
     /// Adds a batch to the queue.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn add_batch(&mut self, batch: Batch, parent: L2BlockInfo) -> PipelineResult<()> {
         if self.l1_blocks.is_empty() {
             error!(target: "batch_queue", "Cannot add batch without an origin");
@@ -830,7 +846,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_holocene_derive_next_batch_future() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -956,7 +972,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_batch_missing_origin() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -967,11 +983,11 @@ mod tests {
         let cfg = Arc::new(RollupConfig {
             hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
             block_time: 100,
-            max_sequencer_drift: 10000000,
-            seq_window_size: 10000000,
+            max_sequencer_drift: 10_000_000,
+            seq_window_size: 10_000_000,
             genesis: ChainGenesis {
                 l2: BlockNumHash { number: 8, hash: payload_block_hash },
-                l1: BlockNumHash { number: 16988980031808077784, ..Default::default() },
+                l1: BlockNumHash { number: 16_988_980_031_808_077_784, ..Default::default() },
                 ..Default::default()
             },
             batch_inbox_address: address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
@@ -989,9 +1005,9 @@ mod tests {
         }
         // Insert a deposit transaction in the front of the second batch txs
         let expected = L1BlockInfoBedrock::new(
-            16988980031808077784,
-            1697121143,
-            10419034451,
+            16_988_980_031_808_077_784,
+            1_697_121_143,
+            10_419_034_451,
             b256!("392012032675be9f94aae5ab442de73c5f4fb1bf30fa7dd0d2442239899a40fc"),
             4,
             address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
@@ -1017,8 +1033,8 @@ mod tests {
         let origin_check =
             b256!("8527cdb6f601acf9b483817abd1da92790c92b19000000000000000000000000");
         mock.origin = Some(BlockInfo {
-            number: 16988980031808077784,
-            timestamp: 1639845845,
+            number: 16_988_980_031_808_077_784,
+            timestamp: 1_639_845_845,
             parent_hash: Default::default(),
             hash: origin_check,
         });
@@ -1029,7 +1045,7 @@ mod tests {
         let block_nine = L2BlockInfo {
             block_info: BlockInfo {
                 number: 9,
-                timestamp: 1639845645,
+                timestamp: 1_639_845_645,
                 parent_hash: parent_check,
                 hash: origin_check,
             },
@@ -1038,7 +1054,7 @@ mod tests {
         let block_seven = L2BlockInfo {
             block_info: BlockInfo {
                 number: 7,
-                timestamp: 1639845745,
+                timestamp: 1_639_845_745,
                 parent_hash: parent_check,
                 hash: origin_check,
             },
@@ -1077,11 +1093,11 @@ mod tests {
         let parent = L2BlockInfo {
             block_info: BlockInfo {
                 number: 9,
-                timestamp: 1639845745,
+                timestamp: 1_639_845_745,
                 parent_hash: parent_check,
                 hash: origin_check,
             },
-            l1_origin: BlockNumHash { number: 16988980031808077784, hash: origin_check },
+            l1_origin: BlockNumHash { number: 16_988_980_031_808_077_784, hash: origin_check },
             ..Default::default()
         };
         let res = bq.next_batch(parent).await.unwrap_err();

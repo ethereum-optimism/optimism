@@ -545,7 +545,7 @@ mod test {
 
     #[tokio::test]
     async fn test_batch_validator_next_batch_sequence_window_expired() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -581,7 +581,7 @@ mod test {
 
     #[tokio::test]
     async fn test_batch_validator_next_batch_sequence_window_expired_advance_epoch() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);

@@ -59,6 +59,10 @@ where
     }
 
     /// Prunes the Channel bank, until it is below the max channel bank size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// Prunes from the high-priority channel since it failed to be read.
     pub fn prune(&mut self) -> PipelineResult<()> {
         let mut total_size = self.size();
@@ -78,6 +82,14 @@ where
     }
 
     /// Adds new L1 data to the channel bank. Should only be called after all data has been read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn ingest_frame(&mut self, frame: Frame) -> PipelineResult<()> {
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
 
@@ -114,6 +126,10 @@ where
     }
 
     /// Read the raw data of the first channel, if it's timed-out or closed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// Returns an error if there is nothing new to read.
     pub fn read(&mut self) -> PipelineResult<Option<Bytes>> {
@@ -438,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_ingest_invalid_frame() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -461,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_ingest_and_prune_channel_bank() {
-        let mut frames = crate::frames!(0xFF, 0, vec![0xDD; 50], 100000);
+        let mut frames = crate::frames!(0xFF, 0, vec![0xDD; 50], 100_000);
         let mock = TestNextFrameProvider::new(vec![]);
         let cfg = Arc::new(RollupConfig::default());
         let mut channel_bank = ChannelBank::new(cfg, mock);
@@ -486,7 +502,7 @@ mod tests {
 
     #[test]
     fn test_ingest_and_prune_channel_bank_fjord() {
-        let mut frames = crate::frames!(0xFF, 0, vec![0xDD; 50], 100000);
+        let mut frames = crate::frames!(0xFF, 0, vec![0xDD; 50], 100_000);
         let mock = TestNextFrameProvider::new(vec![]);
         let cfg = Arc::new(RollupConfig {
             hardforks: HardForkConfig { fjord_time: Some(0), ..Default::default() },
@@ -526,7 +542,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_channel_timeout() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);

@@ -97,6 +97,7 @@ impl AttributesProvider for TestAttributesProvider {
 }
 
 /// Creates a new [`TestAttributesProvider`] with the given origin and batches.
+#[must_use]
 pub const fn new_test_attributes_provider(
     origin: Option<BlockInfo>,
     batches: Vec<PipelineResult<SingleBatch>>,

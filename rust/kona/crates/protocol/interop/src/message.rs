@@ -118,6 +118,7 @@ pub struct EnrichedExecutingMessage {
 
 impl EnrichedExecutingMessage {
     /// Create a new [`EnrichedExecutingMessage`] from an [`ExecutingMessage`] and a chain ID.
+    #[must_use]
     pub const fn new(
         inner: ExecutingMessage,
         executing_chain_id: u64,
@@ -132,6 +133,7 @@ impl EnrichedExecutingMessage {
 /// See [`parse_log_to_executing_message`].
 ///
 /// Note: filters out logs that don't contain executing message events.
+#[must_use]
 pub fn extract_executing_messages(receipts: &[OpReceiptEnvelope]) -> Vec<ExecutingMessage> {
     receipts.iter().fold(Vec::new(), |mut acc, envelope| {
         let executing_messages = envelope.logs().iter().filter_map(parse_log_to_executing_message);
@@ -171,7 +173,7 @@ mod tests {
     #[test]
     fn test_serialize_executing_descriptor() {
         let descriptor = ExecutingDescriptor {
-            timestamp: 1234567890,
+            timestamp: 1_234_567_890,
             timeout: Some(3600),
             chain_id: Some(1000),
         };
@@ -192,7 +194,7 @@ mod tests {
         }"#;
 
         let expected =
-            ExecutingDescriptor { timestamp: 1234567890, timeout: Some(3600), chain_id: None };
+            ExecutingDescriptor { timestamp: 1_234_567_890, timeout: Some(3600), chain_id: None };
 
         let deserialized: ExecutingDescriptor = serde_json::from_str(json).unwrap();
         assert_eq!(deserialized, expected);
@@ -207,7 +209,7 @@ mod tests {
         }"#;
 
         let expected =
-            ExecutingDescriptor { timestamp: 1234567890, timeout: None, chain_id: Some(1000) };
+            ExecutingDescriptor { timestamp: 1_234_567_890, timeout: None, chain_id: Some(1000) };
 
         let deserialized: ExecutingDescriptor = serde_json::from_str(json).unwrap();
         assert_eq!(deserialized, expected);
@@ -220,7 +222,7 @@ mod tests {
             origin: Address::repeat_byte(0x77),
             blockNumber: U256::from(200),
             logIndex: U256::from(3),
-            timestamp: U256::from(777777),
+            timestamp: U256::from(777_777),
             chainId: U256::from(12),
         };
         let payload_hash = B256::repeat_byte(0x88);

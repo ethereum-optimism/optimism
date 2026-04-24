@@ -27,11 +27,13 @@ pub struct SingleBatch {
 
 impl SingleBatch {
     /// Returns the [`BlockNumHash`] of the batch.
+    #[must_use]
     pub const fn epoch(&self) -> BlockNumHash {
         BlockNumHash { number: self.epoch_num, hash: self.epoch_hash }
     }
 
     /// Validate the batch timestamp.
+    #[must_use]
     pub fn check_batch_timestamp(
         &self,
         cfg: &RollupConfig,
@@ -529,7 +531,7 @@ mod tests {
     fn test_check_batch_drop_empty_tx() {
         // An empty tx is not valid 2718 encoding.
         // The batch must be dropped.
-        let transactions = vec![Default::default()];
+        let transactions = vec![Bytes::default()];
 
         // Construct a basic `SingleBatch`
         let parent_hash = BlockHash::ZERO;
@@ -568,7 +570,7 @@ mod tests {
             value: U256::from(7_u64),
             gas_limit: 5,
             is_system_transaction: false,
-            input: Default::default(),
+            input: Bytes::default(),
         };
         let envelope = OpTxEnvelope::Deposit(Sealed::new(tx));
         let encoded = envelope.encoded_2718();
@@ -600,7 +602,7 @@ mod tests {
     #[test]
     #[cfg(feature = "std")]
     fn test_check_batch_drop_non_empty_interop_transition() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         let subscriber = tracing_subscriber::Registry::default().with(layer);
         let _guard = tracing::subscriber::set_default(subscriber);
@@ -639,6 +641,6 @@ mod tests {
                 .get_by_level(Level::WARN)
                 .iter()
                 .any(|s| { s.contains("Sequencer included user transactions") })
-        )
+        );
     }
 }

@@ -14,12 +14,24 @@ use crate::{FileDescriptor, errors::IOResult};
 /// trait should be created that extends this trait.
 pub trait BasicKernelInterface {
     /// Write the given buffer to the given file descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     fn write(fd: FileDescriptor, buf: &[u8]) -> IOResult<usize>;
 
     /// Read from the given file descriptor into the passed buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     fn read(fd: FileDescriptor, buf: &mut [u8]) -> IOResult<usize>;
 
     /// Map new memory with block size `size`. Returns the new heap pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     fn mmap(size: usize) -> IOResult<usize>;
 
     /// Exit the process with the given exit code. The implementation of this function

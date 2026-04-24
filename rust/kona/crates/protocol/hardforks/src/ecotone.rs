@@ -51,29 +51,34 @@ impl Ecotone {
     );
 
     /// Returns the source hash for the deployment of the l1 block contract.
+    #[must_use]
     pub fn deploy_l1_block_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: L1 Block Deployment") }.source_hash()
     }
 
     /// Returns the source hash for the deployment of the gas price oracle contract.
+    #[must_use]
     pub fn deploy_gas_price_oracle_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the update of the l1 block proxy.
+    #[must_use]
     pub fn update_l1_block_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: L1 Block Proxy Update") }
             .source_hash()
     }
 
     /// Returns the source hash for the update of the gas price oracle proxy.
+    #[must_use]
     pub fn update_gas_price_oracle_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Proxy Update") }
             .source_hash()
     }
 
     /// Returns the source hash for the Ecotone Beacon Block Roots Contract deployment.
+    #[must_use]
     pub fn beacon_roots_source() -> B256 {
         UpgradeDepositSource {
             intent: String::from("Ecotone: beacon block roots contract deployment"),
@@ -82,12 +87,22 @@ impl Ecotone {
     }
 
     /// Returns the source hash for the Ecotone Gas Price Oracle activation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn enable_ecotone_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Ecotone: Gas Price Oracle Set Ecotone") }
             .source_hash()
     }
 
     /// Returns the EIP-4788 creation data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn eip4788_creation_data() -> Bytes {
         hex::decode(include_str!("./bytecode/eip4788_ecotone.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -95,6 +110,11 @@ impl Ecotone {
     }
 
     /// Returns the raw bytecode for the L1 Block deployment.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn l1_block_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/l1_block_ecotone.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -102,6 +122,11 @@ impl Ecotone {
     }
 
     /// Returns the gas price oracle deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn ecotone_gas_price_oracle_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/gpo_ecotone.hex").replace('\n', ""))
             .expect("Expected hex byte string")

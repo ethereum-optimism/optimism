@@ -16,6 +16,11 @@ pub struct DiskKeyValueStore {
 
 impl DiskKeyValueStore {
     /// Create a new [`DiskKeyValueStore`] with the given data directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn new(data_directory: PathBuf) -> Self {
         let db = DB::open(&Self::get_db_options(), data_directory.as_path())
             .unwrap_or_else(|e| panic!("Failed to open database at {data_directory:?}: {e}"));

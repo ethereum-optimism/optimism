@@ -71,18 +71,21 @@ impl Interop {
     pub const ETH_LIQUIDITY_FUND_SELECTOR: [u8; 4] = hex!("b60d4288");
 
     /// Returns the source hash for the `CrossL2Inbox` contract deployment transaction.
+    #[must_use]
     pub fn deploy_cross_l2_inbox_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: CrossL2Inbox Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the `CrossL2Inbox` proxy upgrade transaction.
+    #[must_use]
     pub fn upgrade_cross_l2_inbox_proxy_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: CrossL2Inbox Proxy Update") }
             .source_hash()
     }
 
     /// Returns the source hash for the `L2ToL2CrossDomainMessenger` deployment transaction.
+    #[must_use]
     pub fn deploy_l2_to_l2_xdm_source() -> B256 {
         UpgradeDepositSource {
             intent: String::from("Interop: L2ToL2CrossDomainMessenger Deployment"),
@@ -91,6 +94,7 @@ impl Interop {
     }
 
     /// Returns the source hash for the `L2ToL2CrossDomainMessenger` proxy upgrade transaction.
+    #[must_use]
     pub fn upgrade_l2_to_l2_xdm_proxy_source() -> B256 {
         UpgradeDepositSource {
             intent: String::from("Interop: L2ToL2CrossDomainMessenger Proxy Update"),
@@ -99,35 +103,45 @@ impl Interop {
     }
 
     /// Returns the source hash for the `SuperchainETHBridge` deployment transaction.
+    #[must_use]
     pub fn deploy_superchain_eth_bridge_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: SuperchainETHBridge Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the `SuperchainETHBridge` proxy upgrade transaction.
+    #[must_use]
     pub fn upgrade_superchain_eth_bridge_proxy_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: SuperchainETHBridge Proxy Update") }
             .source_hash()
     }
 
     /// Returns the source hash for the `ETHLiquidity` deployment transaction.
+    #[must_use]
     pub fn deploy_eth_liquidity_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the `ETHLiquidity` proxy upgrade transaction.
+    #[must_use]
     pub fn upgrade_eth_liquidity_proxy_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Proxy Update") }
             .source_hash()
     }
 
     /// Returns the source hash for the `ETHLiquidity` funding transaction.
+    #[must_use]
     pub fn fund_eth_liquidity_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Interop: ETHLiquidity Funding") }.source_hash()
     }
 
     /// Returns the `CrossL2Inbox` deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn cross_l2_inbox_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/crossl2inbox_interop.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -135,6 +149,11 @@ impl Interop {
     }
 
     /// Returns the `L2ToL2CrossDomainMessenger` proxy upgrade bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn l2_to_l2_xdm_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/l2tol2_xdm_interop.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -142,6 +161,11 @@ impl Interop {
     }
 
     /// Returns the `SuperchainETHBridge` deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn superchain_eth_bridge_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/superchain_eth_bridge_interop.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -149,6 +173,11 @@ impl Interop {
     }
 
     /// Returns the `ETHLiquidity` deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn eth_liquidity_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/eth_liquidity_interop.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -156,6 +185,7 @@ impl Interop {
     }
 
     /// Returns the calldata for the `ETHLiquidity.fund()` call.
+    #[must_use]
     pub fn eth_liquidity_fund_calldata() -> Bytes {
         Bytes::copy_from_slice(&Self::ETH_LIQUIDITY_FUND_SELECTOR)
     }

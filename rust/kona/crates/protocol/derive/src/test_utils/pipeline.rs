@@ -97,6 +97,7 @@ pub type TestAttributesQueue = AttributesQueue<TestBatchProvider, TestAttributes
 pub type TestPipeline = DerivationPipeline<TestAttributesQueue, TestL2ChainProvider>;
 
 /// Constructs a [`DerivationPipeline`] using test providers and sources.
+#[must_use]
 pub fn new_test_pipeline() -> TestPipeline {
     PipelineBuilder::new()
         .rollup_config(Arc::new(RollupConfig::default()))

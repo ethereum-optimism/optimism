@@ -80,6 +80,7 @@ impl PipelineCursor {
     /// The capacity is set to `channel_timeout + 5` blocks to provide adequate
     /// history for reorg recovery while maintaining reasonable memory usage.
     /// This ensures the cursor can reset to any point within the channel timeout window.
+    #[must_use]
     pub fn new(channel_timeout: u64, origin: BlockInfo) -> Self {
         // NOTE: capacity must be greater than the `channel_timeout` to allow
         // for derivation to proceed through a deep reorg.
@@ -90,13 +91,14 @@ impl PipelineCursor {
         origins.push_back(origin.number);
         let mut origin_infos = HashMap::default();
         origin_infos.insert(origin.number, origin);
-        Self { capacity, channel_timeout, origin, origins, origin_infos, tips: Default::default() }
+        Self { capacity, channel_timeout, origin, origins, origin_infos, tips: BTreeMap::default() }
     }
 
     /// Returns the current L1 origin block being processed by the pipeline.
     ///
     /// This is the most recent L1 block from which the pipeline is deriving L2 blocks.
     /// The origin advances as new L1 data becomes available and is processed.
+    #[must_use]
     pub const fn origin(&self) -> BlockInfo {
         self.origin
     }
@@ -105,6 +107,7 @@ impl PipelineCursor {
     ///
     /// The L2 safe head represents the most recent L2 block that has been successfully
     /// derived and is considered safe. This is the tip of the verified L2 chain.
+    #[must_use]
     pub fn l2_safe_head(&self) -> &L2BlockInfo {
         &self.tip().l2_safe_head
     }
@@ -114,6 +117,7 @@ impl PipelineCursor {
     /// The sealed header contains the complete block header with computed hash,
     /// providing access to all block metadata including parent hash, timestamp,
     /// gas limits, and other consensus-critical information.
+    #[must_use]
     pub fn l2_safe_head_header(&self) -> &Sealed<Header> {
         &self.tip().l2_safe_head_header
     }
@@ -122,6 +126,7 @@ impl PipelineCursor {
     ///
     /// The output root is a commitment to the L2 state after executing the safe head
     /// block. It's used for fraud proof verification and state root challenges.
+    #[must_use]
     pub fn l2_safe_head_output_root(&self) -> &B256 {
         &self.tip().l2_safe_head_output_root
     }
@@ -135,6 +140,7 @@ impl PipelineCursor {
     /// This method panics if called before the cursor is properly initialized with at
     /// least one L1/L2 mapping. This should never happen in normal operation as the
     /// cursor is initialized with an origin in [`Self::new`].
+    #[must_use]
     pub fn tip(&self) -> &TipCursor {
         if let Some((_, l2_tip)) = self.tips.last_key_value() {
             l2_tip
@@ -144,6 +150,10 @@ impl PipelineCursor {
     }
 
     /// Advances the cursor to a new L1 origin and corresponding L2 tip.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     ///
     /// This method updates the cursor state with a new L1/L2 mapping, representing
     /// progress in the derivation pipeline. If the cache is at capacity, the oldest

@@ -75,6 +75,10 @@ where
 impl LogConfig {
     /// Initializes the tracing subscriber
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// # Arguments
     /// * `verbosity_level` - The verbosity level (0-5). If `0`, no logs are printed.
     /// * `env_filter` - Optional environment filter for the subscriber.

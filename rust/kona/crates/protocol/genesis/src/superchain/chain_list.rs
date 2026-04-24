@@ -13,31 +13,37 @@ pub struct ChainList {
 
 impl ChainList {
     /// Fetch a [Chain] by its identifier.
+    #[must_use]
     pub fn get_chain_by_ident(&self, identifier: &str) -> Option<&Chain> {
         self.chains.iter().find(|c| c.identifier.eq_ignore_ascii_case(identifier))
     }
 
     /// Returns all available [Chain] identifiers.
+    #[must_use]
     pub fn chain_idents(&self) -> Vec<String> {
         self.chains.iter().map(|c| c.identifier.clone()).collect()
     }
 
     /// Fetch a [Chain] by its chain id.
+    #[must_use]
     pub fn get_chain_by_id(&self, chain_id: u64) -> Option<&Chain> {
         self.chains.iter().find(|c| c.chain_id == chain_id)
     }
 
     /// Fetch a [Chain] by the corresponding [`AlloyChain`]
+    #[must_use]
     pub fn get_chain_by_alloy_ident(&self, chain: &AlloyChain) -> Option<&Chain> {
         self.get_chain_by_id(chain.id())
     }
 
     /// Returns the number of chains.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.chains.len()
     }
 
     /// Returns true if the list is empty.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.chains.is_empty()
     }
@@ -99,11 +105,12 @@ pub struct SuperchainParent {
 
 impl SuperchainParent {
     /// Returns the chain id for the parent.
+    #[must_use]
     pub fn chain_id(&self) -> u64 {
         match self.chain.as_ref() {
             "mainnet" => 1,
-            "sepolia" => 11155111,
-            "sepolia-dev-0" => 11155421,
+            "sepolia" => 11_155_111,
+            "sepolia-dev-0" => 11_155_421,
             _ => 10,
         }
     }

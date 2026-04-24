@@ -45,6 +45,10 @@ where
     P: InteropProvider,
 {
     /// Derives the edges from the blocks within the graph by scanning all receipts within the
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// blocks and searching for [`ExecutingMessage`]s.
     ///
     /// [`ExecutingMessage`]: crate::ExecutingMessage
@@ -80,6 +84,10 @@ where
     }
 
     /// Checks the validity of all messages within the graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// _Note_: This function does not account for cascading dependency failures. When
     /// [`MessageGraphError::InvalidMessages`] is returned by this function, the consumer must

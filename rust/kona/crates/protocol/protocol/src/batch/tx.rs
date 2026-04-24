@@ -16,16 +16,19 @@ pub struct BatchTransaction {
 
 impl BatchTransaction {
     /// Returns the size of the transaction.
+    #[must_use]
     pub const fn size(&self) -> usize {
         self.size
     }
 
     /// Returns if the transaction has reached the max frame count.
+    #[must_use]
     pub const fn is_full(&self, max_frames: u16) -> bool {
         self.frames.len() as u16 >= max_frames
     }
 
     /// Returns the [`BatchTransaction`] as a [`Bytes`].
+    #[must_use]
     pub fn to_bytes(&self) -> Bytes {
         self.frames
             .iter()

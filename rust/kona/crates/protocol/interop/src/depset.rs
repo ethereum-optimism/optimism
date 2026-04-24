@@ -23,6 +23,7 @@ pub struct DependencySet {
 
 impl DependencySet {
     /// Returns the message expiry window associated with this dependency set.
+    #[must_use]
     pub const fn get_message_expiry_window(&self) -> u64 {
         match self.override_message_expiry_window {
             Some(window) if window > 0 => window,

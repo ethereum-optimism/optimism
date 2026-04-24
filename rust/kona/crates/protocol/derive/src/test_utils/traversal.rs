@@ -16,6 +16,7 @@ impl TraversalTestHelper {
     pub const L1_SYS_CONFIG_ADDR: Address = address!("1337000000000000000000000000000000000000");
 
     /// Creates a new [`Log`] for the update batcher event.
+    #[must_use]
     pub fn new_update_batcher_log() -> Log {
         Log {
             address: Self::L1_SYS_CONFIG_ADDR,
@@ -31,6 +32,11 @@ impl TraversalTestHelper {
     }
 
     /// Creates a new [`Receipt`] with the update batcher log and a bad log.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn new_receipts() -> alloc::vec::Vec<Receipt> {
         let mut receipt =
             Receipt { status: alloy_consensus::Eip658Value::Eip658(true), ..Receipt::default() };
@@ -45,6 +51,7 @@ impl TraversalTestHelper {
     }
 
     /// Creates a new [`PollingTraversal`] with the given blocks and receipts.
+    #[must_use]
     pub fn new_from_blocks(
         blocks: alloc::vec::Vec<BlockInfo>,
         receipts: alloc::vec::Vec<Receipt>,
@@ -65,6 +72,7 @@ impl TraversalTestHelper {
     }
 
     /// Creates a new [`PollingTraversal`] with two default blocks and populated receipts.
+    #[must_use]
     pub fn new_populated() -> PollingTraversal<TestChainProvider> {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = Self::new_receipts();

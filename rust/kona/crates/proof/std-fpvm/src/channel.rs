@@ -27,16 +27,19 @@ pub struct FileChannel {
 
 impl FileChannel {
     /// Create a new [`FileChannel`] from two file descriptors.
+    #[must_use]
     pub const fn new(read_handle: FileDescriptor, write_handle: FileDescriptor) -> Self {
         Self { read_handle, write_handle }
     }
 
     /// Returns a copy of the [`FileDescriptor`] used for the read end of the channel.
+    #[must_use]
     pub const fn read_handle(&self) -> FileDescriptor {
         self.read_handle
     }
 
     /// Returns a copy of the [`FileDescriptor`] used for the write end of the channel.
+    #[must_use]
     pub const fn write_handle(&self) -> FileDescriptor {
         self.write_handle
     }

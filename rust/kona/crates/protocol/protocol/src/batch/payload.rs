@@ -21,6 +21,10 @@ pub struct SpanBatchPayload {
 
 impl SpanBatchPayload {
     /// Decodes a [`SpanBatchPayload`] from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_payload(r: &mut &[u8]) -> Result<Self, SpanBatchError> {
         let mut payload = Self::default();
         payload.decode_block_count(r)?;
@@ -31,6 +35,10 @@ impl SpanBatchPayload {
     }
 
     /// Encodes a [`SpanBatchPayload`] into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_payload(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         self.encode_block_count(w);
         self.encode_origin_bits(w)?;
@@ -39,6 +47,10 @@ impl SpanBatchPayload {
     }
 
     /// Decodes the origin bits from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_origin_bits(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if self.block_count > MAX_SPAN_BATCH_ELEMENTS {
             return Err(SpanBatchError::TooBigSpanBatchSize);
@@ -49,6 +61,10 @@ impl SpanBatchPayload {
     }
 
     /// Decode a block count from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_block_count(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let (block_count, remaining) = unsigned_varint::decode::u64(r)
             .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::BlockCount))?;
@@ -66,6 +82,10 @@ impl SpanBatchPayload {
     }
 
     /// Decode block transaction counts from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_block_tx_counts(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         // Initially allocate the vec with the block count, to reduce re-allocations in the first
         // few blocks.
@@ -88,6 +108,10 @@ impl SpanBatchPayload {
     }
 
     /// Decode transactions from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_txs(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if self.block_tx_counts.is_empty() {
             return Err(SpanBatchError::EmptySpanBatch);
@@ -109,6 +133,10 @@ impl SpanBatchPayload {
     }
 
     /// Encode the origin bits into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_origin_bits(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         SpanBatchBits::encode(w, self.block_count as usize, &self.origin_bits)
     }
@@ -129,6 +157,10 @@ impl SpanBatchPayload {
     }
 
     /// Encode the transactions into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_txs(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         self.txs.encode(w)
     }

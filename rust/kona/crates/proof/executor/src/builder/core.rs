@@ -15,6 +15,7 @@ use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory,
     block::{OpAlloyReceiptBuilder, OpTxEnv},
 };
+use alloy_primitives::Bytes;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
@@ -255,7 +256,7 @@ where
             parent_hash,
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             // This field is unused for individual block building jobs.
-            extra_data: Default::default(),
+            extra_data: Bytes::default(),
         };
         let executor = self.factory.create_executor(evm, ctx);
 

@@ -55,6 +55,7 @@ where
     D: DataAvailabilityProvider + Send + Sync + Debug,
 {
     /// Creates a new pipeline builder.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

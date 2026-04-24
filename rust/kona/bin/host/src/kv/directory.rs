@@ -23,6 +23,11 @@ pub struct DirectoryKeyValueStore {
 
 impl DirectoryKeyValueStore {
     /// Create a new [`DirectoryKeyValueStore`] with the given data directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn new(data_directory: &Path) -> Self {
         fs::create_dir_all(data_directory)
             .unwrap_or_else(|e| panic!("Failed to create directory {data_directory:?}: {e}"));

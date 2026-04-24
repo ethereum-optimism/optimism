@@ -71,6 +71,7 @@ impl From<LogArgs> for LogConfig {
 
 impl LogConfig {
     /// Creates a new `LogConfig` from `LogArgs`.
+    #[must_use]
     pub fn new(args: LogArgs) -> Self {
         let level = match args.level {
             1 => LevelFilter::ERROR,

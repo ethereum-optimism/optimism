@@ -52,6 +52,10 @@ pub enum FaultProofProgramError {
 }
 
 /// Executes the interop fault proof program with the given [PreimageOracleClient] and
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 /// [HintWriterClient].
 #[inline]
 pub async fn run<P, H>(oracle_client: P, hint_client: H) -> Result<(), FaultProofProgramError>

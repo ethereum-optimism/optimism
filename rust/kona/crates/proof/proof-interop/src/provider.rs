@@ -51,6 +51,10 @@ where
     }
 
     /// Sends an [`HintType::L2Transactions`] hint for the given block, instructing the host to
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// pre-fetch the transaction trie nodes into the preimage oracle's key-value store.
     pub async fn hint_transactions(
         &self,
@@ -64,6 +68,7 @@ where
     }
 
     /// Returns a reference to the local safe heads map.
+    #[must_use]
     pub const fn local_safe_heads(&self) -> &HashMap<u64, Sealed<Header>> {
         &self.local_safe_heads
     }
@@ -73,6 +78,7 @@ where
     /// The returned hinter implements [`TrieHinter`] and annotates all hints with the specified
     /// chain ID. This makes the chain context explicit at each call site rather than relying on
     /// mutable state within the provider.
+    #[must_use]
     pub const fn scoped_hinter(&self, chain_id: u64) -> ChainScopedHinter<'_, C> {
         ChainScopedHinter { oracle: &self.oracle, chain_id }
     }
@@ -83,6 +89,10 @@ where
     }
 
     /// Fetch the [Header] for the block with the given hash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn header_by_hash(
         &self,
         chain_id: u64,
@@ -437,7 +447,7 @@ mod tests {
         local_safe_heads.insert(fixture.chain_id, sealed_safe_head);
 
         let mut rollup_config = RollupConfig::default();
-        rollup_config.hardforks.isthmus_time = Some(1746806401);
+        rollup_config.hardforks.isthmus_time = Some(1_746_806_401);
 
         let mut rollup_configs = HashMap::default();
         rollup_configs.insert(fixture.chain_id, rollup_config);
@@ -450,7 +460,7 @@ mod tests {
             claimed_l2_timestamp: 0,
             rollup_configs,
             dependency_set: DependencySet {
-                dependencies: Default::default(),
+                dependencies: BTreeMap::default(),
                 override_message_expiry_window: None,
             },
             l1_config: Default::default(),

@@ -19,13 +19,13 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     genesis: ChainGenesis {
         l1: BlockNumHash {
             hash: b256!("48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b"),
-            number: 4071408,
+            number: 4_071_408,
         },
         l2: BlockNumHash {
             hash: b256!("102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"),
             number: 0,
         },
-        l2_time: 1691802540,
+        l2_time: 1_691_802_540,
         system_config: Some(SystemConfig {
             batcher_address: address!("8f23bb38f531600e5d8fddaaec41f13fab46e98c"),
             overhead: uint!(0xbc_U256),
@@ -48,19 +48,19 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     granite_channel_timeout: 50,
     #[cfg(feature = "rollup_config_override")]
     fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
-    l1_chain_id: 11155111,
+    l1_chain_id: 11_155_111,
     l2_chain_id: Chain::optimism_sepolia(),
     chain_op_config: OP_SEPOLIA_BASE_FEE_CONFIG,
     alt_da_config: None,
     hardforks: HardForkConfig {
         regolith_time: None,
         canyon_time: Some(OP_SEPOLIA_CANYON_TIMESTAMP),
-        delta_time: Some(1703203200),
+        delta_time: Some(1_703_203_200),
         ecotone_time: Some(OP_SEPOLIA_ECOTONE_TIMESTAMP),
         fjord_time: Some(OP_SEPOLIA_FJORD_TIMESTAMP),
         granite_time: Some(OP_SEPOLIA_GRANITE_TIMESTAMP),
         holocene_time: Some(OP_SEPOLIA_HOLOCENE_TIMESTAMP),
-        pectra_blob_schedule_time: Some(1742486400),
+        pectra_blob_schedule_time: Some(1_742_486_400),
         isthmus_time: Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP),
         jovian_time: Some(OP_SEPOLIA_JOVIAN_TIMESTAMP),
         karst_time: None,

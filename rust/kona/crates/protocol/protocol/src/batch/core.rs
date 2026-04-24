@@ -28,6 +28,7 @@ impl core::fmt::Display for Batch {
 
 impl Batch {
     /// Returns the timestamp for the batch.
+    #[must_use]
     pub fn timestamp(&self) -> u64 {
         match self {
             Self::Single(sb) => sb.timestamp,
@@ -36,6 +37,10 @@ impl Batch {
     }
 
     /// Attempts to decode a batch from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode(r: &mut &[u8], cfg: &RollupConfig) -> Result<Self, BatchDecodingError> {
         if r.is_empty() {
             return Err(BatchDecodingError::EmptyBuffer);
@@ -62,6 +67,10 @@ impl Batch {
     }
 
     /// Attempts to encode the batch to a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode(&self, out: &mut dyn bytes::BufMut) -> Result<(), BatchEncodingError> {
         match self {
             Self::Single(sb) => {

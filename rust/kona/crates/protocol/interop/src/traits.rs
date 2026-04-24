@@ -38,6 +38,10 @@ pub trait InteropProvider {
 pub trait InteropValidator: Send + Sync {
     /// Validates that the provided timestamps and chain IDs are eligible for interop execution.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// # Arguments
     /// * `initiating_chain_id` - The chain ID where the message was initiated
     /// * `initiating_timestamp` - The timestamp when the message was initiated

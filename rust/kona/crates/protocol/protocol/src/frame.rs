@@ -172,11 +172,13 @@ pub struct Frame {
 
 impl Frame {
     /// Creates a new [`Frame`].
+    #[must_use]
     pub const fn new(id: ChannelId, number: u16, data: Vec<u8>, is_last: bool) -> Self {
         Self { id, number, data, is_last }
     }
 
     /// Encode the frame into a byte vector.
+    #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(16 + 2 + 4 + self.data.len() + 1);
         encoded.extend_from_slice(&self.id);
@@ -188,6 +190,10 @@ impl Frame {
     }
 
     /// Decode a frame from a byte vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode(encoded: &[u8]) -> Result<(usize, Self), FrameDecodingError> {
         const BASE_FRAME_LEN: usize = 16 + 2 + 4 + 1;
 
@@ -213,6 +219,10 @@ impl Frame {
     }
 
     /// Parses a single frame from the given data at the given starting position,
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// returning the frame and the number of bytes consumed.
     pub fn parse_frame(data: &[u8], start: usize) -> Result<(usize, Self), FrameDecodingError> {
         let (frame_len, frame) = Self::decode(&data[start..])?;
@@ -220,6 +230,10 @@ impl Frame {
     }
 
     /// Parse the on chain serialization of frame(s) in an L1 transaction. Currently
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// only version 0 of the serialization format is supported. All frames must be parsed
     /// without error and there must not be any left over data and there must be at least one
     /// frame.
@@ -258,6 +272,7 @@ impl Frame {
     /// Calculates the size of the frame + overhead for storing the frame. The sum of the frame size
     /// of each frame in a channel determines the channel's size. The sum of the channel sizes
     /// is used for pruning & compared against the max channel bank size.
+    #[must_use]
     pub const fn size(&self) -> usize {
         self.data.len() + FRAME_OVERHEAD
     }

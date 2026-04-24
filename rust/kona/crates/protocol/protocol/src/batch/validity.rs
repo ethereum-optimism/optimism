@@ -150,16 +150,19 @@ impl core::fmt::Display for BatchValidity {
 
 impl BatchValidity {
     /// Returns whether the batch is accepted.
+    #[must_use]
     pub const fn is_accept(&self) -> bool {
         matches!(self, Self::Accept)
     }
 
     /// Returns whether the batch is dropped.
+    #[must_use]
     pub const fn is_drop(&self) -> bool {
         matches!(self, Self::Drop(_))
     }
 
     /// Returns the drop reason if the batch was dropped.
+    #[must_use]
     pub const fn drop_reason(&self) -> Option<BatchDropReason> {
         match self {
             Self::Drop(reason) => Some(*reason),
@@ -168,11 +171,13 @@ impl BatchValidity {
     }
 
     /// Returns whether the batch is outdated.
+    #[must_use]
     pub const fn is_outdated(&self) -> bool {
         matches!(self, Self::Past)
     }
 
     /// Returns whether the batch is future.
+    #[must_use]
     pub const fn is_future(&self) -> bool {
         matches!(self, Self::Future)
     }

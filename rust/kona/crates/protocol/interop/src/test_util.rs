@@ -18,6 +18,7 @@ pub struct MockInteropProvider {
 }
 
 impl MockInteropProvider {
+    #[must_use]
     pub const fn new(
         headers: HashMap<u64, HashMap<u64, Sealed<Header>>>,
         receipts: HashMap<u64, HashMap<u64, Vec<OpReceiptEnvelope>>>,
@@ -77,6 +78,7 @@ pub struct SuperchainBuilder {
 }
 
 impl SuperchainBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self { chains: HashMap::default() }
     }
@@ -86,6 +88,7 @@ impl SuperchainBuilder {
     }
 
     /// Builds the scenario into the format needed for testing
+    #[must_use]
     pub fn build(
         self,
     ) -> (HashMap<u64, Sealed<Header>>, HashMap<u64, RollupConfig>, MockInteropProvider) {
@@ -141,10 +144,16 @@ impl ChainBuilder {
         self
     }
 
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub fn with_timestamp(&mut self, timestamp: u64) -> &mut Self {
         self.modify_header(|h| h.timestamp = timestamp)
     }
 
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub fn add_initiating_message(&mut self, message_data: Bytes) -> &mut Self {
         let receipt = OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
             receipt: Receipt {
@@ -160,6 +169,9 @@ impl ChainBuilder {
         self
     }
 
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub fn add_executing_message(&mut self, builder: ExecutingMessageBuilder) -> &mut Self {
         let receipt = OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
             receipt: Receipt {
@@ -199,31 +211,37 @@ pub struct ExecutingMessageBuilder {
 }
 
 impl ExecutingMessageBuilder {
+    #[must_use]
     pub const fn with_message_hash(mut self, message_hash: B256) -> Self {
         self.message_hash = message_hash;
         self
     }
 
+    #[must_use]
     pub const fn with_origin_address(mut self, origin_address: Address) -> Self {
         self.origin_address = origin_address;
         self
     }
 
+    #[must_use]
     pub const fn with_origin_log_index(mut self, origin_log_index: u64) -> Self {
         self.origin_log_index = origin_log_index;
         self
     }
 
+    #[must_use]
     pub const fn with_origin_chain_id(mut self, origin_chain_id: u64) -> Self {
         self.origin_chain_id = origin_chain_id;
         self
     }
 
+    #[must_use]
     pub const fn with_origin_block_number(mut self, origin_block_number: u64) -> Self {
         self.origin_block_number = origin_block_number;
         self
     }
 
+    #[must_use]
     pub const fn with_origin_timestamp(mut self, origin_timestamp: u64) -> Self {
         self.origin_timestamp = origin_timestamp;
         self

@@ -17,6 +17,10 @@ pub struct SecretKeyLoader;
 impl SecretKeyLoader {
     /// Attempts to load a [`Keypair`] from a specified path.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// If no file exists there, then it generates a secret key
     /// and stores it in the provided path. I/O errors might occur
     /// during write operations in the form of a [`KeypairError`]
@@ -79,6 +83,10 @@ impl SecretKeyLoader {
     }
 
     /// Parses raw bytes into a [`Keypair`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn parse(input: &mut [u8]) -> Result<Keypair, ParseKeyError> {
         let sk =
             SecretKey::try_from_bytes(input).map_err(|_| ParseKeyError::FailedToParseSecretKey)?;

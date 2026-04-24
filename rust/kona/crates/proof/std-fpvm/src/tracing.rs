@@ -21,6 +21,7 @@ pub struct FpvmTracingSubscriber {
 
 impl FpvmTracingSubscriber {
     /// Create a new [`FpvmTracingSubscriber`] with the specified minimum log level.
+    #[must_use]
     pub const fn new(min_level: Level) -> Self {
         Self { min_level }
     }

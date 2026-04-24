@@ -38,6 +38,10 @@ pub struct SpanBatchTransactions {
 
 impl SpanBatchTransactions {
     /// Encodes the [`SpanBatchTransactions`] into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         self.encode_contract_creation_bits(w)?;
         self.encode_tx_sigs(w)?;
@@ -50,6 +54,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decodes the [`SpanBatchTransactions`] from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         self.decode_contract_creation_bits(r)?;
         self.decode_tx_sigs(r)?;
@@ -62,6 +70,10 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the contract creation bits into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_contract_creation_bits(
         &self,
         w: &mut dyn bytes::BufMut,
@@ -71,12 +83,20 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the protected bits into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_protected_bits(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         SpanBatchBits::encode(w, self.legacy_tx_count as usize, &self.protected_bits)?;
         Ok(())
     }
 
     /// Encode the transaction signatures into a writer (excluding `v` field).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_tx_sigs(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         let mut y_parity_bits = SpanBatchBits::default();
         for (i, sig) in self.tx_sigs.iter().enumerate() {
@@ -92,6 +112,10 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the transaction nonces into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_tx_nonces(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         let mut buf = [0u8; 10];
         for nonce in &self.tx_nonces {
@@ -102,6 +126,10 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the transaction gas limits into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_tx_gases(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         let mut buf = [0u8; 10];
         for gas in &self.tx_gases {
@@ -112,6 +140,10 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the `to` addresses of the transactions into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_tx_tos(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         for to in &self.tx_tos {
             w.put_slice(to.as_ref());
@@ -120,6 +152,10 @@ impl SpanBatchTransactions {
     }
 
     /// Encode the transaction data into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode_tx_data(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         for data in &self.tx_data {
             w.put_slice(data);
@@ -128,6 +164,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the contract creation bits from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_contract_creation_bits(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if self.total_block_tx_count > MAX_SPAN_BATCH_ELEMENTS {
             return Err(SpanBatchError::TooBigSpanBatchSize);
@@ -138,6 +178,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the protected bits from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_protected_bits(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         if self.legacy_tx_count > MAX_SPAN_BATCH_ELEMENTS {
             return Err(SpanBatchError::TooBigSpanBatchSize);
@@ -148,6 +192,14 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the transaction signatures from a reader (excluding `v` field).
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_tx_sigs(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let y_parity_bits = SpanBatchBits::decode(r, self.total_block_tx_count as usize)?;
         let mut sigs = Vec::with_capacity(self.total_block_tx_count as usize);
@@ -168,6 +220,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the transaction nonces from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_tx_nonces(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut nonces = Vec::with_capacity(self.total_block_tx_count as usize);
         for _ in 0..self.total_block_tx_count {
@@ -181,6 +237,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the transaction gas limits from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_tx_gases(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut gases = Vec::with_capacity(self.total_block_tx_count as usize);
         for _ in 0..self.total_block_tx_count {
@@ -194,6 +254,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the `to` addresses of the transactions from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_tx_tos(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut tos = Vec::with_capacity(self.total_block_tx_count as usize);
         let contract_creation_count = self.contract_creation_count();
@@ -210,6 +274,10 @@ impl SpanBatchTransactions {
     }
 
     /// Decode the transaction data from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_tx_data(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut tx_data = Vec::new();
         let mut tx_types = Vec::new();
@@ -232,11 +300,16 @@ impl SpanBatchTransactions {
     }
 
     /// Returns the number of contract creation transactions in the span batch.
+    #[must_use]
     pub fn contract_creation_count(&self) -> u64 {
         self.contract_creation_bits.as_ref().iter().map(|b| b.count_ones() as u64).sum()
     }
 
     /// Retrieve all of the raw transactions from the [`SpanBatchTransactions`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn full_txs(&self, chain_id: u64) -> Result<Vec<Vec<u8>>, SpanBatchError> {
         let mut txs = Vec::new();
         let mut to_idx = 0;
@@ -287,6 +360,10 @@ impl SpanBatchTransactions {
     }
 
     /// Add raw transactions into the [`SpanBatchTransactions`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn add_txs(&mut self, txs: Vec<Bytes>, chain_id: u64) -> Result<(), SpanBatchError> {
         let total_block_tx_count = txs.len() as u64;
         let offset = self.total_block_tx_count;

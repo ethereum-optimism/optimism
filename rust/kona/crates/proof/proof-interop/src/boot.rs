@@ -62,6 +62,10 @@ pub struct BootInfo {
 impl BootInfo {
     /// Load the boot information from the preimage oracle.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// ## Takes
     /// - `oracle`: The preimage oracle reader.
     ///
@@ -196,6 +200,7 @@ impl BootInfo {
     }
 
     /// Returns the [`RollupConfig`] corresponding to the [`PreState::active_l2_chain_id`].
+    #[must_use]
     pub fn active_rollup_config(&self) -> Option<RollupConfig> {
         let active_l2_chain_id = self.agreed_pre_state.active_l2_chain_id()?;
         self.rollup_configs.get(&active_l2_chain_id).cloned()
@@ -203,11 +208,13 @@ impl BootInfo {
 
     /// Returns the [`L1ChainConfig`] corresponding to the [`PreState::active_l2_chain_id`] through
     /// the l2 [`RollupConfig`].
+    #[must_use]
     pub fn active_l1_config(&self) -> L1ChainConfig {
         self.l1_config.clone()
     }
 
     /// Returns the [`RollupConfig`] corresponding to the given `chain_id`.
+    #[must_use]
     pub fn rollup_config(&self, chain_id: u64) -> Option<RollupConfig> {
         self.rollup_configs.get(&chain_id).cloned()
     }

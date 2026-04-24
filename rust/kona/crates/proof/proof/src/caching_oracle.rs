@@ -35,6 +35,10 @@ where
     HW: HintWriterClient,
 {
     /// Creates a new [`CachingOracle`] that wraps the given
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     /// [`OracleReader`](kona_preimage::OracleReader) and stores up to `N` responses in the cache.
     pub fn new(cache_size: usize, oracle_reader: OR, hint_writer: HW) -> Self {
         Self {

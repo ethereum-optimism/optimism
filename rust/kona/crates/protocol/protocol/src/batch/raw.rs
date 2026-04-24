@@ -19,17 +19,26 @@ pub struct RawSpanBatch {
 
 impl RawSpanBatch {
     /// Returns the batch type
+    #[must_use]
     pub const fn get_batch_type(&self) -> BatchType {
         BatchType::Span
     }
 
     /// Encodes the [`RawSpanBatch`] into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn encode(&self, w: &mut dyn bytes::BufMut) -> Result<(), SpanBatchError> {
         self.prefix.encode_prefix(w);
         self.payload.encode_payload(w)
     }
 
     /// Decodes the [`RawSpanBatch`] from a reader.]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode(r: &mut &[u8]) -> Result<Self, SpanBatchError> {
         let prefix = SpanBatchPrefix::decode_prefix(r)?;
         let payload = SpanBatchPayload::decode_payload(r)?;
@@ -37,6 +46,10 @@ impl RawSpanBatch {
     }
 
     /// Converts a [`RawSpanBatch`] into a [`SpanBatch`], which has a list of [`SpanBatchElement`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// This function does not populate the [`SpanBatch`] with chain configuration data, which
     /// is required for making payload attributes.
     pub fn derive(

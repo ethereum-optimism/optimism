@@ -74,6 +74,7 @@ impl L1BlockInfoBedrock {
     pub const L1_INFO_TX_SELECTOR: [u8; 4] = [0x01, 0x5d, 0x8e, 0xb9];
 
     /// Encodes the [`L1BlockInfoBedrock`] object into Ethereum transaction calldata.
+    #[must_use]
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
         buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
@@ -89,6 +90,10 @@ impl L1BlockInfoBedrock {
     }
 
     /// Decodes the [`L1BlockInfoBedrock`] object from ethereum transaction calldata.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_calldata(r: &[u8]) -> Result<Self, DecodeError> {
         if r.len() != Self::L1_INFO_TX_LEN {
             return Err(DecodeError::InvalidBedrockLength(Self::L1_INFO_TX_LEN, r.len()));
@@ -136,6 +141,7 @@ impl L1BlockInfoBedrock {
     }
     /// Construct from all values.
     #[allow(clippy::too_many_arguments)]
+    #[must_use]
     pub const fn new(
         number: u64,
         time: u64,
@@ -160,14 +166,17 @@ impl L1BlockInfoBedrock {
         }
     }
     /// Construct from default values and `base_fee`.
+    #[must_use]
     pub fn new_from_base_fee(base_fee: u64) -> Self {
         Self { base: L1BlockInfoBedrockBase::new_from_base_fee(base_fee), ..Default::default() }
     }
     /// Construct from default values and `block_hash`.
+    #[must_use]
     pub fn new_from_block_hash(block_hash: B256) -> Self {
         Self { base: L1BlockInfoBedrockBase::new_from_block_hash(block_hash), ..Default::default() }
     }
     /// Construct from default values and `sequence_number`.
+    #[must_use]
     pub fn new_from_sequence_number(sequence_number: u64) -> Self {
         Self {
             base: L1BlockInfoBedrockBase::new_from_sequence_number(sequence_number),
@@ -175,6 +184,7 @@ impl L1BlockInfoBedrock {
         }
     }
     /// Construct from default values and `batcher_address`.
+    #[must_use]
     pub fn new_from_batcher_address(batcher_address: Address) -> Self {
         Self {
             base: L1BlockInfoBedrockBase::new_from_batcher_address(batcher_address),
@@ -182,14 +192,17 @@ impl L1BlockInfoBedrock {
         }
     }
     /// Construct from default values and `l1_fee_scalar`.
+    #[must_use]
     pub fn new_from_l1_fee_scalar(l1_fee_scalar: U256) -> Self {
         Self { l1_fee_scalar, ..Default::default() }
     }
     /// Construct from default values and `l1_fee_overhead`.
+    #[must_use]
     pub fn new_from_l1_fee_overhead(l1_fee_overhead: U256) -> Self {
         Self { l1_fee_overhead, ..Default::default() }
     }
     /// Construct from default values, `number` and `block_hash`.
+    #[must_use]
     pub fn new_from_number_and_block_hash(number: u64, block_hash: B256) -> Self {
         Self {
             base: L1BlockInfoBedrockBase::new_from_number_and_block_hash(number, block_hash),

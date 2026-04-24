@@ -53,7 +53,7 @@ pub const BASE_MAINNET_CONFIG: RollupConfig = RollupConfig {
     hardforks: HardForkConfig {
         regolith_time: None,
         canyon_time: Some(BASE_MAINNET_CANYON_TIMESTAMP),
-        delta_time: Some(1708560000),
+        delta_time: Some(1_708_560_000),
         ecotone_time: Some(BASE_MAINNET_ECOTONE_TIMESTAMP),
         fjord_time: Some(BASE_MAINNET_FJORD_TIMESTAMP),
         granite_time: Some(BASE_MAINNET_GRANITE_TIMESTAMP),

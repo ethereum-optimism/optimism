@@ -45,18 +45,18 @@ mod tests {
         ChainGenesis {
             l1: BlockNumHash {
                 hash: b256!("438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"),
-                number: 17422590,
+                number: 17_422_590,
             },
             l2: BlockNumHash {
                 hash: b256!("dbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3"),
-                number: 105235063,
+                number: 105_235_063,
             },
-            l2_time: 1686068903,
+            l2_time: 1_686_068_903,
             system_config: Some(SystemConfig {
                 batcher_address: address!("6887246668a3b87F54DeB3b94Ba47a6f63F32985"),
                 overhead: uint!(0xbc_U256),
                 scalar: uint!(0xa6fe0_U256),
-                gas_limit: 30000000,
+                gas_limit: 30_000_000,
                 base_fee_scalar: None,
                 blob_base_fee_scalar: None,
                 eip1559_denominator: None,

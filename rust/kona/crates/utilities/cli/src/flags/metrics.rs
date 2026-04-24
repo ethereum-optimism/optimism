@@ -41,6 +41,10 @@ impl Default for MetricsArgs {
 impl MetricsArgs {
     /// Initialize the tracing stack and Prometheus metrics recorder.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// This function should be called at the beginning of the program.
     pub fn init_metrics(&self) -> CliResult<()> {
         if self.enabled {

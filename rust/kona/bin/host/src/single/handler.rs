@@ -23,6 +23,10 @@ use tracing::{info, warn};
 
 /// Parses a blob hint, supporting both legacy (48-byte) and new (40-byte) formats.
 ///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
+///
 /// Returns the blob hash and timestamp.
 ///
 /// ## Formats
@@ -245,7 +249,7 @@ impl HintHandler for SingleChainHintHandler {
                 // Fetch the storage root for the L2 head block.
                 let l2_to_l1_message_passer = providers
                     .l2
-                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
+                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Vec::default())
                     .block_id(cfg.agreed_l2_head_hash.into())
                     .await?;
 
@@ -337,11 +341,8 @@ impl HintHandler for SingleChainHintHandler {
                     ),
                 };
 
-                let proof_response = providers
-                    .l2
-                    .get_proof(block_id.1, Default::default())
-                    .block_id(block_id.0)
-                    .await?;
+                let proof_response =
+                    providers.l2.get_proof(block_id.1, Vec::default()).block_id(block_id.0).await?;
 
                 // Write the account proof nodes to the key-value store.
                 let mut kv_lock = kv.write().await;
@@ -487,7 +488,7 @@ mod tests {
     }
 
     const TEST_HASH: B256 = B256::new([0x42u8; 32]);
-    const TEST_TIMESTAMP: u64 = 1234567890;
+    const TEST_TIMESTAMP: u64 = 1_234_567_890;
 
     // Legacy format: hash (32 bytes) + index (8 bytes) + timestamp (8 bytes) = 48 bytes
     const LEGACY_HINT: [u8; 48] = [

@@ -18,6 +18,10 @@ const HASHED_HISTORY_STORAGE_ADDRESS: B256 =
 const HISTORY_SERVE_WINDOW: u64 = 2u64.pow(13) - 1;
 
 /// Performs a historical block hash lookup using the EIP-2935 contract. If the block number is out
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 /// of bounds of the history lookup window size, the oldest block hash within the window is
 /// returned.
 pub async fn eip_2935_history_lookup<P, H>(

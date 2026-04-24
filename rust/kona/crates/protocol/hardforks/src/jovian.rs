@@ -31,22 +31,26 @@ impl Jovian {
         address!("4210000000000000000000000000000000000007");
 
     /// Returns the source hash for the deployment of the l1 block contract.
+    #[must_use]
     pub fn deploy_l1_block_source() -> B256 {
         UpgradeDepositSource { intent: String::from("Jovian: L1 Block Deployment") }.source_hash()
     }
 
     /// Returns the source hash for the deployment of the gas price oracle contract.
+    #[must_use]
     pub fn l1_block_proxy_update() -> B256 {
         UpgradeDepositSource { intent: String::from("Jovian: L1 Block Proxy Update") }.source_hash()
     }
 
     /// Returns the source hash for the deployment of the operator fee vault contract.
+    #[must_use]
     pub fn gas_price_oracle() -> B256 {
         UpgradeDepositSource { intent: String::from("Jovian: Gas Price Oracle Deployment") }
             .source_hash()
     }
 
     /// Returns the source hash for the update of the l1 block proxy.
+    #[must_use]
     pub fn gas_price_oracle_proxy_update() -> B256 {
         UpgradeDepositSource { intent: String::from("Jovian: Gas Price Oracle Proxy Update") }
             .source_hash()
@@ -55,6 +59,7 @@ impl Jovian {
     /// The Jovian L1 Block Address
     /// This is computed by using `Address::create` function,
     /// with the L1 Block Deployer Address and nonce 0.
+    #[must_use]
     pub fn l1_block_address() -> Address {
         Self::L1_BLOCK_DEPLOYER.create(0)
     }
@@ -62,17 +67,28 @@ impl Jovian {
     /// The Jovian Gas Price Oracle Address
     /// This is computed by using `Address::create` function,
     /// with the Gas Price Oracle Deployer Address and nonce 0.
+    #[must_use]
     pub fn gas_price_oracle_address() -> Address {
         Self::GAS_PRICE_ORACLE_DEPLOYER.create(0)
     }
 
     /// Returns the source hash to the enable the gas price oracle for Jovian.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn gas_price_oracle_enable_jovian() -> B256 {
         UpgradeDepositSource { intent: String::from("Jovian: Gas Price Oracle Set Jovian") }
             .source_hash()
     }
 
     /// Returns the raw bytecode for the L1 Block deployment.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn l1_block_deployment_bytecode() -> Bytes {
         hex::decode(include_str!("./bytecode/jovian-l1-block-deployment.hex").replace('\n', ""))
             .expect("Expected hex byte string")
@@ -80,6 +96,11 @@ impl Jovian {
     }
 
     /// Returns the gas price oracle deployment bytecode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn gas_price_oracle_deployment_bytecode() -> Bytes {
         hex::decode(
             include_str!("./bytecode/jovian-gas-price-oracle-deployment.hex").replace('\n', ""),
@@ -89,6 +110,7 @@ impl Jovian {
     }
 
     /// Returns the bytecode to enable the gas price oracle for Jovian.
+    #[must_use]
     pub fn gas_price_oracle_enable_jovian_bytecode() -> Bytes {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&keccak256("setJovian()")[..4]);
@@ -230,7 +252,7 @@ mod tests {
     #[test]
     fn test_verify_set_jovian() {
         let hash = &keccak256("setJovian()")[..4];
-        assert_eq!(hash, hex!("0xb3d72079"))
+        assert_eq!(hash, hex!("0xb3d72079"));
     }
 
     #[test]

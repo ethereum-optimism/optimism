@@ -12,6 +12,7 @@ pub struct TraceStorage(pub Arc<Mutex<Vec<(Level, String)>>>);
 
 impl TraceStorage {
     /// Returns the items in the storage that match the specified level.
+    #[must_use]
     pub fn get_by_level(&self, level: Level) -> Vec<String> {
         self.0
             .lock()
@@ -22,11 +23,13 @@ impl TraceStorage {
     }
 
     /// Locks the storage and returns the items.
+    #[must_use]
     pub fn lock(&self) -> spin::MutexGuard<'_, Vec<(Level, String)>> {
         self.0.lock()
     }
 
     /// Returns if the storage is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.lock().is_empty()
     }
@@ -41,6 +44,7 @@ pub struct CollectingLayer {
 
 impl CollectingLayer {
     /// Creates a new collecting layer with the specified storage.
+    #[must_use]
     pub const fn new(storage: TraceStorage) -> Self {
         Self { storage }
     }

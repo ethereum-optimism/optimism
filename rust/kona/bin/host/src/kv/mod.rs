@@ -101,6 +101,10 @@ pub trait KeyValueStore {
     fn get(&self, key: B256) -> Option<Vec<u8>>;
 
     /// Set the value associated with the given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     fn set(&mut self, key: B256, value: Vec<u8>) -> Result<()>;
 }
 

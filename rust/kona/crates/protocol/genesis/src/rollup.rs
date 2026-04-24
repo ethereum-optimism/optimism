@@ -170,6 +170,7 @@ impl RollupConfig {
     ///
     /// ## Returns
     /// The active [`op_revm::OpSpecId`] for the executor.
+    #[must_use]
     pub fn spec_id(&self, timestamp: u64) -> op_revm::OpSpecId {
         if self.is_interop_active(timestamp) {
             op_revm::OpSpecId::INTEROP
@@ -195,142 +196,166 @@ impl RollupConfig {
 
 impl RollupConfig {
     /// Returns true if Regolith is active at the given timestamp.
+    #[must_use]
     pub fn is_regolith_active(&self, timestamp: u64) -> bool {
         self.hardforks.regolith_time.is_some_and(|t| timestamp >= t) ||
             self.is_canyon_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Regolith block.
+    #[must_use]
     pub fn is_first_regolith_block(&self, timestamp: u64) -> bool {
         self.is_regolith_active(timestamp) &&
             !self.is_regolith_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Canyon is active at the given timestamp.
+    #[must_use]
     pub fn is_canyon_active(&self, timestamp: u64) -> bool {
         self.hardforks.canyon_time.is_some_and(|t| timestamp >= t) ||
             self.is_delta_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Canyon block.
+    #[must_use]
     pub fn is_first_canyon_block(&self, timestamp: u64) -> bool {
         self.is_canyon_active(timestamp) &&
             !self.is_canyon_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Delta is active at the given timestamp.
+    #[must_use]
     pub fn is_delta_active(&self, timestamp: u64) -> bool {
         self.hardforks.delta_time.is_some_and(|t| timestamp >= t) ||
             self.is_ecotone_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Delta block.
+    #[must_use]
     pub fn is_first_delta_block(&self, timestamp: u64) -> bool {
         self.is_delta_active(timestamp) &&
             !self.is_delta_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Ecotone is active at the given timestamp.
+    #[must_use]
     pub fn is_ecotone_active(&self, timestamp: u64) -> bool {
         self.hardforks.ecotone_time.is_some_and(|t| timestamp >= t) ||
             self.is_fjord_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Ecotone block.
+    #[must_use]
     pub fn is_first_ecotone_block(&self, timestamp: u64) -> bool {
         self.is_ecotone_active(timestamp) &&
             !self.is_ecotone_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Fjord is active at the given timestamp.
+    #[must_use]
     pub fn is_fjord_active(&self, timestamp: u64) -> bool {
         self.hardforks.fjord_time.is_some_and(|t| timestamp >= t) ||
             self.is_granite_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Fjord block.
+    #[must_use]
     pub fn is_first_fjord_block(&self, timestamp: u64) -> bool {
         self.is_fjord_active(timestamp) &&
             !self.is_fjord_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Granite is active at the given timestamp.
+    #[must_use]
     pub fn is_granite_active(&self, timestamp: u64) -> bool {
         self.hardforks.granite_time.is_some_and(|t| timestamp >= t) ||
             self.is_holocene_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Granite block.
+    #[must_use]
     pub fn is_first_granite_block(&self, timestamp: u64) -> bool {
         self.is_granite_active(timestamp) &&
             !self.is_granite_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Holocene is active at the given timestamp.
+    #[must_use]
     pub fn is_holocene_active(&self, timestamp: u64) -> bool {
         self.hardforks.holocene_time.is_some_and(|t| timestamp >= t) ||
             self.is_isthmus_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Holocene block.
+    #[must_use]
     pub fn is_first_holocene_block(&self, timestamp: u64) -> bool {
         self.is_holocene_active(timestamp) &&
             !self.is_holocene_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if the pectra blob schedule is active at the given timestamp.
+    #[must_use]
     pub fn is_pectra_blob_schedule_active(&self, timestamp: u64) -> bool {
         self.hardforks.pectra_blob_schedule_time.is_some_and(|t| timestamp >= t)
     }
 
     /// Returns true if the timestamp marks the first pectra blob schedule block.
+    #[must_use]
     pub fn is_first_pectra_blob_schedule_block(&self, timestamp: u64) -> bool {
         self.is_pectra_blob_schedule_active(timestamp) &&
             !self.is_pectra_blob_schedule_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Isthmus is active at the given timestamp.
+    #[must_use]
     pub fn is_isthmus_active(&self, timestamp: u64) -> bool {
         self.hardforks.isthmus_time.is_some_and(|t| timestamp >= t) ||
             self.is_jovian_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Isthmus block.
+    #[must_use]
     pub fn is_first_isthmus_block(&self, timestamp: u64) -> bool {
         self.is_isthmus_active(timestamp) &&
             !self.is_isthmus_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Jovian is active at the given timestamp.
+    #[must_use]
     pub fn is_jovian_active(&self, timestamp: u64) -> bool {
         self.hardforks.jovian_time.is_some_and(|t| timestamp >= t) ||
             self.is_karst_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Jovian block.
+    #[must_use]
     pub fn is_first_jovian_block(&self, timestamp: u64) -> bool {
         self.is_jovian_active(timestamp) &&
             !self.is_jovian_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Karst is active at the given timestamp.
+    #[must_use]
     pub fn is_karst_active(&self, timestamp: u64) -> bool {
         self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
             self.is_interop_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Karst block.
+    #[must_use]
     pub fn is_first_karst_block(&self, timestamp: u64) -> bool {
         self.is_karst_active(timestamp) &&
             !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
     /// Returns true if Interop is active at the given timestamp.
+    #[must_use]
     pub fn is_interop_active(&self, timestamp: u64) -> bool {
         self.hardforks.interop_time.is_some_and(|t| timestamp >= t)
     }
 
     /// Returns true if the timestamp marks the first Interop block.
+    #[must_use]
     pub fn is_first_interop_block(&self, timestamp: u64) -> bool {
         self.is_interop_active(timestamp) &&
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
@@ -338,11 +363,13 @@ impl RollupConfig {
 
     /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
     /// address is not zero.
+    #[must_use]
     pub fn is_alt_da_enabled(&self) -> bool {
         self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
     }
 
     /// Returns the max sequencer drift for the given timestamp.
+    #[must_use]
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
             #[cfg(feature = "rollup_config_override")]
@@ -354,6 +381,7 @@ impl RollupConfig {
     }
 
     /// Returns the max rlp bytes per channel for the given timestamp.
+    #[must_use]
     pub fn max_rlp_bytes_per_channel(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
             MAX_RLP_BYTES_PER_CHANNEL_FJORD
@@ -363,6 +391,7 @@ impl RollupConfig {
     }
 
     /// Returns the channel timeout for the given timestamp.
+    #[must_use]
     pub fn channel_timeout(&self, timestamp: u64) -> u64 {
         if self.is_granite_active(timestamp) {
             self.granite_channel_timeout
@@ -373,6 +402,7 @@ impl RollupConfig {
 
     /// Returns the [`HardForkConfig`] using [`RollupConfig`] timestamps.
     #[deprecated(since = "0.1.0", note = "Use the `hardforks` field instead.")]
+    #[must_use]
     pub const fn hardfork_config(&self) -> HardForkConfig {
         self.hardforks
     }
@@ -382,11 +412,16 @@ impl RollupConfig {
     ///
     /// This function assumes that the timestamp is aligned with the block time, and uses floor
     /// division in its computation.
+    #[must_use]
     pub const fn block_number_from_timestamp(&self, timestamp: u64) -> u64 {
         timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time)
     }
 
     /// Checks the scalar value in Ecotone.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn check_ecotone_l1_system_config_scalar(scalar: [u8; 32]) -> Result<(), &'static str> {
         let version_byte = scalar[0];
         match version_byte {
@@ -887,7 +922,7 @@ mod tests {
                     hash: b256!("88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631"),
                     number: 0,
                 },
-                l2_time: 1725557164,
+                l2_time: 1_725_557_164,
                 system_config: Some(SystemConfig {
                     batcher_address: address!("c81f87a644b41e49b3221f41251f15c6cb00ce03"),
                     overhead: U256::ZERO,
@@ -910,7 +945,7 @@ mod tests {
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
-            l1_chain_id: 3151908,
+            l1_chain_id: 3_151_908,
             l2_chain_id: Chain::from_id(1337),
             hardforks: HardForkConfig {
                 regolith_time: Some(0),

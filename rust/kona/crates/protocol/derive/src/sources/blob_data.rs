@@ -209,7 +209,7 @@ mod tests {
         let mut blob_data = BlobData::default();
         let blobs = vec![Box::new(Blob::with_last_byte(1u8))];
         assert_eq!(blob_data.fill(&blobs, 0), Ok(true));
-        let expected = Bytes::from([&[0u8; 131071][..], &[1u8]].concat());
+        let expected = Bytes::from([&[0u8; 131_071][..], &[1u8]].concat());
         assert_eq!(blob_data.data, Some(expected));
     }
 

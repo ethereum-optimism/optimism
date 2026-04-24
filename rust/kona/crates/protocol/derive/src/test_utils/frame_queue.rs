@@ -25,6 +25,7 @@ pub struct TestFrameQueueProvider {
 
 impl TestFrameQueueProvider {
     /// Creates a new [`TestFrameQueueProvider`] with the given data.
+    #[must_use]
     pub const fn new(data: Vec<PipelineResult<Bytes>>) -> Self {
         Self { data, origin: None, reset: false }
     }

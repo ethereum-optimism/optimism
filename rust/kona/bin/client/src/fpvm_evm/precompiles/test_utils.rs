@@ -29,7 +29,7 @@ pub(crate) async fn test_accelerated_precompile(
         let oracle_reader = OracleReader::new(preimage_chan.client);
         let hint_writer = HintWriter::new(hint_chan.client);
 
-        (f)(&hint_writer, &oracle_reader)
+        (f)(&hint_writer, &oracle_reader);
     });
 
     tokio::try_join!(host, client).unwrap_or_else(|e| {
@@ -58,13 +58,13 @@ async fn precompile_host(
 ) {
     let last_hint = Arc::new(RwLock::new(None));
     let preimage_fetcher =
-        PrecompilePreimageFetcher { map: Default::default(), last_hint: last_hint.clone() };
+        PrecompilePreimageFetcher { map: Arc::default(), last_hint: last_hint.clone() };
     let hint_router = PrecompileHintRouter { last_hint: last_hint.clone() };
 
     let server = tokio::task::spawn(async move {
         loop {
             match oracle_server.next_preimage_request(&preimage_fetcher).await {
-                Ok(_) => continue,
+                Ok(()) => continue,
                 Err(PreimageOracleError::IOError(_)) => return,
                 Err(e) => {
                     panic!("Critical: Failed to serve preimage: {e:?}");
@@ -75,7 +75,7 @@ async fn precompile_host(
     let hint_reader = tokio::task::spawn(async move {
         loop {
             match hint_reader.next_hint(&hint_router).await {
-                Ok(_) => continue,
+                Ok(()) => continue,
                 Err(PreimageOracleError::IOError(_)) => return,
                 Err(e) => {
                     panic!("Critical: Failed to serve hint: {e:?}");

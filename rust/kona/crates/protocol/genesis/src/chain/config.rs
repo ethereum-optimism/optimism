@@ -112,6 +112,7 @@ pub struct ChainConfig {
 
 impl ChainConfig {
     /// Returns the base fee params for the chain.
+    #[must_use]
     pub fn base_fee_params(&self) -> BaseFeeParams {
         self.optimism
             .as_ref()
@@ -120,6 +121,7 @@ impl ChainConfig {
     }
 
     /// Returns the canyon base fee params for the chain.
+    #[must_use]
     pub fn canyon_base_fee_params(&self) -> BaseFeeParams {
         self.optimism
             .as_ref()
@@ -128,17 +130,20 @@ impl ChainConfig {
     }
 
     /// Returns the base fee config for the chain.
+    #[must_use]
     pub fn base_fee_config(&self) -> BaseFeeConfig {
         self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
     #[deprecated(since = "0.2.1", note = "please use `as_rollup_config` instead")]
+    #[must_use]
     pub fn load_op_stack_rollup_config(&self) -> RollupConfig {
         self.as_rollup_config()
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
+    #[must_use]
     pub fn as_rollup_config(&self) -> RollupConfig {
         RollupConfig {
             genesis: self.genesis,

@@ -52,6 +52,7 @@ pub struct TestBatchValidator {
 
 impl TestBatchValidator {
     /// Creates a new [`TestBatchValidator`] with the given origin and batches.
+    #[must_use]
     pub const fn new(blocks: Vec<L2BlockInfo>, op_blocks: Vec<OpBlock>) -> Self {
         Self { blocks, short_circuit: false, op_blocks }
     }
@@ -91,6 +92,7 @@ pub struct TraceStorage(pub Arc<Mutex<Vec<(Level, String)>>>);
 
 impl TraceStorage {
     /// Returns the items in the storage that match the specified level.
+    #[must_use]
     pub fn get_by_level(&self, level: Level) -> Vec<String> {
         self.0
             .lock()
@@ -101,6 +103,7 @@ impl TraceStorage {
     }
 
     /// Returns if the storage is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.lock().is_empty()
     }
@@ -115,6 +118,7 @@ pub struct CollectingLayer {
 
 impl CollectingLayer {
     /// Creates a new collecting layer with the specified storage.
+    #[must_use]
     pub const fn new(storage: TraceStorage) -> Self {
         Self { storage }
     }

@@ -1,3 +1,23 @@
+// Integration test allows mirror the crate-wide allows in `src/lib.rs`.
+#![allow(
+    clippy::must_use_candidate,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::default_trait_access,
+    clippy::redundant_closure_for_method_calls,
+    clippy::wildcard_imports,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::unused_async,
+    clippy::implicit_clone,
+    clippy::large_futures
+)]
+
 use alloy_consensus::Header;
 use alloy_primitives::B256;
 use async_trait::async_trait;

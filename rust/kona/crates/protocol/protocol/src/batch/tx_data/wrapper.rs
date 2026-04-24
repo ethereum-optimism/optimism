@@ -116,6 +116,10 @@ impl SpanBatchTransactionData {
     }
 
     /// Decodes a typed transaction into a [`SpanBatchTransactionData`] from a byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_typed(b: &[u8]) -> Result<Self, alloy_rlp::Error> {
         if b.len() <= 1 {
             return Err(alloy_rlp::Error::Custom("Invalid transaction data"));
@@ -136,6 +140,10 @@ impl SpanBatchTransactionData {
     }
 
     /// Converts the [`SpanBatchTransactionData`] into a signed transaction as [`TxEnvelope`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn to_signed_tx(
         &self,
         nonce: u64,

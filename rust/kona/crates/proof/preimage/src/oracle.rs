@@ -23,6 +23,8 @@ where
     /// Set the preimage key for the global oracle reader. This will overwrite any existing key, and
     /// block until the host has prepared the preimage and responded with the length of the
     /// preimage.
+    // `C` is not required to be `Sync` so the returned future is intentionally not `Send`.
+    #[allow(clippy::future_not_send)]
     async fn write_key(&self, key: PreimageKey) -> PreimageOracleResult<usize> {
         // Write the key to the host so that it can prepare the preimage.
         let key_bytes: [u8; 32] = key.into();
@@ -31,6 +33,8 @@ where
         // Read the length prefix and reset the cursor.
         let mut length_buffer = [0u8; 8];
         self.channel.read_exact(&mut length_buffer).await?;
+        // Preimage lengths are always well within `usize` on supported platforms.
+        #[allow(clippy::cast_possible_truncation)]
         Ok(u64::from_be_bytes(length_buffer) as usize)
     }
 }
@@ -48,7 +52,7 @@ where
         let length = self.write_key(key).await?;
 
         if length == 0 {
-            return Ok(Default::default());
+            return Ok(Vec::new());
         }
 
         let mut data_buffer = alloc::vec![0; length];
@@ -191,7 +195,7 @@ mod test {
                 match oracle_server.next_preimage_request(&test_fetcher).await {
                     Err(PreimageOracleError::IOError(_)) => break,
                     Err(e) => panic!("Unexpected error: {e:?}"),
-                    Ok(_) => {}
+                    Ok(()) => {}
                 }
             }
         });
@@ -235,7 +239,7 @@ mod test {
                 match oracle_server.next_preimage_request(&test_fetcher).await {
                     Err(PreimageOracleError::IOError(_)) => break,
                     Err(e) => panic!("Unexpected error: {e:?}"),
-                    Ok(_) => {}
+                    Ok(()) => {}
                 }
             }
         });

@@ -257,7 +257,7 @@ impl HintHandler for InteropHintHandler {
 
                 // Fetch the storage root for the L2 head block.
                 let l2_to_l1_message_passer = l2_provider
-                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
+                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Vec::default())
                     .block_id(block_number.into())
                     .await?;
 
@@ -394,7 +394,7 @@ impl HintHandler for InteropHintHandler {
 
                 let proof_response = providers
                     .l2(&chain_id)?
-                    .get_proof(address, Default::default())
+                    .get_proof(address, Vec::default())
                     .block_id(block_id)
                     .await?;
 

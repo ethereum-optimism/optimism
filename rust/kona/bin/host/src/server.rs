@@ -46,6 +46,10 @@ where
     }
 
     /// Starts the [`PreimageServer`] and waits for incoming requests.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn start(self) -> Result<(), PreimageServerError> {
         // Create the futures for the oracle server and hint router.
         let server = spawn(Self::start_oracle_server(self.oracle_server, self.backend.clone()));
@@ -69,7 +73,7 @@ where
             // Serve the next preimage request. This `await` will yield to the runtime
             // if no progress can be made.
             match oracle_server.next_preimage_request(backend.as_ref()).await {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(PreimageOracleError::IOError(_)) => return Ok(()),
                 Err(e) => {
                     error!(target: "host_server", "Failed to serve preimage request: {e}");
@@ -87,7 +91,7 @@ where
             // Route the next hint. This `await` will yield to the runtime if no progress can be
             // made.
             match hint_reader.next_hint(backend.as_ref()).await {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(PreimageOracleError::IOError(_)) => return Ok(()),
                 Err(e) => {
                     error!(target: "host_server", "Failed to serve route hint: {e}");

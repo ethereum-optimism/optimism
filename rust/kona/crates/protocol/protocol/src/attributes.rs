@@ -20,6 +20,7 @@ pub struct OpAttributesWithParent {
 
 impl OpAttributesWithParent {
     /// Create a new [`OpAttributesWithParent`] instance.
+    #[must_use]
     pub const fn new(
         attributes: OpPayloadAttributes,
         parent: L2BlockInfo,
@@ -31,36 +32,43 @@ impl OpAttributesWithParent {
 
     /// Returns the L2 block number for the payload attributes if made canonical.
     /// Derived as the parent block height plus one.
+    #[must_use]
     pub const fn block_number(&self) -> u64 {
         self.parent.block_info.number.saturating_add(1)
     }
 
     /// Consumes `self` and returns the inner [`OpPayloadAttributes`].
+    #[must_use]
     pub fn take_inner(self) -> OpPayloadAttributes {
         self.attributes
     }
 
     /// Returns the payload attributes.
+    #[must_use]
     pub const fn attributes(&self) -> &OpPayloadAttributes {
         &self.attributes
     }
 
     /// Returns the parent block reference.
+    #[must_use]
     pub const fn parent(&self) -> &L2BlockInfo {
         &self.parent
     }
 
     /// Returns the L1 origin block reference.
+    #[must_use]
     pub const fn derived_from(&self) -> Option<&BlockInfo> {
         self.derived_from.as_ref()
     }
 
     /// Returns whether the current batch is the last in its span.
+    #[must_use]
     pub const fn is_last_in_span(&self) -> bool {
         self.is_last_in_span
     }
 
     /// Returns `true` if all transactions in the payload are deposits.
+    #[must_use]
     pub fn is_deposits_only(&self) -> bool {
         self.attributes
             .transactions
@@ -69,6 +77,7 @@ impl OpAttributesWithParent {
     }
 
     /// Converts the [`OpAttributesWithParent`] into a deposits-only payload.
+    #[must_use]
     pub fn as_deposits_only(&self) -> Self {
         let mut attributes = self.attributes.clone();
 
@@ -86,6 +95,11 @@ impl OpAttributesWithParent {
     }
 
     /// Returns the number of transactions in the attributes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    #[must_use]
     pub fn count_transactions(&self) -> u64 {
         self.attributes().decoded_transactions().count().try_into().unwrap()
     }

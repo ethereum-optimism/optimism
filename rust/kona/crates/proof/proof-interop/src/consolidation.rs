@@ -70,6 +70,10 @@ where
 
     /// Recursively consolidates the dependencies of the blocks within the [`MessageGraph`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// This method will recurse until all invalid cross-chain dependencies have been resolved,
     /// re-executing deposit-only blocks for chains with invalid dependencies as needed.
     pub async fn consolidate(&mut self) -> Result<(), ConsolidationError> {
@@ -196,9 +200,9 @@ where
                     timestamp: header.timestamp,
                     prev_randao: header.mix_hash,
                     suggested_fee_recipient: header.beneficiary,
-                    withdrawals: Default::default(),
+                    withdrawals: Option::default(),
                     parent_beacon_block_root: header.parent_beacon_block_root,
-                    slot_number: Default::default(),
+                    slot_number: Option::default(),
                 },
                 transactions: Some(transactions),
                 no_tx_pool: Some(true),

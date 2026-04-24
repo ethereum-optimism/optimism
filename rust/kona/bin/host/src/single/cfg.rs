@@ -147,6 +147,10 @@ pub enum SingleChainHostError {
 
 impl SingleChainHost {
     /// Starts the [`SingleChainHost`] application.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn start(self) -> Result<(), SingleChainHostError> {
         if self.server {
             let hint = FileChannel::new(FileDescriptor::HintRead, FileDescriptor::HintWrite);
@@ -160,6 +164,10 @@ impl SingleChainHost {
     }
 
     /// Starts the preimage server, communicating with the client over the provided channels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn start_server<C>(
         &self,
         hint: C,
@@ -225,6 +233,7 @@ impl SingleChainHost {
     }
 
     /// Returns `true` if the host is running in offline mode.
+    #[must_use]
     pub const fn is_offline(&self) -> bool {
         self.l1_node_address.is_none() &&
             self.l2_node_address.is_none() &&
@@ -233,6 +242,10 @@ impl SingleChainHost {
     }
 
     /// Reads the [`RollupConfig`] from the file system and returns the deserialized configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn read_rollup_config(&self) -> Result<RollupConfig, SingleChainHostError> {
         let path =
             self.rollup_config_path.as_ref().ok_or_else(|| SingleChainHostError::NoRollupConfig)?;
@@ -245,6 +258,10 @@ impl SingleChainHost {
     }
 
     /// Reads the [`L1ChainConfig`] from the file system and returns the deserialized configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn read_l1_config(&self) -> Result<L1ChainConfig, SingleChainHostError> {
         let path = self.l1_config_path.as_ref().ok_or_else(|| SingleChainHostError::NoL1Config)?;
 
@@ -257,6 +274,10 @@ impl SingleChainHost {
 
     /// Creates the key-value store for the host backend.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// If the data directory contains a `kvformat` marker file, the recorded format is used to
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     pub fn create_key_value_store(&self) -> Result<SharedKeyValueStore, SingleChainHostError> {
@@ -265,6 +286,10 @@ impl SingleChainHost {
     }
 
     /// Creates the providers required for the host backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub async fn create_providers(&self) -> Result<SingleChainProviders, SingleChainHostError> {
         let l1_provider = rpc_provider(
             self.l1_node_address

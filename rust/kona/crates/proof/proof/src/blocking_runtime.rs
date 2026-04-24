@@ -4,6 +4,10 @@
 use core::future::Future;
 
 /// This function blocks on a future in place until it is ready.
+///
+/// # Panics
+///
+/// Panics if internal invariants are violated.
 #[cfg(feature = "std")]
 pub fn block_on<T>(f: impl Future<Output = T>) -> T {
     // When running with Tokio, use the appropriate blocking mechanism

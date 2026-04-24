@@ -12,6 +12,10 @@ use kona_registry::RollupConfig;
 use spin::RwLock;
 
 /// Constructs a [`PipelineCursor`] from the caching oracle, boot info, and providers.
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 pub async fn new_oracle_pipeline_cursor<L1, L2>(
     rollup_config: &RollupConfig,
     safe_header: Sealed<Header>,

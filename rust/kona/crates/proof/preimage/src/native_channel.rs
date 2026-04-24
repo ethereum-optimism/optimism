@@ -20,6 +20,10 @@ pub struct BidirectionalChannel {
 
 impl BidirectionalChannel {
     /// Creates a [`BidirectionalChannel`] instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying channel pair cannot be created.
     pub fn new() -> Result<Self> {
         let (bw, ar) = unbounded();
         let (aw, br) = unbounded();

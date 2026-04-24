@@ -10,6 +10,10 @@ use std::{
 use tracing::info;
 
 /// Start a Prometheus metrics server on the given port.
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 pub fn init_prometheus_server(addr: IpAddr, metrics_port: u16) -> Result<(), BuildError> {
     let prometheus_addr = SocketAddr::from((addr, metrics_port));
     let builder = PrometheusBuilder::new().with_http_listener(prometheus_addr);

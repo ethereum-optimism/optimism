@@ -3,6 +3,7 @@
 use clap::builder::styling::{AnsiColor, Color, Style};
 
 /// Styles for the CLI application.
+#[must_use]
 pub const fn cli_styles() -> clap::builder::Styles {
     clap::builder::Styles::styled()
         .usage(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))

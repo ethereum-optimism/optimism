@@ -69,18 +69,30 @@ pub fn print_err(s: &str) {
 }
 
 /// Write the passed buffer to the given [`FileDescriptor`].
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 #[inline]
 pub fn write(fd: FileDescriptor, buf: &[u8]) -> IOResult<usize> {
     ClientIO::write(fd, buf)
 }
 
 /// Write the passed buffer to the given [`FileDescriptor`].
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 #[inline]
 pub fn read(fd: FileDescriptor, buf: &mut [u8]) -> IOResult<usize> {
     ClientIO::read(fd, buf)
 }
 
 /// Map new memory of block size `size`. Returns the new heap pointer.
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 #[inline]
 pub fn mmap(size: usize) -> IOResult<usize> {
     ClientIO::mmap(size)

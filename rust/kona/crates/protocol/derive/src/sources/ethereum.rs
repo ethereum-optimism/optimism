@@ -105,10 +105,10 @@ mod tests {
         let blob = TestBlobProvider::default();
         let cfg = RollupConfig::default();
         let mut calldata = CalldataSource::new(chain.clone(), Address::ZERO);
-        calldata.calldata.insert(0, Default::default());
+        calldata.calldata.insert(0, Bytes::default());
         calldata.open = true;
         let mut blob = BlobSource::new(chain, blob, Address::ZERO);
-        blob.data = vec![Default::default()];
+        blob.data = vec![BlobData::default()];
         blob.open = true;
         let mut data_source = EthereumDataSource::new(blob, calldata, &cfg);
 
@@ -157,6 +157,6 @@ mod tests {
         // Should successfully retrieve a calldata batch from the block
         let mut data_source = EthereumDataSource::new_from_parts(chain, blob, &cfg);
         let calldata_batch = data_source.next(&block_ref, batcher_address).await.unwrap();
-        assert_eq!(calldata_batch.len(), 119823);
+        assert_eq!(calldata_batch.len(), 119_823);
     }
 }

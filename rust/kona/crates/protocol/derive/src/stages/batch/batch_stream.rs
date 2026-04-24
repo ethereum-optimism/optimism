@@ -63,6 +63,10 @@ where
     }
 
     /// Returns if the [`BatchStream`] stage is active based on the
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// origin timestamp and holocene activation timestamp.
     pub fn is_active(&self) -> PipelineResult<bool> {
         let origin = self.prev.origin().ok_or(PipelineError::MissingOrigin.crit())?;
@@ -70,6 +74,10 @@ where
     }
 
     /// Gets a [`SingleBatch`] from the in-memory buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn get_single_batch(
         &mut self,
         parent: L2BlockInfo,
@@ -82,6 +90,10 @@ where
     }
 
     /// Hydrates the buffer with single batches derived from the span batch, if there is one
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// queued up.
     pub fn try_hydrate_buffer(
         &mut self,
@@ -333,7 +345,7 @@ mod test {
 
     #[tokio::test]
     async fn test_batch_stream_inactive() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         tracing_subscriber::Registry::default().with(layer).init();
 
@@ -349,7 +361,7 @@ mod test {
         assert!(!stream.is_active().unwrap());
 
         // The next batch should be passed through to the [BatchQueue] stage.
-        let batch = stream.next_batch(Default::default(), &[]).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &[]).await.unwrap();
         assert_eq!(batch, Batch::Single(SingleBatch::default()));
 
         let logs = trace_store.get_by_level(tracing::Level::TRACE);
@@ -386,7 +398,7 @@ mod test {
         assert!(stream.is_active().unwrap());
 
         // The next batches should be single batches derived from the span batch.
-        let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap();
         if let Batch::Single(single) = batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 2);
@@ -394,7 +406,7 @@ mod test {
             panic!("Wrong batch type");
         }
 
-        let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap();
         if let Batch::Single(single) = batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 4);
@@ -402,7 +414,7 @@ mod test {
             panic!("Wrong batch type");
         }
 
-        let err = stream.next_batch(Default::default(), &mock_origins).await.unwrap_err();
+        let err = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
         assert_eq!(stream.span_buffer_size(), 0);
         assert!(stream.span.is_none());
@@ -411,7 +423,7 @@ mod test {
         stream.prev.batches.push(Ok(Batch::Span(mock_batch.clone())));
 
         // The next batches should be single batches derived from the span batch.
-        let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap();
         if let Batch::Single(single) = batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 2);
@@ -419,7 +431,7 @@ mod test {
             panic!("Wrong batch type");
         }
 
-        let batch = stream.next_batch(Default::default(), &mock_origins).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap();
         if let Batch::Single(single) = batch {
             assert_eq!(single.epoch_num, 1);
             assert_eq!(single.timestamp, 4);
@@ -427,7 +439,7 @@ mod test {
             panic!("Wrong batch type");
         }
 
-        let err = stream.next_batch(Default::default(), &mock_origins).await.unwrap_err();
+        let err = stream.next_batch(L2BlockInfo::default(), &mock_origins).await.unwrap_err();
         assert_eq!(err, PipelineError::Eof.temp());
         assert_eq!(stream.span_buffer_size(), 0);
         assert!(stream.span.is_none());
@@ -435,7 +447,7 @@ mod test {
 
     #[tokio::test]
     async fn test_span_batch_extraction_error_flushes_stage() {
-        let trace_store: TraceStorage = Default::default();
+        let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
         tracing_subscriber::Registry::default().with(layer).init();
 
@@ -524,7 +536,7 @@ mod test {
         assert!(stream.is_active().unwrap());
 
         // The next batch should be passed through to the [BatchQueue] stage.
-        let batch = stream.next_batch(Default::default(), &[]).await.unwrap();
+        let batch = stream.next_batch(L2BlockInfo::default(), &[]).await.unwrap();
         assert!(matches!(batch, Batch::Single(_)));
         assert_eq!(stream.span_buffer_size(), 0);
         assert!(stream.span.is_none());

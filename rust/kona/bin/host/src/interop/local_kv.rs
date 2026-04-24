@@ -10,6 +10,7 @@ use kona_proof_interop::boot::{
     DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_AGREED_PRE_STATE_KEY,
     L2_CLAIMED_POST_STATE_KEY, L2_CLAIMED_TIMESTAMP_KEY, L2_ROLLUP_CONFIG_KEY,
 };
+use std::collections::BTreeMap;
 
 /// A simple, synchronous key-value store that returns data from a [`InteropHost`] config.
 #[derive(Debug)]
@@ -46,7 +47,7 @@ impl KeyValueStore for InteropLocalInputs {
                 let dependency_set =
                     self.cfg.read_dependency_set().and_then(|r| r.ok()).unwrap_or_else(|| {
                         DependencySet {
-                            dependencies: Default::default(),
+                            dependencies: BTreeMap::default(),
                             override_message_expiry_window: None,
                         }
                     });

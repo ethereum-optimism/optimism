@@ -122,18 +122,18 @@ mod tests {
         assert_eq!(
             updated_config.hardforks,
             kona_genesis::HardForkConfig {
-                regolith_time: Default::default(),
-                canyon_time: Some(1699981200),
-                delta_time: Some(1703203200),
-                ecotone_time: Some(1708534800),
-                fjord_time: Some(1716998400),
-                granite_time: Some(1723478400),
-                holocene_time: Some(1732633200),
-                pectra_blob_schedule_time: Some(1745000000),
-                isthmus_time: Some(1740000000),
-                jovian_time: Some(1745000001),
-                karst_time: Some(1750000000),
-                interop_time: Some(1755000000),
+                regolith_time: Option::default(),
+                canyon_time: Some(1_699_981_200),
+                delta_time: Some(1_703_203_200),
+                ecotone_time: Some(1_708_534_800),
+                fjord_time: Some(1_716_998_400),
+                granite_time: Some(1_723_478_400),
+                holocene_time: Some(1_732_633_200),
+                pectra_blob_schedule_time: Some(1_745_000_000),
+                isthmus_time: Some(1_740_000_000),
+                jovian_time: Some(1_745_000_001),
+                karst_time: Some(1_750_000_000),
+                interop_time: Some(1_755_000_000),
             }
         );
     }

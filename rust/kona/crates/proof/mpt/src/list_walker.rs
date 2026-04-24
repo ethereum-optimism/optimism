@@ -31,11 +31,16 @@ where
     F: TrieProvider,
 {
     /// Creates a new [`OrderedListWalker`], yet to be hydrated.
+    #[must_use]
     pub const fn new(root: B256) -> Self {
         Self { root, inner: None, _phantom: PhantomData }
     }
 
     /// Creates a new [`OrderedListWalker`] and hydrates it with [`Self::hydrate`] and the given
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// fetcher immediately.
     pub fn try_new_hydrated(root: B256, fetcher: &F) -> OrderedListWalkerResult<Self> {
         let mut walker = Self { root, inner: None, _phantom: PhantomData };
@@ -44,6 +49,14 @@ where
     }
 
     /// Hydrates the [`OrderedListWalker`]'s iterator with the leaves of the derivable list. If
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// `Self::inner` is [Some], this function will fail fast.
     pub fn hydrate(&mut self, fetcher: &F) -> OrderedListWalkerResult<()> {
         // Do not allow for re-hydration if `inner` is `Some` and still contains elements.

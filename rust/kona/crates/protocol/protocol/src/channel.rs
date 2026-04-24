@@ -72,26 +72,34 @@ pub struct Channel {
 
 impl Channel {
     /// Create a new [`Channel`] with the given [`ChannelId`] and [`BlockInfo`].
+    #[must_use]
     pub fn new(id: ChannelId, open_block: BlockInfo) -> Self {
         Self { id, open_block, inputs: HashMap::default(), ..Default::default() }
     }
 
     /// Returns the current [`ChannelId`] for the channel.
+    #[must_use]
     pub const fn id(&self) -> ChannelId {
         self.id
     }
 
     /// Returns the number of frames ingested.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inputs.len()
     }
 
     /// Returns if the channel is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inputs.is_empty()
     }
 
     /// Add a frame to the channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// ## Takes
     /// - `frame`: The frame to add to the channel
@@ -150,16 +158,19 @@ impl Channel {
     }
 
     /// Returns the block number of the L1 block that contained the first [`Frame`] in this channel.
+    #[must_use]
     pub const fn open_block_number(&self) -> u64 {
         self.open_block.number
     }
 
     /// Returns the estimated size of the channel including [`Frame`] overhead.
+    #[must_use]
     pub const fn size(&self) -> usize {
         self.estimated_size
     }
 
     /// Returns `true` if the channel is ready to be read.
+    #[must_use]
     pub fn is_ready(&self) -> bool {
         // Must have buffered the last frame before the channel is ready.
         if !self.closed {
@@ -187,6 +198,7 @@ impl Channel {
     ///
     /// - `Some(Bytes)`: The concatenated frame data
     /// - `None`: If the channel is missing frames
+    #[must_use]
     pub fn frame_data(&self) -> Option<Bytes> {
         if self.is_empty() {
             return None;

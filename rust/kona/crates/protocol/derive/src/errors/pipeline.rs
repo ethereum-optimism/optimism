@@ -371,6 +371,7 @@ pub enum ResetError {
 
 impl ResetError {
     /// Wrap [`ResetError`] as a [`PipelineErrorKind::Reset`].
+    #[must_use]
     pub const fn reset(self) -> PipelineErrorKind {
         PipelineErrorKind::Reset(self)
     }

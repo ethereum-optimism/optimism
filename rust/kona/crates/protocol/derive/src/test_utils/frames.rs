@@ -30,6 +30,7 @@ fn encode_frames(frames: &[Frame]) -> Bytes {
 
 impl FrameQueueBuilder {
     /// Create a new [`FrameQueueBuilder`] instance.
+    #[must_use]
     pub const fn new() -> Self {
         Self { origin: None, config: None, mock: None, expected_frames: vec![], expected_err: None }
     }
@@ -105,6 +106,10 @@ impl FrameQueueAsserter {
     }
 
     /// Asserts that holocene is active.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub fn holocene_active(&self, active: bool) {
         let holocene = self.inner.is_holocene_active(self.inner.origin().unwrap_or_default());
         if active {
@@ -115,12 +120,20 @@ impl FrameQueueAsserter {
     }
 
     /// Asserts that the frame queue returns with a missing origin error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub async fn missing_origin(mut self) {
         let err = self.inner.next_frame().await.unwrap_err();
         assert_eq!(err, PipelineError::MissingOrigin.crit());
     }
 
     /// Asserts that the frame queue produces the expected frames.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal invariants are violated.
     pub async fn next_frames(mut self) {
         for eframe in self.expected_frames {
             let frame = self.inner.next_frame().await.expect("unexpected frame");

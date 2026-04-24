@@ -47,6 +47,7 @@ pub enum HintType {
 impl HintType {
     /// Creates a new [Hint] from `self` and the specified data. The data passed will be
     /// concatenated into a single byte array before being stored in the resulting [Hint].
+    #[must_use]
     pub fn with_data(self, data: &[&[u8]]) -> Hint<Self> {
         let total_len = data.iter().map(|d| d.len()).sum();
         let hint_data = data.iter().fold(Vec::with_capacity(total_len), |mut acc, d| {

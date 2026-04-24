@@ -284,8 +284,8 @@ mod tests {
                 eip_1559_params: None,
                 min_base_fee: None,
             },
-            parent: Default::default(),
-            derived_from: Default::default(),
+            parent: L2BlockInfo::default(),
+            derived_from: Option::default(),
             is_last_in_span: false,
         }
     }

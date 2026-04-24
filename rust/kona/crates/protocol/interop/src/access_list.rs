@@ -20,6 +20,7 @@ pub fn parse_access_list_items_to_inbox_entries<'a>(
 /// [`Predeploys::CROSS_L2_INBOX`].
 ///
 /// See: <https://github.com/ethereum-optimism/specs/blob/main/specs/interop/predeploys.md#access-list>
+#[must_use]
 pub fn parse_access_list_item_to_inbox_entries(
     access_list_item: &AccessListItem,
 ) -> Option<impl Iterator<Item = &B256>> {

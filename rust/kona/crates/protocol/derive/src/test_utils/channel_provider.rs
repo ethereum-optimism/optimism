@@ -27,6 +27,7 @@ pub struct TestNextFrameProvider {
 
 impl TestNextFrameProvider {
     /// Creates a new [`TestNextFrameProvider`] with the given data.
+    #[must_use]
     pub fn new(data: Vec<PipelineResult<Frame>>) -> Self {
         Self { data, block_info: Some(BlockInfo::default()), reset: false }
     }

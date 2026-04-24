@@ -21,6 +21,7 @@ pub struct SuperRoot {
 
 impl SuperRoot {
     /// Create a new [`SuperRoot`] with the given timestamp and output roots.
+    #[must_use]
     pub fn new(timestamp: u64, mut output_roots: Vec<OutputRootWithChain>) -> Self {
         // Guarantee that the output roots are sorted by chain ID.
         output_roots.sort_by_key(|r| r.chain_id);
@@ -28,6 +29,10 @@ impl SuperRoot {
     }
 
     /// Decodes a [`SuperRoot`] from the given buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode(buf: &mut &[u8]) -> SuperRootResult<Self> {
         if buf.is_empty() {
             return Err(SuperRootError::UnexpectedLength);
@@ -73,11 +78,13 @@ impl SuperRoot {
     }
 
     /// Returns the encoded length of the [`SuperRoot`].
+    #[must_use]
     pub const fn encoded_length(&self) -> usize {
         1 + 8 + 64 * self.output_roots.len()
     }
 
     /// Hashes the encoded [`SuperRoot`] using [keccak256].
+    #[must_use]
     pub fn hash(&self) -> B256 {
         let mut rlp_buf = Vec::with_capacity(self.encoded_length());
         self.encode(&mut rlp_buf);
@@ -136,6 +143,7 @@ pub struct OutputRootWithChain {
 
 impl OutputRootWithChain {
     /// Create a new [`OutputRootWithChain`] with the given chain ID and output root hash.
+    #[must_use]
     pub const fn new(chain_id: u64, output_root: B256) -> Self {
         Self { chain_id, output_root }
     }

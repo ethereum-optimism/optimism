@@ -73,15 +73,15 @@ impl L1BlockInfoEcotoneBase {
     }
     /// Construct from default values and `blob_base_fee`.
     pub(crate) fn new_from_blob_base_fee(blob_base_fee: u128) -> Self {
-        Self { base: Default::default(), blob_base_fee, ..Default::default() }
+        Self { base: L1BlockInfoBedrockBase::default(), blob_base_fee, ..Self::default() }
     }
     /// Construct from default values and `blob_base_fee_scalar`.
     pub(crate) fn new_from_blob_base_fee_scalar(blob_base_fee_scalar: u32) -> Self {
-        Self { base: Default::default(), blob_base_fee_scalar, ..Default::default() }
+        Self { base: L1BlockInfoBedrockBase::default(), blob_base_fee_scalar, ..Default::default() }
     }
     /// Construct from default values and `base_fee_scalar`.
     pub(crate) fn new_from_base_fee_scalar(base_fee_scalar: u32) -> Self {
-        Self { base: Default::default(), base_fee_scalar, ..Default::default() }
+        Self { base: L1BlockInfoBedrockBase::default(), base_fee_scalar, ..Default::default() }
     }
     /// Construct from default values, `number` and `block_hash`.
     pub(crate) fn new_from_number_and_block_hash(number: u64, block_hash: B256) -> Self {

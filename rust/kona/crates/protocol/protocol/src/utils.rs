@@ -13,6 +13,10 @@ use crate::{
 };
 
 /// Converts the [`OpBlock`] to a partial [`SystemConfig`].
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 pub fn to_system_config(
     block: &OpBlock,
     rollup_config: &RollupConfig,
@@ -96,6 +100,10 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
 }
 
 /// Reads transaction data from a reader.
+///
+/// # Errors
+///
+/// Returns an error if the underlying operation fails.
 pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, TxType), SpanBatchError> {
     let mut tx_data = Vec::new();
     let first_byte =
@@ -144,7 +152,7 @@ mod tests {
     use crate::test_utils::{RAW_BEDROCK_INFO_TX, RAW_ECOTONE_INFO_TX, RAW_ISTHMUS_INFO_TX};
     use alloc::vec;
     use alloy_eips::eip1898::BlockNumHash;
-    use alloy_primitives::{U256, address, bytes, uint};
+    use alloy_primitives::{FixedBytes, U256, address, bytes, uint};
     use kona_genesis::{ChainGenesis, HardForkConfig};
 
     #[test]
@@ -227,7 +235,7 @@ mod tests {
                             input: alloy_primitives::Bytes::new(),
                         },
                         alloy_primitives::Signature::new(U256::ZERO, U256::ZERO, false),
-                        Default::default(),
+                        FixedBytes::default(),
                     ),
                 )],
                 ..Default::default()

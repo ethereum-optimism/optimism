@@ -45,6 +45,7 @@ pub struct OrderedChannel {
 
 impl OrderedChannel {
     /// Create a new [`OrderedChannel`] with the given [`ChannelId`] and [`BlockInfo`].
+    #[must_use]
     pub fn new(id: ChannelId, open_block: BlockInfo) -> Self {
         Self {
             id,
@@ -57,31 +58,44 @@ impl OrderedChannel {
     }
 
     /// Returns the [`ChannelId`].
+    #[must_use]
     pub const fn id(&self) -> ChannelId {
         self.id
     }
 
     /// Returns the number of frames ingested.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.inputs.len()
     }
 
     /// Returns if the channel is empty.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.inputs.is_empty()
     }
 
     /// Returns the block number of the L1 block that contained the first [`Frame`].
+    #[must_use]
     pub const fn open_block_number(&self) -> u64 {
         self.open_block.number
     }
 
     /// Returns the estimated size of the channel including [`Frame`] overhead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    #[must_use]
     pub const fn size(&self) -> usize {
         self.estimated_size
     }
 
     /// Add a frame to the channel. The frame number must equal the current frame count
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// (strict sequential ordering).
     pub fn add_frame(
         &mut self,
@@ -114,12 +128,21 @@ impl OrderedChannel {
     }
 
     /// Returns `true` if the channel is ready to be read.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     /// Since frames are ingested in order, the channel is ready as soon as it is closed.
+    #[must_use]
     pub const fn is_ready(&self) -> bool {
         self.closed
     }
 
     /// Returns all of the channel's [`Frame`] data concatenated together.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     ///
     /// Returns an error if the channel is empty or not yet ready.
     pub fn data(&self) -> Result<Bytes, ReadError> {

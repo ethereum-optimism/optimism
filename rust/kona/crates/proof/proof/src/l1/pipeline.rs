@@ -50,6 +50,10 @@ where
 {
     /// Constructs a new oracle-backed derivation pipeline.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
+    ///
     /// `dependency_set` must be `Some` when the rollup config schedules the
     /// Interop hardfork. The [`StatefulAttributesBuilder`] panics at
     /// construction otherwise. Pass `None` only when interop is not scheduled

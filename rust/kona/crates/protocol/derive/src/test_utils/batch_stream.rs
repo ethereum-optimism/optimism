@@ -28,6 +28,7 @@ pub struct TestBatchStreamProvider {
 
 impl TestBatchStreamProvider {
     /// Creates a new [`TestBatchStreamProvider`] with the given origin and batches.
+    #[must_use]
     pub fn new(batches: Vec<PipelineResult<Batch>>) -> Self {
         Self { origin: Some(BlockInfo::default()), batches, reset: false, flushed: false }
     }

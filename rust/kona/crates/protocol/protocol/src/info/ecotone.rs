@@ -93,6 +93,7 @@ impl L1BlockInfoEcotone {
     pub const L1_INFO_TX_SELECTOR: [u8; 4] = [0x44, 0x0a, 0x5e, 0x20];
 
     /// Encodes the [`L1BlockInfoEcotone`] object into Ethereum transaction calldata.
+    #[must_use]
     pub fn encode_calldata(&self) -> Bytes {
         let mut buf = Vec::with_capacity(Self::L1_INFO_TX_LEN);
         self.encode_ecotone_header(&mut buf);
@@ -104,10 +105,14 @@ impl L1BlockInfoEcotone {
 
     /// Encodes the header part of the [`L1BlockInfoEcotone`] object.
     pub fn encode_ecotone_header(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref())
+        buf.extend_from_slice(Self::L1_INFO_TX_SELECTOR.as_ref());
     }
 
     /// Decodes the [`L1BlockInfoEcotone`] object from ethereum transaction calldata.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying operation fails.
     pub fn decode_calldata(r: &[u8]) -> Result<Self, DecodeError> {
         if r.len() != Self::L1_INFO_TX_LEN {
             return Err(DecodeError::InvalidEcotoneLength(Self::L1_INFO_TX_LEN, r.len()));
@@ -167,15 +172,18 @@ impl L1BlockInfoEcotone {
         }
     }
     /// Construct from default values and `base_fee`.
+    #[must_use]
     pub fn new_from_base_fee(base_fee: u64) -> Self {
         Self { base: L1BlockInfoEcotoneBase::new_from_base_fee(base_fee), ..Default::default() }
     }
     /// Construct from default values and `block_hash`.
+    #[must_use]
     pub fn new_from_block_hash(block_hash: B256) -> Self {
         let base = L1BlockInfoEcotoneBase::new_from_block_hash(block_hash);
         Self { base, ..Default::default() }
     }
     /// Construct from default values and `sequence_number`.
+    #[must_use]
     pub fn new_from_sequence_number(sequence_number: u64) -> Self {
         Self {
             base: L1BlockInfoEcotoneBase::new_from_sequence_number(sequence_number),
@@ -183,6 +191,7 @@ impl L1BlockInfoEcotone {
         }
     }
     /// Construct from default values and `batcher_address`.
+    #[must_use]
     pub fn new_from_batcher_address(batcher_address: Address) -> Self {
         Self {
             base: L1BlockInfoEcotoneBase::new_from_batcher_address(batcher_address),
@@ -190,29 +199,35 @@ impl L1BlockInfoEcotone {
         }
     }
     /// Construct from default values and `blob_base_fee`.
+    #[must_use]
     pub fn new_from_blob_base_fee(blob_base_fee: u128) -> Self {
         let base = L1BlockInfoEcotoneBase::new_from_blob_base_fee(blob_base_fee);
         Self { base, ..Default::default() }
     }
     /// Construct from default values and `blob_base_fee_scalar`.
+    #[must_use]
     pub fn new_from_blob_base_fee_scalar(base_fee_scalar: u32) -> Self {
         let base = L1BlockInfoEcotoneBase::new_from_blob_base_fee_scalar(base_fee_scalar);
         Self { base, ..Default::default() }
     }
     /// Construct from default values and `base_fee_scalar`.
+    #[must_use]
     pub fn new_from_base_fee_scalar(base_fee: u32) -> Self {
         let base = L1BlockInfoEcotoneBase::new_from_base_fee_scalar(base_fee);
         Self { base, ..Default::default() }
     }
     /// Construct from default values and `l1_fee_overhead`.
+    #[must_use]
     pub fn new_from_l1_fee_overhead(l1_fee_overhead: U256) -> Self {
         Self { l1_fee_overhead, ..Default::default() }
     }
     /// Construct from default values and `empty_scalars`.
+    #[must_use]
     pub fn new_from_empty_scalars(empty_scalars: bool) -> Self {
         Self { empty_scalars, ..Default::default() }
     }
     /// Construct from default values, `number` and `block_hash`.
+    #[must_use]
     pub fn new_from_number_and_block_hash(number: u64, block_hash: B256) -> Self {
         let base = L1BlockInfoEcotoneBase::new_from_number_and_block_hash(number, block_hash);
         Self { base, ..Default::default() }

@@ -7,6 +7,10 @@ use serde::{self, Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::Value;
 
 /// Serializes a primitive number as a "quantity" hex string.
+///
+/// # Errors
+///
+/// Returns an error if the underlying serializer fails.
 pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
 where
     T: ConvertRuint,
@@ -16,6 +20,10 @@ where
 }
 
 /// Deserializes a primitive number from a "quantity" hex string or raw number.
+///
+/// # Errors
+///
+/// Returns an error if the value is not a string or number, or the numeric value fails to parse.
 pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     T: ConvertRuint,
