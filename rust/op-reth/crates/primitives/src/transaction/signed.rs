@@ -37,7 +37,7 @@ use reth_primitives_traits::{
 #[derive(Debug, Clone, Eq)]
 // Legacy type used only through public trait impls; the `pub type OpTransactionSigned` alias in
 // transaction/mod.rs is the exported surface. Keep this struct internal.
-#[allow(unnameable_types)]
+#[allow(unnameable_types, clippy::redundant_pub_crate)]
 pub(crate) struct OpTransactionSigned {
     /// Transaction hash
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -94,7 +94,7 @@ impl OpTransactionSigned {
     ///
     /// Note: this only calculates the hash on the first [`OpTransactionSigned::hash`] call.
     pub(super) fn new_unhashed(transaction: OpTypedTransaction, signature: Signature) -> Self {
-        Self { hash: Default::default(), signature, transaction }
+        Self { hash: OnceLock::new(), signature, transaction }
     }
 
     /// Returns whether this transaction is a deposit.
@@ -474,6 +474,9 @@ impl reth_codecs::Compact for OpTransactionSigned {
         // The first byte uses 4 bits as flags: IsCompressed[1bit], TxType[2bits], Signature[1bit]
         buf.put_u8(0);
 
+        // SAFETY: `to_compact` here returns a bit-flag value (0 or 1 for signature,
+        // 0..=3 for tx type) that always fits into a `u8`.
+        #[allow(clippy::cast_possible_truncation)]
         let sig_bit = match &self.transaction {
             OpTypedTransaction::Deposit(_) => TxDeposit::signature().to_compact(buf) as u8,
             OpTypedTransaction::PostExec(_) => TxPostExec::signature().to_compact(buf) as u8,
@@ -481,6 +484,9 @@ impl reth_codecs::Compact for OpTransactionSigned {
         };
         let zstd_bit = self.transaction.input().len() >= 32;
 
+        // SAFETY: `to_compact` for `OpTypedTransaction` returns the tx-type discriminant
+        // (0..=3) which always fits into a `u8`.
+        #[allow(clippy::cast_possible_truncation)]
         let tx_bits = if zstd_bit {
             let mut tmp = Vec::with_capacity(256);
             reth_zstd_compressors::with_tx_compressor(|compressor| {
@@ -523,7 +529,7 @@ impl reth_codecs::Compact for OpTransactionSigned {
             OpTypedTransaction::from_compact(buf, transaction_type)
         };
 
-        (Self { signature, transaction, hash: Default::default() }, buf)
+        (Self { signature, transaction, hash: OnceLock::new() }, buf)
     }
 }
 

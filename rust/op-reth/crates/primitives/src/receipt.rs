@@ -239,10 +239,10 @@ mod tests {
             receipt: OpReceipt::Deposit(OpDepositReceipt {
                 inner: Receipt::<Log> {
                     status: Eip658Value::Eip658(true),
-                    cumulative_gas_used: 46913,
+                    cumulative_gas_used: 46_913,
                     logs: vec![],
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: None,
             }),
             logs_bloom: [0; 256].into(),
@@ -267,10 +267,10 @@ mod tests {
             receipt: OpReceipt::Deposit(OpDepositReceipt {
                 inner: Receipt::<Log> {
                     status: Eip658Value::Eip658(true),
-                    cumulative_gas_used: 46913,
+                    cumulative_gas_used: 46_913,
                     logs: vec![],
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: Some(1),
             }),
             logs_bloom: [0; 256].into(),
@@ -288,21 +288,21 @@ mod tests {
     fn gigantic_receipt() {
         let receipt = OpReceipt::Legacy(Receipt::<Log> {
             status: Eip658Value::Eip658(true),
-            cumulative_gas_used: 16747627,
+            cumulative_gas_used: 16_747_627,
             logs: vec![
                 Log::new_unchecked(
                     address!("0x4bf56695415f725e43c3e04354b604bcfb6dfb6e"),
                     vec![b256!(
                         "0xc69dc3d7ebff79e41f525be431d5cd3cc08f80eaf0f7819054a726eeb7086eb9"
                     )],
-                    Bytes::from(vec![1; 0xffffff]),
+                    Bytes::from(vec![1; 0x00ff_ffff]),
                 ),
                 Log::new_unchecked(
                     address!("0xfaca325c86bf9c2d5b413cd7b90b209be92229c2"),
                     vec![b256!(
                         "0x8cca58667b1e9ffa004720ac99a3d61a138181963b294d270d91c53d36402ae2"
                     )],
-                    Bytes::from(vec![1; 0xffffff]),
+                    Bytes::from(vec![1; 0x00ff_ffff]),
                 ),
             ],
         });
