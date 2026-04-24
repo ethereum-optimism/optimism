@@ -3,17 +3,17 @@ title: Upgrade 19 - L2 Contract Manager, Osaka on L2, and Kona Respected Game Ty
 description: Learn how to prepare for Upgrade 19.
 ---
 
-Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling L2 smart contract upgrades through a new onchain mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
+Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
 
 <Info>
-  Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense). Node operators must upgrade before the activation timestamp. Activation timestamps for each network will be communicated once finalized.
+  Upgrade 19 includes hard fork changes (Osaka on L2, Glamsterdam Defense and hard fork activated L2 Contract upgrades). Node operators must upgrade before the activation timestamp. Activation timestamps for each network will be communicated once finalized.
 </Info>
 
 ## What's included in Upgrade 19
 
 Upgrade 19 introduces the following changes:
 
-* **L2 Contract Manager (L2CM):** introduces an onchain mechanism for upgrading L2 predeploy smart contracts as part of a network upgrade. L2CM enables the execution of L2 predeploy upgrades in a structured, auditable way. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
+* **L2 Contract Manager (L2CM):** introduces a mechanism for upgrading L2 smart contracts (predeploys) as part of a network upgrade. L2CM enables L2 predeploy upgrades in a structured, auditable way — reducing the need for multisig signing for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
 
 * **Osaka on L2:** activates Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
 
