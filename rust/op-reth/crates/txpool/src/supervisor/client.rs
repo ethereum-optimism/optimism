@@ -141,6 +141,10 @@ impl SupervisorClient {
 
     /// Queries the interop filter for failsafe state and caches the result.
     /// Calls `admin_getFailsafeEnabled` RPC.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC call times out or the supervisor reports a failure.
     pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
         let result = tokio::time::timeout(
             self.inner.timeout,
@@ -255,6 +259,10 @@ impl SupervisorClientBuilder {
     }
 
     /// Creates a new supervisor validator.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying [`ReqwestClient`] fails to connect to `endpoint`.
     pub async fn build(self) -> SupervisorClient {
         let Self { endpoint, chain_id, timeout, safety } = self;
 

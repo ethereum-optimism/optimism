@@ -61,6 +61,8 @@ impl MaintainPoolInteropMetrics {
     }
     #[inline]
     fn set_interop_txs_in_pool(&self, count: usize) {
+        // SAFETY: Pool size is effectively bounded; precision loss past ~2^53 is acceptable for a gauge.
+        #[allow(clippy::cast_precision_loss, reason = "metric gauge value; precision loss past 2^53 acceptable")]
         self.pooled_interop_transactions.set(count as f64);
     }
 

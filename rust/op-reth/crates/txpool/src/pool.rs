@@ -116,7 +116,7 @@ where
         f.debug_struct("OpPool")
             .field("inner", &self.inner)
             .field("reorg_state", &self.reorg_state)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -468,8 +468,13 @@ mod tests {
         pool: &OpPool<reth_transaction_pool::noop::NoopTransactionPool<MockTransaction>>,
     ) {
         if let Some(state) = &pool.reorg_state {
-            *state.last_reorg_at.write().unwrap() =
-                Some(Instant::now().checked_sub(REORG_WINDOW).unwrap() - Duration::from_secs(1));
+            *state.last_reorg_at.write().unwrap() = Some(
+                Instant::now()
+                    .checked_sub(REORG_WINDOW)
+                    .unwrap()
+                    .checked_sub(Duration::from_secs(1))
+                    .unwrap(),
+            );
         }
     }
 

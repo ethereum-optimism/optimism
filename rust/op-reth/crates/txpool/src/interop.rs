@@ -26,6 +26,7 @@ pub trait MaybeInteropTransaction {
     fn interop_deadline(&self) -> Option<u64>;
 
     /// Helper that sets the interop and returns the instance again
+    #[must_use]
     fn with_interop_deadline(self, interop: u64) -> Self
     where
         Self: Sized,

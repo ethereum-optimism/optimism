@@ -17,6 +17,7 @@ pub trait MaybeConditionalTransaction {
     }
 
     /// Helper that sets the conditional and returns the instance again
+    #[must_use]
     fn with_conditional(mut self, conditional: TransactionConditional) -> Self
     where
         Self: Sized,

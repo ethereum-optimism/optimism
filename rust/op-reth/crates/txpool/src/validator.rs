@@ -21,6 +21,7 @@ use std::sync::{
 };
 
 /// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
+#[allow(clippy::redundant_pub_crate, reason = "pub(crate) is needed: module is private but re-used by sibling modules")]
 pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 
 /// Tracks additional infos for the current block.
@@ -324,14 +325,14 @@ where
 
 /// Keeps track of whether certain forks are activated
 #[derive(Debug)]
-pub(crate) struct OpForkTracker {
+struct OpForkTracker {
     /// Tracks if interop is activated at the block's timestamp.
     interop: AtomicBool,
 }
 
 impl OpForkTracker {
     /// Returns `true` if Interop fork is activated.
-    pub(crate) fn is_interop_activated(&self) -> bool {
+    fn is_interop_activated(&self) -> bool {
         self.interop.load(Ordering::Relaxed)
     }
 }

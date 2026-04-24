@@ -27,7 +27,7 @@ use std::{
 };
 
 /// Marker for no-interop transactions
-pub(crate) const NO_INTEROP_TX: u64 = 0;
+const NO_INTEROP_TX: u64 = 0;
 
 /// Pool transaction for OP.
 ///
@@ -61,11 +61,11 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     pub fn new(transaction: Recovered<Cons>, encoded_length: usize) -> Self {
         Self {
             inner: EthPooledTransaction::new(transaction, encoded_length),
-            estimated_tx_compressed_size: Default::default(),
+            estimated_tx_compressed_size: OnceLock::new(),
             conditional: None,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
             _pd: core::marker::PhantomData,
-            encoded_2718: Default::default(),
+            encoded_2718: OnceLock::new(),
         }
     }
 
@@ -85,6 +85,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     }
 
     /// Conditional setter.
+    #[must_use]
     pub fn with_conditional(mut self, conditional: TransactionConditional) -> Self {
         self.conditional = Some(Box::new(conditional));
         self
@@ -317,7 +318,7 @@ mod tests {
     use crate::{OpPooledTransaction, OpTransactionValidator};
     use alloy_consensus::transaction::Recovered;
     use alloy_eips::eip2718::Encodable2718;
-    use alloy_primitives::{TxKind, U256};
+    use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
     use op_alloy_consensus::TxDeposit;
     use reth_optimism_chainspec::OP_MAINNET;
     use reth_optimism_evm::OpEvmConfig;
@@ -340,16 +341,16 @@ mod tests {
         let validator = OpTransactionValidator::new(validator);
 
         let origin = TransactionOrigin::External;
-        let signer = Default::default();
+        let signer = Address::default();
         let deposit_tx = TxDeposit {
-            source_hash: Default::default(),
+            source_hash: B256::default(),
             from: signer,
             to: TxKind::Create,
             mint: 0,
             value: U256::ZERO,
             gas_limit: 0,
             is_system_transaction: false,
-            input: Default::default(),
+            input: Bytes::default(),
         };
         let signed_tx: OpTransactionSigned = deposit_tx.into();
         let signed_recovered = Recovered::new_unchecked(signed_tx, signer);
@@ -357,9 +358,8 @@ mod tests {
         let pooled_tx: OpPooledTransaction = OpPooledTransaction::new(signed_recovered, len);
         let outcome = validator.validate_one(origin, pooled_tx).await;
 
-        let err = match outcome {
-            TransactionValidationOutcome::Invalid(_, err) => err,
-            _ => panic!("Expected invalid transaction"),
+        let TransactionValidationOutcome::Invalid(_, err) = outcome else {
+            panic!("Expected invalid transaction")
         };
         assert_eq!(err.to_string(), "transaction type not supported");
     }
