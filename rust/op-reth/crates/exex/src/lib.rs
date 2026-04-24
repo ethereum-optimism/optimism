@@ -1,60 +1,3 @@
-// Pedantic/nursery lints from workspace-level clippy config are largely stylistic;
-// reth upstream maintains its own curated lint set. Allow the cosmetic/architectural-cost
-// categories here so real issues stay visible.
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::elidable_lifetime_names)]
-#![allow(clippy::fallible_impl_from)]
-#![allow(clippy::float_cmp)]
-#![allow(clippy::future_not_send)]
-#![allow(clippy::ignore_without_reason)]
-#![allow(clippy::ignored_unit_patterns)]
-#![allow(clippy::inconsistent_struct_constructor)]
-#![allow(clippy::inline_always)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::large_futures)]
-#![allow(clippy::large_stack_arrays)]
-#![allow(clippy::large_stack_frames)]
-#![allow(clippy::manual_let_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::match_wildcard_for_single_variants)]
-#![allow(clippy::mismatching_type_param_order)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::non_std_lazy_statics)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::redundant_pub_crate)]
-#![allow(clippy::ref_option)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::semicolon_if_nothing_returned)]
-#![allow(clippy::significant_drop_tightening)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::single_match_else)]
-#![allow(clippy::struct_excessive_bools)]
-#![allow(clippy::struct_field_names)]
-#![allow(clippy::too_long_first_doc_paragraph)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unchecked_time_subtraction)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::unnecessary_semicolon)]
-#![allow(clippy::unnecessary_wraps)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::unused_async)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::use_self)]
-#![allow(clippy::used_underscore_binding)]
-#![allow(clippy::wildcard_imports)]
-
 //! ExEx unique for OP-Reth. See also [`reth_exex`] for more op-reth execution extensions.
 
 #![doc(
@@ -133,18 +76,21 @@ where
     }
 
     /// Sets the window to span blocks for proofs history.
+    #[must_use]
     pub const fn with_proofs_history_window(mut self, window: u64) -> Self {
         self.proofs_history_window = window;
         self
     }
 
     /// Sets the interval between proof-storage prune runs.
+    #[must_use]
     pub const fn with_proofs_history_prune_interval(mut self, interval: Duration) -> Self {
         self.proofs_history_prune_interval = interval;
         self
     }
 
     /// Sets the verification interval.
+    #[must_use]
     pub const fn with_verification_interval(mut self, interval: u64) -> Self {
         self.verification_interval = interval;
         self
@@ -274,6 +220,11 @@ where
     Storage: OpProofsStore + Clone + 'static,
 {
     /// Main execution loop for the ExEx
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization, the notification stream, or any
+    /// inner proof/prune task fails.
     pub async fn run(mut self) -> eyre::Result<()> {
         self.ensure_initialized()?;
         let sync_target_tx = self.spawn_sync_task();
@@ -295,7 +246,7 @@ where
         );
 
         while let Some(notification) = self.ctx.notifications.try_next().await? {
-            self.handle_notification(notification, &collector, &sync_target_tx)?;
+            self.handle_notification(&notification, &collector, &sync_target_tx)?;
         }
 
         Ok(())
@@ -305,13 +256,10 @@ where
     fn ensure_initialized(&self) -> eyre::Result<()> {
         // Check if proofs storage is initialized
         let provider_ro = self.storage.provider_ro()?;
-        let earliest_block_number = match provider_ro.get_earliest_block_number()? {
-            Some((n, _)) => n,
-            None => {
-                return Err(eyre::eyre!(
-                    "Proofs storage not initialized. Please run 'op-reth initialize-op-proofs --proofs-history.storage-path <PATH>' first."
-                ));
-            }
+        let Some((earliest_block_number, _)) = provider_ro.get_earliest_block_number()? else {
+            return Err(eyre::eyre!(
+                "Proofs storage not initialized. Please run 'op-reth initialize-op-proofs --proofs-history.storage-path <PATH>' first."
+            ));
         };
 
         let latest_block_number: u64 = match provider_ro.get_latest_block_number()? {
@@ -344,6 +292,8 @@ where
         // can show outdated info. When metrics are disabled, this is a no-op.
         #[cfg(feature = "metrics")]
         {
+            // SAFETY: block number gauge; precision loss past 2^53 is acceptable for a metric.
+            #[allow(clippy::cast_precision_loss, reason = "metric gauge; block number precision loss past 2^53 acceptable")]
             self.storage
                 .metrics()
                 .block_metrics()
@@ -445,26 +395,24 @@ where
 
     fn handle_notification(
         &self,
-        notification: ExExNotification<Primitives>,
+        notification: &ExExNotification<Primitives>,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         sync_target_tx: &watch::Sender<u64>,
     ) -> eyre::Result<()> {
-        let latest_stored = match self.storage.provider_ro()?.get_latest_block_number()? {
-            Some((n, _)) => n,
-            None => {
-                return Err(eyre::eyre!("No blocks stored in proofs storage"));
-            }
+        let Some((latest_stored, _)) = self.storage.provider_ro()?.get_latest_block_number()?
+        else {
+            return Err(eyre::eyre!("No blocks stored in proofs storage"));
         };
 
         match &notification {
             ExExNotification::ChainCommitted { new } => {
-                self.handle_chain_committed(new.clone(), latest_stored, collector, sync_target_tx)?
+                self.handle_chain_committed(new, latest_stored, collector, sync_target_tx)?;
             }
             ExExNotification::ChainReorged { old, new } => {
-                self.handle_chain_reorged(old.clone(), new.clone(), latest_stored, collector)?
+                Self::handle_chain_reorged(old, new, latest_stored, collector)?;
             }
             ExExNotification::ChainReverted { old } => {
-                self.handle_chain_reverted(old.clone(), latest_stored, collector)?
+                Self::handle_chain_reverted(old, latest_stored, collector)?;
             }
         }
 
@@ -477,7 +425,7 @@ where
 
     fn handle_chain_committed(
         &self,
-        new: Arc<Chain<Primitives>>,
+        new: &Arc<Chain<Primitives>>,
         latest_stored: u64,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
         sync_target_tx: &watch::Sender<u64>,
@@ -517,7 +465,7 @@ where
             // Process each block from latest_stored + 1 to tip
             let start = latest_stored.saturating_add(1);
             for block_number in start..=new.tip().number() {
-                self.process_block(block_number, &new, collector)?;
+                self.process_block(block_number, new, collector)?;
             }
         } else {
             debug!(
@@ -607,9 +555,8 @@ where
     }
 
     fn handle_chain_reorged(
-        &self,
-        old: Arc<Chain<Primitives>>,
-        new: Arc<Chain<Primitives>>,
+        old: &Arc<Chain<Primitives>>,
+        new: &Arc<Chain<Primitives>>,
         latest_stored: u64,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
     ) -> eyre::Result<()> {
@@ -668,8 +615,7 @@ where
     }
 
     fn handle_chain_reverted(
-        &self,
-        old: Arc<Chain<Primitives>>,
+        old: &Arc<Chain<Primitives>>,
         latest_stored: u64,
         collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
     ) -> eyre::Result<()> {
@@ -696,6 +642,12 @@ where
 }
 
 #[cfg(test)]
+// `reth_exex_test_utils::test_exex_context()` returns a large future (~17KB stack frame).
+// Boxing every await site in ~12 test bodies adds noise without meaningful benefit in tests.
+#[allow(
+    clippy::large_futures,
+    reason = "test_exex_context() produces ~17KB futures; pervasive in every test"
+)]
 mod tests {
     use super::*;
     use alloy_consensus::private::alloy_primitives::B256;
@@ -725,6 +677,8 @@ mod tests {
     // deterministic hash from block number: 0 -> 0x00.., 1 -> 0x01.., etc.
     fn hash_for_num(num: u64) -> B256 {
         // if you only care about small test numbers, this is enough:
+        // SAFETY: test helper; all test block numbers are < 256.
+        #[allow(clippy::cast_possible_truncation, reason = "test helper, block numbers < 256")]
         b256(num as u8)
 
         // If you want to avoid wrapping when num > 255, use something like:
@@ -734,7 +688,7 @@ mod tests {
     }
 
     fn mk_block(num: u64) -> RecoveredBlock<Block> {
-        let mut b: RecoveredBlock<Block> = Default::default();
+        let mut b: RecoveredBlock<Block> = RecoveredBlock::default();
         b.set_block_number(num);
         b.set_hash(hash_for_num(num));
         b.set_parent_hash(hash_for_num(num - 1));
@@ -763,6 +717,8 @@ mod tests {
             trie_data.insert(n, data);
         }
 
+        // Default::default() avoids importing the concrete revm bundle type into test-only code.
+        #[allow(clippy::default_trait_access, reason = "avoid importing revm internals in test-only code")]
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
             bundle: Default::default(),
             receipts: Vec::new(),
@@ -774,7 +730,7 @@ mod tests {
     }
 
     // Init_storage to the genesis block
-    fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
+    fn init_storage<S: OpProofsStore>(storage: &OpProofsStorage<S>) {
         let genesis_block = NumHash::new(0, b256(0x00));
         let provider_rw = storage.provider_rw().expect("provider_rw");
         provider_rw
@@ -812,7 +768,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -830,7 +786,7 @@ mod tests {
 
         let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
 
-        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
+        exex.handle_notification(&notif, &collector, &sync_target_tx).expect("handle chain commit");
 
         let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 1);
@@ -843,7 +799,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -861,7 +817,7 @@ mod tests {
         for i in 1..=5 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
-            exex.handle_notification(notif, &collector, &sync_target_tx)
+            exex.handle_notification(&notif, &collector, &sync_target_tx)
                 .expect("handle chain commit");
         }
 
@@ -871,7 +827,7 @@ mod tests {
         // Try to handle already processed notification
         let new_chain = Arc::new(mk_chain_with_updates(5, 5, Some(hash_for_num(10))));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
-        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
+        exex.handle_notification(&notif, &collector, &sync_target_tx).expect("handle chain commit");
         let latest = get_latest(&proofs).expect("ok");
         assert_eq!(latest.0, 5);
         assert_eq!(latest.1, hash_for_num(5)); // block was not updated
@@ -884,7 +840,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -902,7 +858,7 @@ mod tests {
         for i in 1..=10 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
-            exex.handle_notification(notif, &collector, &sync_target_tx)
+            exex.handle_notification(&notif, &collector, &sync_target_tx)
                 .expect("handle chain commit");
         }
 
@@ -916,7 +872,7 @@ mod tests {
         // Notification: chain reorged 6..12
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        exex.handle_notification(&notif, &collector, &sync_target_tx)
             .expect("handle chain re-orged");
         let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 12);
@@ -929,7 +885,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -948,7 +904,7 @@ mod tests {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
+            exex.handle_notification(&notif, &collector, &sync_target_tx)
                 .expect("handle chain commit");
         }
 
@@ -962,7 +918,7 @@ mod tests {
         // Notification: chain reorged 12..15
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        exex.handle_notification(&notif, &collector, &sync_target_tx)
             .expect("handle chain re-orged");
         let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 10);
@@ -975,7 +931,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -994,7 +950,7 @@ mod tests {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
+            exex.handle_notification(&notif, &collector, &sync_target_tx)
                 .expect("handle chain commit");
         }
 
@@ -1007,7 +963,7 @@ mod tests {
         // Notification: chain reverted 9..10
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        exex.handle_notification(&notif, &collector, &sync_target_tx)
             .expect("handle chain reverted");
         let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 8);
@@ -1020,7 +976,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -1039,7 +995,7 @@ mod tests {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
+            exex.handle_notification(&notif, &collector, &sync_target_tx)
                 .expect("handle chain commit");
         }
 
@@ -1052,7 +1008,7 @@ mod tests {
         // Notification: chain reverted 9..10
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        exex.handle_notification(&notif, &collector, &sync_target_tx)
             .expect("handle chain reverted");
         let latest = get_latest(&proofs).expect("ok").0;
         assert_eq!(latest, 5);
@@ -1079,7 +1035,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         for i in 1..1100 {
             let p = proofs.provider_rw().expect("provider_rw");
@@ -1105,7 +1061,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -1137,7 +1093,7 @@ mod tests {
         let notif = ExExNotification::ChainCommitted { new: new_chain };
 
         let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
-        let err = exex.handle_notification(notif, &collector, &sync_target_tx).unwrap_err();
+        let err = exex.handle_notification(&notif, &collector, &sync_target_tx).unwrap_err();
         assert_eq!(err.to_string(), "No blocks stored in proofs storage");
     }
 
@@ -1148,7 +1104,7 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
         let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(&proofs);
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -1167,7 +1123,7 @@ mod tests {
         let (sync_target_tx, mut sync_target_rx) = tokio::sync::watch::channel(0u64);
 
         // Process notification
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        exex.handle_notification(&notif, &collector, &sync_target_tx)
             .expect("handle chain commit should return ok immediately");
 
         // Verify async signal was sent
