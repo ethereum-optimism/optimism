@@ -25,8 +25,10 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 		if err != nil {
 			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
 		}
-		if syncStatus.SafeL2.Number == 0 {
-			return 0, fmt.Errorf("chain %s: safe L2 number is 0", chain.ID())
+		// watch that local safe advances to become non-zero
+		// local safe should advance even if cross safe has nothing to work from
+		if syncStatus.LocalSafeL2.Number == 0 {
+			return 0, fmt.Errorf("chain %s: local safe L2 number is 0", chain.ID())
 		}
 		i.log.Debug("log backfill: sync status",
 			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
