@@ -50,6 +50,9 @@ where
 {
     /// Handles the provided [`SequencerAdminQuery`], sending the response via the provided sender.
     /// This function is used to decouple admin API logic from the response mechanism (channels).
+    // The future's `Send`-ness depends on trait-generic parameters chosen by the caller;
+    // the actor consumes this future on its own single-threaded task.
+    #[allow(clippy::future_not_send)]
     pub(super) async fn handle_admin_query(&mut self, query: SequencerAdminQuery) {
         match query {
             SequencerAdminQuery::SequencerActive(tx) => {
@@ -96,21 +99,27 @@ where
     }
 
     /// Returns whether the sequencer is active.
+    // `async` is retained so callers can `.await` uniformly alongside the other admin
+    // query handlers; generic trait bounds prevent the returned future from being `Send`.
+    #[allow(clippy::unused_async, clippy::future_not_send)]
     pub(super) async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.is_active)
     }
 
     /// Returns whether the conductor is enabled.
+    #[allow(clippy::unused_async, clippy::future_not_send)]
     pub(super) async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.conductor.is_some())
     }
 
     /// Returns whether the node is in recovery mode.
+    #[allow(clippy::unused_async, clippy::future_not_send)]
     pub(super) async fn in_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.in_recovery_mode)
     }
 
     /// Starts the sequencer in an idempotent fashion.
+    #[allow(clippy::unused_async, clippy::future_not_send)]
     pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
@@ -141,6 +150,7 @@ where
     }
 
     /// Sets the recovery mode of the sequencer in an idempotent fashion.
+    #[allow(clippy::unused_async, clippy::future_not_send)]
     pub(super) async fn set_recovery_mode(
         &mut self,
         is_active: bool,
@@ -155,6 +165,7 @@ where
 
     /// Overrides the leader, if the conductor is enabled.
     /// If not, an error will be returned.
+    #[allow(clippy::future_not_send)]
     pub(super) async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
         let Some(conductor) = self.conductor.as_mut() else {
             return Err(SequencerAdminAPIError::LeaderOverrideError(
@@ -173,6 +184,7 @@ where
         Ok(())
     }
 
+    #[allow(clippy::future_not_send)]
     pub(super) async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
         info!(target: "sequencer", "Resetting derivation pipeline");
         self.engine_client.reset_engine_forkchoice().await.map_err(|e| {

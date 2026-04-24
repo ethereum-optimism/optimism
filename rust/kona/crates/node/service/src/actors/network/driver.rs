@@ -45,6 +45,11 @@ pub enum NetworkDriverError {
 
 impl NetworkDriver {
     /// Starts the network.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`NetworkDriverError`] if the gossip swarm cannot start, the signer fails
+    /// to start, or the gossip listen address cannot be parsed.
     pub async fn start(mut self) -> Result<NetworkHandler, NetworkDriverError> {
         // Start the libp2p Swarm
         let gossip_listen_addr = self.gossip.start().await?;

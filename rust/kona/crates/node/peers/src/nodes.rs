@@ -13,6 +13,7 @@ impl BootNodes {
     /// Returns the bootnodes for the given chain id.
     ///
     /// If the chain id is not recognized, no bootnodes are returned.
+    #[must_use]
     pub fn from_chain_id(id: u64) -> Self {
         let Some(chain) = CHAINS.get_chain_by_id(id) else {
             return Self(vec![]);
@@ -25,21 +26,25 @@ impl BootNodes {
     }
 
     /// Returns the bootnodes for the mainnet.
+    #[must_use]
     pub fn mainnet() -> Self {
         Self(OP_BOOTNODES.clone())
     }
 
     /// Returns the bootnodes for the testnet.
+    #[must_use]
     pub fn testnet() -> Self {
         Self(OP_TESTNET_BOOTNODES.clone())
     }
 
     /// Returns the length of the bootnodes.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Returns if the bootnodes are empty.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -132,11 +137,11 @@ mod tests {
     #[test]
     fn test_parse_raw_bootnodes() {
         for raw in OP_RAW_BOOTNODES {
-            BootNode::parse_bootnode(raw);
+            let _ = BootNode::parse_bootnode(raw);
         }
 
         for raw in OP_RAW_TESTNET_BOOTNODES {
-            BootNode::parse_bootnode(raw);
+            let _ = BootNode::parse_bootnode(raw);
         }
     }
 

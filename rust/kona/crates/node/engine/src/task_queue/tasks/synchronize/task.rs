@@ -48,6 +48,9 @@ pub struct SynchronizeTask<EngineClient_: EngineClient> {
 impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
     /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
     /// necessary.
+    // `self` is not currently read but the method is called via `self.` and is logically an
+    // instance method on [`SynchronizeTask`].
+    #[allow(clippy::unused_self)]
     fn check_forkchoice_updated_status(
         &self,
         state: &mut EngineState,
@@ -128,7 +131,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
             let error = e
                 .as_error_resp()
                 .and_then(|e| {
-                    (e.code == INVALID_FORK_CHOICE_STATE_ERROR as i64)
+                    (e.code == i64::from(INVALID_FORK_CHOICE_STATE_ERROR))
                         .then_some(SynchronizeTaskError::InvalidForkchoiceState)
                 })
                 .unwrap_or_else(|| SynchronizeTaskError::ForkchoiceUpdateFailed(e));

@@ -227,6 +227,7 @@ pub struct DelayedL1OriginSelectorProvider {
 
 impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
+    #[must_use]
     pub const fn new(
         inner: RootProvider,
         l1_head: watch::Receiver<Option<BlockInfo>>,
@@ -268,6 +269,9 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
     }
 }
 
+// Tests cast small loop indices and timestamps between `u64` / `usize` / `u8`; the
+// values are always in-range for the test scenarios and `as` is idiomatic.
+#[allow(clippy::cast_possible_truncation)]
 #[cfg(test)]
 mod test {
     use super::*;

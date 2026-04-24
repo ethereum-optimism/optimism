@@ -51,6 +51,11 @@ pub struct Cli {
 
 impl Cli {
     /// Runs the CLI.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error propagated from initializing logs, metrics, or running the selected
+    /// subcommand.
     pub fn run(self) -> Result<()> {
         // Initialize telemetry - allow subcommands to customize the filter.
         match self.subcommand {
@@ -83,6 +88,11 @@ impl Cli {
     }
 
     /// Run until ctrl-c is pressed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tokio runtime cannot be built or if the provided future
+    /// resolves with an error before the ctrl-c signal fires.
     pub fn run_until_ctrl_c<F>(fut: F) -> Result<()>
     where
         F: std::future::Future<Output = Result<()>>,
@@ -100,7 +110,12 @@ impl Cli {
     }
 
     /// Creates a new default tokio multi-thread [Runtime](tokio::runtime::Runtime) with all
-    /// features enabled
+    /// features enabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`std::io::Error`] if the runtime builder fails (for example when the OS
+    /// denies thread creation).
     pub fn tokio_runtime() -> Result<tokio::runtime::Runtime, std::io::Error> {
         tokio::runtime::Builder::new_multi_thread().enable_all().build()
     }

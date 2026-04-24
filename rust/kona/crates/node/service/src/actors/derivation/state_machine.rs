@@ -179,17 +179,24 @@ impl DerivationStateMachine {
     }
 
     /// Gets the current [`DerivationState`] of the state machine.
+    #[must_use]
     pub const fn current_state(&self) -> DerivationState {
         self.state
     }
 
     /// Gets the last [`L2BlockInfo`] confirmed by the engine.
+    #[must_use]
     pub const fn last_confirmed_safe_head(&self) -> L2BlockInfo {
         self.confirmed_safe_head
     }
 
     /// Applies the provided  [`DerivationStateUpdate`], returning an
     /// [`DerivationStateTransitionError`] if the state transition was invalid.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DerivationStateTransitionError`] when the proposed update is inconsistent
+    /// with the current state (e.g., duplicated attributes, out-of-order safe-head updates).
     pub fn update(
         &mut self,
         state_update: &DerivationStateUpdate,

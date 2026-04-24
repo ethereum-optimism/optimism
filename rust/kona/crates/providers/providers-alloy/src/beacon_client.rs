@@ -55,6 +55,7 @@ pub struct APIConfigResponse {
 
 impl APIConfigResponse {
     /// Creates a new API config response.
+    #[must_use]
     pub const fn new(seconds_per_slot: u64) -> Self {
         Self { data: ReducedConfigData { seconds_per_slot } }
     }
@@ -62,6 +63,7 @@ impl APIConfigResponse {
 
 impl APIGenesisResponse {
     /// Creates a new API genesis response.
+    #[must_use]
     pub const fn new(genesis_time: u64) -> Self {
         Self { data: ReducedGenesisData { genesis_time } }
     }
@@ -140,6 +142,12 @@ pub struct OnlineBeaconClient {
 
 impl OnlineBeaconClient {
     /// Creates a new [`OnlineBeaconClient`] from the provided base URL string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying `reqwest::Client` cannot be constructed (e.g., the system TLS
+    /// backend fails to initialize).
+    #[must_use]
     pub fn new_http(mut base: String) -> Self {
         // If base ends with a slash, remove it
         if base.ends_with('/') {
@@ -154,6 +162,7 @@ impl OnlineBeaconClient {
 
     /// Sets the duration in seconds of an L1 slot. This can be used to override the CL slot
     /// duration if the l1-beacon's slot configuration endpoint is not available.
+    #[must_use]
     pub const fn with_l1_slot_duration_override(mut self, l1_slot_duration: u64) -> Self {
         self.l1_slot_duration = Some(l1_slot_duration);
         self
@@ -292,6 +301,12 @@ mod tests {
         assert_eq!(test_blob_hash, blob_versioned_hash(&input).unwrap());
     }
 
+    struct TestCase {
+        name: &'static str,
+        mock_response_data: Vec<Blob>,
+        want: Option<Vec<BoxedBlob>>, // if none, expect an error
+    }
+
     #[tokio::test]
     async fn test_filtered_beacon_blobs() {
         let slot = 987_654_321;
@@ -301,12 +316,6 @@ mod tests {
         let required_query_param = format!("{TEST_BLOB_HASH_HEX},{TEST_BLOB_HASH_HEX}");
         let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
         let requested_blob_hashes: Vec<B256> = vec![test_blob_hash, test_blob_hash];
-
-        struct TestCase {
-            name: &'static str,
-            mock_response_data: Vec<Blob>,
-            want: Option<Vec<BoxedBlob>>, // if none, expect an error
-        }
 
         let test_cases = vec![
             TestCase {

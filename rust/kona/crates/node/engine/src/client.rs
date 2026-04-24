@@ -1,5 +1,7 @@
 //! An Engine API Client.
 
+// Only read via `kona_macros::record!` when the `metrics` feature is enabled.
+#[cfg_attr(not(feature = "metrics"), allow(unused_imports))]
 use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_network::{Ethereum, Network};
@@ -113,6 +115,7 @@ where
     L2Provider: Provider<Optimism>,
 {
     /// Creates a new RPC client for the given address and JWT secret.
+    #[must_use]
     pub fn rpc_client<N: Network>(addr: Url, jwt: JwtSecret) -> RootProvider<N> {
         let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
         let auth_layer = AuthLayer::new(jwt);
@@ -142,6 +145,7 @@ impl EngineClientBuilder {
     ///
     /// Sets up a JWT-authenticated connection to the L2 Engine API endpoint
     /// along with an unauthenticated connection to the L1 chain.
+    #[must_use]
     pub fn build(self) -> OpEngineClient<RootProvider, RootProvider<Optimism>> {
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
             self.l2,
@@ -375,6 +379,7 @@ where
 }
 
 /// Wrapper to record the time taken for a call to the engine API and log the result as a metric.
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
 async fn record_call_time<T, Err>(
     f: impl Future<Output = Result<T, Err>>,
     metric_label: &'static str,

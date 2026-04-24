@@ -63,6 +63,7 @@ impl CachedBlock {
     }
 
     /// Mark this block as non-canonical
+    #[must_use]
     pub const fn mark_non_canonical(mut self) -> Self {
         self.canonical = false;
         self
@@ -108,6 +109,11 @@ impl ChainStateBuffer {
     /// # Arguments
     /// * `capacity` - Maximum number of blocks to cache (affects memory usage)
     /// * `max_reorg_depth` - Maximum reorg depth to handle before clearing cache
+    ///
+    /// # Panics
+    ///
+    /// Panics if `capacity` is zero, because the LRU cache requires a non-zero capacity.
+    #[must_use]
     pub fn new(capacity: usize, max_reorg_depth: u64) -> Self {
         Self {
             blocks_by_hash: RwLock::new(LruCache::new(NonZeroUsize::new(capacity).unwrap())),
@@ -137,6 +143,9 @@ impl ChainStateBuffer {
     }
 
     /// Insert a block into the cache
+    // The two write guards are held across metric updates so the reported sizes remain
+    // consistent with the new insert; tightening would produce stale counts.
+    #[allow(clippy::significant_drop_tightening)]
     pub async fn insert_block(&self, block: CachedBlock) {
         let hash = block.hash();
         let number = block.number();
@@ -167,7 +176,12 @@ impl ChainStateBuffer {
         }
     }
 
-    /// Handle a chain state event
+    /// Handle a chain state event.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ChainBufferError::ReorgTooDeep`] if a reorg event exceeds
+    /// `max_reorg_depth`.
     pub async fn handle_event(&self, event: ChainStateEvent) -> Result<(), ChainBufferError> {
         match event {
             ChainStateEvent::ChainCommitted { new_head, committed } => {
@@ -183,6 +197,9 @@ impl ChainStateBuffer {
     }
 
     /// Handle chain committed event
+    // The canonical-head and blocks-by-hash guards are both held across the loop so the
+    // update is observed atomically.
+    #[allow(clippy::significant_drop_tightening)]
     async fn handle_chain_committed(
         &self,
         new_head: B256,
@@ -204,6 +221,9 @@ impl ChainStateBuffer {
     }
 
     /// Handle chain reorged event
+    // Write guards are held across cache clearing so readers see a consistent snapshot
+    // during the reorg.
+    #[allow(clippy::significant_drop_tightening)]
     async fn handle_chain_reorged(
         &self,
         _old_head: B256,
@@ -243,6 +263,9 @@ impl ChainStateBuffer {
     }
 
     /// Handle chain reverted event
+    // Canonical-head and blocks-by-hash guards are held across the pop loop so the
+    // update is atomic.
+    #[allow(clippy::significant_drop_tightening)]
     async fn handle_chain_reverted(
         &self,
         _old_head: B256,
@@ -269,6 +292,9 @@ impl ChainStateBuffer {
     }
 
     /// Get cache statistics
+    // Both read guards are held across the struct construction so the sizes reported are
+    // from a consistent snapshot.
+    #[allow(clippy::significant_drop_tightening)]
     pub async fn cache_stats(&self) -> CacheStats {
         let blocks_by_hash = self.blocks_by_hash.read().await;
         let blocks_by_number = self.blocks_by_number.read().await;
@@ -282,6 +308,9 @@ impl ChainStateBuffer {
     }
 
     /// Clear the entire cache
+    // All three write guards are held together to ensure readers observe the empty caches
+    // atomically.
+    #[allow(clippy::significant_drop_tightening)]
     pub async fn clear(&self) {
         let mut blocks_by_hash = self.blocks_by_hash.write().await;
         let mut blocks_by_number = self.blocks_by_number.write().await;

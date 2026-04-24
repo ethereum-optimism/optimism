@@ -303,7 +303,7 @@ impl<'de> serde::Deserialize<'de> for Direction {
             1 => Ok(Self::Inbound),
             2 => Ok(Self::Outbound),
             _ => Err(serde::de::Error::invalid_value(
-                serde::de::Unexpected::Unsigned(value as u64),
+                serde::de::Unexpected::Unsigned(u64::from(value)),
                 &"a value between 0 and 2",
             )),
         }

@@ -48,29 +48,34 @@ impl NodeRecord {
     }
 
     /// Same as [`Self::convert_ipv4_mapped`] but consumes the type
+    #[must_use]
     pub fn into_ipv4_mapped(mut self) -> Self {
         self.convert_ipv4_mapped();
         self
     }
 
     /// Sets the tcp port
+    #[must_use]
     pub const fn with_tcp_port(mut self, port: u16) -> Self {
         self.tcp_port = port;
         self
     }
 
     /// Sets the udp port
+    #[must_use]
     pub const fn with_udp_port(mut self, port: u16) -> Self {
         self.udp_port = port;
         self
     }
 
     /// Creates a new record from a socket addr and peer id.
+    #[must_use]
     pub const fn new(addr: SocketAddr, id: PeerId) -> Self {
         Self { address: addr.ip(), tcp_port: addr.port(), udp_port: addr.port(), id }
     }
 
     /// Creates a new record from an ip address and ports.
+    #[must_use]
     pub fn new_with_ports(
         ip_addr: IpAddr,
         tcp_port: u16,

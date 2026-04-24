@@ -25,6 +25,7 @@ pub struct OutputResponse {
 
 impl OutputResponse {
     /// Builds an [`OutputResponse`] from its parts.
+    #[must_use]
     pub fn from_v0(v0: OutputRoot, sync_status: SyncStatus, block_ref: L2BlockInfo) -> Self {
         Self {
             version: v0.version(),

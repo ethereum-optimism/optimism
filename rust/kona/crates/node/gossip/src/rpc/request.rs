@@ -105,6 +105,16 @@ pub enum P2pRpcRequest {
     PeerStats(Sender<PeerStats>),
 }
 
+/// Accumulates per-peer metadata while building a [`PeerDump`] response.
+#[derive(Default)]
+struct PeerMetadata {
+    protocols: Option<Vec<String>>,
+    addresses: Vec<String>,
+    user_agent: String,
+    protocol_version: String,
+    score: f64,
+}
+
 impl P2pRpcRequest {
     /// Handles the peer count request.
     pub fn handle<G: ConnectionGate>(self, gossip: &mut GossipDriver<G>, disc: &Discv5Handler) {
@@ -115,7 +125,7 @@ impl P2pRpcRequest {
             Self::Peers { out, connected } => Self::handle_peers(out, connected, gossip, disc),
             Self::DisconnectPeer { peer_id } => Self::disconnect_peer(peer_id, gossip),
             Self::PeerStats(s) => Self::handle_peer_stats(s, gossip, disc),
-            Self::ConnectPeer { address } => Self::connect_peer(address, gossip),
+            Self::ConnectPeer { address } => Self::connect_peer(&address, gossip),
             Self::BlockPeer { id } => Self::block_peer(id, gossip),
             Self::UnblockPeer { id } => Self::unblock_peer(id, gossip),
             Self::ListBlockedPeers(s) => Self::list_blocked_peers(s, gossip),
@@ -178,7 +188,7 @@ impl P2pRpcRequest {
         gossip.connection_gate.unblock_subnet(address);
     }
 
-    fn connect_peer<G: ConnectionGate>(address: Multiaddr, gossip: &mut GossipDriver<G>) {
+    fn connect_peer<G: ConnectionGate>(address: &Multiaddr, gossip: &mut GossipDriver<G>) {
         gossip.dial_multiaddr(address);
     }
 
@@ -224,6 +234,10 @@ impl P2pRpcRequest {
         });
     }
 
+    // The function aggregates peer metadata from multiple sources (swarm, peerstore,
+    // discovery table, connection gate) and assembles a single response; splitting it
+    // would require threading many intermediate values through helpers.
+    #[allow(clippy::too_many_lines)]
     fn handle_peers<G: ConnectionGate>(
         sender: Sender<PeerDump>,
         connected: bool,
@@ -270,15 +284,6 @@ impl P2pRpcRequest {
 
         // Clone the ping map
         let pings = Arc::clone(&gossip.ping);
-
-        #[derive(Default)]
-        struct PeerMetadata {
-            protocols: Option<Vec<String>>,
-            addresses: Vec<String>,
-            user_agent: String,
-            protocol_version: String,
-            score: f64,
-        }
 
         // Build a map of peer ids to their supported protocols and addresses.
         let mut peer_metadata: HashMap<PeerId, PeerMetadata> = gossip
@@ -616,6 +621,11 @@ impl P2pRpcRequest {
                 return;
             };
 
+            let Ok(banned) = u32::try_from(banned_peers) else {
+                error!(target: "p2p::rpc", "The number of banned peers overflows u32.");
+                return;
+            };
+
             let stats = PeerStats {
                 connected,
                 table,
@@ -623,7 +633,7 @@ impl P2pRpcRequest {
                 blocks_topic_v2: block_topics[1],
                 blocks_topic_v3: block_topics[2],
                 blocks_topic_v4: block_topics[3],
-                banned: banned_peers as u32,
+                banned,
                 known,
             };
 

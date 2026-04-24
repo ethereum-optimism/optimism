@@ -38,6 +38,11 @@ pub struct DerivationDelegateClient {
 
 impl DerivationDelegateClient {
     /// Creates a new Derivation Delegate client.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DerivationDelegateClientError::HttpClientBuild`] if the HTTP client cannot
+    /// be built for the given URL.
     pub fn new(derivation_client_url: Url) -> Result<Self, DerivationDelegateClientError> {
         let derivation_client = HttpClientBuilder::default()
             .request_timeout(Duration::from_millis(DEFAULT_FOLLOW_TIMEOUT))
@@ -50,6 +55,11 @@ impl DerivationDelegateClient {
     /// Fetches the current sync status from the Derivation Delegate.
     ///
     /// Calls `optimism_syncStatus` RPC method.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DerivationDelegateClientError`] if the RPC call fails (transport error,
+    /// timeout, or a JSON-RPC error response).
     pub async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
         Ok(self.derivation_client.op_sync_status().await?)
     }

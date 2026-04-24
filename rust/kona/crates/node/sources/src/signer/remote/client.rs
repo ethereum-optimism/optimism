@@ -80,6 +80,11 @@ impl RemoteSigner {
     /// 4. Replace the existing client atomically
     ///
     /// This enables zero-downtime certificate rotation in production environments.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`RemoteSignerStartError`] if the HTTP client cannot be built (e.g., invalid
+    /// TLS material) or if the certificate watcher fails to register file watches.
     pub async fn start(self) -> Result<RemoteSignerHandler, RemoteSignerStartError> {
         let http_client = self.build_http_client()?;
         let transport = Http::with_client(http_client, self.endpoint.clone());

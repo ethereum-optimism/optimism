@@ -49,6 +49,7 @@ impl BufferedL2Provider {
     /// * `rollup_config` - The rollup configuration containing genesis and chain parameters
     /// * `cache_size` - Maximum number of blocks to keep in the LRU cache
     /// * `max_reorg_depth` - Maximum reorg depth to handle before clearing the cache
+    #[must_use]
     pub fn new(rollup_config: Arc<RollupConfig>, cache_size: usize, max_reorg_depth: u64) -> Self {
         let genesis = rollup_config.genesis;
         Self {
@@ -67,6 +68,11 @@ impl BufferedL2Provider {
     ///
     /// # Arguments
     /// * `event` - The chain state event to process
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BufferedProviderError::Buffer`] if the underlying buffer rejects the event
+    /// (e.g., a reorg deeper than `max_reorg_depth`).
     pub async fn handle_chain_event(
         &self,
         event: ChainStateEvent,
@@ -114,6 +120,11 @@ impl BufferedL2Provider {
     /// # Arguments
     /// * `block` - The OP block to add
     /// * `l2_block_info` - The L2 block information associated with the block
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; returns `Result` for forward-compatibility with future fallible
+    /// insert paths (e.g., bounded write errors).
     pub async fn add_block(
         &self,
         block: OpBlock,

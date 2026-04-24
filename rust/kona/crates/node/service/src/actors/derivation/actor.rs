@@ -2,9 +2,12 @@
 
 use crate::{
     CancellableContext, DerivationActorRequest, DerivationEngineClient, DerivationState,
-    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate, Metrics,
-    NodeActor, actors::derivation::L2Finalizer,
+    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate, NodeActor,
+    actors::derivation::L2Finalizer,
 };
+// Only referenced via `kona_macros::*` expansions gated on the `metrics` feature.
+#[cfg_attr(not(feature = "metrics"), allow(unused_imports))]
+use crate::Metrics;
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,

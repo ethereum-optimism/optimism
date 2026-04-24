@@ -27,6 +27,7 @@ pub struct VersionInfo {
 impl VersionInfo {
     /// Creates a new instance of [`VersionInfo`] from the constants defined in [`crate::version`]
     /// at compile time.
+    #[must_use]
     pub const fn from_build() -> Self {
         Self {
             version: crate::version::CARGO_PKG_VERSION,

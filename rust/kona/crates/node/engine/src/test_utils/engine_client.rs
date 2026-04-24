@@ -29,6 +29,7 @@ use tokio::sync::RwLock;
 use crate::EngineClientError;
 
 /// Builder for creating test `MockEngineClient` instances with sensible defaults
+#[must_use]
 pub fn test_engine_client_builder() -> MockEngineClientBuilder {
     MockEngineClientBuilder::new().with_config(Arc::new(RollupConfig::default()))
 }
@@ -121,17 +122,20 @@ pub struct MockEngineClientBuilder {
 
 impl MockEngineClientBuilder {
     /// Creates a new builder with default values.
+    #[must_use]
     pub fn new() -> Self {
         Self { cfg: None, storage: MockEngineStorage::default() }
     }
 
     /// Sets the rollup configuration.
+    #[must_use]
     pub fn with_config(mut self, cfg: Arc<RollupConfig>) -> Self {
         self.cfg = Some(cfg);
         self
     }
 
     /// Sets a block response for a specific tag.
+    #[must_use]
     pub fn with_l2_block_by_label(
         mut self,
         tag: BlockNumberOrTag,
@@ -142,66 +146,77 @@ impl MockEngineClientBuilder {
     }
 
     /// Sets a block info response for a specific tag.
+    #[must_use]
     pub fn with_block_info_by_tag(mut self, tag: BlockNumberOrTag, info: L2BlockInfo) -> Self {
         self.storage.block_info_by_tag.insert(tag, info);
         self
     }
 
     /// Sets the `new_payload_v1` response.
+    #[must_use]
     pub fn with_new_payload_v1_response(mut self, status: PayloadStatus) -> Self {
         self.storage.new_payload_v1_response = Some(status);
         self
     }
 
     /// Sets the `new_payload_v2` response.
+    #[must_use]
     pub fn with_new_payload_v2_response(mut self, status: PayloadStatus) -> Self {
         self.storage.new_payload_v2_response = Some(status);
         self
     }
 
     /// Sets the `new_payload_v3` response.
+    #[must_use]
     pub fn with_new_payload_v3_response(mut self, status: PayloadStatus) -> Self {
         self.storage.new_payload_v3_response = Some(status);
         self
     }
 
     /// Sets the `new_payload_v4` response.
+    #[must_use]
     pub fn with_new_payload_v4_response(mut self, status: PayloadStatus) -> Self {
         self.storage.new_payload_v4_response = Some(status);
         self
     }
 
     /// Sets the `fork_choice_updated_v2` response.
+    #[must_use]
     pub fn with_fork_choice_updated_v2_response(mut self, response: ForkchoiceUpdated) -> Self {
         self.storage.fork_choice_updated_v2_response = Some(response);
         self
     }
 
     /// Sets the `fork_choice_updated_v3` response.
+    #[must_use]
     pub fn with_fork_choice_updated_v3_response(mut self, response: ForkchoiceUpdated) -> Self {
         self.storage.fork_choice_updated_v3_response = Some(response);
         self
     }
 
     /// Sets the execution payload v2 response.
+    #[must_use]
     pub fn with_execution_payload_v2(mut self, payload: ExecutionPayloadEnvelopeV2) -> Self {
         self.storage.execution_payload_v2 = Some(payload);
         self
     }
 
     /// Sets the execution payload v3 response.
+    #[must_use]
     pub fn with_execution_payload_v3(mut self, payload: OpExecutionPayloadEnvelopeV3) -> Self {
         self.storage.execution_payload_v3 = Some(payload);
         self
     }
 
     /// Sets the execution payload v4 response.
+    #[must_use]
     pub fn with_execution_payload_v4(mut self, payload: OpExecutionPayloadEnvelopeV4) -> Self {
         self.storage.execution_payload_v4 = Some(payload);
         self
     }
 
     /// Sets the `get_payload_bodies_by_hash_v1` response.
+    #[must_use]
     pub fn with_payload_bodies_by_hash_response(
         mut self,
         bodies: ExecutionPayloadBodiesV1,
@@ -211,6 +226,7 @@ impl MockEngineClientBuilder {
     }
 
     /// Sets the `get_payload_bodies_by_range_v1` response.
+    #[must_use]
     pub fn with_payload_bodies_by_range_response(
         mut self,
         bodies: ExecutionPayloadBodiesV1,
@@ -220,24 +236,28 @@ impl MockEngineClientBuilder {
     }
 
     /// Sets the client versions response.
+    #[must_use]
     pub fn with_client_versions(mut self, versions: Vec<ClientVersionV1>) -> Self {
         self.storage.client_versions = Some(versions);
         self
     }
 
     /// Sets the protocol version response.
+    #[must_use]
     pub const fn with_protocol_version(mut self, version: ProtocolVersion) -> Self {
         self.storage.protocol_version = Some(version);
         self
     }
 
     /// Sets the capabilities response.
+    #[must_use]
     pub fn with_capabilities(mut self, capabilities: Vec<String>) -> Self {
         self.storage.capabilities = Some(capabilities);
         self
     }
 
     /// Sets an L1 block response for a specific `BlockId`.
+    #[must_use]
     pub fn with_l1_block(mut self, block_id: BlockId, block: Block<EthTransaction>) -> Self {
         let key = block_id_to_key(&block_id);
         self.storage.l1_blocks_by_id.insert(key, block);
@@ -245,6 +265,7 @@ impl MockEngineClientBuilder {
     }
 
     /// Sets an L2 block response for a specific `BlockId`.
+    #[must_use]
     pub fn with_l2_block(mut self, block_id: BlockId, block: Block<OpTransaction>) -> Self {
         let key = block_id_to_key(&block_id);
         self.storage.l2_blocks_by_id.insert(key, block);
@@ -252,6 +273,7 @@ impl MockEngineClientBuilder {
     }
 
     /// Sets a proof response for a specific address and `BlockId`.
+    #[must_use]
     pub fn with_proof(
         mut self,
         address: Address,
@@ -296,16 +318,19 @@ pub struct MockEngineClient {
 
 impl MockEngineClient {
     /// Creates a new mock engine client with the given config.
+    #[must_use]
     pub fn new(cfg: Arc<RollupConfig>) -> Self {
         Self { cfg, storage: Arc::new(RwLock::new(MockEngineStorage::default())) }
     }
 
     /// Creates a builder for constructing a mock engine client.
+    #[must_use]
     pub fn builder() -> MockEngineClientBuilder {
         MockEngineClientBuilder::new()
     }
 
     /// Returns a reference to the mock storage for configuring responses.
+    #[must_use]
     pub fn storage(&self) -> Arc<RwLock<MockEngineStorage>> {
         Arc::clone(&self.storage)
     }
@@ -701,6 +726,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_payload_status() {
+        // Create a minimal ExecutionPayloadInputV2 for testing
+        use alloy_primitives::{Bytes, U256};
+        use alloy_rpc_types_engine::ExecutionPayloadV1;
+
         let cfg = Arc::new(RollupConfig::default());
 
         let mock = MockEngineClient::new(cfg);
@@ -710,9 +739,6 @@ mod tests {
 
         mock.set_new_payload_v2_response(status.clone()).await;
 
-        // Create a minimal ExecutionPayloadInputV2 for testing
-        use alloy_primitives::{Bytes, U256};
-        use alloy_rpc_types_engine::ExecutionPayloadV1;
         let payload = ExecutionPayloadInputV2 {
             execution_payload: ExecutionPayloadV1 {
                 parent_hash: B256::ZERO,
@@ -761,6 +787,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_pattern() {
+        // Create a minimal ExecutionPayloadInputV2 for testing
+        use alloy_primitives::{Bytes, U256};
+        use alloy_rpc_types_engine::ExecutionPayloadV1;
+
         let cfg = Arc::new(RollupConfig::default());
         let status =
             PayloadStatus { status: PayloadStatusEnum::Valid, latest_valid_hash: Some(B256::ZERO) };
@@ -773,9 +803,6 @@ mod tests {
         // Verify the config was set
         assert_eq!(mock.cfg().block_time, cfg.block_time);
 
-        // Create a minimal ExecutionPayloadInputV2 for testing
-        use alloy_primitives::{Bytes, U256};
-        use alloy_rpc_types_engine::ExecutionPayloadV1;
         let payload = ExecutionPayloadInputV2 {
             execution_payload: ExecutionPayloadV1 {
                 parent_hash: B256::ZERO,

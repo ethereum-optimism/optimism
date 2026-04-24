@@ -26,11 +26,13 @@ pub enum NodeMode {
 
 impl NodeMode {
     /// Returns `true` if [`Self`] is [`Self::Validator`].
+    #[must_use]
     pub const fn is_validator(&self) -> bool {
         matches!(self, Self::Validator)
     }
 
     /// Returns `true` if [`Self`] is [`Self::Sequencer`].
+    #[must_use]
     pub const fn is_sequencer(&self) -> bool {
         matches!(self, Self::Sequencer)
     }

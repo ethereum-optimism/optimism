@@ -3,6 +3,7 @@ use alloy_primitives::B256;
 use kona_protocol::{BlockInfo, L2BlockInfo};
 
 /// Helper to create a test `L2BlockInfo` at a specific block number
+#[must_use]
 pub fn test_block_info(number: u64) -> L2BlockInfo {
     L2BlockInfo {
         block_info: BlockInfo {

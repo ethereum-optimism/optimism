@@ -43,6 +43,11 @@ pub struct Behaviour {
 impl Behaviour {
     /// Configures the swarm behaviors, subscribes to the gossip topics, and returns a new
     /// [`Behaviour`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BehaviourError`] if the gossipsub behaviour cannot be constructed or
+    /// subscribing to any configured topic fails.
     pub fn new(
         public_key: libp2p::identity::PublicKey,
         cfg: Config,

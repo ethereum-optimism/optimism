@@ -47,17 +47,26 @@ impl Conductor for ConductorClient {
 
 impl ConductorClient {
     /// Creates a new conductor client using HTTP transport
+    #[must_use]
     pub fn new_http(url: Url) -> Self {
         let rpc = ReqwestClient::new_http(url);
         Self { rpc }
     }
 
     /// Check if the node is a leader of the conductor.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ConductorError`] if the `conductor_leader` JSON-RPC call fails.
     pub async fn leader(&self) -> Result<bool, ConductorError> {
         self.rpc.request("conductor_leader", ()).await.map_err(Into::into)
     }
 
     /// Check if the conductor is active.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ConductorError`] if the `conductor_active` JSON-RPC call fails.
     pub async fn conductor_active(&self) -> Result<bool, ConductorError> {
         self.rpc.request("conductor_active", ()).await.map_err(Into::into)
     }

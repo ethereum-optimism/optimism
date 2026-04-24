@@ -10,6 +10,8 @@ mod engine_client;
 pub use engine_client::{DerivationEngineClient, QueuedDerivationEngineClient};
 
 mod finalizer;
+// `L2Finalizer` is only used inside the `derivation` actor tree.
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) use finalizer::L2Finalizer;
 
 mod request;

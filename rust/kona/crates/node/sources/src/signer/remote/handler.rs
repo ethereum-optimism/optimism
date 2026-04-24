@@ -71,11 +71,18 @@ pub enum RemoteSignerError {
 
 impl RemoteSignerHandler {
     /// Returns true if certificate watching is enabled
+    #[must_use]
     pub const fn is_certificate_watching_enabled(&self) -> bool {
         self.watcher_handle.is_some()
     }
 
-    /// Signs a block payload hash using the remote signer via JSON-RPC
+    /// Signs a block payload hash using the remote signer via JSON-RPC.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`RemoteSignerError`] if `sender_address` does not match the configured signer
+    /// address, or if the remote JSON-RPC call fails, times out, or returns an invalid
+    /// signature.
     pub async fn sign_block_v1(
         &self,
         payload_hash: PayloadHash,

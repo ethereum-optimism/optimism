@@ -256,6 +256,14 @@ impl RollupNode {
     /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
     /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
     /// received.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if any sub-actor (engine, derivation, L1 watcher, network, RPC,
+    /// sequencer, runtime) fails to start or to cleanly exit.
+    // The node's startup wires together many actors; extracting them into helpers would
+    // fragment the spawn ordering and channel wiring without improving clarity.
+    #[allow(clippy::too_many_lines)]
     pub async fn start(&self) -> Result<(), String> {
         // Create a global cancellation token for graceful shutdown of tasks.
         let cancellation = CancellationToken::new();

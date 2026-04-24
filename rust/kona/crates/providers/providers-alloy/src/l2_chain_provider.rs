@@ -43,6 +43,7 @@ impl AlloyL2ChainProvider {
     ///
     /// ## Panics
     /// - Panics if `cache_size` is zero.
+    #[must_use]
     pub fn new(
         inner: RootProvider<Optimism>,
         rollup_config: Arc<RollupConfig>,
@@ -56,6 +57,7 @@ impl AlloyL2ChainProvider {
     ///
     /// ## Panics
     /// - Panics if `cache_size` is zero.
+    #[must_use]
     pub fn new_with_trust(
         inner: RootProvider<Optimism>,
         rollup_config: Arc<RollupConfig>,
@@ -71,11 +73,21 @@ impl AlloyL2ChainProvider {
     }
 
     /// Returns the chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`RpcError<TransportErrorKind>`] if the underlying JSON-RPC call to
+    /// `eth_chainId` fails at the transport layer.
     pub async fn chain_id(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_chain_id().await
     }
 
     /// Returns the latest L2 block number.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`RpcError<TransportErrorKind>`] if the underlying JSON-RPC call to
+    /// `eth_blockNumber` fails at the transport layer.
     pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_block_number().await
     }
@@ -101,6 +113,12 @@ impl AlloyL2ChainProvider {
 
     /// Returns the [`L2BlockInfo`] for the given [`BlockId`]. [None] is returned if the block
     /// does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`RpcError<TransportErrorKind>`] if the underlying `eth_getBlockByNumber`
+    /// or `eth_getBlockByHash` JSON-RPC call fails, or if hash verification fails when
+    /// `trust_rpc` is `false`.
     pub async fn block_info_by_id(
         &mut self,
         id: BlockId,
@@ -158,6 +176,7 @@ impl AlloyL2ChainProvider {
     }
 
     /// Creates a new [`AlloyL2ChainProvider`] from the provided [`reqwest::Url`].
+    #[must_use]
     pub fn new_http(
         url: reqwest::Url,
         rollup_config: Arc<RollupConfig>,

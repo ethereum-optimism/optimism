@@ -2,6 +2,10 @@
 //!
 //! Specifies the available flags for prometheus metric configuration inside CLI
 
+// Internal CLI module: the `pub` items below are for inter-module use within the
+// `kona-node` binary, not a library API, so exhaustive `# Errors` / `# Panics`
+// sections would duplicate the call-site context.
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 use crate::metrics::VersionInfo;
 use kona_cli::MetricsArgs;
 

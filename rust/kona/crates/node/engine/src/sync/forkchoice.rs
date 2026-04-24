@@ -43,6 +43,12 @@ impl L2ForkchoiceState {
     /// - The safe block may not always be available. If it is not, we fall back to the finalized
     ///   block.
     /// - The unsafe block is always assumed to be available.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SyncStartError`] if the engine client fails to return the unsafe block, or
+    /// if an RPC error other than "not found" is encountered while fetching the safe or
+    /// finalized block.
     pub async fn current<EngineClient_: EngineClient>(
         cfg: &RollupConfig,
         engine_client: &EngineClient_,

@@ -122,6 +122,8 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
         Ok(())
     }
 
+    // Only read in metric expansions, which evaporate without the `metrics` feature.
+    #[cfg_attr(not(feature = "metrics"), allow(dead_code))]
     const fn task_metrics_label(&self) -> &'static str {
         match self {
             Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,

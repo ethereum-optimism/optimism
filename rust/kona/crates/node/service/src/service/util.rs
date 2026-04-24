@@ -73,6 +73,8 @@ macro_rules! spawn_and_wait {
 pub(crate) use spawn_and_wait;
 
 /// Listens for OS shutdown signals (SIGTERM, SIGINT)
+// `pub` would be unreachable since the containing module is `pub(crate)`.
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c().await.expect("failed to install Ctrl+C handler");

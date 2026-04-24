@@ -72,6 +72,7 @@ impl NetworkHandler {
 
                         // Record the duration of the peer connection.
                         if let Some(start_time) = self.gossip.peer_connection_start.remove(&peer_to_remove) {
+                            #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
                             let peer_duration = start_time.elapsed();
                             kona_macros::record!(
                                 histogram,
@@ -83,6 +84,7 @@ impl NetworkHandler {
                 if let Some(info) = self.gossip.peerstore.remove(&peer_to_remove) {
                     use kona_gossip::ConnectionGate;
                     self.gossip.connection_gate.remove_dial(&peer_to_remove);
+                    #[cfg_attr(not(feature = "metrics"), allow(unused_variables))]
                     let score = self.gossip.swarm.behaviour().gossipsub.peer_score(&peer_to_remove).unwrap_or_default();
                     kona_macros::inc!(gauge, kona_gossip::Metrics::BANNED_PEERS, "peer_id" => peer_to_remove.to_string(), "score" => score.to_string());
                     return Some(info.listen_addrs);

@@ -57,6 +57,7 @@ impl From<NetworkConfig> for NetworkBuilder {
 
 impl NetworkBuilder {
     /// Creates a new [`NetworkBuilder`].
+    #[must_use]
     pub fn new(
         rollup_config: RollupConfig,
         unsafe_block_signer: Address,
@@ -84,81 +85,101 @@ impl NetworkBuilder {
     }
 
     /// Sets the ENR update flag for the [`NetworkBuilder`].
+    #[must_use]
     pub fn with_enr_update(self, enr_update: bool) -> Self {
         Self { enr_update, ..self }
     }
 
     /// Sets the configuration for the connection gater.
+    #[must_use]
     pub fn with_gater_config(self, config: GaterConfig) -> Self {
         Self { gossip: self.gossip.with_gater_config(config), ..self }
     }
 
     /// Sets the signer for the [`NetworkBuilder`].
+    #[must_use]
     pub fn with_signer(self, signer: Option<BlockSigner>) -> Self {
         Self { signer, ..self }
     }
 
     /// Sets the bootstore path for the [`Discv5Builder`].
+    #[must_use]
     pub fn with_bootstore(self, bootstore: Option<BootStoreFile>) -> Self {
         Self { discovery: self.discovery.with_bootstore_file(bootstore), ..self }
     }
 
     /// Sets the interval at which to randomize discovery peers.
+    #[must_use]
     pub fn with_discovery_randomize(self, randomize: Option<Duration>) -> Self {
         Self { discovery: self.discovery.with_discovery_randomize(randomize), ..self }
     }
 
     /// Sets the initial bootnodes to add to the bootstore.
+    #[must_use]
     pub fn with_bootnodes(self, bootnodes: BootNodes) -> Self {
         Self { discovery: self.discovery.with_bootnodes(bootnodes), ..self }
     }
 
     /// Sets the peer scoring based on the given [`PeerScoreLevel`].
+    #[must_use]
     pub fn with_peer_scoring(self, level: PeerScoreLevel) -> Self {
         Self { gossip: self.gossip.with_peer_scoring(level), ..self }
     }
 
     /// Sets topic scoring for the [`GossipDriverBuilder`].
+    #[must_use]
     pub fn with_topic_scoring(self, topic_scoring: bool) -> Self {
         Self { gossip: self.gossip.with_topic_scoring(topic_scoring), ..self }
     }
 
     /// Sets the peer monitoring for the [`GossipDriverBuilder`].
+    #[must_use]
     pub fn with_peer_monitoring(self, peer_monitoring: Option<PeerMonitoring>) -> Self {
         Self { gossip: self.gossip.with_peer_monitoring(peer_monitoring), ..self }
     }
 
     /// Sets the discovery interval for the [`Discv5Builder`].
+    #[must_use]
     pub fn with_discovery_interval(self, interval: tokio::time::Duration) -> Self {
         Self { discovery: self.discovery.with_interval(interval), ..self }
     }
 
     /// Sets the address for the [`Discv5Builder`].
+    #[must_use]
     pub fn with_discovery_address(self, address: LocalNode) -> Self {
         Self { discovery: self.discovery.with_local_node(address), ..self }
     }
 
     /// Sets the gossipsub config for the [`GossipDriverBuilder`].
+    #[must_use]
     pub fn with_gossip_config(self, config: libp2p::gossipsub::Config) -> Self {
         Self { gossip: self.gossip.with_config(config), ..self }
     }
 
     /// Sets the [`Discv5Config`] for the [`Discv5Builder`].
+    #[must_use]
     pub fn with_discovery_config(self, config: Discv5Config) -> Self {
         Self { discovery: self.discovery.with_discovery_config(config), ..self }
     }
 
     /// Sets the gossip address for the [`GossipDriverBuilder`].
+    #[must_use]
     pub fn with_gossip_address(self, addr: Multiaddr) -> Self {
         Self { gossip: self.gossip.with_address(addr), ..self }
     }
 
     /// Sets the timeout for the [`GossipDriverBuilder`].
+    #[must_use]
     pub fn with_timeout(self, timeout: Duration) -> Self {
         Self { gossip: self.gossip.with_timeout(timeout), ..self }
     }
 
     /// Builds the [`NetworkDriver`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`NetworkBuilderError`] if the gossip driver or the discovery driver fail
+    /// to initialize (e.g., missing config, swarm bind failure).
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
         let (gossip, unsafe_block_signer_sender) = self.gossip.build()?;
         let discovery = self.discovery.build()?;

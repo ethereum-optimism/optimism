@@ -232,7 +232,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                         error!(target: "node::p2p", "The enr receiver channel has closed");
                         return Err(NetworkActorError::ChannelClosed);
                     };
-                    handler.gossip.dial(enr);
+                    handler.gossip.dial(&enr);
                 },
                 _ = handler.peer_score_inspector.tick(), if handler.gossip.peer_monitoring.as_ref().is_some() => {
                     handler.handle_peer_monitoring().await;
@@ -264,12 +264,13 @@ mod tests {
 
     #[test]
     fn test_payload_signature_roundtrip_v1() {
+        const CHAIN_ID: u64 = 1337;
+
         let mut bytes = [0u8; 4096];
         rand::rng().fill(bytes.as_mut_slice());
 
         let pubkey = PrivateKeySigner::random();
         let expected_address = pubkey.address();
-        const CHAIN_ID: u64 = 1337;
 
         let block = OpExecutionPayloadEnvelope {
             execution_payload: OpExecutionPayload::V1(
@@ -298,12 +299,13 @@ mod tests {
 
     #[test]
     fn test_payload_signature_roundtrip_v3() {
+        const CHAIN_ID: u64 = 1337;
+
         let mut bytes = [0u8; 4096];
         rand::rng().fill(bytes.as_mut_slice());
 
         let pubkey = PrivateKeySigner::random();
         let expected_address = pubkey.address();
-        const CHAIN_ID: u64 = 1337;
 
         let block = OpExecutionPayloadEnvelope {
             execution_payload: OpExecutionPayload::V3(

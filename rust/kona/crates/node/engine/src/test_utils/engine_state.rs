@@ -17,6 +17,7 @@ pub struct TestEngineStateBuilder {
 impl TestEngineStateBuilder {
     /// Creates a new builder with default values.
     /// Default: all heads set to genesis block (block 0)
+    #[must_use]
     pub fn new() -> Self {
         let genesis = L2BlockInfo {
             block_info: BlockInfo {
@@ -40,6 +41,7 @@ impl TestEngineStateBuilder {
     }
 
     /// Sets the unsafe head
+    #[must_use]
     pub const fn with_unsafe_head(mut self, block: L2BlockInfo) -> Self {
         self.unsafe_head = block;
         self
@@ -47,18 +49,21 @@ impl TestEngineStateBuilder {
 
     /// Sets the cross-unsafe head
     #[allow(dead_code)]
+    #[must_use]
     pub const fn with_cross_unsafe_head(mut self, block: L2BlockInfo) -> Self {
         self.cross_unsafe_head = Some(block);
         self
     }
 
     /// Sets the safe head
+    #[must_use]
     pub const fn with_safe_head(mut self, block: L2BlockInfo) -> Self {
         self.safe_head = Some(block);
         self
     }
 
     /// Sets the finalized head
+    #[must_use]
     pub const fn with_finalized_head(mut self, block: L2BlockInfo) -> Self {
         self.finalized_head = Some(block);
         self
@@ -66,12 +71,14 @@ impl TestEngineStateBuilder {
 
     /// Sets whether EL sync is finished
     #[allow(dead_code)]
+    #[must_use]
     pub const fn with_el_sync_finished(mut self, finished: bool) -> Self {
         self.el_sync_finished = finished;
         self
     }
 
     /// Builds the `EngineState`
+    #[must_use]
     pub fn build(self) -> EngineState {
         let mut state = EngineState::default();
 

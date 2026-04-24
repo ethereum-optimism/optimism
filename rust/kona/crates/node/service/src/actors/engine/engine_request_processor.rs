@@ -15,9 +15,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// Requires that the implementor handles [`EngineProcessingRequest`]s via the provided channel.
-/// Note: this exists to facilitate unit testing rather than consolidate multiple implementations
-/// under a well-thought-out interface.
+/// Handles [`EngineProcessingRequest`]s via the provided channel.
+///
+/// Note: this exists to facilitate unit testing rather than consolidate multiple
+/// implementations under a well-thought-out interface.
 pub trait EngineRequestReceiver: Send + Sync {
     /// Starts a task to handle engine processing requests.
     fn start(
@@ -43,9 +44,10 @@ pub enum EngineProcessingRequest {
     Seal(Box<SealRequest>),
 }
 
-/// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
-/// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
-/// the [`Ord`] implementation of [`EngineTask`].
+/// Responsible for managing the operations sent to the execution layer's Engine API.
+///
+/// To accomplish this, it uses the [`Engine`] task queue to order Engine API interactions
+/// based off of the [`Ord`] implementation of [`EngineTask`].
 #[derive(Debug)]
 pub struct EngineProcessor<EngineClient_, DerivationClient>
 where

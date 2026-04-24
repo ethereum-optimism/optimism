@@ -4,6 +4,10 @@
 //!
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
+// Internal CLI module: the `pub` items below are for inter-module use within the
+// `kona-node` binary, not a library API, so exhaustive `# Errors` / `# Panics`
+// sections would duplicate the call-site context.
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 use crate::flags::{GlobalArgs, SignerArgs};
 use alloy_primitives::{B256, b256};
 use alloy_provider::Provider;
@@ -55,6 +59,9 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
 }
 
 /// P2P CLI Flags
+// Each bool corresponds to a distinct CLI flag; grouping them into an enum or bitset
+// would fragment the argument parser and break the env-var → struct-field mapping.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
     /// Disable Discv5 (node discovery).
@@ -416,6 +423,9 @@ impl P2PArgs {
 
         let monitor_peers = self.ban_enabled.then_some(PeerMonitoring {
             ban_duration: Duration::from_secs(60 * self.ban_duration),
+            // SAFETY: `ban_threshold` is a CLI-provided score; precision loss converting
+            // an `i64` to `f64` at the extremes is acceptable for a coarse score threshold.
+            #[allow(clippy::cast_precision_loss)]
             ban_threshold: self.ban_threshold as f64,
         });
 

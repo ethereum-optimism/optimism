@@ -3,9 +3,13 @@
 use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
+    EngineTaskErrorSeverity, SyncStartError, SynchronizeTask, SynchronizeTaskError,
     find_starting_forkchoice, task_queue::EngineTaskErrors,
 };
+// Used inside `kona_macros::inc!` macro expansion only when the `metrics` feature is
+// enabled; keep the import unconditional to let the macro resolve in all build modes.
+#[cfg_attr(not(feature = "metrics"), allow(unused_imports))]
+use crate::Metrics;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use std::{collections::BinaryHeap, sync::Arc};
@@ -39,6 +43,7 @@ pub struct Engine<EngineClient_: EngineClient> {
 
 impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Creates a new [`Engine`] with an empty task queue and the passed initial [`EngineState`].
+    #[must_use]
     pub fn new(
         initial_state: EngineState,
         state_sender: Sender<EngineState>,
@@ -48,16 +53,19 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     }
 
     /// Returns a reference to the inner [`EngineState`].
+    #[must_use]
     pub const fn state(&self) -> &EngineState {
         &self.state
     }
 
     /// Returns a receiver that can be used to listen to engine state updates.
+    #[must_use]
     pub fn state_subscribe(&self) -> tokio::sync::watch::Receiver<EngineState> {
         self.state_sender.subscribe()
     }
 
     /// Returns a receiver that can be used to listen to engine queue length updates.
+    #[must_use]
     pub fn queue_length_subscribe(&self) -> tokio::sync::watch::Receiver<usize> {
         self.task_queue_length.subscribe()
     }
@@ -72,6 +80,11 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Resets the engine by finding a plausible sync starting point via
     /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
     /// forkchoice update will be enqueued in order to reorg the execution layer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EngineResetError::SyncStart`] if locating the starting forkchoice fails,
+    /// or [`EngineResetError::Forkchoice`] if the synchronize task returns a critical error.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient_>,
@@ -123,6 +136,11 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, it is not popped from the queue (in case it must be retried) and
     /// the error is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EngineTaskErrors`] wrapping the first failing task's error so the caller
+    /// can decide whether to retry, reset, or surface the failure.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         while let Some(task) = self.tasks.peek() {

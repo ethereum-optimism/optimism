@@ -23,6 +23,7 @@ pub struct TestAttributesBuilder {
 
 impl TestAttributesBuilder {
     /// Creates a new builder with default values
+    #[must_use]
     pub fn new() -> Self {
         let parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -53,12 +54,14 @@ impl TestAttributesBuilder {
     }
 
     /// Sets the timestamp
+    #[must_use]
     pub const fn with_timestamp(mut self, timestamp: u64) -> Self {
         self.timestamp = timestamp;
         self
     }
 
     /// Sets the parent block
+    #[must_use]
     pub const fn with_parent(mut self, parent: L2BlockInfo) -> Self {
         self.parent = parent;
         self
@@ -66,6 +69,7 @@ impl TestAttributesBuilder {
 
     /// Sets the transactions
     #[allow(dead_code)]
+    #[must_use]
     pub fn with_transactions(mut self, txs: Vec<alloy_primitives::Bytes>) -> Self {
         self.transactions = Some(txs);
         self
@@ -73,12 +77,14 @@ impl TestAttributesBuilder {
 
     /// Sets the gas limit
     #[allow(dead_code)]
+    #[must_use]
     pub const fn with_gas_limit(mut self, gas_limit: u64) -> Self {
         self.gas_limit = Some(gas_limit);
         self
     }
 
     /// Builds the `OpAttributesWithParent`
+    #[must_use]
     pub fn build(self) -> OpAttributesWithParent {
         let attributes = OpPayloadAttributes {
             payload_attributes: alloy_rpc_types_engine::PayloadAttributes {

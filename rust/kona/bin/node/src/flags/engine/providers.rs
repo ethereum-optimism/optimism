@@ -104,6 +104,7 @@ pub struct DerivationDelegateArgs {
 
 impl DerivationDelegateArgs {
     /// Builds the derivation delegate configuration if an L2 CL URL was provided.
+    #[must_use]
     pub fn config(self) -> Option<DerivationDelegateConfig> {
         self.l2_follow_source.map(|url| DerivationDelegateConfig { l2_cl_url: url })
     }

@@ -40,6 +40,7 @@ pub struct GossipDriverBuilder {
 
 impl GossipDriverBuilder {
     /// Creates a new [`GossipDriverBuilder`].
+    #[must_use]
     pub const fn new(
         rollup_config: RollupConfig,
         signer: Address,
@@ -61,6 +62,7 @@ impl GossipDriverBuilder {
     }
 
     /// Sets the configuration for the connection gater.
+    #[must_use]
     pub const fn with_gater_config(mut self, config: GaterConfig) -> Self {
         self.gater_config = Some(config);
         self
@@ -68,6 +70,7 @@ impl GossipDriverBuilder {
 
     /// Sets the [`RollupConfig`] for the network.
     /// This is used to determine the topic to publish to.
+    #[must_use]
     pub fn with_rollup_config(mut self, rollup_config: RollupConfig) -> Self {
         self.rollup_config = rollup_config;
         self
@@ -75,54 +78,67 @@ impl GossipDriverBuilder {
 
     /// Sets topic scoring.
     /// This is disabled by default.
+    #[must_use]
     pub const fn with_topic_scoring(mut self, topic_scoring: bool) -> Self {
         self.topic_scoring = topic_scoring;
         self
     }
 
     /// Sets the [`PeerScoreLevel`] for the [`Behaviour`].
+    #[must_use]
     pub const fn with_peer_scoring(mut self, level: PeerScoreLevel) -> Self {
         self.scoring = Some(level);
         self
     }
 
     /// Sets the [`PeerMonitoring`] configuration for the gossip driver.
+    #[must_use]
     pub const fn with_peer_monitoring(mut self, peer_monitoring: Option<PeerMonitoring>) -> Self {
         self.peer_monitoring = peer_monitoring;
         self
     }
 
     /// Sets the unsafe block signer [`Address`].
+    #[must_use]
     pub const fn with_unsafe_block_signer_receiver(mut self, signer: Address) -> Self {
         self.signer = signer;
         self
     }
 
     /// Sets the [`Keypair`] for the node.
+    #[must_use]
     pub fn with_keypair(mut self, keypair: Keypair) -> Self {
         self.keypair = keypair;
         self
     }
 
     /// Sets the swarm's idle connection timeout.
+    #[must_use]
     pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
     /// Sets the [`Multiaddr`] for the gossip driver to listen on.
+    #[must_use]
     pub fn with_address(mut self, addr: Multiaddr) -> Self {
         self.gossip_addr = addr;
         self
     }
 
     /// Sets the [`Config`] for the [`Behaviour`].
+    #[must_use]
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = Some(config);
         self
     }
 
     /// Builds the [`GossipDriver`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`GossipDriverBuilderError`] if required fields are missing, the libp2p
+    /// transport fails to initialize, or the swarm cannot bind to the configured address.
     pub fn build(
         mut self,
     ) -> Result<

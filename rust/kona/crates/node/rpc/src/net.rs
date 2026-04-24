@@ -16,6 +16,7 @@ pub struct P2pRpc {
 
 impl P2pRpc {
     /// Constructs a new [`P2pRpc`] given a sender channel.
+    #[must_use]
     pub const fn new(sender: P2pReqSender) -> Self {
         Self { sender }
     }

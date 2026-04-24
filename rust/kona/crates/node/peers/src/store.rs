@@ -128,6 +128,7 @@ impl BootStore {
 
     /// Returns the number of peers in the bootstore that
     /// have the [`crate::OpStackEnr::OP_CL_KEY`] in the ENR.
+    #[must_use]
     pub fn valid_peers(&self) -> Vec<&Enr> {
         self.peers
             .iter()
@@ -138,6 +139,7 @@ impl BootStore {
     /// Returns the number of peers that contain the
     /// [`crate::OpStackEnr::OP_CL_KEY`] in the ENR *and*
     /// have the correct chain id and version.
+    #[must_use]
     pub fn valid_peers_with_chain_id(&self, chain_id: u64) -> Vec<&Enr> {
         self.peers
             .iter()
@@ -146,11 +148,13 @@ impl BootStore {
     }
 
     /// Returns the number of peers in the in-memory store.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.peers.len()
     }
 
     /// Returns if the in-memory store is empty.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.peers.is_empty()
     }
@@ -161,6 +165,10 @@ impl BootStore {
     }
 
     /// Syncs the [`BootStore`] with the contents on disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error if seeking, truncating, or writing the backing file fails.
     pub fn sync(&mut self) -> Result<(), std::io::Error> {
         if let Some(file) = &mut self.file {
             // Reset the file pointer to the beginning of the file to overwrite the file.
@@ -174,6 +182,11 @@ impl BootStore {
     }
 
     /// Returns all available bootstores for the given data directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `datadir` is `None` and the user's home directory cannot be resolved.
+    #[must_use]
     pub fn available(datadir: Option<PathBuf>) -> Vec<u64> {
         let mut bootstores = Vec::new();
         let path = datadir.unwrap_or_else(|| {

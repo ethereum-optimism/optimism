@@ -43,6 +43,9 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     }
 
     /// Checks the response of the `engine_newPayload` call.
+    // `self` is not currently read but the method is called via `self.` and is logically an
+    // instance method on [`InsertTask`].
+    #[allow(clippy::unused_self)]
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
         matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
     }

@@ -44,8 +44,8 @@ impl<EngineRpcClient_: EngineRpcClient> RollupRpc<EngineRpcClient_> {
     // Important note: we zero-out the fields that can't be derived yet to follow op-node's
     // behaviour.
     fn sync_status_from_actor_queries(
-        l1_sync_status: L1State,
-        l2_sync_status: EngineState,
+        l1_sync_status: &L1State,
+        l2_sync_status: &EngineState,
     ) -> SyncStatus {
         SyncStatus {
             current_l1: l1_sync_status.current_l1.unwrap_or_default(),
@@ -81,7 +81,7 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
                 l1_sync_status_recv.await.map_err(|_| ErrorObject::from(ErrorCode::InternalError))
             })?;
 
-        let sync_status = Self::sync_status_from_actor_queries(l1_sync_status, l2_sync_status);
+        let sync_status = Self::sync_status_from_actor_queries(&l1_sync_status, &l2_sync_status);
 
         Ok(OutputResponse::from_v0(output_root, sync_status, l2_block_info))
     }
@@ -113,7 +113,7 @@ impl<EngineRpcClient_: EngineRpcClient + 'static> RollupNodeApiServer
         )
         .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
-        return Ok(Self::sync_status_from_actor_queries(l1_sync_status, l2_sync_status));
+        return Ok(Self::sync_status_from_actor_queries(&l1_sync_status, &l2_sync_status));
     }
 
     async fn op_rollup_config(&self) -> RpcResult<RollupConfig> {

@@ -31,6 +31,7 @@ pub enum DialOptsError {
 
 impl AnyNode {
     /// Returns the local peer id of the node.
+    #[must_use]
     pub fn peer_id(&self) -> PeerId {
         match self {
             Self::NodeRecord(record) => record.id,
@@ -40,6 +41,11 @@ impl AnyNode {
     }
 
     /// Converts the [`AnyNode`] into [`DialOpts`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DialOptsError`] if the peer id cannot be decoded into a valid secp256k1
+    /// public key or if libp2p rejects the reconstructed key.
     pub fn as_dial_opts(&self) -> Result<DialOpts, DialOptsError> {
         let pub_key = &peer_id_to_secp256k1_pubkey(self.peer_id())
             .map_err(DialOptsError::InvalidPeerId)?

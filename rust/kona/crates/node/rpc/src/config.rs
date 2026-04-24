@@ -25,26 +25,31 @@ pub struct RpcBuilder {
 
 impl RpcBuilder {
     /// Returns whether `WebSocket` RPC endpoint is enabled
+    #[must_use]
     pub const fn ws_enabled(&self) -> bool {
         self.ws_enabled
     }
 
     /// Returns whether development RPC endpoints are enabled
+    #[must_use]
     pub const fn dev_enabled(&self) -> bool {
         self.dev_enabled
     }
 
     /// Returns the socket address of the [`RpcBuilder`].
+    #[must_use]
     pub const fn socket(&self) -> SocketAddr {
         self.socket
     }
 
     /// Returns the number of times the RPC server will attempt to restart if it stops.
+    #[must_use]
     pub const fn restart_count(&self) -> u32 {
         if self.no_restart { 0 } else { 3 }
     }
 
     /// Sets the given [`SocketAddr`] on the [`RpcBuilder`].
+    #[must_use]
     pub fn set_addr(self, addr: SocketAddr) -> Self {
         Self { socket: addr, ..self }
     }

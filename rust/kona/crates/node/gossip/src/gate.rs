@@ -13,6 +13,11 @@ use std::net::IpAddr;
 pub trait ConnectionGate {
     /// Checks if a peer is allowed to connect to the gossip swarm.
     /// Returns Ok(()) if the peer can be dialed, or Err(DialError) with the reason why not.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DialError`] if the implementation rejects the dial (for example the peer
+    /// is banned, rate-limited, or otherwise excluded from dialing).
     fn can_dial(&mut self, peer_id: &Multiaddr) -> Result<(), DialError>;
 
     /// Returns the [`Connectedness`] for a given peer id.

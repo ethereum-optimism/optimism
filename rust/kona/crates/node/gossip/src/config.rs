@@ -101,6 +101,12 @@ pub fn default_config_builder() -> ConfigBuilder {
 }
 
 /// Returns the default [Config] for gossipsub.
+///
+/// # Panics
+///
+/// Panics if the built-in default gossipsub configuration is rejected by the builder; this
+/// indicates a bug in this module's default values.
+#[must_use]
 pub fn default_config() -> Config {
     default_config_builder().build().expect("default gossipsub config must be valid")
 }

@@ -31,9 +31,14 @@ impl PeerScoreLevel {
     /// Helper function to calculate the decay factor for a given duration.
     /// The decay factor is calculated using the formula:
     /// `decay_factor = (1 - decay_to_zero) ^ (duration / slot)`.
+    #[must_use]
     pub fn score_decay(duration: std::time::Duration, slot: std::time::Duration) -> f64 {
         let num_of_times = duration.as_secs() / slot.as_secs();
-        (1.0 - Self::DECAY_TO_ZERO).powf(1.0 / num_of_times as f64)
+        // SAFETY: libp2p scoring parameters accept `f64` directly; a small loss of
+        // precision when converting large `u64` second counts is acceptable here.
+        #[allow(clippy::cast_precision_loss)]
+        let num_of_times_f = num_of_times as f64;
+        (1.0 - Self::DECAY_TO_ZERO).powf(1.0 / num_of_times_f)
     }
 
     /// Default peer score thresholds.
@@ -49,17 +54,22 @@ impl PeerScoreLevel {
     /// The cap is calculated based on the slot duration.
     /// The formula used is:
     /// `cap = (3600 * time.Second) / slot`.
+    #[must_use]
     pub fn in_mesh_cap(slot: std::time::Duration) -> f64 {
         (3600 * std::time::Duration::from_secs(1)).as_secs_f64() / slot.as_secs_f64()
     }
 
     /// Returns the topic score parameters given the block time.
+    #[must_use]
     pub fn topic_score_params(block_time: u64) -> TopicScoreParams {
         let slot = std::time::Duration::from_secs(block_time);
         let epoch = slot * 6;
         let invalid_decay_period = 50 * epoch;
-        let decay_epoch =
-            std::time::Duration::from_secs(Self::DECAY_EPOCH as u64 * epoch.as_secs());
+        // SAFETY: `DECAY_EPOCH` is a small positive constant (5.0); casting to `u64` is
+        // well-defined and fits without truncation or sign loss.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let decay_epoch_multiplier = Self::DECAY_EPOCH as u64;
+        let decay_epoch = std::time::Duration::from_secs(decay_epoch_multiplier * epoch.as_secs());
         TopicScoreParams {
             topic_weight: 0.8,
             time_in_mesh_weight: Self::MAX_IN_MESH_SCORE / Self::in_mesh_cap(slot),
@@ -70,8 +80,12 @@ impl PeerScoreLevel {
             first_message_deliveries_cap: 23.0,
             mesh_message_deliveries_weight: Self::MESH_WEIGHT,
             mesh_message_deliveries_decay: Self::score_decay(decay_epoch, slot),
+            // SAFETY: gossipsub scoring parameters accept `f64`; precision loss from large
+            // `u64` second counts is acceptable for scoring heuristics.
+            #[allow(clippy::cast_precision_loss)]
             mesh_message_deliveries_cap: (epoch.as_secs() / slot.as_secs()) as f64 *
                 Self::DECAY_EPOCH,
+            #[allow(clippy::cast_precision_loss)]
             mesh_message_deliveries_threshold: (epoch.as_secs() / slot.as_secs()) as f64 *
                 Self::DECAY_EPOCH /
                 10.0,
@@ -138,6 +152,7 @@ impl PeerScoreLevel {
     }
 
     /// Returns the [`PeerScoreThresholds`].
+    #[must_use]
     pub const fn thresholds() -> PeerScoreThresholds {
         Self::DEFAULT_PEER_SCORE_THRESHOLDS
     }

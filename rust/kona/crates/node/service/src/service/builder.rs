@@ -80,6 +80,7 @@ pub struct RollupNodeBuilder {
 
 impl RollupNodeBuilder {
     /// Creates a new [`RollupNodeBuilder`] with the given [`RollupConfig`].
+    #[must_use]
     pub fn new(
         config: RollupConfig,
         l1_config_builder: L1ConfigBuilder,
@@ -107,27 +108,32 @@ impl RollupNodeBuilder {
     /// Must be called when the rollup config schedules the Interop hardfork.
     /// When not set, the underlying [`kona_derive::StatefulAttributesBuilder`]
     /// constructor panics on an interop-scheduled chain.
+    #[must_use]
     pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {
         Self { dependency_set, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
+    #[must_use]
     pub fn with_engine_config(self, engine_config: EngineConfig) -> Self {
         Self { engine_config, ..self }
     }
 
     /// Sets the [`RpcBuilder`] on the [`RollupNodeBuilder`].
+    #[must_use]
     pub fn with_rpc_config(self, rpc_config: Option<RpcBuilder>) -> Self {
         Self { rpc_config, ..self }
     }
 
     /// Appends the [`SequencerConfig`] to the builder.
+    #[must_use]
     pub fn with_sequencer_config(self, sequencer_config: SequencerConfig) -> Self {
         Self { sequencer_config: Some(sequencer_config), ..self }
     }
 
     /// Sets the Derivation Delegate configuration, trusting the configured delegate for safe head
     /// updates.
+    #[must_use]
     pub fn with_derivation_delegate_config(
         self,
         derivation_delegate_config: Option<DerivationDelegateConfig>,
@@ -146,6 +152,7 @@ impl RollupNodeBuilder {
     /// - The L2 engine URL is not set.
     /// - The jwt secret is not set.
     /// - The P2P config is not set.
+    #[must_use]
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
         if let Some(l1_slot_duration) = self.l1_config_builder.slot_duration_override {

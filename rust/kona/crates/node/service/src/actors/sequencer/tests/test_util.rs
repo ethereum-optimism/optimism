@@ -11,6 +11,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 // Returns a test SequencerActor with mocks that can be used or overridden.
+// Test-only helper shared across sibling test files; `pub` would be unreachable.
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) fn test_actor() -> SequencerActor<
     TestAttributesBuilder,
     MockConductor,

@@ -59,6 +59,11 @@ pub enum BlockSignerError {
 
 impl BlockSigner {
     /// Starts a block signer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockSignerStartError`] if a remote signer fails to initialize (e.g., while
+    /// building its HTTP client or registering its certificate watcher).
     pub async fn start(self) -> Result<BlockSignerHandler, BlockSignerStartError> {
         match self {
             Self::Local(signer) => Ok(BlockSignerHandler::Local(signer)),
@@ -69,6 +74,11 @@ impl BlockSigner {
 
 impl BlockSignerHandler {
     /// Signs a payload with the signer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockSignerError`] if the local signer fails to produce a signature, or if
+    /// the remote signer rejects the request or returns a transport error.
     pub async fn sign_block(
         &self,
         payload_hash: PayloadHash,

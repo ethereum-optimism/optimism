@@ -26,6 +26,11 @@ pub enum BootNode {
 impl BootNode {
     /// Parses a [`NodeRecord`] and serializes according to CL format. Note: [`discv5`] is
     /// originally a CL library hence needs this format to add the node.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PeerIdConversionError`] if the record's peer id cannot be converted to a
+    /// libp2p peer id.
     pub fn from_unsigned(node_record: NodeRecord) -> Result<Self, PeerIdConversionError> {
         let NodeRecord { address, udp_port, id, tcp_port } = node_record;
         let mut multi_address = Multiaddr::empty();
@@ -42,6 +47,7 @@ impl BootNode {
     }
 
     /// Converts a [`BootNode`] into a [`Multiaddr`].
+    #[must_use]
     pub fn to_multiaddr(&self) -> Option<Multiaddr> {
         match self {
             Self::Enode(addr) => Some(addr.clone()),
@@ -50,6 +56,12 @@ impl BootNode {
     }
 
     /// Helper method to parse a bootnode from a string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `raw` cannot be parsed as either an ENR record (for strings beginning with
+    /// `enr:`) or a [`NodeRecord`], or if the node record's peer id cannot be converted.
+    #[must_use]
     pub fn parse_bootnode(raw: &str) -> Self {
         // If the string starts with "enr:" it is an ENR record.
         if raw.starts_with("enr:") {

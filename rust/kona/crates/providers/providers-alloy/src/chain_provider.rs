@@ -35,6 +35,7 @@ impl AlloyChainProvider {
     ///
     /// ## Panics
     /// - Panics if `cache_size` is zero.
+    #[must_use]
     pub fn new(inner: RootProvider, cache_size: usize) -> Self {
         Self::new_with_trust(inner, cache_size, true)
     }
@@ -43,6 +44,7 @@ impl AlloyChainProvider {
     ///
     /// ## Panics
     /// - Panics if `cache_size` is zero.
+    #[must_use]
     pub fn new_with_trust(inner: RootProvider, cache_size: usize, trust_rpc: bool) -> Self {
         Self {
             inner,
@@ -56,12 +58,18 @@ impl AlloyChainProvider {
     }
 
     /// Creates a new [`AlloyChainProvider`] from the provided [`reqwest::Url`].
+    #[must_use]
     pub fn new_http(url: reqwest::Url, cache_size: usize) -> Self {
         let inner = RootProvider::new_http(url);
         Self::new(inner, cache_size)
     }
 
     /// Returns the latest L2 block number.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`RpcError<TransportErrorKind>`] if the underlying JSON-RPC call to
+    /// `eth_blockNumber` fails at the transport layer.
     pub async fn latest_block_number(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_number");
 
@@ -76,6 +84,11 @@ impl AlloyChainProvider {
     }
 
     /// Returns the chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`RpcError<TransportErrorKind>`] if the underlying JSON-RPC call to
+    /// `eth_chainId` fails at the transport layer.
     pub async fn chain_id(&mut self) -> Result<u64, RpcError<TransportErrorKind>> {
         self.inner.get_chain_id().await
     }

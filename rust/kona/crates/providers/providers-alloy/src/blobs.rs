@@ -69,6 +69,10 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     }
 
     /// Computes the slot for the given timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BlobProviderError::SlotDerivation`] if `timestamp` is before `genesis`.
     pub const fn slot(
         genesis: u64,
         slot_time: u64,
@@ -81,6 +85,10 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     }
 
     /// Fetches blobs for the given slot.
+    // The returned future is not `Send` because the generic `B::Error` type is opaque and
+    // not guaranteed `Send` across the trait bound; the pipeline calls this from a
+    // single-threaded context so this is acceptable.
+    #[allow(clippy::future_not_send)]
     async fn fetch_filtered_blobs(
         &self,
         slot: u64,
@@ -158,6 +166,13 @@ impl<B: BeaconClient> OnlineBlobProvider<B> {
     ///
     /// Use [`Self::beacon_client`] to fetch the blobs without recomputing the kzg
     /// proofs/commitments.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlobProviderError`] if the timestamp predates genesis, if the beacon
+    /// client cannot fetch the blobs, or if recomputing KZG commitments or proofs fails.
+    // See `fetch_filtered_blobs` for why this future is not `Send`.
+    #[allow(clippy::future_not_send)]
     pub async fn fetch_blobs_with_proofs(
         &self,
         block_ref: &BlockInfo,

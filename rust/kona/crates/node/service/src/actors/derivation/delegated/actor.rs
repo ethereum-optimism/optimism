@@ -217,6 +217,9 @@ where
         }
     }
 
+    // `async` is retained so this helper matches the signature of other request
+    // handlers and the call-site can `.await` it uniformly.
+    #[allow(clippy::unused_async)]
     async fn handle_derivation_delegation_actor_request(
         &mut self,
         request_type: DerivationActorRequest,

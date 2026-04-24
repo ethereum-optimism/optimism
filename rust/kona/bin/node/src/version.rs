@@ -1,5 +1,10 @@
 //! Version information for kona-node.
 
+// Compile-time constants shared across the binary's modules. `pub(crate)` is required
+// because the containing module is itself `pub(crate)`; promoting to `pub` would trip
+// `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 /// The latest version from Cargo.toml.
 pub(crate) const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 

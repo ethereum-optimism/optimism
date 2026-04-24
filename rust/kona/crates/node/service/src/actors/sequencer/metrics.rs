@@ -28,6 +28,8 @@ where
     UnsafePayloadGossipClient_: UnsafePayloadGossipClient,
 {
     /// Updates the metrics for the sequencer actor.
+    // `self` is read only when the `metrics` feature is enabled.
+    #[cfg_attr(not(feature = "metrics"), allow(clippy::unused_self, clippy::missing_const_for_fn))]
     pub(super) fn update_metrics(&self) {
         // no-op if disabled.
         #[cfg(feature = "metrics")]
@@ -43,18 +45,23 @@ where
     }
 }
 
+// Parameters are only read inside `kona_macros::set!` expansions gated on the
+// `metrics` feature; the helpers keep unified signatures across build modes.
 #[inline]
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
 pub(super) fn update_attributes_build_duration_metrics(duration: Duration) {
     // Log the attributes build duration, if metrics are enabled.
     kona_macros::set!(gauge, crate::Metrics::SEQUENCER_ATTRIBUTES_BUILDER_DURATION, duration);
 }
 
 #[inline]
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
 pub(super) fn update_conductor_commitment_duration_metrics(duration: Duration) {
     kona_macros::set!(gauge, crate::Metrics::SEQUENCER_CONDUCTOR_COMMITMENT_DURATION, duration);
 }
 
 #[inline]
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
 pub(super) fn update_block_build_duration_metrics(duration: Duration) {
     kona_macros::set!(
         gauge,
@@ -64,12 +71,14 @@ pub(super) fn update_block_build_duration_metrics(duration: Duration) {
 }
 
 #[inline]
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
 pub(super) fn update_seal_duration_metrics(duration: Duration) {
     // Log the block building seal task duration, if metrics are enabled.
     kona_macros::set!(gauge, crate::Metrics::SEQUENCER_BLOCK_BUILDING_SEAL_TASK_DURATION, duration);
 }
 
 #[inline]
+#[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
 pub(super) fn update_total_transactions_sequenced(transaction_count: u64) {
     #[cfg(feature = "metrics")]
     metrics::counter!(crate::Metrics::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED)

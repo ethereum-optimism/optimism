@@ -112,6 +112,12 @@ impl BlockHandler {
     ///
     /// The block encoding/compression are assumed to be valid at this point (they are first checked
     /// in the handle).
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockInvalidError`] if any of the protocol-level checks fail (e.g., payload
+    /// hash mismatch, invalid signature, timestamp out of range, duplicate block, or version
+    /// not activated at the given timestamp).
     pub fn block_valid(
         &mut self,
         envelope: &OpNetworkPayloadEnvelope,
@@ -335,6 +341,10 @@ impl BlockHandler {
     }
 }
 
+// The test helpers are re-used across sibling modules' tests, hence `pub(crate)`; the
+// lint's `pub` suggestion would trigger unreachable-pub warnings since the outer module
+// is itself gated on `#[cfg(test)]`.
+#[allow(clippy::redundant_pub_crate)]
 #[cfg(test)]
 pub(crate) mod tests {
 
@@ -400,6 +410,7 @@ pub(crate) mod tests {
     }
 
     /// Make the block v2 compatible
+    #[allow(clippy::redundant_pub_crate)]
     pub(crate) fn v2_valid_block() -> Block<OpTxEnvelope> {
         let mut block = v1_valid_block();
 
@@ -414,6 +425,7 @@ pub(crate) mod tests {
     }
 
     /// Make the block v3 compatible
+    #[allow(clippy::redundant_pub_crate)]
     pub(crate) fn v3_valid_block() -> Block<OpTxEnvelope> {
         let mut block = valid_block();
 
@@ -437,6 +449,7 @@ pub(crate) mod tests {
     }
 
     /// Make the block v4 compatible
+    #[allow(clippy::redundant_pub_crate)]
     pub(crate) fn v4_valid_block() -> Block<OpTxEnvelope> {
         v3_valid_block()
     }

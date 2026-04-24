@@ -59,6 +59,11 @@ impl OnlinePipeline {
     /// Interop hardfork. The inner [`StatefulAttributesBuilder`] constructor
     /// panics otherwise; turning a silent state-divergence bug into a
     /// startup crash.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PipelineResult`] error if the initial pipeline signal or prepare step
+    /// fails (typically due to transport errors reaching the L1 or L2 providers).
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         cfg: Arc<RollupConfig>,
@@ -93,6 +98,7 @@ impl OnlinePipeline {
     /// Before using the returned pipeline, a [`ResetSignal`] must be sent to
     /// instantiate the pipeline state. [`Self::new`] is a convenience method that
     /// constructs a new online pipeline and sends the reset signal.
+    #[must_use]
     pub fn new_polled(
         cfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,
@@ -129,6 +135,7 @@ impl OnlinePipeline {
     /// Before using the returned pipeline, a [`ResetSignal`] must be sent to
     /// instantiate the pipeline state. [`Self::new`] is a convenience method that
     /// constructs a new online pipeline and sends the reset signal.
+    #[must_use]
     pub fn new_indexed(
         cfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,

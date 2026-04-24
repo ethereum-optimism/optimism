@@ -32,6 +32,7 @@ impl From<&LocalNode> for discv5::ListenConfig {
 
 impl LocalNode {
     /// Creates a new [`LocalNode`] instance.
+    #[must_use]
     pub const fn new(
         signing_key: k256::ecdsa::SigningKey,
         ip: IpAddr,
@@ -48,9 +49,10 @@ impl LocalNode {
     /// [the op-node implementation](https://github.com/ethereum-optimism/optimism/blob/174e55f0a1e73b49b80a561fd3fedd4fea5770c6/op-node/p2p/discovery.go#L61-L97)
     /// for the go equivalent
     fn build_enr(self, chain_id: u64) -> Result<Enr, discv5::enr::Error> {
+        use alloy_rlp::Encodable;
+
         let opstack = OpStackEnr::from_chain_id(chain_id);
         let mut opstack_data = Vec::new();
-        use alloy_rlp::Encodable;
         opstack.encode(&mut opstack_data);
 
         let mut enr_builder = Enr::builder();
@@ -93,6 +95,7 @@ pub struct Discv5Builder {
 
 impl Discv5Builder {
     /// Creates a new [`Discv5Builder`] instance.
+    #[must_use]
     pub fn new(local_node: LocalNode, chain_id: u64, discovery_config: Config) -> Self {
         Self {
             local_node,
@@ -108,60 +111,74 @@ impl Discv5Builder {
     }
 
     /// Sets a bootstore file.
+    #[must_use]
     pub fn with_bootstore_file(mut self, bootstore: Option<BootStoreFile>) -> Self {
         self.bootstore = bootstore;
         self
     }
 
     /// Sets the initial bootnodes to add to the bootstore.
+    #[must_use]
     pub fn with_bootnodes(mut self, bootnodes: BootNodes) -> Self {
         self.bootnodes = bootnodes;
         self
     }
 
     /// Sets the interval to store the bootnodes to disk.
+    #[must_use]
     pub const fn with_store_interval(mut self, store_interval: Duration) -> Self {
         self.store_interval = Some(store_interval);
         self
     }
 
     /// Sets the discovery service advertised local node information.
+    #[must_use]
     pub fn with_local_node(mut self, local_node: LocalNode) -> Self {
         self.local_node = local_node;
         self
     }
 
     /// Sets the chain ID of the network.
+    #[must_use]
     pub const fn with_chain_id(mut self, chain_id: u64) -> Self {
         self.chain_id = chain_id;
         self
     }
 
     /// Sets the interval to find peers.
+    #[must_use]
     pub const fn with_interval(mut self, interval: Duration) -> Self {
         self.interval = Some(interval);
         self
     }
 
     /// Sets the discovery config for the discovery service.
+    #[must_use]
     pub fn with_discovery_config(mut self, config: Config) -> Self {
         self.discovery_config = config;
         self
     }
 
     /// Sets the interval to randomize discovery peers.
+    #[must_use]
     pub const fn with_discovery_randomize(mut self, interval: Option<Duration>) -> Self {
         self.randomize = interval;
         self
     }
 
     /// Disables forwarding of the initial set of valid ENRs to the gossip layer.
+    #[must_use]
     pub const fn disable_forward(mut self) -> Self {
         self.forward = false;
         self
     }
 
     /// Builds a [`Discv5Driver`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`Discv5BuilderError`] if the chain id is missing, the local node ENR cannot
+    /// be constructed, or the underlying [`discv5::Discv5`] instance fails to initialize.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 

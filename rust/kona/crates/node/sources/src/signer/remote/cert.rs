@@ -93,6 +93,10 @@ impl RemoteSigner {
     /// automatically when they are updated.
     ///
     /// Returns `Ok(None)` if no client certificates are configured.
+    // The `async` keyword is retained to keep the call-site ergonomic: callers `.await`
+    // this alongside other async setup steps, and the notify watcher API may become
+    // async in future releases.
+    #[allow(clippy::unused_async)]
     pub(super) async fn start_certificate_watcher(
         &self,
         client: Arc<RwLock<RpcClient>>,
@@ -104,7 +108,7 @@ impl RemoteSigner {
         // Clone the builder to avoid borrowing issues
         let builder = self.clone();
         let mut watcher = notify::recommended_watcher(move |res| {
-            builder.handle_watcher_event(client.clone(), res);
+            builder.handle_watcher_event(&client, res);
         })?;
 
         tracing::info!(target: "signer", "Starting certificate watcher for automatic TLS reload");
@@ -121,7 +125,7 @@ impl RemoteSigner {
     /// It reloads the TLS configuration and updates the client.
     fn handle_watcher_event(
         &self,
-        client: Arc<RwLock<RpcClient>>,
+        client: &Arc<RwLock<RpcClient>>,
         res: Result<Event, notify::Error>,
     ) {
         match res {
@@ -137,9 +141,12 @@ impl RemoteSigner {
                         let new_client = ClientBuilder::default().transport(transport, false);
 
                         // Update the client with the new TLS configuration. We're using a blocking
-                        // write here because the handler is synchronous.
-                        let mut client_guard = client.blocking_write();
-                        *client_guard = new_client;
+                        // write here because the handler is synchronous. The guard is scoped to
+                        // drop before the subsequent tracing call.
+                        {
+                            let mut client_guard = client.blocking_write();
+                            *client_guard = new_client;
+                        }
                         tracing::info!(target: "signer:certificate-watcher", "TLS configuration reloaded successfully");
                     }
                     Err(e) => {

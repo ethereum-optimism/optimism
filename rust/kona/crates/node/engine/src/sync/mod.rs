@@ -25,6 +25,12 @@ use crate::EngineClient;
 /// Plausible: meaning that the blockhash of the L2 block's L1 origin
 /// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another
 /// height in the L1 chain, and the same holds for all its ancestors.
+///
+/// # Errors
+///
+/// Returns a [`SyncStartError`] if the engine client cannot return the initial forkchoice
+/// state, or if traversing L2 history to locate a plausible starting point encounters an
+/// RPC error or exhausts the chain without finding one.
 pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
     cfg: &RollupConfig,
     engine_client: &EngineClient_,

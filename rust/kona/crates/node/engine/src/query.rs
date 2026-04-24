@@ -67,6 +67,12 @@ pub enum EngineQueriesError {
 
 impl EngineQueries {
     /// Handles the engine query request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EngineQueriesError`] if the query's response channel is closed
+    /// ([`EngineQueriesError::ChannelClosed`]), or if a downstream RPC call required to fulfil
+    /// the query fails.
     pub async fn handle<EngineClient_: EngineClient>(
         self,
         state_recv: &tokio::sync::watch::Receiver<EngineState>,

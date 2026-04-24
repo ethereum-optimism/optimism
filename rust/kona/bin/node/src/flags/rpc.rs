@@ -10,6 +10,9 @@ use std::{
 };
 
 /// RPC CLI Arguments
+// Each bool corresponds to a distinct CLI flag; grouping them into an enum or bitset
+// would fragment the argument parser and break the env-var → struct-field mapping.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
 pub struct RpcArgs {
     /// Whether to disable the rpc server.

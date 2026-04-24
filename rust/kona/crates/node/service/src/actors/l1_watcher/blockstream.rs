@@ -29,9 +29,11 @@ where
 impl<L1P: Provider> BlockStream<L1P> {
     /// Creates a new [`Stream<Item = BlockInfo>`] instance.
     ///
-    /// # Returns
-    /// Returns error if the passed [`BlockNumberOrTag`] is of the [`BlockNumberOrTag::Number`]
-    /// variant.
+    /// # Errors
+    ///
+    /// Returns an error if the passed [`BlockNumberOrTag`] is of the
+    /// [`BlockNumberOrTag::Number`] variant; only chain tags (`Latest`, `Safe`, `Finalized`,
+    /// etc.) are supported.
     pub fn new_as_stream(
         l1_provider: L1P,
         tag: BlockNumberOrTag,

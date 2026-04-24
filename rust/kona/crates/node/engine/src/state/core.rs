@@ -22,6 +22,9 @@ use serde::{Deserialize, Serialize};
 /// 5. **Finalized** - Derived from finalized L1 data only
 ///
 /// See the [OP Stack specifications](https://specs.optimism.io) for detailed safety definitions.
+// Each field names a chain head at a different safety level; the `_head` suffix reflects the
+// domain convention in the rollup spec and renaming would obscure that meaning.
+#[allow(clippy::struct_field_names)]
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineSyncState {
     /// Most recent block found on the P2P network (lowest safety level).
@@ -38,26 +41,31 @@ pub struct EngineSyncState {
 
 impl EngineSyncState {
     /// Returns the current unsafe head.
+    #[must_use]
     pub const fn unsafe_head(&self) -> L2BlockInfo {
         self.unsafe_head
     }
 
     /// Returns the current cross-verified unsafe head.
+    #[must_use]
     pub const fn cross_unsafe_head(&self) -> L2BlockInfo {
         self.cross_unsafe_head
     }
 
     /// Returns the current local safe head.
+    #[must_use]
     pub const fn local_safe_head(&self) -> L2BlockInfo {
         self.local_safe_head
     }
 
     /// Returns the current safe head.
+    #[must_use]
     pub const fn safe_head(&self) -> L2BlockInfo {
         self.safe_head
     }
 
     /// Returns the current finalized head.
+    #[must_use]
     pub const fn finalized_head(&self) -> L2BlockInfo {
         self.finalized_head
     }
@@ -69,6 +77,7 @@ impl EngineSyncState {
     /// - `finalized_block` = `finalized_head`
     ///
     /// If the block info is not yet available, the default values are used.
+    #[must_use]
     pub const fn create_forkchoice_state(&self) -> ForkchoiceState {
         ForkchoiceState {
             head_block_hash: self.unsafe_head.hash(),
@@ -79,6 +88,7 @@ impl EngineSyncState {
 
     /// Applies the update to the provided sync state, using the current state values if the update
     /// is not specified. Returns the new sync state.
+    #[must_use]
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -120,7 +130,10 @@ impl EngineSyncState {
     }
 
     /// Updates a block label metric, keyed by the label.
+    // The body collapses to nothing without the `metrics` feature, so the function body
+    // is effectively a `const` no-op; silence the resulting `must_use` / `dead_code` noise.
     #[inline]
+    #[cfg_attr(not(feature = "metrics"), allow(unused_variables, clippy::missing_const_for_fn))]
     fn update_block_label_metric(label: &'static str, number: u64) {
         kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
     }
@@ -168,6 +181,7 @@ impl EngineState {
     /// required and the [`crate::BuildTask`] can be used to build the block.
     ///
     /// [Consolidation]: https://specs.optimism.io/protocol/derivation.html#l1-consolidation-payload-attributes-matching
+    #[must_use]
     pub fn needs_consolidation(&self) -> bool {
         self.sync_state.safe_head() != self.sync_state.unsafe_head()
     }
@@ -176,49 +190,49 @@ impl EngineState {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Metrics;
-    use kona_protocol::BlockInfo;
-    use metrics_exporter_prometheus::PrometheusBuilder;
-    use rstest::rstest;
+    #[cfg(feature = "metrics")]
+    use {
+        kona_protocol::BlockInfo, metrics_exporter_prometheus::PrometheusBuilder, rstest::rstest,
+    };
 
     impl EngineState {
         /// Set the unsafe head.
         pub fn set_unsafe_head(&mut self, unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 unsafe_head: Some(unsafe_head),
-                ..Default::default()
+                ..EngineSyncStateUpdate::default()
             });
         }
 
         /// Set the cross-verified unsafe head.
         pub fn set_cross_unsafe_head(&mut self, cross_unsafe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 cross_unsafe_head: Some(cross_unsafe_head),
-                ..Default::default()
+                ..EngineSyncStateUpdate::default()
             });
         }
 
         /// Set the local safe head.
         pub fn set_local_safe_head(&mut self, local_safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 local_safe_head: Some(local_safe_head),
-                ..Default::default()
+                ..EngineSyncStateUpdate::default()
             });
         }
 
         /// Set the safe head.
         pub fn set_safe_head(&mut self, safe_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 safe_head: Some(safe_head),
-                ..Default::default()
+                ..EngineSyncStateUpdate::default()
             });
         }
 
         /// Set the finalized head.
         pub fn set_finalized_head(&mut self, finalized_head: L2BlockInfo) {
-            self.sync_state.apply_update(EngineSyncStateUpdate {
+            self.sync_state = self.sync_state.apply_update(EngineSyncStateUpdate {
                 finalized_head: Some(finalized_head),
-                ..Default::default()
+                ..EngineSyncStateUpdate::default()
             });
         }
     }

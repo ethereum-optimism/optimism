@@ -30,6 +30,7 @@ impl EngineForkchoiceVersion {
     /// Returns the appropriate [`EngineForkchoiceVersion`] for the chain at the given attributes.
     ///
     /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    #[must_use]
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
         if cfg.is_ecotone_active(timestamp) {
             // Cancun+
@@ -61,6 +62,7 @@ impl EngineNewPayloadVersion {
     /// Returns the appropriate [`EngineNewPayloadVersion`] for the chain at the given timestamp.
     ///
     /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    #[must_use]
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
         if cfg.is_isthmus_active(timestamp) {
             Self::V4
@@ -91,6 +93,7 @@ impl EngineGetPayloadVersion {
     /// Returns the appropriate [`EngineGetPayloadVersion`] for the chain at the given timestamp.
     ///
     /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    #[must_use]
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
         if cfg.is_isthmus_active(timestamp) {
             Self::V4

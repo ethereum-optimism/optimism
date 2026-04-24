@@ -10,6 +10,7 @@ use libp2p::Multiaddr;
 use super::PeerId;
 
 /// Converts an [`Enr`] into a [`Multiaddr`].
+#[must_use]
 pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
     let mut addr = if let Some(socket) = enr.tcp4_socket() {
         let mut addr = Multiaddr::from(*socket.ip());
@@ -37,6 +38,11 @@ pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
 
 /// Converts an uncompressed [`PeerId`] to a [`secp256k1::PublicKey`] by prepending the [`PeerId`]
 /// bytes with the `SECP256K1_TAG_PUBKEY_UNCOMPRESSED` tag.
+///
+/// # Errors
+///
+/// Returns a [`secp256k1::Error`] if the tagged byte sequence does not form a valid secp256k1
+/// public key.
 pub fn peer_id_to_secp256k1_pubkey(id: PeerId) -> Result<secp256k1::PublicKey, secp256k1::Error> {
     /// Tags the public key as uncompressed.
     ///
@@ -60,10 +66,18 @@ pub enum PeerIdConversionError {
     InvalidPublicKey(#[from] discv5::libp2p_identity::DecodingError),
 }
 
-/// Converts an uncoded [`PeerId`] to a [`libp2p::PeerId`]. These two types represent the same
-/// underlying concept (secp256k1 public key) but using different encodings (the local [`PeerId`] is
-/// the uncompressed representation of the public key, while the "p2plib" [`libp2p::PeerId`] is a
-/// more complex representation, involving protobuf encoding and bitcoin encoding,  defined here: <https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md>).
+/// Converts an uncoded [`PeerId`] to a [`libp2p::PeerId`].
+///
+/// These two types represent the same underlying concept (secp256k1 public key) but using
+/// different encodings: the local [`PeerId`] is the uncompressed representation of the public
+/// key, while the "p2plib" [`libp2p::PeerId`] is a more complex representation involving
+/// protobuf encoding and bitcoin encoding, [defined here](https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md).
+///
+/// # Errors
+///
+/// Returns a [`PeerIdConversionError::InvalidPeerId`] if the input bytes are not a valid
+/// secp256k1 public key, or [`PeerIdConversionError::InvalidPublicKey`] if the key cannot be
+/// encoded as a libp2p peer id.
 pub fn local_id_to_p2p_id(peer_id: PeerId) -> Result<libp2p::PeerId, PeerIdConversionError> {
     // The libp2p library works with compressed public keys.
     let encoded_pk_bytes = peer_id_to_secp256k1_pubkey(peer_id)

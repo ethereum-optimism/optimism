@@ -1,3 +1,7 @@
+// Internal CLI module: the `pub` items below are for inter-module use within the
+// `kona-node` binary, not a library API, so exhaustive `# Errors` / `# Panics`
+// sections would duplicate the call-site context.
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 use std::path::PathBuf;
 
 use alloy_primitives::{Address, B256};

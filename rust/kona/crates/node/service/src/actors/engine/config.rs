@@ -29,6 +29,7 @@ pub struct EngineConfig {
 
 impl EngineConfig {
     /// Builds and returns the [`OpEngineClient`].
+    #[must_use]
     pub fn build_engine_client(self) -> OpEngineClient<RootProvider, RootProvider<Optimism>> {
         EngineClientBuilder {
             l2: self.l2_url,

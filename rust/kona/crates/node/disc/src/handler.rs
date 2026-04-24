@@ -86,6 +86,7 @@ pub struct Discv5Handler {
 
 impl Discv5Handler {
     /// Creates a new [`Discv5Handler`] service.
+    #[must_use]
     pub const fn new(chain_id: u64, sender: Sender<HandlerRequest>) -> Self {
         Self { sender, chain_id }
     }
@@ -93,6 +94,7 @@ impl Discv5Handler {
     /// Blocking request for the ENRs of the discovery service.
     ///
     /// Returns `None` if the request could not be sent or received.
+    #[must_use]
     pub fn table_enrs(&self) -> tokio::sync::oneshot::Receiver<Vec<Enr>> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let sender = self.sender.clone();
@@ -106,6 +108,7 @@ impl Discv5Handler {
 
     /// Returns a [`tokio::sync::oneshot::Receiver`] that contains a vector of information about
     /// the nodes in the discv5 table.
+    #[must_use]
     pub fn table_infos(&self) -> tokio::sync::oneshot::Receiver<Vec<(NodeId, Enr, NodeStatus)>> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let sender = self.sender.clone();
@@ -120,6 +123,7 @@ impl Discv5Handler {
     /// Blocking request for the local ENR of the node.
     ///
     /// Returns `None` if the request could not be sent or received.
+    #[must_use]
     pub fn local_enr(&self) -> tokio::sync::oneshot::Receiver<Enr> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let sender = self.sender.clone();
@@ -132,6 +136,7 @@ impl Discv5Handler {
     }
 
     /// Requests an [`Enr`] from the discv5 service given a [`Multiaddr`].
+    #[must_use]
     pub fn request_enr(
         &self,
         addr: Multiaddr,
@@ -151,6 +156,7 @@ impl Discv5Handler {
     /// Blocking request for the metrics of the discovery service.
     ///
     /// Returns `None` if the request could not be sent or received.
+    #[must_use]
     pub fn metrics(&self) -> tokio::sync::oneshot::Receiver<Metrics> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let sender = self.sender.clone();
@@ -165,6 +171,7 @@ impl Discv5Handler {
     /// Blocking request for the discovery service peer count.
     ///
     /// Returns `None` if the request could not be sent or received.
+    #[must_use]
     pub fn peer_count(&self) -> tokio::sync::oneshot::Receiver<usize> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let sender = self.sender.clone();

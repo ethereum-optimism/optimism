@@ -1,5 +1,9 @@
 //! Global arguments for the CLI.
 
+// Internal CLI module: the `pub` items below are for inter-module use within the
+// `kona-node` binary, not a library API, so exhaustive `# Errors` / `# Panics`
+// sections would duplicate the call-site context.
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 use alloy_primitives::Address;
 use clap::Parser;
 use kona_cli::{LogArgs, MetricsArgs};
@@ -35,6 +39,7 @@ impl GlobalArgs {
     /// Applies the specified overrides to the given rollup config.
     ///
     /// Transforms the rollup config and returns the updated config with the overrides applied.
+    #[must_use]
     pub fn apply_overrides(&self, config: RollupConfig) -> RollupConfig {
         self.override_args.apply(config)
     }

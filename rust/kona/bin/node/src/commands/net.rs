@@ -1,5 +1,9 @@
 //! Net Subcommand
 
+// Internal CLI module: the `pub` items below are for inter-module use within the
+// `kona-node` binary, not a library API, so exhaustive `# Errors` / `# Panics`
+// sections would duplicate the call-site context.
+#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 use crate::flags::{GlobalArgs, P2PArgs, RpcArgs};
 use clap::Parser;
 use futures::future::OptionFuture;

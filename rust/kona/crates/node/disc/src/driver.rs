@@ -50,6 +50,7 @@ pub struct Discv5Driver {
 
 impl Discv5Driver {
     /// Returns a new [`Discv5Builder`] instance.
+    #[must_use]
     pub fn builder(
         local_node: LocalNode,
         chain_id: u64,
@@ -59,6 +60,11 @@ impl Discv5Driver {
     }
 
     /// Instantiates a new [`Discv5Driver`].
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; returns `Result` so additional I/O-backed construction paths can
+    /// be added without breaking the public API.
     pub const fn new(
         disc: Discv5,
         interval: Duration,
@@ -147,6 +153,11 @@ impl Discv5Driver {
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task.
+    // The spawned loop handles many message variants and discovery events inline; the
+    // control-flow is flat and extracting helpers for each branch would obscure rather
+    // than clarify the event loop.
+    #[allow(clippy::too_many_lines)]
+    #[must_use]
     pub fn start(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
         let chain_id = self.chain_id;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);

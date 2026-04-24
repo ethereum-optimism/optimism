@@ -21,6 +21,7 @@ pub enum EnrValidation {
 
 impl EnrValidation {
     /// Validates the [`Enr`] for the OP Stack.
+    #[must_use]
     pub fn validate(enr: &Enr, chain_id: u64) -> Self {
         let opstack_enr = match OpStackEnr::try_from(enr) {
             Ok(opstack_enr) => opstack_enr,
@@ -35,11 +36,13 @@ impl EnrValidation {
     }
 
     /// Returns `true` if the ENR is valid.
+    #[must_use]
     pub const fn is_valid(&self) -> bool {
         matches!(self, Self::Valid)
     }
 
     /// Returns `true` if the ENR is invalid.
+    #[must_use]
     pub const fn is_invalid(&self) -> bool {
         !self.is_valid()
     }
@@ -91,6 +94,7 @@ impl OpStackEnr {
     pub const OP_CL_KEY: &str = "opstack";
 
     /// Constructs an [`OpStackEnr`] from a chain id.
+    #[must_use]
     pub const fn from_chain_id(chain_id: u64) -> Self {
         Self { chain_id, version: 0 }
     }
@@ -99,10 +103,10 @@ impl OpStackEnr {
 impl Encodable for OpStackEnr {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         let mut chain_id_buf = encode::u128_buffer();
-        let chain_id_slice = encode::u128(self.chain_id as u128, &mut chain_id_buf);
+        let chain_id_slice = encode::u128(u128::from(self.chain_id), &mut chain_id_buf);
 
         let mut version_buf = encode::u128_buffer();
-        let version_slice = encode::u128(self.version as u128, &mut version_buf);
+        let version_slice = encode::u128(u128::from(self.version), &mut version_buf);
 
         let opstack = [chain_id_slice, version_slice].concat();
         alloy_primitives::Bytes::from(opstack).encode(out);

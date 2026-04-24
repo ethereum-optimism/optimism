@@ -8,9 +8,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// Requires that the implementor handles [`EngineRpcRequest`]s via the provided channel.
-/// Note: this exists to facilitate unit testing rather than consolidate multiple implementations
-/// under a well-thought-out interface.
+/// Handles [`EngineRpcRequest`]s via the provided channel.
+///
+/// Note: this exists to facilitate unit testing rather than consolidate multiple
+/// implementations under a well-thought-out interface.
 pub trait EngineRpcRequestReceiver: Send + Sync {
     /// Starts a task to handle engine queries.
     fn start(

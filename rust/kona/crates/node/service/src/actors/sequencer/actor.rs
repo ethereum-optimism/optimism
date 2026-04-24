@@ -115,6 +115,9 @@ where
     ///
     /// If a new block was started, it will return the associated [`UnsealedPayloadHandle`] so
     /// that it may be sealed and committed in a future call to this function.
+    // The actor runs on a single task; the trait-generic parameters prevent the
+    // future from being `Send` but it is never sent across threads.
+    #[allow(clippy::future_not_send)]
     async fn seal_last_and_start_next(
         &mut self,
         payload_to_seal: Option<&UnsealedPayloadHandle>,
@@ -135,6 +138,7 @@ where
 
     /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
     /// gossiping the resulting block, if one is built.
+    #[allow(clippy::future_not_send)]
     async fn seal_and_commit_payload_if_applicable(
         &self,
         unsealed_payload_handle: &UnsealedPayloadHandle,
@@ -158,12 +162,12 @@ where
 
         // If the conductor is available, commit the payload to it.
         if let Some(conductor) = &self.conductor {
-            let _conductor_commitment_start = Instant::now();
+            let conductor_commitment_start = Instant::now();
             if let Err(err) = conductor.commit_unsafe_payload(&payload).await {
                 error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
             }
 
-            update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
+            update_conductor_commitment_duration_metrics(conductor_commitment_start.elapsed());
         }
 
         self.unsafe_payload_gossip_client
@@ -373,6 +377,7 @@ where
     }
 
     /// Schedules the initial engine reset request and waits for the unsafe head to be updated.
+    #[allow(clippy::future_not_send)]
     async fn schedule_initial_reset(&self) -> Result<(), SequencerActorError> {
         // Reset the engine, in order to initialize the engine state.
         // NB: this call waits for confirmation that the reset succeeded and we can proceed with

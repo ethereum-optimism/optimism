@@ -13,9 +13,11 @@ use kona_rpc::EngineRpcClient;
 use std::fmt::Debug;
 use tokio::sync::{mpsc, oneshot, watch};
 
-/// Queue-based implementation of the [`EngineRpcClient`] trait. This handles all channel-based
-/// operations, providing a nice facade for callers. This also exposes only a subset of the
-/// supported [`EngineActorRequest`] operations to limit the power of callers to RPC-type requests.
+/// Queue-based implementation of the [`EngineRpcClient`] trait.
+///
+/// This handles all channel-based operations, providing a nice facade for callers. This also
+/// exposes only a subset of the supported [`EngineActorRequest`] operations to limit the
+/// power of callers to RPC-type requests.
 #[derive(Clone, Constructor, Debug)]
 pub struct QueuedEngineRpcClient {
     /// A channel to use to send the `EngineActor` requests.

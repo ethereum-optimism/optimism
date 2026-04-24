@@ -41,11 +41,13 @@ pub enum AttributesMatch {
 
 impl AttributesMatch {
     /// Returns true if the attributes match the block.
+    #[must_use]
     pub const fn is_match(&self) -> bool {
         matches!(self, Self::Match)
     }
 
     /// Returns true if the attributes do not match the block.
+    #[must_use]
     pub const fn is_mismatch(&self) -> bool {
         matches!(self, Self::Mismatch(_))
     }
@@ -983,8 +985,8 @@ mod tests {
             check,
             AttributesMatch::Mismatch(EIP1559Parameters(
                 BaseFeeParams {
-                    max_change_denominator: u64::MAX as u128,
-                    elasticity_multiplier: u64::MAX as u128
+                    max_change_denominator: u128::from(u64::MAX),
+                    elasticity_multiplier: u128::from(u64::MAX)
                 },
                 BaseFeeParams { max_change_denominator: 0, elasticity_multiplier: 0 }
             ))

@@ -14,6 +14,8 @@ type L2BlockNumber = u64;
 ///
 /// It maintains a queue of derived L2 blocks that are awaiting finalization, and returns
 /// the L2 block numbers that can be finalized as new finalized L1 blocks are received.
+// Internal helper type used only inside the derivation actor; `pub` would be unreachable.
+#[allow(clippy::redundant_pub_crate)]
 #[derive(Debug, Default)]
 pub(crate) struct L2Finalizer {
     /// A map of `L1 block number -> highest derived L2 block number` within the L1 epoch, used to

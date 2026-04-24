@@ -160,6 +160,12 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
     }
 
     /// Attempts consolidation on the engine state.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ConsolidateTaskError`] if fetching the unsafe L2 block fails, if the
+    /// block payload cannot be converted to an [`L2BlockInfo`], or if the consolidation
+    /// check rejects the block against the expected safe head attributes.
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         let global_start = Instant::now();
 

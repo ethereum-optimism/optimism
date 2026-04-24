@@ -85,6 +85,7 @@ pub struct ConnectionGater {
 
 impl ConnectionGater {
     /// Creates a new instance of the `ConnectionGater`.
+    #[must_use]
     pub fn new(config: GaterConfig) -> Self {
         Self {
             config,
@@ -99,6 +100,7 @@ impl ConnectionGater {
     }
 
     /// Returns if the given [`Multiaddr`] has been dialed the maximum number of times.
+    #[must_use]
     pub fn dial_threshold_reached(&self, addr: &Multiaddr) -> bool {
         // If the peer has not been dialed yet, the threshold is not reached.
         let Some(dialed) = self.dialed_peers.get(addr) else {
@@ -126,6 +128,7 @@ impl ConnectionGater {
     }
 
     /// Gets the [`PeerId`] from a given [`Multiaddr`].
+    #[must_use]
     pub fn peer_id_from_addr(addr: &Multiaddr) -> Option<PeerId> {
         addr.iter().find_map(|component| match component {
             libp2p::multiaddr::Protocol::P2p(peer_id) => Some(peer_id),
@@ -134,6 +137,7 @@ impl ConnectionGater {
     }
 
     /// Constructs the [`IpAddr`] from the given [`Multiaddr`].
+    #[must_use]
     pub fn ip_from_addr(addr: &Multiaddr) -> Option<IpAddr> {
         addr.iter().find_map(|component| match component {
             libp2p::multiaddr::Protocol::Ip4(ip) => Some(IpAddr::V4(ip)),
@@ -196,6 +200,7 @@ impl ConnectionGater {
     }
 
     /// Checks if a given [`IpAddr`] is within any of the `blocked_subnets`.
+    #[must_use]
     pub fn check_ip_in_blocked_subnets(&self, ip_addr: &IpAddr) -> bool {
         for subnet in &self.blocked_subnets {
             if subnet.contains(ip_addr) {
@@ -453,11 +458,11 @@ fn test_dns_multiaddr_detection() {
     assert!(ConnectionGater::try_resolve_dns(&dns6_addr).is_some());
 
     // Test DNS multiaddr (generic)
-    let dns_addr = Multiaddr::from_str(
+    let generic_dns_addr = Multiaddr::from_str(
         "/dns/example.com/tcp/9003/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp",
     )
     .unwrap();
-    assert!(ConnectionGater::try_resolve_dns(&dns_addr).is_some());
+    assert!(ConnectionGater::try_resolve_dns(&generic_dns_addr).is_some());
 
     // Test dnsaddr multiaddr
     let dnsaddr = Multiaddr::from_str(

@@ -89,6 +89,7 @@ impl BlockHandler {
     /// Creates a new [`BlockHandler`].
     ///
     /// Requires the chain ID and a receiver channel for the unsafe block signer.
+    #[must_use]
     pub fn new(rollup_config: RollupConfig, signer_recv: Receiver<Address>) -> Self {
         let chain_id = rollup_config.l2_chain_id.id();
         Self {
@@ -105,6 +106,7 @@ impl BlockHandler {
     /// Returns the topic using the specified timestamp and optional [`RollupConfig`].
     ///
     /// Reference: <https://github.com/ethereum-optimism/optimism/blob/0bc5fe8d16155dc68bcdf1fa5733abc58689a618/op-node/p2p/gossip.go#L604C1-L612C3>
+    #[must_use]
     pub fn topic(&self, timestamp: u64) -> IdentTopic {
         if self.rollup_config.is_isthmus_active(timestamp) {
             self.blocks_v4_topic.clone()
@@ -119,10 +121,15 @@ impl BlockHandler {
 
     /// Encodes a [`OpNetworkPayloadEnvelope`] into a byte array
     /// based on the specified topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`HandlerEncodeError`] if `topic` is not a known block topic
+    /// ([`HandlerEncodeError::UnknownTopic`]) or if the payload envelope fails to encode.
     pub fn encode(
         &self,
-        topic: IdentTopic,
-        envelope: OpNetworkPayloadEnvelope,
+        topic: &IdentTopic,
+        envelope: &OpNetworkPayloadEnvelope,
     ) -> Result<Vec<u8>, HandlerEncodeError> {
         let encoded = match topic.hash() {
             hash if hash == self.blocks_v1_topic.hash() => envelope.encode_v1()?,
@@ -171,7 +178,7 @@ mod tests {
         // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
         // signer in the handler to ensure that the payload won't be rejected for invalid
         // signature.
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v2_topic, &envelope).unwrap();
         let decoded = OpNetworkPayloadEnvelope::decode_v2(&encoded).unwrap();
 
         let msg = decoded.payload_hash.signature_message(10);
@@ -218,7 +225,7 @@ mod tests {
             source: None,
             sequence_number: None,
             topic: handler.blocks_v2_topic.clone().into(),
-            data: handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap(),
+            data: handler.encode(&handler.blocks_v2_topic, &envelope).unwrap(),
         };
 
         assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
@@ -247,7 +254,7 @@ mod tests {
             unsafe_signer,
         );
 
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v2_topic, &envelope).unwrap();
 
         // Let's try to encode a message.
         let message = Message {
@@ -286,7 +293,7 @@ mod tests {
             unsafe_signer,
         );
 
-        let encoded = handler.encode(handler.blocks_v3_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v3_topic, &envelope).unwrap();
 
         // Let's try to encode a message.
         let message = Message {
@@ -325,7 +332,7 @@ mod tests {
             unsafe_signer,
         );
 
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v2_topic, &envelope).unwrap();
 
         // Let's try to encode a message.
         let message = Message {
@@ -368,7 +375,7 @@ mod tests {
             unsafe_signer,
         );
 
-        let encoded = handler.encode(handler.blocks_v4_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v4_topic, &envelope).unwrap();
 
         // Let's try to encode a message.
         let message = Message {
@@ -413,7 +420,7 @@ mod tests {
         // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
         // signer in the handler to ensure that the payload won't be rejected for invalid
         // signature.
-        let encoded = handler.encode(handler.blocks_v4_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v4_topic, &envelope).unwrap();
         let decoded = OpNetworkPayloadEnvelope::decode_v4(&encoded).unwrap();
 
         let msg = decoded.payload_hash.signature_message(10);
@@ -459,7 +466,7 @@ mod tests {
         // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
         // signer in the handler to ensure that the payload won't be rejected for invalid
         // signature.
-        let encoded = handler.encode(handler.blocks_v3_topic.clone(), envelope).unwrap();
+        let encoded = handler.encode(&handler.blocks_v3_topic, &envelope).unwrap();
         let decoded = OpNetworkPayloadEnvelope::decode_v3(&encoded).unwrap();
 
         let msg = decoded.payload_hash.signature_message(10);

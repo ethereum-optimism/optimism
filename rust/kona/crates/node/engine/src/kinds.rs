@@ -43,6 +43,7 @@ impl EngineKind {
         since = "0.1.0",
         note = "Node behavior is now equivalent across all engine client types."
     )]
+    #[must_use]
     pub const fn supports_post_finalization_elsync(self) -> bool {
         match self {
             Self::Geth => false,

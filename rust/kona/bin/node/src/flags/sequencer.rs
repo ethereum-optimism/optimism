@@ -67,6 +67,7 @@ impl Default for SequencerArgs {
 
 impl SequencerArgs {
     /// Creates a [`SequencerConfig`] from the [`SequencerArgs`].
+    #[must_use]
     pub fn config(&self) -> SequencerConfig {
         SequencerConfig {
             sequencer_stopped: self.stopped,

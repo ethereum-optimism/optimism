@@ -69,6 +69,7 @@ where
     G: ConnectionGate,
 {
     /// Returns the [`GossipDriverBuilder`] that can be used to construct the [`GossipDriver`].
+    #[must_use]
     pub const fn builder(
         rollup_config: RollupConfig,
         signer: Address,
@@ -113,6 +114,11 @@ where
     ///
     /// Returns the [`MessageId`] of the published message or a [`PublishError`]
     /// if the message could not be published.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PublishError`] if encoding the envelope fails, the topic is unknown, or
+    /// the underlying gossipsub `publish` rejects the message (e.g., no peers subscribed).
     pub fn publish(
         &mut self,
         selector: impl FnOnce(&BlockHandler) -> IdentTopic,
@@ -123,7 +129,7 @@ where
         };
         let topic = selector(&self.handler);
         let topic_hash = topic.hash();
-        let data = self.handler.encode(topic, payload)?;
+        let data = self.handler.encode(&topic, &payload)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
         kona_macros::inc!(gauge, crate::Metrics::UNSAFE_BLOCK_PUBLISHED);
         Ok(Some(id))
@@ -140,6 +146,11 @@ where
     /// This feature is being deprecated by the op-node team. Once it is fully removed from the
     /// op-node's implementation we will remove this handler.
     pub(super) fn sync_protocol_handler(&mut self) {
+        // We return: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
+        // Response format: <response> = <res><version><payload>
+        // No payload is returned.
+        const OUTPUT: [u8; 2] = hex!("0100");
+
         let Some(mut sync_protocol) = self.sync_protocol.take() else {
             return;
         };
@@ -163,11 +174,6 @@ where
 
                     debug!(target: "gossip", bytes_received = bytes_received, peer_id = ?peer_id, payload = ?buffer, "Received inbound sync request");
 
-                    // We return: not found (1), version (0). `<https://specs.optimism.io/protocol/rollup-node-p2p.html#payload_by_number>`
-                    // Response format: <response> = <res><version><payload>
-                    // No payload is returned.
-                    const OUTPUT: [u8; 2] = hex!("0100");
-
                     // We only write that we're not supporting the sync request.
                     if let Err(e) = inbound_stream.write_all(&OUTPUT).await {
                         error!(target: "gossip", err = ?e, "Failed to write the sync response to {peer_id}");
@@ -186,6 +192,11 @@ where
     /// - Tells the swarm to listen on the given [`Multiaddr`].
     ///
     /// Waits for the swarm to start listen before returning and connecting to peers.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TransportError<std::io::Error>`] if the swarm cannot bind to the
+    /// configured listen address.
     pub async fn start(&mut self) -> Result<Multiaddr, TransportError<std::io::Error>> {
         // Start the sync request/response protocol handler.
         self.sync_protocol_handler();
@@ -231,30 +242,30 @@ where
     }
 
     /// Dials the given [`Enr`].
-    pub fn dial(&mut self, enr: Enr) {
-        let validation = EnrValidation::validate(&enr, self.handler.rollup_config.l2_chain_id.id());
+    pub fn dial(&mut self, enr: &Enr) {
+        let validation = EnrValidation::validate(enr, self.handler.rollup_config.l2_chain_id.id());
         if validation.is_invalid() {
             trace!(target: "gossip", "Invalid OP Stack ENR for chain id {}: {}", self.handler.rollup_config.l2_chain_id.id(), validation);
             return;
         }
-        let Some(multiaddr) = enr_to_multiaddr(&enr) else {
+        let Some(multiaddr) = enr_to_multiaddr(enr) else {
             debug!(target: "gossip", "Failed to extract tcp socket from enr: {:?}", enr);
             kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER_ERROR, "type" => "invalid_enr");
             return;
         };
-        self.dial_multiaddr(multiaddr);
+        self.dial_multiaddr(&multiaddr);
     }
 
     /// Dials the given [`Multiaddr`].
-    pub fn dial_multiaddr(&mut self, addr: Multiaddr) {
+    pub fn dial_multiaddr(&mut self, addr: &Multiaddr) {
         // Check if we're allowed to dial the address.
-        if let Err(dial_error) = self.connection_gate.can_dial(&addr) {
+        if let Err(dial_error) = self.connection_gate.can_dial(addr) {
             debug!(target: "gossip", ?dial_error, "unable to dial peer");
             return;
         }
 
         // Extract the peer ID from the address.
-        let Some(peer_id) = ConnectionGater::peer_id_from_addr(&addr) else {
+        let Some(peer_id) = ConnectionGater::peer_id_from_addr(addr) else {
             warn!(target: "gossip", peer=?addr, "Failed to extract PeerId from Multiaddr");
             return;
         };
@@ -267,13 +278,13 @@ where
 
         // Let the gate know we are dialing the address.
         // Note: libp2p-dns will automatically resolve DNS multiaddrs at the transport layer.
-        self.connection_gate.dialing(&addr);
+        self.connection_gate.dialing(addr);
 
         // Dial
         match self.swarm.dial(addr.clone()) {
             Ok(()) => {
                 trace!(target: "gossip", peer=?addr, "Dialed peer");
-                self.connection_gate.dialed(&addr);
+                self.connection_gate.dialed(addr);
                 kona_macros::inc!(gauge, crate::Metrics::DIAL_PEER, "peer" => peer_id.to_string());
             }
             Err(e) => {
@@ -408,17 +419,17 @@ where
 
                 self.peer_connection_start.insert(peer_id, Instant::now());
             }
-            SwarmEvent::OutgoingConnectionError { peer_id: _peer_id, error, .. } => {
+            SwarmEvent::OutgoingConnectionError { peer_id: peer_id_opt, error, .. } => {
                 debug!(target: "gossip", "Outgoing connection error: {:?}", error);
                 // Remove the peer from current_dials so it can be dialed again
-                if let Some(peer_id) = _peer_id {
+                if let Some(peer_id) = peer_id_opt {
                     self.connection_gate.remove_dial(&peer_id);
                 }
                 kona_macros::inc!(
                     gauge,
                     crate::Metrics::GOSSIPSUB_CONNECTION,
                     "type" => "outgoing_error",
-                    "peer" => _peer_id.map(|p| p.to_string()).unwrap_or_default()
+                    "peer" => peer_id_opt.map(|p| p.to_string()).unwrap_or_default()
                 );
             }
             SwarmEvent::IncomingConnectionError {
