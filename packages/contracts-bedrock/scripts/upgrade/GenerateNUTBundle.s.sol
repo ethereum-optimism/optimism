@@ -54,7 +54,7 @@ contract GenerateNUTBundle is Script {
     /// @notice Gas limits for the upgrade.
     UpgradeUtils.GasLimits internal gasLimits;
 
-    /// @notice Name→impl records for all predeploys, derived from the registry. Passed to L2CM constructor.
+    /// @notice Name + implementation records for all predeploys, derived from the registry. Passed to L2CM constructor.
     L2ContractsManagerTypes.ImplRecord[] internal _implRecords;
 
     /// @notice Ordered list of all implementation configurations.
@@ -345,7 +345,7 @@ contract GenerateNUTBundle is Script {
     }
 
     /// @notice Populates _implRecords from _implementationConfigs.
-    /// @dev Builds the name→impl array passed to the L2ContractsManager constructor.
+    /// @dev Builds the name + implementation array passed to the L2ContractsManager constructor.
     ///      Derived entirely from the registry via buildImplementationDeploymentConfigs(),
     ///      so adding a new predeploy to getAllRecords() automatically includes it here.
     function _getImplementations() internal {

@@ -31,6 +31,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
+    /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
     error L2ContractsManager_FeatureFlagMismatch();
     /// @notice Thrown when an implementation name is not found in the constructor input.
     /// @param name The name that was not found.
@@ -109,8 +110,8 @@ contract L2ContractsManager is ISemver {
     address internal immutable L2_DEV_FEATURE_FLAGS_IMPL;
 
     /// @notice Constructor for the L2ContractsManager contract.
-    /// @param _implementations Array of name→impl records for all predeploys. Order-independent:
-    ///                         each immutable is assigned by looking up its name via _findImpl.
+    /// @dev Loads the implementation addresses for all predeploys.
+    /// @param _implementations Array of name + implementation records for all predeploys.
     constructor(L2ContractsManagerTypes.ImplRecord[] memory _implementations) {
         // Store the address of this contract for DELEGATECALL enforcement.
         THIS_L2CM = address(this);

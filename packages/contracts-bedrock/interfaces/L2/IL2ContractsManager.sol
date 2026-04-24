@@ -53,6 +53,6 @@ interface IL2ContractsManager is ISemver {
         returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_);
 
     /// @notice Constructor for the L2ContractsManager contract.
-    /// @param _implementations Array of name→impl records for all predeploys.
+    /// @param _implementations Array of name + implementation records for all predeploys.
     function __constructor__(L2ContractsManagerTypes.ImplRecord[] memory _implementations) external;
 }
