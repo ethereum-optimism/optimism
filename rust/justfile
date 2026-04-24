@@ -171,6 +171,46 @@ hack partition="" shuffle="false" seed="default":
 
   cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
+########################### Release #################################
+
+# Release crates under a subdirectory plus their transitive workspace deps.
+# mode: "dry" (default, prints changes without applying) or "execute"
+# Example: just release op-alloy 1.0.0
+# Example: just release op-alloy 1.0.0 execute
+release SUBDIR VERSION MODE="dry":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    case "{{MODE}}" in
+      dry)     EXTRA="" ;;
+      execute) EXTRA="--execute" ;;
+      *) echo "error: mode must be 'dry' or 'execute', got '{{MODE}}'" >&2; exit 1 ;;
+    esac
+
+    WS_NAMES=$(cargo metadata --format-version=1 --no-deps \
+      | jq -r '.packages[].name' | sort -u)
+
+    SEED=$(cargo metadata --format-version=1 --no-deps \
+      | jq -r --arg dir "/rust/{{SUBDIR}}/" \
+          '.packages[] | select(.manifest_path | contains($dir)) | .name')
+
+    if [[ -z "$SEED" ]]; then
+      echo "error: no workspace crates found under rust/{{SUBDIR}}/" >&2
+      exit 1
+    fi
+
+    DEPS=$(for pkg in $SEED; do
+      cargo tree -p "$pkg" -e normal,build --prefix none 2>/dev/null | awk '{print $1}'
+    done | sort -u)
+
+    PKGS=$(comm -12 <(echo "$DEPS") <(echo "$WS_NAMES") | sed 's/^/-p /' | tr '\n' ' ')
+
+    echo "Packages to release at version {{VERSION}} (mode: {{MODE}}):"
+    echo "$PKGS" | tr ' ' '\n' | sed '/^$/d'
+    echo
+
+    exec cargo release {{VERSION}} $PKGS $EXTRA
+
 ######################### Documentation ################################
 
 DOCS_DIR := justfile_directory() / "docs"
