@@ -35,7 +35,11 @@ impl From<FileDescriptor> for usize {
 
 impl From<FileDescriptor> for i32 {
     fn from(fd: FileDescriptor) -> Self {
-        usize::from(fd) as Self
+        // SAFETY: `FileDescriptor` has seven variants mapped to 0..=6; the cast always fits.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        {
+            usize::from(fd) as Self
+        }
     }
 }
 

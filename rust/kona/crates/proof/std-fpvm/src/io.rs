@@ -1,5 +1,12 @@
 //! This module contains the `ClientIO` struct, which is a system call interface for the kernel.
 
+// Reason: `FileDescriptor` is a newtype around `usize` matching the FPVM kernel ABI; casting
+// to `i32` for the native `std::process::exit` / `File::from_raw_fd` shim cannot produce an
+// out-of-range value in practice. `pub(crate) type ClientIO` inside this private module is
+// intentional architecture-selection; `redundant_pub_crate` would force `pub` but
+// `unreachable_pub` would then complain.
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::{BasicKernelInterface, FileDescriptor, errors::IOResult};
 use cfg_if::cfg_if;
 
@@ -41,6 +48,8 @@ cfg_if! {
             }
 
             fn exit(code: usize) -> ! {
+                // SAFETY: exit codes in practice are small integers fitting in i32.
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
                 std::process::exit(code as i32)
             }
         }
