@@ -82,10 +82,17 @@ pub enum MessageGraphError<E: Debug> {
     /// Invalid messages were found
     #[error("Invalid messages found on chains: {0:?}")]
     InvalidMessages(HashMap<u64, Self>),
-    /// Cyclic dependency detected among same-timestamp executing messages
+    /// Cyclic dependency detected among same-timestamp executing messages.
+    ///
+    /// Each returned error describes the participants of a single cycle at a single
+    /// timestamp. Cycles that span multiple timestamps are not represented here: after
+    /// the reported chains are replaced with deposit-only blocks, the consolidation
+    /// retry loop re-derives the message graph and any remaining cycle at another
+    /// timestamp surfaces as a subsequent `CyclicDependency` error.
     #[error("Cyclic dependency detected among chains: {chain_ids:?}")]
     CyclicDependency {
-        /// The chain IDs participating in the cycle.
+        /// The chain IDs participating in this cycle. Each chain appears at most once,
+        /// even if it has multiple executing messages inside the cycle.
         chain_ids: Vec<u64>,
     },
 }

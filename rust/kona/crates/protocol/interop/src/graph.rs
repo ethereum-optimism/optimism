@@ -80,7 +80,10 @@ fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &mut [Vec<usize>]) ->
 /// Returns the chain IDs of cycle participants, or an empty vec if acyclic.
 ///
 /// Matches the semantics of op-supernode's `buildCycleGraph`:
-/// - Only same-timestamp executing messages are included as nodes.
+/// - Only executing messages whose *executing* block timestamp *and* referenced *initiating*
+///   message timestamp both equal `timestamp` are included as nodes. An EM that references a
+///   historical initiating message is a dependency on finalized past state, not a concurrent
+///   cross-chain dependency, and must not participate in the same-timestamp cycle graph.
 /// - Intra-chain edges: each EM depends on the previous EM on the same chain.
 /// - Cross-chain edges: each EM depends on `executingMessageBefore(targetChain, targetLogIdx)`.
 fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u64> {
@@ -90,7 +93,14 @@ fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u
     let mut chain_nodes: BTreeMap<u64, Vec<usize>> = BTreeMap::new();
 
     for msg in messages {
-        if msg.executing_timestamp != timestamp {
+        // Two filters, mirroring op-supernode (`verifyCycleMessages` + `buildCycleGraph`):
+        //   1. The EM's executing block must be at `timestamp`.
+        //   2. The EM's referenced initiating message must also be at `timestamp`.
+        // An EM that passes (1) but fails (2) references historical state and must not be
+        // admitted into the same-timestamp cycle graph.
+        if msg.executing_timestamp != timestamp ||
+            msg.inner.identifier.timestamp.saturating_to::<u64>() != timestamp
+        {
             continue;
         }
 
@@ -156,8 +166,8 @@ fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u64) -> Vec<u
     cycle_chains
 }
 
-/// The [`MessageGraph`] represents a set of blocks at a given timestamp and the interop
-/// dependencies between them.
+/// The [`MessageGraph`] represents a set of blocks — possibly at different timestamps, one per
+/// chain — and the interop dependencies between them.
 ///
 /// This structure is used to determine whether or not any interop messages are invalid within the
 /// set of blocks within the graph. An "invalid message" is one that was relayed from one chain to
@@ -1052,12 +1062,18 @@ mod test {
     }
 
     /// Helper to build an [`EnrichedExecutingMessage`] for direct `detect_cycles` tests.
+    ///
+    /// `target_timestamp` is the timestamp of the referenced initiating message and is
+    /// recorded in `MessageIdentifier.timestamp`. It is kept separate from
+    /// `executing_timestamp` so tests can construct EMs whose initiating message is at a
+    /// different (e.g. historical) timestamp than the executing block.
     fn make_em(
         executing_chain_id: u64,
         executing_log_index: u32,
         executing_timestamp: u64,
         target_chain_id: u64,
         target_log_index: u64,
+        target_timestamp: u64,
     ) -> EnrichedExecutingMessage {
         use crate::{ExecutingMessage, MessageIdentifier};
         EnrichedExecutingMessage::new(
@@ -1067,7 +1083,7 @@ mod test {
                     origin: Address::ZERO,
                     blockNumber: U256::ZERO,
                     logIndex: U256::from(target_log_index),
-                    timestamp: U256::from(executing_timestamp),
+                    timestamp: U256::from(target_timestamp),
                     chainId: U256::from(target_chain_id),
                 },
             },
@@ -1083,9 +1099,36 @@ mod test {
     fn test_detect_cycles_past_timestamp_filtered_out() {
         let ts: u64 = 1000;
         // Chain A has an EM at the wrong timestamp (ts - 100), referencing chain B.
-        let messages = vec![make_em(CHAIN_A_ID, 0, ts - 100, CHAIN_B_ID, 0)];
+        let messages = vec![make_em(CHAIN_A_ID, 0, ts - 100, CHAIN_B_ID, 0, ts - 100)];
         let result = detect_cycles(&messages, ts);
         assert!(result.is_empty(), "Past-timestamp EM should be excluded from cycle graph");
+    }
+
+    /// An executing message whose *referenced initiating message* is at a historical
+    /// timestamp must be filtered out of the cycle graph, even if its executing block
+    /// is at the current timestamp.
+    ///
+    /// This mirrors op-supernode's `buildCycleGraph` secondary filter (`em.Timestamp == ts`,
+    /// where `em.Timestamp` is the identifier timestamp). Two EMs that reference each
+    /// other at historical timestamps are dependencies on finalized past state, not a
+    /// concurrent same-timestamp cycle.
+    #[test]
+    fn test_detect_cycles_historical_identifier_timestamp_filtered_out() {
+        let ts: u64 = 1000;
+        let historical: u64 = 500;
+        // Both EMs are at the current timestamp but reference initiating messages at a
+        // historical timestamp. Without the secondary filter these would form a spurious
+        // A→B, B→A cycle.
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, historical),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, historical),
+        ];
+        let result = detect_cycles(&messages, ts);
+        assert!(
+            result.is_empty(),
+            "EMs referencing historical initiating messages must not participate in the \
+             same-timestamp cycle graph",
+        );
     }
 
     /// One-way reference to a chain with no executing messages — no cycle.
@@ -1094,7 +1137,7 @@ mod test {
     fn test_detect_cycles_one_way_ref_to_chain_with_no_ems() {
         let ts: u64 = 1000;
         // Chain A has an EM referencing chain B at log index 0, but chain B has no EMs.
-        let messages = vec![make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0)];
+        let messages = vec![make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, ts)];
         let result = detect_cycles(&messages, ts);
         assert!(result.is_empty(), "Reference to chain with no EMs should not create a cycle");
     }
@@ -1107,8 +1150,8 @@ mod test {
     fn test_detect_cycles_ref_before_target_em_no_cycle() {
         let ts: u64 = 1000;
         let messages = vec![
-            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 2), // A refs B@2
-            make_em(CHAIN_B_ID, 3, ts, CHAIN_A_ID, 0), // B's EM is at index 3, refs A@0
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 2, ts), // A refs B@2
+            make_em(CHAIN_B_ID, 3, ts, CHAIN_A_ID, 0, ts), // B's EM is at index 3, refs A@0
         ];
         let result = detect_cycles(&messages, ts);
         // A references B at log index 2, but B's EM is at index 3 (> 2), so
@@ -1124,13 +1167,84 @@ mod test {
         // Chain A has two sequential EMs (indices 0 and 5), both referencing chain B.
         // Chain B has no EMs, so no cross-chain edges are created.
         let messages = vec![
-            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0),
-            make_em(CHAIN_A_ID, 5, ts, CHAIN_B_ID, 3),
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, ts),
+            make_em(CHAIN_A_ID, 5, ts, CHAIN_B_ID, 3, ts),
         ];
         let result = detect_cycles(&messages, ts);
         assert!(
             result.is_empty(),
             "Intra-chain sequential EMs without cross-chain cycle should not be flagged"
         );
+    }
+
+    /// Regression test: executing messages whose referenced initiating messages are at
+    /// historical timestamps must not be treated as same-timestamp cycle participants.
+    ///
+    /// op-supernode's `buildCycleGraph` filters candidate nodes by the referenced
+    /// initiating-message's timestamp (`em.Timestamp == ts`), where
+    /// `ExecutingMessage.Timestamp` is populated from `Identifier.Timestamp` in
+    /// `op-supervisor/.../executing_message.go`. Executing messages whose initiating
+    /// message is at a historical timestamp therefore never participate in the
+    /// same-timestamp cycle graph — they represent a dependency on finalized historical
+    /// state, not a concurrent cross-chain dependency.
+    ///
+    /// This test sets up two chains at the same executing-block timestamp, each with a
+    /// single EM that references the *other* chain's initiating message at a historical
+    /// timestamp. No same-timestamp cycle can exist: both dependencies are on historical,
+    /// already-finalized state. The messages may independently fail per-message validation
+    /// (the test harness does not supply historical blocks), but they must not be flagged
+    /// as cyclic.
+    ///
+    /// See ethereum-optimism/optimism#20303 review discussion.
+    #[tokio::test]
+    async fn test_historical_cross_chain_refs_not_flagged_as_same_ts_cycle() {
+        const CURRENT_TS: u64 = 200;
+        const HISTORICAL_TS: u64 = 100;
+
+        let mut superchain = SuperchainBuilder::new();
+        superchain
+            .chain(CHAIN_A_ID)
+            .with_timestamp(CURRENT_TS)
+            .with_block_time(2)
+            .with_interop_activation_time(0);
+        superchain
+            .chain(CHAIN_B_ID)
+            .with_timestamp(CURRENT_TS)
+            .with_block_time(2)
+            .with_interop_activation_time(0);
+
+        // Chain A's block at CURRENT_TS contains an EM referencing an initiating message
+        // on chain B at HISTORICAL_TS. Chain B's block at CURRENT_TS contains an EM
+        // referencing an initiating message on chain A at HISTORICAL_TS. Neither reference
+        // is a same-timestamp dependency, so no same-timestamp cycle exists.
+        superchain.chain(CHAIN_A_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_B_ID)
+                .with_origin_timestamp(HISTORICAL_TS),
+        );
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(HISTORICAL_TS),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+
+        // Cycle detection must not flag these messages as cyclic. Per-message validation
+        // may still reject them (the test provider has no historical blocks), but that is
+        // a separate failure mode; this test is scoped to cycle detection.
+        if let Err(MessageGraphError::CyclicDependency { chain_ids }) = graph.resolve().await {
+            panic!(
+                "Historical cross-chain references must not be flagged as a same-timestamp \
+                 cycle. Both EMs reference initiating messages at a historical timestamp and \
+                 have no concurrent cross-chain dependency. Chain IDs wrongly flagged: {:?}",
+                chain_ids,
+            );
+        }
     }
 }
