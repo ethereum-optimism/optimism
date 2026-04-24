@@ -61,13 +61,13 @@ interface IBondedDisputeGame {
         external
         view
         returns (
-            uint32 parentIndex,
-            address counteredBy,
-            address claimant,
-            uint128 bond,
-            Claim claim,
-            Position position,
-            Clock clock
+            uint32 parentIndex_,
+            address counteredBy_,
+            address claimant_,
+            uint128 bond_,
+            Claim claim_,
+            Position position_,
+            Clock clock_
         );
     function getRequiredBond(Position _position) external view returns (uint256 requiredBond_);
 }
