@@ -90,6 +90,9 @@ impl L1Config {
     }
 
     /// Parse the mainnet genesis.
+    // Reason: `extra_fields` is `alloy_serde::OtherFields`, which is not a direct dep; using
+    // `Default::default()` avoids an otherwise-unneeded dependency.
+    #[allow(clippy::default_trait_access)]
     #[must_use]
     pub fn mainnet() -> Self {
         Self(L1ChainConfig {
@@ -148,6 +151,8 @@ impl L1Config {
     }
 
     /// Parse the sepolia genesis.
+    // Reason: `extra_fields` is `alloy_serde::OtherFields`, which is not a direct dep.
+    #[allow(clippy::default_trait_access)]
     #[must_use]
     pub fn sepolia() -> Self {
         Self(L1ChainConfig {
@@ -204,6 +209,8 @@ impl L1Config {
     }
 
     /// Parse the holesky genesis.
+    // Reason: `extra_fields` is `alloy_serde::OtherFields`, which is not a direct dep.
+    #[allow(clippy::default_trait_access)]
     #[must_use]
     pub fn holesky() -> Self {
         Self(L1ChainConfig {

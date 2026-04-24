@@ -25,7 +25,7 @@ pub const BASE_MAINNET_CONFIG: RollupConfig = RollupConfig {
             hash: b256!("f712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd"),
             number: 0_u64,
         },
-        l2_time: 1686789347_u64,
+        l2_time: 1_686_789_347_u64,
         system_config: Some(SystemConfig {
             batcher_address: address!("5050f69a9786f081509234f1a7f4684b5e5b76c9"),
             overhead: uint!(0xbc_U256),
