@@ -437,11 +437,13 @@ where
 #[cfg(test)]
 mod test {
     use super::MessageGraph;
+    use super::detect_cycles;
     use crate::{
         MESSAGE_EXPIRY_WINDOW, MessageGraphError,
+        message::EnrichedExecutingMessage,
         test_util::{ExecutingMessageBuilder, SuperchainBuilder},
     };
-    use alloy_primitives::{Address, hex, keccak256};
+    use alloy_primitives::{Address, B256, U256, hex, keccak256};
 
     const MOCK_MESSAGE: [u8; 4] = hex!("deadbeef");
     const CHAIN_A_ID: u64 = 1;
@@ -990,29 +992,6 @@ mod test {
         assert_eq!(chain_ids, vec![CHAIN_A_ID, CHAIN_B_ID, CHAIN_C_ID]);
     }
 
-    /// One-way dependency: A executes a message from B. No cycle. Should resolve successfully.
-    #[tokio::test]
-    async fn test_derive_and_resolve_one_way_dependency_no_cycle() {
-        let mut superchain = default_superchain();
-
-        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
-
-        // B has an initiating message. A executes it. No reverse dependency.
-        superchain.chain(CHAIN_B_ID).add_initiating_message(MOCK_MESSAGE.into());
-        superchain.chain(CHAIN_A_ID).add_executing_message(
-            ExecutingMessageBuilder::default()
-                .with_message_hash(keccak256(MOCK_MESSAGE))
-                .with_origin_chain_id(CHAIN_B_ID)
-                .with_origin_timestamp(chain_a_time),
-        );
-
-        let (headers, cfgs, provider) = superchain.build();
-
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
-        graph.resolve().await.unwrap();
-    }
-
     /// Bystander chain: A↔B form a cycle, but C has a one-way dependency on A (not in the cycle).
     /// Only A and B should be reported as cycle participants.
     #[tokio::test]
@@ -1071,5 +1050,88 @@ mod test {
         chain_ids.sort();
         // Only A and B are in the cycle; C is a bystander.
         assert_eq!(chain_ids, vec![CHAIN_A_ID, CHAIN_B_ID]);
+    }
+
+    /// Helper to build an [`EnrichedExecutingMessage`] for direct `detect_cycles` tests.
+    fn make_em(
+        executing_chain_id: u64,
+        executing_log_index: u32,
+        executing_timestamp: u64,
+        target_chain_id: u64,
+        target_log_index: u64,
+    ) -> EnrichedExecutingMessage {
+        use crate::{ExecutingMessage, MessageIdentifier};
+        EnrichedExecutingMessage::new(
+            ExecutingMessage {
+                payloadHash: B256::ZERO,
+                identifier: MessageIdentifier {
+                    origin: Address::ZERO,
+                    blockNumber: U256::ZERO,
+                    logIndex: U256::from(target_log_index),
+                    timestamp: U256::from(executing_timestamp),
+                    chainId: U256::from(target_chain_id),
+                },
+            },
+            executing_chain_id,
+            executing_timestamp,
+            executing_log_index,
+        )
+    }
+
+    /// An executing message with a past timestamp is filtered out of the cycle graph.
+    /// Mirrors op-supernode's "past timestamp filtered out" test case.
+    #[test]
+    fn test_detect_cycles_past_timestamp_filtered_out() {
+        let ts: u64 = 1000;
+        // Chain A has an EM at the wrong timestamp (ts - 100), referencing chain B.
+        let messages = vec![make_em(CHAIN_A_ID, 0, ts - 100, CHAIN_B_ID, 0)];
+        let result = detect_cycles(&messages, ts);
+        assert!(result.is_empty(), "Past-timestamp EM should be excluded from cycle graph");
+    }
+
+    /// One-way reference to a chain with no executing messages — no cycle.
+    /// Mirrors op-supernode's "one-way ref to chain with no EMs - no cycle" test case.
+    #[test]
+    fn test_detect_cycles_one_way_ref_to_chain_with_no_ems() {
+        let ts: u64 = 1000;
+        // Chain A has an EM referencing chain B at log index 0, but chain B has no EMs.
+        let messages = vec![make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0)];
+        let result = detect_cycles(&messages, ts);
+        assert!(result.is_empty(), "Reference to chain with no EMs should not create a cycle");
+    }
+
+    /// Reference before target EM — no dependency edge, no cycle.
+    /// Chain A references chain B at log index 2, but chain B's only EM is at log index 3.
+    /// Since there is no EM at or before index 2 on chain B, no cross-chain edge is created.
+    /// Mirrors op-supernode's "ref before target EM - no dependency, no cycle" test case.
+    #[test]
+    fn test_detect_cycles_ref_before_target_em_no_cycle() {
+        let ts: u64 = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 2), // A refs B@2
+            make_em(CHAIN_B_ID, 3, ts, CHAIN_A_ID, 0), // B's EM is at index 3, refs A@0
+        ];
+        let result = detect_cycles(&messages, ts);
+        // A references B at log index 2, but B's EM is at index 3 (> 2), so
+        // executingMessageBefore(B, 2) returns None. Only B→A edge exists, no cycle.
+        assert!(result.is_empty(), "Ref before target EM should not create a dependency edge");
+    }
+
+    /// Multiple EMs on the same chain with no cross-chain cycle — intra-chain sequential.
+    /// Mirrors op-supernode's "intra-chain sequential EMs - no cycle" test case.
+    #[test]
+    fn test_detect_cycles_intra_chain_sequential_ems_no_cycle() {
+        let ts: u64 = 1000;
+        // Chain A has two sequential EMs (indices 0 and 5), both referencing chain B.
+        // Chain B has no EMs, so no cross-chain edges are created.
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0),
+            make_em(CHAIN_A_ID, 5, ts, CHAIN_B_ID, 3),
+        ];
+        let result = detect_cycles(&messages, ts);
+        assert!(
+            result.is_empty(),
+            "Intra-chain sequential EMs without cross-chain cycle should not be flagged"
+        );
     }
 }
