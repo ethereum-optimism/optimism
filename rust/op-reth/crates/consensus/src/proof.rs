@@ -9,6 +9,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
 
 /// Calculates the receipt root for a header.
+#[allow(clippy::redundant_pub_crate)] // `mod proof` is private; crate visibility is the real boundary.
 pub(crate) fn calculate_receipt_root_optimism<R: DepositReceipt>(
     receipts: &[ReceiptWithBloom<&R>],
     chain_spec: impl OpHardforks,
@@ -77,6 +78,14 @@ pub fn calculate_receipt_root_no_memo_optimism<R: DepositReceipt>(
 }
 
 #[cfg(test)]
+// Hex-derived gas/nonce/timestamp literals and large fixture functions dominate this test
+// module; grouping them as a single test with readable hex values is clearer than breaking
+// them up to appease pedantic lints.
+#[allow(
+    clippy::unreadable_literal,
+    clippy::too_many_lines,
+    clippy::default_trait_access
+)]
 mod tests {
     use super::*;
     use alloy_consensus::{Receipt, ReceiptWithBloom, TxReceipt};

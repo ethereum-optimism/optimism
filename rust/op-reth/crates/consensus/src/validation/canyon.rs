@@ -9,6 +9,11 @@ use crate::OpConsensusError;
 
 /// Verifies that withdrawals root in block header (Shanghai) is always [`EMPTY_ROOT_HASH`] in
 /// Canyon.
+///
+/// # Errors
+///
+/// Returns an error if the header is missing a withdrawals root or the value is not
+/// [`EMPTY_ROOT_HASH`].
 #[inline]
 pub fn ensure_empty_withdrawals_root<H: BlockHeader>(header: &H) -> Result<(), ConsensusError> {
     // Shanghai rule
@@ -27,6 +32,10 @@ pub fn ensure_empty_withdrawals_root<H: BlockHeader>(header: &H) -> Result<(), C
 
 /// Verifies that withdrawals in block body (Shanghai) is always empty in Canyon.
 /// <https://specs.optimism.io/protocol/rollup-node-p2p.html#block-validation>
+///
+/// # Errors
+///
+/// Returns an error if the body is missing the withdrawals field or the list is non-empty.
 #[inline]
 pub fn ensure_empty_shanghai_withdrawals<T: BlockBody>(body: &T) -> Result<(), OpConsensusError> {
     // Shanghai rule

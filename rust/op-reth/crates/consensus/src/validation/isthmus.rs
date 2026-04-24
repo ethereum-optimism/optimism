@@ -12,6 +12,11 @@ use tracing::warn;
 
 /// Verifies that `withdrawals_root` (i.e. `l2tol1-msg-passer` storage root since Isthmus) field is
 /// set in block header.
+///
+/// # Errors
+///
+/// Returns [`OpConsensusError::L2WithdrawalsRootMissing`] when the header has no
+/// `withdrawals_root`.
 pub fn ensure_withdrawals_storage_root_is_some<H: BlockHeader>(
     header: H,
 ) -> Result<(), OpConsensusError> {
@@ -23,6 +28,11 @@ pub fn ensure_withdrawals_storage_root_is_some<H: BlockHeader>(
 /// Computes the storage root of predeploy `L2ToL1MessagePasser.sol`.
 ///
 /// Uses state updates from block execution. See also [`withdrawals_root_prehashed`].
+///
+/// # Errors
+///
+/// Propagates any [`reth_storage_api::errors::ProviderError`] raised while computing
+/// the storage root.
 pub fn withdrawals_root<DB: StorageRootProvider>(
     state_updates: &BundleState,
     state: DB,
@@ -48,6 +58,11 @@ pub fn withdrawals_root<DB: StorageRootProvider>(
 ///
 /// Uses pre-hashed storage updates of `L2ToL1MessagePasser.sol` predeploy, resulting from
 /// execution of L2 withdrawals transactions. If none, takes empty [`HashedStorage::default`].
+///
+/// # Errors
+///
+/// Propagates any [`reth_storage_api::errors::ProviderError`] raised while computing
+/// the storage root.
 pub fn withdrawals_root_prehashed<DB: StorageRootProvider>(
     hashed_storage_updates: HashedStorage,
     state: DB,
@@ -61,6 +76,13 @@ pub fn withdrawals_root_prehashed<DB: StorageRootProvider>(
 /// Takes state updates resulting from execution of block.
 ///
 /// See <https://specs.optimism.io/protocol/isthmus/exec-engine.html#l2tol1messagepasser-storage-root-in-header>.
+///
+/// # Errors
+///
+/// Returns [`OpConsensusError::L2WithdrawalsRootMissing`] if the header has no
+/// withdrawals root, [`OpConsensusError::L2WithdrawalsRootCalculationFail`] if the
+/// storage root lookup fails, or [`OpConsensusError::L2WithdrawalsRootMismatch`] if
+/// the header root does not match the computed storage root.
 pub fn verify_withdrawals_root<DB, H>(
     state_updates: &BundleState,
     state: DB,
@@ -99,6 +121,13 @@ where
 /// execution of block, if any. Otherwise takes empty [`HashedStorage::default`].
 ///
 /// See <https://specs.optimism.io/protocol/isthmus/exec-engine.html#l2tol1messagepasser-storage-root-in-header>.
+///
+/// # Errors
+///
+/// Returns [`OpConsensusError::L2WithdrawalsRootMissing`] if the header has no
+/// withdrawals root, [`OpConsensusError::L2WithdrawalsRootCalculationFail`] if the
+/// storage root lookup fails, or [`OpConsensusError::L2WithdrawalsRootMismatch`] if
+/// the header root does not match the computed storage root.
 pub fn verify_withdrawals_root_prehashed<DB, H>(
     hashed_storage_updates: HashedStorage,
     state: DB,
@@ -125,6 +154,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::default_trait_access)]
 mod test {
     use super::*;
     use alloc::sync::Arc;

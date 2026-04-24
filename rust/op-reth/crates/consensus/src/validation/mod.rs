@@ -24,6 +24,11 @@ use reth_primitives_traits::{BlockBody, GotExpected, receipt::gas_spent_by_trans
 ///   - ommer hash
 ///   - transaction root
 ///   - withdrawals root: the body's withdrawals root must only match the header's before isthmus
+///
+/// # Errors
+///
+/// Returns a [`ConsensusError`] variant indicating which field mismatched (ommers hash,
+/// transactions root, or withdrawals root).
 pub fn validate_body_against_header_op<B, H>(
     chain_spec: impl OpHardforks,
     body: &B,
@@ -88,6 +93,11 @@ where
 ///
 /// If `receipt_root_bloom` is provided, the pre-computed receipt root and logs bloom are used
 /// instead of computing them from the receipts.
+///
+/// # Errors
+///
+/// Returns a [`ConsensusError`] when blob gas, receipts root, logs bloom, or gas used
+/// disagree with the values derived from the execution result.
 pub fn validate_block_post_execution<R: DepositReceipt>(
     header: impl BlockHeader,
     chain_spec: impl OpHardforks,
@@ -205,6 +215,9 @@ fn compare_receipts_root_and_logs_bloom(
 }
 
 #[cfg(test)]
+// Hex-derived gas / base-fee / block number literals and default-constructed fixture types
+// dominate these tests; keeping them readable is clearer than silencing each call site.
+#[allow(clippy::unreadable_literal, clippy::default_trait_access)]
 mod tests {
     use super::*;
     use alloy_consensus::Header;
