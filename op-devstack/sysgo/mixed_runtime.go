@@ -272,7 +272,9 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 	return out
 }
 
-func startMixedOpRethNode(
+// buildMixedOpRethNode constructs an OpReth node without starting it.
+// Use this when you need to customize args (e.g. --rollup.supervisor-http) before starting.
+func buildMixedOpRethNode(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
@@ -366,7 +368,7 @@ func startMixedOpRethNode(
 		"--proofs-history.storage-path="+proofHistoryDir,
 	)
 
-	l2EL := &OpReth{
+	return &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -379,12 +381,45 @@ func startMixedOpRethNode(
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+}
 
+func startMixedOpRethNode(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+) *OpReth {
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
 	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
-	l2EL.Start()
-	t.Cleanup(l2EL.Stop)
-	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", l2EL.userRPC, "authRPC", l2EL.authRPC)
-	return l2EL
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
+}
+
+// startMixedOpRethNodeWithSupervisorURL builds and starts an OpReth node
+// with --rollup.supervisor-http pointing at the given URL.
+func startMixedOpRethNodeWithSupervisorURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+	supervisorURL string,
+) *OpReth {
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
+	if supervisorURL != "" {
+		node.args = append(node.args, "--rollup.supervisor-http="+supervisorURL)
+	}
+	t.Logger().Info("Starting op-reth with supervisor URL",
+		"name", key, "chain", l2Net.ChainID(), "supervisorURL", supervisorURL)
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
 }
 
 func startMixedKonaNode(

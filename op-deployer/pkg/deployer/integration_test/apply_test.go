@@ -167,66 +167,50 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	op_e2e.InitParallel(t)
 
-	tests := []struct {
-		name       string
-		devFeature common.Hash
-	}{
-		// "default" (non-V2) test case removed: v1 OPCM was deleted.
-		{"opcm-v2", devfeatures.OPCMV2Flag},
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	require.NoError(t, err)
+	pkHex, _, _ := shared.DefaultPrivkey(t)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	loc, afactsFS := testutil.LocalArtifacts(t)
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	superchain, err := standard.SuperchainFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+	require.NoError(t, err)
+
+	cfg := bootstrap.ImplementationsConfig{
+		L1RPCUrl:                        forkedL1.RPCUrl(),
+		PrivateKey:                      pkHex,
+		ArtifactsLocator:                loc,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+		ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+		L1ProxyAdminOwner:               superchainProxyAdminOwner,
+		SuperchainProxyAdmin:            superchainProxyAdmin,
+		CacheDir:                        testCacheDir,
+		Logger:                          lgr,
+		Challenger:                      common.Address{'C'},
+		FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+		FaultGameSplitDepth:             standard.DisputeSplitDepth,
+		FaultGameClockExtension:         standard.DisputeClockExtension,
+		FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op_e2e.InitParallel(t)
-			lgr := testlog.Logger(t, slog.LevelDebug)
 
-			forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-			require.NoError(t, err)
-			pkHex, _, _ := shared.DefaultPrivkey(t)
-			t.Cleanup(func() {
-				require.NoError(t, stopL1())
-			})
-			loc, afactsFS := testutil.LocalArtifacts(t)
-			testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-			superchain, err := standard.SuperchainFor(11155111)
-			require.NoError(t, err)
-
-			superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
-			require.NoError(t, err)
-
-			superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
-			require.NoError(t, err)
-
-			cfg := bootstrap.ImplementationsConfig{
-				L1RPCUrl:                        forkedL1.RPCUrl(),
-				PrivateKey:                      pkHex,
-				ArtifactsLocator:                loc,
-				MIPSVersion:                     int(standard.MIPSVersion),
-				WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-				MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-				ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-				ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-				DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-				DevFeatureBitmap:                tt.devFeature,
-				SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-				ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
-				L1ProxyAdminOwner:               superchainProxyAdminOwner,
-				SuperchainProxyAdmin:            superchainProxyAdmin,
-				CacheDir:                        testCacheDir,
-				Logger:                          lgr,
-				Challenger:                      common.Address{'C'},
-				FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-				FaultGameSplitDepth:             standard.DisputeSplitDepth,
-				FaultGameClockExtension:         standard.DisputeClockExtension,
-				FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
-			}
-			if devfeatures.IsDevFeatureEnabled(tt.devFeature, devfeatures.OPCMV2Flag) {
-				cfg.DevFeatureBitmap = devfeatures.OPCMV2Flag
-			}
-
-			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
-		})
-	}
+	runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 }
 
 func TestEndToEndApply(t *testing.T) {
@@ -401,11 +385,6 @@ func TestEndToEndApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 
-		// Enable OPCMV2 dev flag
-		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": devfeatures.OPCMV2Flag,
-		}
-
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
@@ -424,7 +403,6 @@ func TestEndToEndApply(t *testing.T) {
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmV2Impl, "OPCMV2 implementation should be deployed")
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmContainerImpl, "OPCM container implementation should be deployed")
 		require.NotEmpty(t, st.ImplementationsDeployment.OpcmStandardValidatorImpl, "OPCM standard validator implementation should be deployed")
-		require.NotEmpty(t, st.ImplementationsDeployment.OpcmInteropMigratorImpl, "OPCM interop migrator implementation should be deployed")
 
 		// Verify that implementations are deployed on L1
 		cg := ethClientCodeGetter(ctx, l1Client)
@@ -432,13 +410,7 @@ func TestEndToEndApply(t *testing.T) {
 		opcmV2Code := cg(t, st.ImplementationsDeployment.OpcmV2Impl)
 		require.NotEmpty(t, opcmV2Code, "OPCMV2 should have code deployed")
 
-		// Verify that the dev feature bitmap is set to OPCMV2
-		require.Equal(t, devfeatures.OPCMV2Flag, intent.GlobalDeployOverrides["devFeatureBitmap"])
-
 		require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OpcmV2Impl should be set")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmGameTypeAdderImpl, "OPCM game type adder implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmDeployerImpl, "OPCM deployer implementation should be zero")
-		require.Equal(t, common.Address{}, st.ImplementationsDeployment.OpcmUpgraderImpl, "OPCM upgrader implementation should be zero")
 	})
 }
 
@@ -848,7 +820,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	)
 	require.NoError(t, err)
 
-	// Now test the OPCM upgrade using the deployed impls.Opcm
+	// Now test the OPCM upgrade
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
 		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
@@ -864,10 +836,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		)
 		require.NoError(t, err)
 
-		opcmAddress := impls.Opcm
-		if devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
-			opcmAddress = impls.OpcmV2
-		}
+		opcmAddress := impls.OpcmV2
 
 		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
 		// implementation. Running the script when versions match will revert and panic the test harness.
@@ -892,34 +861,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
 		})
 
-		// Then run the OPCM upgrade
-		t.Run("upgrade opcm", func(t *testing.T) {
-			if devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
-				t.Skip("Skipping OPCM upgrade for OPCM V2")
-				return
-			}
-			upgradeConfig := embedded.UpgradeOPChainInput{
-				Prank: superchainProxyAdminOwner,
-				Opcm:  impls.Opcm,
-				ChainConfigs: []embedded.OPChainConfig{
-					{
-						SystemConfigProxy:  deployer.DefaultSystemConfigProxySepolia,
-						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
-						CannonKonaPrestate: common.Hash{'K', 'O', 'N', 'A'},
-					},
-				},
-			}
-			// Test the upgrade
-			upgradeConfigBytes, err := json.Marshal(upgradeConfig)
-			require.NoError(t, err, "UpgradeOPChainInput should marshal to JSON")
-			err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
-			require.NoError(t, err, "OPCM upgrade should succeed")
-		})
+		// Then run the OPCM V2 upgrade
 		t.Run("upgrade opcm v2", func(t *testing.T) {
-			if !devfeatures.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, devfeatures.OPCMV2Flag) {
-				t.Skip("Skipping OPCM V2 upgrade for non-OPCM V2 dev feature")
-				return
-			}
 			require.NotEqual(t, common.Address{}, impls.OpcmV2, "OpcmV2 address should not be zero")
 			t.Logf("Using OpcmV2 at address: %s", impls.OpcmV2.Hex())
 			t.Logf("Using OpcmUtils at address: %s", impls.OpcmUtils.Hex())
@@ -1012,6 +955,11 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperCannonKona,
 							},
+							{
+								Enabled:  false,
+								InitBond: big.NewInt(0),
+								GameType: embedded.GameTypeZKDisputeGame,
+							},
 						},
 						ExtraInstructions: []embedded.ExtraInstruction{
 							{
@@ -1034,27 +982,29 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				// Structure breakdown:
 				// - Tuple offset (0x20)
 				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
-				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x580)
-				// - DisputeGameConfigs[]: 6 configs
+				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x640)
+				// - DisputeGameConfigs[]: 7 configs
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
 				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
 				//   [3] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
 				//   [4] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
 				//   [5] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
+				//   [6] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
 					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-					"0000000000000000000000000000000000000000000000000000000000000580" + // offset to extraInstructions
-					"0000000000000000000000000000000000000000000000000000000000000006" + // disputeGameConfigs.length (6)
-					"00000000000000000000000000000000000000000000000000000000000000c0" + // offset to disputeGameConfigs[0]
-					"0000000000000000000000000000000000000000000000000000000000000180" + // offset to disputeGameConfigs[1]
-					"0000000000000000000000000000000000000000000000000000000000000280" + // offset to disputeGameConfigs[2]
-					"0000000000000000000000000000000000000000000000000000000000000320" + // offset to disputeGameConfigs[3]
-					"00000000000000000000000000000000000000000000000000000000000003c0" + // offset to disputeGameConfigs[4]
-					"0000000000000000000000000000000000000000000000000000000000000460" + // offset to disputeGameConfigs[5]
+					"0000000000000000000000000000000000000000000000000000000000000640" + // offset to extraInstructions
+					"0000000000000000000000000000000000000000000000000000000000000007" + // disputeGameConfigs.length (7)
+					"00000000000000000000000000000000000000000000000000000000000000e0" + // offset to disputeGameConfigs[0]
+					"00000000000000000000000000000000000000000000000000000000000001a0" + // offset to disputeGameConfigs[1]
+					"00000000000000000000000000000000000000000000000000000000000002a0" + // offset to disputeGameConfigs[2]
+					"0000000000000000000000000000000000000000000000000000000000000340" + // offset to disputeGameConfigs[3]
+					"00000000000000000000000000000000000000000000000000000000000003e0" + // offset to disputeGameConfigs[4]
+					"0000000000000000000000000000000000000000000000000000000000000480" + // offset to disputeGameConfigs[5]
+					"0000000000000000000000000000000000000000000000000000000000000520" + // offset to disputeGameConfigs[6]
 					// DisputeGameConfigs[0] - Cannon
 					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
 					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
@@ -1093,6 +1043,12 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
+					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
+					// DisputeGameConfigs[6] - ZKDisputeGame (disabled)
+					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
+					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
+					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (ZKDisputeGame)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
 					// ExtraInstructions array

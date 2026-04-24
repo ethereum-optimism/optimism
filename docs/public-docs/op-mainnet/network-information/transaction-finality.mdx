@@ -1,0 +1,83 @@
+---
+title: "Transaction finality"
+description: "Detailed information about transaction finality on OP Mainnet."
+---
+
+## What is transaction finality?
+
+Transaction finality is the point at which a transaction sent on OP Mainnet becomes permanent. This provides guarantees that the transaction will not be reverted or rolled back.
+
+<Note>
+A common misconception is that transactions on OP Stack chains take 7 days to finalize. **This is incorrect.** Transactions on OP Stack chains become finalized when their data is included on Ethereum.
+</Note>
+
+## Finality for OP Mainnet L2 Transactions
+  This describes finality for transactions on OP Mainnet except withdrawal transactions that move funds from OP Mainnet to Ethereum L1
+  For transactions on OP Mainnet, finality is not a single time to wait for. Instead, there are 4 stages in time that each provide increasing security guarantees.
+
+<Steps>
+  <Step title="Flashblock Inclusion: ~250ms">
+    After roughly 250ms, the transaction is included in a preconfirmation block (Flashblock) by the OP Mainnet sequencer.
+  </Step>
+
+  <Step title="L2 Block Inclusion: ~2s">
+    After roughly 2 seconds, the sequencer has built the transaction into an L2 block and distributed it to validator nodes.
+
+  </Step>
+
+  <Step title="L1 Batch Inclusion: ~7m">
+    After roughly 7 minutes, a "batch" from OP Mainnet containing transactions has been posted to Ethereum L1.
+
+    <Accordion title="Effectively 0% probability of a reorg.">
+      - There has never been a reorg of L2 blocks that were batched to Ethereum L1.
+      - **A reorg of Ethereum L1 does not require a reorg of the OP Mainnet L2 chain.** The sequencer and validator nodes maintain a configurable lag from the tip of Ethereum, so typical L1 reorgs have no effect. In the event of larger Ethereum reorgs, OP Mainnet can resubmit batch data on L1 without changing the sequenced L2 blocks.
+    </Accordion>
+  </Step>
+
+  <Step title="L1 Batch Finality: ~20m">
+    The Ethereum L1 batch containing the transaction is older than 2 epochs, or 64 L1 blocks.
+
+    <Accordion title="Effectively 0% probability of a reorg.">
+      - L2 blocks that have reached L1 batch finality are protected from reorgs the same way Ethereum finalized blocks are. They are in practice impossible to reverse.
+    </Accordion>
+  </Step>
+</Steps>
+
+## Settlement for Withdrawal Transactions
+
+<Note>
+  This describes finality of transactions that move funds from OP Mainnet to Ethereum
+</Note>
+
+**Only withdrawals to Ethereum must wait 7 days to settle before the funds can be released to the address on Ethereum L1.** This allows OP Mainnet's Fault Proof system to provide extremely high security guarantees for funds bridged to OP Mainnet.
+
+<Accordion title="What happens during the 7 days?">
+  When a transaction initiates a withdrawal from OP Mainnet to Ethereum, the funds are removed from the account balance on OP Mainnet. Later, a permissionless "proposer" must provide Ethereum with proof that OP Mainnet contains this withdrawal.
+
+  However, Ethereum cannot natively confirm what happened on OP Mainnet as they are separate blockchains. Thus, there is a 7 day window in which a permissionless "challenger" can dispute a proposal that it feels is malicious. If no challenge is made in the 7 days, the withdrawal can be proven against the finalized output root and released to the L1 recipient. But if a challenge is made, the proposer and challenger play what is called the Fault Dispute Game. This game requires increasing bonds to be made, with an eventual winner. If the proposer wins, the output root finalizes and can be used to prove withdrawals against (releasing them on L1). If the challenger wins, the output proposal becomes invalid.
+
+  This system requires only a one honest party to remain secure. OP Mainnet will always run an honest proposer and challenger.
+
+  Note: if the dispute game is won by a challenger, **the state of the L2 chain does not reorg**. The output proposal is marked invalid and any withdrawals that were proven against it cannot finalize. Those withdrawals would need to be re-proven against a different, valid output root.
+
+  Over the years, Zero Knowledge proof systems have continued to improve, become more battle tested, and costs of operation have been signficantly reduced. 
+  
+  Some of the best ZK teams in the industry, Succinct and RISC-0, have embraced the OP Stack and built their technology to be easily plugged into Optimism. These contributions to the ecosystem can transform OP Stack chains from Optimistic rollups to ZK rollups or to a hybrid version of both. When this being utilized, it enables fast bridging from the L2 back to Ethereum. This reduces the 7 day withdrawal time, to less than one day.
+</Accordion>
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="If there is a reorg on Ethereum, will it cause a reorg on OP Mainnet?">
+    In almost all circumstances, no. OP Mainnet can simply re-submit batch data to Ethereum transparently while the L2 chain continues to progress.
+  </Accordion>
+
+  <Accordion title="How long do deposit transactions take to finalize?">
+    Transactions moving funds from Ethereum L1 to OP Mainnet must be initiated on Ethereum and typically get included within 3 minutes by the OP Mainnet sequencer.
+  </Accordion>
+
+  <Accordion title="If a challenger wins a dispute game, will the L2 chain reorg?">
+    No. The output proposal that was challenged is marked invalid, and any actions that used it's output root become invalid. Specifically, withdrawals from OP Mainnet to L1 that proved against this output root must now prove against a different and valid one.
+  </Accordion>
+</AccordionGroup>
+

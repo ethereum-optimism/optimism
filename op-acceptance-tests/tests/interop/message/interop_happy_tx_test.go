@@ -17,9 +17,8 @@ import (
 // included in two L2 chains and that the cross-safe ref for both of them progresses as expected beyond
 // the block number where the messages were included
 func TestInteropHappyTx(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithInteropFilter())
 
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)

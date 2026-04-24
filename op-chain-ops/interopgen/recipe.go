@@ -293,10 +293,6 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 			AltDADeployConfig: genesis.AltDADeployConfig{
 				UseAltDA: false,
 			},
-			RevenueShareDeployConfig: genesis.RevenueShareDeployConfig{
-				UseRevenueShare:    false,
-				ChainFeesRecipient: common.Address{},
-			},
 		},
 		Prefund:                     make(map[common.Address]*big.Int),
 		SaltMixer:                   "",

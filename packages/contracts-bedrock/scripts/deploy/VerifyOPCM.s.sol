@@ -199,6 +199,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
+        fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -247,6 +248,7 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -610,6 +612,20 @@ contract VerifyOPCM is Script {
             // If feature is enabled, continue with normal verification
         }
 
+        // Check if this is a ZK dispute game that should be skipped
+        if (_isZKDisputeGameImplementation(_target.name)) {
+            if (!_isZKDisputeGameEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] ZK dispute game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: ZK dispute game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
+
         // Load artifact information (bytecode, immutable refs) for detailed comparison
         ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);
 
@@ -748,6 +764,20 @@ contract VerifyOPCM is Script {
     function _isSuperDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
         return LibString.eq(_contractName, "SuperFaultDisputeGame")
             || LibString.eq(_contractName, "SuperPermissionedDisputeGame");
+    }
+
+    /// @notice Checks if the ZK dispute game feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if the ZK dispute game feature is enabled.
+    function _isZKDisputeGameEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
+
+    /// @notice Checks if a contract is a ZK dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a ZK dispute game.
+    function _isZKDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "ZKDisputeGame");
     }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.

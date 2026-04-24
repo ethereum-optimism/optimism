@@ -57,6 +57,7 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
                 block_number: tx_info.inner.block_number,
                 transaction_index: tx_info.inner.index,
                 effective_gas_price: Some(effective_gas_price),
+                block_timestamp: tx_info.inner.block_timestamp,
             },
             deposit_nonce: tx_info.deposit_meta.deposit_nonce,
             deposit_receipt_version: tx_info.deposit_meta.deposit_receipt_version,
@@ -251,6 +252,12 @@ mod tx_serde {
             skip_serializing_if = "Option::is_none",
             with = "alloy_serde::quantity::opt"
         )]
+        block_timestamp: Option<u64>,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            with = "alloy_serde::quantity::opt"
+        )]
         deposit_receipt_version: Option<u64>,
 
         #[serde(flatten)]
@@ -267,6 +274,7 @@ mod tx_serde {
                         block_number,
                         transaction_index,
                         effective_gas_price,
+                        block_timestamp,
                     },
                 deposit_receipt_version,
                 deposit_nonce,
@@ -283,6 +291,7 @@ mod tx_serde {
                 block_hash,
                 block_number,
                 transaction_index,
+                block_timestamp,
                 deposit_receipt_version,
                 other: OptionalFields { from, effective_gas_price, deposit_nonce },
             }
@@ -298,6 +307,7 @@ mod tx_serde {
                 block_hash,
                 block_number,
                 transaction_index,
+                block_timestamp,
                 deposit_receipt_version,
                 other,
             } = value;
@@ -325,6 +335,7 @@ mod tx_serde {
                     block_number,
                     transaction_index,
                     effective_gas_price,
+                    block_timestamp,
                 },
                 deposit_receipt_version,
                 deposit_nonce,
@@ -336,6 +347,11 @@ mod tx_serde {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::transaction::Recovered;
+    use alloy_primitives::Address;
+    use op_alloy_consensus::{
+        OpTxEnvelope, SDMGasEntry, build_post_exec_tx, transaction::OpTransactionInfo,
+    };
 
     #[test]
     fn can_deserialize_deposit() {
@@ -355,5 +371,26 @@ mod tests {
         let deserialized = serde_json::to_value(&tx).unwrap();
         let expected = serde_json::from_str::<serde_json::Value>(rpc_tx).unwrap();
         similar_asserts::assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    fn can_serialize_post_exec_rpc_transaction() {
+        let post_exec = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let expected_input = serde_json::to_value(post_exec.input.clone()).unwrap();
+        let expected_hash = serde_json::to_value(post_exec.tx_hash()).unwrap();
+
+        let tx = Transaction::from_transaction(
+            Recovered::new_unchecked(OpTxEnvelope::from(post_exec), Address::ZERO),
+            OpTransactionInfo::default(),
+        );
+
+        let value = serde_json::to_value(&tx).unwrap();
+
+        assert_eq!(value.get("type").unwrap(), "0x7d");
+        assert_eq!(value.get("input"), Some(&expected_input));
+        assert_eq!(value.get("hash"), Some(&expected_hash));
+        assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
+        assert!(value.get("gasRefundEntries").is_none());
+        assert!(value.get("version").is_none());
     }
 }

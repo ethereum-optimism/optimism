@@ -24,11 +24,11 @@ library UpgradeUtils {
     /// @notice The number of implementations deployed in every upgrade.
     ///         Includes:
     ///         - 1 StorageSetter
-    ///         - 18 base predeploys
+    ///         - 17 base predeploys
     ///         - 4 INTEROP predeploys
     ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
     ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    uint256 internal constant IMPLEMENTATION_COUNT = 27;
+    uint256 internal constant IMPLEMENTATION_COUNT = 26;
 
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
@@ -54,7 +54,7 @@ library UpgradeUtils {
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
-        if (IMPLEMENTATION_COUNT != 27) {
+        if (IMPLEMENTATION_COUNT != 26) {
             revert(
                 "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
             );
@@ -63,30 +63,17 @@ library UpgradeUtils {
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
-    /// @dev Gas limits are chosen to provide sufficient headroom while being
-    ///      conservative enough to fit within the upgrade block gas allocation.
-    ///      All values based on gas profiling of actual mainnet fork execution.
-    ///      Rationale for each limit:
-    ///      - l2cmDeployment: L2ContractsManager deployment measured at 2,824,780 gas
-    ///        Recommended 4,237,170 (1.5x). Set to 4.5M for safety.
-    ///      - upgradeExecution: L2ProxyAdmin.upgradePredeploys() measured at 1,602,448 gas
-    ///        Recommended 2,403,672 (1.5x). Set to 3M for safety.
-    ///      - conditionalDeployerDeployment: ConditionalDeployer deployment measured at 339,403 gas
-    ///        Recommended 509,104 (1.5x). Set to 600K for safety.
-    ///      - conditionalDeployerUpgrade: ConditionalDeployer upgrade measured at 29,169 gas
-    ///        Recommended 43,753 (1.5x). Set to 50K for safety.
-    ///      - proxyAdminUpgrade: ProxyAdmin upgrade measured at 12,069 gas
-    ///        Recommended 18,103 (1.5x). Set to 50K for safety.
+    /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: 4_500_000,
-            upgradeExecution: 3_000_000,
+            l2cmDeployment: 4_942_996,
+            upgradeExecution: 2_115_000,
             // Karst
-            conditionalDeployerDeployment: 600_000,
-            conditionalDeployerUpgrade: 50_000,
-            proxyAdminUpgrade: 50_000
+            conditionalDeployerDeployment: 580_000,
+            conditionalDeployerUpgrade: 77_000,
+            proxyAdminUpgrade: 49_711
         });
     }
 
@@ -115,21 +102,72 @@ library UpgradeUtils {
         implementations_[13] = "OperatorFeeVault";
         implementations_[14] = "SchemaRegistry";
         implementations_[15] = "EAS";
-        implementations_[16] = "FeeSplitter";
-        implementations_[17] = "ConditionalDeployer";
-        implementations_[18] = "L2DevFeatureFlags";
+        implementations_[16] = "ConditionalDeployer";
+        implementations_[17] = "L2DevFeatureFlags";
 
         // INTEROP predeploys
-        implementations_[19] = "CrossL2Inbox";
-        implementations_[20] = "L2ToL2CrossDomainMessenger";
-        implementations_[21] = "SuperchainETHBridge";
-        implementations_[22] = "ETHLiquidity";
+        implementations_[18] = "CrossL2Inbox";
+        implementations_[19] = "L2ToL2CrossDomainMessenger";
+        implementations_[20] = "SuperchainETHBridge";
+        implementations_[21] = "ETHLiquidity";
 
         // CGT predeploys
-        implementations_[23] = "L1BlockCGT";
-        implementations_[24] = "L2ToL1MessagePasserCGT";
-        implementations_[25] = "LiquidityController";
-        implementations_[26] = "NativeAssetLiquidity";
+        implementations_[22] = "L1BlockCGT";
+        implementations_[23] = "L2ToL1MessagePasserCGT";
+        implementations_[24] = "LiquidityController";
+        implementations_[25] = "NativeAssetLiquidity";
+    }
+
+    /// @notice Computes the intrinsic gas cost for a NUT bundle transaction.
+    /// @dev Replicates op-geth's IntrinsicGas formula (core/state_transition.go) for
+    ///      non-contract-creation transactions post-EIP-2028:
+    ///      21,000 base + 16 gas per non-zero byte + 4 gas per zero byte.
+    ///      NUT bundle entries are never contract creations (all have a non-zero `to` address),
+    ///      so the contract-creation base cost and EIP-3860 init code cost are not included.
+    /// @param _data The transaction calldata.
+    /// @return gas_ The intrinsic gas cost.
+    function computeIntrinsicGas(bytes memory _data) internal pure returns (uint64 gas_) {
+        gas_ = 21_000;
+        for (uint256 i = 0; i < _data.length; i++) {
+            gas_ += _data[i] == 0 ? 4 : 16;
+        }
+    }
+
+    /// @notice Computes the recommended gas limit for a transaction.
+    /// @dev Recommended gas limit = 1.5x max(intrinsic + body, EIP-7623 floor). The EIP-7623
+    ///      floor dominates when execution is cheap relative to calldata,
+    ///      since op-geth charges the floor as gasUsed.
+    /// @param _intrinsicGas The intrinsic gas cost.
+    /// @param _bodyGasUsed The body gas used.
+    /// @param _floorGas The EIP-7623 floor gas.
+    /// @return gas_ The recommended gas limit.
+    function computeRecommendedGasLimit(
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        uint64 _floorGas
+    )
+        internal
+        pure
+        returns (uint64 gas_)
+    {
+        uint64 exec = _intrinsicGas + _bodyGasUsed;
+        uint64 effective = exec > _floorGas ? exec : _floorGas;
+        gas_ = uint64((uint256(effective) * 150) / 100); // 1.5x
+    }
+
+    /// @notice Computes the EIP-7623 floor gas for a transaction.
+    /// @dev Replicates op-geth's FloorDataGas (core/state_transition.go) active on Prague/Isthmus+:
+    ///      floor = 21_000 + 10 * tokens, where tokens = zero_bytes + 4 * non_zero_bytes.
+    ///      op-geth applies this twice: pre-execution it rejects the tx (ErrFloorDataGas) when
+    ///      gasLimit < floor; post-execution it sets receipt.gasUsed = max(execution_gas, floor).
+    /// @param _data The transaction calldata.
+    /// @return gas_ The EIP-7623 floor gas (includes the 21_000 base).
+    function computeFloorDataGas(bytes memory _data) internal pure returns (uint64 gas_) {
+        uint64 tokens;
+        for (uint256 i = 0; i < _data.length; i++) {
+            tokens += _data[i] == 0 ? 1 : 4;
+        }
+        gas_ = 21_000 + tokens * 10;
     }
 
     /// @notice Uses vm.computeCreate2Address to compute the CREATE2 address for given initcode and salt.

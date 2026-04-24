@@ -72,11 +72,6 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				EIP1559DenominatorCanyon: 250,
 				EIP1559Elasticity:        chainIntent.Eip1559Elasticity,
 			},
-			RevenueShareDeployConfig: genesis.RevenueShareDeployConfig{
-				UseRevenueShare:    chainIntent.UseRevenueShare,
-				ChainFeesRecipient: chainIntent.ChainFeesRecipient,
-			},
-
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
 				UseCustomGasToken:          chainIntent.IsCustomGasTokenEnabled(),
 				GasPayingTokenName:         chainIntent.CustomGasToken.Name,

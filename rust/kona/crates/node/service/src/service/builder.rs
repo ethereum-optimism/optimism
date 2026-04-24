@@ -18,6 +18,7 @@ use tower::ServiceBuilder;
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_providers_alloy::OnlineBeaconClient;
 use kona_rpc::RpcBuilder;
 
@@ -73,6 +74,8 @@ pub struct RollupNodeBuilder {
     /// Optional configuration for Derivation Delegate mode.
     /// When present, the node does not run derivation, instead trusting the configured delegate.
     pub derivation_delegate_config: Option<DerivationDelegateConfig>,
+    /// The interop dependency set for this chain.
+    pub dependency_set: Option<Arc<DependencySet>>,
 }
 
 impl RollupNodeBuilder {
@@ -95,7 +98,17 @@ impl RollupNodeBuilder {
             interop_mode: InteropMode::default(),
             sequencer_config: None,
             derivation_delegate_config: None,
+            dependency_set: None,
         }
+    }
+
+    /// Sets the interop [`DependencySet`] on the [`RollupNodeBuilder`].
+    ///
+    /// Must be called when the rollup config schedules the Interop hardfork.
+    /// When not set, the underlying [`kona_derive::StatefulAttributesBuilder`]
+    /// constructor panics on an interop-scheduled chain.
+    pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {
+        Self { dependency_set, ..self }
     }
 
     /// Sets the [`EngineConfig`] on the [`RollupNodeBuilder`].
@@ -179,6 +192,7 @@ impl RollupNodeBuilder {
             p2p_config,
             sequencer_config,
             derivation_delegate_provider,
+            dependency_set: self.dependency_set,
         }
     }
 }

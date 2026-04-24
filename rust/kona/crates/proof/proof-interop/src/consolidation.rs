@@ -198,6 +198,7 @@ where
                     suggested_fee_recipient: header.beneficiary,
                     withdrawals: Default::default(),
                     parent_beacon_block_root: header.parent_beacon_block_root,
+                    slot_number: Default::default(),
                 },
                 transactions: Some(transactions),
                 no_tx_pool: Some(true),

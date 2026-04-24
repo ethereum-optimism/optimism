@@ -11,6 +11,7 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -104,7 +105,7 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 		}
 	}
 	if !found {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("no entry found")
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
 	}
 	entry := m.entries[best]
 	return entry.l1, entry.l2, nil
@@ -492,8 +493,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		// Should NOT match genesis since both number AND hash must match
 		target := eth.BlockID{Number: genesisL2.Number, Hash: [32]byte{0xff}}
 		_, err := vn.L1AtSafeHead(context.Background(), target)
-		// Returns error because mockDB is empty and walkback fails
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})
 
 	t.Run("non-genesis target uses walkback to find earliest L1", func(t *testing.T) {
@@ -542,6 +542,71 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 
 		// Query for L2 block 100 - beyond latest L2 safe head (5)
 		target := eth.BlockID{Number: 100, Hash: [32]byte{}}
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
+	})
+
+	// CL/snap-sync bootstrap: SafeDB starts above genesisL1, so the walkback
+	// runs off the end of recorded history. That is permanent on this node.
+	t.Run("walkback past earliest SafeDB entry returns Unavailable", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		mockDB.addEntry(500, [32]byte{0x10}, [32]byte{0x11}, 100)
+		mockDB.addEntry(501, [32]byte{0x12}, [32]byte{0x13}, 110)
+		mockDB.addEntry(502, [32]byte{0x14}, [32]byte{0x15}, 120)
+
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// target within latest L2 (100 <= 120) so we enter walkback; prev=499
+		// is below the earliest entry (500) but above genesisL1 (100), so the
+		// safedb.ErrNotFound from that probe is what triggers the sentinel.
+		target := eth.BlockID{Number: 100, Hash: [32]byte{0x11}}
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
+	})
+
+	// Walkback reaches the genesis bound without ever dropping below target:
+	// also permanent (SafeDB near genesis is not considered stable).
+	t.Run("walkback reaches genesis bound returns Unavailable", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		// genesisL1=100; both entries have L2 >= target=10, so walkback from
+		// L1=150 descends to cursor=100 which trips the genesis guard.
+		mockDB.addEntry(100, [32]byte{0x01}, [32]byte{0x02}, 50)
+		mockDB.addEntry(150, [32]byte{0x03}, [32]byte{0x04}, 60)
+
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		target := eth.BlockID{Number: 10, Hash: [32]byte{0x02}}
+		_, err := vn.L1AtSafeHead(context.Background(), target)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
+	})
+
+	// Empty SafeDB on startup: transient NotFound, not the permanent sentinel.
+	t.Run("empty SafeDB returns NotFound on latest lookup", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		target := eth.BlockID{Number: 50, Hash: [32]byte{0xaa}}
 		_, err := vn.L1AtSafeHead(context.Background(), target)
 		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})

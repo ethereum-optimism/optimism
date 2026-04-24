@@ -8,7 +8,7 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, BlockValidationError, ExecutableTx, OnStateHook,
+        BlockExecutorFor, BlockValidationError, ExecutableTx, GasOutput, OnStateHook,
         StateChangePostBlockSource, StateChangeSource, StateDB, SystemCaller, TxResult,
         state_changes::{balance_increment_state, post_block_balance_increments},
     },
@@ -278,7 +278,10 @@ where
         })
     }
 
-    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
+    fn commit_transaction(
+        &mut self,
+        output: Self::Result,
+    ) -> Result<GasOutput, BlockExecutionError> {
         let OpTxResult {
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
@@ -296,7 +299,7 @@ where
 
         self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
 
-        let gas_used = result.gas_used();
+        let gas_used = result.tx_gas_used();
 
         // append gas used
         self.gas_used += gas_used;
@@ -347,7 +350,7 @@ where
 
         self.evm.db_mut().commit(state);
 
-        Ok(gas_used)
+        Ok(GasOutput::new(gas_used))
     }
 
     fn finish(
@@ -481,15 +484,15 @@ mod tests {
     use alloy_primitives::{Address, Signature, U256, uint};
     use op_alloy::consensus::OpTxEnvelope;
     use op_revm::{
-        DefaultOp, L1BlockInfo, OpBuilder, OpSpecId,
+        L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
         constants::{
             BASE_FEE_SCALAR_OFFSET, ECOTONE_L1_BLOB_BASE_FEE_SLOT, ECOTONE_L1_FEE_SCALARS_SLOT,
             L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, OPERATOR_FEE_SCALARS_SLOT,
         },
     };
     use revm::{
-        Context,
-        context::BlockEnv,
+        Context, MainContext,
+        context::{BlockEnv, CfgEnv},
         database::{CacheDB, EmptyDB, InMemoryDB, State},
         inspector::NoOpInspector,
         primitives::HashMap,
@@ -583,7 +586,10 @@ mod tests {
         &'a OpAlloyReceiptBuilder,
         &'a OpChainHardforks,
     > {
-        let ctx = Context::op()
+        let ctx = Context::mainnet()
+            .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
             .with_db(db)
             .with_chain(L1BlockInfo {
                 operator_fee_scalar: Some(U256::from(2)),
@@ -748,7 +754,8 @@ mod tests {
         let expected_da_footprint = executor.jovian_da_footprint_estimation(&tx_env, &tx).unwrap();
 
         // make sure we can use both `WithEncoded` and transaction itself as inputs.
-        let gas_used_tx = executor.execute_transaction(&tx).expect("failed to execute transaction");
+        let gas_used_tx =
+            executor.execute_transaction(&tx).expect("failed to execute transaction").tx_gas_used();
 
         // The gas used when executing the transaction should be the legacy value...
         assert!(gas_used_tx < expected_da_footprint);

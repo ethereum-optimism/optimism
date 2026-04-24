@@ -70,7 +70,6 @@ library L2ContractsManagerUtils {
         view
         returns (L2ContractsManagerTypes.FeeVaultConfig memory config_)
     {
-        // TODO(#19600): Remove withdrawalNetwork reading as part of revenue sharing deprecation.
         // Try to read the withdrawal network from the FeeVault. If it fails, use the default value.
         Types.WithdrawalNetwork withdrawalNetwork;
         // eip150-safe

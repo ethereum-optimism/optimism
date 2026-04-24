@@ -99,8 +99,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -304,21 +304,21 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // The first game is initialized with a parent index of uint32.max
         if (parentIndex() != type(uint32).max) {
             // For subsequent games, get the parent game's information
-            (,, IDisputeGame proxy) = disputeGameFactory.gameAtIndex(parentIndex());
+            (,, IDisputeGame parent) = disputeGameFactory.gameAtIndex(parentIndex());
 
             // Verify parent game is not blacklisted or retired.
-            if (anchorStateRegistry().isGameBlacklisted(proxy) || anchorStateRegistry().isGameRetired(proxy)) {
+            if (anchorStateRegistry().isGameBlacklisted(parent) || anchorStateRegistry().isGameRetired(parent)) {
                 revert InvalidParentGame();
             }
 
             // INVARIANT: The parent game must be of the same game type.
-            if (IDisputeGame(payable(address(proxy))).gameType().raw() != gameType().raw()) {
+            if (IDisputeGame(payable(address(parent))).gameType().raw() != gameType().raw()) {
                 revert UnexpectedGameType();
             }
 
             startingProposal = Proposal({
-                l2SequenceNumber: IDisputeGame(payable(address(proxy))).l2SequenceNumber(),
-                root: Hash.wrap(IDisputeGame(payable(address(proxy))).rootClaim().raw())
+                l2SequenceNumber: IDisputeGame(payable(address(parent))).l2SequenceNumber(),
+                root: Hash.wrap(IDisputeGame(payable(address(parent))).rootClaim().raw())
             });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
@@ -326,7 +326,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
 
             // INVARIANT: The parent game must be a valid game.
-            if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
+            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
@@ -436,6 +436,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Returns the status of the parent game.
+    /// @dev A parentIndex of uint32.max is the sentinel value representing the absence of a parent game
+    ///      Treating the anchor as DEFENDER_WINS is safe because the anchor
+    ///      state is only ever updated from a previously resolved DEFENDER_WINS game, so its root
+    ///      is already trusted. Any other parentIndex fetches the actual parent from the factory.
     function getParentGameStatus() private view returns (GameStatus) {
         if (parentIndex() != type(uint32).max) {
             (,, IDisputeGame parentGame) = disputeGameFactory.gameAtIndex(parentIndex());
@@ -453,17 +457,22 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ///         `CHALLENGER_WINS` when the proposer's claim has been challenged, but the proposer has not proven
     ///         its claim within the `MAX_PROVE_DURATION`.
     function resolve() external returns (GameStatus) {
-        // INVARIANT: Resolution cannot occur unless the game has already been resolved.
+        // INVARIANT: Resolution cannot occur if the game has already been resolved.
         if (status != GameStatus.IN_PROGRESS) revert ClaimAlreadyResolved();
 
         // INVARIANT: Cannot resolve a game if the parent game has not been resolved.
+        // Note: Parent blacklisting or retirement is NOT propagated automatically to descendants.
+        // resolve() only checks the parent's GameStatus. If a parent is blacklisted after a child is created,
+        // the child must be manually blacklisted by the guardian to enter REFUND mode.
         GameStatus parentGameStatus = getParentGameStatus();
         if (parentGameStatus == GameStatus.IN_PROGRESS) revert ParentGameNotResolved();
 
         // INVARIANT: If the parent game's claim is invalid, then the current game's claim is invalid.
         if (parentGameStatus == GameStatus.CHALLENGER_WINS) {
             // Parent game is invalid so this game is invalid too. Therefore the challenger wins and gets all bonds.
-            // If the game has not been challenged then there will not be any challenger address and the bond is burned.
+            // Note: If unchallenged, the bond is credited to normalModeCredit[address(0)] and effectively
+            // burned inside DelayedWETH where the owner can recover it via hold()/recover(). Proposers
+            // should wait for sufficient parent finality before extending to avoid this loss.
             status = GameStatus.CHALLENGER_WINS;
             normalModeCredit[claimData.challenger] = totalBonds;
         } else {
@@ -597,8 +606,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             revert GameNotResolved();
         }
 
+        IDisputeGame self = IDisputeGame(address(this));
+
         // Game must be finalized according to the AnchorStateRegistry.
-        bool finalized = anchorStateRegistry().isGameFinalized(IDisputeGame(address(this)));
+        bool finalized = anchorStateRegistry().isGameFinalized(self);
         if (!finalized) {
             revert GameNotFinalized();
         }
@@ -606,10 +617,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Try to update the anchor game first. Won't always succeed because delays can lead
         // to situations in which this game might not be eligible to be a new anchor game.
         // nosemgrep: sol-safety-trycatch-eip150
-        try anchorStateRegistry().setAnchorState(IDisputeGame(address(this))) { } catch { }
+        try anchorStateRegistry().setAnchorState(self) { } catch { }
 
         // Check if the game is a proper game, which will determine the bond distribution mode.
-        bool properGame = anchorStateRegistry().isGameProper(IDisputeGame(address(this)));
+        bool properGame = anchorStateRegistry().isGameProper(self);
 
         // If the game is a proper game, the bonds should be distributed normally. Otherwise, go
         // into refund mode and distribute bonds back to their original depositors.

@@ -90,10 +90,13 @@ lint-native: fmt-native-check lint-docs
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
 # Lint the workspace (mips arch). Currently, only the `kona-std-fpvm` crate is linted for the `cannon` target, as it is the only crate with architecture-specific code.
+# The `-v .../mips64-unknown-none.json` bind mount overrides the broken target
+# spec baked into cannon-builder:v1.0.0 (target-c-int-width: 64 → corrected to 32).
 lint-cannon:
   docker run \
     --rm \
     -v {{KONA_ROOT}}/../:/workdir \
+    -v {{KONA_ROOT}}/docker/cannon/mips64-unknown-none.json:/mips64-unknown-none.json:ro \
     -w="/workdir" \
     us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -Zjson-target-spec -- -D warnings
 
@@ -112,10 +115,15 @@ build-native *args='':
   cargo build --workspace $@
 
 # Build `kona-client` for the `cannon` target.
+# The `-v .../mips64-unknown-none.json` bind mount overrides the broken target
+# spec baked into cannon-builder:v1.0.0 (target-c-int-width: 64 → corrected to 32).
+# See commit 04ab310dc6: the baked spec miscompiles str equality, so the client
+# crashes under cannon when run via the kona-host-client-offline-cannon job.
 build-cannon-client:
   docker run \
     --rm \
     -v {{KONA_ROOT}}/../:/workdir \
+    -v {{KONA_ROOT}}/docker/cannon/mips64-unknown-none.json:/mips64-unknown-none.json:ro \
     -w="/workdir" \
     us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client --profile release-client-lto
 

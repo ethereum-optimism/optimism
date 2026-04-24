@@ -396,3 +396,10 @@ target "cannon-builder" {
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
 }
+
+target "ci-base-clang" {
+  dockerfile = "Dockerfile"
+  context = "ops/docker/ci-base-clang"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
+}

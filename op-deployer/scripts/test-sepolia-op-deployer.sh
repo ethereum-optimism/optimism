@@ -490,12 +490,6 @@ case "$DEPLOY_TYPE" in
                     "operatorFeeVaultRecipient:OperatorFeeVaultRecipient"
                 )
                 
-                if grep -q 'useRevenueShare = true' "$WORKDIR/intent.toml" 2>/dev/null; then
-                    if grep -q 'chainFeesRecipient = "0x0000000000000000000000000000000000000000"' "$WORKDIR/intent.toml" 2>/dev/null || ! grep -q 'chainFeesRecipient' "$WORKDIR/intent.toml" 2>/dev/null; then
-                        REQUIRED_FIELDS+=("chainFeesRecipient:ChainFeesRecipient")
-                    fi
-                fi
-                
                 NEEDS_FIX=false
                 for field_info in "${REQUIRED_FIELDS[@]}"; do
                     field_name="${field_info%%:*}"
@@ -524,8 +518,6 @@ case "$DEPLOY_TYPE" in
                         FIELD_NEEDS_FIX=false
                         if grep -q "$field_name = \"0x0000000000000000000000000000000000000000\"" "$WORKDIR/intent.toml" 2>/dev/null; then
                             FIELD_NEEDS_FIX=true
-                        elif [ "$field_name" == "chainFeesRecipient" ] && ! grep -q "$field_name" "$WORKDIR/intent.toml" 2>/dev/null; then
-                            FIELD_NEEDS_FIX=true
                         fi
                         
                         if [ "$FIELD_NEEDS_FIX" == "true" ]; then
@@ -548,26 +540,12 @@ case "$DEPLOY_TYPE" in
                                     rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
                                     echo -e "${GREEN}✓ Set $field_display to: $ADDRESS_TO_USE${NC}"
                                 else
-                                    if grep -q 'useRevenueShare = true' "$WORKDIR/intent.toml" 2>/dev/null; then
-                                        if ! sed -i.bak "/useRevenueShare = true/a\\
-  $field_name = \"$ADDRESS_TO_USE\"
-" "$WORKDIR/intent.toml" 2>/dev/null; then
-                                            if sed "/useRevenueShare = true/a\\
-  $field_name = \"$ADDRESS_TO_USE\"
-" "$WORKDIR/intent.toml" > "${WORKDIR}/intent.toml.tmp" 2>/dev/null && [ -f "${WORKDIR}/intent.toml.tmp" ]; then
-                                                mv "${WORKDIR}/intent.toml.tmp" "$WORKDIR/intent.toml"
-                                            fi
-                                        fi
-                                        rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
-                                        echo -e "${GREEN}✓ Added $field_display: $ADDRESS_TO_USE${NC}"
-                                    else
-                                        if ! sed -i.bak "/\[\[chains\]\]/,/^\[\[/ { /operatorFeeVaultRecipient = /a\\
+                                    if ! sed -i.bak "/\[\[chains\]\]/,/^\[\[/ { /operatorFeeVaultRecipient = /a\\
   $field_name = \"$ADDRESS_TO_USE\"
 }" "$WORKDIR/intent.toml" 2>/dev/null; then
-                                            echo -e "${YELLOW}⚠️  Could not automatically add $field_display. Please add it manually to intent.toml${NC}"
-                                        fi
-                                        rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
+                                        echo -e "${YELLOW}⚠️  Could not automatically add $field_display. Please add it manually to intent.toml${NC}"
                                     fi
+                                    rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
                                 fi
                             fi
                         fi

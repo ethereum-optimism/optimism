@@ -22,6 +22,17 @@ func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 	sfp.RunPreForkActivationTest(t, sys)
 }
 
+func TestInteropFaultProofs_ActivationBoundary(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// Set interop activation ~6s (3 blocks) after genesis. A small offset keeps
+	// the fork reachable within CI timeouts while still having pre-interop blocks.
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithSuggestedInteropActivationOffset(6),
+	)
+	sfp.RunInteropActivationBoundaryTest(t, sys)
+}
+
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
@@ -70,6 +81,16 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
+}
+
+func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
+	for _, tc := range sfp.IntraBlockCases() {
+		gt.Run(tc.Name, func(gt *testing.T) {
+			t := devtest.SerialT(gt)
+			sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+			sfp.RunIntraBlockConsolidationTest(t, sys, tc)
+		})
+	}
 }
 
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {

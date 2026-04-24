@@ -82,8 +82,16 @@ impl reth_payload_primitives::ExecutionPayload for OpExecData {
         self.0.payload.as_v1().gas_used
     }
 
+    fn gas_limit(&self) -> u64 {
+        self.0.payload.as_v1().gas_limit
+    }
+
     fn transaction_count(&self) -> usize {
         self.0.payload.as_v1().transactions.len()
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -135,6 +143,10 @@ impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
 
     fn parent_beacon_block_root(&self) -> Option<B256> {
         self.0.payload_attributes.parent_beacon_block_root
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -228,6 +240,10 @@ impl<T: Decodable2718 + Send + Sync + Debug + Clone + Unpin + 'static>
 
     fn parent_beacon_block_root(&self) -> Option<B256> {
         self.parent_beacon_block_root
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -676,6 +692,7 @@ mod tests {
                 suggested_fee_recipient: address!("0x4200000000000000000000000000000000000011"),
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
+                slot_number: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,
@@ -707,6 +724,7 @@ mod tests {
                 suggested_fee_recipient: address!("0x4200000000000000000000000000000000000011"),
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
+                slot_number: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,

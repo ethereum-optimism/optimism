@@ -10,12 +10,11 @@ use alloy_evm::{
     Evm, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, ExecutableTx, OnStateHook, StateDB,
+        BlockExecutorFor, ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
-use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, block::OpTxResult};
-use op_revm::OpContext;
+use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext, block::OpTxResult};
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
 use revm::Inspector;
 use std::sync::Arc;
@@ -55,7 +54,10 @@ where
         }
     }
 
-    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
+    fn commit_transaction(
+        &mut self,
+        output: Self::Result,
+    ) -> Result<GasOutput, BlockExecutionError> {
         self.inner.commit_transaction(output)
     }
 
@@ -93,7 +95,7 @@ impl BlockExecutorFactory for CustomEvmConfig {
     ) -> impl BlockExecutorFor<'a, Self, DB, I>
     where
         DB: StateDB + 'a,
-        I: Inspector<OpContext<DB>> + 'a,
+        I: Inspector<OpEvmContext<DB>> + 'a,
     {
         CustomBlockExecutor {
             inner: OpBlockExecutor::new(

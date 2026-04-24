@@ -45,6 +45,13 @@ type VerificationActivity interface {
 	// VerifiedAtTimestamp returns true if the activity has verified the data at the given timestamp.
 	VerifiedAtTimestamp(ts uint64) (bool, error)
 
+	// IsActiveAt reports whether this verification activity is responsible for
+	// verifying L2 content at the given timestamp. Activities that are scheduled
+	// (e.g. an interop activation in the future) return false for timestamps
+	// strictly before their activation point, signaling that callers may treat
+	// data at or before that timestamp as safe without consulting this activity.
+	IsActiveAt(ts uint64) bool
+
 	// LatestVerifiedL2Block returns the latest L2 block which has been verified,
 	// along with the timestamp at which it was verified.
 	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64)

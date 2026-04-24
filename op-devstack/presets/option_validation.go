@@ -27,6 +27,9 @@ const (
 	optionKindAfterBuild
 	optionKindProofValidation
 	optionKindMessageExpiryWindow
+	optionKindInteropLogBackfill
+	optionKindInteropFilter
+	optionKindPreGenesisSuperGame
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -44,7 +47,10 @@ const allOptionKinds = optionKindDeployer |
 	optionKindRequireInteropNotAtGen |
 	optionKindAfterBuild |
 	optionKindProofValidation |
-	optionKindMessageExpiryWindow
+	optionKindMessageExpiryWindow |
+	optionKindInteropLogBackfill |
+	optionKindInteropFilter |
+	optionKindPreGenesisSuperGame
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -66,6 +72,9 @@ var optionKindLabels = []struct {
 	{kind: optionKindAfterBuild, label: "after-build hooks"},
 	{kind: optionKindProofValidation, label: "proof-validation hooks"},
 	{kind: optionKindMessageExpiryWindow, label: "message expiry window"},
+	{kind: optionKindInteropLogBackfill, label: "interop log backfill depth"},
+	{kind: optionKindInteropFilter, label: "interop filter"},
+	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 }
 
 func (k optionKinds) String() string {
@@ -154,14 +163,22 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindChallengerCannonKona |
 	optionKindL1EL |
+	optionKindTimeTravel |
 	optionKindMessageExpiryWindow
+
+const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
+	optionKindPreGenesisSuperGame
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
 
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
 	optionKindTimeTravel |
-	optionKindL1EL
+	optionKindL1EL |
+	optionKindInteropLogBackfill |
+	optionKindInteropFilter |
+	optionKindPreGenesisSuperGame
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder

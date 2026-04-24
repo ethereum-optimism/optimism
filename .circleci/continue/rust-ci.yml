@@ -12,6 +12,9 @@ parameters:
   c-default_docker_image:
     type: string
     default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   c-base_image:
     type: string
     default: default
@@ -34,6 +37,9 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
   base_image:
     type: string
     default: default
@@ -96,52 +102,33 @@ parameters:
 # COMMANDS
 # ============================================================================
 commands:
-  install-cargo-binstall:
-    description: "Install cargo-binstall for fast binary installations"
-    steps:
-      - run:
-          name: Install cargo-binstall
-          command: |
-            if command -v cargo-binstall >/dev/null 2>&1; then
-              echo "cargo-binstall already installed"
-              exit 0
-            fi
-            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-
-  rust-install-toolchain:
-    description: "Install Rust toolchain via rustup"
+  apt-install:
+    description: "apt-get update + install, with retries to tolerate transient Ubuntu mirror sync failures."
     parameters:
-      channel:
-        description: The Rust channel release to use (stable, nightly, etc.)
+      packages:
+        description: "Space-separated list of apt packages to install."
         type: string
-        default: "stable"
-      components:
-        description: Components to install (space or comma separated)
-        type: string
-        default: ""
-      toolchain_version:
-        description: The specific toolchain version for stable channel
-        type: string
-        default: "1.94.0"
-      target:
-        description: A custom target architecture to add to the toolchain
+      extra_flags:
+        description: "Extra flags to pass to apt-get install (e.g. '--no-install-recommends')."
         type: string
         default: ""
     steps:
       - run:
-          name: Install Rust toolchain (<< parameters.channel >>)
+          name: "apt install << parameters.packages >>"
           command: |
-            TOOLCHAIN="<< parameters.toolchain_version >>"
-
-            rustup toolchain install "$TOOLCHAIN"
-            rustup default "$TOOLCHAIN"
-
-            if [ -n "<< parameters.components >>" ]; then
-              rustup component add << parameters.components >>
-            fi
-            if [ -n "<< parameters.target >>" ]; then
-              rustup target add << parameters.target >>
-            fi
+            export NEEDRESTART_MODE=a
+            for i in 1 2 3; do
+              if sudo -E apt-get -o Acquire::Retries=5 update; then
+                break
+              fi
+              if [ "$i" = "3" ]; then
+                echo "apt-get update failed after 3 attempts" >&2
+                exit 1
+              fi
+              echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
+              sleep 10
+            done
+            sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
 
   rust-setup-env:
     description: "Fix rust mise environment variables"
@@ -175,11 +162,8 @@ commands:
           condition: << parameters.needs_clang >>
           steps:
             - run:
-                name: Install clang
-                command: |
-                  export NEEDRESTART_MODE=a
-                  sudo -E apt-get update --yes
-                  sudo -E apt-get install -y --no-install-recommends clang llvm-dev libclang-dev
+                name: Ensure clang available
+                command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -275,10 +259,6 @@ commands:
         description: "Binary name to build. If not specified, all targets will be built."
         type: string
         default: ""
-      toolchain:
-        description: "Rust toolchain version to install before building (empty = use default)"
-        type: string
-        default: ""
       save_cache:
         description: "Whether to save the cache at the end of the build"
         type: boolean
@@ -292,11 +272,6 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
-      - when:
-          condition: << parameters.toolchain >>
-          steps:
-            - rust-install-toolchain:
-                toolchain_version: << parameters.toolchain >>
       - run:
           name: Build << parameters.directory >>
           command: |
@@ -339,9 +314,8 @@ commands:
   install-zstd:
     description: "Install zstd compression utility"
     steps:
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
+      - apt-install:
+          packages: "zstd=1.4.8*"
 
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -399,7 +373,7 @@ jobs:
         type: string
         default: "just fmt-check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -423,12 +397,8 @@ jobs:
         description: "Clippy command to run"
         type: string
         default: "cargo clippy --workspace --all-targets --all-features"
-      toolchain:
-        description: "Rust toolchain to use (stable or nightly)"
-        type: string
-        default: "stable"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -437,10 +407,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-clippy
           features: "all"
-      - rust-install-toolchain:
-          channel: <<parameters.toolchain>>
-          toolchain_version: <<parameters.toolchain>>
-          components: clippy
       - run:
           name: Run clippy
           working_directory: <<parameters.directory>>
@@ -461,7 +427,7 @@ jobs:
         type: string
         default: "cargo deny check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -469,11 +435,6 @@ jobs:
       - rust-prepare-and-restore-cache: &deny-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-deny
-          command: |
-            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
       - run:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
@@ -491,7 +452,7 @@ jobs:
         type: string
         default: "zepter run check"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -499,12 +460,6 @@ jobs:
       - rust-prepare-and-restore-cache: &zepter-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
-      - install-cargo-binstall
-      - run:
-          name: Install zepter
-          command: |
-            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
-            zepter --version
       - run:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
@@ -518,7 +473,7 @@ jobs:
         description: "Directory containing the Cargo workspace"
         type: string
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -526,11 +481,6 @@ jobs:
       - rust-prepare-and-restore-cache: &typos-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
-      - install-cargo-binstall
-      - run:
-          name: Install typos-cli
-          command: |
-            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
       - run:
           name: Check for typos
           working_directory: <<parameters.directory>>
@@ -543,20 +493,12 @@ jobs:
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
-      target:
-        description: "Target architecture for no_std check"
-        type: string
-        default: "riscv32imac-unknown-none-elf"
-      toolchain:
-        description: "Rust toolchain version to use"
-        type: string
-        default: "stable"
       command:
         description: "Command to run for no_std check"
         type: string
         default: "just check-no-std"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -564,9 +506,6 @@ jobs:
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-no-std
-      - rust-install-toolchain:
-          toolchain_version: <<parameters.toolchain>>
-          target: <<parameters.target>>
       - run:
           name: Check no_std compatibility
           working_directory: <<parameters.directory>>
@@ -585,7 +524,7 @@ jobs:
         type: string
         default: "just lint-docs"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -612,7 +551,7 @@ jobs:
         type: string
         default: "cargo test --workspace --doc"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -641,16 +580,12 @@ jobs:
         description: "Flags passed to just command (e.g. --all-features, --no-default-features)"
         type: string
         default: ""
-      rust_version:
-        description: "Rust toolchain version to use"
-        type: string
-        default: "stable"
       cache_profile:
         description: "Build profile for caching"
         type: string
         default: "release"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
@@ -659,13 +594,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
-      - rust-install-toolchain:
-          toolchain_version: <<parameters.rust_version>>
-      - install-cargo-binstall
-      - run:
-          name: Install nextest
-          command: |
-            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
@@ -684,7 +612,7 @@ jobs:
         type: string
         default: "just check-udeps"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -693,11 +621,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-udeps
-          command: |
-            command -v cargo-udeps >/dev/null || cargo binstall --no-confirm cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: <<parameters.directory>>
@@ -719,7 +642,7 @@ jobs:
         type: string
         default: "--workspace"
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
@@ -727,11 +650,6 @@ jobs:
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -747,7 +665,7 @@ jobs:
         type: integer
         default: 1
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     parallelism: <<parameters.parallelism>>
     steps:
@@ -757,11 +675,6 @@ jobs:
           directory: rust
           prefix: rust-hack
           features: "all"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Run cargo hack
           working_directory: rust
@@ -781,7 +694,7 @@ jobs:
   # OP-Reth compact codec backwards compatibility
   op-reth-compact-codec:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     # This job frequently gets killed for smaller resource_class
     resource_class: xlarge
     steps:
@@ -829,12 +742,10 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - install-zstd
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
       - rust-prepare
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-llvm-cov
-          command: |
-            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
       - run:
           name: Build cannon
           command: |
@@ -843,18 +754,12 @@ jobs:
       - run:
           name: Set run environment
           command: |
-            echo 'export BLOCK_NUMBER=26215604' >> $BASH_ENV
-            echo 'export L2_CLAIM=0x7415d942f80a34f77d344e4bccb7050f14e593f5ea33669d27ea01dce273d72d' >> $BASH_ENV
-            echo 'export L2_OUTPUT_ROOT=0xaa34b62993bd888d7a2ad8541935374e39948576fce12aa8179a0aa5b5bc787b' >> $BASH_ENV
-            echo 'export L2_HEAD=0xf4adf5790bad1ffc9eee315dc163df9102473c5726a2743da27a8a10dc16b473' >> $BASH_ENV
-            echo 'export L1_HEAD=0x010cfdb22eaa13e8cdfbf66403f8de2a026475e96a6635d53c31f853a0e3ae25' >> $BASH_ENV
+            echo 'export BLOCK_NUMBER=42427365' >> $BASH_ENV
+            echo 'export L2_CLAIM=0xaaf7cb1725cb9766899cbd78866270d8561e79b91c00be5c53adb7699e0e7715' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0xac90a2e8cfee33ecb47b73f3e83f9aa18ff7ecf28bc8d34b2de857919e50b6c6' >> $BASH_ENV
+            echo 'export L2_HEAD=0xc5fa07d52e83f7a2e68de356e7a7bfc9306a9b28666ec6c9cc6e4f8e1b268278' >> $BASH_ENV
+            echo 'export L1_HEAD=0xab33322985684f2c6fbcf375bdcb69cc0f10547e58cb5a7b889172ee9ea77aef' >> $BASH_ENV
             echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
-            echo 'export WITNESS_TAR_NAME=holocene-op-sepolia-26215604-witness.tar.zst' >> $BASH_ENV
-      - run:
-          name: Decompress witness data
-          working_directory: rust/kona
-          command: |
-            tar --zstd -xvf ./bin/client/testdata/$WITNESS_TAR_NAME -C .
       - run:
           name: Run host + client offline
           working_directory: rust/kona/bin/client
@@ -884,11 +789,12 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache:
           directory: rust
           features: "all"
-      - rust-install-toolchain:
-          components: rustfmt
       - run:
           name: Run fmt + lint for <<parameters.target>>
           working_directory: rust/kona
@@ -909,6 +815,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
       - rust-prepare
       - run:
           name: Build <<parameters.target>>
@@ -920,7 +829,7 @@ jobs:
   # Kona Coverage
   kona-coverage:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise:
@@ -929,14 +838,6 @@ jobs:
           directory: rust
           prefix: kona-coverage
           version: "1"
-      - rust-install-toolchain:
-          components: llvm-tools-preview
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-llvm-cov and nextest
-          command: |
-            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
-            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: rust
@@ -957,16 +858,11 @@ jobs:
   # Kona Link Checker
   kona-link-checker:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - run:
-          name: Install lychee
-          command: |
-            curl -sSfL https://github.com/lycheeverse/lychee/releases/download/v0.15.1/lychee-v0.15.1-x86_64-unknown-linux-gnu.tar.gz | tar xz
-            sudo mv lychee /usr/local/bin/
       - run:
           name: Check links
           working_directory: rust/kona
@@ -990,8 +886,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-install-toolchain:
-          components: llvm-tools-preview
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache: &kona-publish-prestate-cache
           directory: rust
           profile: release
@@ -1027,7 +924,7 @@ jobs:
 
   required-rust-ci:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: small
     steps:
       - run: echo "Required Rust CI checks passed"
@@ -1119,12 +1016,6 @@ workflows:
           profile: release
           context: *rust-ci-context
 
-      - rust-build-binary:
-          name: rust-msrv
-          directory: rust
-          toolchain: "1.94.0"
-          context: *rust-ci-context
-
       # -----------------------------------------------------------------------
       # Unified cross-compilation jobs
       # -----------------------------------------------------------------------
@@ -1133,7 +1024,6 @@ workflows:
           directory: rust
           command: |
             just check-no-std
-          toolchain: "1.94.0"
           context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:

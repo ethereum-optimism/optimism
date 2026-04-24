@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -365,16 +364,13 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
-		UseRevenueShare:                          cfg.UseRevenueShare,
-		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
-		L1FeesDepositor:                          standard.L1FeesDepositor,
 		UseCustomGasToken:                        cfg.UseCustomGasToken,
 		GasPayingTokenName:                       cfg.GasPayingTokenName,
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet), // TODO(#19102): add support for L2CM
-		UseInterop:                               multichainDepSet,
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset)), // TODO(#19102): add support for L2CM
+		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -382,12 +378,18 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 	return nil
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on the multichain deployment set.
-// If the multichain deployment set is true, the dev feature bitmap will be the OptimismPortalInteropDevFlag.
-func devFeatureBitmapForL2Genesis(multichainDepSet bool) common.Hash {
+// interopAtGenesis returns true if the Interop fork is scheduled to activate at genesis.
+// Using a nil offset means Interop is not scheduled at all.
+func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
+	return interopOffset != nil && *interopOffset == 0
+}
+
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on whether Interop should be
+// enabled or not.
+func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
 	// TODO(#19102): add support for L2CM
 	var bitmap common.Hash
-	if multichainDepSet {
+	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
 	}
 	return bitmap

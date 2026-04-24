@@ -37,6 +37,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -457,6 +458,13 @@ library ChainAssertions {
         } else {
             require(Hash.unwrap(actualRoot) == bytes32(0), "ANCHORP-40");
         }
+    }
+
+    /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.
+    function checkZKDisputeGameImpl(IZKDisputeGame _impl) internal view {
+        console.log("Running chain assertions on the ZKDisputeGame implementation at %s", address(_impl));
+        require(address(_impl) != address(0), "CHECK-ZKDG-10");
+        require(bytes(_impl.version()).length > 0, "CHECK-ZKDG-20");
     }
 
     /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract

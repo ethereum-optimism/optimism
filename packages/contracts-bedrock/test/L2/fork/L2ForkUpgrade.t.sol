@@ -12,6 +12,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -29,8 +30,6 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -227,8 +226,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         // L1Block feature state
         string l1BlockGasPayingTokenName;
         string l1BlockGasPayingTokenSymbol;
-        // FeeSplitter configuration
-        address feeSplitterSharesCalculator;
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
@@ -291,16 +288,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.l1BlockGasPayingTokenSymbol = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
         }
 
-        // Capture FeeSplitter configuration
-        // eip150-safe
-        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
-            ISharesCalculator sharesCalculator_
-        ) {
-            state_.feeSplitterSharesCalculator = address(sharesCalculator_);
-        } catch {
-            state_.feeSplitterSharesCalculator = address(0);
-        }
-
         // Capture fee vault configuration
         state_.sequencerFeeVaultRecipient = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).RECIPIENT();
         state_.sequencerFeeVaultMinWithdrawal =
@@ -359,7 +346,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyFeeVaultConfigurations(_preState);
         _verifyFactoryConfigurations(_preState);
         _verifyLiquidityControllerConfiguration(_preState);
-        _verifyFeeSplitterConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
         _verifyL1BlockFeatureState(_preState);
 
@@ -373,8 +359,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyOZv4Initialization(
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
         );
-        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
-
         // LiquidityController (only on custom gas token networks)
         if (commonState.isCustomGasToken) {
             _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
@@ -521,15 +505,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             liquidityController.gasPayingTokenSymbol(),
             _preState.liquidityControllerGasPayingTokenSymbol,
             "LiquidityController.gasPayingTokenSymbol not preserved"
-        );
-    }
-
-    /// @notice Verifies that FeeSplitter configuration was preserved.
-    function _verifyFeeSplitterConfiguration(PreUpgradeInitializationState memory _preState) internal view {
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            _preState.feeSplitterSharesCalculator,
-            "FeeSplitter.sharesCalculator not preserved"
         );
     }
 
@@ -748,7 +723,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 }
 
 /// @title L2ForkUpgrade_GasProfile_Test
-/// @notice Gas profiling test that measures actual gas consumption for each transaction in the upgrade bundle.
+/// @notice Gas profiling tests for the NUT bundle upgrade transactions.
 contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     /// @notice Gas measurement for a single transaction.
     struct GasMeasurement {
@@ -760,113 +735,222 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         uint256 efficiency; // gasUsed * 100 / gasLimit (percentage)
     }
 
-    /// @notice Safety margin multiplier (150% = 1.5x).
-    uint256 internal constant SAFETY_MARGIN_MULTIPLIER = 150;
-    uint256 internal constant PERCENTAGE_DENOMINATOR = 100;
-
-    /// @notice Tests gas consumption for all transactions and generates a report.
-    function test_l2ForkUpgrade_gasProfile_succeeds() public {
-        // Read the bundle
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
-
-        console.log(repeat("=", 100));
-        console.log("GAS PROFILING REPORT");
-        console.log(repeat("=", 100));
+    function _logReportHeader(string memory _title, uint256 _count) internal pure {
+        console.log(LibString.repeat("=", 100));
+        console.log(_title);
+        console.log(LibString.repeat("=", 100));
         console.log("");
-        console.log("Total transactions:", txns.length);
+        console.log("Total transactions:", _count);
         console.log("");
+    }
 
-        // Store measurements
-        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
-        uint256 totalGasUsed = 0;
-        uint256 totalGasLimit = 0;
-
-        // Execute and measure each transaction
-        for (uint256 i = 0; i < txns.length; i++) {
-            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
-
-            // Ensure sender has sufficient balance
-            vm.deal(txn.from, 100 ether);
-
-            // Measure gas
-            uint256 gasBefore = gasleft();
-            vm.prank(txn.from);
-            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
-            uint256 gasAfter = gasleft();
-
-            require(
-                success,
-                string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
-            );
-
-            // Calculate gas used (including overhead)
-            uint64 gasUsed = uint64(gasBefore - gasAfter);
-            uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
-            uint256 efficiency = (uint256(gasUsed) * 100) / uint256(txn.gasLimit);
-
-            // Store measurement
-            measurements[i] = GasMeasurement({
-                index: i,
-                intent: txn.intent,
-                gasUsed: gasUsed,
-                gasLimit: txn.gasLimit,
-                recommendedLimit: recommendedLimit,
-                efficiency: efficiency
-            });
-
-            totalGasUsed += gasUsed;
-            totalGasLimit += txn.gasLimit;
-
-            // Print individual transaction report
-            console.log("[%s/%s] %s", i + 1, txns.length, txn.intent);
-            console.log("  Gas Used:         %s", gasUsed);
-            console.log("  Current Limit:    %s", txn.gasLimit);
-            console.log("  Recommended:      %s (1.5x actual)", recommendedLimit);
-            console.log("  Efficiency:       %s%%", efficiency);
-            console.log("");
+    /// @param _recommendedLimit Pass 0 to omit the recommended line.
+    function _logTxnGas(
+        uint256 _i,
+        uint256 _total,
+        string memory _intent,
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        uint64 _gasUsed,
+        uint64 _gasLimit,
+        uint64 _recommendedLimit
+    )
+        internal
+        pure
+    {
+        console.log("[%s/%s] %s", _i + 1, _total, _intent);
+        console.log("  Intrinsic Gas:  %s", _intrinsicGas);
+        console.log("  Body Gas:       %s", _bodyGasUsed);
+        console.log("  Total Gas Used: %s", _gasUsed);
+        console.log("  Current Limit:  %s", _gasLimit);
+        if (_recommendedLimit > 0) {
+            console.log("  Recommended:    %s (1.5x)", _recommendedLimit);
         }
+        console.log("  Efficiency:     %s%%", (uint256(_gasUsed) * 100) / uint256(_gasLimit));
+        console.log("");
+    }
 
-        // Print summary
-        console.log(repeat("=", 100));
+    function _logReportSummary(uint256 _totalGasUsed, uint256 _totalGasLimit) internal pure {
+        console.log(LibString.repeat("=", 100));
         console.log("SUMMARY");
-        console.log(repeat("=", 100));
-        console.log("Total Gas Used:       %s", totalGasUsed);
-        console.log("Total Gas Limit:      %s", totalGasLimit);
-        if (totalGasLimit > 0) {
-            console.log("Overall Efficiency:   %s%%", (totalGasUsed * 100) / totalGasLimit);
-        } else {
-            console.log("Overall Efficiency:   N/A (no transactions)");
+        console.log(LibString.repeat("=", 100));
+        console.log("Total Gas Used:     %s", _totalGasUsed);
+        console.log("Total Gas Limit:    %s", _totalGasLimit);
+        if (_totalGasLimit > 0) {
+            console.log("Overall Efficiency: %s%%", (_totalGasUsed * 100) / _totalGasLimit);
         }
-        console.log("");
+    }
 
-        // Print transactions that need adjustment (efficiency < 50% or > 90%)
+    function _logAdjustments(GasMeasurement[] memory _measurements) internal pure {
+        console.log("");
         console.log("TRANSACTIONS NEEDING ADJUSTMENT:");
-        console.log(repeat("-", 100));
+        console.log(LibString.repeat("-", 100));
         bool foundAdjustments = false;
-        for (uint256 i = 0; i < measurements.length; i++) {
-            if (measurements[i].efficiency < 50 || measurements[i].efficiency > 90) {
+        for (uint256 i = 0; i < _measurements.length; i++) {
+            if (_measurements[i].efficiency < 50 || _measurements[i].efficiency > 90) {
                 foundAdjustments = true;
-                console.log("[%s] %s", measurements[i].index + 1, measurements[i].intent);
-                console.log("  Current: %s | Used: %s", measurements[i].gasLimit, measurements[i].gasUsed);
+                console.log("[%s] %s", _measurements[i].index + 1, _measurements[i].intent);
+                console.log("  Current: %s | Used: %s", _measurements[i].gasLimit, _measurements[i].gasUsed);
                 console.log(
-                    "  Recommended: %s | Efficiency: %s%%", measurements[i].recommendedLimit, measurements[i].efficiency
+                    "  Recommended: %s | Efficiency: %s%%",
+                    _measurements[i].recommendedLimit,
+                    _measurements[i].efficiency
                 );
             }
         }
         if (!foundAdjustments) {
             console.log("All transactions have acceptable efficiency (50-90%)");
         }
-        console.log(repeat("=", 100));
+        console.log(LibString.repeat("=", 100));
     }
 
-    /// @notice Helper function to repeat a string.
-    /// @param _str The string to repeat.
-    /// @param _count The number of times to repeat.
-    /// @return repeated_ The repeated string.
-    function repeat(string memory _str, uint256 _count) internal pure returns (string memory repeated_) {
-        for (uint256 i = 0; i < _count; i++) {
-            repeated_ = string.concat(repeated_, _str);
+    /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
+    /// @dev Emulates op-geth's post-execution EIP-7623 floor: receipt.gasUsed = max(exec, floor).
+    ///      Without this, forge reports execution gas while op-geth reports the floor when it binds
+    ///      (e.g. ConditionalDeployer collision paths), making the two diverge by up to 67k gas.
+    /// @param _i Transaction index (0-based).
+    /// @param _total Total number of transactions.
+    /// @param _txn The NUT bundle transaction.
+    /// @param _intrinsicGas Intrinsic gas for this transaction.
+    /// @param _bodyGasUsed Body gas consumed (net of refunds, callee frame only).
+    /// @param _showRecommended Whether to show the recommended limit in the log line.
+    function _buildMeasurement(
+        uint256 _i,
+        uint256 _total,
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn,
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        bool _showRecommended
+    )
+        internal
+        pure
+        returns (GasMeasurement memory measurement_)
+    {
+        uint64 floorGas = UpgradeUtils.computeFloorDataGas(_txn.data);
+        uint64 gasUsed = _intrinsicGas + _bodyGasUsed > floorGas ? _intrinsicGas + _bodyGasUsed : floorGas;
+        measurement_ = GasMeasurement({
+            index: _i,
+            intent: _txn.intent,
+            gasUsed: gasUsed,
+            gasLimit: _txn.gasLimit,
+            recommendedLimit: UpgradeUtils.computeRecommendedGasLimit(_intrinsicGas, _bodyGasUsed, floorGas),
+            efficiency: (uint256(gasUsed) * 100) / uint256(_txn.gasLimit)
+        });
+        _logTxnGas(
+            _i,
+            _total,
+            _txn.intent,
+            _intrinsicGas,
+            _bodyGasUsed,
+            gasUsed,
+            _txn.gasLimit,
+            _showRecommended ? measurement_.recommendedLimit : 0
+        );
+    }
+
+    /// @notice Gas profiling test for the NUT bundle upgrade transactions using manual intrinsic gas deduction.
+    function test_l2ForkUpgrade_gasProfile_succeeds() public {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+
+        _logReportHeader("GAS PROFILING REPORT", txns.length);
+
+        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
+        uint256 totalGasUsed = 0;
+        uint256 totalGasLimit = 0;
+
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+
+            (bool success, bytes memory returnData, uint64 bodyGasUsed, uint64 intrinsicGas) =
+                executeScript.executeSingle(txn);
+
+            require(
+                success,
+                string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
+            );
+
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+            // This tests is not the final production reference for the gas limit, but this assertion should also pass
+            // because in isolated mode the gas is higher.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
+            );
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
         }
+
+        _logReportSummary(totalGasUsed, totalGasLimit);
+        _logAdjustments(measurements);
+    }
+
+    /// @notice Gas profiling test for the NUT bundle upgrade transactions using foundry test isolation.
+    /// forge-config: default.isolate = true
+    function test_l2ForkUpgrade_isolatedGas_succeeds() public {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+
+        _logReportHeader("ISOLATED GAS REPORT", txns.length);
+
+        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
+        uint256 totalGasUsed = 0;
+        uint256 totalGasLimit = 0;
+
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+
+            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
+
+            vm.deal(txn.from, 100 ether);
+            vm.prank(txn.from);
+
+            // Forward gasLimit - 21_000 so that transact_inner() sets tx.gas_limit =
+            // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
+            // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
+            // exactly what op-geth gives it in production.
+            uint256 gasBefore = gasleft();
+            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
+
+            // gasleft() delta is used (not vm.lastCallGas()) because in isolated mode,
+            // transact_inner() records result_gas.used() (= intrinsic + body − refunds)
+            // against the forwarded gas_limit, so gas.remaining() =
+            // forwarded − (intrinsic + body − refunds), and gasleft() delta =
+            // intrinsic + body − refunds = production total.
+            uint64 gasUsed = uint64(gasBefore - gasleft());
+            uint64 bodyGasUsed = gasUsed > intrinsicGas ? gasUsed - intrinsicGas : 0;
+
+            require(
+                success,
+                string.concat(
+                    "IsolatedGas: transaction failed [",
+                    vm.toString(i + 1),
+                    "/",
+                    vm.toString(txns.length),
+                    "] ",
+                    txn.intent,
+                    " - ",
+                    UpgradeUtils.getRevertReason(returnData)
+                )
+            );
+
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+
+            // Verify the gas limit exceeds the recommended limit for the transaction.
+            // We take the isolated mode measurement because each transaction has a separate EVM context, and
+            // the called contracts start with cold storage.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
+            );
+
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
+        }
+
+        _logReportSummary(totalGasUsed, totalGasLimit);
+        _logAdjustments(measurements);
     }
 }
