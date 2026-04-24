@@ -689,6 +689,25 @@ contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManag
 /// @title L2ContractsManager_GetImplementations_Test
 /// @notice Tests for the getImplementations() getter function.
 contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Tests that the ImplRecord[] passed to the constructor is well-formed:
+    ///         every entry has a non-empty name and a non-zero implementation address.
+    function test_implRecords_areWellFormed_succeeds() public view {
+        L2ContractsManagerTypes.ImplRecord[] memory implementationRecords = l2cm.getImplementations();
+        // 1 StorageSetter + one entry per upgradeable predeploy record (including variants).
+        assertEq(
+            implementationRecords.length,
+            Predeploys.getUpgradeableRecords().length + 1,
+            "ImplRecord count must equal upgradeable predeploy count + 1 (StorageSetter)"
+        );
+        for (uint256 i = 0; i < implementationRecords.length; i++) {
+            assertTrue(bytes(implementationRecords[i].name).length > 0, "ImplRecord name is empty");
+            assertTrue(
+                implementationRecords[i].impl != address(0),
+                string.concat(implementationRecords[i].name, " impl is zero")
+            );
+        }
+    }
+
     /// @notice Tests that getImplementations returns all implementation addresses matching the constructor input.
     function test_getImplementations_returnsAllImplementations_succeeds() public view {
         L2ContractsManagerTypes.ImplRecord[] memory result = l2cm.getImplementations();
@@ -696,16 +715,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertEq(result.length, _implRecords.length, "getImplementations length mismatch");
         for (uint256 i = 0; i < result.length; i++) {
             assertEq(result[i].impl, _findImplByName(result[i].name), string.concat(result[i].name, " impl mismatch"));
-        }
-    }
-
-    /// @notice Tests that no field in getImplementations() is left uninitialized
-    ///         when all implementations are provided to the constructor.
-    function test_getImplementations_noFieldIsZero_succeeds() public view {
-        L2ContractsManagerTypes.ImplRecord[] memory result = l2cm.getImplementations();
-
-        for (uint256 i = 0; i < result.length; i++) {
-            assertTrue(result[i].impl != address(0), string.concat(result[i].name, " impl is zero"));
         }
     }
 }

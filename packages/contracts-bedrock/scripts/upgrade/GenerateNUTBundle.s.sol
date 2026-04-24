@@ -399,4 +399,8 @@ contract GenerateNUTBundle is Script {
     function implementationConfigs() public view returns (ImplementationConfig[] memory) {
         return _implementationConfigs;
     }
+
+    function implRecords() public view returns (L2ContractsManagerTypes.ImplRecord[] memory) {
+        return _implRecords;
+    }
 }

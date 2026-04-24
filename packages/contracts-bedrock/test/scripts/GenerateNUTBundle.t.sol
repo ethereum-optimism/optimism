@@ -128,6 +128,20 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
+    /// @notice Tests that the implementation deployment list length matches the ImplRecord array length.
+    /// @dev The deployment list is: 1 StorageSetter + all registry records.
+    ///      The ImplRecord array passed to the L2CM constructor must have one entry per deployment.
+    ///      If these diverge, a new predeploy was added to one location but not the other.
+    function test_implementationCount_matchesImplRecordArray_succeeds() public {
+        script.run();
+
+        assertEq(
+            script.implementationConfigs().length,
+            script.implRecords().length,
+            "Config count (registry records + StorageSetter) must equal ImplRecord array length"
+        );
+    }
+
     /// @notice Tests that the registry record count matches the implementation config count.
     /// @dev registry records + 1 StorageSetter = total implementation configs.
     function test_registryRecordCount_matchesImplementationConfigs_succeeds() public {
