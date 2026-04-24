@@ -1,5 +1,9 @@
 //! Types for the pre-state claims used in the interop proof.
 
+// Reason: `TRANSITION_STATE_VERSION` is a crate-internal constant; `pub(crate)` is intentional
+// and trips `redundant_pub_crate` under pedantic, while `pub` would trigger `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloc::vec::Vec;
 use alloy_primitives::{B256, Bytes, b256, keccak256};
 use alloy_rlp::{Buf, Decodable, Encodable, Header, RlpDecodable, RlpEncodable};
@@ -19,10 +23,12 @@ pub const INVALID_TRANSITION: Bytes = Bytes::from_static(b"invalid");
 pub const INVALID_TRANSITION_HASH: B256 =
     b256!("ffd7db0f9d5cdeb49c4c9eba649d4dc6d852d64671e65488e57f58584992ac68");
 
-/// The [`PreState`] of the interop proof program can be one of two types: a [`SuperRoot`] or a
-/// [`TransitionState`]. The [`SuperRoot`] is the canonical state of the superchain, while the
-/// [`TransitionState`] is a super-structure of the [`SuperRoot`] that represents the progress of a
-/// pending superchain state transition from one [`SuperRoot`] to the next.
+/// The [`PreState`] of the interop proof program can be one of two types.
+///
+/// Either a [`SuperRoot`] or a [`TransitionState`]. The [`SuperRoot`] is the canonical state of
+/// the superchain, while the [`TransitionState`] is a super-structure of the [`SuperRoot`] that
+/// represents the progress of a pending superchain state transition from one [`SuperRoot`] to
+/// the next.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum PreState {
@@ -58,6 +64,8 @@ impl PreState {
         match self {
             Self::SuperRoot(super_root) => super_root.output_roots.first(),
             Self::TransitionState(transition_state) => {
+                // SAFETY: `step` is bounded by TRANSITION_STATE_MAX_STEPS (127) and fits in usize.
+                #[allow(clippy::cast_possible_truncation)]
                 transition_state.pre_state.output_roots.get(transition_state.step as usize)
             }
         }

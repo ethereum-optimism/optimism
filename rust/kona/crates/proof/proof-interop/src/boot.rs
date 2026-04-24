@@ -72,6 +72,9 @@ impl BootInfo {
     /// ## Returns
     /// - `Ok(BootInfo)`: The boot information.
     /// - `Err(_)`: Failed to load the boot information.
+    // Reason: this function performs many sequential preimage reads inline for clarity; the
+    // resulting future is non-`Send` because oracle callers are single-threaded by design.
+    #[allow(clippy::too_many_lines, clippy::future_not_send)]
     pub async fn load<O>(oracle: &O) -> Result<Self, BootstrapError>
     where
         O: PreimageOracleClient + HintWriterClient + Clone + Send,
@@ -238,6 +241,8 @@ pub enum BootstrapError {
 }
 
 /// Reads the raw pre-state from the preimage oracle.
+// Reason: oracle callers are single-threaded by design; `Send` would leak a useless bound.
+#[allow(clippy::future_not_send, clippy::redundant_pub_crate)]
 pub(crate) async fn read_raw_pre_state<O>(
     caching_oracle: &O,
     agreed_pre_state_commitment: B256,
