@@ -58,7 +58,7 @@ After Upgrade 19, the respected game type changes from `CANNON` (0) to `CANNON_K
 
 ### L2CM: new L2 predeploy upgrade mechanism
 
-L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM transactions. If your application depends on specific predeploy behavior or interfaces, verify compatibility after each upgrade.
+L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM transactions. If your application interacts directly with predeploy contracts, review the changelog for each upgrade to understand new capabilities.
 
 ## For chain operators
 
@@ -157,7 +157,7 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
 * **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
 * **MODEXP and P256VERIFY gas changes (Osaka on L2):** the gas costs for `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles are updated. A new input size limit is also introduced for `MODEXP`. If your contracts call these precompiles, update your gas estimates and verify inputs are within the new limits.
 * **BN256 pairing input size limit (Glamsterdam Defense):** the maximum input for `ecPairing` (`0x08`) is reduced from 427 to 390 pairs (74,880 bytes). If your contracts call the BN256 pairing precompile with more than 390 pairs, those calls will fail. Standard ZK proof verification (e.g., Groth16) is not affected.
-* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the specific changes included in this upgrade to ensure compatibility.
+* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the changelog for new functions or behavior changes.
 * **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
 
 ## Execute the L1 Contract Upgrade
