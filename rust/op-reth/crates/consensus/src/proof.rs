@@ -26,7 +26,7 @@ pub(crate) fn calculate_receipt_root_optimism<R: DepositReceipt>(
         let receipts = receipts
             .iter()
             .map(|receipt| {
-                let mut receipt = receipt.clone().map_receipt(std::clone::Clone::clone);
+                let mut receipt = receipt.clone().map_receipt(Clone::clone);
                 if let Some(receipt) = receipt.receipt.as_deposit_receipt_mut() {
                     receipt.deposit_nonce = None;
                 }
