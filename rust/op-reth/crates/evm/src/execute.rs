@@ -27,11 +27,11 @@ mod tests {
 
         let mut l1_block_storage = HashMap::default();
         // base fee
-        l1_block_storage.insert(StorageKey::with_last_byte(1), StorageValue::from(1000000000));
+        l1_block_storage.insert(StorageKey::with_last_byte(1), StorageValue::from(1_000_000_000));
         // l1 fee overhead
         l1_block_storage.insert(StorageKey::with_last_byte(5), StorageValue::from(188));
         // l1 fee scalar
-        l1_block_storage.insert(StorageKey::with_last_byte(6), StorageValue::from(684000));
+        l1_block_storage.insert(StorageKey::with_last_byte(6), StorageValue::from(684_000));
         // l1 free scalars post ecotone
         l1_block_storage.insert(
             StorageKey::with_last_byte(3),

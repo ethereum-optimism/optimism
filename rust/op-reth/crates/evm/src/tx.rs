@@ -34,7 +34,7 @@ mod rpc_impl {
             let op_tx = OpTx(op_revm::OpTransaction {
                 base,
                 enveloped_tx: Some(alloy_primitives::Bytes::new()),
-                deposit: Default::default(),
+                deposit: op_revm::transaction::deposit::DepositTransactionParts::default(),
             });
             Ok(op_tx.into())
         }

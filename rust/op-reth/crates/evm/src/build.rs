@@ -30,6 +30,11 @@ impl<ChainSpec> OpBlockAssembler<ChainSpec> {
 
 impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
     /// Builds a block for `input` without any bounds on header `H`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockExecutionError`] if the Holocene extra-data encoding fails or the
+    /// assembled header cannot be turned into a block.
     pub fn assemble_block<
         F: for<'a> BlockExecutorFactory<
                 ExecutionCtx<'a>: Into<OpBlockExecutionCtx>,
@@ -119,7 +124,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
             header,
             BlockBody {
                 transactions,
-                ommers: Default::default(),
+                ommers: Vec::default(),
                 withdrawals: self
                     .chain_spec
                     .is_canyon_active_at_timestamp(timestamp)

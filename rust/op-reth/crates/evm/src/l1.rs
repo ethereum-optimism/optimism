@@ -21,6 +21,8 @@ const L1_BLOCK_JOVIAN_SELECTOR: [u8; 4] = hex!("3db6be2b");
 /// Extracts the [`L1BlockInfo`] from the L2 block. The L1 info transaction is always the first
 /// transaction in the L2 block.
 ///
+/// # Errors
+///
 /// Returns an error if the L1 info transaction is not found, if the block is empty.
 pub fn extract_l1_info<B: BlockBody>(body: &B) -> Result<L1BlockInfo, OpBlockExecutionError> {
     let l1_info_tx = body
@@ -32,6 +34,8 @@ pub fn extract_l1_info<B: BlockBody>(body: &B) -> Result<L1BlockInfo, OpBlockExe
 
 /// Extracts the [`L1BlockInfo`] from the L1 info transaction (first transaction) in the L2
 /// block.
+///
+/// # Errors
 ///
 /// Returns an error if the calldata is shorter than 4 bytes.
 pub fn extract_l1_info_from_tx<T: Transaction>(
@@ -47,12 +51,15 @@ pub fn extract_l1_info_from_tx<T: Transaction>(
 
 /// Parses the input of the first transaction in the L2 block, into [`L1BlockInfo`].
 ///
-/// Returns an error if data is incorrect length.
-///
 /// Caution this expects that the input is the calldata of the [`L1BlockInfo`] transaction (first
 /// transaction) in the L2 block.
 ///
+/// # Errors
+///
+/// Returns an error if data is incorrect length.
+///
 /// # Panics
+///
 /// If the input is shorter than 4 bytes.
 pub fn parse_l1_info(input: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     // Parse the L1 info transaction into an L1BlockInfo struct, depending on the function selector.
@@ -73,6 +80,11 @@ pub fn parse_l1_info(input: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError>
 }
 
 /// Parses the calldata of the [`L1BlockInfo`] transaction pre-Ecotone hardfork.
+///
+/// # Errors
+///
+/// Returns an error if `data` is not exactly 256 bytes, or if any fee field cannot be
+/// decoded as a big-endian [`U256`].
 pub fn parse_l1_info_tx_bedrock(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     // The setL1BlockValues tx calldata must be exactly 260 bytes long, considering that
     // we already removed the first 4 bytes (the function selector). Detailed breakdown:
@@ -117,6 +129,11 @@ pub fn parse_l1_info_tx_bedrock(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
 ///   9. _batcherHash        Versioned hash to authenticate batcher by.
 ///
 /// <https://github.com/ethereum-optimism/optimism/blob/957e13dd504fb336a4be40fb5dd0d8ba0276be34/packages/contracts-bedrock/src/L2/L1Block.sol#L136>
+///
+/// # Errors
+///
+/// Returns an error if `data` is not exactly 160 bytes, or if any fee field cannot be
+/// decoded as a big-endian [`U256`].
 pub fn parse_l1_info_tx_ecotone(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     if data.len() != 160 {
         return Err(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::UnexpectedCalldataLength));
@@ -170,6 +187,11 @@ pub fn parse_l1_info_tx_ecotone(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
 ///   9. _batcherHash         Versioned hash to authenticate batcher by.
 ///  10. _operatorFeeScalar   Operator fee scalar
 ///  11. _operatorFeeConstant Operator fee constant
+///
+/// # Errors
+///
+/// Returns an error if `data` is not exactly 172 bytes, or if any fee field cannot be
+/// decoded as a big-endian [`U256`].
 pub fn parse_l1_info_tx_isthmus(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     if data.len() != 172 {
         return Err(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::UnexpectedCalldataLength));
@@ -234,6 +256,11 @@ pub fn parse_l1_info_tx_isthmus(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
 ///  10. _operatorFeeScalar   Operator fee scalar
 ///  11. _operatorFeeConstant Operator fee constant
 ///  12. _daFootprintGasScalar DA footprint gas scalar
+///
+/// # Errors
+///
+/// Returns an error if `data` is not exactly 174 bytes, or if any fee field cannot be
+/// decoded as a big-endian [`U256`].
 pub fn parse_l1_info_tx_jovian(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     if data.len() != 174 {
         return Err(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::UnexpectedCalldataLength));
@@ -300,6 +327,11 @@ pub trait RethL1BlockInfo {
     /// - `timestamp`: The timestamp of the current block.
     /// - `input`: The calldata of the transaction.
     /// - `is_deposit`: Whether or not the transaction is a deposit.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockExecutionError`] if the rollup cost function cannot be resolved for the
+    /// active hardfork.
     fn l1_tx_data_fee(
         &mut self,
         chain_spec: impl OpHardforks,
@@ -314,6 +346,11 @@ pub trait RethL1BlockInfo {
     /// - `chain_spec`: The chain spec for the node.
     /// - `timestamp`: The timestamp of the current block.
     /// - `input`: The calldata of the transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BlockExecutionError`] if the active hardfork's data-gas formula cannot
+    /// be evaluated.
     fn l1_data_gas(
         &self,
         chain_spec: impl OpHardforks,
@@ -350,6 +387,12 @@ impl RethL1BlockInfo for L1BlockInfo {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::default_trait_access,
+    clippy::items_after_statements,
+    reason = "test-only numeric literals match on-chain values verbatim; Default::default() avoids importing revm internals"
+)]
 mod tests {
     use super::*;
     use alloy_consensus::{Block, BlockBody};
