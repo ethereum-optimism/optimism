@@ -1133,4 +1133,75 @@ mod test {
             "Intra-chain sequential EMs without cross-chain cycle should not be flagged"
         );
     }
+
+    /// Regression test: executing messages whose referenced initiating messages are at
+    /// historical timestamps must not be treated as same-timestamp cycle participants.
+    ///
+    /// op-supernode's `buildCycleGraph` filters candidate nodes by the referenced
+    /// initiating-message's timestamp (`em.Timestamp == ts`), where
+    /// `ExecutingMessage.Timestamp` is populated from `Identifier.Timestamp` in
+    /// `op-supervisor/.../executing_message.go`. Executing messages whose initiating
+    /// message is at a historical timestamp therefore never participate in the
+    /// same-timestamp cycle graph — they represent a dependency on finalized historical
+    /// state, not a concurrent cross-chain dependency.
+    ///
+    /// This test sets up two chains at the same executing-block timestamp, each with a
+    /// single EM that references the *other* chain's initiating message at a historical
+    /// timestamp. No same-timestamp cycle can exist: both dependencies are on historical,
+    /// already-finalized state. The messages may independently fail per-message validation
+    /// (the test harness does not supply historical blocks), but they must not be flagged
+    /// as cyclic.
+    ///
+    /// See ethereum-optimism/optimism#20303 review discussion.
+    #[tokio::test]
+    async fn test_historical_cross_chain_refs_not_flagged_as_same_ts_cycle() {
+        const CURRENT_TS: u64 = 200;
+        const HISTORICAL_TS: u64 = 100;
+
+        let mut superchain = SuperchainBuilder::new();
+        superchain
+            .chain(CHAIN_A_ID)
+            .with_timestamp(CURRENT_TS)
+            .with_block_time(2)
+            .with_interop_activation_time(0);
+        superchain
+            .chain(CHAIN_B_ID)
+            .with_timestamp(CURRENT_TS)
+            .with_block_time(2)
+            .with_interop_activation_time(0);
+
+        // Chain A's block at CURRENT_TS contains an EM referencing an initiating message
+        // on chain B at HISTORICAL_TS. Chain B's block at CURRENT_TS contains an EM
+        // referencing an initiating message on chain A at HISTORICAL_TS. Neither reference
+        // is a same-timestamp dependency, so no same-timestamp cycle exists.
+        superchain.chain(CHAIN_A_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_B_ID)
+                .with_origin_timestamp(HISTORICAL_TS),
+        );
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(HISTORICAL_TS),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+
+        // Cycle detection must not flag these messages as cyclic. Per-message validation
+        // may still reject them (the test provider has no historical blocks), but that is
+        // a separate failure mode; this test is scoped to cycle detection.
+        if let Err(MessageGraphError::CyclicDependency { chain_ids }) = graph.resolve().await {
+            panic!(
+                "Historical cross-chain references must not be flagged as a same-timestamp \
+                 cycle. Both EMs reference initiating messages at a historical timestamp and \
+                 have no concurrent cross-chain dependency. Chain IDs wrongly flagged: {:?}",
+                chain_ids,
+            );
+        }
+    }
 }
