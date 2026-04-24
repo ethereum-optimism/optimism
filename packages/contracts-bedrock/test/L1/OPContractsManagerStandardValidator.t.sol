@@ -2314,8 +2314,7 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
                 chainSystemConfigs: chains,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
-                proposer: proposer,
-                challenger: challenger
+                proposer: proposer
             }),
             false
         );
@@ -2336,8 +2335,7 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
             chainSystemConfigs: chains,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer,
-            challenger: challenger
+            proposer: proposer
         });
     }
 

@@ -82,9 +82,15 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         chainContracts1 = _deployChainForMigration(1000001);
         chainContracts2 = _deployChainForMigration(1000002);
 
+        // Get validators from OPCM. Fetch challenger from StandardValidator state so that
+        // when StandardValidator.validateMigratedChain pulls challenger from its own storage,
+        // it matches the SPDG game args we configure below.
+        standardValidator = opcmV2.opcmStandardValidator();
+        migrationValidator = standardValidator.migrationValidator();
+
         // Set proposer/challenger before building migration input.
         proposer = makeAddr("superProposer");
-        challenger = makeAddr("superChallenger");
+        challenger = standardValidator.challenger();
 
         // Run real migration with both SPDG and SCKDG.
         _doMigration(_getDefaultMigrateInput());
@@ -100,10 +106,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         // Discover WETH from SPDG game args.
         LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
         sharedWETH = args.weth;
-
-        // Get validators from OPCM.
-        standardValidator = opcmV2.opcmStandardValidator();
-        migrationValidator = standardValidator.migrationValidator();
     }
 
     /// @notice Deploys a chain via opcmV2.deploy() for subsequent migration.
@@ -242,14 +244,21 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     }
 
     /// @notice Builds SharedImplementations from the StandardValidator's state.
-    function _buildRefs() internal view returns (IOPContractsManagerMigrationValidator.SharedImplementations memory) {
+    function _buildImpls() internal view returns (IOPContractsManagerMigrationValidator.SharedImplementations memory) {
         return IOPContractsManagerMigrationValidator.SharedImplementations({
             disputeGameFactoryImpl: standardValidator.disputeGameFactoryImpl(),
             anchorStateRegistryImpl: standardValidator.anchorStateRegistryImpl(),
             ethLockboxImpl: standardValidator.ethLockboxImpl(),
             delayedWETHImpl: standardValidator.delayedWETHImpl(),
-            mipsImpl: standardValidator.mipsImpl(),
+            mipsImpl: standardValidator.mipsImpl()
+        });
+    }
+
+    /// @notice Builds SharedConfig from the StandardValidator's state.
+    function _buildCfg() internal view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
+        return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: standardValidator.l1PAOMultisig(),
+            challenger: standardValidator.challenger(),
             withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds()
         });
     }
@@ -277,11 +286,11 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 chainSystemConfigs: _chains,
                 cannonPrestate: cannonPrestate.raw(),
                 cannonKonaPrestate: cannonKonaPrestate.raw(),
-                proposer: proposer,
-                challenger: challenger
+                proposer: proposer
             }),
             _allowFailure,
-            _buildRefs()
+            _buildImpls(),
+            _buildCfg()
         );
     }
 
@@ -828,7 +837,8 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
     /// @notice allowFailure=false reverts with prefixed error string.
     function test_validate_allowFailureFalse_reverts() public {
         // Pre-build input and refs before vm.expectRevert (they make external calls).
-        IOPContractsManagerMigrationValidator.SharedImplementations memory refs = _buildRefs();
+        IOPContractsManagerMigrationValidator.SharedImplementations memory impls = _buildImpls();
+        IOPContractsManagerMigrationValidator.SharedConfig memory cfg = _buildCfg();
         ISystemConfig[] memory chains = new ISystemConfig[](2);
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
@@ -838,8 +848,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
             chainSystemConfigs: chains,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer,
-            challenger: challenger
+            proposer: proposer
         });
         vm.mockCall(
             address(sharedDGF),
@@ -847,7 +856,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
             abi.encode(address(0xbad))
         );
         vm.expectRevert(bytes("OPContractsManagerMigrationValidator: MIG-DGF-30"));
-        migrationValidator.validateMigration(input, false, refs);
+        migrationValidator.validateMigration(input, false, impls, cfg);
     }
 
     /// @notice allowFailure=true returns error string without revert.
@@ -863,7 +872,8 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
     /// @notice allowFailure=false with multiple errors reverts with all errors.
     function test_validate_allowFailureFalseMultipleErrors_reverts() public {
         // Pre-build input and refs before vm.expectRevert (they make external calls).
-        IOPContractsManagerMigrationValidator.SharedImplementations memory refs = _buildRefs();
+        IOPContractsManagerMigrationValidator.SharedImplementations memory impls = _buildImpls();
+        IOPContractsManagerMigrationValidator.SharedConfig memory cfg = _buildCfg();
         ISystemConfig[] memory chains = new ISystemConfig[](2);
         chains[0] = chainContracts1.systemConfig;
         chains[1] = chainContracts2.systemConfig;
@@ -873,8 +883,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
             chainSystemConfigs: chains,
             cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer,
-            challenger: challenger
+            proposer: proposer
         });
         vm.mockCall(
             address(sharedDGF),
@@ -887,7 +896,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
             abi.encode(address(0xbad))
         );
         vm.expectRevert(bytes("OPContractsManagerMigrationValidator: MIG-DGF-30,MIG-DGF-40"));
-        migrationValidator.validateMigration(input, false, refs);
+        migrationValidator.validateMigration(input, false, impls, cfg);
     }
 }
 

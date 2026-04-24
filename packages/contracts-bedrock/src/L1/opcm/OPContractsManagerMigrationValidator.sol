@@ -36,14 +36,19 @@ import {
 ///         DelayedWETH configuration, per-chain portal ASR migration, per-chain DGF clearing,
 ///         and lockbox authorization.
 contract OPContractsManagerMigrationValidator {
-    /// @notice Reference addresses and config for shared infrastructure validation.
+    /// @notice Shared implementation addresses used when validating proxy → impl pairings.
     struct SharedImplementations {
         address disputeGameFactoryImpl;
         address anchorStateRegistryImpl;
         address ethLockboxImpl;
         address delayedWETHImpl;
         address mipsImpl;
+    }
+
+    /// @notice Shared roles and config values used during migration validation.
+    struct SharedConfig {
         address l1PAOMultisig;
+        address challenger;
         uint256 withdrawalDelaySeconds;
     }
 
@@ -62,7 +67,6 @@ contract OPContractsManagerMigrationValidator {
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
-        address challenger;
     }
 
     /// @notice Parameters for a single super game type validation.
@@ -81,7 +85,8 @@ contract OPContractsManagerMigrationValidator {
     function validateMigration(
         MigrationValidationInput memory _input,
         bool _allowFailure,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         external
         view
@@ -94,7 +99,8 @@ contract OPContractsManagerMigrationValidator {
                 l1PAOMultisig: address(0),
                 challenger: address(0)
             }),
-            _refs
+            _impls,
+            _cfg
         );
     }
 
@@ -104,17 +110,18 @@ contract OPContractsManagerMigrationValidator {
         MigrationValidationInput memory _input,
         bool _allowFailure,
         IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         public
         view
         returns (string memory)
     {
         if (_overrides.l1PAOMultisig != address(0)) {
-            _refs.l1PAOMultisig = _overrides.l1PAOMultisig;
+            _cfg.l1PAOMultisig = _overrides.l1PAOMultisig;
         }
         if (_overrides.challenger != address(0)) {
-            _input.challenger = _overrides.challenger;
+            _cfg.challenger = _overrides.challenger;
         }
 
         string memory _errors = "";
@@ -128,7 +135,7 @@ contract OPContractsManagerMigrationValidator {
 
         // 3. If discovery succeeded, run shared DGF proxy/impl/owner checks.
         if (_foundSharedContracts) {
-            _errors = assertValidSharedDGF(_errors, _input.dgf, _sharedContracts.proxyAdmin, _refs);
+            _errors = assertValidSharedDGF(_errors, _input.dgf, _sharedContracts.proxyAdmin, _impls, _cfg);
         }
 
         // 4. Super game checks (always run — they handle missing impls/args internally).
@@ -139,9 +146,9 @@ contract OPContractsManagerMigrationValidator {
                 expectedPrestate: _input.cannonPrestate,
                 isPermissioned: true,
                 proposer: _input.proposer,
-                challenger: _input.challenger,
+                challenger: _cfg.challenger,
                 prefix: "MIG-SPDG",
-                mipsImpl: _refs.mipsImpl,
+                mipsImpl: _impls.mipsImpl,
                 discoveredWeth: _sharedContracts.weth
             })
         );
@@ -154,7 +161,7 @@ contract OPContractsManagerMigrationValidator {
                 proposer: address(0),
                 challenger: address(0),
                 prefix: "MIG-SCKDG",
-                mipsImpl: _refs.mipsImpl,
+                mipsImpl: _impls.mipsImpl,
                 discoveredWeth: _sharedContracts.weth
             })
         );
@@ -163,18 +170,19 @@ contract OPContractsManagerMigrationValidator {
         if (_foundSharedContracts) {
             // Shared ASR checks (includes SCKDG cross-validation).
             _errors =
-                assertValidSharedASR(_errors, _sharedContracts.asr, _input.dgf, _sharedContracts.proxyAdmin, _refs);
+                assertValidSharedASR(_errors, _sharedContracts.asr, _input.dgf, _sharedContracts.proxyAdmin, _impls);
 
             // Shared lockbox checks (skip if lockbox is address(0) — caught by MIG-LOCKBOX-MISSING downstream).
             if (address(_sharedContracts.lockbox) != address(0)) {
                 _errors =
-                    assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _refs);
+                    assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _impls);
             }
 
             // Shared DelayedWETH checks (skip if no chains — weth can't be discovered).
             if (_sharedContracts.weth != address(0)) {
-                _errors =
-                    assertValidSharedDelayedWETH(_errors, _sharedContracts.weth, _sharedContracts.proxyAdmin, _refs);
+                _errors = assertValidSharedDelayedWETH(
+                    _errors, _sharedContracts.weth, _sharedContracts.proxyAdmin, _impls, _cfg
+                );
             }
         }
 
@@ -245,21 +253,22 @@ contract OPContractsManagerMigrationValidator {
         string memory _errors,
         IDisputeGameFactory _dgf,
         IProxyAdmin _proxyAdmin,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         internal
         view
         returns (string memory)
     {
         _errors = internalRequire(
-            LibString.eq(ISemver(address(_dgf)).version(), ISemver(_refs.disputeGameFactoryImpl).version()),
+            LibString.eq(ISemver(address(_dgf)).version(), ISemver(_impls.disputeGameFactoryImpl).version()),
             "MIG-SDGF-10",
             _errors
         );
         _errors = internalRequire(
-            _proxyAdmin.getProxyImplementation(address(_dgf)) == _refs.disputeGameFactoryImpl, "MIG-SDGF-20", _errors
+            _proxyAdmin.getProxyImplementation(address(_dgf)) == _impls.disputeGameFactoryImpl, "MIG-SDGF-20", _errors
         );
-        _errors = internalRequire(_dgf.owner() == _refs.l1PAOMultisig, "MIG-SDGF-30", _errors);
+        _errors = internalRequire(_dgf.owner() == _cfg.l1PAOMultisig, "MIG-SDGF-30", _errors);
         _errors = internalRequire(
             address(IProxyAdminOwnedBase(address(_dgf)).proxyAdmin()) == address(_proxyAdmin), "MIG-SDGF-40", _errors
         );
@@ -347,19 +356,19 @@ contract OPContractsManagerMigrationValidator {
         address _asr,
         IDisputeGameFactory _dgf,
         IProxyAdmin _proxyAdmin,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls
     )
         internal
         view
         returns (string memory)
     {
         _errors = internalRequire(
-            LibString.eq(ISemver(_asr).version(), ISemver(_refs.anchorStateRegistryImpl).version()),
+            LibString.eq(ISemver(_asr).version(), ISemver(_impls.anchorStateRegistryImpl).version()),
             "MIG-SASR-10",
             _errors
         );
         _errors = internalRequire(
-            _proxyAdmin.getProxyImplementation(_asr) == _refs.anchorStateRegistryImpl, "MIG-SASR-20", _errors
+            _proxyAdmin.getProxyImplementation(_asr) == _impls.anchorStateRegistryImpl, "MIG-SASR-20", _errors
         );
         _errors = internalRequire(
             address(IAnchorStateRegistry(_asr).disputeGameFactory()) == address(_dgf), "MIG-SASR-30", _errors
@@ -402,19 +411,19 @@ contract OPContractsManagerMigrationValidator {
         string memory _errors,
         IETHLockbox _lockbox,
         IProxyAdmin _proxyAdmin,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls
     )
         internal
         view
         returns (string memory)
     {
         _errors = internalRequire(
-            LibString.eq(ISemver(address(_lockbox)).version(), ISemver(_refs.ethLockboxImpl).version()),
+            LibString.eq(ISemver(address(_lockbox)).version(), ISemver(_impls.ethLockboxImpl).version()),
             "MIG-SLOCKBOX-10",
             _errors
         );
         _errors = internalRequire(
-            _proxyAdmin.getProxyImplementation(address(_lockbox)) == _refs.ethLockboxImpl, "MIG-SLOCKBOX-20", _errors
+            _proxyAdmin.getProxyImplementation(address(_lockbox)) == _impls.ethLockboxImpl, "MIG-SLOCKBOX-20", _errors
         );
         _errors = internalRequire(
             address(IProxyAdminOwnedBase(address(_lockbox)).proxyAdmin()) == address(_proxyAdmin),
@@ -429,23 +438,24 @@ contract OPContractsManagerMigrationValidator {
         string memory _errors,
         address _weth,
         IProxyAdmin _proxyAdmin,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         internal
         view
         returns (string memory)
     {
         _errors = internalRequire(
-            LibString.eq(ISemver(_weth).version(), ISemver(_refs.delayedWETHImpl).version()), "MIG-SDWETH-10", _errors
+            LibString.eq(ISemver(_weth).version(), ISemver(_impls.delayedWETHImpl).version()), "MIG-SDWETH-10", _errors
         );
         _errors = internalRequire(
-            IDelayedWETH(payable(_weth)).delay() == _refs.withdrawalDelaySeconds, "MIG-SDWETH-20", _errors
+            IDelayedWETH(payable(_weth)).delay() == _cfg.withdrawalDelaySeconds, "MIG-SDWETH-20", _errors
         );
         _errors = internalRequire(
-            IDelayedWETH(payable(_weth)).proxyAdminOwner() == _refs.l1PAOMultisig, "MIG-SDWETH-30", _errors
+            IDelayedWETH(payable(_weth)).proxyAdminOwner() == _cfg.l1PAOMultisig, "MIG-SDWETH-30", _errors
         );
         _errors = internalRequire(
-            _proxyAdmin.getProxyImplementation(_weth) == _refs.delayedWETHImpl, "MIG-SDWETH-40", _errors
+            _proxyAdmin.getProxyImplementation(_weth) == _impls.delayedWETHImpl, "MIG-SDWETH-40", _errors
         );
         _errors = internalRequire(
             address(IProxyAdminOwnedBase(_weth).proxyAdmin()) == address(_proxyAdmin), "MIG-SDWETH-50", _errors

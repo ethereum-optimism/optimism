@@ -15,7 +15,6 @@ interface IOPContractsManagerMigrationValidator {
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
-        address challenger;
     }
 
     struct SharedImplementations {
@@ -24,14 +23,19 @@ interface IOPContractsManagerMigrationValidator {
         address ethLockboxImpl;
         address delayedWETHImpl;
         address mipsImpl;
+    }
+
+    struct SharedConfig {
         address l1PAOMultisig;
+        address challenger;
         uint256 withdrawalDelaySeconds;
     }
 
     function validateMigration(
         MigrationValidationInput memory _input,
         bool _allowFailure,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         external
         view
@@ -41,7 +45,8 @@ interface IOPContractsManagerMigrationValidator {
         MigrationValidationInput memory _input,
         bool _allowFailure,
         IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides,
-        SharedImplementations memory _refs
+        SharedImplementations memory _impls,
+        SharedConfig memory _cfg
     )
         external
         view

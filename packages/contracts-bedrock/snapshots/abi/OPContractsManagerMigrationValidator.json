@@ -27,11 +27,6 @@
             "internalType": "address",
             "name": "proposer",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "challenger",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerMigrationValidator.MigrationValidationInput",
@@ -69,10 +64,22 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
-          },
+          }
+        ],
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_impls",
+        "type": "tuple"
+      },
+      {
+        "components": [
           {
             "internalType": "address",
             "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
             "type": "address"
           },
           {
@@ -81,8 +88,8 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
-        "name": "_refs",
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedConfig",
+        "name": "_cfg",
         "type": "tuple"
       }
     ],
@@ -124,11 +131,6 @@
           {
             "internalType": "address",
             "name": "proposer",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "challenger",
             "type": "address"
           }
         ],
@@ -184,10 +186,22 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
-          },
+          }
+        ],
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_impls",
+        "type": "tuple"
+      },
+      {
+        "components": [
           {
             "internalType": "address",
             "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
             "type": "address"
           },
           {
@@ -196,8 +210,8 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
-        "name": "_refs",
+        "internalType": "struct OPContractsManagerMigrationValidator.SharedConfig",
+        "name": "_cfg",
         "type": "tuple"
       }
     ],
