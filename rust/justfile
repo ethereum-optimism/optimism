@@ -61,7 +61,7 @@ test-online:
 
 # Run doc tests
 test-docs:
-  cargo test --doc --workspace --locked
+  cargo test --doc --workspace --locked --all-features
 
 ############################### Lint ################################
 

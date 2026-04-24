@@ -549,10 +549,10 @@ jobs:
       command:
         description: "Doc test command to run"
         type: string
-        default: "cargo test --workspace --doc"
+        default: "just test-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -987,7 +987,6 @@ workflows:
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
-          command: "cargo test --doc --workspace --all-features"
           context: *rust-ci-context
 
       - rust-ci-docs:
