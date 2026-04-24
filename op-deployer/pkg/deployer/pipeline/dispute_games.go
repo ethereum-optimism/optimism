@@ -258,7 +258,6 @@ func deployDisputeGame(
 	return nil
 }
 
-
 func shouldDeployAdditionalDisputeGames(thisIntent *state.ChainIntent, thisState *state.ChainState) bool {
 	if len(thisIntent.AdditionalDisputeGames) == 0 {
 		return false

@@ -65,8 +65,8 @@ type ZKGameArgs struct {
 
 // Pack encodes the ZK game args using abi.encodePacked layout (172 bytes).
 // Layout: absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) +
-//         maxProveDuration(8) + challengerBond(32) + anchorStateRegistry(20) +
-//         weth(20) + l2ChainId(32)
+// maxProveDuration(8) + challengerBond(32) + anchorStateRegistry(20) +
+// weth(20) + l2ChainId(32)
 func (z ZKGameArgs) Pack() []byte {
 	dur1 := make([]byte, 8)
 	binary.BigEndian.PutUint64(dur1, z.MaxChallengeDuration)
