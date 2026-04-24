@@ -11,6 +11,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -123,7 +124,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// land exactly on it.
 	env.BatchMineAndSync(t)
 	l2SafeHead := env.Sequencer.L2Safe()
-	require.Equal(t, actHeader.Number.Uint64(), l2SafeHead.Number,
+	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)

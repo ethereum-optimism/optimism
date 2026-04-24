@@ -254,9 +254,8 @@ where
             transactions: Some(txs),
             no_tx_pool: Some(true),
             gas_limit: Some(
-                u64::from_be_bytes(
-                    alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes(),
-                ) + upgrade_gas,
+                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
+                    upgrade_gas,
             ),
             eip_1559_params: sys_config.eip_1559_params(
                 &self.rollup_cfg,
