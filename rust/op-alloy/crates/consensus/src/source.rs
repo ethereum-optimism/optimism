@@ -32,6 +32,7 @@ pub enum DepositSourceDomain {
 
 impl DepositSourceDomain {
     /// Returns the source hash.
+    #[must_use]
     pub fn source_hash(&self) -> B256 {
         match self {
             Self::User(ds) => ds.source_hash(),
@@ -53,11 +54,13 @@ pub struct UserDepositSource {
 
 impl UserDepositSource {
     /// Creates a new [`UserDepositSource`].
+    #[must_use]
     pub const fn new(l1_block_hash: B256, log_index: u64) -> Self {
         Self { l1_block_hash, log_index }
     }
 
     /// Returns the source hash.
+    #[must_use]
     pub fn source_hash(&self) -> B256 {
         let mut input = [0u8; 32 * 2];
         input[..32].copy_from_slice(&self.l1_block_hash[..]);
@@ -82,11 +85,13 @@ pub struct L1InfoDepositSource {
 
 impl L1InfoDepositSource {
     /// Creates a new [`L1InfoDepositSource`].
+    #[must_use]
     pub const fn new(l1_block_hash: B256, seq_number: u64) -> Self {
         Self { l1_block_hash, seq_number }
     }
 
     /// Returns the source hash.
+    #[must_use]
     pub fn source_hash(&self) -> B256 {
         let mut input = [0u8; 32 * 2];
         input[..32].copy_from_slice(&self.l1_block_hash[..]);
@@ -116,11 +121,13 @@ pub struct UpgradeDepositSource {
 
 impl UpgradeDepositSource {
     /// Creates a new [`UpgradeDepositSource`].
+    #[must_use]
     pub const fn new(intent: String) -> Self {
         Self { intent }
     }
 
     /// Returns the source hash.
+    #[must_use]
     pub fn source_hash(&self) -> B256 {
         let intent_hash = keccak256(self.intent.as_bytes());
         let mut domain_input = [0u8; 32 * 2];
@@ -148,11 +155,13 @@ pub struct InteropBlockReplacementDepositSource {
 
 impl InteropBlockReplacementDepositSource {
     /// Creates a new [`InteropBlockReplacementDepositSource`].
+    #[must_use]
     pub const fn new(output_root: B256) -> Self {
         Self { output_root }
     }
 
     /// Returns the source hash.
+    #[must_use]
     pub fn source_hash(&self) -> B256 {
         let mut domain_input = [0u8; 32 * 2];
         let identifier_bytes: [u8; 8] =

@@ -63,6 +63,10 @@ impl TxDeposit {
     /// - `gas_limit`
     /// - `is_system_transaction`
     /// - `input`
+    ///
+    /// # Errors
+    ///
+    /// Returns any RLP decoding error raised while reading an individual field from `buf`.
     pub fn rlp_decode_fields(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         Ok(Self {
             source_hash: Decodable::decode(buf)?,
@@ -77,6 +81,11 @@ impl TxDeposit {
     }
 
     /// Decodes the transaction from RLP bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an RLP decoding error if `buf` does not start with a list header, has the
+    /// wrong payload length, or any individual field fails to decode.
     pub fn rlp_decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let header = Header::decode(buf)?;
         if !header.list {
@@ -137,7 +146,7 @@ impl TxDeposit {
     }
 
     /// Get the transaction type
-    pub(crate) const fn tx_type(&self) -> OpTxType {
+    pub(crate) const fn tx_type() -> OpTxType {
         OpTxType::Deposit
     }
 
@@ -188,6 +197,7 @@ impl TxDeposit {
 
     /// Returns the signature for the optimism deposit transactions, which don't include a
     /// signature.
+    #[must_use]
     pub const fn signature() -> Signature {
         Signature::new(U256::ZERO, U256::ZERO, false)
     }
@@ -285,7 +295,7 @@ impl Encodable2718 for TxDeposit {
     }
 
     fn encode_2718(&self, out: &mut dyn alloy_rlp::BufMut) {
-        out.put_u8(self.tx_type() as u8);
+        out.put_u8(Self::tx_type() as u8);
         self.rlp_encode(out);
     }
 }
@@ -398,6 +408,10 @@ impl DepositTransaction for TxDeposit {
 ///
 /// This function can be used as `serialize_with` serde attribute for the [`TxDeposit`] and will
 /// flatten [`TxDeposit::signature`] into response.
+///
+/// # Errors
+///
+/// Returns any error raised by `serializer` while encoding the helper struct.
 #[cfg(feature = "serde")]
 pub fn serde_deposit_tx_rpc<T: serde::Serialize, S: serde::Serializer>(
     value: &T,
@@ -467,7 +481,7 @@ mod tests {
             to: TxKind::Call(contract_address),
             mint: 200,
             value: U256::from(500),
-            gas_limit: 100000,
+            gas_limit: 100_000,
             is_system_transaction: false,
             input: Bytes::from_static(&[1, 2, 3]),
         };

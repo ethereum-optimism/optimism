@@ -276,6 +276,11 @@ impl OpTxEnvelope {
     ///
     /// Returns an error if the envelope's variant is incompatible with the pooled format:
     /// [`TxDeposit`] and [`TxPostExec`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the envelope wrapped in [`ValueError`] when `self` is a [`TxDeposit`] or
+    /// [`TxPostExec`], which are not pool-eligible.
     pub fn try_into_pooled(self) -> Result<OpPooledTransaction, ValueError<Self>> {
         match self {
             Self::Legacy(tx) => Ok(tx.into()),
@@ -295,6 +300,11 @@ impl OpTxEnvelope {
     ///
     /// Returns an error if the envelope's variant is incompatible with the pooled format:
     /// [`TxDeposit`] and [`TxPostExec`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the envelope wrapped in [`ValueError`] when `self` is a [`TxDeposit`] or
+    /// [`TxPostExec`], which are not pool-eligible.
     pub fn try_into_eth_pooled(
         self,
     ) -> Result<alloy_consensus::transaction::PooledTransaction, ValueError<Self>> {
@@ -304,6 +314,11 @@ impl OpTxEnvelope {
     /// Attempts to convert the optimism variant into an ethereum [`TxEnvelope`].
     ///
     /// Returns the envelope as error if it is a variant unsupported on ethereum: [`TxDeposit`]
+    ///
+    /// # Errors
+    ///
+    /// Returns the envelope wrapped in [`ValueError`] when `self` is a [`TxDeposit`] or
+    /// [`TxPostExec`], which have no Ethereum mainnet counterpart.
     pub fn try_into_eth_envelope(self) -> Result<TxEnvelope, ValueError<Self>> {
         match self {
             Self::Legacy(tx) => Ok(tx.into()),
@@ -323,6 +338,10 @@ impl OpTxEnvelope {
 
     /// Helper that creates [`OpTransactionInfo`] by adding [`OpDepositInfo`] obtained from the
     /// given closure if this transaction is a deposit and return the [`OpTransactionInfo`].
+    ///
+    /// # Errors
+    ///
+    /// Returns any error produced by `f` while looking up deposit metadata.
     pub fn try_to_tx_info<F, E>(
         &self,
         tx_info: TransactionInfo,
@@ -341,6 +360,11 @@ impl OpTxEnvelope {
     ///
     /// Returns the given envelope as error if [`OpTxEnvelope`] doesn't support the variant
     /// (EIP-4844)
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(tx)` when `tx` is an EIP-4844 transaction, which is not supported by
+    /// [`OpTxEnvelope`].
     pub fn try_from_eth_envelope<T>(
         tx: EthereumTxEnvelope<T>,
     ) -> Result<Self, EthereumTxEnvelope<T>> {
@@ -376,6 +400,11 @@ impl OpTxEnvelope {
     ///
     /// Returns the given envelope as error if [`OpTxEnvelope`] doesn't support the variant
     /// (EIP-4844)
+    ///
+    /// # Errors
+    ///
+    /// Returns the original envelope when the inner transaction cannot be represented as an
+    /// [`OpTxEnvelope`] (e.g. EIP-4844 or unknown types that are not deposits).
     #[cfg(feature = "alloy-compat")]
     pub fn try_from_any_envelope(
         tx: alloy_network::AnyTxEnvelope,
@@ -391,7 +420,7 @@ impl OpTxEnvelope {
                     };
                     Ok(Self::Deposit(Sealed::new_unchecked(deposit, unknown.hash)))
                 }
-                unsupported => Err(unsupported),
+                unsupported @ alloy_network::AnyTxEnvelope::Ethereum(_) => Err(unsupported),
             },
         }
     }
@@ -895,7 +924,7 @@ mod tests {
             to: Address::left_padding_from(&[6]).into(),
             value: U256::from(7_u64),
             input: vec![8].into(),
-            access_list: Default::default(),
+            access_list: alloy_eips::eip2930::AccessList::default(),
         };
         let sig = Signature::test_signature();
         let tx_signed = tx.into_signed(sig);

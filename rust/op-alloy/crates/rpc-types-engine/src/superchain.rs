@@ -85,6 +85,7 @@ impl ProtocolVersion {
     /// <version-type> ::= <uint8>
     /// <typed-payload> ::= <31 bytes>
     /// ```
+    #[must_use]
     pub fn encode(&self) -> B256 {
         let mut bytes = [0u8; 32];
 
@@ -104,6 +105,11 @@ impl ProtocolVersion {
     /// <version-type> ::= <uint8>
     /// <typed-payload> ::= <31 bytes>
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProtocolVersionError::UnsupportedVersion`] if the first byte of `value`
+    /// isn't a known version tag.
     pub fn decode(value: B256) -> Result<Self, ProtocolVersionError> {
         let version_type = value[0];
         let typed_payload = &value[1..];
@@ -115,6 +121,7 @@ impl ProtocolVersion {
     }
 
     /// Returns the inner value of the `ProtocolVersion` enum
+    #[must_use]
     pub const fn inner(&self) -> ProtocolVersionFormatV0 {
         match self {
             Self::V0(value) => *value,
@@ -122,6 +129,7 @@ impl ProtocolVersion {
     }
 
     /// Returns the inner value of the `ProtocolVersion` enum if it is V0, otherwise None
+    #[must_use]
     pub const fn as_v0(&self) -> Option<ProtocolVersionFormatV0> {
         match self {
             Self::V0(value) => Some(*value),
@@ -129,6 +137,7 @@ impl ProtocolVersion {
     }
 
     /// Differentiates forks and custom-builds of standard protocol
+    #[must_use]
     pub const fn build(&self) -> B64 {
         match self {
             Self::V0(value) => value.build,
@@ -136,6 +145,7 @@ impl ProtocolVersion {
     }
 
     /// Incompatible API changes
+    #[must_use]
     pub const fn major(&self) -> u32 {
         match self {
             Self::V0(value) => value.major,
@@ -143,6 +153,7 @@ impl ProtocolVersion {
     }
 
     /// Identifies additional functionality in backwards compatible manner
+    #[must_use]
     pub const fn minor(&self) -> u32 {
         match self {
             Self::V0(value) => value.minor,
@@ -150,6 +161,7 @@ impl ProtocolVersion {
     }
 
     /// Identifies backward-compatible bug-fixes
+    #[must_use]
     pub const fn patch(&self) -> u32 {
         match self {
             Self::V0(value) => value.patch,
@@ -157,6 +169,7 @@ impl ProtocolVersion {
     }
 
     /// Identifies unstable versions that may not satisfy the above
+    #[must_use]
     pub const fn pre_release(&self) -> u32 {
         match self {
             Self::V0(value) => value.pre_release,
@@ -164,6 +177,7 @@ impl ProtocolVersion {
     }
 
     /// Returns a human-readable string representation of the `ProtocolVersion`
+    #[must_use]
     pub fn display(&self) -> String {
         match self {
             Self::V0(value) => format!("{value}"),
@@ -240,6 +254,7 @@ impl core::fmt::Display for ProtocolVersionFormatV0 {
 
 impl ProtocolVersionFormatV0 {
     /// Returns true if the build tag is human-readable, false otherwise.
+    #[must_use]
     pub fn is_readable_build_tag(&self) -> bool {
         for (i, &c) in self.build.iter().enumerate() {
             if c == 0 {
@@ -270,6 +285,7 @@ impl ProtocolVersionFormatV0 {
     /// <patch> ::= <big-endian uint32>
     /// <pre-release> ::= <big-endian uint32>
     /// ```
+    #[must_use]
     pub fn encode(&self) -> [u8; 31] {
         let mut bytes = [0u8; 31];
         bytes[0..7].copy_from_slice(&[0u8; 7]);

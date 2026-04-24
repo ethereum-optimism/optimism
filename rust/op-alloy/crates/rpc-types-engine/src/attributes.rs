@@ -59,6 +59,12 @@ impl OpPayloadAttributes {
     ///
     /// Note: This must be updated whenever the [`OpPayloadAttributes`] changes for a hardfork.
     /// See also <https://github.com/ethereum-optimism/op-geth/blob/d401af16f2dd94b010a72eaef10e07ac10b31931/miner/payload_building.go#L59-L59>
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic; the SHA-256 digest is always 32 bytes so slicing to the
+    /// first 8 cannot fail.
+    #[must_use]
     pub fn payload_id(&self, parent: &B256, payload_version: u8) -> PayloadId {
         let mut hasher = sha2::Sha256::new();
         hasher.update(parent.as_slice());
@@ -77,8 +83,8 @@ impl OpPayloadAttributes {
 
         let no_tx_pool = self.no_tx_pool.unwrap_or_default();
         if no_tx_pool || self.transactions.as_ref().is_some_and(|txs| !txs.is_empty()) {
-            hasher.update([no_tx_pool as u8]);
-            let txs_len = self.transactions.as_ref().map(|txs| txs.len()).unwrap_or_default();
+            hasher.update([u8::from(no_tx_pool)]);
+            let txs_len = self.transactions.as_ref().map(Vec::len).unwrap_or_default();
             hasher.update(&txs_len.to_be_bytes()[..]);
             if let Some(txs) = &self.transactions {
                 for tx in txs {
@@ -86,7 +92,7 @@ impl OpPayloadAttributes {
                     // the transactions here which really isn't ideal
                     let tx_hash = keccak256(tx);
                     // maybe we can try just taking the hash and not decoding
-                    hasher.update(tx_hash)
+                    hasher.update(tx_hash);
                 }
             }
         }
@@ -109,6 +115,12 @@ impl OpPayloadAttributes {
     }
 
     /// Encodes the `eip1559` parameters for the payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EIP1559ParamError::MinBaseFeeMustBeNone`] if `min_base_fee` is set,
+    /// [`EIP1559ParamError::NoEIP1559Params`] if no params are present, or any error
+    /// raised by [`encode_holocene_extra_data`].
     pub fn get_holocene_extra_data(
         &self,
         default_base_fee_params: BaseFeeParams,
@@ -130,6 +142,17 @@ impl OpPayloadAttributes {
     }
 
     /// Encodes the `eip1559` parameters for the payload along with the minimum base fee.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EIP1559ParamError::MinBaseFeeNotSet`] if `min_base_fee` is `None`,
+    /// [`EIP1559ParamError::NoEIP1559Params`] if no params are present, or any error
+    /// raised by [`encode_jovian_extra_data`].
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic; the `unwrap` on `min_base_fee` is guarded by the
+    /// check above.
     pub fn get_jovian_extra_data(
         &self,
         default_base_fee_params: BaseFeeParams,
@@ -192,7 +215,7 @@ impl OpPayloadAttributes {
 
         self.decoded_transactions().map(|res| {
             res.map_err(alloy_consensus::crypto::RecoveryError::from_source)
-                .and_then(|tx| tx.try_into_recovered())
+                .and_then(SignerRecoverable::try_into_recovered)
         })
     }
 
@@ -236,16 +259,16 @@ mod test {
             PayloadId::new(FixedBytes::<8>::from_str("0x03d2dae446d2a86a").unwrap().into());
         let attrs = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
-                timestamp: 1728933301,
+                timestamp: 1_728_933_301,
                 prev_randao: b256!("0x9158595abbdab2c90635087619aa7042bbebe47642dfab3c9bfb934f6b082765"),
                 suggested_fee_recipient: address!("0x4200000000000000000000000000000000000011"),
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,
-            gas_limit: Some(30000000),
+            gas_limit: Some(30_000_000),
             eip_1559_params: None,
             min_base_fee: None,
         };
@@ -270,16 +293,16 @@ mod test {
             PayloadId::new(FixedBytes::<8>::from_str("0x046c65ffc4d659ec").unwrap().into());
         let attrs = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
-                timestamp: 1728933301,
+                timestamp: 1_728_933_301,
                 prev_randao: b256!("0x9158595abbdab2c90635087619aa7042bbebe47642dfab3c9bfb934f6b082765"),
                 suggested_fee_recipient: address!("0x4200000000000000000000000000000000000011"),
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,
-            gas_limit: Some(30000000),
+            gas_limit: Some(30_000_000),
             eip_1559_params: None,
             min_base_fee: Some(100),
         };
@@ -302,9 +325,9 @@ mod test {
                 timestamp: 0x1337,
                 prev_randao: B256::ZERO,
                 suggested_fee_recipient: Address::ZERO,
-                withdrawals: Default::default(),
+                withdrawals: None,
                 parent_beacon_block_root: Some(B256::ZERO),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -326,9 +349,9 @@ mod test {
                 timestamp: 0x1337,
                 prev_randao: B256::ZERO,
                 suggested_fee_recipient: Address::ZERO,
-                withdrawals: Default::default(),
+                withdrawals: None,
                 parent_beacon_block_root: Some(B256::ZERO),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -368,9 +391,9 @@ mod test {
                 timestamp: 0x1337,
                 prev_randao: B256::ZERO,
                 suggested_fee_recipient: Address::ZERO,
-                withdrawals: Default::default(),
+                withdrawals: None,
                 parent_beacon_block_root: Some(B256::ZERO),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -392,9 +415,9 @@ mod test {
                 timestamp: 0x1337,
                 prev_randao: B256::ZERO,
                 suggested_fee_recipient: Address::ZERO,
-                withdrawals: Default::default(),
+                withdrawals: None,
                 parent_beacon_block_root: Some(B256::ZERO),
-                slot_number: Default::default(),
+                slot_number: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),

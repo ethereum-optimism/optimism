@@ -43,6 +43,7 @@ pub enum OpReceipt<T = Log> {
 
 impl<T> OpReceipt<T> {
     /// Returns [`OpTxType`] of the receipt.
+    #[must_use]
     pub const fn tx_type(&self) -> OpTxType {
         match self {
             Self::Legacy(_) => OpTxType::Legacy,
@@ -55,6 +56,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Returns inner [`Receipt`].
+    #[must_use]
     pub const fn as_receipt(&self) -> &Receipt<T> {
         match self {
             Self::Legacy(receipt) |
@@ -79,6 +81,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Consumes this and returns the inner [`Receipt`].
+    #[must_use]
     pub fn into_receipt(self) -> Receipt<T> {
         match self {
             Self::Legacy(receipt) |
@@ -105,6 +108,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Returns length of RLP-encoded receipt fields with the given [`Bloom`] without an RLP header.
+    #[must_use]
     pub fn rlp_encoded_fields_length(&self, bloom: &Bloom) -> usize
     where
         T: Encodable,
@@ -135,6 +139,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Returns RLP header for inner encoding.
+    #[must_use]
     pub fn rlp_header_inner(&self, bloom: &Bloom) -> Header
     where
         T: Encodable,
@@ -143,6 +148,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Returns RLP header for inner encoding without bloom.
+    #[must_use]
     pub fn rlp_header_without_bloom(&self) -> Header
     where
         T: Encodable,
@@ -152,6 +158,10 @@ impl<T> OpReceipt<T> {
 
     /// RLP-decodes the receipt from the provided buffer. This does not expect a type byte or
     /// network header.
+    ///
+    /// # Errors
+    ///
+    /// Returns any RLP decoding error raised while reading the receipt fields for `tx_type`.
     pub fn rlp_decode_inner(
         buf: &mut &[u8],
         tx_type: OpTxType,
@@ -224,6 +234,7 @@ impl<T> OpReceipt<T> {
     }
 
     /// Returns length of RLP-encoded receipt fields without an RLP header.
+    #[must_use]
     pub fn rlp_encoded_fields_length_without_bloom(&self) -> usize
     where
         T: Encodable,
@@ -250,6 +261,11 @@ impl<T> OpReceipt<T> {
     }
 
     /// RLP-decodes the receipt from the provided buffer without bloom.
+    ///
+    /// # Errors
+    ///
+    /// Returns any RLP decoding error raised while reading the type byte, status, cumulative
+    /// gas used, logs, or deposit-specific fields from `buf`.
     pub fn rlp_decode_fields_without_bloom(buf: &mut &[u8]) -> alloy_rlp::Result<Self>
     where
         T: Decodable,
@@ -287,7 +303,8 @@ impl<T> OpReceipt<T> {
 
 impl<T: Encodable> Eip2718EncodableReceipt for OpReceipt<T> {
     fn eip2718_encoded_length_with_bloom(&self, bloom: &Bloom) -> usize {
-        !self.tx_type().is_legacy() as usize + self.rlp_header_inner(bloom).length_with_payload()
+        usize::from(!self.tx_type().is_legacy()) +
+            self.rlp_header_inner(bloom).length_with_payload()
     }
 
     fn eip2718_encode_with_bloom(&self, bloom: &Bloom, out: &mut dyn BufMut) {
@@ -685,7 +702,7 @@ mod tests {
                     cumulative_gas_used: 46913,
                     logs: vec![],
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: None,
             }),
             logs_bloom: [0; 256].into(),
@@ -713,7 +730,7 @@ mod tests {
                     cumulative_gas_used: 46913,
                     logs: vec![],
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: Some(1),
             }),
             logs_bloom: [0; 256].into(),
@@ -731,21 +748,21 @@ mod tests {
     fn gigantic_receipt() {
         let receipt = OpReceipt::Legacy(Receipt {
             status: Eip658Value::Eip658(true),
-            cumulative_gas_used: 16747627,
+            cumulative_gas_used: 16_747_627,
             logs: vec![
                 Log::new_unchecked(
                     address!("0x4bf56695415f725e43c3e04354b604bcfb6dfb6e"),
                     vec![b256!(
                         "0xc69dc3d7ebff79e41f525be431d5cd3cc08f80eaf0f7819054a726eeb7086eb9"
                     )],
-                    Bytes::from(vec![1; 0xffffff]),
+                    Bytes::from(vec![1; 0xff_ffff]),
                 ),
                 Log::new_unchecked(
                     address!("0xfaca325c86bf9c2d5b413cd7b90b209be92229c2"),
                     vec![b256!(
                         "0x8cca58667b1e9ffa004720ac99a3d61a138181963b294d270d91c53d36402ae2"
                     )],
-                    Bytes::from(vec![1; 0xffffff]),
+                    Bytes::from(vec![1; 0xff_ffff]),
                 ),
             ],
         });

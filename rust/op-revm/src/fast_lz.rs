@@ -1,4 +1,14 @@
 //! Contains the `[flz_compress_len]` function.
+// Port of op-geth's FastLZ size estimator. Casts match the Go reference semantics and are
+// guarded by algorithmic invariants, so they're allowed here rather than audited individually.
+// `large_stack_arrays` is allowed because the 8KiB hash table is a hot path that should stay
+// on the stack to avoid per-call allocations.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::large_stack_arrays
+)]
 
 /// Returns the length of the data after compression through `FastLZ`, based on
 /// <https://github.com/Vectorized/solady/blob/5315d937d79b335c668896d7533ac603adac5315/js/solady.js>
@@ -86,7 +96,7 @@ fn set_next_hash(htab: &mut [u32; 8192], input: &[u8], idx: u32) -> u32 {
 }
 
 const fn hash(v: u32) -> u16 {
-    let hash = (v as u64 * 2654435769) >> 19;
+    let hash = (v as u64 * 2_654_435_769) >> 19;
     hash as u16 & 0x1fff
 }
 

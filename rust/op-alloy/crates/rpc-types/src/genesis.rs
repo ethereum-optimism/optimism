@@ -16,6 +16,7 @@ pub struct OpChainInfo {
 impl OpChainInfo {
     /// Extracts the Optimism specific fields from a genesis file. These fields are expected to be
     /// contained in the `genesis.config` under `extra_fields` property.
+    #[must_use]
     pub fn extract_from(others: &OtherFields) -> Option<Self> {
         Self::try_from(others).ok()
     }
@@ -62,6 +63,7 @@ pub struct OpGenesisInfo {
 
 impl OpGenesisInfo {
     /// Extract the Optimism-specific genesis info from a genesis file.
+    #[must_use]
     pub fn extract_from(others: &OtherFields) -> Option<Self> {
         Self::try_from(others).ok()
     }
@@ -90,6 +92,7 @@ pub struct OpBaseFeeInfo {
 impl OpBaseFeeInfo {
     /// Extracts the Optimism base fee info by looking for the `optimism` key. It is intended to be
     /// parsed from a genesis file.
+    #[must_use]
     pub fn extract_from(others: &OtherFields) -> Option<Self> {
         Self::try_from(others).ok()
     }

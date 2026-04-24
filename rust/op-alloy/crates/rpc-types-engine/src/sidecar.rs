@@ -50,60 +50,71 @@ impl OpExecutionPayloadSidecar {
     }
 
     /// Creates a new instance for ecotone with the ecotone fields for `engine_newPayloadV3`
+    #[must_use]
     pub fn v3(ecotone: CancunPayloadFields) -> Self {
-        Self { ecotone: ecotone.into(), isthmus: Default::default() }
+        Self { ecotone: ecotone.into(), isthmus: MaybePraguePayloadFields::default() }
     }
 
     /// Creates a new instance post prague for `engine_newPayloadV4`
+    #[must_use]
     pub fn v4(ecotone: CancunPayloadFields, isthmus: PraguePayloadFields) -> Self {
         Self { ecotone: ecotone.into(), isthmus: isthmus.into() }
     }
 
     /// See [`ecotone`](Self::ecotone).
     #[deprecated(note = "use `ecotone` instead")]
+    #[must_use]
     pub const fn canyon(&self) -> Option<&CancunPayloadFields> {
         self.ecotone()
     }
 
     /// Returns a reference to the [`CancunPayloadFields`].
+    #[must_use]
     pub const fn ecotone(&self) -> Option<&CancunPayloadFields> {
         self.ecotone.as_ref()
     }
 
     /// See [`into_ecotone`](Self::into_ecotone).
     #[deprecated(note = "use `into_ecotone` instead")]
+    #[must_use]
     pub fn into_canyon(self) -> Option<CancunPayloadFields> {
         self.into_ecotone()
     }
 
     /// Consumes the type and returns the [`CancunPayloadFields`]
+    #[must_use]
     pub fn into_ecotone(self) -> Option<CancunPayloadFields> {
         self.ecotone.into_inner()
     }
 
     /// Returns a reference to the [`PraguePayloadFields`].
+    #[must_use]
     pub const fn isthmus(&self) -> Option<&PraguePayloadFields> {
         self.isthmus.as_ref()
     }
 
     /// Consumes the type and returns the [`PraguePayloadFields`]
+    #[must_use]
     pub fn into_isthmus(self) -> Option<PraguePayloadFields> {
         self.isthmus.into_inner()
     }
 
     /// Returns the parent beacon block root, if any.
+    #[must_use]
     pub fn parent_beacon_block_root(&self) -> Option<B256> {
         self.ecotone.parent_beacon_block_root()
     }
 
     /// Returns the EL request hash. Should always be empty root hash, see docs for
     /// [`OpExecutionPayloadSidecar`] isthmus fields.
+    #[must_use]
     pub fn requests_hash(&self) -> Option<B256> {
         self.isthmus.requests_hash()
     }
 
     /// Returns the blob versioned hashes. Should always be empty array, see docs for
     /// [`OpExecutionPayloadSidecar`] ecotone fields.
+    #[must_use]
     pub fn versioned_hashes(&self) -> Option<&Vec<B256>> {
         self.ecotone.versioned_hashes()
     }

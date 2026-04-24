@@ -1,6 +1,10 @@
 //! Base Mainnet hardfork starting points
 
-use crate::optimism::mainnet::*;
+use crate::optimism::mainnet::{
+    OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP,
+    OP_MAINNET_GRANITE_TIMESTAMP, OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
+    OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_REGOLITH_TIMESTAMP,
+};
 
 /// Bedrock base hardfork activation block is 0.
 pub const BASE_MAINNET_BEDROCK_BLOCK: u64 = 0;

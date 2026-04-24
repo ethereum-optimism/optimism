@@ -191,7 +191,7 @@ macro_rules! impl_from_tx {
                     Self(OpTransaction {
                         base,
                         enveloped_tx: Some(encoded),
-                        deposit: Default::default(),
+                        deposit: DepositTransactionParts::default(),
                     })
                 }
             }
@@ -222,7 +222,11 @@ impl<T> FromTxWithEncoded<Signed<TxEip4844Variant<T>>> for OpTx {
 impl<T> FromTxWithEncoded<TxEip4844Variant<T>> for OpTx {
     fn from_encoded_tx(tx: &TxEip4844Variant<T>, caller: Address, encoded: Bytes) -> Self {
         let base = TxEnv::from_recovered_tx(tx, caller);
-        Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
+        Self(OpTransaction {
+            base,
+            enveloped_tx: Some(encoded),
+            deposit: DepositTransactionParts::default(),
+        })
     }
 }
 
@@ -255,7 +259,11 @@ impl FromRecoveredTx<TxPostExec> for OpTx {
 impl FromTxWithEncoded<TxPostExec> for OpTx {
     fn from_encoded_tx(tx: &TxPostExec, caller: Address, encoded: Bytes) -> Self {
         let base = TxEnv { tx_type: tx.ty(), caller, kind: tx.kind(), ..Default::default() };
-        Self(OpTransaction { base, enveloped_tx: Some(encoded), deposit: Default::default() })
+        Self(OpTransaction {
+            base,
+            enveloped_tx: Some(encoded),
+            deposit: DepositTransactionParts::default(),
+        })
     }
 }
 

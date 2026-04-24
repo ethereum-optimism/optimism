@@ -18,6 +18,7 @@ pub struct DepositTransactionParts {
 
 impl DepositTransactionParts {
     /// Create a new deposit transaction parts.
+    #[must_use]
     pub const fn new(source_hash: B256, mint: Option<u128>, is_system_transaction: bool) -> Self {
         Self { source_hash, mint, is_system_transaction }
     }

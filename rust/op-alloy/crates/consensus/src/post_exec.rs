@@ -61,11 +61,13 @@ impl<'a> arbitrary::Arbitrary<'a> for PostExecPayload {
 
 impl PostExecPayload {
     /// Look up refund for a given tx index.
+    #[must_use]
     pub fn gas_refund_for_idx(&self, index: u64) -> Option<u64> {
         self.gas_refund_entries.iter().find(|e| e.index == index).map(|e| e.gas_refund)
     }
 
     /// RLP-encode the payload into bytes.
+    #[must_use]
     pub fn to_rlp_bytes(&self) -> Bytes {
         let mut buf = Vec::new();
         self.encode(&mut buf);
@@ -77,6 +79,11 @@ impl PostExecPayload {
     /// Advances `buf` past the consumed bytes. Unlike [`Self::from_rlp_bytes`], trailing bytes
     /// are left in place for the caller to consume; this is the decoder to use on the EIP-2718
     /// path where the envelope already framed the packet exactly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RLP payload cannot be decoded or the decoded `version` does
+    /// not match [`POST_EXEC_PAYLOAD_VERSION`].
     pub fn decode_checked(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let payload = Self::decode(buf)?;
         if payload.version != POST_EXEC_PAYLOAD_VERSION {
@@ -89,6 +96,11 @@ impl PostExecPayload {
     ///
     /// Rejects payloads whose `version` is not [`POST_EXEC_PAYLOAD_VERSION`] and rejects any
     /// trailing bytes after the RLP structure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RLP payload cannot be decoded, the `version` does not match
+    /// [`POST_EXEC_PAYLOAD_VERSION`], or any trailing bytes remain after decoding.
     pub fn from_rlp_bytes(data: &[u8]) -> alloy_rlp::Result<Self> {
         let mut buf = data;
         let payload = Self::decode_checked(&mut buf)?;
@@ -132,6 +144,7 @@ impl From<TxPostExec> for PostExecPayload {
 
 impl TxPostExec {
     /// Construct a post-exec transaction from its decoded payload.
+    #[must_use]
     pub fn new(payload: PostExecPayload) -> Self {
         let input = payload.to_rlp_bytes();
         Self { payload, input }
@@ -139,6 +152,7 @@ impl TxPostExec {
 
     /// Returns the canonical signature for post-exec transactions, which don't include a
     /// signature.
+    #[must_use]
     pub const fn signature() -> alloy_primitives::Signature {
         alloy_primitives::Signature::new(U256::ZERO, U256::ZERO, false)
     }
@@ -246,7 +260,7 @@ impl Transaction for TxPostExec {
     fn kind(&self) -> TxKind {
         // Post-exec transactions do not carry a destination like deposits do, so expose them as a
         // synthetic zero-address call placeholder.
-        TxKind::Call(Default::default())
+        TxKind::Call(Address::ZERO)
     }
     fn is_create(&self) -> bool {
         false
@@ -332,6 +346,7 @@ impl From<TxPostExec> for alloy_rpc_types_eth::TransactionRequest {
 }
 
 /// Build a post-execution transaction from a block number and refund entries.
+#[must_use]
 pub fn build_post_exec_tx(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> TxPostExec {
     TxPostExec::new(PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION,
@@ -345,6 +360,10 @@ pub fn build_post_exec_tx(block_number: u64, gas_refund_entries: Vec<SDMGasEntry
 ///
 /// Unlike the standalone [`TxPostExec`] serde form, RPC consumers such as op-node expect the
 /// canonical `input` field to be present so the transaction can be decoded by go-ethereum types.
+///
+/// # Errors
+///
+/// Returns any error raised by `serializer` while encoding the helper struct fields.
 #[cfg(feature = "serde")]
 pub fn serde_post_exec_tx_rpc<S>(
     value: &Sealed<TxPostExec>,

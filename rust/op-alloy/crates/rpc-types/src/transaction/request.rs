@@ -33,6 +33,7 @@ pub struct OpTransactionRequest(TransactionRequest);
 impl OpTransactionRequest {
     /// Sets the `from` field in the call to the provided address
     #[inline]
+    #[must_use]
     pub const fn from(mut self, from: Address) -> Self {
         self.0.from = Some(from);
         self
@@ -40,30 +41,35 @@ impl OpTransactionRequest {
 
     /// Sets the transactions type for the transactions.
     #[doc(alias = "tx_type")]
+    #[must_use]
     pub const fn transaction_type(mut self, transaction_type: u8) -> Self {
         self.0.transaction_type = Some(transaction_type);
         self
     }
 
     /// Sets the gas limit for the transaction.
+    #[must_use]
     pub const fn gas_limit(mut self, gas_limit: u64) -> Self {
         self.0.gas = Some(gas_limit);
         self
     }
 
     /// Sets the nonce for the transaction.
+    #[must_use]
     pub const fn nonce(mut self, nonce: u64) -> Self {
         self.0.nonce = Some(nonce);
         self
     }
 
     /// Sets the maximum fee per gas for the transaction.
+    #[must_use]
     pub const fn max_fee_per_gas(mut self, max_fee_per_gas: u128) -> Self {
         self.0.max_fee_per_gas = Some(max_fee_per_gas);
         self
     }
 
     /// Sets the maximum priority fee per gas for the transaction.
+    #[must_use]
     pub const fn max_priority_fee_per_gas(mut self, max_priority_fee_per_gas: u128) -> Self {
         self.0.max_priority_fee_per_gas = Some(max_priority_fee_per_gas);
         self
@@ -71,24 +77,28 @@ impl OpTransactionRequest {
 
     /// Sets the recipient address for the transaction.
     #[inline]
+    #[must_use]
     pub const fn to(mut self, to: Address) -> Self {
         self.0.to = Some(TxKind::Call(to));
         self
     }
 
     /// Sets the value (amount) for the transaction.
+    #[must_use]
     pub const fn value(mut self, value: U256) -> Self {
         self.0.value = Some(value);
         self
     }
 
     /// Sets the access list for the transaction.
+    #[must_use]
     pub fn access_list(mut self, access_list: AccessList) -> Self {
         self.0.access_list = Some(access_list);
         self
     }
 
     /// Sets the input data for the transaction.
+    #[must_use]
     pub fn input(mut self, input: TransactionInput) -> Self {
         self.0.input = input;
         self
@@ -99,6 +109,11 @@ impl OpTransactionRequest {
     ///
     /// Note that EIP-4844 transactions are not supported by Optimism and will be converted into
     /// EIP-1559 transactions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(self)` if the underlying [`TransactionRequest`] is missing required fields
+    /// (see [`TransactionRequest::build_typed_tx`]).
     pub fn build_typed_tx(self) -> Result<OpTypedTransaction, Self> {
         let tx = self.0.build_typed_tx().map_err(Self)?;
         match tx {
@@ -212,7 +227,7 @@ impl From<OpTxEnvelope> for OpTransactionRequest {
             OpTxEnvelope::Eip7702(tx) => tx.into(),
             OpTxEnvelope::Deposit(tx) => tx.into(),
             OpTxEnvelope::PostExec(tx) => tx.into_inner().into(),
-            _ => Default::default(),
+            OpTxEnvelope::Legacy(_) => Self::default(),
         }
     }
 }

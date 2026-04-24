@@ -47,9 +47,9 @@ mod tests {
             prev_randao: B256::random(),
             block_number: 100,
             gas_limit: 30_000_000,
-            timestamp: 1234567890,
+            timestamp: 1_234_567_890,
             extra_data: Bytes::from(vec![1, 2, 3]),
-            base_fee_per_gas: U256::from(1000000000u64),
+            base_fee_per_gas: U256::from(1_000_000_000_u64),
         };
 
         let json = serde_json::to_string(&base).unwrap();
@@ -67,9 +67,9 @@ mod tests {
             prev_randao: B256::ZERO,
             block_number: 1,
             gas_limit: 30_000_000,
-            timestamp: 1234567890,
+            timestamp: 1_234_567_890,
             extra_data: Bytes::default(),
-            base_fee_per_gas: U256::from(1000000000u64),
+            base_fee_per_gas: U256::from(1_000_000_000_u64),
         };
 
         let json = serde_json::to_string(&base).unwrap();

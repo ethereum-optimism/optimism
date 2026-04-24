@@ -43,11 +43,10 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
             // it
             0
         } else {
-            base_fee
-                .map(|base_fee| {
-                    tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
-                })
-                .unwrap_or_else(|| tx.max_fee_per_gas())
+            base_fee.map_or_else(
+                || tx.max_fee_per_gas(),
+                |fee| tx.effective_tip_per_gas(fee).unwrap_or_default() + u128::from(fee),
+            )
         };
 
         Self {
@@ -189,6 +188,9 @@ pub struct OpTransactionFields {
     pub deposit_receipt_version: Option<u64>,
 }
 
+// The JSON round-trip cannot fail for the well-typed `OpTransactionFields`; a `From` impl
+// keeps call sites terse even though it unwraps internally.
+#[allow(clippy::fallible_impl_from)]
 impl From<OpTransactionFields> for OtherFields {
     fn from(value: OpTransactionFields) -> Self {
         serde_json::to_value(value).unwrap().try_into().unwrap()
@@ -209,6 +211,8 @@ mod tx_serde {
     //! [`alloy_rpc_types_eth::Transaction::inner`] and [`op_alloy_consensus::TxDeposit::from`].
     //!
     //! Additionally, we need similar logic for the `gasPrice` field
+    // The parent module's helpers are numerous; enumerating would be noisier than the glob.
+    #[allow(clippy::wildcard_imports)]
     use super::*;
     use alloy_consensus::transaction::Recovered;
     use op_alloy_consensus::OpTransaction;
@@ -238,6 +242,9 @@ mod tx_serde {
 
     #[derive(Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
+    // Helper type lives inside a private module; the `pub(crate)` is redundant but mirrors the
+    // serde boilerplate expected by downstream consumers.
+    #[allow(clippy::redundant_pub_crate)]
     pub(crate) struct TransactionSerdeHelper<T> {
         #[serde(flatten)]
         inner: T,
@@ -365,7 +372,7 @@ mod tests {
             panic!("Expected deposit transaction");
         };
         assert_eq!(tx.inner.inner.signer(), inner.from);
-        assert_eq!(tx.deposit_nonce, Some(22211221));
+        assert_eq!(tx.deposit_nonce, Some(22_211_221));
         assert_eq!(tx.inner.effective_gas_price, Some(0));
 
         let deserialized = serde_json::to_value(&tx).unwrap();

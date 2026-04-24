@@ -38,6 +38,12 @@ fn encode_eip_1559_params(
 /// <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#eip1559params-encoding>
 ///
 /// Returns (`elasticity`, `denominator`)
+///
+/// # Panics
+///
+/// This function will not panic; the 4-byte slices are produced from the fixed 8-byte `B64`
+/// and the `try_into` conversions are infallible.
+#[must_use]
 pub fn decode_eip_1559_params(eip_1559_params: B64) -> (u32, u32) {
     let denominator: [u8; 4] = eip_1559_params.0[..4].try_into().expect("sufficient length");
     let elasticity: [u8; 4] = eip_1559_params.0[4..8].try_into().expect("sufficient length");
@@ -48,6 +54,10 @@ pub fn decode_eip_1559_params(eip_1559_params: B64) -> (u32, u32) {
 /// Decodes the `eip1559` parameters from the `extradata` bytes.
 ///
 /// Returns (`elasticity`, `denominator`)
+///
+/// # Errors
+///
+/// Returns an error if `extra_data` is not exactly 9 bytes or has an invalid version byte.
 pub fn decode_holocene_extra_data(extra_data: &[u8]) -> Result<(u32, u32), EIP1559ParamError> {
     // Holocene extra data is always 9 _exactly_ bytes
     if extra_data.len() != 9 {
@@ -63,6 +73,11 @@ pub fn decode_holocene_extra_data(extra_data: &[u8]) -> Result<(u32, u32), EIP15
 }
 
 /// Encodes the `eip1559` parameters for the payload.
+///
+/// # Errors
+///
+/// Returns [`EIP1559ParamError::DenominatorOverflow`] or
+/// [`EIP1559ParamError::ElasticityOverflow`] if the defaults do not fit into `u32`.
 pub fn encode_holocene_extra_data(
     eip_1559_params: B64,
     default_base_fee_params: BaseFeeParams,
@@ -77,6 +92,15 @@ pub fn encode_holocene_extra_data(
 /// as well as the minimum base fee.
 ///
 /// Returns (`elasticity`, `denominator`, `min_base_fee`)
+///
+/// # Errors
+///
+/// Returns an error if `extra_data` is not exactly 17 bytes or has an invalid version byte.
+///
+/// # Panics
+///
+/// This function will not panic; the fixed-size slice conversions are infallible after the
+/// length check above.
 pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EIP1559ParamError> {
     if extra_data.len() != 17 {
         return Err(EIP1559ParamError::InvalidExtraDataLength);
@@ -100,6 +124,11 @@ pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EI
 
 /// Encodes the EIP-1559 parameters for the payload,
 /// as well as the minimum base fee.
+///
+/// # Errors
+///
+/// Returns [`EIP1559ParamError::DenominatorOverflow`] or
+/// [`EIP1559ParamError::ElasticityOverflow`] if the defaults do not fit into `u32`.
 pub fn encode_jovian_extra_data(
     eip_1559_params: B64,
     default_base_fee_params: BaseFeeParams,

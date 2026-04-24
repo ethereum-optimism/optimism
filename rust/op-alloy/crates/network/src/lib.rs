@@ -112,6 +112,6 @@ impl RecommendedFillers for Optimism {
     type RecommendedFillers = JoinFill<GasFiller, JoinFill<NonceFiller, ChainIdFiller>>;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
-        Default::default()
+        JoinFill::default()
     }
 }

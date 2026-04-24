@@ -58,6 +58,7 @@ hardfork!(
 impl OpHardfork {
     /// Reverse lookup to find the hardfork given a chain ID and block timestamp.
     /// Returns the active hardfork at the given timestamp for the specified OP chain.
+    #[must_use]
     pub fn from_chain_and_timestamp(chain: Chain, timestamp: u64) -> Option<Self> {
         let named = chain.named()?;
 
@@ -107,6 +108,7 @@ impl OpHardfork {
     }
 
     /// Optimism mainnet list of hardforks.
+    #[must_use]
     pub const fn op_mainnet() -> [(Self, ForkCondition); 9] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)),
@@ -122,6 +124,7 @@ impl OpHardfork {
     }
 
     /// Optimism Sepolia list of hardforks.
+    #[must_use]
     pub const fn op_sepolia() -> [(Self, ForkCondition); 9] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_SEPOLIA_BEDROCK_BLOCK)),
@@ -137,6 +140,7 @@ impl OpHardfork {
     }
 
     /// Base mainnet list of hardforks.
+    #[must_use]
     pub const fn base_mainnet() -> [(Self, ForkCondition); 9] {
         [
             (Self::Bedrock, ForkCondition::Block(BASE_MAINNET_BEDROCK_BLOCK)),
@@ -152,6 +156,7 @@ impl OpHardfork {
     }
 
     /// Base Sepolia list of hardforks.
+    #[must_use]
     pub const fn base_sepolia() -> [(Self, ForkCondition); 9] {
         [
             (Self::Bedrock, ForkCondition::Block(BASE_SEPOLIA_BEDROCK_BLOCK)),
@@ -167,6 +172,7 @@ impl OpHardfork {
     }
 
     /// Returns index of `self` in sorted canonical array.
+    #[must_use]
     pub const fn idx(&self) -> usize {
         *self as usize
     }
@@ -269,26 +275,31 @@ impl OpChainHardforks {
     }
 
     /// Creates a new [`OpChainHardforks`] with OP mainnet configuration.
+    #[must_use]
     pub fn op_mainnet() -> Self {
         Self::new(OpHardfork::op_mainnet())
     }
 
     /// Creates a new [`OpChainHardforks`] with OP Sepolia configuration.
+    #[must_use]
     pub fn op_sepolia() -> Self {
         Self::new(OpHardfork::op_sepolia())
     }
 
     /// Creates a new [`OpChainHardforks`] with Base mainnet configuration.
+    #[must_use]
     pub fn base_mainnet() -> Self {
         Self::new(OpHardfork::base_mainnet())
     }
 
     /// Creates a new [`OpChainHardforks`] with Base Sepolia configuration.
+    #[must_use]
     pub fn base_sepolia() -> Self {
         Self::new(OpHardfork::base_sepolia())
     }
 
     /// Returns `true` if this is an OP mainnet instance.
+    #[must_use]
     pub fn is_op_mainnet(&self) -> bool {
         self[OpHardfork::Bedrock] == ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)
     }
@@ -650,7 +661,7 @@ mod tests {
         }
 
         // Edge cases
-        assert_eq!(OpHardfork::from_chain_and_timestamp(Chain::from_id(999999), 1000000), None);
+        assert_eq!(OpHardfork::from_chain_and_timestamp(Chain::from_id(999_999), 1_000_000), None);
     }
 
     // https://github.com/alloy-rs/hardforks/issues/63

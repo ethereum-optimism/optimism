@@ -19,8 +19,9 @@ const L1_COST_INTERCEPT: u64 = 42_585_600;
 const MIN_TX_SIZE_SCALED: u64 = 100 * 1_000_000;
 
 /// Estimates the compressed size of a transaction.
+#[must_use]
 pub fn estimate_tx_compressed_size(input: &[u8]) -> u64 {
-    let fastlz_size = flz_compress_len(input) as u64;
+    let fastlz_size = u64::from(flz_compress_len(input));
 
     fastlz_size
         .saturating_mul(L1_COST_FASTLZ_COEF)

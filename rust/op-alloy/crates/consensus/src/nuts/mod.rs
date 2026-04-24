@@ -44,6 +44,7 @@ pub struct NutBundle {
 
 impl NutBundle {
     /// Returns the total gas required by all transactions in the bundle.
+    #[must_use]
     pub fn total_gas(&self) -> u64 {
         self.transactions.iter().map(|tx| tx.gas_limit).sum()
     }
@@ -53,7 +54,9 @@ impl NutBundle {
     /// Source hashes are derived from a qualified intent string:
     /// `"{fork_name} {index}: {intent}"`.
     ///
-    /// Returns an error if any transaction is missing an intent.
+    /// # Errors
+    ///
+    /// Returns [`NutBundleError::MissingIntent`] if any transaction has an empty intent.
     pub fn to_deposit_transactions(&self) -> Result<Vec<TxDeposit>, NutBundleError> {
         self.transactions
             .iter()
@@ -85,6 +88,10 @@ impl NutBundle {
     /// This is the format expected by [`crate::Hardfork::txs`][hardfork-txs].
     ///
     /// [hardfork-txs]: https://docs.rs/kona-hardforks/latest/kona_hardforks/trait.Hardfork.html
+    ///
+    /// # Errors
+    ///
+    /// Returns any error raised by [`Self::to_deposit_transactions`].
     pub fn to_encoded_transactions(&self) -> Result<Vec<Bytes>, NutBundleError> {
         Ok(self
             .to_deposit_transactions()?

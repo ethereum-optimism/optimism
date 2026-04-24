@@ -53,12 +53,14 @@ pub struct OpDepositReceipt<T = Log> {
 impl OpDepositReceipt {
     /// Calculates [`Log`]'s bloom filter. this is slow operation and [`OpDepositReceiptWithBloom`]
     /// can be used to cache this value.
+    #[must_use]
     pub fn bloom_slow(&self) -> Bloom {
         self.inner.logs.iter().collect()
     }
 
     /// Calculates the bloom filter for the receipt and returns the [`OpDepositReceiptWithBloom`]
     /// container type.
+    #[must_use]
     pub fn with_bloom(self) -> OpDepositReceiptWithBloom {
         self.into()
     }
@@ -80,16 +82,19 @@ impl<T> OpDepositReceipt<T> {
     }
 
     /// Attaches the given bloom to the receipt returning [`ReceiptWithBloom`].
+    #[must_use]
     pub const fn with_bloom_unchecked(self, bloom: Bloom) -> ReceiptWithBloom<Self> {
         ReceiptWithBloom::new(self, bloom)
     }
 
     /// Consumes the type and returns the inner [`Receipt`].
+    #[must_use]
     pub fn into_inner(self) -> Receipt<T> {
         self.inner
     }
 
     /// Returns the deposit info for this receipt.
+    #[must_use]
     pub const fn deposit_info(&self) -> OpDepositInfo {
         OpDepositInfo {
             deposit_nonce: self.deposit_nonce,
@@ -107,6 +112,7 @@ impl<T> OpDepositReceipt<T> {
 
 impl<T: Encodable> OpDepositReceipt<T> {
     /// Returns length of RLP-encoded receipt fields with the given [`Bloom`] without an RLP header.
+    #[must_use]
     pub fn rlp_encoded_fields_length_with_bloom(&self, bloom: &Bloom) -> usize {
         self.inner.rlp_encoded_fields_length_with_bloom(bloom) +
             self.deposit_nonce.map_or(0, |nonce| nonce.length()) +
@@ -126,6 +132,7 @@ impl<T: Encodable> OpDepositReceipt<T> {
     }
 
     /// Returns RLP header for this receipt encoding with the given [`Bloom`].
+    #[must_use]
     pub fn rlp_header_with_bloom(&self, bloom: &Bloom) -> Header {
         Header { list: true, payload_length: self.rlp_encoded_fields_length_with_bloom(bloom) }
     }
@@ -135,6 +142,11 @@ impl<T: Decodable> OpDepositReceipt<T> {
     /// RLP-decodes receipt's field with a [`Bloom`].
     ///
     /// Does not expect an RLP header.
+    ///
+    /// # Errors
+    ///
+    /// Returns any RLP decoding error raised while reading the inner receipt, bloom, or
+    /// deposit-specific fields from `buf`.
     pub fn rlp_decode_fields_with_bloom(
         buf: &mut &[u8],
     ) -> alloy_rlp::Result<ReceiptWithBloom<Self>> {
@@ -438,7 +450,7 @@ mod tests {
     fn gigantic_receipt() {
         let receipt = OpDepositReceipt {
             inner: Receipt {
-                cumulative_gas_used: 16747627,
+                cumulative_gas_used: 16_747_627,
                 status: true.into(),
                 logs: vec![
                     Log {
@@ -447,7 +459,7 @@ mod tests {
                             vec![b256!(
                                 "c69dc3d7ebff79e41f525be431d5cd3cc08f80eaf0f7819054a726eeb7086eb9"
                             )],
-                            Bytes::from(vec![1; 0xffffff]),
+                            Bytes::from(vec![1; 0xff_ffff]),
                         ),
                     },
                     Log {
@@ -456,7 +468,7 @@ mod tests {
                             vec![b256!(
                                 "8cca58667b1e9ffa004720ac99a3d61a138181963b294d270d91c53d36402ae2"
                             )],
-                            Bytes::from(vec![1; 0xffffff]),
+                            Bytes::from(vec![1; 0xff_ffff]),
                         ),
                     },
                 ],
@@ -490,7 +502,7 @@ mod tests {
                     logs: vec![],
                     status: true.into(),
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: None,
             },
             logs_bloom: [0; 256].into(),
@@ -518,7 +530,7 @@ mod tests {
                     logs: vec![],
                     status: true.into(),
                 },
-                deposit_nonce: Some(4012991),
+                deposit_nonce: Some(4_012_991),
                 deposit_receipt_version: Some(1),
             },
             logs_bloom: [0; 256].into(),

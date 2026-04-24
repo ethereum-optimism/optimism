@@ -45,6 +45,11 @@ pub struct DiscCommand {
 
 impl DiscCommand {
     /// Run the discovery subcommand.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tracing subscriber fails to initialise or if the underlying
+    /// discovery driver fails to start.
     pub async fn run(self) -> anyhow::Result<()> {
         let filter = tracing_subscriber::EnvFilter::from_default_env()
             .add_directive("discv5=error".parse()?);

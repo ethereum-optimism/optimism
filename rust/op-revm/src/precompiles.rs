@@ -25,6 +25,7 @@ pub struct OpPrecompiles {
 impl OpPrecompiles {
     /// Create a new precompile provider with the given `OpSpec`.
     #[inline]
+    #[must_use]
     pub fn new_with_spec(spec: OpSpecId) -> Self {
         let precompiles = match spec {
             spec @ (OpSpecId::BEDROCK |
@@ -43,6 +44,7 @@ impl OpPrecompiles {
 
     /// Precompiles getter.
     #[inline]
+    #[must_use]
     pub const fn precompiles(&self) -> &'static Precompiles {
         self.inner.precompiles
     }
@@ -175,15 +177,23 @@ impl Default for OpPrecompiles {
 
 /// Bn254 pair precompile.
 pub mod bn254_pair {
+    // `eth_precompile_fn!` is a name-generating macro resolved via `super::*`; enumerating the
+    // imports loses the macro's crate-path resolution.
+    #[allow(clippy::wildcard_imports)]
     use super::*;
 
     /// Max input size for the bn254 pair precompile.
-    pub const GRANITE_MAX_INPUT_SIZE: usize = 112687;
+    pub const GRANITE_MAX_INPUT_SIZE: usize = 112_687;
     /// Bn254 pair precompile.
     pub const GRANITE: Precompile =
         Precompile::new(PrecompileId::Bn254Pairing, bn254::pair::ADDRESS, granite_precompile);
 
     /// Run the bn254 pair precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Bn254PairLength`] when `input` exceeds
+    /// [`GRANITE_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_pair_granite(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > GRANITE_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Bn254PairLength);
@@ -205,6 +215,11 @@ pub mod bn254_pair {
         Precompile::new(PrecompileId::Bn254Pairing, bn254::pair::ADDRESS, jovian_precompile);
 
     /// Run the bn254 pair precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Bn254PairLength`] when `input` exceeds
+    /// [`JOVIAN_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_pair_jovian(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > JOVIAN_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Bn254PairLength);
@@ -222,23 +237,25 @@ pub mod bn254_pair {
 
 /// `Bls12_381` precompile.
 pub mod bls12_381 {
+    // See `bn254_pair` above: the `eth_precompile_fn!` macro needs the glob import.
+    #[allow(clippy::wildcard_imports)]
     use super::*;
     use revm::precompile::bls12_381_const::{G1_MSM_ADDRESS, G2_MSM_ADDRESS, PAIRING_ADDRESS};
 
     /// Max input size for the g1 msm precompile.
-    pub const ISTHMUS_G1_MSM_MAX_INPUT_SIZE: usize = 513760;
+    pub const ISTHMUS_G1_MSM_MAX_INPUT_SIZE: usize = 513_760;
 
     /// The maximum input size for the BLS12-381 g1 msm operation after the Jovian Hardfork.
     pub const JOVIAN_G1_MSM_MAX_INPUT_SIZE: usize = 288_960;
 
     /// Max input size for the g2 msm precompile.
-    pub const ISTHMUS_G2_MSM_MAX_INPUT_SIZE: usize = 488448;
+    pub const ISTHMUS_G2_MSM_MAX_INPUT_SIZE: usize = 488_448;
 
     /// Max input size for the g2 msm precompile after the Jovian Hardfork.
     pub const JOVIAN_G2_MSM_MAX_INPUT_SIZE: usize = 278_784;
 
     /// Max input size for the pairing precompile.
-    pub const ISTHMUS_PAIRING_MAX_INPUT_SIZE: usize = 235008;
+    pub const ISTHMUS_PAIRING_MAX_INPUT_SIZE: usize = 235_008;
 
     /// Max input size for the pairing precompile after the Jovian Hardfork.
     pub const JOVIAN_PAIRING_MAX_INPUT_SIZE: usize = 156_672;
@@ -271,6 +288,11 @@ pub mod bls12_381 {
     eth_precompile_fn!(jovian_pairing_precompile, run_pair_jovian);
 
     /// Run the g1 msm precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`ISTHMUS_G1_MSM_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_g1_msm_isthmus(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > ISTHMUS_G1_MSM_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -281,6 +303,11 @@ pub mod bls12_381 {
     }
 
     /// Run the g1 msm precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`JOVIAN_G1_MSM_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_g1_msm_jovian(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > JOVIAN_G1_MSM_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -291,6 +318,11 @@ pub mod bls12_381 {
     }
 
     /// Run the g2 msm precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`ISTHMUS_G2_MSM_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_g2_msm_isthmus(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > ISTHMUS_G2_MSM_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -301,6 +333,11 @@ pub mod bls12_381 {
     }
 
     /// Run the g2 msm precompile with Optimism input limit after the Jovian Hardfork.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`JOVIAN_G2_MSM_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_g2_msm_jovian(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > JOVIAN_G2_MSM_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -311,6 +348,11 @@ pub mod bls12_381 {
     }
 
     /// Run the pairing precompile with Optimism input limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`ISTHMUS_PAIRING_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_pair_isthmus(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > ISTHMUS_PAIRING_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -321,6 +363,11 @@ pub mod bls12_381 {
     }
 
     /// Run the pairing precompile with Optimism input limit after the Jovian Hardfork.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PrecompileHalt::Other`] when `input` exceeds
+    /// [`JOVIAN_PAIRING_MAX_INPUT_SIZE`], or any error raised by the underlying precompile.
     pub fn run_pair_jovian(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
         if input.len() > JOVIAN_PAIRING_MAX_INPUT_SIZE {
             return Err(PrecompileHalt::Other(
@@ -409,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_accelerated_bn254_pairing_bad_input_len_jovian() {
-        let input = [0u8; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1];
+        let input = vec![0u8; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1];
         let res = bn254_pair::run_pair_jovian(&input, u64::MAX);
         assert!(matches!(res, Err(PrecompileHalt::Bn254PairLength)));
     }
@@ -460,14 +507,14 @@ mod tests {
     #[test]
     fn test_cancun_precompiles_in_fjord() {
         // additional to cancun, fjord has p256verify
-        assert_eq!(fjord().difference(Precompiles::cancun()).len(), 1)
+        assert_eq!(fjord().difference(Precompiles::cancun()).len(), 1);
     }
 
     #[test]
     fn test_cancun_precompiles_in_granite() {
         // granite has p256verify (fjord)
         // granite has modification of cancun's bn254 pair (doesn't count as new precompile)
-        assert_eq!(granite().difference(Precompiles::cancun()).len(), 1)
+        assert_eq!(granite().difference(Precompiles::cancun()).len(), 1);
     }
 
     #[test]
@@ -475,7 +522,7 @@ mod tests {
         let new_prague_precompiles = Precompiles::prague().difference(Precompiles::cancun());
 
         // isthmus contains all precompiles that were new in prague, without modifications
-        assert!(new_prague_precompiles.difference(isthmus()).is_empty())
+        assert!(new_prague_precompiles.difference(isthmus()).is_empty());
     }
 
     #[test]
@@ -483,7 +530,7 @@ mod tests {
         let new_prague_precompiles = Precompiles::prague().difference(Precompiles::cancun());
 
         // jovian contains all precompiles that were new in prague, without modifications
-        assert!(new_prague_precompiles.difference(jovian()).is_empty())
+        assert!(new_prague_precompiles.difference(jovian()).is_empty());
     }
 
     #[test]
@@ -491,7 +538,7 @@ mod tests {
         let new_osaka_precompiles = Precompiles::osaka().difference(Precompiles::prague());
 
         // karst contains all precompiles that were new in karst, without modifications
-        assert!(new_osaka_precompiles.difference(karst()).is_empty())
+        assert!(new_osaka_precompiles.difference(karst()).is_empty());
     }
 
     /// All the addresses of the precompiles in isthmus should be in jovian
@@ -500,7 +547,7 @@ mod tests {
         let new_isthmus_precompiles = isthmus().difference(Precompiles::cancun());
 
         // jovian contains all precompiles that were new in isthmus, without modifications
-        assert!(new_isthmus_precompiles.difference(jovian()).is_empty())
+        assert!(new_isthmus_precompiles.difference(jovian()).is_empty());
     }
 
     #[test]
@@ -510,7 +557,7 @@ mod tests {
         assert_eq!(latest.len(), default.len());
 
         let intersection = default.intersection(latest);
-        assert_eq!(intersection.len(), latest.len())
+        assert_eq!(intersection.len(), latest.len());
     }
 
     #[test]

@@ -3,7 +3,7 @@
 use crate::OpEvmFactory;
 use alloc::{borrow::Cow, boxed::Box, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
-use alloy_eips::{Encodable2718, Typed2718};
+use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{
@@ -293,7 +293,7 @@ where
         // were not introduced in Bedrock. In addition, regular transactions don't have deposit
         // nonces, so we don't need to touch the DB for those.
         let depositor = (self.is_regolith && is_deposit)
-            .then(|| self.evm.db_mut().basic(sender).map(|acc| acc.unwrap_or_default()))
+            .then(|| self.evm.db_mut().basic(sender).map(Option::unwrap_or_default))
             .transpose()
             .map_err(BlockExecutionError::other)?;
 
@@ -373,14 +373,17 @@ where
             })
         })?;
 
-        let legacy_gas_used =
-            self.receipts.last().map(|r| r.cumulative_gas_used()).unwrap_or_default();
+        let legacy_gas_used = self
+            .receipts
+            .last()
+            .map(alloy_consensus::TxReceipt::cumulative_gas_used)
+            .unwrap_or_default();
 
         Ok((
             self.evm,
             BlockExecutionResult {
                 receipts: self.receipts,
-                requests: Default::default(),
+                requests: Requests::default(),
                 gas_used: legacy_gas_used,
                 blob_gas_used: self.da_footprint_used,
             },
@@ -515,9 +518,9 @@ mod tests {
         let mut executor = executor_factory.create_executor(evm, OpBlockExecutionCtx::default());
         let tx = Recovered::new_unchecked(
             OpTxEnvelope::Legacy(TxLegacy::default().into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
+                U256::ZERO,
+                U256::ZERO,
+                false,
             ))),
             Address::ZERO,
         );
@@ -553,7 +556,7 @@ mod tests {
 
         db.insert_account_with_storage(
             L1_BLOCK_CONTRACT,
-            Default::default(),
+            AccountInfo::default(),
             HashMap::from_iter([
                 (L1_BASE_FEE_SLOT, L1_BASE_FEE),
                 (ECOTONE_L1_FEE_SCALARS_SLOT, L1_FEE_SCALARS),
@@ -617,7 +620,7 @@ mod tests {
     fn test_jovian_da_footprint_estimation() {
         const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
         const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
+        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 
         let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
         let op_chain_hardforks = OpChainHardforks::new(
@@ -639,9 +642,9 @@ mod tests {
 
         let tx = Recovered::new_unchecked(
             OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
+                U256::ZERO,
+                U256::ZERO,
+                false,
             ))),
             Address::ZERO,
         );
@@ -661,7 +664,7 @@ mod tests {
     #[test]
     fn test_jovian_da_footprint_estimation_out_of_gas() {
         const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
+        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
         const GAS_LIMIT: u64 = 100;
 
         let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
@@ -684,9 +687,9 @@ mod tests {
 
         let tx = Recovered::new_unchecked(
             OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
+                U256::ZERO,
+                U256::ZERO,
+                false,
             ))),
             Address::ZERO,
         );
@@ -718,7 +721,7 @@ mod tests {
     #[test]
     fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
         const DA_FOOTPRINT_GAS_SCALAR: u16 = 2000;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
+        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
         const GAS_LIMIT: u64 = 200_000;
 
         let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
@@ -741,9 +744,9 @@ mod tests {
 
         let tx = Recovered::new_unchecked(
             OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
+                U256::ZERO,
+                U256::ZERO,
+                false,
             ))),
             Address::ZERO,
         );

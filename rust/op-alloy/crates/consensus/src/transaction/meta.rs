@@ -26,6 +26,7 @@ pub struct OpTransactionInfo {
 impl OpTransactionInfo {
     /// Creates a new [`OpTransactionInfo`] with the given [`TransactionInfo`] and
     /// [`OpDepositInfo`].
+    #[must_use]
     pub const fn new(inner: TransactionInfo, deposit_meta: OpDepositInfo) -> Self {
         Self { inner, deposit_meta }
     }

@@ -5,6 +5,7 @@ use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::{B256, Bloom, Bytes};
 
 /// Represents the modified portions of an execution payload within a flashblock.
+///
 /// This structure contains only the fields that can be updated during block construction,
 /// such as state root, receipts, logs, and new transactions. Other immutable block fields
 /// like parent hash and block number are excluded since they remain constant throughout
@@ -60,7 +61,7 @@ mod tests {
             transactions: vec![Bytes::from(vec![1, 2, 3])],
             withdrawals: vec![],
             withdrawals_root: B256::random(),
-            blob_gas_used: Some(123456),
+            blob_gas_used: Some(123_456),
         };
 
         let json = serde_json::to_string(&delta).unwrap();

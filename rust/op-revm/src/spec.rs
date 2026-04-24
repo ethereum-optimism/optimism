@@ -35,6 +35,7 @@ pub enum OpSpecId {
 
 impl OpSpecId {
     /// Converts the [`OpSpecId`] into a [`SpecId`].
+    #[must_use]
     pub const fn into_eth_spec(self) -> SpecId {
         match self {
             Self::BEDROCK | Self::REGOLITH => SpecId::MERGE,
@@ -46,6 +47,7 @@ impl OpSpecId {
     }
 
     /// Checks if the [`OpSpecId`] is enabled in the other [`OpSpecId`].
+    #[must_use]
     pub const fn is_enabled_in(self, other: Self) -> bool {
         other as u8 <= self as u8
     }
@@ -128,6 +130,7 @@ mod tests {
     use std::vec;
 
     #[test]
+    #[allow(clippy::too_many_lines)] // Exhaustive cross-matrix of OP and ETH hardfork enablement.
     fn test_op_spec_id_eth_spec_compatibility() {
         // Define test cases: (OpSpecId, enabled in ETH specs, enabled in OP specs)
         let test_cases = [

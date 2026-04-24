@@ -77,17 +77,25 @@ pub struct GossipCommand {
 
 impl GossipCommand {
     /// Run the gossip subcommand.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the chain ID is unknown, the rollup has no system config, or the
+    /// network actor fails to start.
+    // Several gossip config fields come from private kona crates not re-exported here, so
+    // `Default::default()` is the cleanest way to zero-initialise them.
+    #[allow(clippy::default_trait_access)]
     pub async fn run(self) -> anyhow::Result<()> {
         LogConfig::new(self.v).init_tracing_subscriber(None::<EnvFilter>)?;
 
         let rollup_config = ROLLUP_CONFIGS
             .get(&self.l2_chain_id)
-            .ok_or(anyhow::anyhow!("No rollup config found for chain ID"))?;
+            .ok_or_else(|| anyhow::anyhow!("No rollup config found for chain ID"))?;
         let signer = rollup_config
             .genesis
             .system_config
             .as_ref()
-            .ok_or(anyhow::anyhow!("No system config found for chain ID"))?
+            .ok_or_else(|| anyhow::anyhow!("No system config found for chain ID"))?
             .batcher_address;
         tracing::debug!(target: "gossip", "Gossip configured with signer: {:?}", signer);
 
@@ -124,7 +132,7 @@ impl GossipCommand {
                 gossip_config: Default::default(),
                 scoring: Default::default(),
                 topic_scoring: Default::default(),
-                monitor_peers: Default::default(),
+                monitor_peers: None,
                 bootstore: None,
                 gater_config: Default::default(),
                 bootnodes: Default::default(),

@@ -18,6 +18,11 @@ pub trait OpReceiptBuilder: Debug {
     ///
     /// Note: this method should return `Err` if the transaction is a deposit transaction. In that
     /// case, the `build_deposit_receipt` method will be called.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original `ctx` wrapped in `Err` when the transaction is a deposit, so the
+    /// caller can dispatch to [`Self::build_deposit_receipt`].
     fn build_receipt<'a, E: Evm>(
         &self,
         ctx: ReceiptBuilderCtx<'a, <Self::Transaction as TransactionEnvelope>::TxType, E>,

@@ -177,6 +177,11 @@ impl OpTypedTransaction {
     ///
     /// Returns the typed transaction as an error if it is a variant unsupported on ethereum:
     /// [`TxDeposit`] or [`TxPostExec`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `self` wrapped in [`ValueError`] when it is a [`TxDeposit`] or [`TxPostExec`],
+    /// both of which have no Ethereum mainnet counterpart.
     pub fn try_into_eth(self) -> Result<TypedTransaction, ValueError<Self>> {
         self.try_into_eth_variant()
     }
@@ -185,6 +190,11 @@ impl OpTypedTransaction {
     ///
     /// Returns the typed transaction as an error if it is a variant unsupported on ethereum:
     /// [`TxDeposit`] or [`TxPostExec`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `self` wrapped in [`ValueError`] when it is a [`TxDeposit`] or [`TxPostExec`],
+    /// both of which have no Ethereum mainnet counterpart.
     pub fn try_into_eth_variant<Eip4844>(
         self,
     ) -> Result<EthereumTypedTransaction<Eip4844>, ValueError<Self>> {

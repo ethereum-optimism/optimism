@@ -12,6 +12,7 @@ use alloy_primitives::{B256, Signature, TxHash, bytes};
 use core::hash::Hash;
 
 /// All possible transactions that can be included in a response to `GetPooledTransactions`.
+///
 /// A response to `GetPooledTransactions`. This can include a typed signed transaction, but cannot
 /// include a deposit transaction or EIP-4844 transaction.
 ///
@@ -240,10 +241,10 @@ impl<Tx> From<OpPooledTransaction> for Extended<OpTxEnvelope, Tx> {
 impl<Tx> TryFrom<Extended<OpTxEnvelope, Tx>> for OpPooledTransaction {
     type Error = ();
 
-    fn try_from(_tx: Extended<OpTxEnvelope, Tx>) -> Result<Self, Self::Error> {
-        match _tx {
+    fn try_from(tx: Extended<OpTxEnvelope, Tx>) -> Result<Self, Self::Error> {
+        match tx {
             Extended::BuiltIn(inner) => inner.try_into().map_err(|_| ()),
-            Extended::Other(_tx) => Err(()),
+            Extended::Other(_) => Err(()),
         }
     }
 }

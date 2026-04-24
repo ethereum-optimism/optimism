@@ -5,9 +5,13 @@ use alloy_consensus::TxReceipt;
 mod envelope;
 pub use envelope::OpReceiptEnvelope;
 
+// `pub` would trigger `unreachable_pub` since the parent `receipts` module is private; keep
+// `pub(crate)` and silence `clippy::redundant_pub_crate`.
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) mod deposit;
 pub use deposit::{OpDepositReceipt, OpDepositReceiptWithBloom};
 
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) mod receipt;
 pub use receipt::OpReceipt;
 

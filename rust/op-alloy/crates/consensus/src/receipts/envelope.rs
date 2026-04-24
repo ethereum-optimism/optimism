@@ -99,6 +99,7 @@ impl OpReceiptEnvelope<Log> {
 
 impl<T> OpReceiptEnvelope<T> {
     /// Return the [`OpTxType`] of the inner receipt.
+    #[must_use]
     pub const fn tx_type(&self) -> OpTxType {
         match self {
             Self::Legacy(_) => OpTxType::Legacy,
@@ -111,16 +112,29 @@ impl<T> OpReceiptEnvelope<T> {
     }
 
     /// Return true if the transaction was successful.
+    #[must_use]
     pub const fn is_success(&self) -> bool {
         self.status()
     }
 
     /// Returns the success status of the receipt's transaction.
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic; [`Self::as_receipt`] always returns `Some` for the
+    /// receipt variants matched here.
+    #[must_use]
     pub const fn status(&self) -> bool {
         self.as_receipt().unwrap().status.coerce_status()
     }
 
     /// Returns the cumulative gas used at this receipt.
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic; [`Self::as_receipt`] always returns `Some` for the
+    /// receipt variants matched here.
+    #[must_use]
     pub const fn cumulative_gas_used(&self) -> u64 {
         self.as_receipt().unwrap().cumulative_gas_used
     }
@@ -140,16 +154,24 @@ impl<T> OpReceiptEnvelope<T> {
     }
 
     /// Return the receipt logs.
+    ///
+    /// # Panics
+    ///
+    /// This function will not panic; [`Self::as_receipt`] always returns `Some` for the
+    /// receipt variants matched here.
+    #[must_use]
     pub fn logs(&self) -> &[T] {
         &self.as_receipt().unwrap().logs
     }
 
     /// Consumes the type and returns the logs.
+    #[must_use]
     pub fn into_logs(self) -> Vec<T> {
         self.into_receipt().logs
     }
 
     /// Return the receipt's bloom.
+    #[must_use]
     pub const fn logs_bloom(&self) -> &Bloom {
         match self {
             Self::Legacy(t) |
@@ -162,16 +184,19 @@ impl<T> OpReceiptEnvelope<T> {
     }
 
     /// Return the receipt's `deposit_nonce` if it is a deposit receipt.
+    #[must_use]
     pub fn deposit_nonce(&self) -> Option<u64> {
         self.as_deposit_receipt().and_then(|r| r.deposit_nonce)
     }
 
     /// Return the receipt's deposit version if it is a deposit receipt.
+    #[must_use]
     pub fn deposit_receipt_version(&self) -> Option<u64> {
         self.as_deposit_receipt().and_then(|r| r.deposit_receipt_version)
     }
 
     /// Returns the deposit receipt if it is a deposit receipt.
+    #[must_use]
     pub const fn as_deposit_receipt_with_bloom(&self) -> Option<&OpDepositReceiptWithBloom<T>> {
         match self {
             Self::Deposit(t) => Some(t),
@@ -180,6 +205,7 @@ impl<T> OpReceiptEnvelope<T> {
     }
 
     /// Returns the deposit receipt if it is a deposit receipt.
+    #[must_use]
     pub const fn as_deposit_receipt(&self) -> Option<&OpDepositReceipt<T>> {
         match self {
             Self::Deposit(t) => Some(&t.receipt),
@@ -188,6 +214,7 @@ impl<T> OpReceiptEnvelope<T> {
     }
 
     /// Consumes the type and returns the underlying [`Receipt`].
+    #[must_use]
     pub fn into_receipt(self) -> Receipt<T> {
         match self {
             Self::Legacy(t) |
@@ -201,6 +228,7 @@ impl<T> OpReceiptEnvelope<T> {
 
     /// Return the inner receipt. Currently this is infallible, however, future
     /// receipt types may be added.
+    #[must_use]
     pub const fn as_receipt(&self) -> Option<&Receipt<T>> {
         match self {
             Self::Legacy(t) |
@@ -215,6 +243,7 @@ impl<T> OpReceiptEnvelope<T> {
 
 impl OpReceiptEnvelope {
     /// Get the length of the inner receipt in the 2718 encoding.
+    #[must_use]
     pub fn inner_length(&self) -> usize {
         match self {
             Self::Legacy(t) |
@@ -227,6 +256,7 @@ impl OpReceiptEnvelope {
     }
 
     /// Calculate the length of the rlp payload of the network encoded receipt.
+    #[must_use]
     pub fn rlp_payload_length(&self) -> usize {
         let length = self.inner_length();
         match self {
@@ -272,7 +302,7 @@ where
 
 impl Encodable for OpReceiptEnvelope {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
-        self.network_encode(out)
+        self.network_encode(out);
     }
 
     fn length(&self) -> usize {
@@ -313,7 +343,7 @@ impl IsTyped2718 for OpReceiptEnvelope {
 
 impl Encodable2718 for OpReceiptEnvelope {
     fn encode_2718_len(&self) -> usize {
-        self.inner_length() + !self.is_legacy() as usize
+        self.inner_length() + usize::from(!self.is_legacy())
     }
 
     fn encode_2718(&self, out: &mut dyn BufMut) {

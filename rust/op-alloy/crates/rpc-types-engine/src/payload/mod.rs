@@ -35,6 +35,9 @@ pub enum OpExecutionPayload {
 
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
+    // The untagged-union deserializer fans out to every payload version inline; splitting it
+    // would obscure the matcher without reducing complexity.
+    #[allow(clippy::too_many_lines)]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -48,6 +51,7 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                 formatter.write_str("a valid OpExecutionPayload object")
             }
 
+            #[allow(clippy::too_many_lines)]
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
                 A: serde::de::MapAccess<'de>,
@@ -525,6 +529,11 @@ impl OpExecutionPayload {
     /// - `parent_beacon_block_root`
     ///
     /// See also: [`OpExecutionPayload::into_block_with_sidecar_raw`]
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`PayloadError`] raised by the inner `ExecutionPayload::into_block_raw`
+    /// call, including invalid RLP headers or mismatched transaction encodings.
     pub fn into_block_raw(self) -> Result<Block<alloy_primitives::Bytes>, PayloadError> {
         match self {
             Self::V1(payload) => payload.into_block_raw(),
@@ -541,6 +550,13 @@ impl OpExecutionPayload {
     /// Also validates that L1 withdrawals are empty.
     ///
     /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OpPayloadError::NonEmptyL1Withdrawals`],
+    /// [`OpPayloadError::NonEmptyBlobVersionedHashes`], or
+    /// [`OpPayloadError::NonEmptyELRequests`] if the payload/sidecar violates the Optimism
+    /// constraints, or any underlying [`PayloadError`].
     pub fn into_block_with_sidecar_raw(
         self,
         sidecar: &OpExecutionPayloadSidecar,
@@ -562,7 +578,7 @@ impl OpExecutionPayload {
             if reqs_hash != EMPTY_REQUESTS_HASH {
                 return Err(OpPayloadError::NonEmptyELRequests);
             }
-            block.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
+            block.header.requests_hash = Some(EMPTY_REQUESTS_HASH);
         }
         block.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
 
@@ -581,6 +597,12 @@ impl OpExecutionPayload {
     /// - `parent_beacon_block_root`
     ///
     /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OpPayloadError::NonEmptyL1Withdrawals`] or
+    /// [`OpPayloadError::BlobTransaction`] if the payload violates Optimism constraints, or
+    /// any [`PayloadError`] raised while decoding transactions.
     pub fn try_into_block<T: Decodable2718 + Typed2718>(self) -> Result<Block<T>, OpPayloadError> {
         self.try_into_block_with(|tx| {
             T::decode_2718_exact(tx.as_ref())
@@ -601,6 +623,12 @@ impl OpExecutionPayload {
     /// - `parent_beacon_block_root`
     ///
     /// See also: [`OpExecutionPayload::try_into_block_with_sidecar_with`]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OpPayloadError::NonEmptyL1Withdrawals`] or
+    /// [`OpPayloadError::BlobTransaction`] if the payload violates Optimism constraints, or
+    /// any [`PayloadError`] raised by `f` while decoding transactions.
     pub fn try_into_block_with<T, F, E>(self, f: F) -> Result<Block<T>, OpPayloadError>
     where
         T: Typed2718,
@@ -634,6 +662,11 @@ impl OpExecutionPayload {
     ///
     /// See also docs for
     /// [`ExecutionPayload::try_into_block_with_sidecar`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar).
+    ///
+    /// # Errors
+    ///
+    /// Returns any error raised by [`OpExecutionPayload::try_into_block_with_sidecar_with`],
+    /// including payload validation and sidecar-constraint failures.
     pub fn try_into_block_with_sidecar<T: Decodable2718 + Typed2718>(
         self,
         sidecar: &OpExecutionPayloadSidecar,
@@ -655,6 +688,12 @@ impl OpExecutionPayload {
     ///
     /// See also docs for
     /// [`ExecutionPayload::try_into_block_with_sidecar_with`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar_with).
+    ///
+    /// # Errors
+    ///
+    /// Returns any error raised by [`OpExecutionPayload::try_into_block_with`], plus
+    /// [`OpPayloadError::NonEmptyBlobVersionedHashes`] or
+    /// [`OpPayloadError::NonEmptyELRequests`] when the sidecar violates Optimism constraints.
     pub fn try_into_block_with_sidecar_with<T, F, E>(
         self,
         sidecar: &OpExecutionPayloadSidecar,
@@ -675,7 +714,7 @@ impl OpExecutionPayload {
             if reqs_hash != EMPTY_REQUESTS_HASH {
                 return Err(OpPayloadError::NonEmptyELRequests);
             }
-            base_payload.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
+            base_payload.header.requests_hash = Some(EMPTY_REQUESTS_HASH);
         }
         base_payload.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
 
@@ -720,7 +759,7 @@ impl OpExecutionPayload {
     {
         self.decoded_transactions::<T>().map(|res| {
             res.map_err(alloy_consensus::crypto::RecoveryError::from_source)
-                .and_then(|tx| tx.try_into_recovered())
+                .and_then(alloy_consensus::transaction::SignerRecoverable::try_into_recovered)
         })
     }
 

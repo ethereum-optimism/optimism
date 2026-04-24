@@ -37,6 +37,10 @@ impl OpExecutionPayloadV4 {
     ///
     /// This performs the same conversion as the underlying V3 payload, but inserts the L2
     /// withdrawals root and returns raw transaction bytes instead of decoded transactions.
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`PayloadError`] raised by the underlying `ExecutionPayloadV3::into_block_raw`.
     pub fn into_block_raw(self) -> Result<Block<Bytes>, PayloadError> {
         let mut base_block = self.payload_inner.into_block_raw()?;
 
@@ -52,6 +56,11 @@ impl OpExecutionPayloadV4 {
     /// withdrawals root.
     ///
     /// See also [`ExecutionPayloadV3::try_into_block`].
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`PayloadError`] raised while converting to a raw block or decoding
+    /// individual transactions via [`Decodable2718`].
     pub fn try_into_block<T: Decodable2718>(self) -> Result<Block<T>, PayloadError> {
         let block = self.into_block_raw()?;
         block.try_map_transactions(|tx| {
@@ -67,13 +76,18 @@ impl OpExecutionPayloadV4 {
     /// withdrawals root.
     ///
     /// See also [`ExecutionPayloadV3::try_into_block_with`].
+    ///
+    /// # Errors
+    ///
+    /// Returns any [`PayloadError`] raised while converting to a raw block or by `f` when
+    /// mapping individual transactions.
     pub fn try_into_block_with<T, F, E>(self, f: F) -> Result<Block<T>, PayloadError>
     where
         F: FnMut(Bytes) -> Result<T, E>,
         E: Into<PayloadError>,
     {
         let block = self.into_block_raw()?;
-        block.try_map_transactions(f).map_err(|e| e.into())
+        block.try_map_transactions(f).map_err(Into::into)
     }
 }
 

@@ -18,7 +18,7 @@ const CREATE_2_DEPLOYER_BYTECODE: [u8; 1584] = hex!(
 /// The Canyon hardfork issues an irregular state transition that force-deploys the create2
 /// deployer contract. This is done by directly setting the code of the create2 deployer account
 /// prior to executing any transactions on the timestamp activation of the fork.
-pub(crate) fn ensure_create2_deployer<DB>(
+pub(super) fn ensure_create2_deployer<DB>(
     chain_spec: impl OpHardforks,
     timestamp: u64,
     db: &mut DB,

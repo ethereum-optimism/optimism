@@ -65,6 +65,7 @@ impl<T: Transaction> OpTransaction<T> {
 
 impl OpTransaction<TxEnv> {
     /// Create a new Optimism transaction.
+    #[must_use]
     pub fn builder() -> OpTransactionBuilder {
         OpTransactionBuilder::new()
     }
@@ -214,6 +215,7 @@ pub struct OpTransactionBuilder {
 
 impl OpTransactionBuilder {
     /// Create a new builder with default values
+    #[must_use]
     pub fn new() -> Self {
         Self {
             base: TxEnvBuilder::new(),
@@ -223,42 +225,49 @@ impl OpTransactionBuilder {
     }
 
     /// Set the base transaction builder based for `TxEnvBuilder`.
+    #[must_use]
     pub fn base(mut self, base: TxEnvBuilder) -> Self {
         self.base = base;
         self
     }
 
     /// Set the enveloped transaction bytes.
+    #[must_use]
     pub fn enveloped_tx(mut self, enveloped_tx: Option<Bytes>) -> Self {
         self.enveloped_tx = enveloped_tx;
         self
     }
 
     /// Set the source hash of the deposit transaction.
+    #[must_use]
     pub const fn source_hash(mut self, source_hash: B256) -> Self {
         self.deposit.source_hash = source_hash;
         self
     }
 
     /// Set the mint of the deposit transaction.
+    #[must_use]
     pub const fn mint(mut self, mint: u128) -> Self {
         self.deposit.mint = Some(mint);
         self
     }
 
     /// Set the deposit transaction to be a system transaction.
+    #[must_use]
     pub const fn is_system_transaction(mut self) -> Self {
         self.deposit.is_system_transaction = true;
         self
     }
 
     /// Set the deposit transaction to not be a system transaction.
+    #[must_use]
     pub const fn not_system_transaction(mut self) -> Self {
         self.deposit.is_system_transaction = false;
         self
     }
 
     /// Set the deposit transaction to be a deposit transaction.
+    #[must_use]
     pub fn is_deposit_tx(mut self) -> Self {
         self.base = self.base.tx_type(Some(DEPOSIT_TRANSACTION_TYPE));
         self
@@ -304,6 +313,11 @@ impl OpTransactionBuilder {
     }
 
     /// Build the [`OpTransaction`] instance, return error if the transaction is not valid.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OpBuildError`] when required deposit fields are missing, the enveloped
+    /// transaction bytes are set on a deposit, or the underlying [`TxEnvBuilder::build`] fails.
     pub fn build(mut self) -> Result<OpTransaction<TxEnv>, OpBuildError> {
         let tx_type = self.base.get_tx_type();
         if tx_type.is_some() {

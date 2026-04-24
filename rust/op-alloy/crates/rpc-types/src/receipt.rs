@@ -111,6 +111,8 @@ pub struct OpTransactionReceiptFields {
 mod l1_fee_scalar_serde {
     use serde::{Deserialize, de};
 
+    // Serde `serialize_with` hooks require this signature; `Option<&f64>` is not compatible.
+    #[allow(clippy::ref_option)]
     pub(super) fn serialize<S>(value: &Option<f64>, s: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -136,6 +138,9 @@ mod l1_fee_scalar_serde {
     }
 }
 
+// See the equivalent note on `OpTransactionFields`: the JSON round-trip is infallible for
+// the well-typed receipt fields.
+#[allow(clippy::fallible_impl_from)]
 impl From<OpTransactionReceiptFields> for OtherFields {
     fn from(value: OpTransactionReceiptFields) -> Self {
         serde_json::to_value(value).unwrap().try_into().unwrap()
@@ -207,28 +212,28 @@ pub struct L1BlockInfo {
 
 impl Eq for L1BlockInfo {}
 
+/// Helper function to convert the inner logs within a [`ReceiptWithBloom`] from RPC to
+/// consensus types.
+#[inline]
+fn convert_standard_receipt(
+    receipt: ReceiptWithBloom<Receipt<alloy_rpc_types_eth::Log>>,
+) -> ReceiptWithBloom<Receipt<alloy_primitives::Log>> {
+    let ReceiptWithBloom { logs_bloom, receipt } = receipt;
+
+    let consensus_logs = receipt.logs.into_iter().map(|log| log.inner).collect();
+    ReceiptWithBloom {
+        receipt: Receipt {
+            status: receipt.status,
+            cumulative_gas_used: receipt.cumulative_gas_used,
+            logs: consensus_logs,
+        },
+        logs_bloom,
+    }
+}
+
 impl From<OpTransactionReceipt> for OpReceiptEnvelope<alloy_primitives::Log> {
     fn from(value: OpTransactionReceipt) -> Self {
         let inner_envelope = value.inner.inner.into();
-
-        /// Helper function to convert the inner logs within a [`ReceiptWithBloom`] from RPC to
-        /// consensus types.
-        #[inline(always)]
-        fn convert_standard_receipt(
-            receipt: ReceiptWithBloom<Receipt<alloy_rpc_types_eth::Log>>,
-        ) -> ReceiptWithBloom<Receipt<alloy_primitives::Log>> {
-            let ReceiptWithBloom { logs_bloom, receipt } = receipt;
-
-            let consensus_logs = receipt.logs.into_iter().map(|log| log.inner).collect();
-            ReceiptWithBloom {
-                receipt: Receipt {
-                    status: receipt.status,
-                    cumulative_gas_used: receipt.cumulative_gas_used,
-                    logs: consensus_logs,
-                },
-                logs_bloom,
-            }
-        }
 
         match inner_envelope {
             OpReceiptEnvelope::Legacy(receipt) => Self::Legacy(convert_standard_receipt(receipt)),

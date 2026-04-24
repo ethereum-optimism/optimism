@@ -75,7 +75,7 @@ impl EvmEnvInput {
 
     fn for_next(
         parent: impl BlockHeader,
-        attributes: NextEvmEnvAttributes,
+        attributes: &NextEvmEnvAttributes,
         base_fee_per_gas: u64,
     ) -> Self {
         Self {
@@ -96,11 +96,14 @@ pub fn evm_env_for_op_block(
     chain_spec: impl OpHardforks,
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
-    evm_env_for_op(EvmEnvInput::from_block_header(header), chain_spec, chain_id)
+    evm_env_for_op(&EvmEnvInput::from_block_header(header), chain_spec, chain_id)
 }
 
 /// Create a new `EvmEnv` with [`OpSpecId`] from a parent block `header`, `chain_id` and
 /// `chain_spec`.
+// `attributes` is taken by value to preserve the public API consumed by downstream crates
+// (e.g. op-reth) even though only its `Copy` fields are read.
+#[allow(clippy::needless_pass_by_value)]
 pub fn evm_env_for_op_next_block(
     header: impl BlockHeader,
     attributes: NextEvmEnvAttributes,
@@ -109,14 +112,14 @@ pub fn evm_env_for_op_next_block(
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
     evm_env_for_op(
-        EvmEnvInput::for_next(header, attributes, base_fee_per_gas),
+        &EvmEnvInput::for_next(header, &attributes, base_fee_per_gas),
         chain_spec,
         chain_id,
     )
 }
 
 fn evm_env_for_op(
-    input: EvmEnvInput,
+    input: &EvmEnvInput,
     chain_spec: impl OpHardforks,
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
@@ -164,7 +167,7 @@ pub fn evm_env_for_op_payload(
         gas_limit: payload.as_v1().gas_limit,
         base_fee_per_gas: payload.as_v1().base_fee_per_gas.saturating_to(),
     };
-    evm_env_for_op(input, chain_spec, chain_id)
+    evm_env_for_op(&input, chain_spec, chain_id)
 }
 
 #[cfg(test)]

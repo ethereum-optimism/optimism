@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
 
         workspace_root
             .parent()
-            .ok_or(anyhow!("Failed to locate workspace root"))?
+            .ok_or_else(|| anyhow!("Failed to locate workspace root"))?
             .join("crates/proof/executor/testdata")
     };
 

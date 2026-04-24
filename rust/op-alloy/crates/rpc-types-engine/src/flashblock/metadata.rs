@@ -137,12 +137,12 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_receipt_map_serialization() {
         let mut receipts = BTreeMap::new();
-        let receipt1 = OpReceipt::Legacy(Receipt {
+        let entry = OpReceipt::Legacy(Receipt {
             status: Eip658Value::Eip658(true),
             cumulative_gas_used: 21000,
             logs: Vec::<Log>::new(),
         });
-        receipts.insert(B256::ZERO, receipt1);
+        receipts.insert(B256::ZERO, entry);
 
         let metadata = OpFlashblockPayloadMetadata {
             block_number: 1,
