@@ -81,9 +81,8 @@ pub struct HardForkConfig {
 
 impl Display for HardForkConfig {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        #[inline(always)]
         fn fmt_time(t: Option<u64>) -> String {
-            t.map(|t| t.to_string()).unwrap_or_else(|| "Not scheduled".to_string())
+            t.map_or_else(|| "Not scheduled".to_string(), |t| t.to_string())
         }
 
         writeln!(f, "🍴 Scheduled Hardforks:")?;
@@ -172,14 +171,14 @@ mod tests {
 
     #[test]
     fn test_hardforks_deserialize_toml() {
-        let raw: &str = r#"
+        let raw: &str = r"
         canyon_time =  1699981200 # Tue 14 Nov 2023 17:00:00 UTC
         delta_time =   1703203200 # Fri 22 Dec 2023 00:00:00 UTC
         ecotone_time = 1708534800 # Wed 21 Feb 2024 17:00:00 UTC
         fjord_time =   1716998400 # Wed 29 May 2024 16:00:00 UTC
         granite_time = 1723478400 # Mon Aug 12 16:00:00 UTC 2024
         holocene_time = 1732633200 # Tue Nov 26 15:00:00 UTC 2024
-        "#;
+        ";
 
         let hardforks = HardForkConfig {
             regolith_time: None,
@@ -202,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_hardforks_deserialize_new_field_fail_toml() {
-        let raw: &str = r#"
+        let raw: &str = r"
         canyon_time =  1699981200 # Tue 14 Nov 2023 17:00:00 UTC
         delta_time =   1703203200 # Fri 22 Dec 2023 00:00:00 UTC
         ecotone_time = 1708534800 # Wed 21 Feb 2024 17:00:00 UTC
@@ -210,7 +209,7 @@ mod tests {
         granite_time = 1723478400 # Mon Aug 12 16:00:00 UTC 2024
         holocene_time = 1732633200 # Tue Nov 26 15:00:00 UTC 2024
         new_field_time = 1732633200 # Tue Nov 26 15:00:00 UTC 2024
-        "#;
+        ";
         toml::from_str::<HardForkConfig>(raw).unwrap_err();
     }
 

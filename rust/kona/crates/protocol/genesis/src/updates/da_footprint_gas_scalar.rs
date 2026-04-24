@@ -26,7 +26,7 @@ impl DaFootprintGasScalarUpdate {
         // <https://github.com/ethereum-optimism/specs/blob/664cba65ab9686b0e70ad19fdf2ad054d6295986/specs/protocol/jovian/l1-attributes.md#overview>
         if da_footprint_gas_scalar == 0 {
             da_footprint_gas_scalar = Self::DEFAULT_DA_FOOTPRINT_GAS_SCALAR;
-        };
+        }
 
         config.da_footprint_gas_scalar = Some(da_footprint_gas_scalar);
     }

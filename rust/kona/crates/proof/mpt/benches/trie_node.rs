@@ -1,13 +1,6 @@
 //! Contains benchmarks for the [`TrieNode`].
 
 #![allow(missing_docs)]
-// Bench allows mirror the crate-wide allows in `src/lib.rs`.
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::needless_pass_by_value,
-    clippy::too_many_lines,
-    clippy::significant_drop_tightening
-)]
 
 use alloy_trie::Nibbles;
 use criterion::{Criterion, criterion_group, criterion_main};

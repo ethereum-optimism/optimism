@@ -50,6 +50,8 @@ impl TryFrom<&SystemConfigLog> for Eip1559Update {
             return Err(EIP1559UpdateError::EIP1559DecodingError);
         };
 
+        // SAFETY: shifts/masks to extract two u32 halves from a u64; truncation is intentional.
+        #[allow(clippy::cast_possible_truncation)]
         Ok(Self {
             eip1559_denominator: (eip1559_params >> 32) as u32,
             eip1559_elasticity: eip1559_params as u32,

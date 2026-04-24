@@ -1,23 +1,3 @@
-// Integration test allows mirror the crate-wide allows in `src/lib.rs`.
-#![allow(
-    clippy::must_use_candidate,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::default_trait_access,
-    clippy::redundant_closure_for_method_calls,
-    clippy::wildcard_imports,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_lossless,
-    clippy::module_name_repetitions,
-    clippy::needless_pass_by_value,
-    clippy::too_many_lines,
-    clippy::similar_names,
-    clippy::unused_async,
-    clippy::implicit_clone,
-    clippy::large_futures
-)]
-
 use alloy_consensus::Header;
 use alloy_primitives::B256;
 use async_trait::async_trait;
@@ -99,7 +79,7 @@ fn setup_preimages(
 
     // L2 safe head header.
     let header = Header { number: safe_head_number, ..Default::default() };
-    let header_rlp = alloy_rlp::encode(&header).to_vec();
+    let header_rlp: Vec<u8> = alloy_rlp::encode(&header);
     preimages.insert(PreimageKey::new_keccak256(*safe_head_hash), header_rlp);
 
     preimages
@@ -121,7 +101,7 @@ async fn trace_extension_leaf_rejects_mismatched_output_root() {
     ));
     let hints = MockHintWriter::default();
 
-    let err = run(oracle, hints).await.unwrap_err();
+    let err = Box::pin(run(oracle, hints)).await.unwrap_err();
     match err {
         FaultProofProgramError::InvalidClaim(expected, actual) => {
             assert_eq!(expected, agreed_root);
@@ -146,7 +126,7 @@ async fn trace_extension_leaf_accepts_matching_output_root() {
     ));
     let hints = MockHintWriter::default();
 
-    run(oracle, hints).await.unwrap();
+    Box::pin(run(oracle, hints)).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -166,5 +146,5 @@ async fn does_not_short_circuit_on_root_match_at_different_block() {
     ));
     let hints = MockHintWriter::default();
 
-    assert!(run(oracle, hints).await.is_err());
+    assert!(Box::pin(run(oracle, hints)).await.is_err());
 }

@@ -1,14 +1,5 @@
 //! This example decodes raw [Frame]s and reads them into a [Channel] and into a [`SingleBatch`].
 
-// Example allows mirror the crate-wide allows in `src/lib.rs`.
-#![allow(
-    clippy::unreadable_literal,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::cast_possible_truncation,
-    clippy::default_trait_access
-)]
-
 use alloy_consensus::{SignableTransaction, TxEip1559, TxEnvelope};
 use alloy_eips::{
     eip2718::{Decodable2718, Encodable2718},

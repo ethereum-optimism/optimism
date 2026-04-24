@@ -116,23 +116,22 @@ impl ChainConfig {
     pub fn base_fee_params(&self) -> BaseFeeParams {
         self.optimism
             .as_ref()
-            .map(|op| op.pre_canyon_params())
-            .unwrap_or_else(|| base_fee_params(self.chain_id))
+            .map_or_else(|| base_fee_params(self.chain_id), BaseFeeConfig::pre_canyon_params)
     }
 
     /// Returns the canyon base fee params for the chain.
     #[must_use]
     pub fn canyon_base_fee_params(&self) -> BaseFeeParams {
-        self.optimism
-            .as_ref()
-            .map(|op| op.post_canyon_params())
-            .unwrap_or_else(|| base_fee_params_canyon(self.chain_id))
+        self.optimism.as_ref().map_or_else(
+            || base_fee_params_canyon(self.chain_id),
+            BaseFeeConfig::post_canyon_params,
+        )
     }
 
     /// Returns the base fee config for the chain.
     #[must_use]
     pub fn base_fee_config(&self) -> BaseFeeConfig {
-        self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
+        self.optimism.as_ref().copied().unwrap_or_else(|| base_fee_config(self.chain_id))
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.

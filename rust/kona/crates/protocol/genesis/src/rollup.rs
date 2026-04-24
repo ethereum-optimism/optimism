@@ -472,56 +472,46 @@ impl OpHardforks for RollupConfig {
     fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition {
         match fork {
             OpHardfork::Bedrock => ForkCondition::Block(0),
-            OpHardfork::Regolith => self
-                .hardforks
-                .regolith_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Canyon)),
-            OpHardfork::Canyon => self
-                .hardforks
-                .canyon_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Ecotone)),
-            OpHardfork::Ecotone => self
-                .hardforks
-                .ecotone_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Fjord)),
-            OpHardfork::Fjord => self
-                .hardforks
-                .fjord_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Granite)),
-            OpHardfork::Granite => self
-                .hardforks
-                .granite_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Holocene)),
-            OpHardfork::Holocene => self
-                .hardforks
-                .holocene_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Isthmus)),
-            OpHardfork::Isthmus => self
-                .hardforks
-                .isthmus_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Jovian)),
-            OpHardfork::Jovian => self
-                .hardforks
-                .jovian_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Karst)),
-            OpHardfork::Karst => self
-                .hardforks
-                .karst_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
+            OpHardfork::Regolith => self.hardforks.regolith_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Canyon),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Canyon => self.hardforks.canyon_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Ecotone),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Ecotone => self.hardforks.ecotone_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Fjord),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Fjord => self.hardforks.fjord_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Granite),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Granite => self.hardforks.granite_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Holocene),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Holocene => self.hardforks.holocene_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Isthmus),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Isthmus => self.hardforks.isthmus_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Jovian),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Jovian => self.hardforks.jovian_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Karst),
+                ForkCondition::Timestamp,
+            ),
+            OpHardfork::Karst => self.hardforks.karst_time.map_or_else(
+                || self.op_fork_activation(OpHardfork::Interop),
+                ForkCondition::Timestamp,
+            ),
             OpHardfork::Interop => self
                 .hardforks
                 .interop_time
-                .map(ForkCondition::Timestamp)
-                .unwrap_or(ForkCondition::Never),
+                .map_or(ForkCondition::Never, ForkCondition::Timestamp),
             _ => ForkCondition::Never,
         }
     }
@@ -858,6 +848,8 @@ mod tests {
 
     #[test]
     #[cfg(feature = "serde")]
+    // Reason: this test is a single large JSON literal for a reference config.
+    #[allow(clippy::too_many_lines)]
     fn test_deserialize_reference_rollup_config() {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
 

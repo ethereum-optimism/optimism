@@ -3,6 +3,11 @@
 //! This module provides shared validation logic for decoding `SystemConfigLog` data
 //! that is used across multiple update types.
 
+// Reason: items in this private module are crate-internal; `pub(crate)` is correct but
+// conflicts with `redundant_pub_crate` under pedantic, while `pub` would trigger
+// `unreachable_pub`.
+#![allow(clippy::redundant_pub_crate)]
+
 use alloy_sol_types::{SolType, sol};
 
 /// The expected data length for a standard `SystemConfigLog` update.
@@ -23,7 +28,7 @@ pub(crate) struct ValidatedUpdateData<'a> {
     data: &'a alloy_primitives::Bytes,
 }
 
-impl<'a> ValidatedUpdateData<'a> {
+impl ValidatedUpdateData<'_> {
     /// Returns the payload slice (data starting from byte 64).
     #[inline]
     pub(crate) fn payload(&self) -> &[u8] {
