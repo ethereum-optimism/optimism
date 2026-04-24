@@ -214,6 +214,9 @@ contract OPContractsManagerMigrationValidator {
     }
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
+    ///         Post-migration interop requires SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA
+    ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA)
+    ///         unregistered. SUPER_CANNON status pending #20030.
     function assertValidSharedDGFShape(
         string memory _errors,
         IDisputeGameFactory _dgf
