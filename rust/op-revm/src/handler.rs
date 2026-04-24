@@ -86,8 +86,8 @@ where
         let tx_type = tx.tx_type();
         if tx_type == DEPOSIT_TRANSACTION_TYPE {
             // Do not allow for a system transaction to be processed if Regolith is enabled.
-            if tx.is_system_transaction()
-                && evm.ctx().cfg().spec().is_enabled_in(OpSpecId::REGOLITH)
+            if tx.is_system_transaction() &&
+                evm.ctx().cfg().spec().is_enabled_in(OpSpecId::REGOLITH)
             {
                 return Err(OpTransactionError::DepositSystemTxPostRegolith.into());
             }
@@ -119,8 +119,8 @@ where
 
             let effective_balance_spending = tx
                 .effective_balance_spending(basefee, blob_price)
-                .expect("Deposit transaction effective balance spending overflow")
-                - tx.value();
+                .expect("Deposit transaction effective balance spending overflow") -
+                tx.value();
 
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
@@ -263,8 +263,8 @@ where
         evm: &mut Self::Evm,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
     ) -> Result<(), Self::Error> {
-        let additional_refund = if evm.ctx().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE
-            && !evm.ctx().cfg().is_fee_charge_disabled()
+        let additional_refund = if evm.ctx().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE &&
+            !evm.ctx().cfg().is_fee_charge_disabled()
         {
             let spec = evm.ctx().cfg().spec();
             evm.ctx().chain().operator_fee_refund(frame_result.gas(), spec)
