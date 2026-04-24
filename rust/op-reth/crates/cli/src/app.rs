@@ -43,6 +43,11 @@ where
     ///
     /// Returns a mutable reference to the tracing layers, or error
     /// if tracing initialized and layers have detached already.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tracing has already been initialized and the layers have been
+    /// consumed.
     pub fn access_tracing_layers(&mut self) -> Result<&mut Layers> {
         self.layers.as_mut().ok_or_else(|| eyre!("Tracing already initialized"))
     }
@@ -51,6 +56,11 @@ where
     ///
     /// This accepts a closure that is used to launch the node via the
     /// [`NodeCommand`](reth_cli_commands::node::NodeCommand).
+    ///
+    /// # Errors
+    ///
+    /// Returns any error surfaced while initializing the runner, tracing, or the executed
+    /// subcommand.
     pub fn run(mut self, launcher: impl Launcher<C, Ext>) -> Result<()> {
         let runner = match self.runner.take() {
             Some(runner) => runner,
@@ -130,6 +140,11 @@ where
     ///
     /// If file logging is enabled, this function stores guard to the struct.
     /// For gRPC OTLP, it requires tokio runtime context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initializing the OTLP exporters or the configured tracing layers
+    /// fails.
     pub fn init_tracing(&mut self, runner: &CliRunner) -> Result<()> {
         if self.guard.is_none() {
             let mut layers = self.layers.take().unwrap_or_default();

@@ -1,60 +1,3 @@
-// Pedantic/nursery lints from workspace-level clippy config are largely stylistic;
-// reth upstream maintains its own curated lint set. Allow the cosmetic/architectural-cost
-// categories here so real issues stay visible.
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::elidable_lifetime_names)]
-#![allow(clippy::fallible_impl_from)]
-#![allow(clippy::float_cmp)]
-#![allow(clippy::future_not_send)]
-#![allow(clippy::ignore_without_reason)]
-#![allow(clippy::ignored_unit_patterns)]
-#![allow(clippy::inconsistent_struct_constructor)]
-#![allow(clippy::inline_always)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::large_futures)]
-#![allow(clippy::large_stack_arrays)]
-#![allow(clippy::large_stack_frames)]
-#![allow(clippy::manual_let_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::match_wildcard_for_single_variants)]
-#![allow(clippy::mismatching_type_param_order)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::non_std_lazy_statics)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::redundant_pub_crate)]
-#![allow(clippy::ref_option)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::semicolon_if_nothing_returned)]
-#![allow(clippy::significant_drop_tightening)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::single_match_else)]
-#![allow(clippy::struct_excessive_bools)]
-#![allow(clippy::struct_field_names)]
-#![allow(clippy::too_long_first_doc_paragraph)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unchecked_time_subtraction)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::unnecessary_semicolon)]
-#![allow(clippy::unnecessary_wraps)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::unused_async)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::use_self)]
-#![allow(clippy::used_underscore_binding)]
-#![allow(clippy::wildcard_imports)]
-
 //! OP-Reth CLI implementation.
 
 #![doc(
@@ -144,11 +87,16 @@ pub struct Cli<
 
 impl Cli {
     /// Parsers only the default CLI arguments
+    #[must_use]
     pub fn parse_args() -> Self {
         Self::parse()
     }
 
     /// Parsers only the default CLI arguments from the given iterator
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`clap::error::Error`] if the provided arguments fail to parse.
     pub fn try_parse_args_from<I, T>(itr: I) -> Result<Self, clap::error::Error>
     where
         I: IntoIterator<Item = T>,
@@ -176,6 +124,11 @@ where
     ///
     /// This accepts a closure that is used to launch the node via the
     /// [`NodeCommand`](reth_cli_commands::node::NodeCommand).
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from building the default tokio runtime or from executing the chosen
+    /// subcommand.
     pub fn run<L, Fut>(self, launcher: L) -> eyre::Result<()>
     where
         L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
@@ -185,6 +138,10 @@ where
     }
 
     /// Execute the configured cli command with the provided [`CliRunner`].
+    ///
+    /// # Errors
+    ///
+    /// Returns any error surfaced by the executed subcommand while running on the supplied runner.
     pub fn with_runner<L, Fut>(self, runner: CliRunner, launcher: L) -> eyre::Result<()>
     where
         L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,

@@ -38,7 +38,7 @@ pub struct UnwindCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
-    fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
+    fn validate_unwind_range<Store: OpProofsStore>(&self, storage: &Store) -> eyre::Result<bool> {
         let provider_ro = storage.provider_ro()?;
         let (Some((earliest, _)), Some((latest, _))) =
             (provider_ro.get_earliest_block_number()?, provider_ro.get_latest_block_number()?)
@@ -63,6 +63,14 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
     /// Execute [`UnwindCommand`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment init, opening `MdbxProofsStorage`, validating the target,
+    /// fetching the target block, or unwinding the storage fails.
+    // `async` is required by the shared dispatch in `super::Command::execute` even though this
+    // body currently uses no `.await` points.
+    #[allow(clippy::unused_async)]
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
         runtime: reth_tasks::Runtime,
@@ -80,7 +88,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
         );
 
         // Validate that the target block is within a valid range for unwinding
-        if !self.validate_unwind_range(storage.clone())? {
+        if !self.validate_unwind_range(&storage)? {
             return Ok(());
         }
 

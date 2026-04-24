@@ -31,8 +31,14 @@ impl BenchMetrics {
         let max_ms = *latencies.last().unwrap_or(&0.0);
         let p95_ms = calculate_percentile(&latencies, 0.95);
 
-        let throughput =
-            if duration_secs > 0.0 { samples.len() as f64 / duration_secs } else { 0.0 };
+        let throughput = if duration_secs > 0.0 {
+            // SAFETY: bench sample counts are tiny; precision loss is acceptable for reporting.
+            #[allow(clippy::cast_precision_loss)]
+            let n = samples.len() as f64;
+            n / duration_secs
+        } else {
+            0.0
+        };
 
         Self { block, p95_ms, min_ms, max_ms, errors, throughput }
     }
@@ -79,7 +85,11 @@ impl BenchSummary {
             self.max_ms = lat;
         }
 
-        // Update Histogram (saturating cast to avoid crashes on bad data)
+        // Update Histogram (saturating cast to avoid crashes on bad data).
+        // SAFETY: latencies are milliseconds measured over short windows, well below u64::MAX;
+        // negatives or NaNs from misbehaving clocks are coerced to 0, and `.max(1)` keeps the
+        // histogram call valid.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let val = (lat as u64).max(1);
         self.hist.record(val).ok();
     }
@@ -127,6 +137,8 @@ impl Reporter {
             return;
         }
 
+        // SAFETY: total request counts fit comfortably in f64 for any realistic benchmark run.
+        #[allow(clippy::cast_precision_loss)]
         let throughput = summary.total_requests as f64 / total_duration;
 
         // Histogram percentiles
@@ -134,8 +146,8 @@ impl Reporter {
         let p95 = summary.hist.value_at_quantile(0.95);
         let p99 = summary.hist.value_at_quantile(0.99);
 
-        // Sanity check min in case it stayed at MAX
-        let min_print = if summary.min_ms == f64::MAX { 0.0 } else { summary.min_ms };
+        // Sanity check min in case it stayed at its initial sentinel value.
+        let min_print = if summary.min_ms >= f64::MAX { 0.0 } else { summary.min_ms };
 
         println!("\n{:-<75}", "");
         println!("Summary:");
@@ -160,6 +172,9 @@ fn calculate_percentile(sorted_data: &[f64], percentile: f64) -> f64 {
     if sorted_data.is_empty() {
         return 0.0;
     }
+    // SAFETY: sample batches are small (thousands at most); precision loss in the f64 round-trip
+    // and usize truncation are both benign in this reporting code path.
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let idx = ((sorted_data.len() as f64 * percentile).ceil() as usize).saturating_sub(1);
     sorted_data.get(idx).copied().unwrap_or(0.0)
 }

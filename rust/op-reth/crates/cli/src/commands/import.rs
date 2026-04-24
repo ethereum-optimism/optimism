@@ -41,6 +41,15 @@ pub struct ImportOpCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
     /// Execute `import` command
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment init, file reading, pipeline construction, or pipeline
+    /// execution fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the provider factory cannot return the genesis sealed header.
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
         runtime: reth_tasks::Runtime,

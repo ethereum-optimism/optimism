@@ -49,6 +49,11 @@ pub struct ImportReceiptsOpCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportReceiptsOpCommand<C> {
     /// Execute `import` command
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment init, file I/O, or inserting receipts into static files
+    /// fails.
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
         runtime: reth_tasks::Runtime,
@@ -91,6 +96,15 @@ impl<C: ChainSpecParser> ImportReceiptsOpCommand<C> {
 }
 
 /// Imports receipts to static files from file in chunks. See [`import_receipts_from_reader`].
+///
+/// # Errors
+///
+/// Propagates any I/O, decode, or static-file write errors from
+/// [`import_receipts_from_reader`].
+#[allow(
+    clippy::future_not_send,
+    reason = "path and filter generics are not bound by Send to avoid leaking the bound through the public API"
+)]
 pub async fn import_receipts_from_file<N, P, F>(
     provider_factory: ProviderFactory<N>,
     path: P,
@@ -130,6 +144,16 @@ where
 /// Caution! Filter callback must replace completely filtered out receipts for a block, with empty
 /// vectors, rather than `vec!(None)`. This is since the code for writing to static files, expects
 /// indices in the receipts list, to map to sequential block numbers.
+///
+/// # Errors
+///
+/// Returns an error if existing static files don't match the expected initial state, if the
+/// reader fails to produce a chunk, or if writing the receipt static file fails.
+///
+/// # Panics
+///
+/// Panics if the transactions static file has not been initialized (i.e. blocks and transactions
+/// must be imported before receipts).
 pub async fn import_receipts_from_reader<N, F>(
     provider_factory: &ProviderFactory<N>,
     mut reader: ChunkedFileReader,
@@ -217,8 +241,11 @@ where
             let excess = highest_block_receipts - highest_block_transactions;
             highest_block_receipts -= excess;
 
-            // Remove the last `excess` blocks
-            receipts.truncate(receipts.len() - excess as usize);
+            // Remove the last `excess` blocks; saturating cast keeps behaviour sensible on 32-bit
+            // targets where `excess` could exceed `usize::MAX` (receipts.len() would already cap
+            // the truncation).
+            let excess_usize = usize::try_from(excess).unwrap_or(usize::MAX);
+            receipts.truncate(receipts.len().saturating_sub(excess_usize));
 
             warn!(target: "reth::cli", highest_block_receipts, "Too many decoded blocks, ignoring the last {excess}.");
         }
@@ -226,6 +253,8 @@ where
         // Update total_receipts after all filtering
         total_receipts += receipts.iter().map(std::vec::Vec::len).sum::<usize>();
 
+        // Concrete types are nontrivial to name without pulling extra deps; keep `Default` here.
+        #[allow(clippy::default_trait_access)]
         let execution_outcome =
             ExecutionOutcome::new(Default::default(), receipts, first_block, Default::default());
 
@@ -296,7 +325,7 @@ mod test {
     /// No receipts for genesis block
     const EMPTY_RECEIPTS_GENESIS_BLOCK: &[u8] = &hex!("c0");
 
-    #[ignore]
+    #[ignore = "requires a populated transactions static file which is not set up in this unit test"]
     #[tokio::test]
     async fn filter_out_genesis_block_receipts() {
         let mut f: File = tempfile().unwrap().into();

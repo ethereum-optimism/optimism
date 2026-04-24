@@ -1,60 +1,3 @@
-// Pedantic/nursery lints from workspace-level clippy config are largely stylistic;
-// reth upstream maintains its own curated lint set. Allow the cosmetic/architectural-cost
-// categories here so real issues stay visible.
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_possible_wrap)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::default_trait_access)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::elidable_lifetime_names)]
-#![allow(clippy::fallible_impl_from)]
-#![allow(clippy::float_cmp)]
-#![allow(clippy::future_not_send)]
-#![allow(clippy::ignore_without_reason)]
-#![allow(clippy::ignored_unit_patterns)]
-#![allow(clippy::inconsistent_struct_constructor)]
-#![allow(clippy::inline_always)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::large_futures)]
-#![allow(clippy::large_stack_arrays)]
-#![allow(clippy::large_stack_frames)]
-#![allow(clippy::manual_let_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::match_wildcard_for_single_variants)]
-#![allow(clippy::mismatching_type_param_order)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::needless_raw_string_hashes)]
-#![allow(clippy::non_std_lazy_statics)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::redundant_pub_crate)]
-#![allow(clippy::ref_option)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::semicolon_if_nothing_returned)]
-#![allow(clippy::significant_drop_tightening)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::single_match_else)]
-#![allow(clippy::struct_excessive_bools)]
-#![allow(clippy::struct_field_names)]
-#![allow(clippy::too_long_first_doc_paragraph)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unchecked_time_subtraction)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::unnecessary_semicolon)]
-#![allow(clippy::unnecessary_wraps)]
-#![allow(clippy::unreadable_literal)]
-#![allow(clippy::unused_async)]
-#![allow(clippy::unused_self)]
-#![allow(clippy::use_self)]
-#![allow(clippy::used_underscore_binding)]
-#![allow(clippy::wildcard_imports)]
-
 //! OP-Reth hard forks.
 //!
 //! This defines the [`ChainHardforks`] for certain op chains.
@@ -72,6 +15,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+// This crate is `no_std`-compatible, so `std::sync::LazyLock` is unavailable; keep
+// `once_cell::sync::Lazy` aliased as `LazyLock` for the statics below.
+#![allow(clippy::non_std_lazy_statics)]
 
 extern crate alloc;
 
@@ -137,29 +83,29 @@ pub static OP_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (EthereumHardfork::Petersburg.boxed(), ForkCondition::Block(0)),
         (EthereumHardfork::Istanbul.boxed(), ForkCondition::Block(0)),
         (EthereumHardfork::MuirGlacier.boxed(), ForkCondition::Block(0)),
-        (EthereumHardfork::Berlin.boxed(), ForkCondition::Block(3950000)),
-        (EthereumHardfork::London.boxed(), ForkCondition::Block(105235063)),
-        (EthereumHardfork::ArrowGlacier.boxed(), ForkCondition::Block(105235063)),
-        (EthereumHardfork::GrayGlacier.boxed(), ForkCondition::Block(105235063)),
+        (EthereumHardfork::Berlin.boxed(), ForkCondition::Block(3_950_000)),
+        (EthereumHardfork::London.boxed(), ForkCondition::Block(105_235_063)),
+        (EthereumHardfork::ArrowGlacier.boxed(), ForkCondition::Block(105_235_063)),
+        (EthereumHardfork::GrayGlacier.boxed(), ForkCondition::Block(105_235_063)),
         (
             EthereumHardfork::Paris.boxed(),
             ForkCondition::TTD {
-                activation_block_number: 105235063,
-                fork_block: Some(105235063),
+                activation_block_number: 105_235_063,
+                fork_block: Some(105_235_063),
                 total_difficulty: U256::ZERO,
             },
         ),
-        (OpHardfork::Bedrock.boxed(), ForkCondition::Block(105235063)),
+        (OpHardfork::Bedrock.boxed(), ForkCondition::Block(105_235_063)),
         (OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
-        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1704992401)),
-        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1704992401)),
-        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1710374401)),
-        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1710374401)),
-        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1720627201)),
-        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1726070401)),
-        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
-        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
-        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
+        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1_704_992_401)),
+        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1_704_992_401)),
+        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1_710_374_401)),
+        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1_710_374_401)),
+        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1_720_627_201)),
+        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1_726_070_401)),
+        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1_736_445_601)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1_746_806_401)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1_746_806_401)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
     ])
 });
@@ -189,15 +135,15 @@ pub static OP_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         ),
         (OpHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
         (OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
-        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1699981200)),
-        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1699981200)),
-        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1708534800)),
-        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1708534800)),
-        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1716998400)),
-        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1723478400)),
-        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
-        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
-        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
+        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1_699_981_200)),
+        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1_699_981_200)),
+        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1_708_534_800)),
+        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1_708_534_800)),
+        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1_716_998_400)),
+        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1_723_478_400)),
+        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1_732_633_200)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1_744_905_600)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1_744_905_600)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
     ])
 });
@@ -228,15 +174,15 @@ pub static BASE_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         ),
         (OpHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
         (OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
-        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1699981200)),
-        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1699981200)),
-        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1708534800)),
-        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1708534800)),
-        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1716998400)),
-        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1723478400)),
-        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
-        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
-        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
+        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1_699_981_200)),
+        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1_699_981_200)),
+        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1_708_534_800)),
+        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1_708_534_800)),
+        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1_716_998_400)),
+        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1_723_478_400)),
+        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1_732_633_200)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1_744_905_600)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1_744_905_600)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP)),
     ])
 });
@@ -267,15 +213,15 @@ pub static BASE_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         ),
         (OpHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
         (OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
-        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1704992401)),
-        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1704992401)),
-        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1710374401)),
-        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1710374401)),
-        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1720627201)),
-        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1726070401)),
-        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
-        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
-        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
+        (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1_704_992_401)),
+        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(1_704_992_401)),
+        (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1_710_374_401)),
+        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(1_710_374_401)),
+        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1_720_627_201)),
+        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1_726_070_401)),
+        (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1_736_445_601)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1_746_806_401)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1_746_806_401)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP)),
     ])
 });

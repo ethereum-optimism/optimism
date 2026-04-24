@@ -37,6 +37,14 @@ pub struct InitCommand<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
     /// Execute `initialize-op-proofs` command
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment init, opening the `MdbxProofsStorage`, fetching chain
+    /// info, or running the initialization job fails.
+    // `async` is required by the shared dispatch in `super::Command::execute` even though this
+    // body currently uses no `.await` points.
+    #[allow(clippy::unused_async)]
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
         runtime: reth_tasks::Runtime,

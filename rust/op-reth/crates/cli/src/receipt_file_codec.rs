@@ -30,7 +30,7 @@ pub struct OpGethReceiptFileCodec<R = Receipt>(core::marker::PhantomData<R>);
 
 impl<R> Default for OpGethReceiptFileCodec<R> {
     fn default() -> Self {
-        Self(Default::default())
+        Self(core::marker::PhantomData)
     }
 }
 
@@ -120,6 +120,9 @@ impl TryFrom<OpGethReceipt> for OpReceipt {
 }
 
 #[cfg(test)]
+// Items below are consumed by the `import_receipts` test module in this crate; keep their
+// `pub(crate)` visibility even though the enclosing module already caps it.
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) mod test {
     use alloy_consensus::{Receipt, TxReceipt};
     use alloy_primitives::{LogData, address, b256, hex};
@@ -152,7 +155,7 @@ pub(crate) mod test {
             logs: receipt.receipt.into_logs(),
             tx_hash: b256!("0x5e77a04531c7c107af1882d76cbff9486d0a9aa53701c30888509d4f5f2b003a"),
             contract_address: Address::ZERO,
-            gas_used: 202813,
+            gas_used: 202_813,
             block_hash: b256!("0xbee7192e575af30420cae0c7776304ac196077ee72b048970549e4f08e875453"),
             block_number: receipt.number,
             transaction_index: 0,
@@ -207,7 +210,7 @@ pub(crate) mod test {
 
         let receipt = OpReceipt::Legacy(Receipt {
             status: true.into(),
-            cumulative_gas_used: 202813,
+            cumulative_gas_used: 202_813,
             logs: vec![log_1, log_2, log_3],
         });
 
@@ -243,7 +246,7 @@ pub(crate) mod test {
 
         let receipt = OpReceipt::Legacy(Receipt {
             status: true.into(),
-            cumulative_gas_used: 116237,
+            cumulative_gas_used: 116_237,
             logs: vec![log_1, log_2],
         });
 
@@ -279,7 +282,7 @@ pub(crate) mod test {
 
         let receipt = OpReceipt::Legacy(Receipt {
             status: true.into(),
-            cumulative_gas_used: 116237,
+            cumulative_gas_used: 116_237,
             logs: vec![log_1, log_2],
         });
 

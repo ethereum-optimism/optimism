@@ -18,6 +18,8 @@ pub(super) struct ChainMetadata {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
+// Fields map to superchain-registry JSON keys (<hardfork>_time); renaming would break deserialize.
+#[allow(clippy::struct_field_names)]
 pub(super) struct HardforkConfig {
     pub canyon_time: Option<u64>,
     pub delta_time: Option<u64>,
@@ -32,6 +34,8 @@ pub(super) struct HardforkConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
+// Field prefixes map to the EIP-1559 params JSON keys; renaming would break deserialize.
+#[allow(clippy::struct_field_names)]
 pub(super) struct OptimismConfig {
     pub eip1559_elasticity: u64,
     pub eip1559_denominator: u64,
@@ -70,6 +74,8 @@ pub(super) struct ChainConfigExtraFields {
 // Helper struct to serialize field for extra fields in ChainConfig
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+// Field prefixes map to the EIP-1559 params JSON keys; renaming would break serialize.
+#[allow(clippy::struct_field_names)]
 pub(super) struct ChainConfigExtraFieldsOptimism {
     pub eip1559_elasticity: u64,
     pub eip1559_denominator: u64,
@@ -121,17 +127,17 @@ pub(super) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
 
     // Special case for Optimism chain
     if chain_config.chain_id == NamedChain::Optimism as ChainId {
-        res.berlin_block = Some(3950000);
-        res.london_block = Some(105235063);
-        res.arrow_glacier_block = Some(105235063);
-        res.gray_glacier_block = Some(105235063);
-        res.merge_netsplit_block = Some(105235063);
+        res.berlin_block = Some(3_950_000);
+        res.london_block = Some(105_235_063);
+        res.arrow_glacier_block = Some(105_235_063);
+        res.gray_glacier_block = Some(105_235_063);
+        res.merge_netsplit_block = Some(105_235_063);
     }
 
     // Add extra fields for ChainConfig from Genesis
     let extra_fields = ChainConfigExtraFields {
         bedrock_block: if chain_config.chain_id == NamedChain::Optimism as ChainId {
-            Some(105235063)
+            Some(105_235_063)
         } else {
             Some(0)
         },
@@ -182,13 +188,13 @@ mod tests {
         let config: ChainMetadata = serde_json::from_str(BASE_CHAIN_METADATA).unwrap();
         assert_eq!(config.chain_id, 8453);
         // hardforks
-        assert_eq!(config.hardforks.canyon_time, Some(1704992401));
-        assert_eq!(config.hardforks.delta_time, Some(1708560000));
-        assert_eq!(config.hardforks.ecotone_time, Some(1710374401));
-        assert_eq!(config.hardforks.fjord_time, Some(1720627201));
-        assert_eq!(config.hardforks.granite_time, Some(1726070401));
-        assert_eq!(config.hardforks.holocene_time, Some(1736445601));
-        assert_eq!(config.hardforks.isthmus_time, Some(1746806401));
+        assert_eq!(config.hardforks.canyon_time, Some(1_704_992_401));
+        assert_eq!(config.hardforks.delta_time, Some(1_708_560_000));
+        assert_eq!(config.hardforks.ecotone_time, Some(1_710_374_401));
+        assert_eq!(config.hardforks.fjord_time, Some(1_720_627_201));
+        assert_eq!(config.hardforks.granite_time, Some(1_726_070_401));
+        assert_eq!(config.hardforks.holocene_time, Some(1_736_445_601));
+        assert_eq!(config.hardforks.isthmus_time, Some(1_746_806_401));
         // optimism
         assert_eq!(config.optimism.as_ref().unwrap().eip1559_elasticity, 6);
         assert_eq!(config.optimism.as_ref().unwrap().eip1559_denominator, 50);
@@ -198,16 +204,16 @@ mod tests {
     #[test]
     fn test_chain_config_extra_fields() {
         let extra_fields = ChainConfigExtraFields {
-            bedrock_block: Some(105235063),
+            bedrock_block: Some(105_235_063),
             regolith_time: Some(0),
-            canyon_time: Some(1704992401),
-            delta_time: Some(1708560000),
-            ecotone_time: Some(1710374401),
-            fjord_time: Some(1720627201),
-            granite_time: Some(1726070401),
-            holocene_time: Some(1736445601),
-            isthmus_time: Some(1746806401),
-            jovian_time: Some(1764691201),
+            canyon_time: Some(1_704_992_401),
+            delta_time: Some(1_708_560_000),
+            ecotone_time: Some(1_710_374_401),
+            fjord_time: Some(1_720_627_201),
+            granite_time: Some(1_726_070_401),
+            holocene_time: Some(1_736_445_601),
+            isthmus_time: Some(1_746_806_401),
+            jovian_time: Some(1_764_691_201),
             karst_time: None,
             optimism: Option::from(ChainConfigExtraFieldsOptimism {
                 eip1559_elasticity: 6,
@@ -216,16 +222,16 @@ mod tests {
             }),
         };
         let value = serde_json::to_value(extra_fields).unwrap();
-        assert_eq!(value.get("bedrockBlock").unwrap(), 105235063);
+        assert_eq!(value.get("bedrockBlock").unwrap(), 105_235_063);
         assert_eq!(value.get("regolithTime").unwrap(), 0);
-        assert_eq!(value.get("canyonTime").unwrap(), 1704992401);
-        assert_eq!(value.get("deltaTime").unwrap(), 1708560000);
-        assert_eq!(value.get("ecotoneTime").unwrap(), 1710374401);
-        assert_eq!(value.get("fjordTime").unwrap(), 1720627201);
-        assert_eq!(value.get("graniteTime").unwrap(), 1726070401);
-        assert_eq!(value.get("holoceneTime").unwrap(), 1736445601);
-        assert_eq!(value.get("isthmusTime").unwrap(), 1746806401);
-        assert_eq!(value.get("jovianTime").unwrap(), 1764691201);
+        assert_eq!(value.get("canyonTime").unwrap(), 1_704_992_401);
+        assert_eq!(value.get("deltaTime").unwrap(), 1_708_560_000);
+        assert_eq!(value.get("ecotoneTime").unwrap(), 1_710_374_401);
+        assert_eq!(value.get("fjordTime").unwrap(), 1_720_627_201);
+        assert_eq!(value.get("graniteTime").unwrap(), 1_726_070_401);
+        assert_eq!(value.get("holoceneTime").unwrap(), 1_736_445_601);
+        assert_eq!(value.get("isthmusTime").unwrap(), 1_746_806_401);
+        assert_eq!(value.get("jovianTime").unwrap(), 1_764_691_201);
         assert_eq!(value.get("karstTime"), None);
         let optimism = value.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
@@ -254,9 +260,9 @@ mod tests {
         assert_eq!(chain_config.arrow_glacier_block, Some(0));
         assert_eq!(chain_config.gray_glacier_block, Some(0));
         assert_eq!(chain_config.merge_netsplit_block, Some(0));
-        assert_eq!(chain_config.shanghai_time, Some(1704992401));
-        assert_eq!(chain_config.cancun_time, Some(1710374401));
-        assert_eq!(chain_config.prague_time, Some(1746806401));
+        assert_eq!(chain_config.shanghai_time, Some(1_704_992_401));
+        assert_eq!(chain_config.cancun_time, Some(1_710_374_401));
+        assert_eq!(chain_config.prague_time, Some(1_746_806_401));
         assert_eq!(chain_config.osaka_time, None);
         assert_eq!(chain_config.terminal_total_difficulty, Some(U256::ZERO));
         assert!(chain_config.terminal_total_difficulty_passed);
@@ -264,13 +270,13 @@ mod tests {
         assert_eq!(chain_config.clique, None);
         assert_eq!(chain_config.extra_fields.get("bedrockBlock").unwrap(), 0);
         assert_eq!(chain_config.extra_fields.get("regolithTime").unwrap(), 0);
-        assert_eq!(chain_config.extra_fields.get("canyonTime").unwrap(), 1704992401);
-        assert_eq!(chain_config.extra_fields.get("deltaTime").unwrap(), 1708560000);
-        assert_eq!(chain_config.extra_fields.get("ecotoneTime").unwrap(), 1710374401);
-        assert_eq!(chain_config.extra_fields.get("fjordTime").unwrap(), 1720627201);
-        assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1726070401);
-        assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1736445601);
-        assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1746806401);
+        assert_eq!(chain_config.extra_fields.get("canyonTime").unwrap(), 1_704_992_401);
+        assert_eq!(chain_config.extra_fields.get("deltaTime").unwrap(), 1_708_560_000);
+        assert_eq!(chain_config.extra_fields.get("ecotoneTime").unwrap(), 1_710_374_401);
+        assert_eq!(chain_config.extra_fields.get("fjordTime").unwrap(), 1_720_627_201);
+        assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1_726_070_401);
+        assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1_736_445_601);
+        assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1_746_806_401);
         assert_eq!(chain_config.extra_fields.get("jovianTime"), None);
         let optimism = chain_config.extra_fields.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
@@ -300,26 +306,26 @@ mod tests {
         }
         "#;
         let config: ChainMetadata = serde_json::from_str(OP_CHAIN_METADATA).unwrap();
-        assert_eq!(config.hardforks.canyon_time, Some(1704992401));
+        assert_eq!(config.hardforks.canyon_time, Some(1_704_992_401));
         let chain_config = to_genesis_chain_config(&config);
         assert_eq!(chain_config.chain_id, 10);
-        assert_eq!(chain_config.shanghai_time, Some(1704992401));
-        assert_eq!(chain_config.cancun_time, Some(1710374401));
-        assert_eq!(chain_config.prague_time, Some(1746806401));
-        assert_eq!(chain_config.berlin_block, Some(3950000));
-        assert_eq!(chain_config.london_block, Some(105235063));
-        assert_eq!(chain_config.arrow_glacier_block, Some(105235063));
-        assert_eq!(chain_config.gray_glacier_block, Some(105235063));
-        assert_eq!(chain_config.merge_netsplit_block, Some(105235063));
-        assert_eq!(chain_config.extra_fields.get("bedrockBlock").unwrap(), 105235063);
+        assert_eq!(chain_config.shanghai_time, Some(1_704_992_401));
+        assert_eq!(chain_config.cancun_time, Some(1_710_374_401));
+        assert_eq!(chain_config.prague_time, Some(1_746_806_401));
+        assert_eq!(chain_config.berlin_block, Some(3_950_000));
+        assert_eq!(chain_config.london_block, Some(105_235_063));
+        assert_eq!(chain_config.arrow_glacier_block, Some(105_235_063));
+        assert_eq!(chain_config.gray_glacier_block, Some(105_235_063));
+        assert_eq!(chain_config.merge_netsplit_block, Some(105_235_063));
+        assert_eq!(chain_config.extra_fields.get("bedrockBlock").unwrap(), 105_235_063);
         assert_eq!(chain_config.extra_fields.get("regolithTime").unwrap(), 0);
-        assert_eq!(chain_config.extra_fields.get("canyonTime").unwrap(), 1704992401);
-        assert_eq!(chain_config.extra_fields.get("deltaTime").unwrap(), 1708560000);
-        assert_eq!(chain_config.extra_fields.get("ecotoneTime").unwrap(), 1710374401);
-        assert_eq!(chain_config.extra_fields.get("fjordTime").unwrap(), 1720627201);
-        assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1726070401);
-        assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1736445601);
-        assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1746806401);
+        assert_eq!(chain_config.extra_fields.get("canyonTime").unwrap(), 1_704_992_401);
+        assert_eq!(chain_config.extra_fields.get("deltaTime").unwrap(), 1_708_560_000);
+        assert_eq!(chain_config.extra_fields.get("ecotoneTime").unwrap(), 1_710_374_401);
+        assert_eq!(chain_config.extra_fields.get("fjordTime").unwrap(), 1_720_627_201);
+        assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1_726_070_401);
+        assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1_736_445_601);
+        assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1_746_806_401);
         assert_eq!(chain_config.extra_fields.get("jovianTime"), None);
 
         let optimism = chain_config.extra_fields.get("optimism").unwrap();

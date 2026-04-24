@@ -13,6 +13,11 @@ use reth_optimism_forks::OpHardforks;
 /// Caution: Caller must ensure that holocene is active in the parent header.
 ///
 /// See also [Base fee computation](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#base-fee-computation)
+///
+/// # Errors
+///
+/// Returns an error if the parent header's extra data cannot be decoded as Holocene EIP-1559
+/// parameters.
 pub fn decode_holocene_base_fee<H>(
     chain_spec: impl EthChainSpec + OpHardforks,
     parent: &H,
@@ -41,6 +46,11 @@ where
 ///
 /// See also [Base fee computation](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#base-fee-computation)
 /// and [Minimum base fee in block header](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#minimum-base-fee-in-block-header)
+///
+/// # Errors
+///
+/// Returns an error if the parent header's extra data cannot be decoded as Jovian EIP-1559
+/// parameters (including the minimum base fee).
 pub fn compute_jovian_base_fee<H>(
     chain_spec: impl EthChainSpec + OpHardforks,
     parent: &H,
@@ -87,7 +97,7 @@ mod tests {
 
     use super::*;
 
-    const JOVIAN_TIMESTAMP: u64 = 1900000000;
+    const JOVIAN_TIMESTAMP: u64 = 1_900_000_000;
 
     fn get_chainspec() -> Arc<OpChainSpec> {
         let mut base_sepolia_spec = BASE_SEPOLIA.inner.clone();
@@ -106,14 +116,14 @@ mod tests {
 
     #[test]
     fn test_next_base_fee_jovian_blob_gas_used_greater_than_gas_used() {
-        let chain_spec = get_chainspec();
-        let mut parent = chain_spec.genesis_header().clone();
-        let timestamp = JOVIAN_TIMESTAMP;
-
         const GAS_LIMIT: u64 = 10_000_000_000;
         const BLOB_GAS_USED: u64 = 5_000_000_000;
         const GAS_USED: u64 = 1_000_000_000;
         const MIN_BASE_FEE: u64 = 100_000_000;
+
+        let chain_spec = get_chainspec();
+        let mut parent = chain_spec.genesis_header().clone();
+        let timestamp = JOVIAN_TIMESTAMP;
 
         parent.extra_data =
             encode_jovian_extra_data([0; 8].into(), BaseFeeParams::base_sepolia(), MIN_BASE_FEE)
@@ -145,14 +155,14 @@ mod tests {
 
     #[test]
     fn test_next_base_fee_jovian_blob_gas_used_less_than_gas_used() {
-        let chain_spec = get_chainspec();
-        let mut parent = chain_spec.genesis_header().clone();
-        let timestamp = JOVIAN_TIMESTAMP;
-
         const GAS_LIMIT: u64 = 10_000_000_000;
         const BLOB_GAS_USED: u64 = 100_000_000;
         const GAS_USED: u64 = 1_000_000_000;
         const MIN_BASE_FEE: u64 = 100_000_000;
+
+        let chain_spec = get_chainspec();
+        let mut parent = chain_spec.genesis_header().clone();
+        let timestamp = JOVIAN_TIMESTAMP;
 
         parent.extra_data =
             encode_jovian_extra_data([0; 8].into(), BaseFeeParams::base_sepolia(), MIN_BASE_FEE)
@@ -175,14 +185,14 @@ mod tests {
 
     #[test]
     fn test_next_base_fee_jovian_min_base_fee() {
-        let chain_spec = get_chainspec();
-        let mut parent = chain_spec.genesis_header().clone();
-        let timestamp = JOVIAN_TIMESTAMP;
-
         const GAS_LIMIT: u64 = 10_000_000_000;
         const BLOB_GAS_USED: u64 = 100_000_000;
         const GAS_USED: u64 = 1_000_000_000;
         const MIN_BASE_FEE: u64 = 5_000_000_000;
+
+        let chain_spec = get_chainspec();
+        let mut parent = chain_spec.genesis_header().clone();
+        let timestamp = JOVIAN_TIMESTAMP;
 
         parent.extra_data =
             encode_jovian_extra_data([0; 8].into(), BaseFeeParams::base_sepolia(), MIN_BASE_FEE)

@@ -20,6 +20,11 @@ pub struct Command<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> Command<C> {
     /// Execute `op-proofs` command
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error returned by the dispatched subcommand
+    /// (`init`, `prune`, or `unwind`).
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
         runtime: reth_tasks::Runtime,

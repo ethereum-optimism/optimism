@@ -21,6 +21,11 @@ impl ChainSpecParser for OpChainSpecParser {
 ///
 /// The value parser matches either a known chain, the path
 /// to a json file, or a json formatted string in-memory. The json needs to be a Genesis struct.
+///
+/// # Errors
+///
+/// Returns an error if the input is not a known chain name and cannot be parsed as a
+/// [`Genesis`](alloy_genesis::Genesis) JSON document (either as a path or inline).
 pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<OpChainSpec>, eyre::Error> {
     if let Some(op_chain_spec) = generated_chain_value_parser(s) {
         Ok(op_chain_spec)

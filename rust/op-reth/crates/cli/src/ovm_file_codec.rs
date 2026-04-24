@@ -55,6 +55,11 @@ pub struct OvmBlock {
 
 impl OvmBlock {
     /// Decodes a `Block` from the given byte slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`alloy_rlp::Error`] if either the header or the block body cannot be
+    /// RLP-decoded from `buf`.
     pub fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let header = Header::decode(buf)?;
         let body = OvmBlockBody::decode(buf)?;
@@ -107,7 +112,7 @@ impl OvmTransactionSigned {
         transaction: OpTypedTransaction,
         signature: Signature,
     ) -> Self {
-        let mut initial_tx = Self { transaction, hash: Default::default(), signature };
+        let mut initial_tx = Self { transaction, hash: TxHash::ZERO, signature };
         initial_tx.hash = initial_tx.recalculate_hash();
         initial_tx
     }
@@ -179,6 +184,11 @@ impl OvmTransactionSigned {
     /// Legacy transactions are encoded as lists, so the input should start with a RLP list header.
     ///
     /// This expects `rlp(legacy_tx)`
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`alloy_rlp::Error`] if the input is not a valid RLP-encoded legacy
+    /// transaction (including malformed list header, invalid fields, or bad signature).
     // TODO: make buf advancement semantics consistent with `decode_enveloped_typed_transaction`,
     // so decoding methods do not need to manually advance the buffer
     pub fn decode_rlp_legacy_transaction(data: &mut &[u8]) -> alloy_rlp::Result<Self> {
@@ -308,9 +318,8 @@ mod tests {
         let deposit_decoded = OvmTransactionSigned::decode(&mut &deposit_tx_bytes[..]).unwrap();
 
         // Verify deposit transaction
-        let deposit_tx = match &deposit_decoded.transaction {
-            OpTypedTransaction::Legacy(tx) => tx,
-            _ => panic!("Expected legacy transaction for NFT deposit"),
+        let OpTypedTransaction::Legacy(deposit_tx) = &deposit_decoded.transaction else {
+            panic!("Expected legacy transaction for NFT deposit")
         };
 
         assert_eq!(
@@ -318,8 +327,8 @@ mod tests {
             TxKind::Call(address!("0xa75127121d28a9bf848f3b70e7eea26570aa7700"))
         );
         assert_eq!(deposit_tx.nonce, 240);
-        assert_eq!(deposit_tx.gas_price, 1001500);
-        assert_eq!(deposit_tx.gas_limit, 814661);
+        assert_eq!(deposit_tx.gas_price, 1_001_500);
+        assert_eq!(deposit_tx.gas_limit, 814_661);
         assert_eq!(deposit_tx.value, U256::ZERO);
         assert_eq!(&deposit_tx.input.as_ref()[0..4], DEPOSIT_FUNCTION_SELECTOR);
         assert_eq!(deposit_tx.chain_id, Some(10));
@@ -340,7 +349,7 @@ mod tests {
             .unwrap()
         );
 
-        // Test Case 2: pre-bedrock system transaction from block 105235052
+        // Test Case 2: pre-bedrock system transaction from block 105_235_052
         // tx: https://optimistic.etherscan.io/getRawTx?tx=0xe20b11349681dd049f8df32f5cdbb4c68d46b537685defcd86c7fa42cfe75b9e
         let system_tx_bytes = hex!(
             "f9026c830d899383124f808302a77e94a0cc33dd6f4819d473226257792afe230ec3c67f80b902046c459a280000000000000000000000004d73adb72bc3dd368966edd0f0b2148401a178e2000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000647fac7f00000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000084704316e5000000000000000000000000000000000000000000000000000000000000006e10975631049de3c008989b0d8c19fc720dc556ca01abfbd794c6eb5075dd000d000000000000000000000000000000000000000000000000000000000000001410975631049de3c008989b0d8c19fc720dc556ca01abfbd794c6eb5075dd000d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000082a39325251d44e11f3b6d92f9382438eb6c8b5068d4a488d4f177b26f2ca20db34ae53467322852afcc779f25eafd124c5586f54b9026497ba934403d4c578e3c1b5aa754c918ee2ecd25402df656c2419717e4017a7aecb84af3914fd3c7bf6930369c4e6ff76950246b98e354821775f02d33cdbee5ef6aed06c15b75691692d31c00000000000000000000000000000000000000000000000000000000000038a0e8991e95e66d809f4b6fb0af27c31368ca0f30e657165c428aa681ec5ea25bbea013ed325bd97365087ec713e9817d252b59113ea18430b71a5890c4eeb6b9efc4"
@@ -350,14 +359,13 @@ mod tests {
         // Verify system transaction
         assert!(system_decoded.is_legacy());
 
-        let system_tx = match &system_decoded.transaction {
-            OpTypedTransaction::Legacy(tx) => tx,
-            _ => panic!("Expected Legacy transaction"),
+        let OpTypedTransaction::Legacy(system_tx) = &system_decoded.transaction else {
+            panic!("Expected Legacy transaction")
         };
 
-        assert_eq!(system_tx.nonce, 887187);
-        assert_eq!(system_tx.gas_price, 1200000);
-        assert_eq!(system_tx.gas_limit, 173950);
+        assert_eq!(system_tx.nonce, 887_187);
+        assert_eq!(system_tx.gas_price, 1_200_000);
+        assert_eq!(system_tx.gas_limit, 173_950);
         assert_eq!(
             system_tx.to,
             TxKind::Call(address!("0xa0cc33dd6f4819d473226257792afe230ec3c67f"))

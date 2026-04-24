@@ -37,6 +37,11 @@ pub struct InitStateCommandOp<C: ChainSpecParser> {
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
     /// Execute the `init` command
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the OVM-specific bedrock header initialization or the inner
+    /// `init-state` delegate fails.
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         mut self,
         runtime: reth_tasks::Runtime,
