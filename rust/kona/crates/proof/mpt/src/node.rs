@@ -165,9 +165,9 @@ impl TrieNode {
         match self {
             Self::Branch { stack } => {
                 let branch_nibble = path.get(0).ok_or(TrieNodeError::PathTooShort)? as usize;
-                stack.get_mut(branch_nibble).map_or(Ok(None), |node| {
-                    node.open(&path.slice(BRANCH_NODE_NIBBLES..), fetcher)
-                })
+                stack
+                    .get_mut(branch_nibble)
+                    .map_or(Ok(None), |node| node.open(&path.slice(BRANCH_NODE_NIBBLES..), fetcher))
             }
             Self::Leaf { prefix, value } => Ok((path == prefix).then_some(value)),
             Self::Extension { prefix, node } => {

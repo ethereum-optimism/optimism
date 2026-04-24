@@ -508,10 +508,9 @@ impl OpHardforks for RollupConfig {
                 || self.op_fork_activation(OpHardfork::Interop),
                 ForkCondition::Timestamp,
             ),
-            OpHardfork::Interop => self
-                .hardforks
-                .interop_time
-                .map_or(ForkCondition::Never, ForkCondition::Timestamp),
+            OpHardfork::Interop => {
+                self.hardforks.interop_time.map_or(ForkCondition::Never, ForkCondition::Timestamp)
+            }
             _ => ForkCondition::Never,
         }
     }

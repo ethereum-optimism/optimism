@@ -56,8 +56,7 @@ where
         };
 
         // Compute the logs bloom from the receipts generated during block execution.
-        let logs_bloom =
-            logs_bloom(ex_result.receipts.iter().flat_map(OpReceiptEnvelope::logs));
+        let logs_bloom = logs_bloom(ex_result.receipts.iter().flat_map(OpReceiptEnvelope::logs));
 
         // Compute Cancun fields, if active.
         let (blob_gas_used, excess_blob_gas) = if self.config.is_jovian_active(timestamp) {

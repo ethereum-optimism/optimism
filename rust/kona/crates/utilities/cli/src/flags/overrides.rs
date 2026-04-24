@@ -60,9 +60,7 @@ impl OverrideArgs {
             ecotone_time: self.ecotone_override.map_or(config.hardforks.ecotone_time, Some),
             fjord_time: self.fjord_override.map_or(config.hardforks.fjord_time, Some),
             granite_time: self.granite_override.map_or(config.hardforks.granite_time, Some),
-            holocene_time: self
-                .holocene_override
-                .map_or(config.hardforks.holocene_time, Some),
+            holocene_time: self.holocene_override.map_or(config.hardforks.holocene_time, Some),
             pectra_blob_schedule_time: self
                 .pectra_blob_schedule_override
                 .map_or(config.hardforks.pectra_blob_schedule_time, Some),
