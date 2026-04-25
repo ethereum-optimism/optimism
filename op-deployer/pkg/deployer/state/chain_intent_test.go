@@ -46,8 +46,11 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:         verifier,
-					AbsolutePrestate: prestate,
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
 				},
 			},
 			expectErr: nil,
@@ -78,6 +81,62 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 				ZKDisputeGame: &ZKDisputeGameParams{
 					Verifier:         verifier,
 					AbsolutePrestate: common.Hash{},
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero MaxChallengeDuration fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 0,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero MaxProveDuration fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     0,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "nil ChallengerBond fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       nil,
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero ChallengerBond fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(0)),
 				},
 			},
 			expectErr: ErrZKDisputeGameMissingParams,
