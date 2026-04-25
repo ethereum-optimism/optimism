@@ -3,7 +3,8 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Hash } from "src/dispute/lib/Types.sol";
+import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
@@ -18,6 +19,9 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 
 uint256 constant EXPECTED_MAX_GAME_DEPTH = 73;
 uint256 constant EXPECTED_SPLIT_DEPTH = 30;
@@ -26,6 +30,52 @@ uint256 constant EXPECTED_MAX_CLOCK_DURATION = 302400;
 string constant EXPECTED_PREIMAGE_ORACLE_VERSION = "1.1.4";
 uint256 constant EXPECTED_CHALLENGE_PERIOD = 86400;
 uint256 constant EXPECTED_MIN_PROPOSAL_SIZE = 126000;
+
+/// @notice Struct containing the unified game args for a dispute game implementation.
+struct DisputeGameImplementation {
+    address gameAddress;
+    uint256 maxGameDepth;
+    uint256 splitDepth;
+    Duration maxClockDuration;
+    Duration clockExtension;
+    GameType gameType;
+    // extra args
+    uint256 l2SequenceNumber;
+    // dispute-game v2 game args
+    Claim absolutePrestate;
+    IBigStepper vm;
+    IAnchorStateRegistry asr;
+    IDelayedWETH weth;
+    uint256 l2ChainId;
+    address challenger;
+    address proposer;
+}
+
+/// @notice Arguments passed to `assertValidDisputeGame`.
+struct DisputeGameValidationArgs {
+    string errors;
+    ISystemConfig sysCfg;
+    DisputeGameImplementation game;
+    bytes32 absolutePrestate;
+    uint256 l2ChainID;
+    IProxyAdmin admin;
+    GameType gameType;
+    string errorPrefix;
+}
+
+/// @notice Implementation addresses used when validating a dispute game (resolved by caller).
+struct DisputeGameImpls {
+    address expectedGameImpl;
+    address mipsImpl;
+    address delayedWETHImpl;
+    address anchorStateRegistryImpl;
+}
+
+/// @notice Config values used when validating a dispute game (resolved by caller).
+struct DisputeGameConfig {
+    address l1PAOMultisig;
+    uint256 withdrawalDelaySeconds;
+}
 
 /// @title StandardValidatorUtils
 /// @notice StandardValidatorUtils is a contract that provides some validation logic
@@ -135,7 +185,7 @@ contract StandardValidatorUtils {
         address _mipsImpl,
         string memory _errorPrefix
     )
-        external
+        public
         view
         returns (string memory)
     {
@@ -235,7 +285,7 @@ contract StandardValidatorUtils {
         IPreimageOracle _oracle,
         string memory _errorPrefix
     )
-        external
+        public
         view
         returns (string memory)
     {
@@ -252,5 +302,152 @@ contract StandardValidatorUtils {
             _oracle.minProposalSize() == EXPECTED_MIN_PROPOSAL_SIZE, string.concat(_errorPrefix, "-30"), _errors
         );
         return _errors;
+    }
+
+    /// @notice Asserts that the DelayedWETH contract is valid.
+    function assertValidDelayedWETH(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDelayedWETH _weth,
+        IProxyAdmin _admin,
+        address _l1PAOMultisig,
+        address _delayedWETHImpl,
+        uint256 _withdrawalDelaySeconds,
+        string memory _errorPrefix
+    )
+        public
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-DWETH");
+        _errors = internalRequire(
+            LibString.eq(ISemver(address(_weth)).version(), ISemver(_delayedWETHImpl).version()),
+            string.concat(_errorPrefix, "-10"),
+            _errors
+        );
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_weth)) == _delayedWETHImpl,
+            string.concat(_errorPrefix, "-20"),
+            _errors
+        );
+        _errors =
+            internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(_weth.delay() == _withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(
+            IProxyAdminOwnedBase(address(_weth)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-60"), _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Asserts that the AnchorStateRegistry contract is valid.
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        address _anchorStateRegistryImpl,
+        string memory _errorPrefix
+    )
+        public
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
+        _errors = internalRequire(
+            LibString.eq(ISemver(address(_asr)).version(), ISemver(_anchorStateRegistryImpl).version()),
+            string.concat(_errorPrefix, "-10"),
+            _errors
+        );
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_asr)) == _anchorStateRegistryImpl,
+            string.concat(_errorPrefix, "-20"),
+            _errors
+        );
+        _errors = internalRequire(
+            address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
+        );
+        _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(
+            IProxyAdminOwnedBase(address(_asr)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors
+        );
+        _errors = internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-60"), _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that a DisputeGame contract is valid. Drills into WETH, ASR, MIPS, and
+    ///         PreimageOracle validation. Caller resolves storage-dependent values via the
+    ///         `DisputeGameImpls` and `DisputeGameConfig` structs.
+    function assertValidDisputeGame(
+        DisputeGameValidationArgs memory _args,
+        DisputeGameImpls memory _impls,
+        DisputeGameConfig memory _cfg
+    )
+        public
+        view
+        returns (string memory errors_)
+    {
+        errors_ = _args.errors;
+        string memory errorPrefix = _args.errorPrefix;
+        DisputeGameImplementation memory game = _args.game;
+        (Hash anchorRoot,) = game.asr.getAnchorRoot();
+        IDisputeGameFactory dgf = IDisputeGameFactory(_args.sysCfg.disputeGameFactory());
+
+        errors_ = internalRequire(
+            LibString.eq(ISemver(game.gameAddress).version(), ISemver(_impls.expectedGameImpl).version()),
+            string.concat(errorPrefix, "-20"),
+            errors_
+        );
+
+        errors_ = internalRequire(
+            GameType.unwrap(game.gameType) == GameType.unwrap(_args.gameType),
+            string.concat(errorPrefix, "-30"),
+            errors_
+        );
+        errors_ = internalRequire(
+            Claim.unwrap(game.absolutePrestate) == _args.absolutePrestate, string.concat(errorPrefix, "-40"), errors_
+        );
+        // Super game types store l2ChainId=0 in game args because the chain ID is embedded
+        // in the super root proof extraData, not in the game args.
+        uint256 expectedL2ChainId = GameTypes.isSuperGame(_args.gameType) ? 0 : _args.l2ChainID;
+        errors_ = internalRequire(game.l2ChainId == expectedL2ChainId, string.concat(errorPrefix, "-60"), errors_);
+        errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
+        errors_ = internalRequire(
+            Duration.unwrap(game.clockExtension) == EXPECTED_CLOCK_EXTENSION, string.concat(errorPrefix, "-80"), errors_
+        );
+        errors_ = internalRequire(game.splitDepth == EXPECTED_SPLIT_DEPTH, string.concat(errorPrefix, "-90"), errors_);
+        errors_ =
+            internalRequire(game.maxGameDepth == EXPECTED_MAX_GAME_DEPTH, string.concat(errorPrefix, "-100"), errors_);
+        errors_ = internalRequire(
+            Duration.unwrap(game.maxClockDuration) == EXPECTED_MAX_CLOCK_DURATION,
+            string.concat(errorPrefix, "-110"),
+            errors_
+        );
+        errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
+
+        errors_ = assertValidDelayedWETH(
+            errors_,
+            _args.sysCfg,
+            game.weth,
+            _args.admin,
+            _cfg.l1PAOMultisig,
+            _impls.delayedWETHImpl,
+            _cfg.withdrawalDelaySeconds,
+            errorPrefix
+        );
+        errors_ = assertValidAnchorStateRegistry(
+            errors_, _args.sysCfg, dgf, game.asr, _args.admin, _impls.anchorStateRegistryImpl, errorPrefix
+        );
+
+        errors_ = assertValidMipsVm(errors_, IMIPS64(address(game.vm)), _impls.mipsImpl, errorPrefix);
+
+        // Only assert valid preimage oracle if the game VM is valid, since otherwise
+        // the contract is likely to revert.
+        if (address(game.vm) == _impls.mipsImpl) {
+            errors_ = assertValidPreimageOracle(errors_, game.vm.oracle(), errorPrefix);
+        }
+
+        return errors_;
     }
 }

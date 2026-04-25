@@ -110,7 +110,7 @@ contract BadVersionReturner {
 
     /// @notice Returns the real or fake semver
     function version() external view returns (string memory) {
-        if (msg.sender == address(validator)) {
+        if (msg.sender == address(validator) || msg.sender == address(validator.standardValidatorUtils())) {
             return mockVersion;
         } else {
             return versioned.version();
@@ -2364,9 +2364,9 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
             .ValidationOverrides({ l1PAOMultisig: wrongMultisig, challenger: address(0) });
         string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
-        // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and
-        // DelayedWETH proxyAdminOwner mismatch (MIG-SDWETH-30).
-        assertEq("MIG-SDGF-30,MIG-SDWETH-30", errors);
+        // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and surfaces the shared
+        // DelayedWETH proxyAdminOwner mismatch under both super-game drill-downs.
+        assertEq("MIG-SDGF-30,MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", errors);
     }
 
     /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override when
@@ -2382,12 +2382,12 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
     }
 
     /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override, causing
-    ///         MIG-SPDG-100 when the SPDG game args challenger does not match the overridden address.
+    ///         MIG-SPDG-130 when the SPDG game args challenger does not match the overridden address.
     function test_validateMigratedChainWithOverrides_challengerMismatch_succeeds() public {
         address wrongChallenger = makeAddr("wrongChallenger");
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
             .ValidationOverrides({ l1PAOMultisig: address(0), challenger: wrongChallenger });
         string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
-        assertEq("MIG-SPDG-100", errors);
+        assertEq("MIG-SPDG-130", errors);
     }
 }

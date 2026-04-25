@@ -6,6 +6,15 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import {
+    DisputeGameImplementation,
+    DisputeGameValidationArgs,
+    DisputeGameImpls,
+    DisputeGameConfig
+} from "src/L1/opcm/StandardValidatorUtils.sol";
 
 interface IStandardValidatorUtils {
     function __constructor__() external;
@@ -88,6 +97,42 @@ interface IStandardValidatorUtils {
         string memory _errors,
         IPreimageOracle _oracle,
         string memory _errorPrefix
+    )
+        external
+        view
+        returns (string memory);
+
+    function assertValidDelayedWETH(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDelayedWETH _weth,
+        IProxyAdmin _admin,
+        address _l1PAOMultisig,
+        address _delayedWETHImpl,
+        uint256 _withdrawalDelaySeconds,
+        string memory _errorPrefix
+    )
+        external
+        view
+        returns (string memory);
+
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        address _anchorStateRegistryImpl,
+        string memory _errorPrefix
+    )
+        external
+        view
+        returns (string memory);
+
+    function assertValidDisputeGame(
+        DisputeGameValidationArgs memory _args,
+        DisputeGameImpls memory _impls,
+        DisputeGameConfig memory _cfg
     )
         external
         view

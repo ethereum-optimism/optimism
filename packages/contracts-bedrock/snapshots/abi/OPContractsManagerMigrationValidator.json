@@ -29,7 +29,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.MigrationValidationInput",
+        "internalType": "struct IOPContractsManagerMigrationValidator.MigrationValidationInput",
         "name": "_input",
         "type": "tuple"
       },
@@ -64,9 +64,24 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IStandardValidatorUtils",
+            "name": "standardValidatorUtils",
+            "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedImplementations",
         "name": "_impls",
         "type": "tuple"
       },
@@ -88,7 +103,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedConfig",
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",
         "name": "_cfg",
         "type": "tuple"
       }
@@ -134,7 +149,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.MigrationValidationInput",
+        "internalType": "struct IOPContractsManagerMigrationValidator.MigrationValidationInput",
         "name": "_input",
         "type": "tuple"
       },
@@ -186,9 +201,24 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IStandardValidatorUtils",
+            "name": "standardValidatorUtils",
+            "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedImplementations",
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedImplementations",
         "name": "_impls",
         "type": "tuple"
       },
@@ -210,7 +240,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct OPContractsManagerMigrationValidator.SharedConfig",
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",
         "name": "_cfg",
         "type": "tuple"
       }
