@@ -104,22 +104,29 @@ contract OPContractsManagerMigrationValidator {
 
         string memory _errors = "";
 
-        // 1. Check DGF shape (game type registration).
+        // Game type registration shape on the shared DGF.
         _errors = assertValidSharedDGFShape(_errors, _input.dgf);
 
-        // 2. Discover shared contracts from on-chain state.
+        // Discover the shared contracts (ProxyAdmin / ASR / WETH / lockbox) from chain[0]'s state.
         SharedContracts memory _sharedContracts = _getSharedContracts(_input.dgf, _input.chainSystemConfigs);
         bool _foundSharedContracts = address(_sharedContracts.proxyAdmin) != address(0);
 
-        // 3. If discovery succeeded, run shared DGF proxy/impl/owner checks.
+        // Shared DGF proxy/impl/owner. Plus one ASR invariant the super-game drill-down
+        // does not cover: respectedGameType must be a super game type post-migration.
         if (_foundSharedContracts) {
             _errors = assertValidSharedDGF(_errors, _input.dgf, _sharedContracts.proxyAdmin, _impls, _cfg);
+            _errors = internalRequire(
+                GameTypes.isSuperGame(IAnchorStateRegistry(_sharedContracts.asr).respectedGameType()),
+                "MIG-SASR-RGT",
+                _errors
+            );
         }
 
         ISystemConfig firstCfg =
             _input.chainSystemConfigs.length > 0 ? _input.chainSystemConfigs[0] : ISystemConfig(address(0));
 
-        // 4. Super game checks (always run — they handle missing impls/args internally).
+        // Super game checks. Always run — `assertValidSharedSuperGame` handles missing
+        // impls/args internally so a partially-broken setup still surfaces all errors.
         _errors = assertValidSharedSuperGame(
             _errors,
             SuperGameParams({
@@ -155,12 +162,12 @@ contract OPContractsManagerMigrationValidator {
             _cfg
         );
 
-        // 5. If discovery succeeded, run shared lockbox checks.
+        // Shared lockbox proxy/impl/admin (only if discovery surfaced one).
         if (_foundSharedContracts && address(_sharedContracts.lockbox) != address(0)) {
             _errors = assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _impls);
         }
 
-        // Per-chain migration checks.
+        // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
         _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {

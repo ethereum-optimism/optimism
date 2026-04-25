@@ -707,13 +707,13 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
 /// @notice Negative tests for MIG-SDGF-10 through MIG-SDGF-40.
 contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-SDGF-10: DGF proxy version doesn't match impl version.
-    function test_validate_sdgf10WrongVersion_succeeds() public {
+    function test_validate_sharedDgf10WrongVersion_succeeds() public {
         vm.mockCall(address(sharedDGF), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
         assertEq("MIG-SDGF-10", _validateMigration(true));
     }
 
     /// @notice MIG-SDGF-20: DGF proxy implementation doesn't match expected.
-    function test_validate_sdgf20WrongImpl_succeeds() public {
+    function test_validate_sharedDgf20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(sharedDGF))),
@@ -723,7 +723,7 @@ contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManag
     }
 
     /// @notice MIG-SDGF-30: DGF owner is not l1PAOMultisig.
-    function test_validate_sdgf30WrongOwner_succeeds() public {
+    function test_validate_sharedDgf30WrongOwner_succeeds() public {
         vm.mockCall(address(sharedDGF), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(address(0xbad)));
         assertEq("MIG-SDGF-30", _validateMigration(true));
     }
@@ -739,13 +739,13 @@ contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManag
 ///         broken ASR field surfaces under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
 contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-10: ASR version doesn't match impl version.
-    function test_validate_anchorp10WrongVersion_succeeds() public {
+    function test_validate_sharedAnchorp10WrongVersion_succeeds() public {
         vm.mockCall(sharedASR, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
         assertEq("MIG-SPDG-ANCHORP-10,MIG-SCKDG-ANCHORP-10", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-20: ASR proxy implementation doesn't match expected.
-    function test_validate_anchorp20WrongImpl_succeeds() public {
+    function test_validate_sharedAnchorp20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (sharedASR)),
@@ -755,7 +755,7 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
     }
 
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-30: ASR disputeGameFactory doesn't match shared DGF.
-    function test_validate_anchorp30WrongDGF_succeeds() public {
+    function test_validate_sharedAnchorp30WrongDGF_succeeds() public {
         vm.mockCall(sharedASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(address(0xbad)));
         // Mocking sharedASR.disputeGameFactory() cascades through portal → ASR → DGF.
         // Break the cascade so systemConfig.disputeGameFactory() still returns sharedDGF.
@@ -773,15 +773,22 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
     }
 
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-50: ASR proxyAdmin doesn't match shared ProxyAdmin.
-    function test_validate_anchorp50WrongProxyAdmin_succeeds() public {
+    function test_validate_sharedAnchorp50WrongProxyAdmin_succeeds() public {
         vm.mockCall(sharedASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
         assertEq("MIG-SPDG-ANCHORP-50,MIG-SCKDG-ANCHORP-50", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-60: ASR retirementTimestamp is zero.
-    function test_validate_anchorp60ZeroRetirementTimestamp_succeeds() public {
+    function test_validate_sharedAnchorp60ZeroRetirementTimestamp_succeeds() public {
         vm.mockCall(sharedASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(0)));
         assertEq("MIG-SPDG-ANCHORP-60,MIG-SCKDG-ANCHORP-60", _validateMigration(true));
+    }
+
+    /// @notice MIG-SASR-RGT: ASR respectedGameType is not a super game type.
+    ///         Drill-down doesn't cover this — it's a migration-shape invariant.
+    function test_validate_sharedAsrRgtNotSuperGameType_succeeds() public {
+        vm.mockCall(sharedASR, abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()), abi.encode(GameTypes.CANNON));
+        assertEq("MIG-SASR-RGT", _validateMigration(true));
     }
 }
 
@@ -789,13 +796,13 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
 /// @notice Negative tests for MIG-SLOCKBOX-10 through MIG-SLOCKBOX-30.
 contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-SLOCKBOX-10: Lockbox version doesn't match impl version.
-    function test_validate_slockbox10WrongVersion_succeeds() public {
+    function test_validate_sharedLockbox10WrongVersion_succeeds() public {
         vm.mockCall(address(sharedLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
         assertEq("MIG-SLOCKBOX-10", _validateMigration(true));
     }
 
     /// @notice MIG-SLOCKBOX-20: Lockbox proxy implementation doesn't match expected.
-    function test_validate_slockbox20WrongImpl_succeeds() public {
+    function test_validate_sharedLockbox20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(sharedLockbox))),
@@ -805,7 +812,7 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
     }
 
     /// @notice MIG-SLOCKBOX-30: Lockbox proxyAdmin doesn't match shared ProxyAdmin.
-    function test_validate_slockbox30WrongProxyAdmin_succeeds() public {
+    function test_validate_sharedLockbox30WrongProxyAdmin_succeeds() public {
         vm.mockCall(
             address(sharedLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
@@ -821,25 +828,25 @@ contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
     OPContractsManagerMigrationValidator_TestInit
 {
     /// @notice MIG-{SPDG,SCKDG}-DWETH-10: DelayedWETH version doesn't match impl version.
-    function test_validate_dweth10WrongVersion_succeeds() public {
+    function test_validate_sharedDweth10WrongVersion_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
         assertEq("MIG-SPDG-DWETH-10,MIG-SCKDG-DWETH-10", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-DWETH-40: DelayedWETH delay doesn't match expected withdrawalDelaySeconds.
-    function test_validate_dweth40WrongDelay_succeeds() public {
+    function test_validate_sharedDweth40WrongDelay_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(999)));
         assertEq("MIG-SPDG-DWETH-40,MIG-SCKDG-DWETH-40", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-DWETH-30: DelayedWETH proxyAdminOwner doesn't match l1PAOMultisig.
-    function test_validate_dweth30WrongProxyAdminOwner_succeeds() public {
+    function test_validate_sharedDweth30WrongProxyAdminOwner_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
         assertEq("MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-DWETH-20: DelayedWETH proxy implementation doesn't match expected.
-    function test_validate_dweth20WrongImpl_succeeds() public {
+    function test_validate_sharedDweth20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (sharedWETH)),
@@ -849,7 +856,7 @@ contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
     }
 
     /// @notice MIG-{SPDG,SCKDG}-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
-    function test_validate_dweth60WrongProxyAdmin_succeeds() public {
+    function test_validate_sharedDweth60WrongProxyAdmin_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
         assertEq("MIG-SPDG-DWETH-60,MIG-SCKDG-DWETH-60", _validateMigration(true));
     }

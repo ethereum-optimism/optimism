@@ -10,7 +10,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import {
-    DisputeGameImplementation,
     DisputeGameValidationArgs,
     DisputeGameImpls,
     DisputeGameConfig
@@ -136,5 +135,5 @@ interface IStandardValidatorUtils {
     )
         external
         view
-        returns (string memory);
+        returns (string memory errors_);
 }
