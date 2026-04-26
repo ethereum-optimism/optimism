@@ -18,16 +18,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestActivationBlockNUTBundle verifies that, for every fork from Karst onward,
-// the fork's activation block contains exactly the bundle's deposit transactions
-// in order, every upgrade tx executes successfully, and the fault-proof program
-// can prove the result.
+// forksWithoutNUTBundle lists forks from Karst onward that are activated via
+// the legacy hardcoded upgrade-transactions path rather than a JSON NUT
+// bundle. Adding a NUT bundle for one of these forks WILL fail this test —
+// remove the entry here as part of the same PR.
+var forksWithoutNUTBundle = map[forks.Name]bool{
+	forks.Interop: true,
+}
+
+// TestActivationBlockNUTBundle verifies that, for every fork from Karst onward
+// that uses the JSON NUT bundle system, the fork's activation block contains
+// exactly the bundle's deposit transactions in order, every upgrade tx executes
+// successfully, and the fault-proof program can prove the result.
 //
 // Discovery runs through [forks.From]([forks.Karst]), so any future fork is
-// covered automatically — and required to have a NUT bundle registered with
-// [derive.UpgradeTransactions]. The only per-fork requirement beyond that is
-// that the fork immediately preceding it is registered in [helpers.Hardforks]
-// — a one-line entry needed for any fork-parametrized test in this package.
+// covered automatically. Forks that are still on the legacy hardcoded
+// upgrade-transactions path are listed in [forksWithoutNUTBundle]; the test
+// asserts in BOTH directions — a fork without a bundle that isn't on that list
+// fails, and a fork on the list that gains a bundle also fails (so the
+// exception list cannot silently go stale).
+//
+// The per-fork requirement beyond a JSON bundle is that the fork immediately
+// preceding it is registered in [helpers.Hardforks] — a one-line entry needed
+// for any fork-parametrized test in this package.
 //
 // Fork-specific state assertions (e.g. Karst's proxy implementation swap) are
 // dispatched via the switch in [testActivationBlockNUTBundle]. Future forks
@@ -37,7 +50,16 @@ func TestActivationBlockNUTBundle(gt *testing.T) {
 
 	for _, fork := range forks.From(forks.Karst) {
 		_, _, err := derive.UpgradeTransactions(fork)
-		require.NoError(gt, err, "fork %s from Karst onward must have a NUT bundle", fork)
+		excepted := forksWithoutNUTBundle[fork]
+
+		if err != nil {
+			require.Truef(gt, excepted,
+				"fork %s has no NUT bundle and is not on the forksWithoutNUTBundle exception list", fork)
+			gt.Logf("skipping %s: no JSON NUT bundle (legacy hardcoded upgrade-tx path)", fork)
+			continue
+		}
+		require.Falsef(gt, excepted,
+			"fork %s now has a NUT bundle; remove it from forksWithoutNUTBundle", fork)
 
 		preFork := forks.Prev(fork)
 		require.NotEqual(gt, forks.None, preFork, "fork %s has no preceding fork in forks.All", fork)
