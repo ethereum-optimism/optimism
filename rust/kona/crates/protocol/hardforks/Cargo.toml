@@ -48,8 +48,12 @@ default = []
 std = [
 	"alloy-eips/std",
 	"alloy-primitives/std",
+	"anyhow/std",
 	"kona-protocol/std",
+	"once_cell/std",
 	"op-alloy-consensus/std",
+	"serde/std",
+	"serde_json/std",
 ]
 k256 = [ "alloy-primitives/k256", "op-alloy-consensus/k256" ]
 kzg = [ "alloy-eips/kzg", "op-alloy-consensus/kzg", "std" ]
