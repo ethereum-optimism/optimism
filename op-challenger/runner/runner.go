@@ -74,6 +74,7 @@ type Runner struct {
 	runConfigs           []RunConfig
 	m                    Metricer
 	vmTimeout            time.Duration
+	ageGameInputs        bool
 	traceProviderCreator TraceProviderCreator
 
 	running    atomic.Bool
@@ -83,13 +84,14 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig, vmTimeout time.Duration) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig, vmTimeout time.Duration, ageGameInputs bool) *Runner {
 	return &Runner{
 		log:                  logger,
 		cfg:                  cfg,
 		runConfigs:           runConfigs,
 		m:                    NewMetrics(runConfigs),
 		vmTimeout:            vmTimeout,
+		ageGameInputs:        ageGameInputs,
 		traceProviderCreator: createTraceProvider,
 	}
 }
@@ -196,7 +198,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, rlog log.Logger, runConfi
 		prestateSource = &HashPrestateFetcher{prestateHash: runConfig.Prestate}
 	}
 
-	localInputs, err := createGameInputs(ctx, rlog, rollupClient, superNodeClient, l1EthClient, runConfig.Name, runConfig.GameType)
+	localInputs, err := createGameInputs(ctx, rlog, rollupClient, superNodeClient, l1EthClient, runConfig.Name, runConfig.GameType, r.ageGameInputs)
 	if err != nil {
 		recordError(err, runConfig.Name, r.m, rlog)
 		return

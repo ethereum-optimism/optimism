@@ -28,7 +28,7 @@ const (
 	disputeL1OffsetBlocks = uint64(7 * 24 * 60 * 60 / 12)  // 50400
 )
 
-func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType) (utils.LocalGameInputs, error) {
+func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	switch gameType {
 	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
 		if superNodeClient == nil {
@@ -39,11 +39,11 @@ func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources
 		if rollupClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires rollup rpc to be set", gameType)
 		}
-		return createGameInputsSingle(ctx, log, rollupClient, l1Client, typeName)
+		return createGameInputsSingle(ctx, log, rollupClient, l1Client, typeName, ageGameInputs)
 	}
 }
 
-func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources.RollupClient, l1Client *ethclient.Client, typeName string) (utils.LocalGameInputs, error) {
+func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources.RollupClient, l1Client *ethclient.Client, typeName string, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get rollup sync status: %w", err)
@@ -66,36 +66,28 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 		return utils.LocalGameInputs{}, errors.New("l1 head is 0")
 	}
 
-	gameL1Num := saturatingSub(refHead.Number, gameL1HeadAgeBlocks)
-	if _, err := client.SafeHeadAtL1Block(ctx, gameL1Num); errors.Is(err, safedb.ErrNotFound) {
-		// Chain is younger than the 16-day target (or op-node's safe-head DB doesn't reach
-		// back that far). Fall back to the most recent valid head.
-		log.Info("Game L1 block is before earliest known safe head, falling back to reference head", "gameL1", gameL1Num, "refHead", refHead.Number, "type", typeName)
-		gameL1Num = refHead.Number
-	} else if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to check safe head at game L1 block %v: %w", gameL1Num, err)
-	}
-
-	disputeL1Num := saturatingSub(gameL1Num, disputeL1OffsetBlocks)
-	if _, err := client.SafeHeadAtL1Block(ctx, disputeL1Num); errors.Is(err, safedb.ErrNotFound) {
-		// Chain can't give us a disputed block 7 days before the game head either.
-		// Dispute the safe head at the game L1 block itself.
-		log.Info("Dispute L1 block is before earliest known safe head, falling back to game L1 head", "disputeL1", disputeL1Num, "gameL1", gameL1Num, "type", typeName)
-		disputeL1Num = gameL1Num
-	} else if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to check safe head at dispute L1 block %v: %w", disputeL1Num, err)
-	}
-
-	l1HeadHeader, err := l1Client.HeaderByNumber(ctx, new(big.Int).SetUint64(gameL1Num))
+	gameL1Num, disputeL1Num, err := selectGameAndDisputeL1Blocks(ctx, log, client, refHead.Number, typeName, ageGameInputs)
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to fetch l1 head at block %v: %w", gameL1Num, err)
+		return utils.LocalGameInputs{}, err
 	}
-	l1HeadHash := l1HeadHeader.Hash()
+
+	l1HeadHash := refHead.Hash
+	if gameL1Num != refHead.Number {
+		l1HeadHeader, err := l1Client.HeaderByNumber(ctx, new(big.Int).SetUint64(gameL1Num))
+		if err != nil {
+			return utils.LocalGameInputs{}, fmt.Errorf("failed to fetch l1 head at block %v: %w", gameL1Num, err)
+		}
+		l1HeadHash = l1HeadHeader.Hash()
+	}
 	log.Info("Using L1 head", "num", gameL1Num, "hash", l1HeadHash, "disputeL1", disputeL1Num, "type", typeName)
 
 	blockNumber, err := findL2BlockNumberToDispute(ctx, log, client, disputeL1Num)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to find l2 block number to dispute: %w", err)
+	}
+	if blockNumber == 0 {
+		// L2 genesis can't be disputed (no parent block to use as the agreed prestate).
+		return utils.LocalGameInputs{}, errors.New("dispute l2 block is at or below genesis")
 	}
 	claimOutput, err := client.OutputAtBlock(ctx, blockNumber)
 	if err != nil {
@@ -115,11 +107,61 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 	return localInputs, nil
 }
 
-func saturatingSub(a, b uint64) uint64 {
-	if a < b {
-		return 0
+// selectGameAndDisputeL1Blocks returns the L1 head used for the game and the L1 block whose
+// safe head bounds the disputed L2 block. A candidate is only accepted if the L2 safe head at
+// that block is non-zero, so we don't pick L1 blocks that predate the L2 chain's first batch.
+func selectGameAndDisputeL1Blocks(ctx context.Context, log log.Logger, client *sources.RollupClient, refHeadNum uint64, typeName string, ageGameInputs bool) (uint64, uint64, error) {
+	if !ageGameInputs {
+		return refHeadNum, refHeadNum, nil
 	}
-	return a - b
+
+	gameL1Num := refHeadNum
+	if refHeadNum >= gameL1HeadAgeBlocks {
+		candidate := refHeadNum - gameL1HeadAgeBlocks
+		ok, err := hasNonZeroSafeHead(ctx, client, candidate)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to check safe head at game L1 block %v: %w", candidate, err)
+		}
+		if ok {
+			gameL1Num = candidate
+		} else {
+			log.Info("Game L1 block has no L2 safe head, falling back to reference head", "gameL1", candidate, "refHead", refHeadNum, "type", typeName)
+		}
+	} else {
+		log.Info("Reference head younger than game L1 age, falling back to reference head", "refHead", refHeadNum, "ageBlocks", gameL1HeadAgeBlocks, "type", typeName)
+	}
+
+	disputeL1Num := gameL1Num
+	if gameL1Num >= disputeL1OffsetBlocks {
+		candidate := gameL1Num - disputeL1OffsetBlocks
+		ok, err := hasNonZeroSafeHead(ctx, client, candidate)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to check safe head at dispute L1 block %v: %w", candidate, err)
+		}
+		if ok {
+			disputeL1Num = candidate
+		} else {
+			log.Info("Dispute L1 block has no L2 safe head, falling back to game L1 head", "disputeL1", candidate, "gameL1", gameL1Num, "type", typeName)
+		}
+	} else {
+		log.Info("Game L1 block younger than dispute offset, falling back to game L1 head", "gameL1", gameL1Num, "offsetBlocks", disputeL1OffsetBlocks, "type", typeName)
+	}
+
+	return gameL1Num, disputeL1Num, nil
+}
+
+// hasNonZeroSafeHead reports whether op-node has a non-genesis L2 safe head at the given L1
+// block. Returns false if the safedb has no entry for the block, or if the recorded safe head
+// is L2 block 0 (the L1 block predates the L2 chain's first batch).
+func hasNonZeroSafeHead(ctx context.Context, client *sources.RollupClient, l1Num uint64) (bool, error) {
+	safeHead, err := client.SafeHeadAtL1Block(ctx, l1Num)
+	if errors.Is(err, safedb.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return safeHead.SafeHead.Number > 0, nil
 }
 
 func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SuperNodeClient, typeName string) (utils.LocalGameInputs, error) {
