@@ -28,7 +28,6 @@ import (
 // progressLogInterval is how often to log ingestion progress.
 const progressLogInterval = 10 * time.Second
 
-
 // EthClient defines the interface for fetching block and receipt data.
 // This allows for dependency injection in tests.
 type EthClient interface {
