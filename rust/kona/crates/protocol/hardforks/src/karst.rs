@@ -25,7 +25,7 @@ mod tests {
     fn test_karst_upgrade_txs() {
         let karst = Karst;
         let txs: Vec<Bytes> = karst.txs().collect();
-        assert_eq!(txs.len(), 32);
+        assert_eq!(txs.len(), 31);
 
         // All encoded deposit txs start with the deposit type byte (0x7e).
         for tx in &txs {
@@ -36,14 +36,14 @@ mod tests {
     #[test]
     fn test_karst_upgrade_gas() {
         let karst = Karst;
-        assert_eq!(karst.upgrade_gas(), 51_600_000);
+        assert_eq!(karst.upgrade_gas(), 55_370_657);
     }
 
     #[test]
     fn test_karst_bundle_valid() {
         let bundle = karst_nut_bundle();
         assert_eq!(bundle.fork_name, "Karst");
-        assert_eq!(bundle.transactions.len(), 32);
+        assert_eq!(bundle.transactions.len(), 31);
 
         // Verify all transactions have non-empty intents.
         for tx in &bundle.transactions {
