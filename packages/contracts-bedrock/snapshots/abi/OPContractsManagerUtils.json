@@ -698,7 +698,7 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerUtils_InitializingDuringUpgrade",
+    "name": "OPContractsManagerUtils_OZv5InitializableUnsupported",
     "type": "error"
   },
   {
