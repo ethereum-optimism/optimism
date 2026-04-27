@@ -198,7 +198,7 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 
 	// Advance few safe blocks
 	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
-	sys.L2CLC.Matched(sys.L2CLB, types.LocalSafe, attempts)
+	sys.L2CLC.ReachedRef(types.LocalSafe, sys.L2CLB.HeadBlockRef(types.LocalSafe).ID(), attempts)
 
 	// Make sure the safe head reaches non-moving unsafe head
 	sys.L2CLC.Reached(types.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
