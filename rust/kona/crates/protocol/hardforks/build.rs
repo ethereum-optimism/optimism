@@ -31,11 +31,18 @@ fn run() -> Result<()> {
     let manifest_dir =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").context("CARGO_MANIFEST_DIR not set")?);
 
+    // Probe for the karst bundle file rather than the `op-core/` directory: Docker
+    // bind-mounts auto-create empty `op-core/` ancestor stubs on the host, and an
+    // `is_dir()` check picks those up before reaching the real op-core at the
+    // monorepo root. Probing for a known file inside the bundle path skips the stubs.
     let monorepo_root = manifest_dir
         .ancestors()
-        .find(|p| p.join("op-core").is_dir())
+        .find(|p| p.join("op-core/nuts/bundles/karst_nut_bundle.json").is_file())
         .ok_or_else(|| {
-            anyhow!("could not find op-core/ in any ancestor of {}", manifest_dir.display())
+            anyhow!(
+                "could not find op-core/nuts/bundles/karst_nut_bundle.json in any ancestor of {}",
+                manifest_dir.display()
+            )
         })?
         .to_path_buf();
 
