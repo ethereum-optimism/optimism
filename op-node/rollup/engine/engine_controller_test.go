@@ -313,7 +313,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				ec.SetLocalSafeHead(*tt.setupLocalSafe)
 			}
 			if tt.setupDeprecated != nil {
-				ec.SetSafeHead(*tt.setupDeprecated)
+				ec.SetDeprecatedSafeHead(*tt.setupDeprecated)
 			}
 
 			if tt.setupEngine != nil {
@@ -537,8 +537,8 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	// Initial state: unsafe=block5, localSafe=block2, crossSafe=block2, finalized=block1
 	ec.unsafeHead = block5
 	ec.SetLocalSafeHead(block2)
-	ec.SetSafeHead(block2)      // deprecatedSafeHead = block2
-	ec.SetFinalizedHead(block1) // deprecatedFinalizedHead = block1
+	ec.SetDeprecatedSafeHead(block2) // deprecatedSafeHead = block2
+	ec.SetFinalizedHead(block1)      // deprecatedFinalizedHead = block1
 	// Set lastForkchoice to match initial state so setup doesn't trigger FCU
 	ec.lastForkchoice = eth.ForkchoiceState{
 		HeadBlockHash:      block5.Hash,
