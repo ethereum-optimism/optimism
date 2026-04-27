@@ -4,7 +4,5 @@
 allow-branch = ["develop"]
 sign-commit = true
 sign-tag = true
-shared-version = true
-pre-release-commit-message = "chore: release {{version}}"
-tag-prefix = ""                                           # tag only once instead of per every crate
-owners = ["github:alloy-rs:core"]
+pre-release-commit-message = "chore(alloy-op-evm): release {{version}}"
+tag-prefix = ""                                                         # tag only once instead of per every crate

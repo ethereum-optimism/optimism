@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "alloy-op-evm"
-version = "0.31.0"
+version = "0.32.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.4",

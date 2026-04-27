@@ -306,7 +306,7 @@ op-alloy-rpc-types-engine = { version = "2.0.0", path = "op-alloy/crates/rpc-typ
 op-alloy-rpc-jsonrpsee = { version = "2.0.0", path = "op-alloy/crates/rpc-jsonrpsee", default-features = false }
 
 # ==================== ALLOY-OP-EVM / ALLOY-OP-HARDFORKS ====================
-alloy-op-evm = { version = "0.31.0", path = "alloy-op-evm/", default-features = false }
+alloy-op-evm = { version = "0.32.0", path = "alloy-op-evm/", default-features = false }
 alloy-op-hardforks = { version = "0.5.0", path = "alloy-op-hardforks/", default-features = false }
 
 # ==================== RETH CRATES (crates.io) ====================
