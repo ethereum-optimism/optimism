@@ -46,19 +46,12 @@ type ChainContainer interface {
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
+	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
-	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
-	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
-	// WARNING: this is a dangerous stateful operation and is intended to be called only
-	// by interop transition application. Other callers should not use it until the
-	// interface is refactored to make that ownership explicit.
-	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-	// smaller interop-owned interface.
-	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
 	// This allows callers to determine the minimum L1 block that all verifiers have processed.
@@ -68,16 +61,6 @@ type ChainContainer interface {
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
 	// BlockTime returns the block time in seconds for this chain.
 	BlockTime() uint64
-	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
-	// currently uses that block at the specified height.
-	// output is the marshaled eth.Output preimage for optimistic root computation.
-	// WARNING: this is a dangerous stateful operation and is intended to be called only
-	// by interop transition application. Other callers should not use it until the
-	// interface is refactored to make that ownership explicit.
-	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-	// smaller interop-owned interface.
-	// Returns true if a rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
 	// PruneDeniedAtOrAfterTimestamp removes deny-list entries with DecisionTimestamp >= timestamp.
 	// Returns map of removed hashes by height.
 	PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error)
@@ -95,6 +78,23 @@ type ChainContainer interface {
 	// SetResetCallback sets a callback that is invoked when the chain resets.
 	// The supernode uses this to notify activities about chain resets.
 	SetResetCallback(cb ResetCallback)
+}
+
+// WARNING: InteropChain exposes the reorg-triggering operations (RewindEngine,
+// InvalidateBlock) that bypass the interop WAL model when invoked outside of
+// interop transition application. ONLY the interop activity should accept or
+// hold a value of this interface. Every other caller must take the narrower
+// ChainContainer above so the misuse is caught at compile time.
+type InteropChain interface {
+	ChainContainer
+	// RewindEngine rewinds the engine to the highest block with timestamp less than
+	// or equal to the given timestamp. invalidatedBlock is the block that triggered
+	// the rewind and is passed to reset callbacks.
+	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
+	// chain currently uses that block at the specified height. Returns true if a
+	// rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -135,6 +135,7 @@ type simpleChainContainer struct {
 
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
+var _ InteropChain = (*simpleChainContainer)(nil)
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
 
 func NewChainContainer(
@@ -146,7 +147,7 @@ func NewChainContainer(
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
-) ChainContainer {
+) InteropChain {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
 		cfg:                cfg,
@@ -372,7 +373,13 @@ func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts ui
 }
 
 func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
-	return c.blockNumberToTimestamp(blocknum)
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	if blocknum < c.vncfg.Rollup.Genesis.L2.Number {
+		return 0, fmt.Errorf("block number %d before genesis %d", blocknum, c.vncfg.Rollup.Genesis.L2.Number)
+	}
+	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
 }
 
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
@@ -572,10 +579,8 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
-// WARNING: this should only be called by the interop activity.
-// Other callers risk triggering chain rewinds outside the interop WAL model.
-// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-// smaller interop-owned interface.
+// RewindEngine is part of the InteropChain interface — callers must hold that
+// wider interface (only interop transition application does) to invoke it.
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	if !c.resetting.CompareAndSwap(false, true) {
 		return fmt.Errorf("reset already in progress")
@@ -664,15 +669,4 @@ func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
 // Calling this while InvalidateBlock may be running is unsafe.
 func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
 	c.onReset = cb
-}
-
-// blockNumberToTimestamp converts a block number to its timestamp using rollup config.
-func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) (uint64, error) {
-	if c.vncfg == nil {
-		return 0, fmt.Errorf("rollup config not available")
-	}
-	if blockNum < c.vncfg.Rollup.Genesis.L2.Number {
-		return 0, fmt.Errorf("block number %d before genesis %d", blockNum, c.vncfg.Rollup.Genesis.L2.Number)
-	}
-	return c.vncfg.Rollup.TimestampForBlock(blockNum), nil
 }

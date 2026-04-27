@@ -92,7 +92,6 @@ pub fn init_rollup_config_metrics(config: &RollupConfig) {
             ("batch_inbox_address", config.batch_inbox_address.to_string()),
             ("deposit_contract_address", config.deposit_contract_address.to_string()),
             ("l1_system_config_address", config.l1_system_config_address.to_string()),
-            ("protocol_versions_address", config.protocol_versions_address.to_string()),
         ]
     )
     .set(1);

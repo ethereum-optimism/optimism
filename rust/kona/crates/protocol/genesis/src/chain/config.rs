@@ -159,11 +159,6 @@ impl ChainConfig {
                 .as_ref()
                 .and_then(|a| a.system_config_proxy)
                 .unwrap_or_default(),
-            protocol_versions_address: self
-                .addresses
-                .as_ref()
-                .and_then(|a| a.address_manager)
-                .unwrap_or_default(),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: self

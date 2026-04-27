@@ -13,26 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogBackfillLowerBound(t *testing.T) {
-	tests := []struct {
-		name           string
-		crossSafe, act uint64
-		depth          time.Duration
-		wantTlo        uint64
-	}{
-		{"zero depth returns crossSafe", 1000, 100, 0, 1000},
-		{"clamp when raw before activation", 200, 100, 500 * time.Second, 100},
-		{"raw above activation", 1000, 100, 100 * time.Second, 900},
-		{"crossSafe below depth underflow then clamp", 50, 40, 100 * time.Second, 40},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := LogBackfillLowerBound(tt.crossSafe, tt.act, tt.depth)
-			require.Equal(t, tt.wantTlo, got)
-		})
-	}
-}
-
 // progressInteropUntil calls progressAndRecord up to maxIters times until cond() is true.
 func progressInteropUntil(t *testing.T, i *Interop, maxIters int, cond func() bool) {
 	t.Helper()
@@ -92,8 +72,13 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 		}, nil
 	}
 
-	require.NoError(t, h.interop.runLogBackfill())
-	require.Equal(t, uint64(111), h.interop.runtimeActivationTimestamp)
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, uint64(110), end,
+		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
+	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp(),
+		"main loop resumes at backfillEndTimestamp+1")
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
 	latest, has = h.interop.logsDBs[chain10.id].LatestSealedBlock()
@@ -150,14 +135,16 @@ func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- h.interop.Start(ctx) }()
 
-	// Wait for backfill to complete: runtime activation should advance past 110.
+	// Wait for backfill to complete: backfillEndTimestamp should be set
+	// to the end of the sealed range (110).
 	require.Eventually(t, func() bool {
-		return h.interop.runtimeActivationTimestamp > act
+		return h.interop.backfillEndTimestamp > 0
 	}, 5*time.Second, 20*time.Millisecond, "backfill should eventually succeed after retries")
 
 	require.GreaterOrEqual(t, syncStatusCalls.Load(), failUntil,
 		"SyncStatus should have been called at least %d times (the failing ones)", failUntil)
-	require.Equal(t, uint64(111), h.interop.runtimeActivationTimestamp)
+	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp)
+	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp())
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
 	cancel()
@@ -198,25 +185,27 @@ func TestLogBackfill_RetriesStopOnContextCancel(t *testing.T) {
 	}
 }
 
-// TestLogBackfill_AsymmetricMultiChain exercises the two cross-chain minima
-// that runLogBackfill computes with three chains at different sync tips:
+// TestLogBackfill_AsymmetricMultiChain asserts that every chain is backfilled
+// over the same [T_lo, minCrossSafeTime] window regardless of how far
+// individual chains' LocalSafe heads have advanced. This keeps the system
+// symmetric at startup — every chain has logs sealed up to the same
+// timestamp, matching the invariant the main loop observes during normal
+// operation. Chains whose local-safe head is beyond minCrossSafeTime catch
+// up through the main loop, not eagerly during backfill.
 //
 //   - T_lo is derived from min(SafeL2.Time) across chains (cross-safe).
-//   - runtimeActivationTimestamp is derived from min(LocalSafeL2.Time) across
-//     chains and must advance to that minimum + 1.
-//
-// All chains participate in backfill, and each chain's LocalSafe is at or
-// beyond T_lo in both time and block number — the consistent case that
-// runLogBackfill is required to support.
+//   - End of backfill for every chain is TimestampToBlockNumber(minCrossSafeTime).
+//   - backfillEndTimestamp is set to minCrossSafeTime; the main loop
+//     resumes at backfillEndTimestamp+1.
 func TestLogBackfill_AsymmetricMultiChain(t *testing.T) {
 	const act = uint64(50)
 	depth := 10 * time.Second // min crossSafe 100 -> T_lo 90
 
-	// Chain 10: crossSafe/localSafe tip at 120. Backfill range 90..120.
-	// Chain 20: crossSafe 200, localSafe tip at 130. Backfill range 90..130.
-	// Chain 30: crossSafe 100 (the min, so it pins T_lo), localSafe tip at
-	// 110 (smallest localSafe, so it pins runtimeActivation). Backfill
-	// range 90..110.
+	// Chain 10: crossSafe/localSafe tip at 120.
+	// Chain 20: crossSafe 200, localSafe tip at 130.
+	// Chain 30: crossSafe 100 (the min, pinning T_lo), localSafe tip at 110.
+	// Every chain backfills 90..100 (the shared shape), so each seals 11
+	// blocks regardless of how far its local tip is.
 	h := newInteropTestHarness(t).
 		WithActivation(act).
 		WithLogBackfillDepth(depth).
@@ -262,81 +251,38 @@ func TestLogBackfill_AsymmetricMultiChain(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, h.interop.runLogBackfill())
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	h.interop.backfillEndTimestamp = end
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
-	require.Equal(t, uint64(111), h.interop.runtimeActivationTimestamp,
-		"runtime activation must advance to min(localSafe)+1 across all chains")
+	require.Equal(t, uint64(100), end,
+		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
+	require.Equal(t, uint64(101), h.interop.firstVerifiableTimestamp(),
+		"main loop resumes at backfillEndTimestamp+1")
 
 	chain10 := h.Mock(10)
 	chain20 := h.Mock(20)
 	chain30 := h.Mock(30)
 
-	require.Equal(t, int32(31), fetchCount[chain10.id].Load(),
-		"chain 10 should backfill blocks 90..120 (31 blocks)")
-	require.Equal(t, int32(41), fetchCount[chain20.id].Load(),
-		"chain 20 should backfill blocks 90..130 (41 blocks)")
-	require.Equal(t, int32(21), fetchCount[chain30.id].Load(),
-		"chain 30 should backfill blocks 90..110 (21 blocks)")
+	// Every chain backfills the same 90..100 window (11 blocks each).
+	require.Equal(t, int32(11), fetchCount[chain10.id].Load(),
+		"chain 10 should backfill blocks 90..100 (11 blocks)")
+	require.Equal(t, int32(11), fetchCount[chain20.id].Load(),
+		"chain 20 should backfill blocks 90..100 (11 blocks)")
+	require.Equal(t, int32(11), fetchCount[chain30.id].Load(),
+		"chain 30 should backfill blocks 90..100 (11 blocks)")
 
 	latest10, has10 := h.interop.logsDBs[chain10.id].LatestSealedBlock()
 	require.True(t, has10)
-	require.Equal(t, uint64(120), latest10.Number)
+	require.Equal(t, uint64(100), latest10.Number)
 
 	latest20, has20 := h.interop.logsDBs[chain20.id].LatestSealedBlock()
 	require.True(t, has20)
-	require.Equal(t, uint64(130), latest20.Number)
+	require.Equal(t, uint64(100), latest20.Number)
 
 	latest30, has30 := h.interop.logsDBs[chain30.id].LatestSealedBlock()
 	require.True(t, has30)
-	require.Equal(t, uint64(110), latest30.Number)
-}
-
-// TestLogBackfill_FailsWhenChainBehindLowerBound asserts that runLogBackfill
-// refuses to proceed if TimestampToBlockNumber(T_lo) for any chain lands past
-// that chain's LocalSafeL2 block number. This condition is unreachable under
-// a consistent SyncStatus (localSafe >= crossSafe >= minCrossSafeTime >= T_lo),
-// so if it fires, the chain container is reporting inconsistent state.
-// Silently skipping such a chain would leave its logs DB empty while other
-// chains seal from T_lo forward, wedging the main loop's first seal attempt
-// on ErrStaleLogsDB. Failing the attempt surfaces the problem to the
-// operator; remediation is to clear the data dir and restart.
-func TestLogBackfill_FailsWhenChainBehindLowerBound(t *testing.T) {
-	const act = uint64(50)
-	depth := 10 * time.Second // min crossSafe 100 -> T_lo 90
-
-	h := newInteropTestHarness(t).
-		WithActivation(act).
-		WithLogBackfillDepth(depth).
-		WithChain(10, func(m *mockChainContainer) {
-			m.syncStatusFull = &eth.SyncStatus{
-				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
-				UnsafeL2:    eth.L2BlockRef{Number: 120, Time: 120},
-				SafeL2:      eth.L2BlockRef{Number: 100, Time: 100},
-				LocalSafeL2: eth.L2BlockRef{Number: 120, Time: 120},
-			}
-		}).
-		// Chain 20 reports a consistent-looking SyncStatus but a bogus
-		// TimestampToBlockNumber that maps T_lo to a block well past
-		// LocalSafeL2. This is the inconsistency the guard catches.
-		WithChain(20, func(m *mockChainContainer) {
-			m.syncStatusFull = &eth.SyncStatus{
-				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
-				UnsafeL2:    eth.L2BlockRef{Number: 95, Time: 95},
-				SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
-				LocalSafeL2: eth.L2BlockRef{Number: 95, Time: 95},
-			}
-			m.timestampToBlockNumberOverride = func(ctx context.Context, ts uint64) (uint64, error) {
-				return 200, nil
-			}
-		}).
-		Build()
-	h.interop.ctx = context.Background()
-
-	err := h.interop.runLogBackfill()
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrChainBehindBackfillLowerBound)
-	require.Equal(t, act, h.interop.runtimeActivationTimestamp,
-		"runtime activation must not advance when backfill fails")
+	require.Equal(t, uint64(100), latest30.Number)
 }
 
 // TestLogBackfill_MisalignedActivation asserts that backfill succeeds when
@@ -352,7 +298,8 @@ func TestLogBackfill_FailsWhenChainBehindLowerBound(t *testing.T) {
 // Concrete setup: blockTime=3, genesis=0, activation=1000. Block 333 has
 // Time()=999 (the pairing anchor); block 334 is at 1002; LocalSafe is at
 // block 340, Time=1020. T_lo clamps to activation so backfill must seal
-// blocks 333..340 without error. runtimeActivation advances to 1021.
+// blocks 333..340 without error. backfillEndTimestamp is set to 1020
+// (minCrossSafeTime), so the main loop resumes at 1021.
 func TestLogBackfill_MisalignedActivation(t *testing.T) {
 	const (
 		blockTime    uint64 = 3
@@ -384,9 +331,13 @@ func TestLogBackfill_MisalignedActivation(t *testing.T) {
 		Build()
 	h.interop.ctx = context.Background()
 
-	require.NoError(t, h.interop.runLogBackfill())
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	h.interop.backfillEndTimestamp = end
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
-	require.Equal(t, localSafeTs+1, h.interop.runtimeActivationTimestamp)
+	require.Equal(t, localSafeTs, end,
+		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
+	require.Equal(t, localSafeTs+1, h.interop.firstVerifiableTimestamp())
 
 	chain10 := h.Mock(10)
 	db := h.interop.logsDBs[chain10.id]
@@ -413,7 +364,7 @@ func TestLogBackfill_MisalignedActivation(t *testing.T) {
 
 func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T) {
 	const act = uint64(108)
-	depth := time.Second // crossSafe 110, depth 1s -> T_lo 109; seals 109..110; activation advances to 111
+	depth := time.Second // crossSafe 110, depth 1s -> T_lo 109; seals 109..110; first verifiable ts = 111
 
 	h := newInteropTestHarness(t).
 		WithActivation(act).
@@ -431,7 +382,7 @@ func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T)
 
 	var verifyCalls atomic.Int32
 	var firstVerifyTS atomic.Uint64
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID) (Result, error) {
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		if verifyCalls.Add(1) == 1 {
 			firstVerifyTS.Store(ts)
 		}
@@ -443,8 +394,13 @@ func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T)
 	}
 	h.interop.ctx = context.Background()
 
-	require.NoError(t, h.interop.runLogBackfill())
-	require.Equal(t, uint64(111), h.interop.runtimeActivationTimestamp)
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, uint64(110), end,
+		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
+	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp(),
+		"main loop resumes at backfillEndTimestamp+1")
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
 	chain10 := h.Mock(10)
@@ -463,4 +419,202 @@ func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T)
 	require.GreaterOrEqual(t, lastTS, uint64(111))
 	require.Equal(t, int32(1), verifyCalls.Load())
 	require.Equal(t, uint64(111), firstVerifyTS.Load())
+}
+
+// TestLogBackfill_NoOpWhenDepthZero asserts that runLogBackfill short-circuits
+// when logBackfillDepth is zero: it must return (0, nil) without touching
+// SyncStatus, TimestampToBlockNumber, or the logs DB. This is the "feature
+// disabled" path — operators who don't want backfill get no work done.
+func TestLogBackfill_NoOpWhenDepthZero(t *testing.T) {
+	const act = uint64(100)
+
+	var syncStatusCalls atomic.Int32
+	var outputCalls atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		// no WithLogBackfillDepth → depth stays at zero-value.
+		WithChain(10, func(m *mockChainContainer) {
+			m.syncStatusOverride = func() (*eth.SyncStatus, error) {
+				syncStatusCalls.Add(1)
+				return &eth.SyncStatus{
+					CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+					UnsafeL2:    eth.L2BlockRef{Number: 110, Time: 110},
+					SafeL2:      eth.L2BlockRef{Number: 110, Time: 110},
+					LocalSafeL2: eth.L2BlockRef{Number: 110, Time: 110},
+				}, nil
+			}
+			m.outputV0Override = func(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+				outputCalls.Add(1)
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(num)),
+				}, nil
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Zero(t, end, "depth==0 short-circuits with end=0")
+	require.Zero(t, syncStatusCalls.Load(), "SyncStatus must not be called when depth is zero")
+	require.Zero(t, outputCalls.Load(), "no blocks should be fetched when depth is zero")
+
+	chain10 := h.Mock(10)
+	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.False(t, has, "logs DB must remain empty")
+
+	// Caller sets backfillEndTimestamp; with end==0 the main loop falls back
+	// to activationTimestamp rather than end+1.
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
+		"with end==0 the main loop resumes at activationTimestamp")
+}
+
+// TestLogBackfill_NoOpWhenNoChains asserts that runLogBackfill short-circuits
+// when no chains are registered: no SyncStatus/TimestampToBlockNumber calls
+// can happen because there's nothing to iterate, and end must be zero so the
+// main loop falls back to activationTimestamp.
+func TestLogBackfill_NoOpWhenNoChains(t *testing.T) {
+	const act = uint64(100)
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(10 * time.Second).
+		// no WithChain calls — empty chains map.
+		Build()
+	require.NotNil(t, h.interop, "Interop must initialize with zero chains")
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Zero(t, end, "empty chains map short-circuits with end=0")
+
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
+		"with end==0 the main loop resumes at activationTimestamp")
+}
+
+// TestLogBackfill_ActivationInFuture asserts the edge case where the
+// configured activation is ahead of every chain's cross-safe tip.
+// runLogBackfill must short-circuit with (0, nil) — the "backfill did
+// not run" convention — rather than claiming minCrossSafeTime was
+// sealed when nothing was. This keeps backfillEndTimestamp honest for
+// external observers (devstack/integration assertions) and routes the
+// main loop through the activationTimestamp path of
+// firstVerifiableTimestamp().
+func TestLogBackfill_ActivationInFuture(t *testing.T) {
+	const act = uint64(2000)
+	depth := 100 * time.Second
+
+	var outputCalls atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			// Cross-safe tip at 1000 — well below activation 2000.
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 1000, Time: 1000},
+				SafeL2:      eth.L2BlockRef{Number: 1000, Time: 1000},
+				LocalSafeL2: eth.L2BlockRef{Number: 1000, Time: 1000},
+			}
+			m.outputV0Override = func(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+				outputCalls.Add(1)
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(num)),
+				}, nil
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Zero(t, end,
+		"activation-in-future must short-circuit with end=0 (backfill did not run)")
+	require.Zero(t, outputCalls.Load(),
+		"no blocks fetched: backfill is skipped when activation is ahead of cross-safe")
+
+	chain10 := h.Mock(10)
+	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.False(t, has, "logs DB must remain empty when backfill is skipped")
+
+	require.Equal(t, act, h.interop.activationTimestamp,
+		"protocol activation must not change")
+
+	// With end==0 the main loop falls through to activationTimestamp,
+	// which is the correct handoff when activation is still in the future.
+	h.interop.backfillEndTimestamp = end
+	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
+		"main loop resumes at activationTimestamp when backfill is skipped")
+}
+
+// TestLogBackfill_ClampsStartToGenesis asserts that when a chain's genesis
+// timestamp is later than the computed backfill startTime, the per-chain
+// start is clamped up to genesis. Without this clamp, runLogBackfill would
+// ask TimestampToBlockNumber for a pre-genesis timestamp and then try to
+// seal blocks before the chain existed.
+//
+// Setup: activation=50, depth=50s, crossSafe=110 → idealStart=60,
+// startTime=max(60, 50)=60. Chain's genesis time is 100, which is > 60,
+// so the clamp fires and the chain should backfill [100..110] (11 blocks)
+// instead of [60..110] (51 blocks).
+func TestLogBackfill_ClampsStartToGenesis(t *testing.T) {
+	const (
+		act          uint64 = 50
+		genesisTime  uint64 = 100
+		crossSafeTip uint64 = 110
+	)
+	depth := 50 * time.Second // idealStart = 110-50 = 60; clamps up to genesisTime=100
+
+	var outputCalls atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+				SafeL2:      eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+				LocalSafeL2: eth.L2BlockRef{Number: crossSafeTip, Time: crossSafeTip},
+			}
+			// Report genesis time strictly ahead of the pre-clamp startTime.
+			m.blockNumberToTimestampOverride = func(ctx context.Context, blocknum uint64) (uint64, error) {
+				if blocknum == 0 {
+					return genesisTime, nil
+				}
+				return blocknum, nil
+			}
+			m.outputV0Override = func(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+				outputCalls.Add(1)
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(num)),
+				}, nil
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, crossSafeTip, end,
+		"return value is still minCrossSafeTime regardless of the genesis clamp")
+
+	chain10 := h.Mock(10)
+	latest, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, crossSafeTip, latest.Number)
+
+	// 11 = blocks 100..110 (clamped at genesis=100), NOT 51 = blocks 60..110.
+	require.Equal(t, int32(11), outputCalls.Load(),
+		"backfill must start at genesis (%d), not the pre-clamp startTime (60)", genesisTime)
 }

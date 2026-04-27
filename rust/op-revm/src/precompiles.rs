@@ -554,9 +554,9 @@ mod tests {
 
         let res = run_g2_msm_jovian(&input, u64::MAX);
 
-        assert!(
-            matches!(res, Err(PrecompileHalt::Other(msg)) if msg.contains("input length too long"))
-        );
+        assert!(matches!(
+            res,
+            Err(PrecompileHalt::Other(msg)) if msg.contains("input length too long")));
     }
     #[test]
     fn test_pair_isthmus_max_size() {

@@ -2,145 +2,96 @@ package interop
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
+	"math"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
-// ErrChainBehindBackfillLowerBound is returned when a chain's LocalSafeL2
-// block number is earlier than the block that TimestampToBlockNumber maps
-// T_lo to. Under a consistent SyncStatus we should always have
-// LocalSafeL2.Time >= minCrossSafeTime >= T_lo, so this indicates the
-// chain container is reporting inconsistent state (e.g. mid-rewind, a
-// fresh VN whose LocalSafe hasn't caught up to cross-safe, or a bad
-// TimestampToBlockNumber implementation). Silently skipping such a
-// chain would cause the main loop to wedge on ErrStaleLogsDB once it
-// hands off below the first sealed block of chains that did backfill,
-// so we fail the whole attempt instead. Operator remediation is to
-// clear the logs DBs and restart.
-var ErrChainBehindBackfillLowerBound = errors.New("chain localSafe is behind backfill lower bound; clear data dir")
-
-// LogBackfillLowerBound returns T_lo = max(T_act, crossSafeTs - D_log) in unix seconds (L2).
-// crossSafeTs is the minimum cross-safe timestamp across all chains — the
-// earliest point where cross-validation will resume after startup.
-// Never ingest logs for timestamps before activation.
-func LogBackfillLowerBound(crossSafeTs, activationTimestampUnix uint64, logBackfillDepth time.Duration) uint64 {
-	if logBackfillDepth <= 0 {
-		return crossSafeTs
-	}
-	sub := uint64(logBackfillDepth / time.Second)
-	var raw uint64
-	if crossSafeTs >= sub {
-		raw = crossSafeTs - sub
-	} else {
-		raw = 0
-	}
-	if raw < activationTimestampUnix {
-		return activationTimestampUnix
-	}
-	return raw
-}
-
-// runLogBackfill seals logs for each chain from T_lo through LocalSafe and
-// advances activationTimestamp past the backfilled range so the main loop
-// starts verification after the pre-ingested data.
-//
-// T_lo is computed from the minimum cross-safe (SafeL2) timestamp across all
-// chains, since that is the earliest point where cross-validation will resume.
-func (i *Interop) runLogBackfill() error {
+func (i *Interop) runLogBackfill() (uint64, error) {
 	if i.logBackfillDepth <= 0 {
-		return nil
+		return 0, nil
 	}
 	if len(i.chains) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	ctx := i.ctx
-
-	// First pass: gather the minimum cross-safe timestamp across all chains.
-	// SafeL2 is the cross-safe head post-interop.
-	type chainInfo struct {
-		crossSafeTime uint64
-		localSafeNum  uint64
-		localSafeTime uint64
-	}
-	info := make(map[eth.ChainID]chainInfo, len(i.chains))
-	var minCrossSafeTime uint64
-	first := true
-	for cid, chain := range i.chains {
-		ss, err := chain.SyncStatus(ctx)
+	// identify the minimum cross-safe time across all chains
+	minCrossSafeTime := uint64(math.MaxUint64)
+	for _, chain := range i.chains {
+		syncStatus, err := chain.SyncStatus(i.ctx)
 		if err != nil {
-			return fmt.Errorf("chain %s: sync status: %w", cid, err)
+			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
 		}
-		ci := chainInfo{
-			crossSafeTime: ss.SafeL2.Time,
-			localSafeNum:  ss.LocalSafeL2.Number,
-			localSafeTime: ss.LocalSafeL2.Time,
+		// watch that local safe advances to become non-zero
+		// local safe should advance even if cross safe has nothing to work from
+		if syncStatus.LocalSafeL2.Number == 0 {
+			return 0, fmt.Errorf("chain %s: local safe L2 number is 0", chain.ID())
 		}
-		info[cid] = ci
-		if first || ci.crossSafeTime < minCrossSafeTime {
-			minCrossSafeTime = ci.crossSafeTime
-			first = false
-		}
+		i.log.Debug("log backfill: sync status",
+			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
+		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
 	}
 
-	Tlo := LogBackfillLowerBound(minCrossSafeTime, i.runtimeActivationTimestamp, i.logBackfillDepth)
-	// Debug-level because this fires on every retry while VNs are coming up.
-	// The summary "interop log backfill complete" line at the end is the
-	// user-visible signal that backfill finished.
-	i.log.Debug("log backfill: computed lower bound",
-		"minCrossSafeTime", minCrossSafeTime, "T_lo", Tlo, "depth", i.logBackfillDepth)
-
-	// Second pass: backfill each chain from T_lo to its LocalSafe. Fold
-	// localSafeTime into minLocalSafeTime only after the consistency check
-	// passes, so runtimeActivation is clamped to the earliest backfilled
-	// head — any chain that can't satisfy the round aborts before
-	// contributing, which keeps minLocalSafeTime reflective of the set of
-	// chains whose logs DB is populated up to T_lo.
-	var minLocalSafeTime uint64
-	firstLocal := true
-	for cid, chain := range i.chains {
-		ci := info[cid]
-
-		startNum, err := chain.TimestampToBlockNumber(ctx, Tlo)
-		if err != nil {
-			return fmt.Errorf("chain %s: timestamp to block number for T_lo %d: %w", cid, Tlo, err)
-		}
-		// Under a consistent SyncStatus this is unreachable: T_lo is clamped
-		// to min(crossSafe) across chains, and localSafe >= crossSafe on every
-		// chain, so localSafeNum >= TimestampToBlockNumber(T_lo). If it fires,
-		// the chain container is reporting inconsistent state and continuing
-		// would leave this chain's logs DB empty while other chains seal from
-		// T_lo forward, which wedges the main loop's first seal attempt on
-		// ErrStaleLogsDB.
-		if startNum > ci.localSafeNum {
-			return fmt.Errorf("chain %s: startNum %d > localSafeNum %d at T_lo %d (localSafeTime %d, minCrossSafeTime %d): %w",
-				cid, startNum, ci.localSafeNum, Tlo, ci.localSafeTime, minCrossSafeTime, ErrChainBehindBackfillLowerBound)
-		}
-
-		if firstLocal || ci.localSafeTime < minLocalSafeTime {
-			minLocalSafeTime = ci.localSafeTime
-			firstLocal = false
-		}
-
-		i.log.Info("log backfill: sealing logs",
-			"chain", cid, "from", startNum, "to", ci.localSafeNum)
-
-		if err := i.backfillChain(ctx, cid, chain, startNum, ci.localSafeNum); err != nil {
-			return err
-		}
+	// if activation falls after the backfill range end, don't backfill
+	if i.activationTimestamp > minCrossSafeTime {
+		i.log.Info("log backfill: activation timestamp falls after backfill range end, skipping backfill",
+			"activationTimestamp", i.activationTimestamp, "minCrossSafeTime", minCrossSafeTime)
+		return 0, nil
 	}
 
-	if !firstLocal && minLocalSafeTime+1 > i.runtimeActivationTimestamp {
-		i.log.Info("advancing runtime activation past backfilled range",
-			"oldActivation", i.runtimeActivationTimestamp, "newActivation", minLocalSafeTime+1)
-		i.runtimeActivationTimestamp = minLocalSafeTime + 1
+	// naively, end minus depth is the ideal backfill start.
+	// guard the subtraction so a young chain (crossSafe < depth) doesn't wrap.
+	depthSec := uint64(i.logBackfillDepth.Seconds())
+	var idealStart uint64
+	if minCrossSafeTime >= depthSec {
+		idealStart = minCrossSafeTime - depthSec
 	}
-	i.log.Info("interop log backfill complete", "runtimeActivationTimestamp", i.runtimeActivationTimestamp)
-	return nil
+	// clamp to the activation timestamp: never backfill before activation.
+	startTime := max(idealStart, i.activationTimestamp)
+
+	// backfill every chain in parallel over [startTime, endTime]
+	errCh := make(chan error, len(i.chains))
+	wg := sync.WaitGroup{}
+	wg.Add(len(i.chains))
+	for _, chain := range i.chains {
+		go func(chain cc.ChainContainer) {
+			defer wg.Done()
+			chainStartTime := startTime
+			// if we can identify the genesis time, use it to clamp the start time
+			// if we can't, we'd either fail now or later when trying to use the value
+			if genesisTime, err := chain.BlockNumberToTimestamp(i.ctx, 0); err == nil &&
+				genesisTime > startTime {
+				chainStartTime = genesisTime
+			}
+			startNum, err := chain.TimestampToBlockNumber(i.ctx, chainStartTime)
+			if err != nil {
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for start %d: %w", chain.ID(), startTime, err)
+				i.log.Error("log backfill: timestamp to block number for start", "chain", chain.ID(), "err", err)
+				return
+			}
+			endNum, err := chain.TimestampToBlockNumber(i.ctx, minCrossSafeTime)
+			if err != nil {
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for end %d: %w", chain.ID(), minCrossSafeTime, err)
+				i.log.Error("log backfill: timestamp to block number for end", "chain", chain.ID(), "err", err)
+				return
+			}
+			i.log.Info("log backfill: sealing logs",
+				"chain", chain.ID(), "from", startNum, "to", endNum)
+			if err := i.backfillChain(i.ctx, chain.ID(), chain, startNum, endNum); err != nil {
+				errCh <- fmt.Errorf("chain %s: backfill: %w", chain.ID(), err)
+				return
+			}
+		}(chain)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		return 0, err
+	}
+	return minCrossSafeTime, nil
 }
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {

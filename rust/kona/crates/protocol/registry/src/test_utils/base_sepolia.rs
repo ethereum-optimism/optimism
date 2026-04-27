@@ -69,7 +69,6 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     batch_inbox_address: address!("ff00000000000000000000000000000000084532"),
     deposit_contract_address: address!("49f53e41452c74589e85ca1677426ba426459e85"),
     l1_system_config_address: address!("f272670eb55e895584501d564afeb048bed26194"),
-    protocol_versions_address: address!("79add5713b383daa0a138d3c4780c7a1804a8090"),
     superchain_config_address: Some(address!("C2Be75506d5724086DEB7245bd260Cc9753911Be")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,

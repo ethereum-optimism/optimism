@@ -30,6 +30,9 @@ contract GenerateNUTBundle is Script {
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
+    /// @notice EIP-7825 per-transaction gas limit cap (2 ** 24).
+    uint256 public constant MAX_TX_GAS_LIMIT = 16777216;
+
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
     struct Output {
@@ -69,7 +72,22 @@ contract GenerateNUTBundle is Script {
         gasLimits = UpgradeUtils.gasLimits();
     }
 
-    /// @notice Generates the complete upgrade transaction bundle.
+    /// @notice Generates the upgrade transaction bundle and writes the artifact to disk.
+    /// @return output_ Output containing all generated transactions in execution order.
+    function run() public returns (Output memory output_) {
+        setUp();
+
+        output_ = _buildOutput();
+
+        _assertValidOutput(output_);
+
+        // Write transactions to artifact with metadata
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
+        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
+    }
+
+    /// @notice Builds the upgrade transaction bundle Output struct.
     /// @dev Executes 5 phases in fixed order:
     ///      1. Pre-implementation deployments [CUSTOM]
     ///      2. Implementation deployments [FIXED]
@@ -78,9 +96,7 @@ contract GenerateNUTBundle is Script {
     ///      5. Upgrade execution [FIXED]
     /// @dev Only modify phases 1 and 3 for fork-specific logic. Other phases must remain unchanged.
     /// @return output_ Output containing all generated transactions in execution order.
-    function run() public returns (Output memory output_) {
-        setUp();
-
+    function _buildOutput() internal returns (Output memory output_) {
         // Build implementation deployment configurations
         _buildImplementationDeploymentConfigs();
 
@@ -112,13 +128,6 @@ contract GenerateNUTBundle is Script {
         for (uint256 i = 0; i < txnsLength; i++) {
             output_.txns[i] = txns[i];
         }
-
-        _assertValidOutput(output_);
-
-        // Write transactions to artifact with metadata
-        NetworkUpgradeTxns.BundleMetadata memory metadata =
-            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Asserts the output is valid.
@@ -132,13 +141,16 @@ contract GenerateNUTBundle is Script {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
             require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
-
-            // EIP-7623: op-geth rejects the tx (ErrFloorDataGas) if gasLimit < floorDataGas.
+            // Lower bound: EIP-7623 calldata floor (op-geth rejects with ErrFloorDataGas below this).
+            // Upper bound: EIP-7825 per-tx gas cap (2 ** 24). The floor dominates `> 0`, so the
+            // floor is the only lower bound we need here, assuming every NUT is a CALL, which is
+            // guaranteed by the `to != address(0)` check above.
             uint64 floorDataGas = UpgradeUtils.computeFloorDataGas(_output.txns[i].data);
             require(
-                _output.txns[i].gasLimit >= floorDataGas,
-                string.concat("GenerateNUTBundle: gasLimit below EIP-7623 floor for ", _output.txns[i].intent)
+                _output.txns[i].gasLimit >= floorDataGas && _output.txns[i].gasLimit <= MAX_TX_GAS_LIMIT,
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ", _output.txns[i].intent
+                )
             );
 
             if (_output.txns[i].from == address(0)) {

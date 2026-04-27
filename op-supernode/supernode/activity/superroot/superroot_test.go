@@ -84,10 +84,6 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	}
 	return &eth.OutputV0{}, nil
 }
-func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
-	return nil
-}
-
 func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -101,9 +97,6 @@ func (m *mockCC) ID() eth.ChainID {
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
-	return false, nil
-}
 func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	return &eth.OutputV0{}, nil
 }
@@ -120,6 +113,10 @@ func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
 
 func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
 	return ts, nil
+}
+
+func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	return 0, nil
 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)

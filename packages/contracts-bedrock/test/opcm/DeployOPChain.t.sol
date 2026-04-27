@@ -153,7 +153,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_run_succeeds() public {
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
         // Basic non-zero and code checks are covered inside run->checkOutput.
-        // Additonal targeted assertions added below.
+        // Additional targeted assertions added below.
         _checkDeploymentAssertions(doo);
     }
 

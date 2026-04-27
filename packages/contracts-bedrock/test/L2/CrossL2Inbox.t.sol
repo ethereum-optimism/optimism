@@ -202,7 +202,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
-    /// @notice Test that an invalid message without access list does not succeed warm the slot and
+    /// @notice Test that an invalid message without access list does not warm the slot and
     ///         fails the second time.
     function test_validateMessage_sameMsgWithoutAccessListTwice_reverts(
         Identifier memory _id,

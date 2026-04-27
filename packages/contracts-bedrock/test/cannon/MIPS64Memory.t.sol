@@ -193,7 +193,7 @@ contract MIPS64Memory_WriteMem_Test is MIPS64Memory_TestInit {
         assertEq(newRoot, expectedRoot);
     }
 
-    /// @notice Static unit test asserting that a zerod memory word is set for a non-zero memory
+    /// @notice Static unit test asserting that a zeroed memory word is set for a non-zero memory
     ///         proof.
     function test_writeMem_uniqueAccess_succeeds() external {
         uint64 addr = 0x100;

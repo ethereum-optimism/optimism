@@ -152,9 +152,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.16
+    /// @custom:semver 7.1.17
     function version() public pure returns (string memory) {
-        return "7.1.16";
+        return "7.1.17";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -954,7 +954,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 
-        // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
+        // If critical transfer is allowed, transfer ownership of the DisputeGameFactory and
         // ProxyAdmin to the PAO. During deployments, this means transferring ownership from the
         // OPCM contract to the target PAO. During upgrades, this would theoretically mean
         // transferring ownership from the existing PAO to itself, which would be a no-op. In an

@@ -5,7 +5,7 @@ library SafeSigners {
     /// @notice Splits signature bytes into `uint8 v, bytes32 r, bytes32 s`.
     ///         Copied directly from
     /// https://github.com/safe-global/safe-contracts/blob/e870f514ad34cd9654c72174d6d4a839e3c6639f/contracts/common/SignatureDecoder.sol
-    /// @dev Make sure to perform a bounds check for @param pos, to avoid out of bounds access on @param signatures
+    /// @dev Make sure to perform a bounds check for `_pos`, to avoid out of bounds access on `_signatures`.
     ///      The signature format is a compact form of {bytes32 r}{bytes32 s}{uint8 v}
     ///      Compact means uint8 is not padded to 32 bytes.
     /// @param _pos Which signature to read.

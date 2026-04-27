@@ -40,8 +40,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.8.0
-    string public constant version = "2.8.0";
+    /// @custom:semver 2.8.1
+    string public constant version = "2.8.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -239,7 +239,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected PreimageOracle version.
     function preimageOracleVersion() public pure returns (string memory) {
-        return "1.1.4";
+        return "1.1.5";
     }
 
     /// @notice Internal function to get version from any contract implementing ISemver.

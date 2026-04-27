@@ -151,7 +151,7 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
     /// @dev An arbitrary root claim for testing.
-    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
+    Claim internal arbitraryRootClaim = Claim.wrap(bytes32(uint256(123)));
 
     /// @dev The preimage of the absolute prestate claim
     bytes internal absolutePrestateData;
@@ -381,7 +381,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
             payable(
                 address(
                     disputeGameFactory.create{ value: _value }(
-                        GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber)
+                        GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber)
                     )
                 )
             )
@@ -1929,8 +1929,8 @@ contract FaultDisputeGame_Resolve_Test is FaultDisputeGame_TestInit {
         vm.deal(charlie, bal);
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the
-        // challenger charlie is successfully countered by alice alice is successfully countered by
-        // both bob and the test contract
+        // challenger. Charlie is successfully countered by alice. Alice is successfully countered
+        // by both bob and the test contract.
         uint256 firstBond = _getRequiredBond(0);
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
         vm.prank(alice);

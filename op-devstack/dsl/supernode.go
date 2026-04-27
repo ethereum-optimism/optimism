@@ -170,7 +170,7 @@ func (s *Supernode) AwaitBackfillCompleted() {
 //     (the first seal is at most one block before activation; when activation
 //     is not aligned to a block boundary, the block representing the chain
 //     state as of activation is the correct pairing anchor and is sealed).
-//  2. firstSealed.Timestamp <  RuntimeActivationTimestamp
+//  2. firstSealed.Timestamp <  FirstVerifiableTimestamp
 //     (the main loop's handoff happens strictly after the backfilled range)
 //  3. firstSealed.Timestamp <= max(ActivationTimestamp, latestSealed.Timestamp - depth)
 //     + blockTime                         (backfill reached ~depth back,
@@ -184,7 +184,7 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 	ia := s.interopActivity()
 
 	activation := ia.ActivationTimestamp()
-	runtimeActivation := ia.RuntimeActivationTimestamp()
+	firstVerifiable := ia.FirstVerifiableTimestamp()
 	depthSec := uint64(depth / time.Second)
 
 	for _, chainID := range chains {
@@ -198,9 +198,9 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 			"chain %s: first seal ts %d must be within one block time (%d) of activation ts %d",
 			chainID, first.Timestamp, blockTime, activation)
 
-		s.require.Lessf(first.Timestamp, runtimeActivation,
-			"chain %s: first seal ts %d must be < runtime activation ts %d (backfill must hand off strictly before main loop)",
-			chainID, first.Timestamp, runtimeActivation)
+		s.require.Lessf(first.Timestamp, firstVerifiable,
+			"chain %s: first seal ts %d must be < first-verifiable ts %d (backfill must hand off strictly before main loop)",
+			chainID, first.Timestamp, firstVerifiable)
 
 		expectedLowerBound := activation
 		if latest.Timestamp > activation+depthSec {
@@ -218,7 +218,7 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 			"chain", chainID,
 			"first_num", first.Number, "first_ts", first.Timestamp,
 			"latest_num", latest.Number, "latest_ts", latest.Timestamp,
-			"activation", activation, "runtime_activation", runtimeActivation,
+			"activation", activation, "first_verifiable", firstVerifiable,
 			"depth_sec", depthSec)
 	}
 }

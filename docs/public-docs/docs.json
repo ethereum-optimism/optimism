@@ -2372,6 +2372,7 @@
           {
             "group": "Notices",
             "pages": [
+              "notices/upgrade-19",
               "notices/specialized-node-topology",
               "notices/stake-based-priority-ordering",
               "notices/req-resp-cl-sync-deprecation",

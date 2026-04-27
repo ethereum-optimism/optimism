@@ -72,8 +72,6 @@ pub struct RollupConfig {
     pub deposit_contract_address: Address,
     /// `l1_system_config_address` is the L1 address that the system config is stored at.
     pub l1_system_config_address: Address,
-    /// `protocol_versions_address` is the L1 address that the protocol versions are stored at.
-    pub protocol_versions_address: Address,
     /// The superchain config address.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub superchain_config_address: Option<Address>,
@@ -123,7 +121,6 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             batch_inbox_address: Address::arbitrary(u)?,
             deposit_contract_address: Address::arbitrary(u)?,
             l1_system_config_address: Address::arbitrary(u)?,
-            protocol_versions_address: Address::arbitrary(u)?,
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
@@ -151,7 +148,6 @@ impl Default for RollupConfig {
             batch_inbox_address: Address::ZERO,
             deposit_contract_address: Address::ZERO,
             l1_system_config_address: Address::ZERO,
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -867,7 +863,6 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
           "chain_op_config": {
             "eip1559Elasticity": 6,
             "eip1559Denominator": 50,
@@ -923,7 +918,6 @@ mod tests {
             batch_inbox_address: address!("ff00000000000000000000000000000000042069"),
             deposit_contract_address: address!("08073dc48dde578137b8af042bcbc1c2491f1eb2"),
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -970,7 +964,6 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
           "chain_op_config": {
             "eip1559_elasticity": 100,
             "eip1559_denominator": 100,

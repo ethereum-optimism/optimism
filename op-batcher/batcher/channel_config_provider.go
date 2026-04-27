@@ -81,13 +81,10 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 	numBlobsPerTx := dec.blobConfig.TargetNumFrames
 
 	// Compute the total absolute cost of submitting either a single calldata tx or a single blob tx.
-	calldataCost, blobCost, oracleBlobCost :=
-		computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap),
+	calldataCost, blobCost, oracleBlobCost := computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap),
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
 		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
 
-	// TODO(18618): before activating the blob tip oracle, confirm in prod that we mostly get newBlobSavings == true, otherwise
-	// it is not worth it using the oracle
 	oracleBlobSavings := oracleBlobCost.Cmp(blobCost) < 0
 
 	// Now we compare the absolute cost per tx divided by the number of bytes per tx:

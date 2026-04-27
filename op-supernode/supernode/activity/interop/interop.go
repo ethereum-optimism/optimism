@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -75,6 +76,52 @@ const (
 	DecisionRewind
 )
 
+// Decision is serialized as a self-describing string in the WAL so that the
+// on-disk format survives enum re-ordering or the insertion of new variants.
+func (d Decision) String() string {
+	switch d {
+	case DecisionWait:
+		return "wait"
+	case DecisionAdvance:
+		return "advance"
+	case DecisionInvalidate:
+		return "invalidate"
+	case DecisionRewind:
+		return "rewind"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(d))
+	}
+}
+
+func (d Decision) MarshalJSON() ([]byte, error) {
+	switch d {
+	case DecisionWait, DecisionAdvance, DecisionInvalidate, DecisionRewind:
+		return json.Marshal(d.String())
+	default:
+		return nil, fmt.Errorf("marshal decision: unknown value %d", int(d))
+	}
+}
+
+func (d *Decision) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("unmarshal decision: expected string: %w", err)
+	}
+	switch s {
+	case "wait":
+		*d = DecisionWait
+	case "advance":
+		*d = DecisionAdvance
+	case "invalidate":
+		*d = DecisionInvalidate
+	case "rewind":
+		*d = DecisionRewind
+	default:
+		return fmt.Errorf("unmarshal decision: unknown value %q", s)
+	}
+	return nil
+}
+
 // StepOutput combines a decision with the verification result (if any).
 type StepOutput struct {
 	Decision Decision
@@ -84,15 +131,14 @@ type StepOutput struct {
 // Interop is a VerificationActivity that can also run background work as a RunnableActivity.
 type Interop struct {
 	log                 log.Logger
-	chains              map[eth.ChainID]cc.ChainContainer
+	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
-	// runtimeActivationTimestamp is the effective activation timestamp used
-	// by the main loop and backfill. It starts equal to activationTimestamp
-	// and is advanced past the backfilled range after log backfill completes.
-	// Protocol-facing queries (VerifiedAtTimestamp, VerifiedBlockAtL1, etc.)
-	// always use the original activationTimestamp.
-	runtimeActivationTimestamp uint64
+	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
+	// this is used for loop handoff from log backfill to main processing.
+	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1,
+	// or activationTimestamp if backfill was not used.
+	backfillEndTimestamp uint64
 
 	dataDir string
 
@@ -108,12 +154,12 @@ type Interop struct {
 
 	currentL1 eth.BlockID
 
-	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
 	// It is called after verifyFn in progressInterop, and its results are merged.
 	// Set to verifyCycleMessages by default in New().
-	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID) (Result, error)
+	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
@@ -127,8 +173,9 @@ type Interop struct {
 	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
 	backfillCompleted atomic.Bool
 
-	l1Checker    *byNumberConsistencyChecker
-	frontierView *frontierVerificationView
+	// l1Checker must be non-nil whenever observeRound runs. Production sets it
+	// via New; tests inject noopL1Checker.
+	l1Checker l1ConsistencyChecker
 
 	logBackfillDepth time.Duration
 }
@@ -137,12 +184,27 @@ func (i *Interop) Name() string {
 	return "interop"
 }
 
+// firstVerifiableTimestamp is the earliest timestamp the main loop will
+// attempt to verify. It is activationTimestamp when backfill did not run,
+// or backfillEndTimestamp+1 when it did (clamped so it never falls below
+// activation, though by construction backfillEndTimestamp >= activation).
+func (i *Interop) firstVerifiableTimestamp() uint64 {
+	if i.backfillEndTimestamp == 0 {
+		return i.activationTimestamp
+	}
+	next := i.backfillEndTimestamp + 1
+	if next < i.activationTimestamp {
+		return i.activationTimestamp
+	}
+	return next
+}
+
 // New constructs a new Interop activity.
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
 	messageExpiryWindow uint64,
-	chains map[eth.ChainID]cc.ChainContainer,
+	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
 	l1Source l1ByNumberSource,
 	logBackfillDepth time.Duration,
@@ -173,21 +235,20 @@ func New(
 		messageExpiryWindow = defaultMessageExpiryWindow
 	}
 	i := &Interop{
-		log:                        log,
-		chains:                     chains,
-		verifiedDB:                 verifiedDB,
-		logsDBs:                    logsDBs,
-		dataDir:                    dataDir,
-		activationTimestamp:        activationTimestamp,
-		runtimeActivationTimestamp: activationTimestamp,
-		messageExpiryWindow:        messageExpiryWindow,
-		logBackfillDepth:           logBackfillDepth,
+		log:                 log,
+		chains:              chains,
+		verifiedDB:          verifiedDB,
+		logsDBs:             logsDBs,
+		dataDir:             dataDir,
+		activationTimestamp: activationTimestamp,
+		messageExpiryWindow: messageExpiryWindow,
+		logBackfillDepth:    logBackfillDepth,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
-	i.l1Checker = newByNumberConsistencyChecker(l1Source)
+	i.l1Checker = newL1ConsistencyChecker(l1Source)
 	return i
 }
 
@@ -207,8 +268,9 @@ func (i *Interop) Start(ctx context.Context) error {
 		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
 		for {
 			i.backfillAttempts.Add(1)
-			err := i.runLogBackfill()
+			end, err := i.runLogBackfill()
 			if err == nil {
+				i.backfillEndTimestamp = end
 				break
 			}
 			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
@@ -220,6 +282,7 @@ func (i *Interop) Start(ctx context.Context) error {
 		}
 	}
 	i.backfillCompleted.Store(true)
+	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 
 	for {
 		select {
@@ -379,7 +442,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.runtimeActivationTimestamp
+		obs.NextTimestamp = i.firstVerifiableTimestamp()
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -400,21 +463,18 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.L1Heads = ready.l1Heads
 
 	// Check that all frontier L1 heads AND the accepted L1 head are on the same canonical fork.
-	obs.L1Consistent = true
-	if i.l1Checker != nil {
-		heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
-		if obs.LastVerified != nil {
-			heads = append(heads, obs.LastVerified.L1Inclusion)
-		}
-		for _, l1 := range obs.L1Heads {
-			heads = append(heads, l1)
-		}
-		same, err := i.l1Checker.SameL1Chain(i.ctx, heads)
-		if err != nil {
-			return obs, fmt.Errorf("L1 consistency check: %w", err)
-		}
-		obs.L1Consistent = same
+	heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
+	if obs.LastVerified != nil {
+		heads = append(heads, obs.LastVerified.L1Inclusion)
 	}
+	for _, l1 := range obs.L1Heads {
+		heads = append(heads, l1)
+	}
+	same, err := i.l1Checker.SameL1Chain(i.ctx, heads)
+	if err != nil {
+		return obs, fmt.Errorf("L1 consistency check: %w", err)
+	}
+	obs.L1Consistent = same
 
 	return obs, nil
 }
@@ -425,17 +485,13 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Res
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve frontier verification view: %w", err)
 	}
-	i.frontierView = view
-	defer func() {
-		i.frontierView = nil
-	}()
 
-	result, err := i.verifyFn(ts, blocksAtTS)
+	result, err := i.verifyFn(ts, blocksAtTS, view)
 	if err != nil {
 		return Result{}, err
 	}
 
-	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS)
+	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS, view)
 	if err != nil {
 		return Result{}, fmt.Errorf("cycle verification failed: %w", err)
 	}
@@ -615,7 +671,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.runtimeActivationTimestamp {
+	if lastTS <= i.firstVerifiableTimestamp() {
 		return plan, nil
 	}
 
