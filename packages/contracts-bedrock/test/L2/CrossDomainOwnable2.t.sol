@@ -16,7 +16,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { CrossDomainOwnable2 } from "src/L2/CrossDomainOwnable2.sol";
 
 /// @title XDomainSetter2
-/// @notice A test contract that extends `CrossDomainOwnable2` to test ownership functionality.
+/// @notice A test contract that extends `CrossDomainOwnable2`
+///         to test ownership functionality.
 contract XDomainSetter2 is CrossDomainOwnable2 {
     uint256 public value;
 
@@ -26,7 +27,8 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
 }
 
 /// @title CrossDomainOwnable2_TestInit
-/// @notice Reusable test initialization for `CrossDomainOwnable2` tests.
+/// @notice Reusable test initialization for
+///         `CrossDomainOwnable2` tests.
 abstract contract CrossDomainOwnable2_TestInit is CommonTest {
     XDomainSetter2 setter;
 
@@ -37,17 +39,17 @@ abstract contract CrossDomainOwnable2_TestInit is CommonTest {
     }
 }
 
-/// @title CrossDomainOwnable2_RevertConditions_Test
-/// @notice Tests various revert conditions for the `CrossDomainOwnable2` contract.
-contract CrossDomainOwnable2_RevertConditions_Test is CrossDomainOwnable2_TestInit {
-    /// @notice Tests that the `onlyOwner` modifier reverts when the caller is not the messenger.
-    function test_onlyOwner_notMessenger_reverts() external {
+/// @title CrossDomainOwnable2_CheckOwner_Test
+/// @notice Tests for the `_checkOwner` function.
+contract CrossDomainOwnable2_CheckOwner_Test is CrossDomainOwnable2_TestInit {
+    /// @notice Reverts when caller is not the messenger.
+    function test_checkOwner_notMessenger_reverts() external {
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);
     }
 
-    /// @notice Tests that the `onlyOwner` modifier reverts when not called by the owner.
-    function test_onlyOwner_notOwner_reverts() external {
+    /// @notice Reverts when xDomainMessageSender != owner.
+    function test_checkOwner_notOwner_reverts() external {
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
         bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
@@ -58,8 +60,8 @@ contract CrossDomainOwnable2_RevertConditions_Test is CrossDomainOwnable2_TestIn
         setter.set(1);
     }
 
-    /// @notice Tests that the `onlyOwner` modifier causes the relayed message to fail.
-    function test_onlyOwner_notOwner2_reverts() external {
+    /// @notice Relayed message fails when sender != owner.
+    function test_checkOwner_notOwnerViaRelay_reverts() external {
         uint240 nonce = 0;
         address sender = bob;
         address target = address(setter);
@@ -71,7 +73,8 @@ contract CrossDomainOwnable2_RevertConditions_Test is CrossDomainOwnable2_TestIn
             Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message
         );
 
-        // It should be a failed message. The revert is caught, so we cannot expectRevert here.
+        // It should be a failed message. The revert is caught,
+        // so we cannot expectRevert here.
         vm.expectEmit(true, true, true, true);
         emit FailedRelayedMessage(hash);
 
@@ -82,16 +85,14 @@ contract CrossDomainOwnable2_RevertConditions_Test is CrossDomainOwnable2_TestIn
 
         assertEq(setter.value(), 0);
     }
-}
 
-/// @title CrossDomainOwnable2_SuccessConditions_Test
-/// @notice Tests successful operations of the `CrossDomainOwnable2` contract.
-contract CrossDomainOwnable2_SuccessConditions_Test is CrossDomainOwnable2_TestInit {
-    /// @notice Tests that the `onlyOwner` modifier succeeds when called by the messenger.
-    function test_onlyOwner_succeeds() external {
+    /// @notice Succeeds when called through the messenger
+    ///         by the owner.
+    function test_checkOwner_succeeds() external {
         address owner = setter.owner();
 
-        // Simulate the L2 execution where the call is coming from the L1CrossDomainMessenger
+        // Simulate the L2 execution where the call is coming
+        // from the L1CrossDomainMessenger
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         l2CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce(1, 1), owner, address(setter), 0, 0, abi.encodeCall(XDomainSetter2.set, (2))
