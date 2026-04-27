@@ -24,18 +24,15 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 /// @title L2ContractsManager
 /// @notice Manages the upgrade of the L2 predeploys.
 contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
+
     /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
     error L2ContractsManager_FeatureFlagMismatch();
-    /// @notice Thrown when an implementation name is not found in the constructor input.
-    /// @param name The name that was not found.
-    error L2ContractsManager_ImplNotFound(string name);
 
     /// @notice The semantic version of the L2ContractsManager contract.
     /// @custom:semver 1.7.0
@@ -117,51 +114,36 @@ contract L2ContractsManager is ISemver {
         THIS_L2CM = address(this);
 
         // Utility address for upgrading initializable contracts.
-        STORAGE_SETTER_IMPL = _findImpl(_implementations, "StorageSetter");
+        STORAGE_SETTER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "StorageSetter");
         // Predeploy implementations.
-        L2_CROSS_DOMAIN_MESSENGER_IMPL = _findImpl(_implementations, "L2CrossDomainMessenger");
-        GAS_PRICE_ORACLE_IMPL = _findImpl(_implementations, "GasPriceOracle");
-        L2_STANDARD_BRIDGE_IMPL = _findImpl(_implementations, "L2StandardBridge");
-        SEQUENCER_FEE_WALLET_IMPL = _findImpl(_implementations, "SequencerFeeVault");
-        OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL = _findImpl(_implementations, "OptimismMintableERC20Factory");
-        L2_ERC721_BRIDGE_IMPL = _findImpl(_implementations, "L2ERC721Bridge");
-        L1_BLOCK_IMPL = _findImpl(_implementations, "L1Block");
-        L1_BLOCK_CGT_IMPL = _findImpl(_implementations, "L1BlockCGT");
-        L2_TO_L1_MESSAGE_PASSER_IMPL = _findImpl(_implementations, "L2ToL1MessagePasser");
-        L2_TO_L1_MESSAGE_PASSER_CGT_IMPL = _findImpl(_implementations, "L2ToL1MessagePasserCGT");
-        OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL = _findImpl(_implementations, "OptimismMintableERC721Factory");
-        PROXY_ADMIN_IMPL = _findImpl(_implementations, "L2ProxyAdmin");
-        BASE_FEE_VAULT_IMPL = _findImpl(_implementations, "BaseFeeVault");
-        L1_FEE_VAULT_IMPL = _findImpl(_implementations, "L1FeeVault");
-        OPERATOR_FEE_VAULT_IMPL = _findImpl(_implementations, "OperatorFeeVault");
-        SCHEMA_REGISTRY_IMPL = _findImpl(_implementations, "SchemaRegistry");
-        EAS_IMPL = _findImpl(_implementations, "EAS");
-        CROSS_L2_INBOX_IMPL = _findImpl(_implementations, "CrossL2Inbox");
-        L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL = _findImpl(_implementations, "L2ToL2CrossDomainMessenger");
-        SUPERCHAIN_ETH_BRIDGE_IMPL = _findImpl(_implementations, "SuperchainETHBridge");
-        ETH_LIQUIDITY_IMPL = _findImpl(_implementations, "ETHLiquidity");
-        NATIVE_ASSET_LIQUIDITY_IMPL = _findImpl(_implementations, "NativeAssetLiquidity");
-        LIQUIDITY_CONTROLLER_IMPL = _findImpl(_implementations, "LiquidityController");
-        CONDITIONAL_DEPLOYER_IMPL = _findImpl(_implementations, "ConditionalDeployer");
-        L2_DEV_FEATURE_FLAGS_IMPL = _findImpl(_implementations, "L2DevFeatureFlags");
-    }
-
-    /// @notice Looks up an implementation address by name from a record array.
-    /// @param _records The array of ImplRecords to search.
-    /// @param _name The name to look up.
-    /// @return impl_ The implementation address, reverts if not found.
-    function _findImpl(
-        L2ContractsManagerTypes.ImplRecord[] memory _records,
-        string memory _name
-    )
-        internal
-        pure
-        returns (address impl_)
-    {
-        for (uint256 i = 0; i < _records.length; i++) {
-            if (LibString.eq(_records[i].name, _name)) return _records[i].impl;
-        }
-        revert L2ContractsManager_ImplNotFound(_name);
+        L2_CROSS_DOMAIN_MESSENGER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2CrossDomainMessenger");
+        GAS_PRICE_ORACLE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "GasPriceOracle");
+        L2_STANDARD_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2StandardBridge");
+        SEQUENCER_FEE_WALLET_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SequencerFeeVault");
+        OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "OptimismMintableERC20Factory");
+        L2_ERC721_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ERC721Bridge");
+        L1_BLOCK_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1Block");
+        L1_BLOCK_CGT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1BlockCGT");
+        L2_TO_L1_MESSAGE_PASSER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ToL1MessagePasser");
+        L2_TO_L1_MESSAGE_PASSER_CGT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ToL1MessagePasserCGT");
+        OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "OptimismMintableERC721Factory");
+        PROXY_ADMIN_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ProxyAdmin");
+        BASE_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "BaseFeeVault");
+        L1_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1FeeVault");
+        OPERATOR_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "OperatorFeeVault");
+        SCHEMA_REGISTRY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SchemaRegistry");
+        EAS_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "EAS");
+        CROSS_L2_INBOX_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "CrossL2Inbox");
+        L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "L2ToL2CrossDomainMessenger");
+        SUPERCHAIN_ETH_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SuperchainETHBridge");
+        ETH_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ETHLiquidity");
+        NATIVE_ASSET_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "NativeAssetLiquidity");
+        LIQUIDITY_CONTROLLER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "LiquidityController");
+        CONDITIONAL_DEPLOYER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ConditionalDeployer");
+        L2_DEV_FEATURE_FLAGS_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2DevFeatureFlags");
     }
 
     /// @notice Executes the upgrade for all predeploys.
