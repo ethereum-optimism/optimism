@@ -36,6 +36,8 @@ type Config struct {
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
 	Passthrough                 bool          // If true, all transactions pass through without filtering
+	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
+	FetchConcurrency            int           // Number of blocks to prefetch concurrently (default: 64)
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -67,6 +69,15 @@ func (c *Config) Check() error {
 	if c.ValidationInterval <= 0 {
 		result = errors.Join(result, errors.New("validation-interval must be positive"))
 	}
+	if c.RPCConcurrency <= 0 {
+		result = errors.Join(result, errors.New("rpc-concurrency must be positive"))
+	}
+	if c.FetchConcurrency <= 0 {
+		result = errors.Join(result, errors.New("fetch-concurrency must be positive"))
+	}
+	if c.FetchConcurrency > c.RPCConcurrency {
+		result = errors.Join(result, errors.New("fetch-concurrency must be less than or equal to rpc-concurrency"))
+	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
 	return result
@@ -96,6 +107,19 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("validation-interval must be positive, got %s", validationInterval)
 	}
 
+	rpcConcurrency := ctx.Int(flags.RPCConcurrencyFlag.Name)
+	if rpcConcurrency <= 0 {
+		return nil, fmt.Errorf("rpc-concurrency must be positive, got %d", rpcConcurrency)
+	}
+
+	fetchConcurrency := ctx.Int(flags.FetchConcurrencyFlag.Name)
+	if fetchConcurrency <= 0 {
+		return nil, fmt.Errorf("fetch-concurrency must be positive, got %d", fetchConcurrency)
+	}
+	if fetchConcurrency > rpcConcurrency {
+		return nil, fmt.Errorf("fetch-concurrency (%d) must be less than or equal to rpc-concurrency (%d)", fetchConcurrency, rpcConcurrency)
+	}
+
 	// Load rollup configs from --networks and --rollup-configs
 	rollupConfigs, err := loadRollupConfigs(
 		ctx.StringSlice(flags.NetworksFlag.Name),
@@ -121,6 +145,8 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
+		RPCConcurrency:              rpcConcurrency,
+		FetchConcurrency:            fetchConcurrency,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
