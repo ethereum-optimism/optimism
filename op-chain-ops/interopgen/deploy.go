@@ -323,7 +323,7 @@ func MigrateInterop(
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			StartingRespectedGameType: GameTypeSuperCannon,
+			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)

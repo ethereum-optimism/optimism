@@ -1924,10 +1924,7 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
     }
 
     /// @notice Tests that enabling SUPER_CANNON in super mode triggers SCDG-SHAPE.
-    /// TODO(#20030): Once SUPER_CANNON is disabled in migrator and the SCDG-SHAPE check is re-added
-    ///               to assertValidSuperRootDisputeGames, unskip this test.
     function test_validate_superCannonNotDisabled_succeeds() public {
-        vm.skip(true);
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),

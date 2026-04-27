@@ -285,7 +285,7 @@ func migrateSuperRootsWithProposal(
 			},
 		},
 		StartingAnchorRoot:        startingAnchorRoot,
-		StartingRespectedGameType: superCannonGameType,
+		StartingRespectedGameType: superCannonKonaGameType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)
 	migrateCallData, err := migrateCall.Pack()
@@ -366,7 +366,7 @@ func getDisputeGameFactory(t devtest.CommonT, client *w3.Client, portal common.A
 
 func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) common.Address {
 	var addr common.Address
-	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonGameType)).Returns(&addr))
+	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonKonaGameType)).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
 }

@@ -161,11 +161,6 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
 	}
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
-	if err != nil {
-		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
-	}
-
 	l1ProxyAdminOwnerFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name)
 	if l1ProxyAdminOwnerFlag == "" {
 		return fmt.Errorf("missing required flag: %s", L1ProxyAdminOwnerFlag.Name)
@@ -187,6 +182,21 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", migrateStartingRespectedGameTypeU64)
 	}
 	migrateStartingRespectedGameType := uint32(migrateStartingRespectedGameTypeU64)
+
+	if disputeGameType != migrateStartingRespectedGameType {
+		return fmt.Errorf(
+			"--%s (%d) must equal --%s (%d): the CLI registers the sole disputeGameConfig under --%s, and the respected type needs a matching impl",
+			DisputeGameTypeFlag.Name, disputeGameType,
+			MigrateStartingRespectedGameTypeFlag.Name, migrateStartingRespectedGameType,
+			DisputeGameTypeFlag.Name,
+		)
+	}
+	if disputeGameType != manageMigrateDefaultGameType {
+		return fmt.Errorf(
+			"--%s (%d) must be %d (Super Cannon Kona): manage migrate encodes bytes32-only game args and currently supports only the permissionless super-root Kona game",
+			DisputeGameTypeFlag.Name, disputeGameType, manageMigrateDefaultGameType,
+		)
+	}
 
 	absolutePrestate := common.HexToHash(disputeAbsolutePrestateFlag)
 
@@ -227,6 +237,11 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsLocatorStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts locator: %w", err)
+	}
+
+	l1RPC, err := rpc.Dial(l1RPCUrl)
+	if err != nil {
+		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
 	}
 
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)

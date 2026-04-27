@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -111,11 +112,8 @@ func TestInteropMigration(t *testing.T) {
 	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(testPrestate)
 	require.NoError(t, err)
 
-	// Define game type constants matching Solidity GameTypes library
-	const (
-		GameTypeCannon      = uint32(0)
-		GameTypeSuperCannon = uint32(4)
-	)
+	// Define game type constants matching Solidity GameTypes library.
+	const GameTypeSuperCannonKona = uint32(9)
 
 	input := InteropMigrationInput{
 		Prank: l1ProxyAdminOwner,
@@ -128,7 +126,7 @@ func TestInteropMigration(t *testing.T) {
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000), // 1 ETH
-					GameType: GameTypeCannon,
+					GameType: GameTypeSuperCannonKona,
 					GameArgs: gameArgs,
 				},
 			},
@@ -136,7 +134,7 @@ func TestInteropMigration(t *testing.T) {
 				Root:             common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"),
 				L2SequenceNumber: big.NewInt(1),
 			},
-			StartingRespectedGameType: GameTypeSuperCannon,
+			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
 	}
 
@@ -194,6 +192,69 @@ func TestMigrateCLIV2Flags(t *testing.T) {
 	require.Equal(t, uint32(0), startingRespectedGameType)
 }
 
+func TestMigrateDefaultGameTypeFlags(t *testing.T) {
+	require.Equal(t, uint64(manageMigrateDefaultGameType), DisputeGameTypeFlag.Value)
+	require.Equal(t, uint64(manageMigrateDefaultGameType), MigrateStartingRespectedGameTypeFlag.Value)
+}
+
+func TestMigrateCLIRejectsMismatchedGameTypesBeforeRPC(t *testing.T) {
+	app := cli.NewApp()
+	flagSet := flag.NewFlagSet("test-migrate-mismatched-game-types", flag.ContinueOnError)
+
+	for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
+		require.NoError(t, cliFlag.Apply(flagSet))
+	}
+
+	flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
+	flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
+	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
+	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
+	flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
+	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
+	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
+	flagSet.Uint64(DisputeGameTypeFlag.Name, 9, "doc")
+	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
+	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
+	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
+	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 5, "doc")
+
+	ctx := cli.NewContext(app, flagSet, nil)
+
+	err := MigrateCLI(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--dispute-game-type (9) must equal --starting-respected-game-type (5)")
+	require.NotContains(t, err.Error(), "failed to dial RPC")
+}
+
+func TestMigrateCLIRejectsUnsupportedGameTypeBeforeRPC(t *testing.T) {
+	app := cli.NewApp()
+	flagSet := flag.NewFlagSet("test-migrate-unsupported-game-type", flag.ContinueOnError)
+
+	for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
+		require.NoError(t, cliFlag.Apply(flagSet))
+	}
+
+	flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
+	flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
+	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
+	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
+	flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
+	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
+	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
+	flagSet.Uint64(DisputeGameTypeFlag.Name, 5, "doc")
+	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
+	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
+	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
+	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 5, "doc")
+
+	ctx := cli.NewContext(app, flagSet, nil)
+
+	err := MigrateCLI(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--dispute-game-type (5) must be 9 (Super Cannon Kona)")
+	require.NotContains(t, err.Error(), "failed to dial RPC")
+}
+
 func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 	testCases := []struct {
 		name                      string
@@ -205,7 +266,7 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 		{
 			name:                      "valid uint32 values",
 			disputeGameType:           0,
-			startingRespectedGameType: 4,
+			startingRespectedGameType: 0,
 			expectError:               false,
 		},
 		{
@@ -217,7 +278,7 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 		{
 			name:                      "disputeGameType overflow",
 			disputeGameType:           0x100000000, // 2^32
-			startingRespectedGameType: 4,
+			startingRespectedGameType: 0,
 			expectError:               true,
 			expectedErrContains:       "disputeGameType",
 		},
@@ -231,7 +292,7 @@ func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
 		{
 			name:                      "disputeGameType large overflow",
 			disputeGameType:           0xFFFFFFFFFFFFFFFF, // max uint64
-			startingRespectedGameType: 4,
+			startingRespectedGameType: 0,
 			expectError:               true,
 			expectedErrContains:       "disputeGameType",
 		},

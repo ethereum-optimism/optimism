@@ -2457,8 +2457,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
-        // TODO(#20030): Remove SUPER_CANNON once it's disabled in migrator.
-        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON.raw());
+        // Only SUPER_CANNON_KONA and SUPER_PERMISSIONED_CANNON are valid. SUPER_CANNON (4) is a
+        // fuzz-reachable invalid input; see test_migrate_superCannonStartingRespectedGameType_reverts
+        // for the direct assertion.
         vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON_KONA.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED_CANNON.raw());
 
@@ -2470,6 +2471,56 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Execute the migration, expect revert.
         _doMigration(
             input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
+        );
+    }
+
+    /// @notice Tests that the migration function reverts when the starting respected game type is
+    ///         SUPER_CANNON. SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
+    function test_migrate_superCannonStartingRespectedGameType_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingRespectedGameType = GameTypes.SUPER_CANNON;
+        _doMigration(
+            input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
+        );
+    }
+
+    /// @notice Tests that the migration function succeeds with SUPER_CANNON_KONA as the starting
+    ///         respected game type. The default input registers SUPER_PERMISSIONED_CANNON;
+    ///         this test appends a SUPER_CANNON_KONA config so the respected type has a matching impl.
+    function test_migrate_superCannonKonaStartingRespectedGameType_succeeds() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // SUPER_CANNON_KONA is a permissionless super-root FDG, so its game args are the
+        // single absolute prestate. `superPrestate` is already a Claim; do not wrap it again.
+        IOPContractsManagerUtils.DisputeGameConfig[] memory existing = input.disputeGameConfigs;
+        IOPContractsManagerUtils.DisputeGameConfig[] memory updated =
+            new IOPContractsManagerUtils.DisputeGameConfig[](existing.length + 1);
+        for (uint256 i = 0; i < existing.length; i++) {
+            updated[i] = existing[i];
+        }
+        updated[existing.length] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate }))
+        });
+        input.disputeGameConfigs = updated;
+        input.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+
+        _doMigration(input);
+
+        IOptimismPortal2 portal = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IDisputeGameFactory sharedDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
+        IAnchorStateRegistry sharedASR = IAnchorStateRegistry(address(portal.anchorStateRegistry()));
+
+        assertTrue(
+            address(sharedDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0),
+            "SUPER_CANNON_KONA impl not registered in shared DGF"
+        );
+        assertEq(
+            sharedASR.respectedGameType().raw(),
+            GameTypes.SUPER_CANNON_KONA.raw(),
+            "ASR respected game type not SUPER_CANNON_KONA"
         );
     }
 

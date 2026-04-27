@@ -8,6 +8,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// manageMigrateDefaultGameType is the default dispute-game type and starting-respected-game-type
+// used by `op-deployer manage migrate`. It must be a super-root FDG whose gameArgs shape matches
+// the bytes32-only encoding in migrate.go. SUPER_CANNON_KONA (9) is the canonical permissionless
+// super-root type.
+const manageMigrateDefaultGameType uint32 = 9
+
 var (
 	L1ProxyAdminOwnerFlag = &cli.StringFlag{
 		Name:    "l1-proxy-admin-owner-address",
@@ -37,9 +43,9 @@ var (
 	}
 	DisputeGameTypeFlag = &cli.Uint64Flag{
 		Name:    "dispute-game-type",
-		Usage:   "Numeric type identifier for the dispute game.",
+		Usage:   "Numeric type identifier for the dispute game registered by `manage migrate`. Defaults to 9 (Super Cannon Kona). Valid value for this CLI path: 9 (Super Cannon Kona). The gameArgs encoding in migrate.go is bytes32-only (permissionless super-root FDG); only super-root permissionless types are usable here.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_TYPE"),
-		Value:   uint64(standard.DisputeGameType),
+		Value:   uint64(manageMigrateDefaultGameType),
 	}
 	DisputeAbsolutePrestateFlag = &cli.StringFlag{
 		Name:    "dispute-absolute-prestate",
@@ -86,9 +92,9 @@ var (
 	}
 	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
 		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for migration. Defaults to 4 (Super Cannon).",
+		Usage:   "Starting respected game type for migration. Defaults to 9 (Super Cannon Kona). Valid value for this CLI path: 9 (Super Cannon Kona). Must match --dispute-game-type for the CLI's single-config registration to produce a respected-type-with-impl state.",
 		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   4,
+		Value:   uint64(manageMigrateDefaultGameType),
 	}
 	MigrateDisputeGameEnabledFlag = &cli.BoolFlag{
 		Name:    "dispute-game-enabled",
