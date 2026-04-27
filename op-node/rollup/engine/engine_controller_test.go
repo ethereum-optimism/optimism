@@ -395,6 +395,86 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestInitializeUnknowns_SetsLocalSafeHead_Regression is a regression test for a bug
+// where initializeUnknowns would fail to properly initialize localSafeHead on restart.
+//
+// The bug occurred because:
+// 1. SafeL2Head() returns localSafeHead when no supervisor/superAuthority is enabled
+// 2. But SetSafeHead() was setting deprecatedSafeHead, not localSafeHead
+// 3. So after loading the safe head from EL, localSafeHead remained zero
+//
+// Symptom: After restarting op-node + op-reth, safe head never advances.
+// The logs showed: "Set initial local-safe block ref to match cross-safe" local_safe=0x0000...0:0
+func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 1000,
+		},
+		BlockTime: 2,
+	}
+
+	// Simulate restart scenario: EL has persisted state, CL starts fresh
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	safeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 80}
+	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+
+	// No supervisor, no superAuthority - the standard non-interop case
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		cfg,
+		&sync.Config{},
+		false, // supervisorEnabled = false
+		&testutils.MockL1Source{},
+		emitter,
+		nil, // no superAuthority
+	)
+
+	// Verify initial state is zero (simulating fresh CL start)
+	require.Equal(t, eth.L2BlockRef{}, ec.localSafeHead, "localSafeHead should start as zero")
+	require.Equal(t, eth.L2BlockRef{}, ec.deprecatedSafeHead, "deprecatedSafeHead should start as zero")
+
+	// Mock EL returning persisted state (simulating restart with existing EL data)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalizedRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, safeRef, nil)
+
+	// Expect forkchoice update after initialization
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+	expectedFC := eth.ForkchoiceState{
+		HeadBlockHash:      unsafeRef.Hash,
+		SafeBlockHash:      safeRef.Hash, // Should use localSafeHead, not zero!
+		FinalizedBlockHash: finalizedRef.Hash,
+	}
+	mockEngine.ExpectForkchoiceUpdate(&expectedFC, nil, &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+	}, nil)
+
+	// Run initialization via tryUpdateEngineInternal
+	err := ec.tryUpdateEngineInternal(context.Background())
+	require.NoError(t, err)
+
+	// THE KEY ASSERTION: localSafeHead must be properly set from EL's safe label
+	// Before the fix, this would be zero because SetSafeHead set deprecatedSafeHead instead
+	require.Equal(t, safeRef, ec.localSafeHead,
+		"localSafeHead must be initialized from EL safe label, not left as zero")
+
+	// Also verify SafeL2Head() returns the correct value (uses localSafeHead in non-supervisor mode)
+	require.Equal(t, safeRef, ec.SafeL2Head(),
+		"SafeL2Head() must return the initialized localSafeHead")
+
+	// Verify deprecatedSafeHead is also set (for backward compatibility)
+	require.Equal(t, safeRef, ec.deprecatedSafeHead,
+		"deprecatedSafeHead should also be set to match localSafeHead")
+
+	mockEngine.AssertExpectations(t)
+}
+
 // TestConsolidation_BatchesFCUPerL1Block verifies that on the consolidation path,
 // PromoteSafe does NOT trigger an FCU per L2 block. Instead, a single FCU is sent
 // when DeriverL1StatusEvent fires (at L1 origin transitions).
