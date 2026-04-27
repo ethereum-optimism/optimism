@@ -7855,7 +7855,7 @@ dependencies = [
 
 [[package]]
 name = "op-revm"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
