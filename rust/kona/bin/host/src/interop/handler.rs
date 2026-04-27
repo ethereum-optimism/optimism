@@ -369,16 +369,33 @@ impl HintHandler for InteropHintHandler {
                 kv_write_lock.set(PreimageKey::new_keccak256(*hash).into(), preimage.into())?;
             }
             HintType::L2AccountProof => {
-                ensure!(hint.data.len() == 8 + 20 + 8, "Invalid hint data length");
-
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
-                let chain_id = u64::from_be_bytes(hint.data[28..].try_into()?);
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 8;
+                let (block_id, address, chain_id) = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[28..36].try_into()?);
+                        (block_number.into(), address, chain_id)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[52..60].try_into()?);
+                        (block_hash.into(), address, chain_id)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
                 let proof_response = providers
                     .l2(&chain_id)?
                     .get_proof(address, Default::default())
-                    .block_id(block_number.into())
+                    .block_id(block_id)
                     .await?;
 
                 // Write the account proof nodes to the key-value store.
@@ -391,17 +408,35 @@ impl HintHandler for InteropHintHandler {
                 })?;
             }
             HintType::L2AccountStorageProof => {
-                ensure!(hint.data.len() == 8 + 20 + 32 + 8, "Invalid hint data length");
-
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
-                let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
-                let chain_id = u64::from_be_bytes(hint.data[60..].try_into()?);
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 32 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 32 + 8;
+                let (block_id, address, slot, chain_id) = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[60..68].try_into()?);
+                        (block_number.into(), address, slot, chain_id)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[52..84]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[84..92].try_into()?);
+                        (block_hash.into(), address, slot, chain_id)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountStorageProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
                 let mut proof_response = providers
                     .l2(&chain_id)?
                     .get_proof(address, vec![slot])
-                    .block_id(block_number.into())
+                    .block_id(block_id)
                     .await?;
 
                 let mut kv_lock = kv.write().await;
@@ -509,8 +544,19 @@ impl HintHandler for InteropHintHandler {
                     )
                     .start(),
                 );
+                // The host re-execution path mirrors the client's
+                // `sub_transition` fault-proof pipeline, so we must pass the same
+                // dependency set that the client will derive from BootInfo. Parse
+                // it from the same path the KV store uses (`--interop-dep-set-path`)
+                // here so the owned value can move into the spawned task.
+                let dependency_set = cfg
+                    .read_dependency_set()
+                    .transpose()
+                    .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
+                    .map(Arc::new);
                 let client_task = task::spawn({
                     let l1_head = cfg.l1_head;
+                    let dependency_set = dependency_set.clone();
 
                     async move {
                         let oracle = Arc::new(CachingOracle::new(
@@ -559,6 +605,7 @@ impl HintHandler for InteropHintHandler {
                             da_provider,
                             l1_provider,
                             l2_provider.clone(),
+                            dependency_set,
                         )
                         .await?;
                         let executor = KonaExecutor::new(

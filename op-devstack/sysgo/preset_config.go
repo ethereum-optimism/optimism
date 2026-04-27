@@ -1,6 +1,15 @@
 package sysgo
 
-import gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+import (
+	"time"
+
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+type PreGenesisSuperGameConfig struct {
+	ClaimedOutputs []eth.Bytes32
+}
 
 // PresetConfig captures preset constructor mutations.
 // It is independent from orchestrator lifecycle hooks.
@@ -22,6 +31,10 @@ type PresetConfig struct {
 	RequireInteropNotAtGen     bool
 	MessageExpiryWindow        *uint64
 	UseInteropFilter           bool
+	// InteropLogBackfillDepth, if non-zero, configures the supernode to backfill
+	// initiating-message logs backward from the tip by this duration at startup.
+	InteropLogBackfillDepth time.Duration
+	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 }
 
 func NewPresetConfig() PresetConfig {

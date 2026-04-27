@@ -232,6 +232,7 @@ mod tests {
                 prev_randao: B256::default(),
                 withdrawals: None,
                 parent_beacon_block_root: None,
+                slot_number: None,
             },
             no_tx_pool: Some(false),
             transactions: None,

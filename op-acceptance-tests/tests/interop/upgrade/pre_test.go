@@ -4,6 +4,7 @@ package upgrade
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,22 +15,43 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-// This test is known to be flaky
-// See: https://github.com/ethereum-optimism/optimism/issues/17298
+// preInteropExecError returns true if err matches a known pre-interop
+// executing message failure from op-geth or op-reth.
+func preInteropExecError(err error) bool {
+	msg := err.Error()
+	// op-geth: gas estimation hits the uninitialized proxy and returns the revert reason
+	if strings.Contains(msg, "implementation not initialized") {
+		return true
+	}
+	// op-reth: gas estimation fails with a generic gas error for the same underlying reason
+	if strings.Contains(msg, "intrinsic gas too high") {
+		return true
+	}
+	return false
+}
+
+// TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed,
+// the derivation pipeline advances local-safe heads, and executing messages fail
+// before the interop fork activates.
 func TestPreNoInbox(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
-	sys := newSimpleInterop(t)
+	// Use a very large activation delay (24h) so interop never activates during the test.
+	// This test only checks pre-interop state and the old 60s offset caused flakiness
+	// when the test took too long and crossed the activation boundary.
+	// See: https://github.com/ethereum-optimism/optimism/issues/17298
+	sys := presets.NewTwoL2SupernodeInterop(t, 86400)
 	require := t.Require()
 
 	t.Logger().Info("Starting")
 
-	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
+	// Phase 1: Verify CrossL2Inbox is NOT deployed before interop activation
+	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
 		interopTime := net.Escape().ChainConfig().InteropTime
 		t.Require().NotNil(interopTime)
 		pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
@@ -44,69 +66,54 @@ func TestPreNoInbox(gt *testing.T) {
 		require.Equal(common.Address{}, common.BytesToAddress(implAddrBytes[:]))
 	})
 
-	// try access the sync-status of the supervisor, assert that the sync-status returns the expected error
-	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
-		interopTime := net.Escape().ChainConfig().InteropTime
+	// Phase 2: Verify the derivation pipeline works pre-interop by checking
+	// that both chains advance their local-safe heads (batcher submits to L1,
+	// supernode derives from it), and that CrossSafe and Finalized heads also
+	// advance. Pre-activation, the supernode must not gate these heads on the
+	// interop verifier and must instead fall through to local-safe /
+	// local-finalized. See issue #20191.
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(types.LocalSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(types.LocalSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(types.CrossSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(types.CrossSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(types.Finalized, 1, 100),
+		sys.L2BCL.AdvancedFn(types.Finalized, 1, 100),
+	)
 
-		_, err := sys.Supervisor.Escape().QueryAPI().SyncStatus(t.Ctx())
-		require.ErrorContains(err, "supervisor status tracker not ready")
-
-		// confirm we are still pre-interop
-		require.False(net.IsActivated(*interopTime))
-		t.Logger().Info("Timestamps", "interopTime", *interopTime, "now", time.Now().Unix())
-	})
-
-	var initMsg *dsl.InitMessage
-	// try interop before the upgrade, confirm that messages do not get included
+	// Phase 3: Try interop before the upgrade, confirm that messages do not get included
 	{
-		// two EOAs for triggering the init and exec interop txs
 		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
-		interopTimeA := sys.L2ChainA.Escape().ChainConfig().InteropTime
-		interopTimeB := sys.L2ChainB.Escape().ChainConfig().InteropTime
+		interopTimeA := sys.L2A.Escape().ChainConfig().InteropTime
+		interopTimeB := sys.L2B.Escape().ChainConfig().InteropTime
 
 		eventLoggerAddress := alice.DeployEventLogger()
 
-		// wait for chain B to catch up to chain A if necessary
-		sys.L2ChainB.CatchUpTo(sys.L2ChainA)
+		sys.L2B.CatchUpTo(sys.L2A)
 
-		// send initiating message on chain A
 		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-		initMsg = alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
+		initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
 
-		// at least one block between the init tx on chain A and the exec tx on chain B
-		sys.L2ChainB.WaitForBlock()
+		sys.L2B.WaitForBlock()
 
-		// send executing message on chain B and confirm we got an error
+		// Send executing message on chain B — should fail because CrossL2Inbox is not initialized.
 		execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
 		execTx.Content.DependOn(&initMsg.Tx.Result)
 		execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
-		execReceipt, err := execTx.PlannedTx.Included.Eval(sys.T.Ctx())
-		require.ErrorContains(err, "implementation not initialized", "error did not contain expected string")
+		execReceipt, err := execTx.PlannedTx.Included.Eval(t.Ctx())
+		require.Error(err, "executing message should fail before interop activation")
+		require.True(preInteropExecError(err),
+			"expected pre-interop exec rejection, got: %v", err)
 		require.Nil(execReceipt)
 
 		t.Logger().Info("initReceipt", "msg", initMsg)
 
-		// confirm we are still pre-interop
-		require.False(sys.L2ChainA.IsActivated(*interopTimeA))
-		require.False(sys.L2ChainB.IsActivated(*interopTimeB))
+		// Confirm we are still pre-interop
+		require.False(sys.L2A.IsActivated(*interopTimeA))
+		require.False(sys.L2B.IsActivated(*interopTimeB))
 		t.Logger().Info("Timestamps", "interopTimeA", *interopTimeA, "interopTimeB", *interopTimeB, "now", time.Now().Unix())
-	}
-
-	// check that log events from a block before activation, when converted into an access-list, fail the check-access-list RPC check
-	{
-		ctx := sys.T.Ctx()
-
-		execTrigger, err := txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0)(ctx)
-		require.NoError(err)
-
-		ed := stypes.ExecutingDescriptor{Timestamp: uint64(time.Now().Unix())}
-		accessEntries := []stypes.Access{execTrigger.Msg.Access()}
-		accessList := stypes.EncodeAccessList(accessEntries)
-
-		err = sys.Supervisor.Escape().QueryAPI().CheckAccessList(ctx, accessList, stypes.CrossSafe, ed)
-		require.ErrorContains(err, "conflicting data")
 	}
 
 	t.Logger().Info("Done")

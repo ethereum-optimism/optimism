@@ -19,7 +19,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 /// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
-///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
+///         All configuration is stored on L1 and picked up by L2 as part of the derivation of
 ///         the L2 chain.
 contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Enum representing different types of updates.
@@ -27,7 +27,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value FEE_SCALARS          Represents an update to l1 data fee scalars.
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
-    ///                                    block distrubution.
+    ///                                    block distribution.
     /// @custom:value EIP_1559_PARAMS     Represents an update to EIP-1559 parameters.
     /// @custom:value OPERATOR_FEE_PARAMS Represents an update to operator fee parameters.
     /// @custom:value MIN_BASE_FEE        Represents an update to the minimum base fee.
@@ -174,9 +174,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.14.1
+    /// @custom:semver 3.14.2
     function version() public pure virtual returns (string memory) {
-        return "3.14.1";
+        return "3.14.2";
     }
 
     /// @notice Constructs the SystemConfig contract.

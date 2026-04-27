@@ -52,8 +52,12 @@ use reth_optimism_rpc::{
 };
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
+use reth_primitives_traits::header::HeaderMut;
 use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
-use reth_rpc_api::{DebugApiServer, L2EthApiExtServer, eth::RpcTypes};
+use reth_rpc_api::{
+    DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
+    eth::{RpcTypes, helpers::config::EthConfigHandler},
+};
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
 use reth_transaction_pool::{
@@ -96,6 +100,7 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
                 .chain_spec
                 .is_cancun_active_at_timestamp(timestamp)
                 .then(alloy_primitives::B256::random),
+            slot_number: None,
         };
 
         /// Dummy system transaction for dev mode.
@@ -590,7 +595,10 @@ impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
+            Types: NodeTypes<
+                ChainSpec: OpHardforks + Hardforks,
+                Primitives: OpPayloadPrimitives<_Header: HeaderMut>,
+            >,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
                     OpPayloadBuilderAttributes<TxTy<N::Types>>,
@@ -622,6 +630,9 @@ where
             historical_rpc,
             ..
         } = self;
+
+        let eth_config =
+            EthConfigHandler::new(ctx.node.provider().clone(), ctx.node.evm_config().clone());
 
         let maybe_pre_bedrock_historical_rpc = historical_rpc
             .and_then(|historical_rpc| {
@@ -676,6 +687,8 @@ where
                 let reth_node_builder::rpc::RpcModuleContainer { modules, auth_module, registry } =
                     container;
 
+                modules.merge_if_module_configured(RethRpcModule::Eth, eth_config.into_rpc())?;
+
                 debug!(target: "reth::cli", "Installing debug payload witness rpc endpoint");
                 modules.merge_if_module_configured(RethRpcModule::Debug, debug_ext.into_rpc())?;
 
@@ -715,7 +728,10 @@ impl<N, EthB, PVB, EB, EVB, RpcMiddleware> RethRpcAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
     N: FullNodeComponents<
-            Types: NodeTypes<ChainSpec: OpHardforks, Primitives: OpPayloadPrimitives>,
+            Types: NodeTypes<
+                ChainSpec: OpHardforks + Hardforks,
+                Primitives: OpPayloadPrimitives<_Header: HeaderMut>,
+            >,
             Evm: ConfigureEvm<
                 NextBlockEnvCtx: BuildNextEnv<
                     OpPayloadBuilderAttributes<TxTy<N::Types>>,
@@ -940,6 +956,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                 EB::default(),
                 EVB::default(),
                 rpc_middleware,
+                reth_node_builder::rpc::Identity::new(),
             )
             .with_tokio_runtime(tokio_runtime),
             da_config.unwrap_or_default(),

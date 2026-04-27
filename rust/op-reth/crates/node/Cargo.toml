@@ -102,6 +102,7 @@ reth-trie-db.workspace = true
 alloy-network.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true
+alloy-rpc-types-admin.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
 

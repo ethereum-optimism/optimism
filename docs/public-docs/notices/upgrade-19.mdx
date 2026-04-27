@@ -1,0 +1,166 @@
+---
+title: Upgrade 19 - L2 Contract Manager, Osaka on L2, and Kona Respected Game Type
+description: Learn how to prepare for Upgrade 19.
+---
+
+Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
+
+<Info>
+  Upgrade 19 includes hard fork changes (Osaka on L2, Glamsterdam Defense and hard fork activated L2 Contract upgrades). Node operators must upgrade before the activation timestamp. Activation timestamps for each network will be communicated once finalized.
+</Info>
+
+## What's included in Upgrade 19
+
+Upgrade 19 introduces the following changes:
+
+* **L2 Contract Manager (L2CM):** introduces a mechanism for upgrading L2 smart contracts (predeploys) as part of a network upgrade. L2CM enables L2 predeploy upgrades in a structured, auditable way — reducing the need for multisig signing for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
+
+* **Osaka on L2:** activates Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
+
+* **Glamsterdam Defense (BN256 pairing input size reduction):** as a preemptive measure ahead of the Glamsterdam L1 hard fork, Upgrade 19 includes a hard fork change that reduces the maximum input size for BN256 pairing precompile calls from 427 pairs (81,984 bytes) to 390 pairs (74,880 bytes). This provides additional headroom against potential last-minute gas repricing increases in [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904) that could cause fault proof verification to exceed the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) L1 transaction gas limit. See [analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details. The full Glamsterdam Defense smart contract changes (absolute pre-state upgrade) are deferred and will be slotted in once final L1 gas pricing values are confirmed.
+
+* **`CANNON_KONA` set to respected game type:** changes the respected game type from `CANNON` (0) to `CANNON_KONA` (8), making the Rust-based `kona-client` (`kona-node` + `op-reth`) the primary fault proof program used for withdrawals. The `CANNON` (0) game type is retained as a fallback alongside `op-program` until the full transition to `op-reth` is complete. This builds on the `CANNON_KONA` game type support introduced in [Upgrade 18](/notices/archive/upgrade-18).
+
+* **New Kona absolute prestate:** ships an updated `cannon64-kona` absolute prestate hash embedding the latest chain configurations.
+
+* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 has a new interface, please take a look at the [source code](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38) for more information.
+
+<Info>
+  This upgrade uses OPCMv2, the new default OP Contracts Manager. Chain operators calling `OPCM.upgrade()` directly or using `op-deployer` should ensure they are targeting the correct OPCMv2 contract version.
+</Info>
+
+## Breaking Changes
+
+### Osaka on L2: EIP-7825 transaction gas limit, MODEXP and P256VERIFY gas cost changes
+
+After Upgrade 19, L2 transactions are subject to the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) per-transaction gas limit. Transactions requesting gas above this limit will be invalid. Osaka on L2 also adjusts the gas costs for the `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles, and introduces a new input size limit for `MODEXP`.
+
+* **Deposit transactions are exempt** from the EIP-7825 limit. Deposits are already capped at 20M gas total per L1 block, and rejecting deposits on L2 that were accepted on L1 could cause permanent ETH loss. Deposits will continue to land on L2 even if their gas limit exceeds the EIP-7825 threshold.
+* **For app developers:** if your application submits L2 transactions with very high gas limits (above the EIP-7825 limit), those transactions will no longer be valid after this upgrade. In practice, very few transactions are expected to exceed this limit. If your contracts call `MODEXP` or `P256VERIFY`, verify that your gas estimates account for the updated costs. Contracts relying on hardcoded gas values for these precompiles should be updated. Additionally, `MODEXP` calls with inputs exceeding the new size limit will fail.
+* **For node operators:** execution clients (`op-reth`, `op-geth`) must be updated to enforce the new gas limit rules. System deposit transactions (e.g., network upgrade transactions) are also exempt from the limit.
+
+### Glamsterdam Defense: BN256 pairing input size reduction
+
+Upgrade 19 reduces the maximum input size for `ecPairing` (BN256 pairing, `0x08`) precompile calls from 427 pairs (81,984 bytes) to 390 pairs (74,880 bytes). This is a preemptive change to maintain sufficient headroom for L1 fault proof replayability ahead of potential gas repricing in the upcoming [Glamsterdam L1 hard fork (EIP-7904)](https://eips.ethereum.org/EIPS/eip-7904).
+
+*   **For app developers:** if your contracts make calls to the BN256 pairing precompile (`0x08`) with more than 390 pairs, those calls will fail after this upgrade. Standard ZK proof verification (e.g., Groth16) uses a small number of pairings and is not affected.
+
+<Info>
+  BN256 pairing (`0x08`) is the only variable-input precompile affected by Glamsterdam gas repricing that requires an input size limit change. Other repriced precompiles (KZG Point Evaluation, BLS12-381 G1Add, BLS12-381 G2Add) have fixed-size inputs and do not require limit adjustments. See the [precompile gas cost risk analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details.
+</Info>
+
+### `CANNON_KONA` as respected game type: withdrawal proving changes
+
+After Upgrade 19, the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Withdrawals must be proven against `CANNON_KONA` games.
+
+* **For users proving withdrawals:** no action required, the `OptimismPortal` will automatically recognize `CANNON_KONA` as the respected game type after the upgrade.
+* **For chain operators running permissionless fault proofs:** `op-challenger` must be configured to support `cannon-kona` trace types **prior** to the upgrade. Failure to update `op-challenger` may result in uncontested invalid games.
+
+### L2CM: new L2 predeploy upgrade mechanism
+
+L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM transactions. If your application interacts directly with predeploy contracts, review the changelog for each upgrade to understand new capabilities.
+
+## For chain operators
+
+Update the following components:
+
+| Component | Version | Notes |
+| ---------------- | ------- | ----- |
+| `op-node`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for Osaka on L2 and Glamsterdam Defense hard fork changes. |
+| `op-reth`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement, MODEXP/P256VERIFY gas changes, and BN256 pairing input size reduction. |
+| `op-challenger` | `TBD` | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
+| `op-dispute-mon` | `TBD` | Must be updated **prior** to the upgrade. |
+| `op-contracts` | `TBD` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
+
+### For permissionless fault proof enabled chains
+
+With `CANNON_KONA` becoming the respected game type, chains running permissionless fault proofs must ensure their off-chain infrastructure is fully Kona-ready. This is critical — after the upgrade, withdrawals are proven against `CANNON_KONA` games.
+
+<Info>
+  Optimism will complete the onchain upgrade for chains managed by the Optimism Security Council.
+  However, off-chain components must still be configured by operators to support cannon-kona games.
+  If you are a permissionless FP enabled chain not included in the prepared set, you must perform all steps below yourself.
+</Info>
+
+If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/notices/archive/upgrade-18), verify that your `op-challenger` is running the latest version and that prestates are up to date.
+
+<Steps>
+  <Step title="Verify the new kona-client absolute prestate">
+
+  The absolute prestate hash and verification instructions will be published once the release candidate is finalized. Prestates can be found in
+  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+  </Step>
+
+  <Step title="Upload your new preimage files">
+  Upload the new preimage file to where you're storing your other absolute preimage files. This should be the location where you're pointing your `--prestates-url` at. The `op-challenger` will fetch this file and use it when it needs to challenge games.
+
+  Rename the file to have the absolute prestate hash as the filename (e.g., `0x<hash>.bin.gz`).
+  </Step>
+
+  <Step title="Configure op-challenger for cannon-kona as respected game type">
+  Ensure `op-challenger` is updated and configured to support Kona games.
+  Include `cannon-kona` in trace types:
+
+  ```bash
+  OP_CHALLENGER_TRACE_TYPE="cannon,cannon-kona,permissioned"
+  # or
+  --trace-type=cannon,cannon-kona,permissioned
+  ```
+
+  Upload new preimage files and ensure they're available for the challenger.
+  If both preimage files are uploaded at the same location:
+
+  ```bash
+  --prestates-url=<PRESTATES_URL>
+  ```
+
+  If stored separately:
+
+  ```bash
+  --cannon-prestates-url=<CANNON_PRESTATES_URL>
+  --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+  ```
+
+  If not using the standard OP Labs `op-challenger` Docker image, set the `kona-host` binary path:
+
+  ```bash
+  OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+  # or
+  --cannon-kona-server=/path/to/kona-host
+  ```
+
+  Build `kona-host` from the same release as the configured cannon-kona prestate.
+  </Step>
+</Steps>
+
+### For node operators: hard fork preparation
+
+Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
+
+<Steps>
+  <Step title="Update op-node">
+  Update `op-node` to the version specified in the component table above. The new version includes consensus rules for the Osaka on L2 activation and Glamsterdam Defense changes.
+  </Step>
+
+  <Step title="Update your execution client">
+  Update `op-reth` (or `op-geth` if still in use) to the version specified above. The new version enforces the EIP-7825 transaction gas limit, updated MODEXP and P256VERIFY gas costs, the MODEXP input size limit, and the BN256 pairing input size reduction.
+  </Step>
+
+  <Step title="Verify activation configuration">
+  Ensure your node configuration includes the correct activation timestamps for your network. Check the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) for the official activation times.
+  </Step>
+</Steps>
+
+## For app developers
+
+* **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
+* **MODEXP and P256VERIFY gas changes (Osaka on L2):** the gas costs for `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles are updated. A new input size limit is also introduced for `MODEXP`. If your contracts call these precompiles, update your gas estimates and verify inputs are within the new limits.
+* **BN256 pairing input size limit (Glamsterdam Defense):** the maximum input for `ecPairing` (`0x08`) is reduced from 427 to 390 pairs (74,880 bytes). If your contracts call the BN256 pairing precompile with more than 390 pairs, those calls will fail. Standard ZK proof verification (e.g., Groth16) is not affected.
+* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the changelog for new functions or behavior changes.
+* **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
+
+## Execute the L1 Contract Upgrade
+
+Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+
+Please simulate and validate the expected output prior to executing the transaction.

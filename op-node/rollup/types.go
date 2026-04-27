@@ -147,7 +147,11 @@ type Config struct {
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
 
-	// L1 address that declares the protocol versions, optional (Beta feature)
+	// ProtocolVersionsAddress is retained for wire-format compatibility with downstream
+	// consumers (kona, op-program) that still require this field in rollup-config JSON.
+	// op-node no longer reads from the ProtocolVersions contract — that was removed when
+	// the protocol-versions watching mechanism was deprecated. Remove this field once all
+	// consumers of rollup-config JSON have made it optional.
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
 	// ChainOpConfig is the OptimismConfig of the execution layer ChainConfig.
@@ -207,6 +211,9 @@ func (cfg *Config) TimestampForBlock(blockNumber uint64) uint64 {
 	return cfg.Genesis.L2Time + ((blockNumber - cfg.Genesis.L2.Number) * cfg.BlockTime)
 }
 
+// TargetBlockNumber returns the L2 block number for the given timestamp.
+// If the timestamp is before the genesis time, it returns an error.
+// All other cases should return a valid block number.
 func (cfg *Config) TargetBlockNumber(timestamp uint64) (num uint64, err error) {
 	// subtract genesis time from timestamp to get the time elapsed since genesis, and then divide that
 	// difference by the block time to get the expected L2 block number at the current time. If the
@@ -804,8 +811,6 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	c.forEachFork(func(name string, _ string, time *uint64) {
 		banner += fmt.Sprintf("  - %v: %s\n", name, fmtForkTimeOrUnset(time))
 	})
-	// Report the protocol version
-	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
 	if c.AltDAConfig != nil {
 		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}

@@ -544,15 +544,22 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
 
     function test_initialize_invalidCalldataSize_reverts() public {
         // The initialize function checks calldatasize() == 0x12E via assembly.
-        // Passing extra bytes in extraData makes the calldata larger than expected.
+        // Valid extraData is 36 bytes (32 for childL2SequenceNumber + 4 for parentGameIndex).
         vm.startPrank(proposer);
-        vm.deal(proposer, 1 ether);
+        vm.deal(proposer, 2 ether);
+
+        // Case 1: oversized extraData (37 bytes instead of 36) makes calldata larger than expected.
         vm.expectRevert(BadExtraData.selector);
         disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            rootClaim,
-            abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00)) // 37 bytes instead of 36
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00))
         );
+
+        // Case 2: undersized extraData (35 bytes instead of 36) makes calldata smaller than expected.
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, uint24(parentGameIndex))
+        );
+
         vm.stopPrank();
     }
 

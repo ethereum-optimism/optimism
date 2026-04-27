@@ -34,7 +34,7 @@ use tracing::trace;
 pub const DEFAULT_SUPERVISOR_URL: &str = "http://localhost:1337/";
 
 /// The default request timeout to use
-pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Implementation of the supervisor trait for the interop.
 #[derive(Debug, Clone)]

@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -56,11 +55,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
-		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
-		rollupConfig.ProtocolVersionsAddress = common.Address{}
-	}
-
 	configPersistence := NewConfigPersistence(ctx)
 
 	driverConfig := NewDriverConfig(ctx)
@@ -85,11 +79,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 	syncConfig, err := NewSyncConfig(ctx, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the sync config: %w", err)
-	}
-
-	haltOption := ctx.String(flags.RollupHalt.Name)
-	if haltOption == "none" {
-		haltOption = ""
 	}
 
 	if ctx.IsSet(flags.HeartbeatEnabledFlag.Name) ||
@@ -118,7 +107,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,
 		L2FollowSource:              NewL2FollowSourceConfig(ctx),
-		RollupHalt:                  haltOption,
 
 		ConductorEnabled: ctx.Bool(flags.ConductorEnabledFlag.Name),
 		ConductorRpc: func(context.Context) (string, error) {

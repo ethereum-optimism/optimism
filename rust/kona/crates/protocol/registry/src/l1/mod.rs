@@ -118,6 +118,7 @@ impl L1Config {
             cancun_time: alloy_hardforks::EthereumHardfork::Cancun.mainnet_activation_timestamp(),
             prague_time: alloy_hardforks::EthereumHardfork::Prague.mainnet_activation_timestamp(),
             osaka_time: alloy_hardforks::EthereumHardfork::Osaka.mainnet_activation_timestamp(),
+            amsterdam_time: None,
             bpo1_time: alloy_hardforks::EthereumHardfork::Bpo1.mainnet_activation_timestamp(),
             bpo2_time: alloy_hardforks::EthereumHardfork::Bpo2.mainnet_activation_timestamp(),
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.mainnet_activation_timestamp(),
@@ -137,6 +138,7 @@ impl L1Config {
             parlia: None,
             extra_fields: Default::default(),
             terminal_total_difficulty_passed: false,
+            _non_exhaustive: (),
         })
     }
 
@@ -172,6 +174,7 @@ impl L1Config {
             cancun_time: alloy_hardforks::EthereumHardfork::Cancun.sepolia_activation_timestamp(),
             prague_time: alloy_hardforks::EthereumHardfork::Prague.sepolia_activation_timestamp(),
             osaka_time: alloy_hardforks::EthereumHardfork::Osaka.sepolia_activation_timestamp(),
+            amsterdam_time: None,
             bpo1_time: alloy_hardforks::EthereumHardfork::Bpo1.sepolia_activation_timestamp(),
             bpo2_time: alloy_hardforks::EthereumHardfork::Bpo2.sepolia_activation_timestamp(),
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.sepolia_activation_timestamp(),
@@ -190,6 +193,7 @@ impl L1Config {
             parlia: None,
             extra_fields: Default::default(),
             terminal_total_difficulty_passed: false,
+            _non_exhaustive: (),
         })
     }
 
@@ -216,6 +220,7 @@ impl L1Config {
             cancun_time: alloy_hardforks::EthereumHardfork::Cancun.holesky_activation_timestamp(),
             prague_time: alloy_hardforks::EthereumHardfork::Prague.holesky_activation_timestamp(),
             osaka_time: alloy_hardforks::EthereumHardfork::Osaka.holesky_activation_timestamp(),
+            amsterdam_time: None,
             bpo1_time: alloy_hardforks::EthereumHardfork::Bpo1.holesky_activation_timestamp(),
             bpo2_time: alloy_hardforks::EthereumHardfork::Bpo2.holesky_activation_timestamp(),
             bpo3_time: alloy_hardforks::EthereumHardfork::Bpo3.holesky_activation_timestamp(),
@@ -235,6 +240,7 @@ impl L1Config {
             parlia: None,
             extra_fields: Default::default(),
             terminal_total_difficulty_passed: false,
+            _non_exhaustive: (),
         })
     }
 

@@ -237,7 +237,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         address anchorGameBefore = address(anchorStateRegistry.anchorGame());
         assertFalse(anchorGameBefore == address(0));
 
-        // Get the current starting anchor root to re-use it.
+        // Get the current starting anchor root to reuse it.
         Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
 
         // Reset initialized state.

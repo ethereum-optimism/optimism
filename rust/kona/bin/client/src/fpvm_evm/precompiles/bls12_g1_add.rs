@@ -10,7 +10,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use revm::precompile::{
-    PrecompileError, PrecompileOutput, PrecompileResult, bls12_381,
+    EthPrecompileOutput, EthPrecompileResult, PrecompileHalt, bls12_381,
     bls12_381_const::{G1_ADD_BASE_GAS_FEE, G1_ADD_INPUT_LENGTH},
 };
 
@@ -23,18 +23,18 @@ pub(crate) fn fpvm_bls12_g1_add<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if G1_ADD_BASE_GAS_FEE > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     let input_len = input.len();
     if input_len != G1_ADD_INPUT_LENGTH {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!(
                 "G1 addition input length should be {G1_ADD_INPUT_LENGTH} bytes, was {input_len}"
             )
@@ -49,9 +49,9 @@ where
         oracle_reader,
         &[precompile.address().as_slice(), &G1_ADD_BASE_GAS_FEE.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(G1_ADD_BASE_GAS_FEE, result_data.into()))
+    Ok(EthPrecompileOutput::new(G1_ADD_BASE_GAS_FEE, result_data.into()))
 }
 
 #[cfg(test)]
@@ -86,7 +86,7 @@ mod test {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
             let accelerated_result =
                 fpvm_bls12_g1_add(&[], u64::MAX, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -96,7 +96,7 @@ mod test {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
             let accelerated_result =
                 fpvm_bls12_g1_add(&[], 0, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }

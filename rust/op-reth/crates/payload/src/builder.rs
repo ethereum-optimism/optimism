@@ -474,8 +474,8 @@ impl<Txs> OpBuilder<'_, Txs> {
         }
 
         let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number: _ } =
-            ExecutionWitnessRecord::from_executed_state(&db);
-        let state = state_provider.witness(Default::default(), hashed_state)?;
+            ExecutionWitnessRecord::from_executed_state(&db, Default::default());
+        let state = state_provider.witness(Default::default(), hashed_state, Default::default())?;
         Ok(ExecutionWitness {
             state: state.into_iter().collect(),
             codes,

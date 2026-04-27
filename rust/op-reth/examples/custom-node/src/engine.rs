@@ -74,8 +74,16 @@ impl ExecutionPayload for CustomExecutionData {
         self.inner.payload.as_v1().gas_used
     }
 
+    fn gas_limit(&self) -> u64 {
+        self.inner.payload.as_v1().gas_limit
+    }
+
     fn transaction_count(&self) -> usize {
         self.inner.payload.as_v1().transactions.len()
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 

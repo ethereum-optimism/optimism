@@ -84,3 +84,22 @@ func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 		require.Equal(t, attacker.Address(), claim.Claimant())
 	}
 }
+
+func TestChallengerCountersPreGenesisGame(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(
+		t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithPreGenesisSuperGame(
+			eth.Bytes32(common.HexToHash("0x1111000000000000000000000000000000000000000000000000000000000000")),
+			eth.Bytes32(common.HexToHash("0x2222000000000000000000000000000000000000000000000000000000000000")),
+		),
+	)
+
+	game := sys.DisputeGameFactory().SuperGameAtIndex(0)
+	genesisTime := sys.L2ChainA.Escape().RollupConfig().Genesis.L2Time
+	require.EqualValues(t, genesisTime, game.StartingL2SequenceNumber(), "pre-genesis game should anchor at rollup genesis")
+	require.Greater(t, game.L2SequenceNumber(), genesisTime, "pre-genesis game should dispute a post-genesis timestamp")
+
+	game.RootClaim().WaitForCounterClaim()
+}

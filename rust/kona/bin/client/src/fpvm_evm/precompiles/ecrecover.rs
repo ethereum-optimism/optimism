@@ -4,7 +4,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use alloy_primitives::Address;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
-use revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
+use revm::precompile::{EthPrecompileOutput, EthPrecompileResult, PrecompileHalt};
 
 /// Address of the `ecrecover` precompile.
 pub(crate) const ECRECOVER_ADDR: Address = revm::precompile::u64_to_address(1);
@@ -15,7 +15,7 @@ pub(crate) fn fpvm_ec_recover<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
@@ -23,7 +23,7 @@ where
     const ECRECOVER_BASE: u64 = 3_000;
 
     if ECRECOVER_BASE > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     let truncated_input = &input[..input.len().min(128)];
@@ -33,10 +33,10 @@ where
         oracle_reader,
         &[ECRECOVER_ADDR.as_slice(), &ECRECOVER_BASE.to_be_bytes(), truncated_input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))
     .unwrap_or_default();
 
-    Ok(PrecompileOutput::new(ECRECOVER_BASE, result_data.into()))
+    Ok(EthPrecompileOutput::new(ECRECOVER_BASE, result_data.into()))
 }
 
 #[cfg(test)]
@@ -74,7 +74,7 @@ mod test {
             let accelerated_result =
                 fpvm_ec_recover(&[], 0, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }

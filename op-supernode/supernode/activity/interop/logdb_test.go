@@ -238,7 +238,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 				findSealErr: tt.findSealErr,
 			}
 
-			block, _, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime)
+			block, _, err := interop.verifyCanAddTimestamp(chainID, db, tt.queryTS, tt.blockTime, false)
 
 			if tt.wantErr {
 				require.Error(t, err)

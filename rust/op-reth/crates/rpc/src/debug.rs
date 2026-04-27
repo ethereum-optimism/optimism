@@ -278,7 +278,7 @@ where
 
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
-                        witness_record.record_executed_state(statedb);
+                        witness_record.record_executed_state(statedb, Default::default());
                     })
                     .map_err(EthApiError::from)?;
 
@@ -286,7 +286,7 @@ where
                     witness_record;
 
                 let state = state_provider
-                    .witness(Default::default(), hashed_state)
+                    .witness(Default::default(), hashed_state, Default::default())
                     .map_err(EthApiError::from)?;
                 let mut exec_witness =
                     ExecutionWitness { state, codes, keys, ..Default::default() };

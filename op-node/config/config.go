@@ -73,11 +73,7 @@ type Config struct {
 
 	Sync sync.Config
 
-	// To halt when detecting the node does not support a signaled protocol version
-	// change of the given severity (major/minor/patch). Disabled if empty.
-	RollupHalt string
-
-	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
+	// Cancel to request a premature shutdown of the node itself. This may be nil.
 	Cancel context.CancelCauseFunc
 
 	// Conductor is used to determine this node is the leader sequencer.
@@ -171,9 +167,6 @@ func (cfg *Config) Check() error {
 		if err := cfg.P2P.Check(); err != nil {
 			return fmt.Errorf("p2p config error: %w", err)
 		}
-	}
-	if !(cfg.RollupHalt == "" || cfg.RollupHalt == "major" || cfg.RollupHalt == "minor" || cfg.RollupHalt == "patch") {
-		return fmt.Errorf("invalid rollup halting option: %q", cfg.RollupHalt)
 	}
 	if cfg.ConductorEnabled {
 		if state, _ := cfg.ConfigPersistence.SequencerState(); state != StateUnset {

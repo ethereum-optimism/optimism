@@ -462,7 +462,7 @@ contract OPContractsManagerStandardValidator_ProxyAdmin_Test is OPContractsManag
 
     /// @notice Tests that the validate function successfully returns the right overrides error
     ///         when the ProxyAdmin owner is overridden but is correct.
-    function test_validate_overridenProxyAdminOwner_succeeds() public {
+    function test_validate_overriddenProxyAdminOwner_succeeds() public {
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         vm.mockCall(address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(0xbad));
@@ -1213,7 +1213,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
 
     /// @notice Tests that the validate function successfully returns the right overrides error when the
     ///         PermissionedDisputeGame challenger is overridden but is correct.
-    function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
+    function test_validate_overriddenPermissionedDisputeGameChallenger_succeeds() public {
         address challengerOverride = address(0xbad);
 
         DisputeGames.mockGameImplChallenger(dgf, GameTypes.PERMISSIONED_CANNON, challengerOverride);

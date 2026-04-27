@@ -64,8 +64,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1
+    string public constant version = "1.3.1";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -92,7 +92,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param source       Chain ID of the source chain.
-    /// @param messageNonce Nonce associated with the messsage sent
+    /// @param messageNonce Nonce associated with the message sent
     /// @param messageHash  Hash of the message that was relayed.
     /// @param returnDataHash Hash of the return data from the message that was relayed.
     event RelayedMessage(
@@ -281,7 +281,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @param _payload         Payload of the SentMessage event.
     /// @return destination_    Destination chain ID.
     /// @return target_         Target contract of the message.
-    /// @return nonce_          Nonce associated with the messsage sent.
+    /// @return nonce_          Nonce associated with the message sent.
     /// @return sender_         Address initiating this message call.
     /// @return message_        Message payload to call target with.
     function _decodeSentMessagePayload(bytes calldata _payload)
