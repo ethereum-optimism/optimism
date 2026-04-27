@@ -3,6 +3,10 @@
 //!
 //! [`PrecompileProvider`]: revm::handler::PrecompileProvider
 
+#![allow(clippy::redundant_pub_crate, clippy::large_stack_arrays)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+// Large arrays in BLS12/BN128 helpers are a fixed-size scratch buffer that the FPVM ABI requires.
+
 mod provider;
 pub(crate) use provider::OpFpvmPrecompiles;
 

@@ -26,17 +26,17 @@ where
     O: PreimageOracleClient + Clone + Send + Sync,
 {
     /// Creates a new [`FpvmOpEvmFactory`].
-    pub fn new(hint_writer: H, oracle_reader: O) -> Self {
+    pub const fn new(hint_writer: H, oracle_reader: O) -> Self {
         Self { hint_writer, oracle_reader }
     }
 
     /// Returns a reference to the inner [`HintWriterClient`].
-    pub fn hint_writer(&self) -> &H {
+    pub const fn hint_writer(&self) -> &H {
         &self.hint_writer
     }
 
     /// Returns a reference to the inner [`PreimageOracleClient`].
-    pub fn oracle_reader(&self) -> &O {
+    pub const fn oracle_reader(&self) -> &O {
         &self.oracle_reader
     }
 }

@@ -1,5 +1,9 @@
 //! [`PrecompileProvider`] for FPVM-accelerated OP Stack precompiles.
 
+#![allow(clippy::redundant_pub_crate, clippy::large_stack_arrays)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+// Large arrays in BLS12/BN128 helpers are a fixed-size scratch buffer that the FPVM ABI requires.
+
 use crate::fpvm_evm::precompiles::{
     ecrecover::ECRECOVER_ADDR, kzg_point_eval::KZG_POINT_EVAL_ADDR,
 };
@@ -101,13 +105,14 @@ where
         context: &mut CTX,
         inputs: &CallInputs,
     ) -> Result<Option<Self::Output>, String> {
+        use revm::context::LocalContextTr;
+
         let mut result = InterpreterResult {
             result: InstructionResult::Return,
             gas: Gas::new(inputs.gas_limit),
             output: Bytes::new(),
         };
 
-        use revm::context::LocalContextTr;
         let input = match &inputs.input {
             revm::interpreter::CallInput::Bytes(bytes) => bytes.clone(),
             revm::interpreter::CallInput::SharedBuffer(range) => context
@@ -137,7 +142,11 @@ where
             };
 
         if output.is_halt() {
-            result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
+            #[allow(clippy::redundant_closure_for_method_calls)]
+            // SAFETY: the precompile halt reason type is private to revm; method-ref lookup
+            // would require importing it.
+            let oog = output.halt_reason().is_some_and(|r| r.is_oog());
+            result.result = if oog {
                 InstructionResult::PrecompileOOG
             } else {
                 InstructionResult::PrecompileError
@@ -336,6 +345,9 @@ mod test {
     }
 
     /// A mock accelerated precompile function that returns a fixed output.
+    #[allow(clippy::unnecessary_wraps)]
+    // SAFETY: the signature must match the `Accelerated` function pointer expected by the
+    // production code, which returns `EthPrecompileResult`.
     fn mock_accelerated_precompile<H, O>(
         _input: &[u8],
         gas_limit: u64,

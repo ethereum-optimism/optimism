@@ -1,5 +1,8 @@
 //! Single chain sub-transition phase of the interop proof.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use super::FaultProofProgramError;
 use crate::interop::util::fetch_l2_safe_head_hash;
 use alloc::{boxed::Box, sync::Arc};
@@ -25,8 +28,15 @@ use op_revm::OpSpecId;
 use revm::context::BlockEnv;
 use tracing::{error, info, warn};
 
-/// Executes a sub-transition of the interop proof with the given [PreimageOracleClient] and
-/// [HintWriterClient].
+/// Executes a sub-transition of the interop proof with the given [`PreimageOracleClient`] and
+/// [`HintWriterClient`].
+///
+/// # Errors
+///
+/// Returns an error if bootstrapping, derivation, or execution fails.
+#[allow(clippy::too_many_lines)]
+// SAFETY: the sub-transition assembles the L1/L2 oracle providers, pipeline, executor, and
+// driver in sequence; splitting would leak many intermediate generic types across helpers.
 pub(crate) async fn sub_transition<P, H, Evm>(
     oracle: Arc<CachingOracle<P, H>>,
     boot: BootInfo,
@@ -196,8 +206,8 @@ where
     }
 }
 
-/// Transitions the [PreState] with the given [OptimisticBlock] and checks if the resulting state
-/// commitment matches the expected commitment.
+/// Transitions the [`PreState`] with the given [`OptimisticBlock`] and checks if the resulting
+/// state commitment matches the expected commitment.
 fn transition_and_check(
     pre_state: PreState,
     optimistic_block: Option<OptimisticBlock>,

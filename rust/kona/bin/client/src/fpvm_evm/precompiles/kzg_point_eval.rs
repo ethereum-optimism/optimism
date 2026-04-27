@@ -1,5 +1,9 @@
 //! Contains the accelerated version of the KZG point evaluation precompile.
 
+#![allow(clippy::redundant_pub_crate, clippy::large_stack_arrays)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+// Large arrays in BLS12/BN128 helpers are a fixed-size scratch buffer that the FPVM ABI requires.
+
 use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use alloy_primitives::Address;

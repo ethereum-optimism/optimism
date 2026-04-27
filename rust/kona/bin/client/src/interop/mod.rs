@@ -1,5 +1,8 @@
 //! Multi-chain, interoperable fault proof program entrypoint.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use alloc::{boxed::Box, sync::Arc};
 use alloy_primitives::B256;
 use consolidate::consolidate_dependencies;
@@ -51,12 +54,13 @@ pub enum FaultProofProgramError {
     MissingRollupConfig(u64),
 }
 
-/// Executes the interop fault proof program with the given [PreimageOracleClient] and
+/// Executes the interop fault proof program with the given [`PreimageOracleClient`] and
+/// [`HintWriterClient`].
 ///
 /// # Errors
 ///
-/// Returns an error if the underlying operation fails.
-/// [HintWriterClient].
+/// Returns an error if bootstrap, derivation, execution, or consolidation fails, or if the
+/// claimed post-state does not match the derived state for a same-timestamp transition.
 #[inline]
 pub async fn run<P, H>(oracle_client: P, hint_client: H) -> Result<(), FaultProofProgramError>
 where
@@ -91,12 +95,11 @@ where
             if super_root.timestamp >= boot.claimed_l2_timestamp {
                 if boot.agreed_pre_state_commitment == boot.claimed_post_state {
                     return Ok(());
-                } else {
-                    return Err(FaultProofProgramError::InvalidClaim(
-                        boot.agreed_pre_state_commitment,
-                        boot.claimed_post_state,
-                    ));
                 }
+                return Err(FaultProofProgramError::InvalidClaim(
+                    boot.agreed_pre_state_commitment,
+                    boot.claimed_post_state,
+                ));
             }
 
             // If the pre-state is a super root, the first sub-problem is always selected.

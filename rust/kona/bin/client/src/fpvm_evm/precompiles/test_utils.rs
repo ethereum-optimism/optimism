@@ -1,5 +1,9 @@
 //! Test utilities for accelerated precompiles.
 
+#![allow(clippy::redundant_pub_crate, clippy::large_stack_arrays)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+// Large arrays in BLS12/BN128 helpers are a fixed-size scratch buffer that the FPVM ABI requires.
+
 use alloy_primitives::{Address, Bytes, keccak256};
 use async_trait::async_trait;
 use kona_preimage::{
@@ -64,7 +68,7 @@ async fn precompile_host(
     let server = tokio::task::spawn(async move {
         loop {
             match oracle_server.next_preimage_request(&preimage_fetcher).await {
-                Ok(()) => continue,
+                Ok(()) => {}
                 Err(PreimageOracleError::IOError(_)) => return,
                 Err(e) => {
                     panic!("Critical: Failed to serve preimage: {e:?}");
@@ -75,7 +79,7 @@ async fn precompile_host(
     let hint_reader = tokio::task::spawn(async move {
         loop {
             match hint_reader.next_hint(&hint_router).await {
-                Ok(()) => continue,
+                Ok(()) => {}
                 Err(PreimageOracleError::IOError(_)) => return,
                 Err(e) => {
                     panic!("Critical: Failed to serve hint: {e:?}");
@@ -99,6 +103,8 @@ struct PrecompilePreimageFetcher {
 
 #[async_trait]
 impl PreimageFetcher for PrecompilePreimageFetcher {
+    #[allow(clippy::significant_drop_tightening)]
+    // SAFETY: the lock is held until the value is inserted/returned, by design.
     async fn get_preimage(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
         let mut map_lock = self.map.lock().await;
         if let Some(preimage) = map_lock.get(&key) {
@@ -128,9 +134,8 @@ impl PreimageFetcher for PrecompilePreimageFetcher {
             map_lock
                 .insert(PreimageKey::new(*input_hash, PreimageKeyType::Precompile), result.clone());
             return Ok(result);
-        } else {
-            panic!("Unexpected hint type: {:?}", parsed_hint.ty);
         }
+        panic!("Unexpected hint type: {:?}", parsed_hint.ty);
     }
 }
 

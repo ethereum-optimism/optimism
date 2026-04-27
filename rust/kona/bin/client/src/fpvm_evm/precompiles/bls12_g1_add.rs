@@ -6,6 +6,10 @@
 //!
 //! [revm implementation]: https://github.com/bluealloy/revm/blob/main/crates/precompile/src/bls12_381/g1_add.rs
 
+#![allow(clippy::redundant_pub_crate, clippy::large_stack_arrays)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+// Large arrays in BLS12/BN128 helpers are a fixed-size scratch buffer that the FPVM ABI requires.
+
 use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};

@@ -1,5 +1,8 @@
 //! Consolidation phase of the interop proof program.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use super::FaultProofProgramError;
 use crate::interop::util::fetch_output_block_hash;
 use alloc::sync::Arc;
@@ -18,13 +21,17 @@ use op_revm::OpSpecId;
 use revm::context::BlockEnv;
 use tracing::{error, info};
 
-/// Executes the consolidation phase of the interop proof with the given [PreimageOracleClient] and
-/// [HintWriterClient].
+/// Executes the consolidation phase of the interop proof with the given
+/// [`PreimageOracleClient`] and [`HintWriterClient`].
 ///
-/// This phase is responsible for checking the dependencies between [OptimisticBlock]s in the
+/// This phase is responsible for checking the dependencies between [`OptimisticBlock`]s in the
 /// superchain and ensuring that all dependencies are satisfied.
 ///
-/// [OptimisticBlock]: kona_proof_interop::OptimisticBlock
+/// # Errors
+///
+/// Returns an error if any per-chain dependency check or consolidation step fails.
+///
+/// [`OptimisticBlock`]: kona_proof_interop::OptimisticBlock
 pub(crate) async fn consolidate_dependencies<P, H, Evm>(
     oracle: Arc<CachingOracle<P, H>>,
     mut boot: BootInfo,

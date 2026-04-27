@@ -37,12 +37,17 @@ pub enum FaultProofProgramError {
     Driver(#[from] DriverError<ExecutorError>),
 }
 
-/// Executes the fault proof program with the given [PreimageOracleClient] and [HintWriterClient].
+/// Executes the fault proof program with the given [`PreimageOracleClient`] and
+/// [`HintWriterClient`].
 ///
 /// # Errors
 ///
-/// Returns an error if the underlying operation fails.
+/// Returns an error if bootstrapping, derivation, or execution fails, or if the claimed L2
+/// output root does not match the derived output root.
 #[inline]
+#[allow(clippy::too_many_lines)]
+// SAFETY: the prologue/derivation/epilogue phases are inlined here for clarity; splitting
+// them into helpers requires threading many oracle/provider generics across boundaries.
 pub async fn run<P, H>(oracle_client: P, hint_client: H) -> Result<(), FaultProofProgramError>
 where
     P: PreimageOracleClient + Send + Sync + Debug + Clone + 'static,
@@ -191,11 +196,13 @@ where
 }
 
 /// Fetches the safe head hash of the L2 chain based on the agreed upon L2 output root in the
+/// [`BootInfo`].
 ///
 /// # Errors
 ///
-/// Returns an error if the underlying operation fails.
-/// [BootInfo].
+/// Returns an error if the hint or oracle lookup fails or the slice conversion fails.
+#[allow(clippy::future_not_send)]
+// SAFETY: callers commonly hold the comms client via non-`Send` `Arc<T: CommsClient>`.
 pub async fn fetch_safe_head_hash<O>(
     caching_oracle: &O,
     agreed_l2_output_root: B256,

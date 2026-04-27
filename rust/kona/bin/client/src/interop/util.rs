@@ -1,5 +1,9 @@
 //! Utilities for the interop proof program
 
+#![allow(clippy::redundant_pub_crate, clippy::future_not_send)]
+// SAFETY: `pub(crate)` is required by the workspace-level `unreachable_pub` lint.
+// `future_not_send` is unavoidable because callers hold the comms client via non-`Send` `Arc`.
+
 use alloc::string::ToString;
 use alloy_primitives::B256;
 use kona_preimage::{CommsClient, PreimageKey, errors::PreimageOracleError};
@@ -7,7 +11,11 @@ use kona_proof::errors::OracleProviderError;
 use kona_proof_interop::{HintType, PreState};
 
 /// Fetches the safe head hash of the L2 chain based on the agreed upon L2 output root in the
-/// [PreState].
+/// [`PreState`].
+///
+/// # Errors
+///
+/// Returns an error if no active L2 output root is set or the oracle lookup fails.
 pub(crate) async fn fetch_l2_safe_head_hash<O>(
     caching_oracle: &O,
     pre: &PreState,
@@ -18,12 +26,16 @@ where
     // Fetch the output root of the safe head block for the current L2 chain.
     let rich_output = pre
         .active_l2_output_root()
-        .ok_or(PreimageOracleError::Other("Missing active L2 output root".to_string()))?;
+        .ok_or_else(|| PreimageOracleError::Other("Missing active L2 output root".to_string()))?;
 
     fetch_output_block_hash(caching_oracle, rich_output.output_root, rich_output.chain_id).await
 }
 
 /// Fetches the block hash that the passed output root commits to.
+///
+/// # Errors
+///
+/// Returns an error if the hint or oracle lookup fails or the slice conversion fails.
 pub(crate) async fn fetch_output_block_hash<O>(
     caching_oracle: &O,
     output_root: B256,
