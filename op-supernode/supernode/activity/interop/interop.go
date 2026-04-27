@@ -241,15 +241,15 @@ func New(
 		metrics = resources.NewSupernodeMetrics()
 	}
 	i := &Interop{
-		log:                        log,
-		chains:                     chains,
-		verifiedDB:                 verifiedDB,
-		logsDBs:                    logsDBs,
-		dataDir:                    dataDir,
-		activationTimestamp:        activationTimestamp,
-		messageExpiryWindow:        messageExpiryWindow,
-		logBackfillDepth:           logBackfillDepth,
-		metrics:                    metrics,
+		log:                 log,
+		chains:              chains,
+		verifiedDB:          verifiedDB,
+		logsDBs:             logsDBs,
+		dataDir:             dataDir,
+		activationTimestamp: activationTimestamp,
+		messageExpiryWindow: messageExpiryWindow,
+		logBackfillDepth:    logBackfillDepth,
+		metrics:             metrics,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)

@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -122,8 +122,8 @@ type simpleChainContainer struct {
 	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
-	virtualNodeFactory virtualNodeFactory          // Factory function to create virtual node (for testing)
-	rollupClient       *sources.RollupClient       // In-proc rollup RPC client bound to rpcHandler
+	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
 	// verifiersMu guards writes and reads of the verifiers slice. Concurrent

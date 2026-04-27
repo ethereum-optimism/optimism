@@ -20,11 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
