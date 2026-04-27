@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -165,6 +166,17 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+}
+
+func (c *Config) UnmarshalJSON(data []byte) error {
+	type config Config
+	type configWithIgnoredProtocolVersions struct {
+		*config
+		ProtocolVersionsAddress json.RawMessage `json:"protocol_versions_address,omitempty"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	return dec.Decode(&configWithIgnoredProtocolVersions{config: (*config)(c)})
 }
 
 // ValidateL1Config checks L1 config variables for errors.

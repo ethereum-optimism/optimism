@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -66,6 +67,41 @@ func TestConfigJSON(t *testing.T) {
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+func TestConfigJSONIgnoresDeprecatedProtocolVersionsAddress(t *testing.T) {
+	config := randConfig()
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	raw["protocol_versions_address"] = "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"
+	data, err = json.Marshal(raw)
+	require.NoError(t, err)
+
+	var got Config
+	require.NoError(t, got.ParseRollupConfig(bytes.NewReader(data)))
+	require.Equal(t, config, &got)
+
+	encoded, err := json.Marshal(&got)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "protocol_versions_address")
+}
+
+func TestConfigJSONRejectsUnknownField(t *testing.T) {
+	config := randConfig()
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	raw["unknown_field"] = "unknown"
+	data, err = json.Marshal(raw)
+	require.NoError(t, err)
+
+	var got Config
+	require.ErrorContains(t, got.ParseRollupConfig(bytes.NewReader(data)), `unknown field "unknown_field"`)
 }
 
 type mockL1Client struct {

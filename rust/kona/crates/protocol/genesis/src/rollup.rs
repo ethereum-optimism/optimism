@@ -6,6 +6,15 @@ use alloy_hardforks::{EthereumHardfork, EthereumHardforks, ForkCondition};
 use alloy_op_hardforks::{OpHardfork, OpHardforks};
 use alloy_primitives::Address;
 
+#[cfg(feature = "serde")]
+fn ignore_protocol_versions_address<'de, D>(deserializer: D) -> Result<Option<Address>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <serde::de::IgnoredAny as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(None)
+}
+
 /// The max rlp bytes per channel for the Bedrock hardfork.
 pub const MAX_RLP_BYTES_PER_CHANNEL_BEDROCK: u64 = 10_000_000;
 
@@ -72,6 +81,12 @@ pub struct RollupConfig {
     pub deposit_contract_address: Address,
     /// `l1_system_config_address` is the L1 address that the system config is stored at.
     pub l1_system_config_address: Address,
+    /// Deprecated protocol versions address, accepted for compatibility and ignored.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, deserialize_with = "ignore_protocol_versions_address", skip_serializing)
+    )]
+    pub protocol_versions_address: Option<Address>,
     /// The superchain config address.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub superchain_config_address: Option<Address>,
@@ -121,6 +136,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             batch_inbox_address: Address::arbitrary(u)?,
             deposit_contract_address: Address::arbitrary(u)?,
             l1_system_config_address: Address::arbitrary(u)?,
+            protocol_versions_address: None,
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
@@ -148,6 +164,7 @@ impl Default for RollupConfig {
             batch_inbox_address: Address::ZERO,
             deposit_contract_address: Address::ZERO,
             l1_system_config_address: Address::ZERO,
+            protocol_versions_address: None,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -863,6 +880,7 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
+          "protocol_versions_address": "0x8062abc286f5e7d9428a0ccb9abd71e50d93b935",
           "chain_op_config": {
             "eip1559Elasticity": 6,
             "eip1559Denominator": 50,
@@ -918,6 +936,7 @@ mod tests {
             batch_inbox_address: address!("ff00000000000000000000000000000000042069"),
             deposit_contract_address: address!("08073dc48dde578137b8af042bcbc1c2491f1eb2"),
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
+            protocol_versions_address: None,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -927,6 +946,9 @@ mod tests {
 
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
+
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert!(!serialized.contains("protocol_versions_address"));
     }
 
     #[test]
