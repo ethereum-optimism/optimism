@@ -351,6 +351,31 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 	return nil, receipts, nil
 }
 
+// FetchReceiptsByNumber implements EthClient.
+func (m *MockEthClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, gethTypes.Receipts, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.infoByNumberErr != nil {
+		return nil, nil, m.infoByNumberErr
+	}
+	if m.fetchReceiptsErr != nil {
+		return nil, nil, m.fetchReceiptsErr
+	}
+
+	block, ok := m.blocksByNumber[number]
+	if !ok {
+		return nil, nil, fmt.Errorf("block %d not found", number)
+	}
+
+	receipts, ok := m.receiptsByHash[block.Hash()]
+	if !ok {
+		return nil, nil, fmt.Errorf("receipts not found for block %d", number)
+	}
+
+	return block, receipts, nil
+}
+
 // Close implements EthClient.
 func (m *MockEthClient) Close() {}
 

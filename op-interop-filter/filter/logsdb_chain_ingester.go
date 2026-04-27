@@ -34,6 +34,7 @@ type EthClient interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, gethTypes.Receipts, error)
 	Close()
 }
 
@@ -52,6 +53,7 @@ type LogsDBChainIngester struct {
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
 	pollInterval     time.Duration
 	rollupCfg        *rollup.Config // Rollup config for block number calculation
+	blockPrefetcher  BlockPrefetcher
 
 	stopped atomic.Bool
 
@@ -80,6 +82,8 @@ func NewLogsDBChainIngester(
 	backfillDuration time.Duration,
 	pollInterval time.Duration,
 	rollupCfg *rollup.Config,
+	rpcConcurrency int,
+	fetchConcurrency int,
 ) (*LogsDBChainIngester, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
 
@@ -101,7 +105,7 @@ func NewLogsDBChainIngester(
 			HeadersCacheSize:      1000,
 			PayloadsCacheSize:     100,
 			MaxRequestsPerBatch:   20,
-			MaxConcurrentRequests: 10,
+			MaxConcurrentRequests: rpcConcurrency,
 			TrustRPC:              false,
 			MustBePostMerge:       true,
 			RPCProviderKind:       sources.RPCKindStandard,
@@ -124,6 +128,7 @@ func NewLogsDBChainIngester(
 		backfillDuration: backfillDuration,
 		pollInterval:     pollInterval,
 		rollupCfg:        rollupCfg,
+		blockPrefetcher:  NewBlockPrefetcher(ethClient, fetchConcurrency),
 		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
@@ -436,40 +441,15 @@ func (c *LogsDBChainIngester) runIngestion() {
 			}
 		}
 
-		// Inner loop: ingest all available blocks without waiting between them
-		for nextBlock <= head.NumberU64() {
-			// Check for shutdown between blocks
-			select {
-			case <-c.ctx.Done():
-				return
-			default:
-			}
-
-			if err := c.ingestBlock(nextBlock); err != nil {
+		if nextBlock <= head.NumberU64() {
+			var err error
+			nextBlock, lastLogTime, err = c.ingestBlockRange(nextBlock, head.NumberU64(), lastLogTime)
+			if err != nil {
 				// Application context was canceled (e.g., during shutdown).
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				c.log.Error("Failed to ingest block", "block", nextBlock, "err", err)
-				break // Exit inner loop on error, wait for next tick to retry
-			}
-			nextBlock++
-
-			// Progress logging
-			if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
-				startingBlock := c.calculateStartingBlock()
-				if nextBlock <= startingBlock {
-					progress := float64(nextBlock-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
-					c.log.Info("Ingestion progress",
-						"block", nextBlock-1,
-						"target", startingBlock,
-						"progress", fmt.Sprintf("%.0f%%", progress*100))
-					chainIDUint64, _ := c.chainID.Uint64()
-					c.metrics.RecordBackfillProgress(chainIDUint64, progress)
-				} else {
-					c.log.Debug("Ingestion progress", "block", nextBlock-1, "head", head.NumberU64())
-				}
-				lastLogTime = clock.SystemClock.Now()
+				c.log.Error("Failed to ingest blocks", "block", nextBlock, "err", err)
 			}
 		}
 		// Caught up to head, will wait for next ticker tick
@@ -587,21 +567,65 @@ func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
 }
 
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
+	_, _, err := c.ingestBlockRange(blockNum, blockNum, clock.SystemClock.Now())
+	return err
+}
+
+func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, lastLogTime time.Time) (uint64, time.Time, error) {
+	if startBlock > endBlock {
+		return startBlock, lastLogTime, nil
+	}
+	if c.Error() != nil {
+		return startBlock, lastLogTime, nil
+	}
+
+	rangeCtx, cancel := context.WithCancel(c.ctx)
+	defer cancel()
+
+	results := c.blockPrefetcher.FetchRange(rangeCtx, startBlock, endBlock)
+
+	for blockNum := startBlock; blockNum <= endBlock; blockNum++ {
+		var fetched blockFetch
+		select {
+		case <-rangeCtx.Done():
+			return blockNum, lastLogTime, rangeCtx.Err()
+		case result, ok := <-results:
+			if !ok {
+				return blockNum, lastLogTime, fmt.Errorf("prefetch stopped before block %d", blockNum)
+			}
+			fetched = result
+		}
+		if fetched.blockNum != blockNum {
+			return blockNum, lastLogTime, fmt.Errorf("expected prefetched block %d but got %d", blockNum, fetched.blockNum)
+		}
+		if fetched.err != nil {
+			return blockNum, lastLogTime, fmt.Errorf("failed to fetch block %d: %w", blockNum, fetched.err)
+		}
+
+		if err := c.writeFetchedBlock(fetched); err != nil {
+			return blockNum, lastLogTime, err
+		}
+		if c.Error() != nil {
+			return blockNum + 1, lastLogTime, nil
+		}
+
+		if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+			c.recordIngestionProgress(blockNum, endBlock)
+			lastLogTime = clock.SystemClock.Now()
+		}
+	}
+
+	return endBlock + 1, lastLogTime, nil
+}
+
+func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 	if c.Error() != nil {
 		return nil
 	}
 
-	blockInfo, err := c.ethClient.InfoByNumber(c.ctx, blockNum)
-	if err != nil {
-		return fmt.Errorf("failed to get block info: %w", err)
-	}
-
+	blockInfo := fetched.blockInfo
+	blockNum := fetched.blockNum
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
-
-	_, receipts, err := c.ethClient.FetchReceipts(c.ctx, blockInfo.Hash())
-	if err != nil {
-		return fmt.Errorf("failed to get receipts: %w", err)
-	}
 
 	c.mu.RLock()
 	latestBlock, hasLatest := c.logsDB.LatestSealedBlock()
@@ -624,7 +648,7 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 		}
 	}
 
-	logCount, err := c.processBlockLogs(blockInfo, blockID, receipts, blockNum)
+	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
 	if err != nil {
 		if errors.Is(err, types.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
@@ -654,6 +678,28 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 	}
 
 	return nil
+}
+
+func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
+	startingBlock := c.calculateStartingBlock()
+	if blockNum <= startingBlock {
+		if !c.earliestIngestedBlockSet.Load() {
+			return
+		}
+		earliest := c.earliestIngestedBlock.Load()
+		if startingBlock < earliest {
+			return
+		}
+		progress := float64(blockNum-earliest) / float64(startingBlock-earliest+1)
+		c.log.Info("Ingestion progress",
+			"block", blockNum,
+			"target", startingBlock,
+			"progress", fmt.Sprintf("%.0f%%", progress*100))
+		chainIDUint64, _ := c.chainID.Uint64()
+		c.metrics.RecordBackfillProgress(chainIDUint64, progress)
+	} else {
+		c.log.Debug("Ingestion progress", "block", blockNum, "head", head)
+	}
 }
 
 func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
