@@ -48,6 +48,8 @@ impl<CP: ChainProvider + Send> CalldataSource<CP> {
         self.calldata = txs
             .iter()
             .filter_map(|tx| {
+                #[allow(clippy::match_wildcard_for_single_variants)]
+                // SAFETY: future `TxEnvelope` variants are intentionally skipped.
                 let (tx_kind, data) = match tx {
                     TxEnvelope::Legacy(tx) => (tx.tx().to(), tx.tx().input()),
                     TxEnvelope::Eip2930(tx) => (tx.tx().to(), tx.tx().input()),

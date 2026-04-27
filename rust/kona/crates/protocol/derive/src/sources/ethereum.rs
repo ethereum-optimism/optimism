@@ -63,8 +63,7 @@ where
         block_ref: &BlockInfo,
         batcher_address: Address,
     ) -> PipelineResult<Self::Item> {
-        let ecotone_enabled =
-            self.ecotone_timestamp.map(|e| block_ref.timestamp >= e).unwrap_or(false);
+        let ecotone_enabled = self.ecotone_timestamp.is_some_and(|e| block_ref.timestamp >= e);
         if ecotone_enabled {
             self.blob_source.next(block_ref, batcher_address).await
         } else {

@@ -61,10 +61,18 @@ impl<F: ChainProvider> IndexedTraversal<F> {
     }
 
     /// Update the origin block in the traversal stage.
+    #[allow(clippy::missing_const_for_fn)]
+    // SAFETY: cannot be `const fn` because the metrics-feature branch invokes a non-const macro.
     fn update_origin(&mut self, block: BlockInfo) {
         self.done = false;
         self.block = Some(block);
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block.number as f64);
+        #[cfg(feature = "metrics")]
+        {
+            #[allow(clippy::cast_precision_loss)]
+            // SAFETY: cast is for metrics gauge reporting only.
+            let block_number = block.number as f64;
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block_number);
+        }
     }
 
     /// Provide the next block to the traversal stage.
@@ -197,8 +205,8 @@ mod tests {
     }
 
     fn new_test_managed(
-        blocks: alloc::vec::Vec<BlockInfo>,
-        receipts: alloc::vec::Vec<Receipt>,
+        blocks: &[BlockInfo],
+        receipts: &[Receipt],
     ) -> IndexedTraversal<TestChainProvider> {
         let mut provider = TestChainProvider::default();
         let rollup_config = RollupConfig {
@@ -218,7 +226,7 @@ mod tests {
     fn new_populated_test_managed() -> IndexedTraversal<TestChainProvider> {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
-        new_test_managed(blocks, receipts)
+        new_test_managed(&blocks, &receipts)
     }
 
     #[test]
@@ -232,7 +240,7 @@ mod tests {
     async fn test_managed_traversal_activation_signal() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
+        let mut traversal = new_test_managed(&blocks, &receipts);
         traversal.done = true;
         assert!(traversal.activate().await.is_ok());
         assert_eq!(traversal.origin(), Some(BlockInfo::default()));
@@ -243,7 +251,7 @@ mod tests {
     async fn test_managed_traversal_reset_signal() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
+        let mut traversal = new_test_managed(&blocks, &receipts);
         let cfg = SystemConfig::default();
         traversal.done = true;
         assert!(traversal.reset(BlockNumHash::default(), cfg).await.is_ok());
@@ -256,7 +264,7 @@ mod tests {
     async fn test_managed_traversal_next_l1_block() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
+        let mut traversal = new_test_managed(&blocks, &receipts);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
     }
@@ -264,7 +272,7 @@ mod tests {
     #[tokio::test]
     async fn test_managed_traversal_missing_receipts() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
-        let mut traversal = new_test_managed(blocks, vec![]);
+        let mut traversal = new_test_managed(&blocks, &[]);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         // provide_next_block will fail due to missing receipts
@@ -279,7 +287,7 @@ mod tests {
         let block = BlockInfo { hash, number: 0, ..BlockInfo::default() };
         let blocks = vec![block];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
+        let mut traversal = new_test_managed(&blocks, &receipts);
         traversal.block = Some(block);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(block));
         // provide_next_block will fail due to hash mismatch (simulate reorg)
@@ -290,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_managed_traversal_missing_blocks() {
-        let mut traversal = new_test_managed(vec![], vec![]);
+        let mut traversal = new_test_managed(&[], &[]);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         // provide_next_block will fail due to missing origin
@@ -303,18 +311,18 @@ mod tests {
     async fn test_managed_traversal_system_config_update_fails() {
         let first = b256!("3333333333333333333333333333333333333333333333333333333333333333");
         let second = b256!("4444444444444444444444444444444444444444444444444444444444444444");
-        let block1 = BlockInfo { hash: first, ..BlockInfo::default() };
-        let block2 =
+        let parent_block = BlockInfo { hash: first, ..BlockInfo::default() };
+        let child_block =
             BlockInfo { number: 1, hash: second, parent_hash: first, ..BlockInfo::default() };
-        let blocks = vec![block1, block2];
+        let blocks = vec![parent_block, child_block];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
-        traversal.block = Some(block1);
-        assert_eq!(traversal.next_l1_block().await.unwrap(), Some(block1));
+        let mut traversal = new_test_managed(&blocks, &receipts);
+        traversal.block = Some(parent_block);
+        assert_eq!(traversal.next_l1_block().await.unwrap(), Some(parent_block));
         // A system config update error is now non-fatal (matches op-node behaviour):
-        // provide_next_block returns Ok(()) and origin advances to block2.
+        // provide_next_block returns Ok(()) and origin advances to the child block.
         assert!(
-            traversal.provide_next_block(block2).await.is_ok(),
+            traversal.provide_next_block(child_block).await.is_ok(),
             "system config update failure should be non-fatal (warn + continue)"
         );
     }
@@ -323,7 +331,7 @@ mod tests {
     async fn test_managed_traversal_system_config_updated() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = new_receipts();
-        let mut traversal = new_test_managed(blocks, receipts);
+        let mut traversal = new_test_managed(&blocks, &receipts);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         // provide_next_block should update system config

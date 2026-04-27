@@ -64,10 +64,18 @@ impl<F: ChainProvider> PollingTraversal<F> {
     }
 
     /// Update the origin block in the traversal stage.
+    #[allow(clippy::missing_const_for_fn)]
+    // SAFETY: cannot be `const fn` because the metrics-feature branch invokes a non-const macro.
     fn update_origin(&mut self, block: BlockInfo) {
         self.done = false;
         self.block = Some(block);
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block.number as f64);
+        #[cfg(feature = "metrics")]
+        {
+            #[allow(clippy::cast_precision_loss)]
+            // SAFETY: cast is for metrics gauge reporting only.
+            let block_number = block.number as f64;
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_ORIGIN, block_number);
+        }
     }
 }
 
@@ -83,12 +91,9 @@ impl<F: ChainProvider + Send> OriginAdvancer for PollingTraversal<F> {
 
         // Pull the next block or return EOF.
         // PipelineError::EOF has special handling further up the pipeline.
-        let block = match self.block {
-            Some(block) => block,
-            None => {
-                warn!(target: "l1_traversal",  "Missing current block, can't advance origin with no reference.");
-                return Err(PipelineError::Eof.temp());
-            }
+        let Some(block) = self.block else {
+            warn!(target: "l1_traversal",  "Missing current block, can't advance origin with no reference.");
+            return Err(PipelineError::Eof.temp());
         };
         let next_l1_origin =
             self.data_source.block_info_by_number(block.number + 1).await.map_err(Into::into)?;
@@ -194,7 +199,7 @@ pub(crate) mod tests {
     async fn test_l1_traversal_flush_channel() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert!(traversal.advance_origin().await.is_ok());
         traversal.done = true;
         assert!(traversal.flush_channel().await.is_ok());
@@ -206,7 +211,7 @@ pub(crate) mod tests {
     async fn test_l1_traversal_activation_signal() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert!(traversal.advance_origin().await.is_ok());
         traversal.done = true;
         assert!(traversal.activate().await.is_ok());
@@ -218,7 +223,7 @@ pub(crate) mod tests {
     async fn test_l1_traversal_reset_signal() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert!(traversal.advance_origin().await.is_ok());
         let cfg = SystemConfig::default();
         traversal.done = true;
@@ -232,7 +237,7 @@ pub(crate) mod tests {
     async fn test_l1_traversal() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         assert!(traversal.advance_origin().await.is_ok());
@@ -241,7 +246,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn test_l1_traversal_missing_receipts() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, vec![]);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &[]);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         matches!(
@@ -256,7 +261,7 @@ pub(crate) mod tests {
         let block = BlockInfo { hash, ..BlockInfo::default() };
         let blocks = vec![block, block];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert!(traversal.advance_origin().await.is_ok());
         let err = traversal.advance_origin().await.unwrap_err();
         assert_eq!(err, ResetError::ReorgDetected(block.hash, block.parent_hash).into());
@@ -264,7 +269,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn test_l1_traversal_missing_blocks() {
-        let mut traversal = TraversalTestHelper::new_from_blocks(vec![], vec![]);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&[], &[]);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         matches!(
@@ -326,7 +331,7 @@ pub(crate) mod tests {
     async fn test_l1_traversal_system_config_updated() {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = TraversalTestHelper::new_receipts();
-        let mut traversal = TraversalTestHelper::new_from_blocks(blocks, receipts);
+        let mut traversal = TraversalTestHelper::new_from_blocks(&blocks, &receipts);
         assert_eq!(traversal.next_l1_block().await.unwrap(), Some(BlockInfo::default()));
         assert_eq!(traversal.next_l1_block().await.unwrap_err(), PipelineError::Eof.temp());
         assert!(traversal.advance_origin().await.is_ok());

@@ -97,14 +97,13 @@ where
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
 
         // Get the channel for the frame, or create a new one if it doesn't exist.
-        let current_channel = match self.channels.get_mut(&frame.id) {
-            Some(c) => c,
-            None => {
-                let channel = Channel::new(frame.id, origin);
-                self.channel_queue.push_back(frame.id);
-                self.channels.insert(frame.id, channel);
-                self.channels.get_mut(&frame.id).expect("Channel must be in queue")
-            }
+        let current_channel = if let Some(c) = self.channels.get_mut(&frame.id) {
+            c
+        } else {
+            let channel = Channel::new(frame.id, origin);
+            self.channel_queue.push_back(frame.id);
+            self.channels.insert(frame.id, channel);
+            self.channels.get_mut(&frame.id).expect("Channel must be in queue")
         };
 
         // Check if the channel is not timed out. If it has, ignore the frame.
@@ -220,7 +219,7 @@ where
                 }
             }
             data => return data,
-        };
+        }
 
         // Load the data into the channel bank
         let frame = match self.prev.next_frame().await {
@@ -568,7 +567,7 @@ mod tests {
             let err = channel_bank.next_data().await.unwrap_err();
             assert_eq!(err, PipelineError::NotEnoughData.temp());
 
-            for _ in 0..cfg.channel_timeout + 1 {
+            for _ in 0..=cfg.channel_timeout {
                 channel_bank.advance_origin().await.unwrap();
             }
 

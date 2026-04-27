@@ -118,12 +118,11 @@ where
     fn origin(&self) -> Option<BlockInfo> {
         self.batch_validator.as_ref().map_or_else(
             || {
-                self.batch_queue.as_ref().map_or_else(
-                    || self.prev.as_ref().and_then(|prev| prev.origin()),
-                    |batch_queue| batch_queue.origin(),
-                )
+                self.batch_queue
+                    .as_ref()
+                    .map_or_else(|| self.prev.as_ref().and_then(P::origin), BatchQueue::origin)
             },
-            |batch_validator| batch_validator.origin(),
+            BatchValidator::origin,
         )
     }
 }
@@ -177,8 +176,8 @@ where
 {
     fn is_last_in_span(&self) -> bool {
         self.batch_validator.as_ref().map_or_else(
-            || self.batch_queue.as_ref().is_some_and(|batch_queue| batch_queue.is_last_in_span()),
-            |batch_validator| batch_validator.is_last_in_span(),
+            || self.batch_queue.as_ref().is_some_and(BatchQueue::is_last_in_span),
+            BatchValidator::is_last_in_span,
         )
     }
 

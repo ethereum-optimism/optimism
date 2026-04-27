@@ -64,7 +64,7 @@ impl BlobData {
         }
 
         // Reassemble the 4 by 6 bit encoded chunks into 3 bytes of output
-        output_pos = self.reassemble_bytes(output_pos, &encoded_byte, &mut output);
+        output_pos = Self::reassemble_bytes(output_pos, &encoded_byte, &mut output);
 
         // In each remaining round, decode 4 field elements (128 bytes) of the
         // input into 127 bytes of output
@@ -81,7 +81,7 @@ impl BlobData {
                 output_pos = opos;
                 input_pos = ipos;
             }
-            output_pos = self.reassemble_bytes(output_pos, &encoded_byte, &mut output);
+            output_pos = Self::reassemble_bytes(output_pos, &encoded_byte, &mut output);
         }
 
         // Validate the remaining bytes
@@ -127,7 +127,6 @@ impl BlobData {
     /// Reassemble 4 by 6 bit encoded chunks into 3 bytes of output and place them in their
     /// appropriate output positions.
     pub(crate) fn reassemble_bytes(
-        &self,
         mut output_pos: usize,
         encoded_byte: &[u8],
         output: &mut [u8],
@@ -174,10 +173,9 @@ mod tests {
 
     #[test]
     fn test_reassemble_bytes() {
-        let blob_data = BlobData::default();
         let mut output = vec![0u8; 128];
         let encoded_byte = [0x00, 0x00, 0x00, 0x00];
-        let output_pos = blob_data.reassemble_bytes(127, &encoded_byte, &mut output);
+        let output_pos = BlobData::reassemble_bytes(127, &encoded_byte, &mut output);
         assert_eq!(output_pos, 126);
         assert_eq!(output, vec![0u8; 128]);
     }
@@ -208,6 +206,9 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::large_stack_arrays)]
+    // SAFETY: the 131_071-byte zero-fill is the canonical EIP-4844 blob size; the array is
+    // immediately concatenated into a heap-allocated `Vec`, not retained on the stack.
     fn test_fill_blob() {
         let mut blob_data = BlobData::default();
         let blobs = vec![Box::new(Blob::with_last_byte(1u8))];

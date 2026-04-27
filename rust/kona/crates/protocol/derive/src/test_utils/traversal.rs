@@ -53,8 +53,8 @@ impl TraversalTestHelper {
     /// Creates a new [`PollingTraversal`] with the given blocks and receipts.
     #[must_use]
     pub fn new_from_blocks(
-        blocks: alloc::vec::Vec<BlockInfo>,
-        receipts: alloc::vec::Vec<Receipt>,
+        blocks: &[BlockInfo],
+        receipts: &[Receipt],
     ) -> PollingTraversal<TestChainProvider> {
         let mut provider = TestChainProvider::default();
         let rollup_config = RollupConfig {
@@ -76,6 +76,6 @@ impl TraversalTestHelper {
     pub fn new_populated() -> PollingTraversal<TestChainProvider> {
         let blocks = vec![BlockInfo::default(), BlockInfo::default()];
         let receipts = Self::new_receipts();
-        Self::new_from_blocks(blocks, receipts)
+        Self::new_from_blocks(&blocks, &receipts)
     }
 }

@@ -974,6 +974,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    // SAFETY: end-to-end test covering sequential setup of derive pipeline state and several
+    // assertions; splitting would obscure the test narrative.
     async fn test_next_batch_missing_origin() {
         let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());

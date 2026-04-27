@@ -96,7 +96,7 @@ where
             self.channel = Some(OrderedChannel::new(next_frame.id, origin));
         }
 
-        let _count = if self.channel.is_some() { 1 } else { 0 };
+        let _count = i32::from(self.channel.is_some());
         kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, _count);
 
         if let Some(channel) = self.channel.as_mut() {

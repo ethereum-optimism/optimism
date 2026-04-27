@@ -72,11 +72,8 @@ where
             // SAFETY: `max_rlp_bytes_per_channel` is one of two protocol-fixed constants
             // (Fjord/Bedrock), each fitting comfortably in `usize` on every supported target.
             let max_rlp_bytes_per_channel = max_rlp_bytes_per_channel as usize;
-            self.next_batch = Some(BatchReader::new(
-                &channel[..],
-                max_rlp_bytes_per_channel,
-                origin.timestamp,
-            ));
+            self.next_batch =
+                Some(BatchReader::new(&channel[..], max_rlp_bytes_per_channel, origin.timestamp));
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 1);
         }
         Ok(())

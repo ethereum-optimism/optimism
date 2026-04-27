@@ -83,6 +83,11 @@ where
     L1P: ChainProvider + Debug + Send,
     L2P: L2ChainProvider + Debug + Send,
 {
+    #[allow(clippy::too_many_lines)]
+    // SAFETY: this function performs sequential branching across multiple hardfork activations
+    // (Ecotone, Fjord, Isthmus, Jovian, Karst, Interop) and L1-origin mismatch handling.
+    // Splitting it would require shuffling local state through helpers that mostly forward
+    // mutable references, which obscures the branching control flow.
     async fn prepare_payload_attributes(
         &mut self,
         l2_parent: L2BlockInfo,
@@ -130,7 +135,6 @@ where
                 self.receipts_fetcher.receipts_by_hash(epoch.hash).await.map_err(Into::into)?;
             let deposits =
                 derive_deposits(epoch.hash, &receipts, self.rollup_cfg.deposit_contract_address)
-                    .await
                     .map_err(|e| PipelineError::BadEncoding(e).crit())?;
             let (updates, errors) = sys_config.update_with_receipts(
                 &receipts,
@@ -271,7 +275,7 @@ where
 /// Successful deposits must be emitted by the deposit contract and have the correct event
 /// signature. So the receipt address must equal the specified deposit contract and the first topic
 /// must be the [`DEPOSIT_EVENT_ABI_HASH`].
-async fn derive_deposits(
+fn derive_deposits(
     block_hash: B256,
     receipts: &[Receipt],
     deposit_contract: Address,
@@ -362,51 +366,51 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_empty() {
+    #[test]
+    fn test_derive_deposits_empty() {
         let receipts = vec![];
         let deposit_contract = Address::default();
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert!(result.unwrap().is_empty());
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_non_deposit_events_filtered_out() {
+    #[test]
+    fn test_derive_deposits_non_deposit_events_filtered_out() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
         invalid.logs[0].data = LogData::new_unchecked(vec![], Bytes::default());
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 5);
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_non_deposit_contract_addr() {
+    #[test]
+    fn test_derive_deposits_non_deposit_contract_addr() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
         invalid.logs[0].address = Address::default();
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 5);
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_decoding_errors() {
+    #[test]
+    fn test_derive_deposits_decoding_errors() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
         invalid.logs[0].data =
             LogData::new_unchecked(vec![DEPOSIT_EVENT_ABI_HASH], Bytes::default());
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         let downcasted = result.unwrap_err();
         assert_eq!(downcasted, DepositError::UnexpectedTopicsLen(1).into());
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_succeeds() {
+    #[test]
+    fn test_derive_deposits_succeeds() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt()];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 4);
     }
 

@@ -52,6 +52,9 @@ where
         let mut data = Vec::new();
         let mut hashes = Vec::new();
         for tx in txs {
+            #[allow(clippy::match_wildcard_for_single_variants)]
+            // SAFETY: future `TxEnvelope` variants should be skipped, matching the same
+            // forward-compatible policy applied in the hash-only match below.
             let (tx_kind, calldata, blob_hashes) = match &tx {
                 TxEnvelope::Legacy(tx) => (tx.tx().to(), tx.tx().input.clone(), None),
                 TxEnvelope::Eip2930(tx) => (tx.tx().to(), tx.tx().input.clone(), None),
@@ -81,6 +84,8 @@ where
                 continue;
             }
             if !calldata.is_empty() {
+                #[allow(clippy::match_wildcard_for_single_variants)]
+                // SAFETY: future `TxEnvelope` variants are intentionally treated as `None`.
                 let hash = match &tx {
                     TxEnvelope::Legacy(tx) => Some(tx.hash()),
                     TxEnvelope::Eip2930(tx) => Some(tx.hash()),
@@ -90,9 +95,7 @@ where
                 };
                 warn!(target: "blob_source", "Blob tx has calldata, which will be ignored: {hash:?}");
             }
-            let blob_hashes = if let Some(b) = blob_hashes {
-                b
-            } else {
+            let Some(blob_hashes) = blob_hashes else {
                 continue;
             };
             for hash in blob_hashes {
@@ -220,12 +223,11 @@ where
 
         // Decode the blob data to raw bytes.
         // Otherwise, ignore blob and recurse next.
-        match next_data.decode() {
-            Ok(d) => Ok(d),
-            Err(_) => {
-                warn!(target: "blob_source", "Failed to decode blob data, skipping");
-                self.next(block_ref, batcher_address).await
-            }
+        if let Ok(d) = next_data.decode() {
+            Ok(d)
+        } else {
+            warn!(target: "blob_source", "Failed to decode blob data, skipping");
+            self.next(block_ref, batcher_address).await
         }
     }
 
