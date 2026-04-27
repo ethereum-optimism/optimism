@@ -400,17 +400,17 @@ contract FetchChainInfo is Script {
                 address proposer;
                 address anchorStateRegistryProxy;
                 address mipsImpl;
-                try IFetcher(permissionedDisputeGameImpl).challenger() returns (address v) {
-                    challenger = v;
+                try IFetcher(permissionedDisputeGameImpl).challenger() returns (address v_) {
+                    challenger = v_;
                 } catch { }
-                try IFetcher(permissionedDisputeGameImpl).proposer() returns (address v) {
-                    proposer = v;
+                try IFetcher(permissionedDisputeGameImpl).proposer() returns (address v_) {
+                    proposer = v_;
                 } catch { }
-                try IFetcher(permissionedDisputeGameImpl).anchorStateRegistry() returns (address v) {
-                    anchorStateRegistryProxy = v;
+                try IFetcher(permissionedDisputeGameImpl).anchorStateRegistry() returns (address v_) {
+                    anchorStateRegistryProxy = v_;
                 } catch { }
-                try IFetcher(permissionedDisputeGameImpl).vm() returns (address v) {
-                    mipsImpl = v;
+                try IFetcher(permissionedDisputeGameImpl).vm() returns (address v_) {
+                    mipsImpl = v_;
                 } catch { }
 
                 if (
@@ -426,23 +426,23 @@ contract FetchChainInfo is Script {
                     //   [124,144) proposer
                     //   [144,164) challenger
                     try IFetcher(disputeGameFactoryProxy).gameArgs(GameTypes.PERMISSIONED_CANNON) returns (
-                        bytes memory args
+                        bytes memory args_
                     ) {
-                        if (args.length >= 164) {
-                            if (mipsImpl == address(0)) mipsImpl = _readAddr(args, 32);
+                        if (args_.length >= 164) {
+                            if (mipsImpl == address(0)) mipsImpl = _readAddr(args_, 32);
                             if (anchorStateRegistryProxy == address(0)) {
-                                anchorStateRegistryProxy = _readAddr(args, 52);
+                                anchorStateRegistryProxy = _readAddr(args_, 52);
                             }
-                            if (proposer == address(0)) proposer = _readAddr(args, 124);
-                            if (challenger == address(0)) challenger = _readAddr(args, 144);
+                            if (proposer == address(0)) proposer = _readAddr(args_, 124);
+                            if (challenger == address(0)) challenger = _readAddr(args_, 144);
                         }
                     } catch { }
                 }
 
                 if (anchorStateRegistryProxy == address(0)) {
                     // Final fallback: canonical singleton under the shared-ASR architecture.
-                    try IFetcher(optimismPortalProxy).anchorStateRegistry() returns (address v) {
-                        anchorStateRegistryProxy = v;
+                    try IFetcher(optimismPortalProxy).anchorStateRegistry() returns (address v_) {
+                        anchorStateRegistryProxy = v_;
                     } catch { }
                 }
 
@@ -457,9 +457,9 @@ contract FetchChainInfo is Script {
 
                 if (mipsImpl != address(0)) {
                     _fo.set(_fo.mipsImpl.selector, mipsImpl);
-                    try IFetcher(mipsImpl).oracle() returns (address preimageOracleImpl) {
-                        if (preimageOracleImpl != address(0)) {
-                            _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                    try IFetcher(mipsImpl).oracle() returns (address preimageOracleImpl_) {
+                        if (preimageOracleImpl_ != address(0)) {
+                            _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl_);
                         }
                     } catch { }
                 }
