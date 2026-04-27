@@ -256,7 +256,7 @@ Unsafe blocks gossiped over P2P are signed by the chain's *unsafe block signer* 
 whose address lives in the `SystemConfig` L1 contract.
 
 When the op-node detects that this address has changed (via the periodic runtime-config
-reload), it enters a **grace period** of `DefaultSignerGracePeriod` (3 hours; see
+reload), it enters a grace period of `DefaultSignerGracePeriod` (3 hours; see
 `op-node/node/runcfg/runtime_config.go`) during which blocks signed by either the new
 *or* the previous signer are accepted. The grace period ends early as soon as a block
 from the new signer is verified, and after it elapses only the new signer is accepted.
