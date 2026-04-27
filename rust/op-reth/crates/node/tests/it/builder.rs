@@ -150,6 +150,11 @@ fn test_setup_custom_precompiles() {
     }
 
     /// Unichain executor builder.
+    ///
+    /// This is a type-level/builder-plumbing test for downstream OP Stack chains that need to
+    /// customize the EVM executor, for example to add chain-specific precompiles. `check_launch`
+    /// does not execute a block or call the custom precompile; it verifies that a custom executor
+    /// builder, custom EVM factory, and OP node components compose into a launchable node config.
     struct UniExecutorBuilder;
 
     impl<Node> ExecutorBuilder<Node> for UniExecutorBuilder

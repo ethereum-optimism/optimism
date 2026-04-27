@@ -156,6 +156,12 @@ where
 }
 
 /// EVM factory adapter that wraps produced EVMs in [`PostExecEvmAdapter`].
+///
+/// This is needed for generic/custom [`EvmFactory`] implementations because
+/// [`BlockExecutorFactory::create_executor`](alloy_evm::block::BlockExecutorFactory::create_executor)
+/// is handed an already-produced EVM value, not the factory that produced it. Without this wrapper,
+/// generic executor code cannot assume that every `F::Evm<DB, I>` associated type implements
+/// [`PostExecEvm`], even when `F` knows how to drive post-exec hooks for those EVMs.
 #[derive(Debug, Clone, Copy)]
 pub struct PostExecEvmFactoryAdapter<F> {
     inner: F,

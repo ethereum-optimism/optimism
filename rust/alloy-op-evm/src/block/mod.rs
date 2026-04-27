@@ -226,19 +226,25 @@ pub struct OpBlockExecutionCtx {
     pub post_exec_mode: PostExecMode,
 }
 
-/// Canonical gas adjustment applied to a transaction when a post-exec refund reduces its gas
-/// cost below the raw EVM result.
+/// Canonical gas and fee-settlement adjustment applied when a post-exec refund reduces a
+/// transaction's gas cost below the raw EVM result.
+///
+/// The raw EVM execution result already contains balance changes for fees charged using the raw
+/// gas used. Updating only the canonical gas used in receipts/block accounting would not rewrite
+/// those balance deltas. This carries the explicit settlement patch needed to make state match the
+/// canonical gas accounting: credit the sender back and debit the fee recipients that were paid for
+/// the refunded gas.
 #[derive(Debug, Default, Clone)]
 pub struct PostExecAdjustment {
     /// Refund amount subtracted from raw gas to produce canonical gas.
     pub refund: u64,
     /// Sender balance delta to credit back.
     pub sender_refund: U256,
-    /// Beneficiary balance delta to debit.
+    /// Beneficiary balance delta to debit for refunded priority fees.
     pub beneficiary_delta: U256,
-    /// Base fee recipient balance delta to debit.
+    /// Base fee recipient balance delta to debit for refunded base fees.
     pub base_fee_delta: U256,
-    /// Operator fee recipient balance delta to debit.
+    /// Operator fee recipient balance delta to debit for refunded operator fees.
     pub operator_fee_delta: U256,
 }
 
@@ -559,6 +565,12 @@ where
         Ok(l1_block_info)
     }
 
+    /// Computes the fee-settlement patch required after canonicalizing post-exec gas.
+    ///
+    /// `canonical_gas_used` is enough for receipts and block gas accounting, but it is not enough
+    /// to fix state by itself: `evm.transact` has already charged the sender and paid fee
+    /// recipients according to `raw_gas_used`. The refunded gas must be translated back into the
+    /// exact balance deltas for every recipient before the state is committed.
     fn post_exec_settlement_deltas(
         &mut self,
         tx: impl RecoveredTx<R::Transaction>,
@@ -859,6 +871,9 @@ where
             .transpose()
             .map_err(BlockExecutionError::other)?;
 
+        // Canonicalizing the gas in the execution result updates receipt/block gas accounting.
+        // The separate state patch below is still required because the EVM state diff already
+        // contains raw fee settlement from execution.
         Self::canonicalize_result_gas(&mut result, post_exec_refund);
         self.apply_post_exec_refund_to_state(
             &mut state,
