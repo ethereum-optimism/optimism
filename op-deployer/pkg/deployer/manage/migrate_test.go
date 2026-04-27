@@ -113,8 +113,15 @@ func TestInteropMigration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Define game type constants matching Solidity GameTypes library.
-	const GameTypeSuperCannonKona = uint32(9)
+	const (
+		GameTypeCannon          = uint32(0)
+		GameTypeSuperCannonKona = uint32(9)
+	)
 
+	// The registered game type and the starting respected game type are intentionally
+	// different: the migrator does not validate disputeGameConfigs[i].gameType (see
+	// OPContractsManagerMigrator.migrate), so this exercises the permissive-registration
+	// invariant alongside the strict respected-type check.
 	input := InteropMigrationInput{
 		Prank: l1ProxyAdminOwner,
 		Opcm:  opcmAddr,
@@ -126,7 +133,7 @@ func TestInteropMigration(t *testing.T) {
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000), // 1 ETH
-					GameType: GameTypeSuperCannonKona,
+					GameType: GameTypeCannon,
 					GameArgs: gameArgs,
 				},
 			},
