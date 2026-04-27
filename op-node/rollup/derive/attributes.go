@@ -167,20 +167,24 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		interop, err := InteropNetworkUpgradeTransactions()
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
-		}
-		upgradeTxs = append(upgradeTxs, interop...)
-
+		// Interop only activates for chains in a multi-chain dependency set;
+		// single-chain superchains have nothing to interoperate with.
 		if len(ba.depSet.Chains()) > 1 {
-			txs, err := InteropActivateCrossL2InboxTransactions()
+			setFeatureTx, err := interopSetFeatureTx()
 			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
+				return nil, NewCriticalError(fmt.Errorf("failed to build interop setFeature wrapper: %w", err))
 			}
-			upgradeTxs = append(upgradeTxs, txs...)
+			bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+			if err != nil {
+				return nil, NewCriticalError(fmt.Errorf("failed to load interop NUT bundle: %w", err))
+			}
+			fundingTx, err := interopETHLiquidityFundingTx()
+			if err != nil {
+				return nil, NewCriticalError(fmt.Errorf("failed to build interop ETHLiquidity funding wrapper: %w", err))
+			}
+			upgradeTxs = append(append(append(upgradeTxs, setFeatureTx), bundleTxs...), fundingTx)
+			upgradeGas += interopSetFeatureGas + bundleGas + interopETHLiquidityFundGas
 		}
 	}
 

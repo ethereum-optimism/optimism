@@ -408,33 +408,35 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		}
 
 		t.Run("WithSingleChainDepSet", func(t *testing.T) {
+			// Single-chain superchains skip Interop activation entirely; the
+			// activation block contains only the L1 info deposit.
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 				eth.ChainIDFromUInt64(42): {},
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			upgradeTx, err := InteropNetworkUpgradeTransactions()
-			require.NoError(t, err)
-			require.Len(t, attrs.Transactions, len(upgradeTx)+1) // +1 for L1Info tx
-			for i, tx := range upgradeTx {
-				require.Equal(t, tx, attrs.Transactions[i+1])
-			}
+			require.Len(t, attrs.Transactions, 1, "single-chain depset must produce no Interop upgrade txs")
 		})
 
 		t.Run("WithMultiChainDepSet", func(t *testing.T) {
+			// Multi-chain superchains run the full Interop activation:
+			// setFeature wrapper + JSON NUT bundle + ETHLiquidity funding wrapper.
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 				eth.ChainIDFromUInt64(42): {},
 				eth.ChainIDFromUInt64(44): {},
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			upgradeTx, err := InteropNetworkUpgradeTransactions()
+
+			setFeatureTx, err := interopSetFeatureTx()
 			require.NoError(t, err)
-			l2InboxTx, err := InteropActivateCrossL2InboxTransactions()
+			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
 			require.NoError(t, err)
-			expectedTx := make([]hexutil.Bytes, 0, len(upgradeTx)+len(l2InboxTx))
-			expectedTx = append(expectedTx, upgradeTx...)
-			expectedTx = append(expectedTx, l2InboxTx...)
+			fundingTx, err := interopETHLiquidityFundingTx()
+			require.NoError(t, err)
+
+			expectedTx := append(append([]hexutil.Bytes{setFeatureTx}, bundleTxs...), fundingTx)
+
 			require.Len(t, attrs.Transactions, len(expectedTx)+1) // +1 for L1Info tx
 			for i, tx := range expectedTx {
 				require.Equal(t, tx, attrs.Transactions[i+1])
