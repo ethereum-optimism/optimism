@@ -1,5 +1,8 @@
 //! Raw Span Batch Payload
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: span-batch lengths are protocol-bounded; truncation cannot occur on supported targets.
+
 use super::MAX_SPAN_BATCH_ELEMENTS;
 use crate::{SpanBatchBits, SpanBatchError, SpanBatchTransactions, SpanDecodingError};
 use alloc::vec::Vec;

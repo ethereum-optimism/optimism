@@ -1,5 +1,9 @@
 //! Utility methods used by protocol types.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: u64 lengths in this module are bounded by RLP-decoded protocol payloads; truncation
+// cannot occur on supported targets.
+
 use alloc::vec::Vec;
 use alloy_consensus::{Transaction, TxType, Typed2718};
 use alloy_primitives::{B256, U256};

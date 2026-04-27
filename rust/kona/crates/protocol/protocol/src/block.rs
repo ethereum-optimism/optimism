@@ -305,7 +305,7 @@ mod tests {
                         ..Default::default()
                     },
                 )),
-                Default::default(),
+                alloy_primitives::Address::default(),
             ),
             block_hash: None,
             block_number: Some(1),
@@ -393,7 +393,7 @@ mod tests {
                 timestamp: 1,
                 ..Default::default()
             },
-            body: Default::default(),
+            body: alloy_consensus::BlockBody::default(),
         };
         let err = L2BlockInfo::from_block_and_genesis(&op_block, &genesis).unwrap_err();
         assert_eq!(err, FromBlockError::InvalidGenesisHash);
@@ -408,7 +408,7 @@ mod tests {
                 timestamp: 1,
                 ..Default::default()
             },
-            body: Default::default(),
+            body: alloy_consensus::BlockBody::default(),
         };
         let block_info = BlockInfo::from(&block);
         assert_eq!(

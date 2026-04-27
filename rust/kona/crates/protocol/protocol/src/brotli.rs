@@ -1,5 +1,12 @@
 //! Contains brotli decompression utilities.
 
+#![allow(clippy::wildcard_imports, clippy::large_stack_arrays, clippy::cast_possible_truncation)]
+// SAFETY: the `brotli` and `alloc_no_stdlib` crates expose dozens of macros and traits that the
+// `declare_stack_allocator_struct!` macro pulls into scope; enumerating them by name would
+// duplicate the macro's expansion. The 4096-byte stack scratch buffer is required by the
+// `declare_stack_allocator_struct!` macro; relocating it to the heap defeats the purpose. The
+// protocol-bounded `MAX_RLP_BYTES_PER_CHANNEL_FJORD` fits in `usize`.
+
 use alloc::{vec, vec::Vec};
 use alloc_no_stdlib::*;
 use brotli::{BrotliResult, *};
@@ -13,12 +20,13 @@ pub enum BrotliDecompressionError {
     DecompressionFailed(BrotliResult),
 }
 
-/// Decompresses the given bytes data using the Brotli decompressor implemented
+/// Decompresses the given bytes data using the Brotli decompressor implemented in the
+/// [`brotli`](https://crates.io/crates/brotli) crate.
 ///
 /// # Errors
 ///
-/// Returns an error if the underlying operation fails.
-/// in the [`brotli`](https://crates.io/crates/brotli) crate.
+/// Returns [`BrotliDecompressionError::DecompressionFailed`] if the input is corrupt or the
+/// decompressor cannot complete within the available buffers.
 #[allow(clippy::large_stack_frames)]
 pub fn decompress_brotli(
     data: &[u8],

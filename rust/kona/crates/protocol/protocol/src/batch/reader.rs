@@ -1,5 +1,9 @@
 //! Contains the [`BatchReader`] which is used to iteratively consume batches from raw data.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: span/single batch lengths are protocol-bounded; truncation cannot occur on supported
+// targets.
+
 use crate::{Batch, BrotliDecompressionError, decompress_brotli};
 use alloc::vec::Vec;
 use alloy_primitives::Bytes;
@@ -25,6 +29,7 @@ pub enum DecompressionError {
 }
 
 /// Batch Reader provides a function that iteratively consumes batches from the reader.
+///
 /// The L1 origin timestamp is provided at creation time and used for hardfork activation checks.
 /// Warning: the batch reader can read every batch-type.
 /// The caller of the batch-reader should filter the results.
@@ -89,9 +94,9 @@ impl BatchReader {
                 if (compression_type & 0x0F) == Self::ZLIB_DEFLATE_COMPRESSION_METHOD ||
                     (compression_type & 0x0F) == Self::ZLIB_RESERVED_COMPRESSION_METHOD
                 {
-                    self.decompress_zlib(data)
+                    self.decompress_zlib(&data)
                 } else if compression_type == Self::CHANNEL_VERSION_BROTLI {
-                    self.decompress_brotli(data)
+                    self.decompress_brotli(&data)
                 } else {
                     Err(DecompressionError::UnsupportedType(compression_type))
                 }
@@ -99,11 +104,11 @@ impl BatchReader {
         }
     }
 
-    fn decompress_zlib(&mut self, data: Vec<u8>) -> Result<(), DecompressionError> {
+    fn decompress_zlib(&mut self, data: &[u8]) -> Result<(), DecompressionError> {
         // Decompress with a limit to prevent zip-bomb attacks.
         // Per spec, if decompressed data exceeds the limit, the output is
         // truncated to max_rlp_bytes_per_channel bytes (not rejected).
-        match decompress_to_vec_zlib_with_limit(&data, self.max_rlp_bytes_per_channel) {
+        match decompress_to_vec_zlib_with_limit(data, self.max_rlp_bytes_per_channel) {
             Ok(decompressed) => {
                 self.decompressed = decompressed;
             }
@@ -120,7 +125,7 @@ impl BatchReader {
         Ok(())
     }
 
-    fn decompress_brotli(&mut self, data: Vec<u8>) -> Result<(), DecompressionError> {
+    fn decompress_brotli(&mut self, data: &[u8]) -> Result<(), DecompressionError> {
         self.brotli_used = true;
         // Note: the first byte of the channel data is the Brotli channel version but not part of
         // the compressed data, so it's skipped here but not for zlib.

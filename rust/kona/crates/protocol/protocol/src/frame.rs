@@ -26,6 +26,10 @@
 //! - Data length mismatches
 //! - Unsupported versions
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: frame numbers and data lengths are protocol-bounded by `MAX_FRAME_LEN`/`u16::MAX`
+// frame numbers; truncation cannot occur on supported targets.
+
 use crate::ChannelId;
 use alloc::vec::Vec;
 
@@ -185,7 +189,7 @@ impl Frame {
         encoded.extend_from_slice(&self.number.to_be_bytes());
         encoded.extend_from_slice(&(self.data.len() as u32).to_be_bytes());
         encoded.extend_from_slice(&self.data);
-        encoded.push(self.is_last as u8);
+        encoded.push(u8::from(self.is_last));
         encoded
     }
 

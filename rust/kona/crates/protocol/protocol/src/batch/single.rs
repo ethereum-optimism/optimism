@@ -123,9 +123,7 @@ impl SingleBatch {
 
         // Check if we ran out of sequencer time drift
         let max_drift = cfg.max_sequencer_drift(batch_origin.timestamp);
-        let max = if let Some(max) = batch_origin.timestamp.checked_add(max_drift) {
-            max
-        } else {
+        let Some(max) = batch_origin.timestamp.checked_add(max_drift) else {
             return BatchValidity::Drop(BatchDropReason::SequencerDriftOverflow);
         };
 
@@ -197,7 +195,7 @@ mod tests {
     use alloc::vec;
     use alloy_consensus::{SignableTransaction, TxEip1559, TxEip7702, TxEnvelope};
     use alloy_eips::eip2718::{Decodable2718, Encodable2718};
-    use alloy_primitives::{Address, Sealed, Signature, TxKind, U256};
+    use alloy_primitives::{Address, B256, Sealed, Signature, TxKind, U256};
     use kona_genesis::HardForkConfig;
     use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
     use tracing::Level;
@@ -377,7 +375,7 @@ mod tests {
             to: Address::left_padding_from(&[6]).into(),
             value: U256::from(7_u64),
             input: vec![8].into(),
-            access_list: Default::default(),
+            access_list: alloy_eips::eip2930::AccessList::default(),
         }
     }
 
@@ -563,7 +561,7 @@ mod tests {
 
         // Extend the transactions with the 2718 deposit transaction
         let tx = TxDeposit {
-            source_hash: Default::default(),
+            source_hash: B256::default(),
             from: Address::left_padding_from(&[7]),
             to: TxKind::Create,
             mint: 0,

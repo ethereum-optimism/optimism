@@ -3,8 +3,9 @@
 use alloy_primitives::{B256, keccak256};
 use derive_more::Display;
 
-/// The [`OutputRoot`] is a high-level commitment to an L2 block. It lifts the state root from the
-/// block header as well as the storage root of the
+/// The [`OutputRoot`] is a high-level commitment to an L2 block.
+///
+/// It lifts the state root from the block header as well as the storage root of the
 /// [`Predeploys::L2_TO_L1_MESSAGE_PASSER`](crate::Predeploys::L2_TO_L1_MESSAGE_PASSER) account
 /// into the top-level commitment construction.
 ///

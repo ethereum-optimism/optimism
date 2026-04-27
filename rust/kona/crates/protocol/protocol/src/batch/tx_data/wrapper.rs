@@ -59,6 +59,8 @@ impl Decodable for SpanBatchTransactionData {
 impl TryFrom<&TxEnvelope> for SpanBatchTransactionData {
     type Error = SpanBatchError;
 
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    // SAFETY: future `TxEnvelope` variants are intentionally rejected as unsupported.
     fn try_from(tx_envelope: &TxEnvelope) -> Result<Self, Self::Error> {
         match tx_envelope {
             TxEnvelope::Legacy(s) => {

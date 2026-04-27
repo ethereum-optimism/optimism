@@ -94,7 +94,7 @@ mod tests {
     use crate::{SpanBatchElement, SpanBatchError, SpanBatchTransactions};
     use alloc::{vec, vec::Vec};
     use alloy_consensus::{Signed, TxEip2930, TxEnvelope};
-    use alloy_primitives::{Bytes, Signature, TxKind, address, hex};
+    use alloy_primitives::{B256, Bytes, Signature, TxKind, address, hex};
 
     #[test]
     fn test_single_batch_encode_decode() {
@@ -112,14 +112,14 @@ mod tests {
         let tx = TxEnvelope::Eip2930(Signed::new_unchecked(
             TxEip2930 { to: TxKind::Call(to), chain_id: 1, ..Default::default() },
             sig,
-            Default::default(),
+            B256::default(),
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
         tx.encode(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
-        span_batch_txs.add_txs(txs, chain_id).unwrap();
+        span_batch_txs.add_txs(&txs, chain_id).unwrap();
 
         let mut out = Vec::new();
         let batch = Batch::Span(SpanBatch {

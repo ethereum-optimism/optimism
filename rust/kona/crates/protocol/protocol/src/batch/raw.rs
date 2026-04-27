@@ -1,5 +1,8 @@
 //! Module containing the [`RawSpanBatch`] struct.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: span-batch lengths are protocol-bounded; truncation cannot occur on supported targets.
+
 use alloc::{vec, vec::Vec};
 use alloy_primitives::bytes;
 
@@ -92,7 +95,7 @@ impl RawSpanBatch {
             acc.push(SpanBatchElement {
                 epoch_num: block_origin_nums[i as usize],
                 timestamp: genesis_time + self.prefix.rel_timestamp + block_time * i,
-                transactions: transactions.into_iter().map(|v| v.into()).collect(),
+                transactions: transactions.into_iter().map(Into::into).collect(),
             });
             acc
         });

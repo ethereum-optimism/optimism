@@ -1,6 +1,9 @@
 //! Contains the `L1BlockInfoTx` enum, containing different variants of the L1 block info
 //! transaction.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use alloy_consensus::Header;
 use alloy_eips::{BlockNumHash, eip7840::BlobParams};
 use alloy_primitives::{Address, B256, Bytes, Sealable, Sealed, TxKind, U256, address};
@@ -47,7 +50,11 @@ impl L1BlockInfoTx {
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying operation fails.
+    /// Returns an error if the L1 header fields required by the active hardfork are missing
+    /// or do not satisfy the protocol invariants for that fork.
+    #[allow(clippy::too_many_lines)]
+    // SAFETY: branches over each hardfork (Bedrock through Jovian) and constructs the matching
+    // variant; splitting would scatter per-fork validation across helpers.
     pub fn try_new(
         rollup_config: &RollupConfig,
         l1_config: &L1ChainConfig,
@@ -825,9 +832,9 @@ mod test {
     #[rstest]
     #[case::fork_active(true, false)]
     #[case::fork_inactive(false, false)]
-    #[should_panic]
+    #[should_panic(expected = "expected wrong params to fail")]
     #[case::fork_active_wrong_params(true, true)]
-    #[should_panic]
+    #[should_panic(expected = "expected wrong params to fail")]
     #[case::fork_inactive_wrong_params(false, true)]
     fn test_try_new_ecotone_with_optional_prague_fee_fork(
         #[case] fork_active: bool,
@@ -848,8 +855,8 @@ mod test {
         let sequence_number = 0;
         let l1_header = Header {
             timestamp: if fork_active { 2 } else { 1 },
-            excess_blob_gas: Some(0x5080000),
-            blob_gas_used: Some(0x100000),
+            excess_blob_gas: Some(0x508_0000),
+            blob_gas_used: Some(0x10_0000),
             requests_hash: Some(B256::ZERO),
             ..Default::default()
         };

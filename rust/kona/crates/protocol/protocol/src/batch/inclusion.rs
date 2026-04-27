@@ -47,13 +47,15 @@ impl BatchWithInclusionBlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::TestBatchValidator;
+    use crate::{SingleBatch, SpanBatch, test_utils::TestBatchValidator};
     use alloc::vec;
 
     #[tokio::test]
     async fn test_single_batch_with_inclusion_block() {
-        let batch =
-            BatchWithInclusionBlock::new(BlockInfo::default(), Batch::Single(Default::default()));
+        let batch = BatchWithInclusionBlock::new(
+            BlockInfo::default(),
+            Batch::Single(SingleBatch::default()),
+        );
         let l1_blocks = vec![BlockInfo::default()];
         let l2_safe_head = L2BlockInfo::default();
         let cfg = RollupConfig::default();
@@ -65,7 +67,7 @@ mod tests {
     #[tokio::test]
     async fn test_span_batch_with_inclusion_block() {
         let batch =
-            BatchWithInclusionBlock::new(BlockInfo::default(), Batch::Span(Default::default()));
+            BatchWithInclusionBlock::new(BlockInfo::default(), Batch::Span(SpanBatch::default()));
         let l1_blocks = vec![BlockInfo::default()];
         let l2_safe_head = L2BlockInfo::default();
         let cfg = RollupConfig::default();

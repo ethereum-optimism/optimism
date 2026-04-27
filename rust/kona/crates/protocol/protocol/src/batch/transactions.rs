@@ -1,6 +1,10 @@
 //! This module contains the [`SpanBatchTransactions`] type and logic for encoding and decoding
 //! transactions in a span batch.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: span-batch lengths are protocol-bounded by `MAX_SPAN_BATCH_ELEMENTS`, which fits in
+// `usize` on every supported target. Truncation cannot occur in practice for valid inputs.
+
 use crate::{
     MAX_SPAN_BATCH_ELEMENTS, SpanBatchBits, SpanBatchError, SpanBatchTransactionData,
     SpanDecodingError, read_tx_data,
@@ -302,7 +306,7 @@ impl SpanBatchTransactions {
     /// Returns the number of contract creation transactions in the span batch.
     #[must_use]
     pub fn contract_creation_count(&self) -> u64 {
-        self.contract_creation_bits.as_ref().iter().map(|b| b.count_ones() as u64).sum()
+        self.contract_creation_bits.as_ref().iter().map(|b| u64::from(b.count_ones())).sum()
     }
 
     /// Retrieve all of the raw transactions from the [`SpanBatchTransactions`].
@@ -363,8 +367,9 @@ impl SpanBatchTransactions {
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying operation fails.
-    pub fn add_txs(&mut self, txs: Vec<Bytes>, chain_id: u64) -> Result<(), SpanBatchError> {
+    /// Returns [`SpanBatchError::Decoding`] if any of the raw transactions cannot be decoded
+    /// or have an unexpected envelope type, or if a chain-id mismatch is detected.
+    pub fn add_txs(&mut self, txs: &[Bytes], chain_id: u64) -> Result<(), SpanBatchError> {
         let total_block_tx_count = txs.len() as u64;
         let offset = self.total_block_tx_count;
 
@@ -380,6 +385,8 @@ impl SpanBatchTransactions {
                 self.legacy_tx_count += 1;
             }
 
+            #[allow(clippy::match_wildcard_for_single_variants)]
+            // SAFETY: future `TxEnvelope` variants are intentionally rejected as unsupported.
             let (signature, to, nonce, gas, tx_chain_id) = match &tx_enveloped {
                 TxEnvelope::Legacy(tx) => {
                     let (tx, sig) = (tx.tx(), tx.signature());
@@ -439,7 +446,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use alloy_consensus::{Signed, TxEip1559, TxEip2930, TxEip7702};
-    use alloy_primitives::{Signature, TxKind, address};
+    use alloy_primitives::{B256, Signature, TxKind, address};
 
     #[test]
     fn test_decode_tx_sigs_truncated() {
@@ -488,7 +495,7 @@ mod tests {
         let mut span_batch_txs = SpanBatchTransactions::default();
         let txs = vec![];
         let chain_id = 1;
-        let result = span_batch_txs.add_txs(txs, chain_id);
+        let result = span_batch_txs.add_txs(&txs, chain_id);
         assert!(result.is_ok());
         assert_eq!(span_batch_txs.total_block_tx_count, 0);
     }
@@ -500,14 +507,14 @@ mod tests {
         let tx = TxEnvelope::Eip2930(Signed::new_unchecked(
             TxEip2930 { to: TxKind::Call(to), ..Default::default() },
             sig,
-            Default::default(),
+            B256::default(),
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
         tx.encode(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
-        let err = span_batch_txs.add_txs(txs, chain_id).unwrap_err();
+        let err = span_batch_txs.add_txs(&txs, chain_id).unwrap_err();
         assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
     }
 
@@ -518,14 +525,14 @@ mod tests {
         let tx = TxEnvelope::Eip2930(Signed::new_unchecked(
             TxEip2930 { to: TxKind::Call(to), chain_id: 1, ..Default::default() },
             sig,
-            Default::default(),
+            B256::default(),
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
         tx.encode(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
-        let result = span_batch_txs.add_txs(txs, chain_id);
+        let result = span_batch_txs.add_txs(&txs, chain_id);
         assert_eq!(result, Ok(()));
         assert_eq!(span_batch_txs.total_block_tx_count, 1);
     }
@@ -537,14 +544,14 @@ mod tests {
         let tx = TxEnvelope::Eip1559(Signed::new_unchecked(
             TxEip1559 { to: TxKind::Call(to), chain_id: 1, ..Default::default() },
             sig,
-            Default::default(),
+            B256::default(),
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
         tx.encode(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
-        let result = span_batch_txs.add_txs(txs, chain_id);
+        let result = span_batch_txs.add_txs(&txs, chain_id);
         assert_eq!(result, Ok(()));
         assert_eq!(span_batch_txs.total_block_tx_count, 1);
     }
@@ -556,14 +563,14 @@ mod tests {
         let tx = TxEnvelope::Eip7702(Signed::new_unchecked(
             TxEip7702 { to, chain_id: 1, ..Default::default() },
             sig,
-            Default::default(),
+            B256::default(),
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
         tx.encode(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
-        let result = span_batch_txs.add_txs(txs, chain_id);
+        let result = span_batch_txs.add_txs(&txs, chain_id);
         assert_eq!(result, Ok(()));
         assert_eq!(span_batch_txs.total_block_tx_count, 1);
     }

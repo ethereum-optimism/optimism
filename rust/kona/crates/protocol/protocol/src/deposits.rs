@@ -1,5 +1,9 @@
 //! Contains deposit transaction types and helper methods.
 
+#![allow(clippy::cast_possible_truncation, clippy::redundant_pub_crate)]
+// SAFETY: deposit-log offsets are bounded by EVM word/log layout; truncation cannot occur.
+// `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
+
 use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, B256, Bytes, Log, TxKind, U256, b256};

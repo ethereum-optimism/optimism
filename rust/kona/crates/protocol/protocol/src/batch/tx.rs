@@ -1,5 +1,9 @@
 //! Transaction Types
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: frame counts are protocol-bounded by `u16::MAX`; truncation cannot occur on supported
+// targets.
+
 use crate::Frame;
 use alloc::vec::Vec;
 use alloy_primitives::Bytes;

@@ -1,3 +1,6 @@
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use alloc::vec::Vec;
 use alloy_primitives::{Address, B256, U256};
 use ambassador::{Delegate, delegatable_trait};

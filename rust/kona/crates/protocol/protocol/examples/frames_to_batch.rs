@@ -1,5 +1,8 @@
 //! This example decodes raw [Frame]s and reads them into a [Channel] and into a [`SingleBatch`].
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: `MAX_RLP_BYTES_PER_CHANNEL_FJORD` is a protocol constant fitting in `usize`.
+
 use alloy_consensus::{SignableTransaction, TxEip1559, TxEnvelope};
 use alloy_eips::{
     eip2718::{Decodable2718, Encodable2718},

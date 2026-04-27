@@ -4,6 +4,10 @@
 //! number does not match the expected next frame. This is the post-Holocene channel type, matching
 //! `op-node`'s `requireInOrder` behavior.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: frame counts in an `OrderedChannel` are bounded by the protocol-level frame number
+// limit (`u16::MAX`); truncation cannot occur on supported targets.
+
 use alloc::vec::Vec;
 use alloy_primitives::Bytes;
 

@@ -1,5 +1,8 @@
 //! Channel Types
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: channel/frame lengths are protocol-bounded; truncation cannot occur on supported targets.
+
 use alloc::vec::Vec;
 use alloy_primitives::{Bytes, map::HashMap};
 

@@ -5,6 +5,9 @@
 //! over single batches by amortizing overhead across multiple blocks and enabling
 //! sophisticated compression techniques.
 
+#![allow(clippy::cast_possible_truncation)]
+// SAFETY: span-batch lengths are protocol-bounded; truncation cannot occur on supported targets.
+
 use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::FixedBytes;
@@ -348,6 +351,10 @@ impl SpanBatch {
     /// # Errors
     ///
     /// Returns an error if the underlying operation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the appended batch's timestamp is older than the previous tail batch.
     pub fn append_singular_batch(
         &mut self,
         singular_batch: SingleBatch,
@@ -385,10 +392,18 @@ impl SpanBatch {
         self.block_tx_counts.push(new_txs.len() as u64);
 
         // Add the new transactions to the transaction cache.
-        self.txs.add_txs(new_txs, self.chain_id)
+        self.txs.add_txs(&new_txs, self.chain_id)
     }
 
     /// Checks if the span batch is valid.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the prefix check returns `Accept` but no parent block is provided (an
+    /// invariant of the prefix check), or if `prev_origin_idx` exceeds `l1_blocks.len() - 1`.
+    #[allow(clippy::too_many_lines)]
+    // SAFETY: `check_batch` performs sequential L1-origin and tx validation across each
+    // sub-batch; splitting would scatter the per-batch loop state across helpers.
     pub async fn check_batch<BV: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
@@ -546,11 +561,8 @@ impl SpanBatch {
                 let safe_block = &safe_block_payload.body;
                 let batch_txs = &self.batches[i as usize].transactions;
                 // Execution payload has deposit txs but batch does not.
-                let deposit_count: usize = safe_block
-                    .transactions
-                    .iter()
-                    .map(|tx| if tx.is_deposit() { 1 } else { 0 })
-                    .sum();
+                let deposit_count: usize =
+                    safe_block.transactions.iter().map(|tx| usize::from(tx.is_deposit())).sum();
                 if safe_block.transactions.len() - deposit_count != batch_txs.len() {
                     warn!(
                         target: "batch_span",
@@ -601,6 +613,14 @@ impl SpanBatch {
     ///
     /// This function is used for post-Holocene hardfork to perform batch validation
     /// as each batch is being loaded in.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the batch list is empty, or if the parent L2 block lookup yields a value the
+    /// batch's prefix invariants do not satisfy.
+    #[allow(clippy::too_many_lines)]
+    // SAFETY: `check_batch_prefix` performs sequential timestamp/L1-origin checks; extracting
+    // helpers would scatter the per-batch state across boundaries.
     pub async fn check_batch_prefix<BF: BatchValidationProvider>(
         &self,
         cfg: &RollupConfig,
