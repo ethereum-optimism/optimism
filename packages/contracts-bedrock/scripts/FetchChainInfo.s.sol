@@ -385,23 +385,51 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.permissioned.selector, true);
                 _fo.set(_fo.permissionedDisputeGameImpl.selector, permissionedDisputeGameImpl);
 
-                address challenger = IFetcher(permissionedDisputeGameImpl).challenger();
-                _fo.set(_fo.challenger.selector, challenger);
+                // Newer PermissionedDisputeGame implementations (post shared-AnchorStateRegistry
+                // refactor, e.g. v2.2.0+ on Sepolia) hold challenger/proposer/anchorStateRegistry/vm
+                // in the proxy's initialized storage rather than impl-level immutables. Calling
+                // these getters directly on the impl returns address(0) on those chains. Older
+                // impls (e.g. v1.8.0) still return the real immutables. We try each call, treat
+                // zero results as "not exposed on impl", and for AnchorStateRegistry fall back to
+                // OptimismPortal2 (the canonical source under the shared-ASR architecture). This
+                // prevents the script from reverting at depth=1 when calling .oracle() on a zero
+                // mipsImpl, which previously aborted FetchChainInfo for any chain on the new
+                // dispute-game architecture (OP Sepolia, Base Sepolia, Mode, Zora, Unichain, etc.).
+                try IFetcher(permissionedDisputeGameImpl).challenger() returns (address challenger) {
+                    if (challenger != address(0)) _fo.set(_fo.challenger.selector, challenger);
+                } catch { }
 
-                address anchorStateRegistryProxy = IFetcher(permissionedDisputeGameImpl).anchorStateRegistry();
-                _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
+                address anchorStateRegistryProxy;
+                try IFetcher(permissionedDisputeGameImpl).anchorStateRegistry() returns (address asr) {
+                    anchorStateRegistryProxy = asr;
+                } catch { }
+                if (anchorStateRegistryProxy == address(0)) {
+                    // Fallback: shared-AnchorStateRegistry chains expose this on OptimismPortal2.
+                    try IFetcher(optimismPortalProxy).anchorStateRegistry() returns (address asr) {
+                        anchorStateRegistryProxy = asr;
+                    } catch { }
+                }
+                if (anchorStateRegistryProxy != address(0)) {
+                    _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
+                }
 
-                address proposer = IFetcher(permissionedDisputeGameImpl).proposer();
-                _fo.set(_fo.proposer.selector, proposer);
+                try IFetcher(permissionedDisputeGameImpl).proposer() returns (address proposer) {
+                    if (proposer != address(0)) _fo.set(_fo.proposer.selector, proposer);
+                } catch { }
 
                 address delayedWethPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGameImpl);
                 _fo.set(_fo.delayedWethPermissionedGameProxy.selector, delayedWethPermissionedGameProxy);
 
-                address mipsImpl = IFetcher(permissionedDisputeGameImpl).vm();
-                _fo.set(_fo.mipsImpl.selector, mipsImpl);
-
-                address preimageOracleImpl = IFetcher(mipsImpl).oracle();
-                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                try IFetcher(permissionedDisputeGameImpl).vm() returns (address mipsImpl) {
+                    if (mipsImpl != address(0)) {
+                        _fo.set(_fo.mipsImpl.selector, mipsImpl);
+                        try IFetcher(mipsImpl).oracle() returns (address preimageOracleImpl) {
+                            if (preimageOracleImpl != address(0)) {
+                                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                            }
+                        } catch { }
+                    }
+                } catch { }
             }
 
             address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
