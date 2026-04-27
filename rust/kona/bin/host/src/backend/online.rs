@@ -81,6 +81,7 @@ where
     }
 
     /// Adds a new proactive hint to the [`OnlineHostBackend`].
+    #[must_use]
     pub fn with_proactive_hint(mut self, hint_type: C::HintType) -> Self {
         self.proactive_hints.insert(hint_type);
         self

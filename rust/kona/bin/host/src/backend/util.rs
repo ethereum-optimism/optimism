@@ -9,6 +9,14 @@ use tokio::sync::RwLock;
 
 /// Constructs a merkle patricia trie from the ordered list passed and stores all encoded
 /// intermediate nodes of the trie in the [`KeyValueStore`].
+///
+/// # Errors
+///
+/// Returns an error if any of the [`KeyValueStore::set`] writes fail.
+#[allow(clippy::future_not_send, clippy::significant_drop_tightening, clippy::redundant_pub_crate)]
+// SAFETY: the write guard must be held across the loop to keep node insertions atomic; the
+// future is `!Send` because callers drive it from a single-threaded async runtime;
+// `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
 pub(crate) async fn store_ordered_trie<KV: KeyValueStore + ?Sized, T: AsRef<[u8]>>(
     kv: &RwLock<KV>,
     values: &[T],

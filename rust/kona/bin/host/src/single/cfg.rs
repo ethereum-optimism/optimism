@@ -229,7 +229,7 @@ impl SingleChainHost {
         let (_, client_result) = tokio::try_join!(server_task, client_task)?;
 
         // Bubble up the exit status of the client program if execution completes.
-        std::process::exit(client_result.is_err() as i32)
+        std::process::exit(i32::from(client_result.is_err()))
     }
 
     /// Returns `true` if the host is running in offline mode.

@@ -184,7 +184,7 @@ impl InteropHost {
     /// check is skipped; The registry path does not statically know which chains are scheduled.
     fn require_dependency_set_if_interop_scheduled(&self) -> Result<(), InteropHostError> {
         let Some(configs) = self.read_rollup_configs().transpose()? else { return Ok(()) };
-        require_dependency_set_for_configs(&configs, &self.dependency_set_path)
+        require_dependency_set_for_configs(&configs, self.dependency_set_path.as_ref())
     }
 
     /// Starts the preimage server, communicating with the client over the provided channels.
@@ -196,7 +196,7 @@ impl InteropHost {
     where
         C: Channel + Send + Sync + 'static,
     {
-        let kv_store = self.create_key_value_store()?;
+        let kv_store = self.create_key_value_store();
 
         let task_handle = if self.is_offline() {
             task::spawn(async {
@@ -250,7 +250,7 @@ impl InteropHost {
         let (_, client_result) = tokio::try_join!(server_task, client_task)?;
 
         // Bubble up the exit status of the client program if execution completes.
-        std::process::exit(client_result.is_err() as i32)
+        std::process::exit(i32::from(client_result.is_err()))
     }
 
     /// Returns `true` if the host is running in offline mode.
@@ -313,9 +313,9 @@ impl InteropHost {
     ///
     /// If the data directory contains a `kvformat` marker file, the recorded format is used to
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
-    fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
+    fn create_key_value_store(&self) -> SharedKeyValueStore {
         let local_kv_store = InteropLocalInputs::new(self.clone());
-        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
+        create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format)
     }
 
     /// Creates the providers required for the preimage server backend.
@@ -379,7 +379,7 @@ impl InteropProviders {
 /// `dependency_set_path` is `None`.
 fn require_dependency_set_for_configs(
     configs: &BTreeMap<u64, RollupConfig>,
-    dependency_set_path: &Option<PathBuf>,
+    dependency_set_path: Option<&PathBuf>,
 ) -> Result<(), InteropHostError> {
     if dependency_set_path.is_some() {
         return Ok(());
@@ -413,7 +413,7 @@ mod tests {
         let configs: BTreeMap<u64, RollupConfig> =
             BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
 
-        let err = require_dependency_set_for_configs(&configs, &None).unwrap_err();
+        let err = require_dependency_set_for_configs(&configs, None).unwrap_err();
         match err {
             InteropHostError::InteropWithoutDependencySet { chain_id, interop_time } => {
                 assert_eq!(chain_id, 10);
@@ -427,9 +427,9 @@ mod tests {
     fn test_require_dependency_set_interop_scheduled_with_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
             BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
-        let depset = Some(PathBuf::from("/tmp/depset.json"));
+        let depset = PathBuf::from("/tmp/depset.json");
 
-        assert!(require_dependency_set_for_configs(&configs, &depset).is_ok());
+        assert!(require_dependency_set_for_configs(&configs, Some(&depset)).is_ok());
     }
 
     #[test]
@@ -437,7 +437,7 @@ mod tests {
         let configs: BTreeMap<u64, RollupConfig> =
             BTreeMap::from([(10u64, rollup_config_with_interop_time(None))]);
 
-        assert!(require_dependency_set_for_configs(&configs, &None).is_ok());
+        assert!(require_dependency_set_for_configs(&configs, None).is_ok());
     }
 
     #[test]

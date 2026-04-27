@@ -5,6 +5,8 @@ use alloy_primitives::{Address, Bytes};
 use revm::precompile::{self, Precompile};
 
 /// List of precompiles that are accelerated by the host program.
+#[allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
 pub(crate) const ACCELERATED_PRECOMPILES: &[Precompile] = &[
     precompile::secp256k1::ECRECOVER,          // ecRecover
     precompile::bn254::pair::ISTANBUL,         // ecPairing
@@ -20,6 +22,14 @@ pub(crate) const ACCELERATED_PRECOMPILES: &[Precompile] = &[
 ];
 
 /// Executes an accelerated precompile on [revm].
+///
+/// # Errors
+///
+/// Returns [`HostError::PrecompileNotAccelerated`] if the address does not match any of the
+/// known accelerated precompiles, or [`HostError::PrecompileExecutionFailed`] if the
+/// underlying revm precompile execution returns an error.
+#[allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
 pub(crate) fn execute<T: Into<Bytes>>(address: Address, input: T, gas: u64) -> Result<Vec<u8>> {
     if let Some(precompile) =
         ACCELERATED_PRECOMPILES.iter().find(|precompile| *precompile.address() == address)

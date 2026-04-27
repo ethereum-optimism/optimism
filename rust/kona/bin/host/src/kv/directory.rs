@@ -29,8 +29,9 @@ impl DirectoryKeyValueStore {
     /// Panics if internal invariants are violated.
     #[must_use]
     pub fn new(data_directory: &Path) -> Self {
-        fs::create_dir_all(data_directory)
-            .unwrap_or_else(|e| panic!("Failed to create directory {data_directory:?}: {e}"));
+        fs::create_dir_all(data_directory).unwrap_or_else(|e| {
+            panic!("Failed to create directory {}: {e}", data_directory.display())
+        });
 
         let format_path = data_directory.join(FORMAT_FILENAME);
         if !format_path.exists() {
@@ -68,21 +69,30 @@ impl KeyValueStore for DirectoryKeyValueStore {
     fn set(&mut self, key: B256, value: Vec<u8>) -> Result<()> {
         let path = self.key_path(key);
         let parent = path.parent().ok_or_else(|| {
-            HostError::KeyValueSetFailed(format!("no parent directory for {path:?}"))
+            HostError::KeyValueSetFailed(format!("no parent directory for {}", path.display()))
         })?;
         fs::create_dir_all(parent).map_err(|e| {
-            HostError::KeyValueSetFailed(format!("failed to create directory {parent:?}: {e}"))
+            HostError::KeyValueSetFailed(format!(
+                "failed to create directory {}: {e}",
+                parent.display()
+            ))
         })?;
 
         // Write to a temp file and rename for atomicity — a crash during fs::write could leave
         // a partially written (corrupt) file, but rename is atomic on POSIX.
         let mut tmp = tempfile::NamedTempFile::new_in(parent).map_err(|e| {
-            HostError::KeyValueSetFailed(format!("failed to create temp file in {parent:?}: {e}"))
+            HostError::KeyValueSetFailed(format!(
+                "failed to create temp file in {}: {e}",
+                parent.display()
+            ))
         })?;
         tmp.write_all(hex::encode(&value).as_bytes())
             .map_err(|e| HostError::KeyValueSetFailed(format!("failed to write temp file: {e}")))?;
         tmp.persist(&path).map_err(|e| {
-            HostError::KeyValueSetFailed(format!("failed to rename temp file to {path:?}: {e}"))
+            HostError::KeyValueSetFailed(format!(
+                "failed to rename temp file to {}: {e}",
+                path.display()
+            ))
         })?;
         Ok(())
     }

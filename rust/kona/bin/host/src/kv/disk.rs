@@ -22,8 +22,9 @@ impl DiskKeyValueStore {
     /// Panics if internal invariants are violated.
     #[must_use]
     pub fn new(data_directory: PathBuf) -> Self {
-        let db = DB::open(&Self::get_db_options(), data_directory.as_path())
-            .unwrap_or_else(|e| panic!("Failed to open database at {data_directory:?}: {e}"));
+        let db = DB::open(&Self::get_db_options(), data_directory.as_path()).unwrap_or_else(|e| {
+            panic!("Failed to open database at {}: {e}", data_directory.display())
+        });
 
         // Write the kvformat marker file for op-challenger compatibility.
         let format_path = data_directory.join(FORMAT_FILENAME);

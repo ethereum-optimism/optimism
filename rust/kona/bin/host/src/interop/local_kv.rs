@@ -26,6 +26,9 @@ impl InteropLocalInputs {
 }
 
 impl KeyValueStore for InteropLocalInputs {
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    // SAFETY: in the DEPENDENCY_SET_KEY branch the outer `Option<Result<…, HostError>>`
+    // and inner `Result<…, InteropHostError>` differ, so `Result::ok` cannot be substituted.
     fn get(&self, key: B256) -> Option<Vec<u8>> {
         let preimage_key = PreimageKey::try_from(*key).ok()?;
         match preimage_key.key_value() {

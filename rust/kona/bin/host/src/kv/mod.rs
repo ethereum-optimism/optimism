@@ -45,6 +45,8 @@ impl DataFormat {
 /// a supported format, returns that format. Otherwise, returns `default_format`. The marker file
 /// is written by the individual store implementations (`DirectoryKeyValueStore`,
 /// `DiskKeyValueStore`) when they initialize.
+#[allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
 pub(crate) fn detect_data_format(data_dir: &Path, default_format: DataFormat) -> DataFormat {
     let format_path = data_dir.join(FORMAT_FILENAME);
     std::fs::read_to_string(&format_path).map_or(default_format, |contents| {
@@ -66,6 +68,8 @@ pub type SharedKeyValueStore = Arc<RwLock<dyn KeyValueStore + Send + Sync>>;
 ///
 /// If `data_dir` is provided, the format is auto-detected from any existing `kvformat` marker file,
 /// falling back to `default_format`. Otherwise a [`MemoryKeyValueStore`] is used.
+#[allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` is required to satisfy the workspace-level `unreachable_pub` lint.
 pub(crate) fn create_key_value_store<L>(
     local_kv_store: L,
     data_dir: Option<&Path>,
@@ -74,24 +78,21 @@ pub(crate) fn create_key_value_store<L>(
 where
     L: KeyValueStore + Send + Sync + 'static,
 {
-    match data_dir {
-        Some(data_dir) => {
-            let format = detect_data_format(data_dir, default_format);
-            match format {
-                DataFormat::Directory => {
-                    let dir_kv_store = DirectoryKeyValueStore::new(data_dir);
-                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
-                }
-                DataFormat::Rocksdb => {
-                    let disk_kv_store = DiskKeyValueStore::new(data_dir.to_path_buf());
-                    Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
-                }
+    if let Some(data_dir) = data_dir {
+        let format = detect_data_format(data_dir, default_format);
+        match format {
+            DataFormat::Directory => {
+                let dir_kv_store = DirectoryKeyValueStore::new(data_dir);
+                Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
+            }
+            DataFormat::Rocksdb => {
+                let disk_kv_store = DiskKeyValueStore::new(data_dir.to_path_buf());
+                Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
             }
         }
-        None => {
-            let mem_kv_store = MemoryKeyValueStore::new();
-            Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, mem_kv_store)))
-        }
+    } else {
+        let mem_kv_store = MemoryKeyValueStore::new();
+        Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, mem_kv_store)))
     }
 }
 
