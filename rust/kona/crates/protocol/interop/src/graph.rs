@@ -1247,4 +1247,92 @@ mod test {
             );
         }
     }
+
+    /// Three-chain extension of `ref before target EM`: A:5 refs B:3, B:5 refs C:3, C:5 refs A:3.
+    /// Each chain's only EM is at logIdx 5, but every cross-ref targets logIdx 3, so
+    /// `executing_message_before` returns `None` for all three lookups and no cross-chain
+    /// edges form. Mirrors op-supernode's `triangle with missing leg - no cycle` case.
+    #[test]
+    fn test_detect_cycles_triangle_with_missing_leg_no_cycle() {
+        const CHAIN_C_ID: u64 = 3;
+        let ts: u64 = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 5, ts, CHAIN_B_ID, 3, ts),
+            make_em(CHAIN_B_ID, 5, ts, CHAIN_C_ID, 3, ts),
+            make_em(CHAIN_C_ID, 5, ts, CHAIN_A_ID, 3, ts),
+        ];
+        let result = detect_cycles(&messages, ts);
+        assert!(
+            result.is_empty(),
+            "Triangle where every cross-ref points before the target chain's EM should not cycle"
+        );
+    }
+
+    /// Multi-hop one-way chain that terminates at an absent chain. A:0 refs B:5; B:3 refs C:0,
+    /// where chain C is not in the graph. The B-side ref resolves via `executing_message_before`
+    /// to B:3 (the only EM on B, logIdx 3 ≤ 5), giving A:0 → B:3. B:3's cross-ref to C produces
+    /// no edge because C has no EMs. Linear, acyclic.
+    /// Mirrors op-supernode's `one-way dependency - no cycle` case.
+    #[test]
+    fn test_detect_cycles_one_way_multi_hop_no_cycle() {
+        const CHAIN_C_ID: u64 = 3;
+        let ts: u64 = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 5, ts),
+            make_em(CHAIN_B_ID, 3, ts, CHAIN_C_ID, 0, ts),
+        ];
+        let result = detect_cycles(&messages, ts);
+        assert!(
+            result.is_empty(),
+            "Multi-hop one-way chain ending at an absent chain must not cycle"
+        );
+    }
+
+    /// Diamond shape: `em_d` depends on both `em_b` and `em_c`, and both `em_b` and `em_c`
+    /// depend on `em_a`. Acyclic. Mirrors op-supernode's `TestCheckCycle` diamond case.
+    ///
+    /// Each EM gets at most one cross-chain edge and one intra-chain edge, so to give
+    /// `em_d` two incoming dependencies we make it both the intra-chain successor of
+    /// `em_b` (same chain, higher logIdx) and the cross-chain reference to `em_c`.
+    /// `em_a` targets an absent chain so it has no outgoing edges.
+    #[test]
+    fn test_detect_cycles_diamond_no_cycle() {
+        const CHAIN_C_ID: u64 = 3;
+        const CHAIN_ABSENT: u64 = 99;
+        let ts: u64 = 1000;
+        let messages = vec![
+            // em_a on chain 1, logIdx 0, targets absent chain → no edges.
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_ABSENT, 0, ts),
+            // em_b on chain 2, logIdx 0, targets em_a → edge em_b → em_a.
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            // em_c on chain 3, logIdx 0, targets em_a → edge em_c → em_a.
+            make_em(CHAIN_C_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            // em_d on chain 2, logIdx 5, targets em_c → cross-chain edge em_d → em_c,
+            // plus intra-chain edge em_d → em_b (em_b precedes em_d on chain 2).
+            make_em(CHAIN_B_ID, 5, ts, CHAIN_C_ID, 0, ts),
+        ];
+        let result = detect_cycles(&messages, ts);
+        assert!(result.is_empty(), "Diamond pattern is acyclic and must not be flagged");
+    }
+
+    /// Bystander chain whose EM references a chain absent from the graph entirely.
+    /// A↔C form a mutual cycle. B's only EM points at chain D, which has no EMs in the
+    /// message set. B must be spared. Complements the existing bystander test, where the
+    /// bystander references a chain that *is* in the graph.
+    /// Mirrors op-supernode's `A↔C cycle with B as bystander` case.
+    #[test]
+    fn test_detect_cycles_bystander_refs_absent_chain() {
+        const CHAIN_C_ID: u64 = 3;
+        const CHAIN_D_ID: u64 = 4;
+        let ts: u64 = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_C_ID, 0, ts),
+            make_em(CHAIN_C_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_D_ID, 0, ts),
+        ];
+        let mut result = detect_cycles(&messages, ts);
+        result.sort();
+        assert_eq!(result, vec![CHAIN_A_ID, CHAIN_C_ID]);
+        assert!(!result.contains(&CHAIN_B_ID), "Bystander chain B must not be flagged");
+    }
 }
