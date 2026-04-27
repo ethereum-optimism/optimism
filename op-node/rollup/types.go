@@ -66,6 +66,12 @@ type AltDAConfig struct {
 	DAResolveWindow uint64 `json:"da_resolve_window"`
 }
 
+type ignoredJSONField struct{}
+
+func (ignoredJSONField) IsZero() bool { return true }
+
+func (*ignoredJSONField) UnmarshalJSON([]byte) error { return nil }
+
 type Config struct {
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
@@ -146,6 +152,9 @@ type Config struct {
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+	// ProtocolVersionsAddress is accepted for backwards compatibility with legacy rollup configs.
+	// The value is ignored and omitted when marshaling.
+	ProtocolVersionsAddress ignoredJSONField `json:"protocol_versions_address,omitzero"`
 
 	// ChainOpConfig is the OptimismConfig of the execution layer ChainConfig.
 	// It is used during safe chain consolidation to translate zero SystemConfig EIP1559

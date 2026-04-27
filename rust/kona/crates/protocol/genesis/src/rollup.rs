@@ -31,6 +31,15 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
     FJORD_MAX_SEQUENCER_DRIFT
 }
 
+#[cfg(feature = "serde")]
+fn deserialize_ignored_any<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <serde::de::IgnoredAny as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(())
+}
+
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -72,6 +81,15 @@ pub struct RollupConfig {
     pub deposit_contract_address: Address,
     /// `l1_system_config_address` is the L1 address that the system config is stored at.
     pub l1_system_config_address: Address,
+    /// Legacy protocol versions contract address.
+    ///
+    /// This field is accepted when deserializing older rollup configs, but its value is ignored
+    /// and it is never serialized.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing, deserialize_with = "deserialize_ignored_any")
+    )]
+    pub protocol_versions_address: (),
     /// The superchain config address.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub superchain_config_address: Option<Address>,
@@ -121,6 +139,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             batch_inbox_address: Address::arbitrary(u)?,
             deposit_contract_address: Address::arbitrary(u)?,
             l1_system_config_address: Address::arbitrary(u)?,
+            protocol_versions_address: (),
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
@@ -148,6 +167,7 @@ impl Default for RollupConfig {
             batch_inbox_address: Address::ZERO,
             deposit_contract_address: Address::ZERO,
             l1_system_config_address: Address::ZERO,
+            protocol_versions_address: (),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -918,6 +938,7 @@ mod tests {
             batch_inbox_address: address!("ff00000000000000000000000000000000042069"),
             deposit_contract_address: address!("08073dc48dde578137b8af042bcbc1c2491f1eb2"),
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
+            protocol_versions_address: (),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -975,6 +996,62 @@ mod tests {
 
         let err = serde_json::from_str::<RollupConfig>(raw).unwrap_err();
         assert_eq!(err.classify(), serde_json::error::Category::Data);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_protocol_versions_address_is_ignored() {
+        let raw: &str = r#"
+        {
+          "genesis": {
+            "l1": {
+              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
+              "number": 10
+            },
+            "l2": {
+              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
+              "number": 0
+            },
+            "l2_time": 1725557164,
+            "system_config": {
+              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+              "gasLimit": 30000000
+            }
+          },
+          "block_time": 2,
+          "max_sequencer_drift": 600,
+          "seq_window_size": 3600,
+          "channel_timeout": 300,
+          "l1_chain_id": 3151908,
+          "l2_chain_id": 1337,
+          "regolith_time": 0,
+          "canyon_time": 0,
+          "delta_time": 0,
+          "ecotone_time": 0,
+          "fjord_time": 0,
+          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
+          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
+          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
+          "protocol_versions_address": "0x0000000000000000000000000000000000000001"
+        }
+        "#;
+
+        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
+        assert_eq!(deserialized.protocol_versions_address, ());
+
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert!(!serialized.contains("protocol_versions_address"));
+
+        let without_legacy_field = raw.replace(
+            r#",
+          "protocol_versions_address": "0x0000000000000000000000000000000000000001""#,
+            "",
+        );
+        let deserialized_without_legacy_field: RollupConfig =
+            serde_json::from_str(&without_legacy_field).unwrap();
+        assert_eq!(deserialized_without_legacy_field.protocol_versions_address, ());
     }
 
     #[test]

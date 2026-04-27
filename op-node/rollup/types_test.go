@@ -63,9 +63,49 @@ func TestConfigJSON(t *testing.T) {
 	config := randConfig()
 	data, err := json.Marshal(config)
 	assert.NoError(t, err)
+	require.NotContains(t, string(data), "protocol_versions_address")
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+func TestParseRollupConfigIgnoresProtocolVersionsAddress(t *testing.T) {
+	config := randConfig()
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &fields))
+	fields["protocol_versions_address"] = json.RawMessage(
+		`"0x0000000000000000000000000000000000000001"`,
+	)
+	data, err = json.Marshal(fields)
+	require.NoError(t, err)
+
+	var parsed Config
+	require.NoError(t, parsed.ParseRollupConfig(strings.NewReader(string(data))))
+	require.Equal(t, config, &parsed)
+
+	data, err = json.Marshal(&parsed)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "protocol_versions_address")
+}
+
+func TestParseRollupConfigRejectsUnknownField(t *testing.T) {
+	config := randConfig()
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &fields))
+	fields["unknown_field"] = json.RawMessage(`true`)
+	data, err = json.Marshal(fields)
+	require.NoError(t, err)
+
+	var parsed Config
+	err = parsed.ParseRollupConfig(strings.NewReader(string(data)))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `unknown field "unknown_field"`)
 }
 
 type mockL1Client struct {
