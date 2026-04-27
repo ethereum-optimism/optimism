@@ -327,7 +327,7 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 	e.localSafeHead = r
 }
 
-// etDeprecatedSafeHead sets the cross-safe head.
+// SetDeprecatedSafeHead sets the cross-safe head.
 //
 // Deprecated: This is only used by supervisor pathways.
 func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
