@@ -1,0 +1,88 @@
+version: '3.4'
+
+# Boba Mainnet node using op-reth (execution) + op-node (consensus)
+#
+# Prerequisites:
+#   1. Download and extract the reth snapshot (see boba-docs snapshot-downloads page).
+#      Alternatively, generate the database from scratch using the init service below
+#      and the scripts in scripts/geth-to-reth/.
+#
+#   2. Create a shared JWT secret:
+#      openssl rand -hex 32 > jwt-secret.txt
+#
+#   3. Create a .env file with at minimum:
+#      ETH1_HTTP=<L1 RPC URL>
+#      ETH2_HTTP=<L1 beacon URL>
+#      OP_NODE_VERSION=<op-node image tag>
+#
+# The upstream ghcr.io/paradigmxyz/op-reth:latest image includes boba
+# as a built-in chain, so no custom build is required.
+
+services:
+  # One-time initialization: import state dump into op-reth.
+  # Place your reth-state.jsonl and header.rlp in the reth-data directory first.
+  # Run: docker compose -f docker-compose-boba-mainnet-reth.yml run --rm init
+  init:
+    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    command: >
+      init-state
+      --chain=boba
+      --datadir=/db
+      --without-ovm
+      --header=/db/header.rlp
+      /db/reth-state.jsonl
+    volumes:
+      - ${DATA_DIR:-./reth-data}:/db
+    profiles:
+      - init
+
+  l2:
+    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    command: >
+      node
+      --chain=boba
+      --datadir=/db
+      --http
+      --http.addr=0.0.0.0
+      --http.port=9545
+      --http.corsdomain=*
+      --http.api=eth,debug,net,web3
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.jwtsecret=/config/jwt-secret.txt
+      --rollup.sequencer-http=https://mainnet.boba.network
+      --rollup.disable-tx-pool-gossip
+    ports:
+      - "9545:9545"
+      - "8551:8551"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+      - ${DATA_DIR:-./reth-data}:/db
+
+  op-node:
+    depends_on:
+      - l2
+    image: ${OP_NODE_IMAGE:-us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node}:${OP_NODE_VERSION:-v1.16.2}
+    command: >
+      op-node
+      --l1=${ETH1_HTTP:-https://mainnet.gateway.tenderly.co}
+      --l1.beacon=${ETH2_HTTP}
+      --l2=http://l2:8551
+      --l2.jwt-secret=/config/jwt-secret.txt
+      --network=boba-mainnet
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --p2p.bootnodes="enode://a38db98391708094dd679aacdd356efdbe10ad7c9ba4b87d8f4b79eb24ac26328e7fdf911f8c5c3b7786c2505bc77d896a0ecd1816bd56107592f728dcff3945@35.153.183.193:0?discport=30301,enode://a92b84bac2893ef868659364a6784a6eeb146cb04ec0bb3b1e9925f5bb895af9e1c50deaf0703ab26db366a3d82272e710e06d925cb0b7245129ed76d54ccac9@13.221.254.11:0?discport=30301"
+    # Optional flags
+    #  --p2p.ban.peers=false
+    #  --p2p.priv.path=/config/p2p-node-key.txt
+    #  --p2p.discovery.path=/p2p_discovery_db
+    #  --p2p.peerstore.path=/p2p_peerstore_db
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./jwt-secret.txt:/config/jwt-secret.txt
+    #  - ./p2p-node-key.txt:/config/p2p-node-key.txt
+    #  - ./discovery:/p2p_discovery_db
+    #  - ./peerstore:/p2p_peerstore_db
+    restart: always

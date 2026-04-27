@@ -16,6 +16,10 @@ The Rollup Node is responsible for taking data from Layer 1 (L1) and use it to c
 
 The Execution Client takes care of running the block information it gets from the Rollup Node. It does this through a common method called JSON-RPC, using a set of rules known as the [Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions).
 
+Boba supports multiple execution clients:
+- **op-reth** (Recommended) — High-performance Rust-based client. Uses the upstream [op-reth](https://github.com/paradigmxyz/reth) image with Boba chains built-in.
+- **op-geth** — The original Go-based client. Deprecated — support ends 2026-05-31. Migrate to op-reth.
+
 ### Legacy Geth
 
 The legacy Geth database format is incompatible with the new Geth binary.  During a significant update called the [Anchorage Upgrade](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/README.md#migration), the old blockchain state was used to initialize new starting databases for the newer execution clients.  These databases contain all of the old state (like token balances, DeFi positions, etc.), but do not contain the legacy blocks and transactions that are not compatible with the newer binaries.  To run a local copy of the node, the easiest way to start is from a copy of one of these databases. The old data from Geth, before this upgrade, can still be accessed with the new system but needs a special part called Legacy Geth to work properly. This means if you need to use certain commands, like `eth_call`, on the old data, you'll have to use Legacy Geth.
@@ -24,7 +28,7 @@ You don't always need Legacy Geth, though. It's mainly for those who want to kee
 
 ### Diagram
 
-The diagram below explains how three parts - the Rollup Node, Execution Client, and Legacy Geth - fit together to make a full Boba node. It uses examples called `op-node` for the Rollup Node and `op-erigon` for the Execution Client, but this setup is similar for other versions too.
+The diagram below explains how three parts - the Rollup Node, Execution Client, and Legacy Geth - fit together to make a full Boba node. It uses examples called `op-node` for the Rollup Node and `op-reth` for the Execution Client.
 
 ![image](../../assets/diagrams/node-operator.png)
 
