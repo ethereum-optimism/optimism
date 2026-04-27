@@ -36,11 +36,17 @@ trap 'rm -rf "$temp_dir"' EXIT
 
 # Exit early if semver-lock.json has not changed.
 UPSTREAM_REF="origin/${TARGET_BRANCH}"
-if ! {
-  git diff "$UPSTREAM_REF"...HEAD --name-only
-  git diff --name-only
-  git diff --cached --name-only
-} | grep -q "$SEMVER_LOCK"; then
+if ! git rev-parse --verify --quiet "$UPSTREAM_REF" > /dev/null; then
+  echo "❌ Error: Could not find upstream ref $UPSTREAM_REF"
+  exit 1
+fi
+
+changed_files="$temp_dir/changed_files.txt"
+git diff "$UPSTREAM_REF"...HEAD --name-only > "$changed_files"
+git diff --name-only >> "$changed_files"
+git diff --cached --name-only >> "$changed_files"
+
+if ! grep -qx "$SEMVER_LOCK" "$changed_files"; then
   echo "No changes detected in semver-lock.json"
   exit 0
 fi
