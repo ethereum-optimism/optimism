@@ -38,7 +38,7 @@ library UpgradeUtils {
         uint64 upgradeExecution;
     }
 
-    /// @notice Returns the total number of transactions for the current upgrade.
+    /// @notice Returns the total number of transactions for the named upgrade.
     /// @dev Total count:
     ///      - IMPLEMENTATION_COUNT implementation deployments
     ///      - 1 L2CM deployment

@@ -72,7 +72,7 @@ contract GenerateNUTBundleTest is Test {
         assertEq(output.fork, script.upgradeName(), "fork mismatch");
     }
 
-    /// @notice Tests that transactions have correct structure.
+    /// @notice Tests that transactions have correct structure for the Interop upgrade.
     function test_run_transactionStructure_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
