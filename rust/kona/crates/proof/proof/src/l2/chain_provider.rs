@@ -56,9 +56,10 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
     /// This currently never errors, but returns a `Result` for forward compatibility with
     /// future implementations that may consult an oracle.
     pub fn l2_safe_head(&self) -> Result<B256, OracleProviderError> {
-        Ok(self.cursor.as_ref().map_or(self.l2_head, |cursor| {
-            cursor.read().l2_safe_head().block_info.hash
-        }))
+        Ok(self
+            .cursor
+            .as_ref()
+            .map_or(self.l2_head, |cursor| cursor.read().l2_safe_head().block_info.hash))
     }
 }
 
