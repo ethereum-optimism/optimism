@@ -19,18 +19,27 @@ fn main() {
         return;
     }
 
-    // Get the directory of this file from the environment
-    let src_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    // Resolve the monorepo root via `git rev-parse --show-toplevel` so we don't
+    // depend on this crate's location inside the workspace.
+    let repo_root = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .expect("failed to run `git rev-parse --show-toplevel`");
+    assert!(repo_root.status.success(), "`git rev-parse --show-toplevel` failed");
+    let repo_root = String::from_utf8(repo_root.stdout).unwrap();
+    let repo_root = repo_root.trim_end();
 
-    // Check if the `superchain-registry` directory exists
-    let superchain_registry = format!("{src_dir}/superchain-registry");
+    // The `superchain-registry` submodule lives under
+    // `packages/contracts-bedrock/lib/superchain-registry` at the monorepo root.
+    let superchain_registry =
+        format!("{repo_root}/packages/contracts-bedrock/lib/superchain-registry");
     assert!(
         std::path::Path::new(&superchain_registry).exists(),
         "Git Submodule missing. Please run `just source` to initialize the submodule."
     );
 
     // Copy the `superchain-registry/chainList.json` file to `etc/chainList.json`
-    let chain_list = format!("{src_dir}/superchain-registry/chainList.json");
+    let chain_list = format!("{superchain_registry}/chainList.json");
     let etc_dir = std::path::Path::new("etc");
     if !etc_dir.exists() {
         std::fs::create_dir_all(etc_dir).unwrap();
@@ -38,7 +47,7 @@ fn main() {
     std::fs::copy(chain_list, "etc/chainList.json").unwrap();
 
     // Get the `superchain-registry/superchain/configs` directory`
-    let configs_dir = format!("{src_dir}/superchain-registry/superchain/configs");
+    let configs_dir = format!("{superchain_registry}/superchain/configs");
     let configs = std::fs::read_dir(configs_dir).unwrap();
 
     // Get all the directories in the `configs` directory
