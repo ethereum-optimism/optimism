@@ -43,7 +43,9 @@ abstract contract CrossDomainOwnable2_TestInit is CommonTest {
 /// @notice Tests for the `_checkOwner` function.
 contract CrossDomainOwnable2_CheckOwner_Test is CrossDomainOwnable2_TestInit {
     /// @notice Reverts when caller is not the messenger.
-    function test_checkOwner_notMessenger_reverts() external {
+    function testFuzz_checkOwner_notMessenger_reverts(address _caller) external {
+        vm.assume(_caller != address(l2CrossDomainMessenger));
+        vm.prank(_caller);
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);
     }
@@ -61,16 +63,16 @@ contract CrossDomainOwnable2_CheckOwner_Test is CrossDomainOwnable2_TestInit {
     }
 
     /// @notice Relayed message fails when sender != owner.
-    function test_checkOwner_notOwnerViaRelay_reverts() external {
+    function testFuzz_checkOwner_notOwnerViaRelay_reverts(address _sender) external {
+        vm.assume(_sender != alice);
         uint240 nonce = 0;
-        address sender = bob;
         address target = address(setter);
         uint256 value = 0;
         uint256 minGasLimit = 0;
         bytes memory message = abi.encodeCall(XDomainSetter2.set, (1));
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message
+            Encoding.encodeVersionedNonce(nonce, 1), _sender, target, value, minGasLimit, message
         );
 
         // It should be a failed message. The revert is caught,
@@ -80,7 +82,7 @@ contract CrossDomainOwnable2_CheckOwner_Test is CrossDomainOwnable2_TestInit {
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message
+            Encoding.encodeVersionedNonce(nonce, 1), _sender, target, value, minGasLimit, message
         );
 
         assertEq(setter.value(), 0);
@@ -88,16 +90,21 @@ contract CrossDomainOwnable2_CheckOwner_Test is CrossDomainOwnable2_TestInit {
 
     /// @notice Succeeds when called through the messenger
     ///         by the owner.
-    function test_checkOwner_succeeds() external {
+    function testFuzz_checkOwner_succeeds(uint256 _value) external {
         address owner = setter.owner();
 
         // Simulate the L2 execution where the call is coming
         // from the L1CrossDomainMessenger
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce(1, 1), owner, address(setter), 0, 0, abi.encodeCall(XDomainSetter2.set, (2))
+            Encoding.encodeVersionedNonce(1, 1),
+            owner,
+            address(setter),
+            0,
+            0,
+            abi.encodeCall(XDomainSetter2.set, (_value))
         );
 
-        assertEq(setter.value(), 2);
+        assertEq(setter.value(), _value);
     }
 }
