@@ -7732,6 +7732,7 @@ dependencies = [
  "alloy-serde 2.0.0",
  "arbitrary",
  "arbtest",
+ "derive_more",
  "ethereum_ssz",
  "ethereum_ssz_derive",
  "op-alloy-consensus",

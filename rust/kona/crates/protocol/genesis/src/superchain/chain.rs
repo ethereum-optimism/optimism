@@ -101,6 +101,7 @@ mod tests {
                     karst_time: None,
                     interop_time: None,
                 },
+                protocol_versions_addr: None,
                 superchain_config_addr: None,
                 op_contracts_manager_proxy_addr: None,
             },

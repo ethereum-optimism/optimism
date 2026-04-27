@@ -8,7 +8,7 @@ use alloy_rpc_types_engine::{
 use alloy_transport::{Transport, TransportResult};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes,
+    OpPayloadAttributes, ProtocolVersion,
 };
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
@@ -170,6 +170,18 @@ pub trait OpEngineApi<N, T> {
         client_version: ClientVersionV1,
     ) -> TransportResult<Vec<ClientVersionV1>>;
 
+    /// Optional extension to the Engine API.
+    ///
+    /// Signals superchain information to the Engine: V1 signals which protocol version is
+    /// recommended and required.
+    ///
+    /// See : <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
+    async fn signal_superchain_v1(
+        &self,
+        recommended: ProtocolVersion,
+        required: ProtocolVersion,
+    ) -> TransportResult<ProtocolVersion>;
+
     /// Returns the list of Engine API methods supported by the execution layer client software.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/common.md#capabilities>
@@ -286,6 +298,15 @@ where
         client_version: ClientVersionV1,
     ) -> TransportResult<Vec<ClientVersionV1>> {
         self.client().request("engine_getClientVersionV1", (client_version,)).await
+    }
+
+    async fn signal_superchain_v1(
+        &self,
+        recommended: ProtocolVersion,
+        required: ProtocolVersion,
+    ) -> TransportResult<ProtocolVersion> {
+        let signal = op_alloy_rpc_types_engine::SuperchainSignal { recommended, required };
+        self.client().request("engine_signalSuperchainV1", (signal,)).await
     }
 
     async fn exchange_capabilities(
