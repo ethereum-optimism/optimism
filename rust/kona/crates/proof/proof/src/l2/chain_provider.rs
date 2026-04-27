@@ -48,25 +48,28 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
         self.cursor = Some(cursor);
     }
 
-    /// Fetches the latest known safe head block hash according to the derivation pipeline cursor
+    /// Fetches the latest known safe head block hash according to the derivation pipeline
+    /// cursor, or uses the initial `l2_head` value if no cursor is set.
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying operation fails.
-    /// or uses the initial `l2_head` value if no cursor is set.
-    pub async fn l2_safe_head(&self) -> Result<B256, OracleProviderError> {
-        self.cursor
-            .as_ref()
-            .map_or(Ok(self.l2_head), |cursor| Ok(cursor.read().l2_safe_head().block_info.hash))
+    /// This currently never errors, but returns a `Result` for forward compatibility with
+    /// future implementations that may consult an oracle.
+    pub fn l2_safe_head(&self) -> Result<B256, OracleProviderError> {
+        Ok(self.cursor.as_ref().map_or(self.l2_head, |cursor| {
+            cursor.read().l2_safe_head().block_info.hash
+        }))
     }
 }
 
 impl<T: CommsClient> OracleL2ChainProvider<T> {
     /// Returns a [Header] corresponding to the given L2 block number, by walking back from the
     /// L2 safe head.
+    #[allow(clippy::future_not_send)]
+    // SAFETY: `Arc<T: CommsClient>` does not require `T: Send`.
     async fn header_by_number(&self, block_number: u64) -> Result<Header, OracleProviderError> {
         // Fetch the starting block header.
-        let mut current_hash = self.l2_safe_head().await?;
+        let mut current_hash = self.l2_safe_head()?;
         let mut header = self.header_by_hash(current_hash)?;
 
         // Check if the block number is in range. If not, we can fail early.
@@ -80,18 +83,14 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
                 // If Isthmus is active, the EIP-2935 contract is used to perform leaping lookbacks
                 // through consulting the ring buffer within the contract. If this
                 // lookup fails for any reason, we fall back to linear walk back.
-                let block_hash =
-                    match eip_2935_history_lookup(&header, block_number, current_hash, self, self)
-                        .await
-                    {
-                        Ok(hash) => hash,
-                        Err(_) => {
-                            // If the EIP-2935 lookup fails for any reason, attempt fallback to
-                            // linear walk back.
-                            linear_fallback = true;
-                            continue;
-                        }
-                    };
+                let Ok(block_hash) =
+                    eip_2935_history_lookup(&header, block_number, current_hash, self, self).await
+                else {
+                    // If the EIP-2935 lookup fails for any reason, attempt fallback to
+                    // linear walk back.
+                    linear_fallback = true;
+                    continue;
+                };
 
                 current_hash = block_hash;
                 header = self.header_by_hash(block_hash)?;

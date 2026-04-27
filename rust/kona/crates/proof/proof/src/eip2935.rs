@@ -17,13 +17,16 @@ const HASHED_HISTORY_STORAGE_ADDRESS: B256 =
 /// The number of blocks that the EIP-2935 contract serves historical block hashes for. (8192 - 1)
 const HISTORY_SERVE_WINDOW: u64 = 2u64.pow(13) - 1;
 
-/// Performs a historical block hash lookup using the EIP-2935 contract. If the block number is out
+/// Performs a historical block hash lookup using the EIP-2935 contract. If the block number is
+/// out of bounds of the history lookup window size, the oldest block hash within the window is
+/// returned.
 ///
 /// # Errors
 ///
-/// Returns an error if the underlying operation fails.
-/// of bounds of the history lookup window size, the oldest block hash within the window is
-/// returned.
+/// Returns an error if the trie hint or oracle lookup fails or the trie node cannot be decoded.
+#[allow(clippy::future_not_send)]
+// SAFETY: callers (e.g. `OracleL2ChainProvider`) hold a non-`Send` `Arc<T: CommsClient>` so the
+// resulting future is unavoidably `!Send`.
 pub async fn eip_2935_history_lookup<P, H>(
     header: &Header,
     block_number: u64,

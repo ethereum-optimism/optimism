@@ -9,9 +9,10 @@ use alloy_primitives::{Bytes, hex};
 use core::{fmt::Display, str::FromStr};
 use kona_preimage::HintWriterClient;
 
-/// A [Hint] is parsed in the format `<hint_type> <hint_data>`, where `<hint_type>` is a string that
-/// represents the type of hint, and `<hint_data>` is the data associated with the hint (bytes
-/// encoded as hex UTF-8).
+/// A [Hint] is parsed in the format `<hint_type> <hint_data>`.
+///
+/// `<hint_type>` is a string that represents the type of hint, and `<hint_data>` is the data
+/// associated with the hint (bytes encoded as hex UTF-8).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Hint<HT> {
     /// The type of hint.
@@ -35,6 +36,7 @@ where
     }
 
     /// Appends more data to [`Hint::data`].
+    #[must_use]
     pub fn with_data<T: AsRef<[u8]>>(self, data: T) -> Self {
         // No-op if the data is empty.
         if data.as_ref().is_empty() {
@@ -52,7 +54,9 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying operation fails.
+    /// Returns an error if writing the encoded hint to the comms client fails.
+    #[allow(clippy::future_not_send)]
+    // SAFETY: callers commonly hold the comms client via non-`Send` `Arc<T: CommsClient>`.
     pub async fn send<T: HintWriterClient>(&self, comms: &T) -> Result<(), OracleProviderError> {
         comms.write(&self.encode()).await.map_err(OracleProviderError::Preimage)
     }

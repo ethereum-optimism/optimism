@@ -26,8 +26,6 @@ pub fn block_on<T>(f: impl Future<Output = T>) -> T {
     use alloc::boxed::Box;
     use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
-    let mut f = Box::pin(f);
-
     // Construct a no-op waker.
     fn noop_clone(_: *const ()) -> RawWaker {
         noop_raw_waker()
@@ -37,6 +35,8 @@ pub fn block_on<T>(f: impl Future<Output = T>) -> T {
         let vtable = &RawWakerVTable::new(noop_clone, noop, noop, noop);
         RawWaker::new(core::ptr::null(), vtable)
     }
+
+    let mut f = Box::pin(f);
     let waker = unsafe { Waker::from_raw(noop_raw_waker()) };
     let mut context = Context::from_waker(&waker);
 

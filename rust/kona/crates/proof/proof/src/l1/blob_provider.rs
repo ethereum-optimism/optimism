@@ -35,7 +35,19 @@ impl<T: CommsClient> OracleBlobProvider<T> {
     /// ## Returns
     /// - `Ok(blob)`: The blob.
     /// - `Err(e)`: The blob could not be retrieved.
-    #[allow(clippy::large_stack_frames)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the oracle communication fails or the blob cannot be reconstructed.
+    #[allow(
+        clippy::large_stack_frames,
+        clippy::large_stack_arrays,
+        clippy::future_not_send,
+        clippy::cast_possible_truncation
+    )]
+    // SAFETY: `i` is bounded by `FIELD_ELEMENTS_PER_BLOB` (4096) so `as usize` cannot truncate
+    // on any supported target. `future_not_send` is unavoidable because the oracle generic
+    // `T: CommsClient` is held via `Arc<T>` and need not be `Send`.
     async fn get_blob(
         &self,
         block_ref: &BlockInfo,
@@ -88,7 +100,9 @@ impl<T: CommsClient> OracleBlobProvider<T> {
 impl<T: CommsClient + Sync + Send> BlobProvider for OracleBlobProvider<T> {
     type Error = OracleProviderError;
 
-    #[allow(clippy::large_stack_frames)]
+    #[allow(clippy::large_stack_frames, clippy::future_not_send, clippy::large_futures)]
+    // SAFETY: `future_not_send` is unavoidable because `Arc<T>` does not require `T: Send`.
+    // `large_futures` is unavoidable here as `get_blob` allocates large stack buffers.
     async fn get_and_validate_blobs(
         &mut self,
         block_ref: &BlockInfo,
@@ -105,6 +119,8 @@ impl<T: CommsClient + Sync + Send> BlobProvider for OracleBlobProvider<T> {
 /// The 4096th bit-reversed roots of unity used in EIP-4844 as predefined evaluation points.
 ///
 /// See `generate_roots_of_unity` for details on how these roots of unity are generated.
+#[allow(clippy::cast_possible_truncation)]
+// SAFETY: `FIELD_ELEMENTS_PER_BLOB` is 4096, well within `usize::MAX` on every supported target.
 pub static ROOTS_OF_UNITY: Lazy<[Fr; FIELD_ELEMENTS_PER_BLOB as usize]> =
     Lazy::new(generate_roots_of_unity);
 
@@ -114,13 +130,17 @@ pub static ROOTS_OF_UNITY: Lazy<[Fr; FIELD_ELEMENTS_PER_BLOB as usize]> =
 /// Also, see the consensus specs:
 ///   - `compute_roots_of_unity` <https://github.com/ethereum/consensus-specs/blob/bf09edef17e2900258f7e37631e9452941c26e86/specs/deneb/polynomial-commitments.md#compute_roots_of_unity>
 ///   - bit-reversal permutation: <https://github.com/ethereum/consensus-specs/blob/bf09edef17e2900258f7e37631e9452941c26e86/specs/deneb/polynomial-commitments.md#bit-reversal-permutation>
+#[allow(clippy::large_stack_arrays, clippy::cast_possible_truncation)]
+// SAFETY: The 4096-element `[Fr; FIELD_ELEMENTS_PER_BLOB as usize]` table is constructed once
+// in static `Lazy` storage (heap-promoted), not on the working stack. Loop indices are
+// bounded by `FIELD_ELEMENTS_PER_BLOB` (4096), so `u64 as usize` cannot truncate.
 fn generate_roots_of_unity() -> [Fr; FIELD_ELEMENTS_PER_BLOB as usize] {
     const MAX_ORDER_ROOT: u64 = 32;
 
     let mut roots_of_unity = [Fr::ZERO; FIELD_ELEMENTS_PER_BLOB as usize];
 
     // Generator of the largest 2-adic subgroup of order 2^32.
-    let root_of_unity = Fr::new(
+    let two_adic_generator = Fr::new(
         BigInteger256::from_str(
             "10238227357739495823651030575849232062558860180284477541189508159991286009131",
         )
@@ -130,11 +150,11 @@ fn generate_roots_of_unity() -> [Fr; FIELD_ELEMENTS_PER_BLOB as usize] {
     // Find generator subgroup of order x.
     // This can be constructed by powering a generator of the largest 2-adic subgroup of order 2^32
     // by an exponent of (2^32)/x, provided x is <= 2^32.
-    let log_x = FIELD_ELEMENTS_PER_BLOB.trailing_zeros() as u64;
+    let log_x = u64::from(FIELD_ELEMENTS_PER_BLOB.trailing_zeros());
     let expo = 1u64 << (MAX_ORDER_ROOT - log_x);
 
     // Generator has order x now
-    let generator = root_of_unity.pow([expo]);
+    let generator = two_adic_generator.pow([expo]);
 
     // Compute all relevant roots of unity, i.e. the multiplicative subgroup of size x
     let mut current = Fr::ONE;

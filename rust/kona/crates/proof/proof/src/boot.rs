@@ -182,6 +182,9 @@ impl BootInfo {
     /// println!("Loaded boot info for chain {}", boot_info.chain_id);
     /// println!("Target block: {}", boot_info.claimed_l2_block_number);
     /// ```
+    #[allow(clippy::future_not_send)]
+    // SAFETY: oracle is borrowed by reference for the duration of the future; the resulting
+    // future is `!Send` because callers in the proof program run single-threaded.
     pub async fn load<O>(oracle: &O) -> Result<Self, OracleProviderError>
     where
         O: PreimageOracleClient + Send,

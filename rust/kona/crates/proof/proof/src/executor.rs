@@ -99,7 +99,7 @@ where
     fn compute_output_root(&mut self) -> Result<B256, Self::Error> {
         self.inner.as_mut().map_or_else(
             || Err(kona_executor::ExecutorError::MissingExecutor),
-            |e| e.compute_output_root(),
+            StatelessL2Builder::compute_output_root,
         )
     }
 }
