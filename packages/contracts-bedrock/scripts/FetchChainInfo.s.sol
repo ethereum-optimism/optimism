@@ -398,10 +398,11 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.delayedWethPermissionedGameProxy.selector, delayedWethPermissionedGameProxy);
 
                 address mipsImpl = IFetcher(permissionedDisputeGameImpl).vm();
-                _fo.set(_fo.mipsImpl.selector, mipsImpl);
-
-                address preimageOracleImpl = IFetcher(mipsImpl).oracle();
-                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                if (mipsImpl != address(0)) {
+                    _fo.set(_fo.mipsImpl.selector, mipsImpl);
+                    address preimageOracleImpl = IFetcher(mipsImpl).oracle();
+                    _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                }
             }
 
             address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
