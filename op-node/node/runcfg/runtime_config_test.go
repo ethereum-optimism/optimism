@@ -118,6 +118,12 @@ func TestSignerGracePeriod_SameSignerNoChange(t *testing.T) {
 		"reloading same signer should not clear the grace period")
 }
 
+// TestSignerGracePeriod_Expiry covers the scenario where a signer rotation is
+// detected but the new signer never produces a confirmed block (i.e.
+// ConfirmCurrentSigner is never called). After the grace period elapses,
+// PreviousP2PSequencerAddress must report zero so that gossip rejects blocks
+// from the (now retired) previous signer. The current signer address must be
+// unaffected by expiry.
 func TestSignerGracePeriod_Expiry(t *testing.T) {
 	addrA := common.HexToAddress("0xAAAA")
 	addrB := common.HexToAddress("0xBBBB")
@@ -130,15 +136,21 @@ func TestSignerGracePeriod_Expiry(t *testing.T) {
 	source.storageValues[UnsafeBlockSignerAddressSystemConfigStorageSlot] = addrToHash(addrB)
 	require.NoError(t, rc.Load(context.Background(), eth.L1BlockRef{Hash: common.Hash{2}, Number: 2}))
 
-	require.Equal(t, addrA, rc.PreviousP2PSequencerAddress())
+	require.Equal(t, addrB, rc.P2PSequencerAddress(),
+		"current signer should be the new signer during grace period")
+	require.Equal(t, addrA, rc.PreviousP2PSequencerAddress(),
+		"previous signer should be the old signer during grace period")
 
-	// Simulate grace period expiry by backdating signerChangeTime
+	// Simulate grace period expiry without any ConfirmCurrentSigner call,
+	// modelling the case where the new signer never produces a verified block.
 	rc.mu.Lock()
 	rc.signerChangeTime = time.Now().Add(-DefaultSignerGracePeriod - time.Second)
 	rc.mu.Unlock()
 
+	require.Equal(t, addrB, rc.P2PSequencerAddress(),
+		"current signer should remain the new signer after grace period expires")
 	require.Equal(t, common.Address{}, rc.PreviousP2PSequencerAddress(),
-		"previous signer should be zero after grace period expires")
+		"previous signer should be zero after grace period expires (so gossip rejects blocks from it)")
 }
 
 func TestSignerGracePeriod_DoubleRotation(t *testing.T) {
