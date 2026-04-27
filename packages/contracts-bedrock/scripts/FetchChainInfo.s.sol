@@ -21,6 +21,7 @@ interface IFetcher {
     function l1ERC721Bridge() external view returns (address);
     function optimismMintableERC20Factory() external view returns (address);
     function gameImpls(GameType _gameType) external view returns (address);
+    function gameArgs(GameType _gameType) external view returns (bytes memory);
     function respectedGameType() external view returns (GameType);
     function anchorStateRegistry() external view returns (address);
     function L2_ORACLE() external view returns (address);
@@ -385,51 +386,83 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.permissioned.selector, true);
                 _fo.set(_fo.permissionedDisputeGameImpl.selector, permissionedDisputeGameImpl);
 
-                // Newer PermissionedDisputeGame implementations (post shared-AnchorStateRegistry
-                // refactor, e.g. v2.2.0+ on Sepolia) hold challenger/proposer/anchorStateRegistry/vm
-                // in the proxy's initialized storage rather than impl-level immutables. Calling
-                // these getters directly on the impl returns address(0) on those chains. Older
-                // impls (e.g. v1.8.0) still return the real immutables. We try each call, treat
-                // zero results as "not exposed on impl", and for AnchorStateRegistry fall back to
-                // OptimismPortal2 (the canonical source under the shared-ASR architecture). This
-                // prevents the script from reverting at depth=1 when calling .oracle() on a zero
-                // mipsImpl, which previously aborted FetchChainInfo for any chain on the new
-                // dispute-game architecture (OP Sepolia, Base Sepolia, Mode, Zora, Unichain, etc.).
-                try IFetcher(permissionedDisputeGameImpl).challenger() returns (address challenger) {
-                    if (challenger != address(0)) _fo.set(_fo.challenger.selector, challenger);
+                // Try impl-level reads first. On legacy PermissionedDisputeGame impls (e.g. v1.8.0)
+                // challenger/proposer/anchorStateRegistry/vm are Solidity immutables baked into the
+                // per-chain impl bytecode and return real values. On newer impls (post-CWIA refactor,
+                // ~v2.2.0+) those fields are clones-with-immutable-args appended to each game clone's
+                // bytecode at creation time; calling the getters on the shared impl returns address(0)
+                // (the bytes simply aren't there). For those chains we fall back to the canonical
+                // on-chain source: DisputeGameFactory.gameArgs(PERMISSIONED_CANNON), a public mapping
+                // populated when the impl is registered via setImplementation(GameType, IDisputeGame,
+                // bytes). This works on every v2.2.0+ chain regardless of whether any permissioned
+                // games have actually been created.
+                address challenger;
+                address proposer;
+                address anchorStateRegistryProxy;
+                address mipsImpl;
+                try IFetcher(permissionedDisputeGameImpl).challenger() returns (address v) {
+                    challenger = v;
+                } catch { }
+                try IFetcher(permissionedDisputeGameImpl).proposer() returns (address v) {
+                    proposer = v;
+                } catch { }
+                try IFetcher(permissionedDisputeGameImpl).anchorStateRegistry() returns (address v) {
+                    anchorStateRegistryProxy = v;
+                } catch { }
+                try IFetcher(permissionedDisputeGameImpl).vm() returns (address v) {
+                    mipsImpl = v;
                 } catch { }
 
-                address anchorStateRegistryProxy;
-                try IFetcher(permissionedDisputeGameImpl).anchorStateRegistry() returns (address asr) {
-                    anchorStateRegistryProxy = asr;
-                } catch { }
-                if (anchorStateRegistryProxy == address(0)) {
-                    // Fallback: shared-AnchorStateRegistry chains expose this on OptimismPortal2.
-                    try IFetcher(optimismPortalProxy).anchorStateRegistry() returns (address asr) {
-                        anchorStateRegistryProxy = asr;
+                if (
+                    challenger == address(0) || proposer == address(0) || anchorStateRegistryProxy == address(0)
+                        || mipsImpl == address(0)
+                ) {
+                    // CWIA layout for PermissionedDisputeGame.gameArgs (164 bytes, abi.encodePacked):
+                    //   [0,32)   absolutePrestate
+                    //   [32,52)  vm (MIPS)
+                    //   [52,72)  anchorStateRegistry
+                    //   [72,92)  delayedWeth
+                    //   [92,124) l2ChainId
+                    //   [124,144) proposer
+                    //   [144,164) challenger
+                    try IFetcher(disputeGameFactoryProxy).gameArgs(GameTypes.PERMISSIONED_CANNON) returns (
+                        bytes memory args
+                    ) {
+                        if (args.length >= 164) {
+                            if (mipsImpl == address(0)) mipsImpl = _readAddr(args, 32);
+                            if (anchorStateRegistryProxy == address(0)) {
+                                anchorStateRegistryProxy = _readAddr(args, 52);
+                            }
+                            if (proposer == address(0)) proposer = _readAddr(args, 124);
+                            if (challenger == address(0)) challenger = _readAddr(args, 144);
+                        }
                     } catch { }
                 }
+
+                if (anchorStateRegistryProxy == address(0)) {
+                    // Final fallback: canonical singleton under the shared-ASR architecture.
+                    try IFetcher(optimismPortalProxy).anchorStateRegistry() returns (address v) {
+                        anchorStateRegistryProxy = v;
+                    } catch { }
+                }
+
+                if (challenger != address(0)) _fo.set(_fo.challenger.selector, challenger);
+                if (proposer != address(0)) _fo.set(_fo.proposer.selector, proposer);
                 if (anchorStateRegistryProxy != address(0)) {
                     _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
                 }
 
-                try IFetcher(permissionedDisputeGameImpl).proposer() returns (address proposer) {
-                    if (proposer != address(0)) _fo.set(_fo.proposer.selector, proposer);
-                } catch { }
-
                 address delayedWethPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGameImpl);
                 _fo.set(_fo.delayedWethPermissionedGameProxy.selector, delayedWethPermissionedGameProxy);
 
-                try IFetcher(permissionedDisputeGameImpl).vm() returns (address mipsImpl) {
-                    if (mipsImpl != address(0)) {
-                        _fo.set(_fo.mipsImpl.selector, mipsImpl);
-                        try IFetcher(mipsImpl).oracle() returns (address preimageOracleImpl) {
-                            if (preimageOracleImpl != address(0)) {
-                                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
-                            }
-                        } catch { }
-                    }
-                } catch { }
+                if (mipsImpl != address(0)) {
+                    _fo.set(_fo.mipsImpl.selector, mipsImpl);
+                    try IFetcher(mipsImpl).oracle() returns (address preimageOracleImpl) {
+                        if (preimageOracleImpl != address(0)) {
+                            _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                        }
+                    } catch { }
+                }
             }
 
             address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
@@ -569,5 +602,14 @@ contract FetchChainInfo is Script {
     function _getProxyAdmin(address _systemConfigProxy) internal returns (address) {
         vm.prank(address(0));
         return IFetcher(_systemConfigProxy).admin();
+    }
+
+    /// @notice Reads a 20-byte address from `_data` starting at byte `_offset`. Used to parse the
+    ///         abi.encodePacked CWIA blob returned by DisputeGameFactory.gameArgs.
+    function _readAddr(bytes memory _data, uint256 _offset) internal pure returns (address out_) {
+        if (_data.length < _offset + 20) return address(0);
+        assembly {
+            out_ := shr(96, mload(add(add(_data, 0x20), _offset)))
+        }
     }
 }
