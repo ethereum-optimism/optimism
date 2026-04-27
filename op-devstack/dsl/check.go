@@ -67,19 +67,19 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 // Composable with other lambdas to wait in parallel
 func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
 	return func() error {
-		base := baseNode.ChainSyncStatus(chainID, lvl)
+		// Capture reference state once at the start to avoid chasing a moving target
 		ref := refNode.ChainSyncStatus(chainID, lvl)
+		base := baseNode.ChainSyncStatus(chainID, lvl)
 		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", lvl)
-		logger.Info("Expecting node to match with reference", "base", base.Number, "ref", ref.Number)
+		logger.Info("Expecting node to match with reference", "base", base.Number, "target_ref", ref.Number)
 		return retry.Do0(ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				base = baseNode.ChainSyncStatus(chainID, lvl)
-				ref = refNode.ChainSyncStatus(chainID, lvl)
 				if ref.Hash == base.Hash && ref.Number == base.Number {
 					logger.Info("Node matched", "ref", ref.Number)
 					return nil
 				}
-				logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
+				logger.Info("Node sync status", "base", base.Number, "target_ref", ref.Number)
 				return fmt.Errorf("expected head to match: %s", lvl)
 			})
 	}
