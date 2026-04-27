@@ -109,6 +109,14 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
 		Category: L1RPCCategory,
 	}
+	BeaconSlotDurationOverride = &cli.Uint64Flag{
+		Name:     "l1.beacon.slot-duration-override",
+		Usage:    "Duration in seconds of an L1 slot. When set (non-zero), bypasses the beacon /eth/v1/config/spec fetch and uses this value as SECONDS_PER_SLOT. Useful for devnets where the beacon spec endpoint is unavailable (e.g. anvil).",
+		Required: false,
+		Value:    0,
+		EnvVars:  prefixEnvVars("L1_BEACON_SLOT_DURATION_OVERRIDE"),
+		Category: L1RPCCategory,
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:     "syncmode",
 		Usage:    fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
@@ -119,9 +127,18 @@ var (
 	SyncModeReqRespFlag = &cli.BoolFlag{
 		Name:     "syncmode.req-resp",
 		Required: false,
-		Value:    true,
+		Value:    false,
 		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
+	}
+	SyncModeOffsetELSafeFlag = &cli.DurationFlag{
+		Name: "syncmode.offset-el-safe",
+		Usage: "After execution-layer sync completes, set safe and finalized heads to this duration behind the synced tip " +
+			"(converted to L2 blocks via rollup block time using ceiling division). Default 0 (safe/finalized stay at the tip). " +
+			"Set to e.g. 168h to force derivation of the most recent 7 days of blocks before they are considered safe.",
+		EnvVars:  prefixEnvVars("SYNCMODE_OFFSET_EL_SAFE"),
+		Category: RollupCategory,
+		Value:    0,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -334,18 +351,6 @@ var (
 		Category: OperationsCategory,
 		Hidden:   true,
 	}
-	RollupHalt = &cli.StringFlag{
-		Name:     "rollup.halt",
-		Usage:    "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
-		EnvVars:  prefixEnvVars("ROLLUP_HALT"),
-		Category: RollupCategory,
-	}
-	RollupLoadProtocolVersions = &cli.BoolFlag{
-		Name:     "rollup.load-protocol-versions",
-		Usage:    "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
-		EnvVars:  prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
-		Category: RollupCategory,
-	}
 	SafeDBPath = &cli.StringFlag{
 		Name:     "safedb.path",
 		Usage:    "File path used to persist safe head update data. Disabled if not set.",
@@ -475,8 +480,10 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
+	BeaconSlotDurationOverride,
 	SyncModeFlag,
 	SyncModeReqRespFlag,
+	SyncModeOffsetELSafeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,
@@ -501,8 +508,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
-	RollupHalt,
-	RollupLoadProtocolVersions,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,

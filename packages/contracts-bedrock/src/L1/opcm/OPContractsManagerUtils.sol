@@ -337,6 +337,10 @@ contract OPContractsManagerUtils {
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
         // We need to reset the initialized slot and call the initializer.
+        // NOTE: This reset path still assumes `_offset` is a byte offset within a single
+        // storage slot, the generic one-byte clear can clobber OZ v5 `_initializing` if `_slot`
+        // matches the namespaced Initializable slot, and the hardcoded ERC-7201 slot only covers
+        // the default OZ v5 `_initializableStorageSlot()` layout.
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
@@ -397,6 +401,8 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -449,6 +455,19 @@ contract OPContractsManagerUtils {
                 chainId,
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
+            );
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                parsedInputArgs.verifier,
+                parsedInputArgs.maxChallengeDuration,
+                parsedInputArgs.maxProveDuration,
+                parsedInputArgs.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH),
+                chainId
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

@@ -5,18 +5,19 @@ set -o pipefail # Ensure failures in pipelines are detected
 
 # Usage function
 usage() {
-  echo "Usage: $0 <vm-profile> <baseline-report>"
+  echo "Usage: $0 <vm-profile> [baseline-report]"
   echo "Valid profiles: cannon-singlethreaded-32, cannon-multithreaded-64"
+  echo "If baseline-report is omitted, outputs the full report (useful for regenerating baselines)."
   exit 1
 }
 
 # Validate input
-if [[ $# -ne 2 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
   usage
 fi
 
 VM_PROFILE_CONFIG=$1
-BASELINE_REPORT=$2
+BASELINE_REPORT=${2:-}
 
 ANALYZER_BIN="vm-compat"
 
@@ -36,7 +37,7 @@ echo "✅ llvm-objdump found at $(which llvm-objdump)"
 if ! command -v vm-compat &> /dev/null; then
   echo "❌ Error: 'vm-compat' is required but not found in \$PATH"
   echo "Please install it using:"
-  echo "  mise use -g ubi:ChainSafe/vm-compat@1.1.0"
+  echo "  mise use -g github:ChainSafe/vm-compat@1.1.0"
   echo "Or manually download from:"
   echo "  https://github.com/ChainSafe/vm-compat/releases"
   exit 1
@@ -45,11 +46,17 @@ fi
 echo "✅ vm-compat found at $(which vm-compat)"
 
 # Run the analyzer
-echo "Running analysis with VM profile: $VM_PROFILE_CONFIG using baseline report: $BASELINE_REPORT..."
 OUTPUT_FILE=$(mktemp)
 
-# Note: to output the full report, remove the `--baseline-report` option below
-"$ANALYZER_BIN" analyze --with-trace=true --skip-warnings=false --format=json --vm-profile-config "$VM_PROFILE_CONFIG" --baseline-report "$BASELINE_REPORT" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
+BASELINE_ARGS=()
+if [ -n "$BASELINE_REPORT" ]; then
+  echo "Running analysis with VM profile: $VM_PROFILE_CONFIG using baseline report: $BASELINE_REPORT..."
+  BASELINE_ARGS=(--baseline-report "$BASELINE_REPORT")
+else
+  echo "Running analysis with VM profile: $VM_PROFILE_CONFIG (no baseline — full report)..."
+fi
+
+"$ANALYZER_BIN" analyze --with-trace=true --skip-warnings=false --format=json --vm-profile-config "$VM_PROFILE_CONFIG" "${BASELINE_ARGS[@]}" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
 
 # Check if JSON output contains any issues
 ISSUE_COUNT=$(jq 'length' "$OUTPUT_FILE")

@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 9, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
-
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
@@ -87,7 +85,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
 	return cfg, nil
 }
 

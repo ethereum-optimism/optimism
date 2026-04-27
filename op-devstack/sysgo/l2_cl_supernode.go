@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -12,7 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
+
+var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
 
 type SuperNode struct {
 	mu               sync.Mutex
@@ -53,7 +57,7 @@ func (n *SuperNode) Start() {
 	n.p.Require().NotNil(n.snCfg, "supernode CLI config required")
 
 	ctx, cancel := context.WithCancel(n.p.Ctx())
-	exitFn := func(err error) { n.p.Require().NoError(err, "supernode critical error") }
+	exitFn := func(err error) { n.p.Errorf("supernode critical error: %v", err) }
 	sn, err := supernode.New(ctx, n.logger, "devstack", exitFn, n.snCfg, n.vnCfgs)
 	n.p.Require().NoError(err, "supernode failed to create")
 	n.sn = sn
@@ -61,7 +65,6 @@ func (n *SuperNode) Start() {
 
 	n.p.Require().NoError(n.sn.Start(ctx))
 
-	// Wait for the RPC addr and save userRPC/interop endpoints
 	addr, err := n.sn.WaitRPCAddr(ctx)
 	n.p.Require().NoError(err, "supernode failed to bind RPC address")
 	base := "http://" + addr
@@ -86,24 +89,29 @@ func (n *SuperNode) Stop() {
 	n.sn = nil
 }
 
-// PauseInteropActivity pauses the interop activity at the given timestamp.
-// This function is for integration test control only.
-func (n *SuperNode) PauseInteropActivity(ts uint64) {
+// InteropActivity returns the interop activity running inside the supernode,
+// or nil if the supernode is stopped or has no interop activity. Callers must
+// not cache the returned pointer across RestartInteropActivity, which swaps
+// the activity for a fresh instance. For integration test control only.
+func (n *SuperNode) InteropActivity() *interop.Interop {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.sn != nil {
-		n.sn.PauseInteropActivity(ts)
+	if n.sn == nil {
+		return nil
 	}
+	return n.sn.InteropActivity()
 }
 
-// ResumeInteropActivity clears any pause on the interop activity.
-// This function is for integration test control only.
-func (n *SuperNode) ResumeInteropActivity() {
+// RestartInteropActivity stops the running interop activity, optionally
+// wipes its on-disk logs DBs, and launches a fresh instance against the
+// still-running supernode. For integration test control only.
+func (n *SuperNode) RestartInteropActivity(wipeLogsDBs bool) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.sn != nil {
-		n.sn.ResumeInteropActivity()
+	if n.sn == nil {
+		return errSupernodeNotRunning
 	}
+	return n.sn.RestartInteropActivity(wipeLogsDBs)
 }
 
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.

@@ -100,12 +100,11 @@ where
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
     async fn reset(&mut self) -> Result<(), EngineError> {
         // Reset the engine.
-        let (l2_safe_head, l1_origin, system_config) =
-            self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
 
         // Signal the derivation actor to reset.
-        let signal = ResetSignal { l2_safe_head, l1_origin, system_config: Some(system_config) };
-        match self.derivation_client.send_signal(signal.signal()).await {
+        let signal = Signal::Reset(ResetSignal { l2_safe_head });
+        match self.derivation_client.send_signal(signal).await {
             Ok(_) => info!(target: "engine", "Sent reset signal to derivation actor"),
             Err(err) => {
                 error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");

@@ -2,7 +2,7 @@ use alloy_consensus::Header;
 use alloy_primitives::{Address, B64, B256, BlockNumber, Bloom, Bytes, Sealable, U256};
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 use reth_codecs::Compact;
-use reth_ethereum::primitives::{BlockHeader, InMemorySize, serde_bincode_compat::RlpBincode};
+use reth_primitives_traits::{BlockHeader, InMemorySize, header::HeaderMut};
 use revm_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +32,28 @@ pub struct CustomHeader {
     pub inner: Header,
     /// The extended header
     pub extension: u64,
+}
+
+impl HeaderMut for CustomHeader {
+    fn set_parent_hash(&mut self, hash: alloy_primitives::BlockHash) {
+        self.inner.parent_hash = hash;
+    }
+
+    fn set_block_number(&mut self, number: BlockNumber) {
+        self.inner.number = number;
+    }
+
+    fn set_timestamp(&mut self, timestamp: u64) {
+        self.inner.timestamp = timestamp;
+    }
+
+    fn set_state_root(&mut self, state_root: B256) {
+        self.inner.state_root = state_root;
+    }
+
+    fn set_difficulty(&mut self, difficulty: U256) {
+        self.inner.difficulty = difficulty;
+    }
 }
 
 impl From<Header> for CustomHeader {
@@ -135,6 +157,14 @@ impl alloy_consensus::BlockHeader for CustomHeader {
         self.inner.requests_hash()
     }
 
+    fn block_access_list_hash(&self) -> Option<B256> {
+        self.inner.block_access_list_hash()
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        self.inner.slot_number()
+    }
+
     fn extra_data(&self) -> &Bytes {
         self.inner.extra_data()
     }
@@ -173,12 +203,10 @@ impl reth_db_api::table::Compress for CustomHeader {
 }
 
 impl reth_db_api::table::Decompress for CustomHeader {
-    fn decompress(value: &[u8]) -> Result<Self, reth_db_api::DatabaseError> {
+    fn decompress(value: &[u8]) -> Result<Self, reth_codecs::DecompressError> {
         let (obj, _) = Compact::from_compact(value, value.len());
         Ok(obj)
     }
 }
 
 impl BlockHeader for CustomHeader {}
-
-impl RlpBincode for CustomHeader {}

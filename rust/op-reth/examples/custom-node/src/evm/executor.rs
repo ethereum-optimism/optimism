@@ -7,27 +7,26 @@ use crate::{
 };
 use alloy_consensus::transaction::Recovered;
 use alloy_evm::{
-    Database, Evm, RecoveredTx,
+    Evm, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, ExecutableTx, OnStateHook,
+        BlockExecutorFor, ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
-use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, block::OpTxResult};
-use reth_ethereum::evm::primitives::InspectorFor;
+use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext, block::OpTxResult};
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
-use revm::database::State;
+use revm::Inspector;
 use std::sync::Arc;
 
 pub struct CustomBlockExecutor<Evm> {
     inner: OpBlockExecutor<Evm, OpRethReceiptBuilder, Arc<OpChainSpec>>,
 }
 
-impl<'db, DB, E> BlockExecutor for CustomBlockExecutor<E>
+impl<DB, E> BlockExecutor for CustomBlockExecutor<E>
 where
-    DB: Database + 'db,
-    E: Evm<DB = &'db mut State<DB>, Tx = CustomTxEnv>,
+    DB: StateDB,
+    E: Evm<DB = DB, Tx = CustomTxEnv>,
 {
     type Transaction = CustomTransaction;
     type Receipt = OpReceipt;
@@ -55,7 +54,10 @@ where
         }
     }
 
-    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
+    fn commit_transaction(
+        &mut self,
+        output: Self::Result,
+    ) -> Result<GasOutput, BlockExecutionError> {
         self.inner.commit_transaction(output)
     }
 
@@ -88,12 +90,12 @@ impl BlockExecutorFactory for CustomEvmConfig {
 
     fn create_executor<'a, DB, I>(
         &'a self,
-        evm: CustomEvm<&'a mut State<DB>, I, PrecompilesMap>,
+        evm: CustomEvm<DB, I, PrecompilesMap>,
         ctx: CustomBlockExecutionCtx,
     ) -> impl BlockExecutorFor<'a, Self, DB, I>
     where
-        DB: Database + 'a,
-        I: InspectorFor<Self, &'a mut State<DB>> + 'a,
+        DB: StateDB + 'a,
+        I: Inspector<OpEvmContext<DB>> + 'a,
     {
         CustomBlockExecutor {
             inner: OpBlockExecutor::new(

@@ -17,6 +17,13 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 	opRethELNode := sys.RethWithProofL2ELNode()
 
+	// Wait for the validator's EL head to reach the sequencer's head.
+	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		gt.Fatal(err)
+	}
+	sys.L2ELValidatorNode().WaitForBlockNumber(seqHead.NumberU64())
+
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
 	signedTx, err := plannedTx.Signed.Eval(ctx)
@@ -33,6 +40,12 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
+
+	// Wait for the proofs ExEx store to index the parent block. The ExEx processes
+	// ChainCommitted notifications asynchronously, so the EL head can advance before
+	// the store is ready. debug_executePayload reads from the ExEx store and will
+	// fail with "no state found" if it hasn't caught up yet.
+	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), lastBlock.NumberU64())
 
 	blockTime := lastBlock.Time() + 1
 	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())
@@ -72,6 +85,13 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 	opRethELNode := sys.RethWithProofL2ELNode()
 
+	// Wait for the validator's EL head to reach the sequencer's head.
+	seqHead, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		gt.Fatal(err)
+	}
+	sys.L2ELValidatorNode().WaitForBlockNumber(seqHead.NumberU64())
+
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
 	signedTx, err := plannedTx.Signed.Eval(ctx)
@@ -88,6 +108,9 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
+
+	// Wait for the proofs ExEx store to index the parent block (same race as TestExecutePayloadSuccess).
+	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), lastBlock.NumberU64())
 
 	blockTime := lastBlock.Time() + 1
 	gasLimit := eth.Uint64Quantity(lastBlock.GasLimit())

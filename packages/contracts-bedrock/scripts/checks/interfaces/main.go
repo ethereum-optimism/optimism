@@ -21,14 +21,8 @@ var excludeContracts = []string{
 	"ERC777TokensRecipient", "Guard", "IProxy", "Vm", "VmSafe", "IMulticall3",
 	"IERC721TokenReceiver", "IProxyCreationCallback", "IBeacon", "IEIP712",
 
-	// Generic interfaces
-	"IHasSuperchainConfig",
-
 	// EAS
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",
-
-	// Misc stuff that can be ignored
-	"IOPContractsManagerLegacyUpgrade",
 
 	// Constructor inheritance differences
 	"IL2ProxyAdmin",
@@ -52,8 +46,8 @@ var excludeSourceContracts = []string{
 	// Periphery
 	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",
 
-	// Errors because they should be in their own contracts but are in a shared one
-	"OPContractsManagerDeployer", "OPContractsManagerUpgrader", "OPContractsManagerBase", "OPContractsManagerInteropMigrator", "OPContractsManagerContractsContainer", "OPContractsManagerGameTypeAdder", "OPContractsManagerStandardValidator",
+	// OPCM sub-contracts that don't have their own interfaces
+	"OPContractsManagerStandardValidator", "OPContractsManagerUtilsCaller",
 
 	// FIXME
 	"WETH", "MIPS64",

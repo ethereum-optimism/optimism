@@ -188,11 +188,6 @@ func (c *Intent) validateStandardValues() error {
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
-		if chain.UseRevenueShare {
-			if chain.ChainFeesRecipient == emptyAddress {
-				return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, chain.ID)
-			}
-		}
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
@@ -388,7 +383,6 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L1ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
 				L2ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
 			},
-			UseRevenueShare: standard.UseRevenueShare,
 			// CustomGasToken defaults to disabled (all fields nil/empty)
 			CustomGasToken: CustomGasToken{},
 		})

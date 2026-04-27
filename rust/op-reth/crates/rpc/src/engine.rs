@@ -1,7 +1,7 @@
 //! Implements the Optimism engine API RPC methods.
 
 use alloy_eips::eip7685::Requests;
-use alloy_primitives::{B64, B256, BlockHash, U64};
+use alloy_primitives::{B256, BlockHash, U64};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadInputV2, ExecutionPayloadV3,
     ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
@@ -9,17 +9,15 @@ use alloy_rpc_types_engine::{
 use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
-use op_alloy_rpc_types_engine::{
-    OpExecutionData, OpExecutionPayloadV4, ProtocolVersion, ProtocolVersionFormatV0,
-    SuperchainSignal,
-};
+use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
+use reth_optimism_payload_builder::OpExecData;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 
 /// The list of all supported Engine capabilities available over the engine endpoint.
 ///
@@ -37,18 +35,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_newPayloadV4",
     "engine_getPayloadBodiesByHashV1",
     "engine_getPayloadBodiesByRangeV1",
-    "engine_signalSuperchainV1",
 ];
-
-/// OP Stack protocol version
-/// See also: <https://github.com/ethereum-optimism/op-geth/blob/c3a989eb882d150a936df27bcfa791838b474d55/params/superchain.go#L13-L13>
-pub const OP_STACK_SUPPORT: ProtocolVersion = ProtocolVersion::V0(ProtocolVersionFormatV0 {
-    build: B64::ZERO,
-    major: 9,
-    minor: 0,
-    patch: 0,
-    pre_release: 0,
-});
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
 ///
@@ -220,12 +207,6 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         count: U64,
     ) -> RpcResult<ExecutionPayloadBodiesV1>;
 
-    /// Signals superchain information to the Engine.
-    /// Returns the latest supported OP-Stack protocol version of the execution engine.
-    /// See also <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
-    #[method(name = "engine_signalSuperchainV1")]
-    async fn signal_superchain_v1(&self, _signal: SuperchainSignal) -> RpcResult<ProtocolVersion>;
-
     /// Returns the execution client version information.
     ///
     /// Note:
@@ -267,14 +248,14 @@ impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
 where
     Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
-    EngineT: EngineTypes<ExecutionData = OpExecutionData>,
+    EngineT: EngineTypes<ExecutionData = OpExecData>,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<EngineT>,
     ChainSpec: EthereumHardforks + Send + Sync + 'static,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV2");
-        let payload = OpExecutionData::v2(payload);
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v2(payload));
         Ok(self.inner.new_payload_v2_metered(payload).await?)
     }
 
@@ -285,7 +266,11 @@ where
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV3");
-        let payload = OpExecutionData::v3(payload, versioned_hashes, parent_beacon_block_root);
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v3(
+            payload,
+            versioned_hashes,
+            parent_beacon_block_root,
+        ));
 
         Ok(self.inner.new_payload_v3_metered(payload).await?)
     }
@@ -298,12 +283,12 @@ where
         execution_requests: Requests,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV4");
-        let payload = OpExecutionData::v4(
+        let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v4(
             payload,
             versioned_hashes,
             parent_beacon_block_root,
             execution_requests,
-        );
+        ));
 
         Ok(self.inner.new_payload_v4_metered(payload).await?)
     }
@@ -373,18 +358,6 @@ where
     ) -> RpcResult<ExecutionPayloadBodiesV1> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadBodiesByRangeV1");
         Ok(self.inner.get_payload_bodies_by_range_v1_metered(start.to(), count.to()).await?)
-    }
-
-    async fn signal_superchain_v1(&self, signal: SuperchainSignal) -> RpcResult<ProtocolVersion> {
-        trace!(target: "rpc::engine", "Serving signal_superchain_v1");
-        info!(
-            target: "rpc::engine",
-            "Received superchain version signal local={:?} required={:?} recommended={:?}",
-            OP_STACK_SUPPORT,
-            signal.required,
-            signal.recommended
-        );
-        Ok(OP_STACK_SUPPORT)
     }
 
     async fn get_client_version_v1(

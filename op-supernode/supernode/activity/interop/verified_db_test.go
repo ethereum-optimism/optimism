@@ -1,11 +1,13 @@
 package interop
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 )
 
 func TestVerifiedDB_WriteAndRead(t *testing.T) {
@@ -333,6 +335,67 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 	})
 }
 
+func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	result := VerifiedResult{
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			chainID: {Hash: common.HexToHash("0x02"), Number: 2},
+		},
+	}
+
+	t.Run("same struct replays cleanly", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+		require.NoError(t, db.Commit(result))
+	})
+
+	t.Run("different struct at same timestamp is rejected", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+
+		different := result
+		different.L1Inclusion.Number = 999
+		require.ErrorIs(t, db.Commit(different), ErrAlreadyCommitted)
+	})
+
+	t.Run("byte-divergent but struct-equal replays cleanly", func(t *testing.T) {
+		t.Parallel()
+		// Simulate the concern raised in review: after a crash, the stored JSON
+		// bytes may differ from a fresh Marshal of the same struct (e.g. Go
+		// version upgrade changed field layout). Commit must still recognise
+		// this as an idempotent replay, not ErrAlreadyCommitted.
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+
+		indented, err := json.MarshalIndent(result, "", "  ")
+		require.NoError(t, err)
+		canonical, err := json.Marshal(result)
+		require.NoError(t, err)
+		require.NotEqual(t, canonical, indented, "indented JSON should diverge from canonical bytes")
+
+		require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
+			return tx.Bucket(bucketName).Put(timestampToKey(result.Timestamp), indented)
+		}))
+
+		require.NoError(t, db.Commit(result))
+	})
+}
+
 func TestVerifiedDB_PendingTransition(t *testing.T) {
 	t.Parallel()
 
@@ -354,9 +417,17 @@ func TestVerifiedDB_PendingTransition(t *testing.T) {
 			Result: &Result{
 				Timestamp:   42,
 				L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x1111"), Number: 42},
-				InvalidHeads: map[eth.ChainID]eth.BlockID{
-					eth.ChainIDFromUInt64(1): {Hash: common.HexToHash("0xaaaa"), Number: 100},
-					eth.ChainIDFromUInt64(2): {Hash: common.HexToHash("0xbbbb"), Number: 200},
+				InvalidHeads: map[eth.ChainID]InvalidHead{
+					eth.ChainIDFromUInt64(1): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 100},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate1")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg1")),
+					},
+					eth.ChainIDFromUInt64(2): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xbbbb"), Number: 200},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate2")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg2")),
+					},
 				},
 			},
 		}

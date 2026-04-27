@@ -44,11 +44,28 @@ type L1BeaconClient struct {
 
 // BeaconHTTPClient implements BeaconClient. It provides golang types over the basic Beacon API.
 type BeaconHTTPClient struct {
-	cl client.HTTP
+	cl                   client.HTTP
+	slotDurationOverride uint64
 }
 
-func NewBeaconHTTPClient(cl client.HTTP) *BeaconHTTPClient {
-	return &BeaconHTTPClient{cl}
+type BeaconHTTPClientOption func(*BeaconHTTPClient)
+
+// WithSlotDurationOverride makes ConfigSpec return a synthesized response with
+// the given SECONDS_PER_SLOT value instead of issuing an HTTP request to the
+// beacon /eth/v1/config/spec endpoint. A value of 0 leaves the default
+// behavior unchanged.
+func WithSlotDurationOverride(slotDuration uint64) BeaconHTTPClientOption {
+	return func(c *BeaconHTTPClient) {
+		c.slotDurationOverride = slotDuration
+	}
+}
+
+func NewBeaconHTTPClient(cl client.HTTP, opts ...BeaconHTTPClientOption) *BeaconHTTPClient {
+	c := &BeaconHTTPClient{cl: cl}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
@@ -86,6 +103,13 @@ func (cl *BeaconHTTPClient) NodeVersion(ctx context.Context) (string, error) {
 }
 
 func (cl *BeaconHTTPClient) ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error) {
+	if cl.slotDurationOverride != 0 {
+		return eth.APIConfigResponse{
+			Data: eth.ReducedConfigData{
+				SecondsPerSlot: eth.Uint64String(cl.slotDurationOverride),
+			},
+		}, nil
+	}
 	var configResp eth.APIConfigResponse
 	if err := cl.apiReq(ctx, &configResp, specMethod, nil); err != nil {
 		return eth.APIConfigResponse{}, err

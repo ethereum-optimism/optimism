@@ -98,7 +98,7 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifact
 		genesis:    wb.outL2Genesis[l2ID],
 		rollupCfg:  wb.outL2RollupCfg[l2ID],
 		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmImpl,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
@@ -415,12 +415,12 @@ func startL2CLNode(
 			SupportsPostFinalizationELSync: false,
 			L2FollowSourceEndpoint:         cfg.FollowSource,
 			NeedInitialResetEngine:         false,
+			OffsetELSafe:                   cfg.OffsetELSafe,
 		},
 		ConfigPersistence:               config.DisabledConfigPersistence{},
 		Metrics:                         opmetrics.CLIConfig{},
 		Pprof:                           oppprof.CLIConfig{},
 		SafeDBPath:                      cfg.SafeDBPath,
-		RollupHalt:                      "",
 		Cancel:                          nil,
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,
@@ -430,12 +430,13 @@ func startL2CLNode(
 		ExperimentalOPStackAPI:          true,
 	}
 	l2CL := &OpNode{
-		name:   startCfg.Key,
-		opNode: nil,
-		cfg:    nodeCfg,
-		p:      t,
-		logger: logger,
-		clock:  clock.SystemClock,
+		name:     startCfg.Key,
+		opNode:   nil,
+		cfg:      nodeCfg,
+		syncMode: syncMode,
+		p:        t,
+		logger:   logger,
+		clock:    clock.SystemClock,
 	}
 	l2CL.Start()
 	t.Cleanup(l2CL.Stop)

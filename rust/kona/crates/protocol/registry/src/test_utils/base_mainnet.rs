@@ -8,6 +8,8 @@ use alloy_op_hardforks::{
     BASE_MAINNET_ISTHMUS_TIMESTAMP, BASE_MAINNET_JOVIAN_TIMESTAMP,
 };
 use alloy_primitives::{address, b256, uint};
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 use kona_genesis::{
     BASE_MAINNET_BASE_FEE_CONFIG, ChainGenesis, HardForkConfig, RollupConfig, SystemConfig,
 };
@@ -44,6 +46,8 @@ pub const BASE_MAINNET_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600,
     channel_timeout: 300,
     granite_channel_timeout: 50,
+    #[cfg(feature = "rollup_config_override")]
+    fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 1,
     l2_chain_id: Chain::base_mainnet(),
     hardforks: HardForkConfig {
@@ -63,7 +67,6 @@ pub const BASE_MAINNET_CONFIG: RollupConfig = RollupConfig {
     batch_inbox_address: address!("ff00000000000000000000000000000000008453"),
     deposit_contract_address: address!("49048044d57e1c92a77f79988d21fa8faf74e97e"),
     l1_system_config_address: address!("73a79fab69143498ed3712e519a88a918e1f4072"),
-    protocol_versions_address: address!("8062abc286f5e7d9428a0ccb9abd71e50d93b935"),
     superchain_config_address: Some(address!("95703e0982140D16f8ebA6d158FccEde42f04a4C")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,

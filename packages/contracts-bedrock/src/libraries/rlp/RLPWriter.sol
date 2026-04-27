@@ -18,7 +18,7 @@ library RLPWriter {
         }
     }
 
-    /// @notice RLP encodes a list of RLP encoded byte byte strings.
+    /// @notice RLP encodes a list of RLP encoded byte strings.
     /// @param _in The list of RLP encoded byte strings.
     /// @return list_ The RLP encoded list of items in bytes.
     function writeList(bytes[] memory _in) internal pure returns (bytes memory list_) {

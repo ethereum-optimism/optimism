@@ -1,17 +1,16 @@
 use crate::evm::{CustomTxEnv, PaymentTxEnv};
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
-use alloy_op_evm::{OpEvm, OpEvmFactory, OpTxError};
+use alloy_op_evm::{OpEvm, OpEvmContext, OpEvmFactory, OpTx, OpTxError};
 use alloy_primitives::{Address, Bytes};
-use op_revm::{
-    L1BlockInfo, OpContext, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles,
-};
-use reth_ethereum::evm::revm::{
+use op_revm::{L1BlockInfo, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles};
+use revm::{
     Context, Inspector, Journal,
     context::{BlockEnv, CfgEnv, result::ResultAndState},
+    context_interface::result::EVMError,
     handler::PrecompileProvider,
+    inspector::NoOpInspector,
     interpreter::InterpreterResult,
 };
-use revm::{context_interface::result::EVMError, inspector::NoOpInspector};
 use std::error::Error;
 
 /// EVM context contains data that EVM needs for execution of [`CustomTxEnv`].
@@ -19,11 +18,11 @@ pub type CustomContext<DB> =
     Context<BlockEnv, OpTransaction<PaymentTxEnv>, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
 
 pub struct CustomEvm<DB: Database, I, P = OpPrecompiles> {
-    inner: OpEvm<DB, I, P>,
+    inner: OpEvm<DB, I, P, OpTx>,
 }
 
 impl<DB: Database, I, P> CustomEvm<DB, I, P> {
-    pub fn new(op: OpEvm<DB, I, P>) -> Self {
+    pub fn new(op: OpEvm<DB, I, P, OpTx>) -> Self {
         Self { inner: op }
     }
 }
@@ -31,8 +30,8 @@ impl<DB: Database, I, P> CustomEvm<DB, I, P> {
 impl<DB, I, P> Evm for CustomEvm<DB, I, P>
 where
     DB: Database,
-    I: Inspector<OpContext<DB>>,
-    P: PrecompileProvider<OpContext<DB>, Output = InterpreterResult>,
+    I: Inspector<OpEvmContext<DB>>,
+    P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
 {
     type DB = DB;
     type Tx = CustomTxEnv;
@@ -47,6 +46,10 @@ where
         self.inner.block()
     }
 
+    fn cfg_env(&self) -> &CfgEnv<OpSpecId> {
+        self.inner.cfg_env()
+    }
+
     fn chain_id(&self) -> u64 {
         self.inner.chain_id()
     }
@@ -56,7 +59,7 @@ where
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         match tx {
-            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx.into()),
+            CustomTxEnv::Op(tx) => self.inner.transact_raw(tx),
             CustomTxEnv::Payment(..) => todo!(),
         }
     }
@@ -70,7 +73,7 @@ where
         self.inner.transact_system_call(caller, contract, data)
     }
 
-    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
+    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec, Self::BlockEnv>) {
         self.inner.finish()
     }
 
@@ -97,8 +100,8 @@ impl CustomEvmFactory {
 }
 
 impl EvmFactory for CustomEvmFactory {
-    type Evm<DB: Database, I: Inspector<OpContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
-    type Context<DB: Database> = OpContext<DB>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
+    type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = CustomTxEnv;
     type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
@@ -109,7 +112,7 @@ impl EvmFactory for CustomEvmFactory {
     fn create_evm<DB: Database>(
         &self,
         db: DB,
-        input: EvmEnv<Self::Spec>,
+        input: EvmEnv<Self::Spec, Self::BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
         CustomEvm::new(self.0.create_evm(db, input))
     }
@@ -117,7 +120,7 @@ impl EvmFactory for CustomEvmFactory {
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
         &self,
         db: DB,
-        input: EvmEnv<Self::Spec>,
+        input: EvmEnv<Self::Spec, Self::BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
         CustomEvm::new(self.0.create_evm_with_inspector(db, input, inspector))

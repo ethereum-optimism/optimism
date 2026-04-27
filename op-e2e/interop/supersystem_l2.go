@@ -243,7 +243,7 @@ func (s *interopE2ESystem) newProposerForL2(
 		SupervisorRpcs:    []string{s.Supervisor().RPC()},
 		DGFAddress:        s.worldDeployment.Interop.DisputeGameFactory.Hex(),
 		ProposalInterval:  6 * time.Second,
-		DisputeGameType:   4, // Super Permissionless game type is the only one currently deployed
+		DisputeGameType:   9, // Super Cannon Kona game type
 		PollInterval:      500 * time.Millisecond,
 		TxMgrConfig:       setuputils.NewTxMgrConfig(s.L1().UserRPC(), &key),
 		AllowNonFinalized: true,

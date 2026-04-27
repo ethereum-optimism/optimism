@@ -12,7 +12,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Interfaces
-import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -34,12 +33,12 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _loadArtifactInfo(_artifactPath);
     }
 
-    function getOpcmPropertyRefs(IOPContractsManager _opcm) public returns (OpcmContractRef[] memory) {
+    function getOpcmPropertyRefs(IOPContractsManagerV2 _opcm) public returns (OpcmContractRef[] memory) {
         return _getOpcmPropertyRefs(_opcm);
     }
 
     function getOpcmContractRefs(
-        IOPContractsManager _opcm,
+        IOPContractsManagerV2 _opcm,
         string memory _property,
         bool _blueprint
     )
@@ -61,7 +60,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyOpcmUtilsConsistency(_propRefs);
     }
 
-    function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public returns (bool) {
+    function verifyOpcmImmutableVariables(IOPContractsManagerV2 _opcm) public returns (bool) {
         return _verifyOpcmImmutableVariables(_opcm);
     }
 
@@ -89,12 +88,16 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyAnchorStateRegistryDelays(_asr);
     }
 
-    function verifyStandardValidatorArgs(IOPContractsManager _opcm, address _validator) public returns (bool) {
+    function verifyStandardValidatorArgs(IOPContractsManagerV2 _opcm, address _validator) public returns (bool) {
         return _verifyStandardValidatorArgs(_opcm, _validator);
     }
 
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
         validatorGetterChecks[_getter] = _check;
+    }
+
+    function isReady() public view returns (bool) {
+        return ready;
     }
 }
 
@@ -102,33 +105,24 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 /// @notice Reusable test initialization for `VerifyOPCM` tests.
 abstract contract VerifyOPCM_TestInit is CommonTest {
     VerifyOPCM_Harness internal harness;
+    IOPContractsManagerV2 internal opcm;
 
     function setUp() public virtual override {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
 
-        // If OPCM V2 is enabled, set up the test environment for OPCM V2.
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        if (vm.envOr("DEV_FEATURE__OPCM_V2", false)) {
-            opcm = IOPContractsManager(address(opcmV2));
-        }
+        opcm = IOPContractsManagerV2(address(opcmV2));
 
         // Always set up the environment variables for the test.
         setupEnvVars();
 
-        // Set the OPCM address so that runSingle also runs for V2 OPCM if the dev feature is enabled.
+        // Set the OPCM address.
         vm.setEnv("OPCM_ADDRESS", vm.toString(address(opcm)));
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
-        // If OPCM V2 is not enabled, set the environment variables for the old OPCM.
-        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-            vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        }
-
         // Grab a reference to the validator.
         IOPContractsManagerStandardValidator validator =
             IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
@@ -146,6 +140,16 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
             vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
         );
     }
+
+    function superGamesEnabled() internal view returns (bool) {
+        bytes32 bitmap = opcm.devFeatureBitmap();
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
+            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    }
+
+    function zkDisputeGameEnabled() internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
 }
 
 /// @title VerifyOPCM_Run_Test
@@ -157,7 +161,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
-        skipIfUnoptimized();
+        // Coverage instrumentation would break the bytecode comparison because the artifact
+        // on disk is not instrumented. The optimizer setting does not matter: both the
+        // deployed code and the artifact come from the same local compile, so they move
+        // together under any Foundry profile.
+        skipIfCoverage();
 
         // Run the script.
         harness.run(address(opcm), true);
@@ -178,9 +186,28 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                     continue;
                 }
 
+                // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
+                if (_isZKDisputeGameContractRef(ref)) {
+                    continue;
+                }
+
                 harness.runSingle(ref.name, ref.addr, true);
             }
         }
+    }
+
+    /// @notice Tests that runSingle lazily initializes script state on a fresh instance.
+    function test_runSingle_withoutExplicitSetUp_succeeds() public {
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
+
+        VerifyOPCM_Harness freshHarness = new VerifyOPCM_Harness();
+        assertFalse(freshHarness.isReady(), "fresh harness should start uninitialized");
+
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        freshHarness.runSingle("PreimageOracle", address(mipsImpl.oracle()), true);
+
+        assertTrue(freshHarness.isReady(), "runSingle should initialize script state");
     }
 
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
@@ -191,7 +218,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Mock opcm to return a non-zero dev feature bitmap.
         vm.mockCall(
-            address(opcm), abi.encodeCall(IOPContractsManager.devFeatureBitmap, ()), abi.encode(_devFeatureBitmap)
+            address(opcm), abi.encodeCall(IOPContractsManagerV2.devFeatureBitmap, ()), abi.encode(_devFeatureBitmap)
         );
 
         // Set the chain ID to 1.
@@ -209,17 +236,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
     ///         enough.
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
-        skipIfUnoptimized();
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
 
         // Skip security value checks since this test deliberately corrupts immutable values.
         harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
-
-        // Check if V2 dispute games feature is enabled
-        bytes32 bitmap = opcm.devFeatureBitmap();
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Change 256 bytes at random.
         for (uint256 i = 0; i < 255; i++) {
@@ -228,7 +252,12 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip super dispute games when feature disabled
-            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled) {
+            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -280,17 +309,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         implementation contracts that are not inside immutable references. Fuzzing is too
     ///         slow here, randomness is good enough.
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
-        skipIfUnoptimized();
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
 
         // Skip security value checks since corrupted bytecode may break contract queries.
         harness.setSkipSecurityValueChecks(true);
 
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
-
-        // Check if V2 dispute games feature is enabled
-        bytes32 bitmap = opcm.devFeatureBitmap();
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Change 256 bytes at random.
         for (uint8 i = 0; i < 255; i++) {
@@ -299,7 +325,12 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip super dispute games when feature disabled
-            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled) {
+            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -434,7 +465,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                 // Mock this specific component to return a different address
                 vm.mockCall(
                     propRefs[i].addr,
-                    abi.encodeCall(IOPContractsManagerUpgrader.contractsContainer, ()),
+                    abi.encodeCall(IOPContractsManagerV2.contractsContainer, ()),
                     abi.encode(differentContainer)
                 );
 
@@ -456,9 +487,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_verifyOpcmUtilsConsistency_succeeds() public {
         skipIfUnoptimized();
 
-        // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
 
@@ -469,9 +497,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Tests that the script reverts when contracts have different opcmUtils addresses.
     function test_verifyOpcmUtilsConsistency_mismatch_reverts() public {
         skipIfUnoptimized();
-
-        // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -490,9 +515,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Tests that each OPCM component with opcmUtils() can be individually tested for mismatch.
     function test_verifyOpcmUtilsConsistency_eachComponent_reverts() public {
         skipIfUnoptimized();
-
-        // Only run for OPCM V2
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Get the property references (which include the component addresses)
         VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
@@ -527,6 +549,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
     }
 
+    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
+        return LibString.eq(ref.name, "ZKDisputeGame");
+    }
+
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
     /// @param _propRefs Array of property references to search through.
     /// @param _mockAddress The address to mock the contractsContainer call to return.
@@ -537,7 +563,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             if (_hasContractsContainer(field)) {
                 vm.mockCall(
                     _propRefs[i].addr,
-                    abi.encodeCall(IOPContractsManagerUpgrader.contractsContainer, ()),
+                    abi.encodeCall(IOPContractsManagerV2.contractsContainer, ()),
                     abi.encode(_mockAddress)
                 );
                 return;
@@ -624,19 +650,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Verify that immutable variables fail validation
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
-    }
-
-    /// @notice Tests that the script fails when OPCM immutable variables are invalid.
-    /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
-    function test_verifyOpcmImmutableVariables_mismatch_fails() public {
-        skipIfUnoptimized();
-
-        // If OPCM V2 is enabled because we do not use environment variables for OPCM V2.
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Test that mocking each individual getter causes verification to fail
-        _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
-        _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
     }
 
     /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.

@@ -1,0 +1,88 @@
+---
+title: Specialized op-node topology with light nodes
+description: OP Labs highly recommends migrating from homogeneous op-node fleets to a specialized topology where only designated source nodes derive from L1 and the rest run as light nodes via --l2.follow.source.
+lang: en-US
+content_type: notice
+topic: specialized-node-topology
+personas:
+  - node-operator
+  - chain-operator
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+Historically, every `op-node` in a fleet has independently derived the [safe chain](https://docs.optimism.io/op-stack/reference/glossary#safe-l2-block) from L1 while also consolidating [unsafe blocks](https://docs.optimism.io/op-stack/reference/glossary#unsafe-l2-block) received over gossip. As fleets grow and upcoming features like interop raise the cost of derivation, we **highly recommend** migrating to a **specialized topology** in which a small number of `op-node` instances are dedicated to L1 derivation and the rest defer to those sources.
+
+In the specialized topology, **light nodes** are started with `--l2.follow.source` pointing at a traditional `op-node` acting as the derivation source. Light nodes disable their own independent derivation and instead receive the safe chain from the source, while continuing to track the unsafe tip via gossip and the engine API.
+
+<Warning>
+  This topology will become **required** for node operators running OP Mainnet and/or Unichain nodes in the future.
+</Warning>
+
+## What this means
+
+*   **Source nodes** are traditional `op-node` instances configured to derive the full chain from L1, exactly as today.
+*   **Light nodes** are `op-node` instances started with `--l2.follow.source=<source op-node RPC>`. They stop deriving from L1 themselves and receive the safe chain from the designated source.
+*   `op-node` is **not** being deprecated, and the homogeneous topology is **not** being removed. This is a recommended operational upgrade, not a required migration.
+*   Only the derivation role changes. Light nodes continue to serve RPC, participate in gossip, and drive their connected execution client as before.
+
+## Why this matters
+
+### L1 utilization reduction
+
+Only the source nodes ingest L1 data for derivation. Light nodes no longer issue L1 RPC calls for the derivation pipeline, which meaningfully reduces L1 API load and provider costs for operators running many nodes.
+
+### Performance specialization
+
+Light nodes shed the L1 derivation workload and can focus on advancing the unsafe chain and serving RPC, while source nodes focus exclusively on derivation.
+
+### Asymmetric scaling
+
+RPC-serving capacity and derivation capacity can now be scaled independently. Operators can add or remove light nodes to match read traffic without changing L1 load, and can size the source tier separately based on derivation requirements and redundancy targets.
+
+### Lower cost for future rollouts
+
+Future upgrades — including interop — will require more sophisticated derivation logic. Centralizing derivation behind a small, well-defined source tier minimizes the operational surface area affected by those upgrades and reduces the per-node cost of adopting them.
+
+## How to migrate
+
+### Node operators
+
+Plan a migration from a homogeneous fleet of derivation-enabled `op-node` instances to a specialized topology:
+
+1.  Designate one or more `op-node` instances as **source** nodes. These continue to run with full L1 derivation and should be sized and monitored accordingly, including redundancy for failover.
+2.  Provision the remaining `op-node` instances as **light nodes** by setting `--l2.follow.source=<source op-node RPC endpoint>` (env: `OP_NODE_L2_FOLLOW_SOURCE`). Ensure light nodes can reach the source endpoint over a reliable, low-latency network path.
+3.  Validate that light nodes track the safe chain correctly against the source before shifting production traffic.
+4.  Update dashboards and alerting so the source tier's health is treated as a dependency of the light-node tier.
+
+#### Highly available topology with consensus-aware proxyd
+
+For production deployments, we recommend placing the derivation tier behind a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) and exposing light nodes to users through a separate RPC-serving tier:
+
+<img src="/public/img/notices/light-node-topology.png" alt="Specialized op-node topology: three source op-nodes with EL (Reth) feed a consensus-aware proxyd via CL API, which fans out to two light op-nodes via --l2.follow.source" style={{ width: '100%', height: 'auto' }} />
+
+*   **Deriver tier** — a small, redundant set of derivation-enabled `op-node` instances (the sources). These sit behind a `proxyd` configured with routing strategy: `consensus_aware_consensus_layer`, which aggregates the mutiple op-node sources into a single highly available endpoint and hides individual failures or reorgs from downstream consumers.
+*   **Light-node tier** — a horizontally scalable pool of light `op-node` instances started with `--l2.follow.source` pointed at the deriver-tier `proxyd` endpoint. This tier can be scaled up and down independently based on read traffic.
+*   **Edge tier** — an API gateway or user-facing `proxyd` that fronts the light-node tier and handles external RPC traffic, rate limiting, and routing.
+
+In all cases, consider your existing topology and apply node specialization in a way that works best with your deployment stack. The goal is to have a minimal, well defined set of deriving op-nodes, and a scalable collection of light nodes.
+
+### Chain operators
+
+All guidance for Node Operators is applicable to Chain Operators. For `op-node` instances serving as Sequencers, we suggest those nodes use `--l2.follow.source` to offload the work of derivation. Benchmarking indicates removing derivation eliminates some bottlenecks when producing blocks, and the role
+of the Sequencer is to maintain and extend the Unsafe Chain.
+
+<Info>
+  The specialized topology is a recommendation, not a hard requirement. Existing homogeneous deployments continue to work. Migration can be done incrementally, one light node at a time.
+</Info>
+
+<Warning>
+  `op-node` on its own may not remain sufficient to serve as a derivation source for all future features. As the stack evolves — for example with interop — the source role may need to be enhanced or replaced by additional software alongside `op-node`. Operators who keep running large fleets of derivation-enabled `op-node` instances should expect a higher operational burden over time: more L1 API cost today, and a per-node cost to upgrade every derivation-enabled instance as those changes land. Specializing the topology now minimizes the number of nodes affected by those future upgrades.
+</Warning>
+
+## Resources
+
+*   `--l2.follow.source` flag (env: `OP_NODE_L2_FOLLOW_SOURCE`) — configures an `op-node` as a light node pointed at a source `op-node` RPC endpoint.
+*   `--l2.follow.source.rpc-timeout` flag (env: `OP_NODE_L2_FOLLOW_SOURCE_RPC_TIMEOUT`) — tunes the RPC call timeout used when talking to the source (default `10s`).

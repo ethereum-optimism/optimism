@@ -11,7 +11,7 @@ import (
 
 func TestSuperRootWithdrawal(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSuperProofs(t, presets.WithTimeTravelEnabled())
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithTimeTravelEnabled(), presets.WithChallengerCannonKonaEnabled())
 	sys.L1Network.WaitForOnline()
 
 	initialL1Balance := eth.HalfEther

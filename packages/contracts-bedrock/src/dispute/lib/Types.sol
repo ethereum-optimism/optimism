@@ -92,6 +92,7 @@ library GameTypes {
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
 
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
     GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
 
     /// @notice Returns true if the game type uses super roots.
@@ -111,7 +112,7 @@ library VMStatuses {
     /// @notice The VM has executed successfully and the outcome is invalid.
     VMStatus internal constant INVALID = VMStatus.wrap(1);
 
-    /// @notice The VM has paniced.
+    /// @notice The VM has panicked.
     VMStatus internal constant PANIC = VMStatus.wrap(2);
 
     /// @notice The VM execution is still in progress.

@@ -21,7 +21,7 @@ use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction as OpTransaction;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes, ProtocolVersion,
+    OpPayloadAttributes,
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
@@ -77,8 +77,6 @@ pub struct MockEngineStorage {
     // Non-versioned responses
     /// Storage for client version responses.
     pub client_versions: Option<Vec<ClientVersionV1>>,
-    /// Storage for protocol version responses.
-    pub protocol_version: Option<ProtocolVersion>,
     /// Storage for capabilities responses.
     pub capabilities: Option<Vec<String>>,
 
@@ -222,12 +220,6 @@ impl MockEngineClientBuilder {
     /// Sets the client versions response.
     pub fn with_client_versions(mut self, versions: Vec<ClientVersionV1>) -> Self {
         self.storage.client_versions = Some(versions);
-        self
-    }
-
-    /// Sets the protocol version response.
-    pub const fn with_protocol_version(mut self, version: ProtocolVersion) -> Self {
-        self.storage.protocol_version = Some(version);
         self
     }
 
@@ -378,11 +370,6 @@ impl MockEngineClient {
     /// Sets the client versions response.
     pub async fn set_client_versions(&self, versions: Vec<ClientVersionV1>) {
         self.storage.write().await.client_versions = Some(versions);
-    }
-
-    /// Sets the protocol version response.
-    pub async fn set_protocol_version(&self, version: ProtocolVersion) {
-        self.storage.write().await.protocol_version = Some(version);
     }
 
     /// Sets the capabilities response.
@@ -650,17 +637,6 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
         let storage = self.storage.read().await;
         storage.client_versions.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str("No client versions set in mock"))
-        })
-    }
-
-    async fn signal_superchain_v1(
-        &self,
-        _recommended: ProtocolVersion,
-        _required: ProtocolVersion,
-    ) -> TransportResult<ProtocolVersion> {
-        let storage = self.storage.read().await;
-        storage.protocol_version.ok_or_else(|| {
-            TransportError::from(TransportErrorKind::custom_str("No protocol version set in mock"))
         })
     }
 

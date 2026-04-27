@@ -122,10 +122,6 @@ func TestInteropUpgrade(gt *testing.T) {
 		dsl.RequireSupervisorChainHeads(t, svr, c, syncAsserter.PrevStatus.UnsafeL2.ID(), syncAsserter.PrevStatus.CrossUnsafeL2.ID(), syncAsserter.PrevStatus.LocalSafeL2.ID(), syncAsserter.PrevStatus.SafeL2.ID(), eth.BlockID{})
 	}
 
-	// Verify proofs agree
-	// TODO(#16166): Fix non-genesis Interop activation proofs
-	// assertProgramOutputMatchesDerivationForBlockTimestamp(gt, system, system.Actors.ChainA.Sequencer.L2Safe().Time)
-
 	superchainSyncAsserter.RequireAllSeqSyncStatuses(func() {
 		// Advance L1 safe head and finalized head
 		system.Actors.L1Miner.ActL1SafeNext(t)
@@ -167,9 +163,6 @@ func TestInteropUpgrade(gt *testing.T) {
 		}, dsl.WithSafeAdvancesTo(3))
 	}
 
-	// Verify proofs agree on prev blocks
-	assertProgramOutputMatchesDerivationForBlockTimestamp(gt, system, system.Actors.ChainA.Sequencer.L2Safe().Time)
-
 	////////////////////////////
 	// Send cross-chain message
 	////////////////////////////
@@ -193,9 +186,6 @@ func TestInteropUpgrade(gt *testing.T) {
 	})
 	dsl.RequireL1Heads(t, system, 6, 3)
 
-	// Verify proofs agree on prev blocks
-	assertProgramOutputMatchesDerivationForBlockTimestamp(gt, system, system.Actors.ChainA.Sequencer.L2Safe().Time)
-
 	// Send a message
 	system.AddL2Block(system.Actors.ChainA, dsl.WithL2BlockTransactions(emitter.EmitMessage(alice, "hello")))
 	initMsg := emitter.LastEmittedMessage()
@@ -214,9 +204,6 @@ func TestInteropUpgrade(gt *testing.T) {
 	// Verify chain time
 	dsl.RequireUnsafeTimeOffset(t, system.Actors.ChainA, 10)
 	dsl.RequireUnsafeTimeOffset(t, system.Actors.ChainB, 10)
-
-	// Verify proofs agree on prev blocks
-	assertProgramOutputMatchesDerivationForBlockTimestamp(gt, system, system.Actors.ChainA.Sequencer.L2Safe().Time)
 }
 
 func TestInteropGenesisActivation(gt *testing.T) {
@@ -261,78 +248,6 @@ func VerifyContractsDeployedCorrectly(t helpers.Testing, chain *dsl.Chain, activ
 
 	RequireContractDeployedAndProxyUpdated(t, chain, derive.CrossL2InboxAddress, predeploys.CrossL2InboxAddr, new(big.Int).SetUint64(activationBlockID.Number))
 	RequireContractDeployedAndProxyUpdated(t, chain, derive.L2ToL2MessengerAddress, predeploys.L2toL2CrossDomainMessengerAddr, new(big.Int).SetUint64(activationBlockID.Number))
-}
-
-// Runs superchain fault proofs across entire superchain pseudo-blocks
-func assertProgramOutputMatchesDerivationForBlockTimestamp(gt *testing.T, system *dsl.InteropDSL, endTimestamp uint64) {
-	// Verify the proofs backend agrees
-	actors := system.Actors
-
-	startTimestamp := endTimestamp - 1
-	start := system.Outputs.SuperRoot(startTimestamp)
-	end := system.Outputs.SuperRoot(endTimestamp)
-
-	step1Expected := system.Outputs.TransitionState(startTimestamp, 1,
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-	).Marshal()
-
-	step2Expected := system.Outputs.TransitionState(startTimestamp, 2,
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
-	).Marshal()
-
-	paddingStep := func(step uint64) []byte {
-		return system.Outputs.TransitionState(startTimestamp, step,
-			system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-			system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
-		).Marshal()
-	}
-
-	// Fail immediately if the test does not pass
-	require.True(gt, runFppAndChallengerTests(gt, system, []*transitionTest{
-		{
-			name:               "FirstChainOptimisticBlock",
-			agreedClaim:        start.Marshal(),
-			disputedClaim:      step1Expected,
-			disputedTraceIndex: 0,
-			expectValid:        true,
-		},
-		{
-			name:               "SecondChainOptimisticBlock",
-			agreedClaim:        step1Expected,
-			disputedClaim:      step2Expected,
-			disputedTraceIndex: 1,
-			expectValid:        true,
-		},
-		{
-			name:               "FirstPaddingStep",
-			agreedClaim:        step2Expected,
-			disputedClaim:      paddingStep(3),
-			disputedTraceIndex: 2,
-			expectValid:        true,
-		},
-		{
-			name:               "SecondPaddingStep",
-			agreedClaim:        paddingStep(3),
-			disputedClaim:      paddingStep(4),
-			disputedTraceIndex: 3,
-			expectValid:        true,
-		},
-		{
-			name:               "LastPaddingStep",
-			agreedClaim:        paddingStep(consolidateStep - 1),
-			disputedClaim:      paddingStep(consolidateStep),
-			disputedTraceIndex: consolidateStep - 1,
-			expectValid:        true,
-		},
-		{
-			name:               "Consolidate",
-			agreedClaim:        paddingStep(consolidateStep),
-			disputedClaim:      end.Marshal(),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        true,
-		},
-	}), "fault proof program verification failed")
 }
 
 var ProxyImplGetterFunc = w3.MustNewFunc(`implementation()`, `address`)

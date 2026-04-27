@@ -10,10 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -79,11 +80,12 @@ func setRespectedGameTypeForRuntime(
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
-func addGameTypeForRuntime(
+// addGameTypesForRuntime uses OPCMv2.upgrade to configure dispute game types.
+// Game types in enabledGameTypes are enabled; the rest are disabled.
+func addGameTypesForRuntime(
 	t devtest.T,
 	keys devkeys.Keys,
-	absolutePrestate common.Hash,
-	gameType gameTypes.GameType,
+	enabledGameTypes []gameTypes.GameType,
 	l1ChainID eth.ChainID,
 	l1ELRPC string,
 	l2Net *L2Network,
@@ -92,47 +94,84 @@ func addGameTypeForRuntime(
 	require.NotNil(l2Net, "l2 network must exist")
 	require.NotNil(l2Net.deployment, "l2 deployment must exist")
 	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
-	require.NotEqual(common.Address{}, l2Net.mipsImpl, "missing MIPS implementation address")
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	l1PAO, err := keys.Address(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner address")
-
-	cfg := manage.AddGameTypeConfig{
-		L1RPCUrl:                l1ELRPC,
-		Logger:                  t.Logger(),
-		ArtifactsLocator:        LocalArtifacts(t),
-		CacheDir:                t.TempDir(),
-		L1ProxyAdminOwner:       l1PAO,
-		OPCMImpl:                l2Net.opcmImpl,
-		SystemConfigProxy:       l2Net.deployment.SystemConfigProxyAddr(),
-		DelayedWETHProxy:        l2Net.deployment.PermissionlessDelayedWETHProxyAddr(),
-		DisputeGameType:         uint32(gameType),
-		DisputeAbsolutePrestate: absolutePrestate,
-		DisputeMaxGameDepth:     big.NewInt(73),
-		DisputeSplitDepth:       big.NewInt(30),
-		DisputeClockExtension:   10800,
-		DisputeMaxClockDuration: 302400,
-		InitialBond:             eth.GWei(80_000_000).ToBig(), // 0.08 ETH
-		VM:                      l2Net.mipsImpl,
-		Permissionless:          true,
-		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2Net.ChainID(), absolutePrestate.Hex()),
-	}
-
-	_, addGameTypeCalldata, err := manage.AddGameType(t.Ctx(), cfg)
-	require.NoError(err, "failed to create add game type calldata")
-	require.Len(addGameTypeCalldata, 1, "calldata must contain one entry")
+	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner key")
+	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
+	require.NoError(err, "failed to get proposer address")
+	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
+	require.NoError(err, "failed to get challenger address")
 
-	t.Log("Executing opcm.addGameType via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, addGameTypeCalldata[0].Data)
+	enabled := make(map[gameTypes.GameType]bool)
+	for _, gt := range enabledGameTypes {
+		enabled[gt] = true
+	}
+	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
+
+	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
+	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
+
+	// OPCMv2 requires all 7 game configs in order:
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	configs := []embedded.DisputeGameConfig{
+		{
+			Enabled:  enabled[gameTypes.CannonGameType],
+			InitBond: initBond,
+			GameType: embedded.GameTypeCannon,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: cannonPrestate,
+			},
+		},
+		{
+			Enabled:  true, // Permissioned cannon is always enabled.
+			InitBond: initBond,
+			GameType: embedded.GameTypePermissionedCannon,
+			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+				AbsolutePrestate: cannonPrestate,
+				Proposer:         proposer,
+				Challenger:       challenger,
+			},
+		},
+		{
+			Enabled:  enabled[gameTypes.CannonKonaGameType],
+			InitBond: initBond,
+			GameType: embedded.GameTypeCannonKona,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: cannonKonaPrestate,
+			},
+		},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
+	}
+	// Zero out init bond for disabled games.
+	for i := range configs {
+		if !configs[i].Enabled {
+			configs[i].InitBond = new(big.Int)
+		}
+	}
+
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		Prank: l1PAO,
+		Opcm:  l2Net.opcmImpl,
+		UpgradeInputV2: &embedded.UpgradeInputV2{
+			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
+			DisputeGameConfigs: configs,
+			ExtraInstructions: []embedded.ExtraInstruction{
+				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
+			},
+		},
+	})
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {

@@ -184,15 +184,12 @@ For detailed information about privileged roles and their security implications,
 
 ### Adding the PermissionlessDisputeGame to a chain
 
-To enable the permissionless dispute game, you must call the `addGameType()`function on the `OPContractsManager.sol` (OPCM) contract.
+To enable the permissionless dispute game, call the `upgrade()` function on the `OPContractsManagerV2` (OPCM) contract with the appropriate `DisputeGameConfig` entries. This is typically done via `op-deployer manage add-game-type-v2`.
 
-This function adds the permissionless dispute game to the system.
+The upgrade will:
 
-This method will:
-
-1.  Deploy the `FaultDisputeGame` contract
-2.  Setup the `DelayedWethProxy` for the new game
-3.  Reinitialize the `AnchorStateRegistry` to add the new game type.
+1.  Register the `FaultDisputeGame` implementation on the `DisputeGameFactory` with the correct game arguments (absolute prestate, VM, anchor state registry, delayed WETH, chain ID).
+2.  Set the initial bond for the new game type.
 
 See a high‐level implementation from this [docs](/chain-operators/tutorials/dispute-games) or [this superchain-ops template](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/template/AddGameTypeTemplate.sol).
 

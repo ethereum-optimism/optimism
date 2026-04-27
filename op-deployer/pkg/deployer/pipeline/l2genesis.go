@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -112,9 +113,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
-		UseRevenueShare:                          thisIntent.UseRevenueShare,
-		ChainFeesRecipient:                       thisIntent.ChainFeesRecipient,
-		L1FeesDepositor:                          standard.L1FeesDepositor,
 		// Custom Gas Token (CGT) configuration from intent
 		UseCustomGasToken:          cgt.UseCustomGasToken,
 		GasPayingTokenName:         cgt.GasPayingTokenName,
@@ -214,9 +212,7 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 		devFeatureBitmap = common.HexToHash(v)
 	}
 
-	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
-	interopFeatureFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-	interopBitEnabled := isDevFeatureEnabled(devFeatureBitmap, interopFeatureFlag)
+	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
 
 	if intent.UseInterop != interopBitEnabled {
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")

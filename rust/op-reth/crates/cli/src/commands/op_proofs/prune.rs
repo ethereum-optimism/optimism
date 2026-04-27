@@ -6,7 +6,9 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{OpProofStoragePruner, OpProofsStore, db::MdbxProofsStorage};
+use reth_optimism_trie::{
+    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
+};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
 
@@ -47,20 +49,22 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
     /// Execute [`PruneCommand`].
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
+        runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
         info!(target: "reth::cli", "Pruning OP proofs storage at: {:?}", self.storage_path);
 
         // Initialize the environment with read-only access
-        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO)?;
+        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
 
         let storage: Arc<MdbxProofsStorage> = Arc::new(
             MdbxProofsStorage::new(&self.storage_path)
                 .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
 
-        let earliest_block = storage.get_earliest_block_number()?;
-        let latest_block = storage.get_latest_block_number()?;
+        let provider_ro = storage.provider_ro()?;
+        let earliest_block = provider_ro.get_earliest_block_number()?;
+        let latest_block = provider_ro.get_latest_block_number()?;
         info!(
             target: "reth::cli",
             ?earliest_block,

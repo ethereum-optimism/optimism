@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
@@ -66,18 +65,17 @@ func mockConfig(t *testing.T) Config {
 					GasLimit:    30000000,
 				},
 			},
-			BlockTime:               2,
-			MaxSequencerDrift:       600,
-			SeqWindowSize:           3600,
-			ChannelTimeoutBedrock:   300,
-			L1ChainID:               big.NewInt(1),
-			L2ChainID:               big.NewInt(2),
-			RegolithTime:            &now,
-			CanyonTime:              &now,
-			BatchInboxAddress:       [20]byte{1, 2},
-			DepositContractAddress:  [20]byte{2, 3},
-			L1SystemConfigAddress:   [20]byte{3, 4},
-			ProtocolVersionsAddress: [20]byte{4, 5},
+			BlockTime:              2,
+			MaxSequencerDrift:      600,
+			SeqWindowSize:          3600,
+			ChannelTimeoutBedrock:  300,
+			L1ChainID:              big.NewInt(1),
+			L2ChainID:              big.NewInt(2),
+			RegolithTime:           &now,
+			CanyonTime:             &now,
+			BatchInboxAddress:      [20]byte{1, 2},
+			DepositContractAddress: [20]byte{2, 3},
+			L1SystemConfigAddress:  [20]byte{3, 4},
 		},
 		RPCEnableProxy: false,
 	}
@@ -876,8 +874,9 @@ func (s *OpConductorTestSuite) TestConductorRestart() {
 func (s *OpConductorTestSuite) TestHandleInitError() {
 	// This will cause an error in the init function, which should cause the conductor to stop successfully without issues.
 	_, err := New(s.ctx, &s.cfg, s.log, s.version)
-	_, ok := err.(*multierror.Error)
-	// error should not be a multierror, this means that init failed, but Stop() succeeded, which is what we expect.
+	// error should not be a joined error, this means that init failed, but Stop() succeeded, which is what we expect.
+	type multiUnwrap interface{ Unwrap() []error }
+	_, ok := err.(multiUnwrap)
 	s.False(ok)
 }
 

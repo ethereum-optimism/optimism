@@ -6,10 +6,8 @@ use crate::{
     EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
     find_starting_forkchoice, task_queue::EngineTaskErrors,
 };
-use alloy_rpc_types_eth::Transaction;
-use kona_genesis::{RollupConfig, SystemConfig};
-use kona_protocol::{BlockInfo, L2BlockInfo, OpBlockConversionError, to_system_config};
-use op_alloy_consensus::OpTxEnvelope;
+use kona_genesis::RollupConfig;
+use kona_protocol::L2BlockInfo;
 use std::{collections::BinaryHeap, sync::Arc};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
@@ -78,7 +76,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         &mut self,
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
-    ) -> Result<(L2BlockInfo, BlockInfo, SystemConfig), EngineResetError> {
+    ) -> Result<L2BlockInfo, EngineResetError> {
         // Clear any outstanding tasks to prepare for the reset.
         self.clear();
 
@@ -112,32 +110,9 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
             }
         }
 
-        // Find the new safe head's L1 origin and SystemConfig.
-        let origin_block = start
-            .safe
-            .l1_origin
-            .number
-            .saturating_sub(config.channel_timeout(start.safe.block_info.timestamp));
-        let l1_origin_info: BlockInfo = client
-            .get_l1_block(origin_block.into())
-            .await
-            .map_err(SyncStartError::RpcError)?
-            .ok_or(SyncStartError::BlockNotFound(origin_block.into()))?
-            .into_consensus()
-            .into();
-        let l2_safe_block = client
-            .get_l2_block(start.safe.block_info.hash.into())
-            .full()
-            .await
-            .map_err(SyncStartError::RpcError)?
-            .ok_or(SyncStartError::BlockNotFound(origin_block.into()))?
-            .into_consensus()
-            .map_transactions(|t| <Transaction<OpTxEnvelope> as Clone>::clone(&t).into_inner());
-        let system_config = to_system_config(&l2_safe_block, &config)?;
-
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
-        Ok((start.safe, l1_origin_info, system_config))
+        Ok(start.safe)
     }
 
     /// Clears the task queue.
@@ -176,7 +151,4 @@ pub enum EngineResetError {
     /// An error occurred while traversing the L1 for the sync starting point.
     #[error(transparent)]
     SyncStart(#[from] SyncStartError),
-    /// An error occurred while constructing the `SystemConfig` for the new safe head.
-    #[error(transparent)]
-    SystemConfigConversion(#[from] OpBlockConversionError),
 }

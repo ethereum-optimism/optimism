@@ -11,6 +11,7 @@ use kona_derive::{
 };
 use kona_driver::{DriverPipeline, PipelineCursor};
 use kona_genesis::{L1ChainConfig, RollupConfig, SystemConfig};
+use kona_interop::DependencySet;
 use kona_preimage::CommsClient;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use spin::RwLock;
@@ -48,6 +49,12 @@ where
     DA: DataAvailabilityProvider + Send + Sync + Debug + Clone,
 {
     /// Constructs a new oracle-backed derivation pipeline.
+    ///
+    /// `dependency_set` must be `Some` when the rollup config schedules the
+    /// Interop hardfork. The [`StatefulAttributesBuilder`] panics at
+    /// construction otherwise. Pass `None` only when interop is not scheduled
+    /// for this chain.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         cfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,
@@ -55,16 +62,16 @@ where
         caching_oracle: Arc<O>,
         da_provider: DA,
         chain_provider: L1,
-        mut l2_chain_provider: L2,
+        l2_chain_provider: L2,
+        dependency_set: Option<Arc<DependencySet>>,
     ) -> PipelineResult<Self> {
         let attributes = StatefulAttributesBuilder::new(
             cfg.clone(),
             l1_cfg,
             l2_chain_provider.clone(),
             chain_provider.clone(),
+            dependency_set,
         );
-
-        let cfg_for_reset = cfg.clone();
 
         let mut pipeline = PipelineBuilder::new()
             .rollup_config(cfg)
@@ -77,19 +84,7 @@ where
 
         // Reset the pipeline to populate the initial system configuration in L1 Traversal.
         let l2_safe_head = *sync_start.read().l2_safe_head();
-        pipeline
-            .signal(
-                ResetSignal {
-                    l2_safe_head,
-                    l1_origin: sync_start.read().origin(),
-                    system_config: l2_chain_provider
-                        .system_config_by_number(l2_safe_head.block_info.number, cfg_for_reset)
-                        .await
-                        .ok(),
-                }
-                .signal(),
-            )
-            .await?;
+        pipeline.signal(Signal::Reset(ResetSignal { l2_safe_head })).await?;
 
         Ok(Self { pipeline, caching_oracle })
     }

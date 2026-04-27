@@ -14,9 +14,6 @@ pub struct SuperchainConfig {
     pub l1: SuperchainL1Info,
     /// Default hardforks timestamps.
     pub hardforks: HardForkConfig,
-    /// Optional addresses for the superchain-wide default protocol versions contract.
-    #[cfg_attr(feature = "serde", serde(alias = "protocolVersionsAddr"))]
-    pub protocol_versions_addr: Option<Address>,
     /// Optional address for the superchain-wide default superchain config contract.
     #[cfg_attr(feature = "serde", serde(alias = "superchainConfigAddr"))]
     pub superchain_config_addr: Option<Address>,
@@ -70,7 +67,6 @@ mod tests {
                 karst_time: None,
                 interop_time: None,
             },
-            protocol_versions_addr: None,
             superchain_config_addr: None,
             op_contracts_manager_proxy_addr: None,
         };
@@ -185,7 +181,6 @@ mod tests {
                 karst_time: None,
                 interop_time: None,
             },
-            protocol_versions_addr: None,
             superchain_config_addr: None,
             op_contracts_manager_proxy_addr: None,
         };

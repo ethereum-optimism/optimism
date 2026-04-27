@@ -1,12 +1,20 @@
 # Development Workflow
 
-Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md).
+Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md). For running acceptance tests, see [acceptance-tests.md](acceptance-tests.md); for writing new ones, see [writing-acceptance-tests.md](writing-acceptance-tests.md).
 
 ## Tool Versions
 
 All tool versions are pinned in `mise.toml` at the repo root. Always access tools through mise — never install or invoke system-global versions directly. Check `mise.toml` for current pinned versions when you need to know what's available.
 
 If mise reports the repo isn't trusted, ask the user to run `mise trust` — never trust it automatically.
+
+### Setup
+
+Run `mise install` to install all pinned tools (just, gotestsum, forge, etc.). AI agent shells typically do not have mise activated, so prefix commands with `mise exec --` to ensure tools are on `PATH`:
+
+```bash
+mise exec -- just <target>
+```
 
 ## Build System
 

@@ -5,8 +5,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+)
+
+// Initial-sync-check budgets for singleChainMultiNodeFromRuntime. Attempts are
+// polled every 2s by dsl.MatchedFn.
+//
+//   - LocalUnsafe: EL P2P / CL gossip is fast; 60s covers CI contention.
+//   - CrossSafe (CLSync mode): requires derivation to process the first L1
+//     origin and advance safe; 60s is enough in practice.
+//   - CrossSafe (ELSync mode): the verifier must first complete EL sync over
+//     P2P (which can take tens of seconds on a cold node under CI load)
+//     before the forkchoice update that seeds safe/finalized fires; only
+//     after that does derivation start and begin advancing CrossSafe. The
+//     combined path is consistently slower than the CLSync case, so we give
+//     it a 4x budget. See issue #20334 for the failure mode this guards.
+const (
+	initialSyncCheckAttemptsLocalUnsafe     = 30
+	initialSyncCheckAttemptsCrossSafe       = 30
+	initialSyncCheckAttemptsCrossSafeELSync = 120
 )
 
 func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime, runSyncChecks bool) *SingleChainMultiNode {
@@ -48,9 +67,16 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 	}
 	if runSyncChecks {
 		// Ensure the follower node is in sync with the sequencer before starting tests.
+		// CrossSafe requires derivation to run, which under ELSync can only begin
+		// after the EL completes P2P sync and the node emits its first forkchoice
+		// update — so size that budget by the follower's sync mode.
+		crossSafeAttempts := initialSyncCheckAttemptsCrossSafe
+		if opNode, ok := nodeB.CL.(*sysgo.OpNode); ok && opNode.SyncMode() == nodeSync.ELSync {
+			crossSafeAttempts = initialSyncCheckAttemptsCrossSafeELSync
+		}
 		dsl.CheckAll(t,
-			preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, 30),
-			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, 30),
+			preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, crossSafeAttempts),
+			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}
 	return preset

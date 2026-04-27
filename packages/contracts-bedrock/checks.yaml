@@ -23,8 +23,8 @@ phases:
     parallel: false
     checks:
       - name: lint-fix
-        description: Fix code formatting
-        command: forge fmt || true
+        description: Fix code formatting locally
+        command: '[ -n "${CI:-}" ] || forge fmt || true'
 
   # Phase 2: Pre-build checks - no compilation needed
   - name: pre-build
@@ -38,9 +38,6 @@ phases:
       - name: semgrep-test-validity
         description: Check semgrep tests are valid
         command: forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
-      - name: deploy-configs
-        description: Validate deploy configurations
-        command: ./scripts/checks/check-deploy-configs.sh
       - name: kontrol-summaries
         description: Check kontrol summaries unchanged
         command: ./scripts/checks/check-kontrol-summaries-unchanged.sh
@@ -84,10 +81,7 @@ phases:
         command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
       - name: nut-bundle
         description: Check NUT bundle is up to date
-        command: go run ./scripts/checks/nut-bundle-check
-      - name: opcm-upgrade-checks
-        description: Check OPCM upgrade methods
-        command: go run ./scripts/checks/opcm-upgrade-checks/
+        command: just nut-bundle-check-no-build
 
   # Phase 4: Dev build checks - needs test artifacts
   - name: dev

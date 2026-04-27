@@ -1,12 +1,12 @@
 package interop
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -33,9 +33,11 @@ var pendingTransitionKey = []byte("pending")
 
 // PendingInvalidation records a chain invalidation that needs to be executed.
 type PendingInvalidation struct {
-	ChainID   eth.ChainID `json:"chainID"`
-	BlockID   eth.BlockID `json:"blockID"`
-	Timestamp uint64      `json:"timestamp"` // the interop decision timestamp
+	ChainID                  eth.ChainID `json:"chainID"`
+	BlockID                  eth.BlockID `json:"blockID"`
+	Timestamp                uint64      `json:"timestamp"` // the interop decision timestamp
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
 }
 
 // VerifiedDB provides persistence for verified timestamps using bbolt.
@@ -117,38 +119,40 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 
 	ts := result.Timestamp
 
-	// Serialize the result up front so replay of an already-applied transition can
-	// be treated as success when the stored value is identical.
-	value, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("failed to marshal verified result: %w", err)
-	}
-
 	// Check for sequential commitment
 	if v.initialized {
 		if ts != v.lastTimestamp+1 {
 			if ts <= v.lastTimestamp {
+				// Idempotent replay: crash recovery may call Commit again after the
+				// bbolt write succeeded but before ClearPendingTransition. Compare the
+				// deserialized VerifiedResult rather than raw bytes so byte-level
+				// drift in encoding/json across Go versions does not turn a legitimate
+				// replay into a hard ErrAlreadyCommitted.
 				key := timestampToKey(ts)
-				var existing []byte
+				var existing VerifiedResult
 				err := v.db.View(func(tx *bolt.Tx) error {
 					b := tx.Bucket(bucketName)
 					val := b.Get(key)
 					if val == nil {
 						return ErrNotFound
 					}
-					existing = append(existing[:0], val...)
-					return nil
+					return json.Unmarshal(val, &existing)
 				})
 				if err != nil {
 					return fmt.Errorf("failed to read existing verified result at %d: %w", ts, err)
 				}
-				if bytes.Equal(existing, value) {
+				if reflect.DeepEqual(existing, result) {
 					return nil
 				}
 				return fmt.Errorf("%w: %d", ErrAlreadyCommitted, ts)
 			}
 			return fmt.Errorf("%w: expected %d, got %d", ErrNonSequential, v.lastTimestamp+1, ts)
 		}
+	}
+
+	value, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal verified result: %w", err)
 	}
 
 	// Store in database

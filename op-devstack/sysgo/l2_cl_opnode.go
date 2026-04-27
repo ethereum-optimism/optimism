@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-node/config"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
@@ -22,11 +23,18 @@ type OpNode struct {
 	interopEndpoint  string
 	interopJwtSecret eth.Bytes32
 	cfg              *config.Config
+	syncMode         nodeSync.Mode
 	p                devtest.CommonT
 	logger           log.Logger
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 	clock            clock.Clock
+}
+
+// SyncMode reports the sync mode the op-node was started with
+// (VerifierSyncMode for verifiers, SequencerSyncMode for sequencers).
+func (n *OpNode) SyncMode() nodeSync.Mode {
+	return n.syncMode
 }
 
 var _ L2CLNode = (*OpNode)(nil)
@@ -66,7 +74,11 @@ func (n *OpNode) Start() {
 	}
 	n.logger.Info("Starting op-node")
 	opNode, err := opnode.NewOpnode(n.logger, n.cfg, n.clock, func(err error) {
-		n.p.Require().NoError(err, "op-node critical error")
+		// Use Errorf (non-fatal) instead of Require().NoError (fatal) because this
+		// callback is invoked from the event-processing goroutine, not the test
+		// goroutine. Require/FailNow calls runtime.Goexit() which would only exit
+		// the event goroutine, not the test, leaving the test to hang until timeout.
+		n.p.Errorf("op-node critical error: %v", err)
 	})
 	n.p.Require().NoError(err, "op-node failed to start")
 	n.logger.Info("Started op-node")

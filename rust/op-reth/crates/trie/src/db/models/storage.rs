@@ -1,5 +1,6 @@
 use alloy_primitives::{B256, U256};
 use derive_more::{Constructor, From, Into};
+use reth_codecs::DecompressError;
 use reth_db::{
     DatabaseError,
     table::{Compress, Decode, Decompress, Encode},
@@ -114,11 +115,12 @@ impl Compress for StorageValue {
 }
 
 impl Decompress for StorageValue {
-    fn decompress(value: &[u8]) -> Result<Self, DatabaseError> {
+    fn decompress(value: &[u8]) -> Result<Self, DecompressError> {
         if value.len() != 32 {
-            return Err(DatabaseError::Decode);
+            return Err(DecompressError::new(DatabaseError::Decode));
         }
-        let bytes: [u8; 32] = value.try_into().map_err(|_| DatabaseError::Decode)?;
+        let bytes: [u8; 32] =
+            value.try_into().map_err(|_| DecompressError::new(DatabaseError::Decode))?;
         Ok(Self(U256::from_be_bytes(bytes)))
     }
 }

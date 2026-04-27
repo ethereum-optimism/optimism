@@ -12,16 +12,37 @@ import (
 
 func TestInteropFaultProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// TODO(#19180): Unskip this once supernode is updated.
-	t.Skip("Supernode does not yet return optimistic blocks until blocks are fully validated")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunSuperFaultProofTest(t, sys)
+}
+
+func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled(), presets.WithSuggestedInteropActivationOffset(365*24*60*60))
+	sfp.RunPreForkActivationTest(t, sys)
+}
+
+func TestInteropFaultProofs_ActivationBoundary(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// Set interop activation ~6s (3 blocks) after genesis. A small offset keeps
+	// the fork reachable within CI timeouts while still having pre-interop blocks.
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithSuggestedInteropActivationOffset(6),
+	)
+	sfp.RunInteropActivationBoundaryTest(t, sys)
 }
 
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
+}
+
+func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageTest(t, sys)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
@@ -58,9 +79,32 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19411): Re-enable once the invalid-block supernode proof expectations match the
-	// native Kona FPP and challenger provider behavior again.
-	t.Skip("Temporarily skipped while investigating invalid-block supernode proof mismatches")
 	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
 	sfp.RunInvalidBlockTest(t, sys)
+}
+
+func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
+	for _, tc := range sfp.IntraBlockCases() {
+		gt.Run(tc.Name, func(gt *testing.T) {
+			t := devtest.SerialT(gt)
+			sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+			sfp.RunIntraBlockConsolidationTest(t, sys, tc)
+		})
+	}
+}
+
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+}
+
+func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
+	sys := presets.NewSimpleInteropSupernodeProofs(t,
+		presets.WithChallengerCannonKonaEnabled(),
+		presets.WithMessageExpiryWindow(messageExpiryWindow),
+	)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
 }

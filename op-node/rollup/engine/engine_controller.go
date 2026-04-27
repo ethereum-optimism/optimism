@@ -28,8 +28,6 @@ const (
 	// We transition between the 4 EL states linearly. We spend the majority of the time in the second & fourth.
 	// We only want to EL sync if there is no finalized block & once we finish EL sync we need to mark the last block
 	// as finalized so we can switch to consolidation
-	// TODO(protocol-quest#91): We can restart EL sync & still consolidate if there finalized blocks on the execution client if the
-	// execution client is running in archive mode. In some cases we may want to switch back from CL to EL sync, but that is complicated.
 	syncStatusWillStartEL               // First if we are directed to EL sync, check that nothing has been finalized yet
 	syncStatusStartedEL                 // Perform our EL sync
 	syncStatusFinishedELButNotFinalized // EL sync is done, but we need to mark the final sync block as finalized
@@ -329,8 +327,10 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 	e.localSafeHead = r
 }
 
-// SetSafeHead sets the cross-safe head.
-func (e *EngineController) SetSafeHead(r eth.L2BlockRef) {
+// SetDeprecatedSafeHead sets the cross-safe head.
+//
+// Deprecated: This is only used by supervisor pathways.
+func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
 	e.deprecatedSafeHead = r // TODO Supervisor-only code path
 }
@@ -475,28 +475,29 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.SetFinalizedHead(finalizedRef)
 		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 	}
-	if e.SafeL2Head() == (eth.L2BlockRef{}) {
+	if e.localSafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
 				// If the engine doesn't have a safe head, then we can use the finalized head
-				e.SetSafeHead(finalizedRef)
-				e.log.Info("Loaded initial cross-safe block from finalized", "cross_safe", finalizedRef)
+				e.SetLocalSafeHead(finalizedRef)
+				e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
 			} else {
-				return fmt.Errorf("failed to load cross-safe head: %w", err)
+				return fmt.Errorf("failed to load local-safe head: %w", err)
 			}
 		} else {
-			e.SetSafeHead(ref)
-			e.log.Info("Loaded initial cross-safe block ref", "cross_safe", ref)
+			e.SetLocalSafeHead(ref)
+			e.log.Info("Loaded initial local-safe block ref", "local_safe", ref)
 		}
+	}
+	if e.deprecatedSafeHead == (eth.L2BlockRef{}) {
+		// Set deprecatedSafeHead to match local-safe for supervisor-only code paths
+		e.SetDeprecatedSafeHead(e.localSafeHead)
+		e.log.Info("Set initial cross-safe block ref to match local-safe", "cross_safe", e.localSafeHead)
 	}
 	if e.crossUnsafeHead == (eth.L2BlockRef{}) {
 		e.SetCrossUnsafeHead(e.SafeL2Head()) // preserve cross-safety, don't fall back to a non-cross safety level
 		e.log.Info("Set initial cross-unsafe block ref to match cross-safe", "cross_unsafe", e.SafeL2Head())
-	}
-	if e.localSafeHead == (eth.L2BlockRef{}) {
-		e.SetLocalSafeHead(e.SafeL2Head())
-		e.log.Info("Set initial local-safe block ref to match cross-safe", "local_safe", e.SafeL2Head())
 	}
 	return nil
 }
@@ -536,6 +537,13 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		} else {
 			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
+	}
+	// Verify the FCU response status is acceptable. In CL-sync mode, only VALID is acceptable.
+	// If the EL returns SYNCING (e.g. after an EL restart where in-memory state was lost),
+	// trigger a reset to re-discover the EL's actual chain state via FindL2Heads. Done before
+	// recording lastForkchoice so a rejected FCU doesn't short-circuit the next retry.
+	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
+		return derive.NewResetError(fmt.Errorf("forkchoice update returned unexpected status %s, need reset to re-sync with engine", fcRes.PayloadStatus.Status))
 	}
 	e.lastForkchoice = fc
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
@@ -617,14 +625,33 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		FinalizedBlockHash: e.FinalizedHead().Hash,
 	}
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
-		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
-		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
+		offsetRef := ref
+		if target := sync.OffsetBlockNum(e.syncCfg.OffsetELSafe, e.rollupCfg.BlockTime, ref.Number, e.rollupCfg.Genesis.L2.Number); target < ref.Number {
+			d, err := e.engine.L2BlockRefByNumber(ctx, target)
+			if err != nil {
+				return derive.NewTemporaryError(fmt.Errorf("EL sync offset-derived head at block %d: %w", target, err))
+			}
+			offsetRef = d
+		}
+		// With SupportsPostFinalizationELSync, EL sync can start even when
+		// there is already a finalized head. Never retract finalized or safe
+		// behind their prior values.
+		finalizedRef := offsetRef
+		if finalizedRef.Number < e.FinalizedHead().Number {
+			finalizedRef = e.FinalizedHead()
+		}
+		safeRef := offsetRef
+		if safeRef.Number < e.SafeL2Head().Number {
+			safeRef = e.SafeL2Head()
+		}
+		fc.SafeBlockHash = safeRef.Hash
+		fc.FinalizedBlockHash = finalizedRef.Hash
+		e.SetUnsafeHead(ref)
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
-		e.SetLocalSafeHead(ref)
-		e.SetSafeHead(ref)
-		e.onSafeUpdate(ctx, ref, ref)
-		e.SetFinalizedHead(ref)
+		e.SetLocalSafeHead(safeRef)
+		e.SetDeprecatedSafeHead(safeRef)
+		e.onSafeUpdate(ctx, safeRef, safeRef)
+		e.SetFinalizedHead(finalizedRef)
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
@@ -655,7 +682,8 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart),
+			"unsafe_block", ref.ID().String(), "safe_finalized_block", e.SafeL2Head().ID().String())
 		e.syncStatus = syncStatusFinishedEL
 	}
 
@@ -891,7 +919,7 @@ func (e *EngineController) tryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 // or the next SyncStep).
 func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef) {
 	e.log.Debug("Updating safe", "safe", ref, "unsafe", e.unsafeHead)
-	e.SetSafeHead(ref)
+	e.SetDeprecatedSafeHead(ref)
 	// Finalizer can pick up this safe cross-block now
 	e.emitter.Emit(ctx, SafeDerivedEvent{Safe: ref, Source: source})
 	e.onSafeUpdate(ctx, e.SafeL2Head(), e.localSafeHead)

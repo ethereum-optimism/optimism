@@ -86,22 +86,6 @@ type DevDeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
-type RevenueShareDeployConfig struct {
-	UseRevenueShare    bool           `json:"useRevenueShare"`
-	ChainFeesRecipient common.Address `json:"chainFeesRecipient"`
-}
-
-var _ ConfigChecker = (*RevenueShareDeployConfig)(nil)
-
-func (d *RevenueShareDeployConfig) Check(log log.Logger) error {
-	if d.UseRevenueShare {
-		if d.ChainFeesRecipient == (common.Address{}) {
-			return fmt.Errorf("%w: ChainFeesRecipient cannot be address(0)", ErrInvalidDeployConfig)
-		}
-	}
-	return nil
-}
-
 type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
@@ -798,7 +782,6 @@ type L2InitializationConfig struct {
 	L2CoreDeployConfig
 	FeeMarketConfig
 	AltDADeployConfig
-	RevenueShareDeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1156,29 +1139,29 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 			L2Time:       l1StartBlock.Time,
 			SystemConfig: d.GenesisSystemConfig(),
 		},
-		BlockTime:               d.L2BlockTime,
-		MaxSequencerDrift:       d.MaxSequencerDrift,
-		SeqWindowSize:           d.SequencerWindowSize,
-		ChannelTimeoutBedrock:   d.ChannelTimeoutBedrock,
-		L1ChainID:               new(big.Int).SetUint64(d.L1ChainID),
-		L2ChainID:               new(big.Int).SetUint64(d.L2ChainID),
-		BatchInboxAddress:       d.BatchInboxAddress,
-		DepositContractAddress:  d.OptimismPortalProxy,
-		L1SystemConfigAddress:   d.SystemConfigProxy,
-		RegolithTime:            d.RegolithTime(l1StartTime),
-		CanyonTime:              d.CanyonTime(l1StartTime),
-		DeltaTime:               d.DeltaTime(l1StartTime),
-		EcotoneTime:             d.EcotoneTime(l1StartTime),
-		FjordTime:               d.FjordTime(l1StartTime),
-		GraniteTime:             d.GraniteTime(l1StartTime),
-		HoloceneTime:            d.HoloceneTime(l1StartTime),
-		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
-		IsthmusTime:             d.IsthmusTime(l1StartTime),
-		JovianTime:              d.JovianTime(l1StartTime),
-		InteropTime:             d.InteropTime(l1StartTime),
-		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
-		AltDAConfig:             altDA,
-		ChainOpConfig:           chainOpConfig,
+		BlockTime:              d.L2BlockTime,
+		MaxSequencerDrift:      d.MaxSequencerDrift,
+		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
+		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:      d.BatchInboxAddress,
+		DepositContractAddress: d.OptimismPortalProxy,
+		L1SystemConfigAddress:  d.SystemConfigProxy,
+		RegolithTime:           d.RegolithTime(l1StartTime),
+		CanyonTime:             d.CanyonTime(l1StartTime),
+		DeltaTime:              d.DeltaTime(l1StartTime),
+		EcotoneTime:            d.EcotoneTime(l1StartTime),
+		FjordTime:              d.FjordTime(l1StartTime),
+		GraniteTime:            d.GraniteTime(l1StartTime),
+		HoloceneTime:           d.HoloceneTime(l1StartTime),
+		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l1StartTime),
+		IsthmusTime:            d.IsthmusTime(l1StartTime),
+		JovianTime:             d.JovianTime(l1StartTime),
+		KarstTime:              d.KarstTime(l1StartTime),
+		InteropTime:            d.InteropTime(l1StartTime),
+		AltDAConfig:            altDA,
+		ChainOpConfig:          chainOpConfig,
 	}, nil
 }
 
@@ -1241,7 +1224,6 @@ type L1Deployments struct {
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
-	OptimismPortalInterop             common.Address `json:"OptimismPortalInterop"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
 	ETHLockbox                        common.Address `json:"ETHLockbox"`
 	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
@@ -1269,7 +1251,6 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
 		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
 		OptimismPortal:                    contracts.OptimismPortalImpl,
-		OptimismPortalInterop:             contracts.OptimismPortalInteropImpl,
 		OptimismPortalProxy:               contracts.OptimismPortalProxy,
 		ETHLockbox:                        contracts.EthLockboxImpl,
 		ETHLockboxProxy:                   contracts.EthLockboxProxy,

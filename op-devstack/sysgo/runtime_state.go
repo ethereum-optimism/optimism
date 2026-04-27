@@ -117,4 +117,5 @@ type MultiChainRuntime struct {
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config
 	DelaySeconds       uint64
+	InteropFilter      *InteropFilter // nil if not using interop filter
 }

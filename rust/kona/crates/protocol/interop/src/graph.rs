@@ -709,4 +709,37 @@ mod test {
         let graph = MessageGraph::derive(&headers, &provider, &cfgs, CUSTOM_EXPIRY).await.unwrap();
         graph.resolve().await.unwrap();
     }
+
+    /// When a chain has been replaced with a deposit-only block, it is excluded from the headers
+    /// passed to `derive` (since deposit-only blocks cannot contain executing messages). Executing
+    /// messages on other chains that reference initiating messages from the replaced chain must
+    /// still resolve successfully, because the provider retains the replaced chain's data.
+    #[tokio::test]
+    async fn test_resolve_with_replaced_chain_excluded_from_headers() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        // Chain A has an initiating message. Chain B executes it.
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        // Simulate chain A having been replaced with a deposit-only block by excluding it
+        // from the headers passed to derive. The provider still has chain A's data.
+        let filtered_headers =
+            headers.into_iter().filter(|(chain_id, _)| *chain_id != CHAIN_A_ID).collect();
+
+        let graph =
+            MessageGraph::derive(&filtered_headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW)
+                .await
+                .unwrap();
+        graph.resolve().await.unwrap();
+    }
 }

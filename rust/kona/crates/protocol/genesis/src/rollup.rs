@@ -23,6 +23,14 @@ const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
 }
 
+/// The max sequencer drift needs to be changes for some chains, e.g. those that build only on
+/// finalized L1 blocks, where L1 finality delays can exceed the standard
+/// [`FJORD_MAX_SEQUENCER_DRIFT`].
+#[cfg(all(feature = "serde", feature = "rollup_config_override"))]
+const fn default_fjord_max_sequencer_drift() -> u64 {
+    FJORD_MAX_SEQUENCER_DRIFT
+}
+
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -47,6 +55,10 @@ pub struct RollupConfig {
     /// The channel timeout after the Granite hardfork.
     #[cfg_attr(feature = "serde", serde(default = "default_granite_channel_timeout"))]
     pub granite_channel_timeout: u64,
+    /// The max sequencer drift after the Fjord hardfork.
+    #[cfg(feature = "rollup_config_override")]
+    #[cfg_attr(feature = "serde", serde(default = "default_fjord_max_sequencer_drift"))]
+    pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
     /// The L2 chain ID
@@ -60,8 +72,6 @@ pub struct RollupConfig {
     pub deposit_contract_address: Address,
     /// `l1_system_config_address` is the L1 address that the system config is stored at.
     pub l1_system_config_address: Address,
-    /// `protocol_versions_address` is the L1 address that the protocol versions are stored at.
-    pub protocol_versions_address: Address,
     /// The superchain config address.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub superchain_config_address: Option<Address>,
@@ -103,13 +113,14 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             seq_window_size: u.arbitrary()?,
             channel_timeout: u.arbitrary()?,
             granite_channel_timeout: u.arbitrary()?,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: u.arbitrary()?,
             l1_chain_id: u.arbitrary()?,
             l2_chain_id: u.arbitrary()?,
             hardforks: HardForkConfig::arbitrary(u)?,
             batch_inbox_address: Address::arbitrary(u)?,
             deposit_contract_address: Address::arbitrary(u)?,
             l1_system_config_address: Address::arbitrary(u)?,
-            protocol_versions_address: Address::arbitrary(u)?,
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
@@ -129,13 +140,14 @@ impl Default for RollupConfig {
             seq_window_size: 0,
             channel_timeout: 0,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 0,
             l2_chain_id: Chain::from_id(0),
             hardforks: HardForkConfig::default(),
             batch_inbox_address: Address::ZERO,
             deposit_contract_address: Address::ZERO,
             l1_system_config_address: Address::ZERO,
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -329,10 +341,12 @@ impl RollupConfig {
     /// Returns the max sequencer drift for the given timestamp.
     pub fn max_sequencer_drift(&self, timestamp: u64) -> u64 {
         if self.is_fjord_active(timestamp) {
-            FJORD_MAX_SEQUENCER_DRIFT
-        } else {
-            self.max_sequencer_drift
+            #[cfg(feature = "rollup_config_override")]
+            return self.fjord_max_sequencer_drift;
+            #[cfg(not(feature = "rollup_config_override"))]
+            return FJORD_MAX_SEQUENCER_DRIFT;
         }
+        self.max_sequencer_drift
     }
 
     /// Returns the max rlp bytes per channel for the given timestamp.
@@ -849,7 +863,6 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
           "chain_op_config": {
             "eip1559Elasticity": 6,
             "eip1559Denominator": 50,
@@ -890,6 +903,8 @@ mod tests {
             seq_window_size: 3600,
             channel_timeout: 300,
             granite_channel_timeout: GRANITE_CHANNEL_TIMEOUT,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             l1_chain_id: 3151908,
             l2_chain_id: Chain::from_id(1337),
             hardforks: HardForkConfig {
@@ -903,7 +918,6 @@ mod tests {
             batch_inbox_address: address!("ff00000000000000000000000000000000042069"),
             deposit_contract_address: address!("08073dc48dde578137b8af042bcbc1c2491f1eb2"),
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
@@ -950,7 +964,6 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
           "chain_op_config": {
             "eip1559_elasticity": 100,
             "eip1559_denominator": 100,
@@ -974,5 +987,42 @@ mod tests {
 
         assert_eq!(cfg.block_number_from_timestamp(20), 5);
         assert_eq!(cfg.block_number_from_timestamp(30), 10);
+    }
+
+    #[cfg(feature = "rollup_config_override")]
+    mod rollup_config_override_tests {
+        use super::*;
+
+        #[test]
+        fn test_max_sequencer_drift_override() {
+            let mut config = RollupConfig {
+                max_sequencer_drift: 100,
+                fjord_max_sequencer_drift: 2892,
+                hardforks: HardForkConfig { fjord_time: Some(10), ..Default::default() },
+                ..Default::default()
+            };
+            assert_eq!(config.max_sequencer_drift(0), 100);
+            assert_eq!(config.max_sequencer_drift(10), 2892);
+            config.fjord_max_sequencer_drift = 3600;
+            assert_eq!(config.max_sequencer_drift(10), 3600);
+        }
+
+        #[test]
+        #[cfg(feature = "serde")]
+        fn test_serde_fjord_max_sequencer_drift_override() {
+            // Default value survives round-trip.
+            let config = RollupConfig::default();
+            assert_eq!(config.fjord_max_sequencer_drift, FJORD_MAX_SEQUENCER_DRIFT);
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized.fjord_max_sequencer_drift, FJORD_MAX_SEQUENCER_DRIFT);
+
+            // Custom value survives round-trip.
+            let mut config = config;
+            config.fjord_max_sequencer_drift = 2892;
+            let serialized = serde_json::to_string(&config).unwrap();
+            let deserialized: RollupConfig = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(deserialized.fjord_max_sequencer_drift, 2892);
+        }
     }
 }

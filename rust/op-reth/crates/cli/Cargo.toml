@@ -17,7 +17,7 @@ reth-cli-commands.workspace = true
 reth-consensus.workspace = true
 reth-rpc-server-types.workspace = true
 reth-primitives-traits.workspace = true
-reth-db = { workspace = true, features = ["mdbx", "op"] }
+reth-db = { workspace = true, features = ["mdbx"] }
 reth-db-api.workspace = true
 reth-db-common.workspace = true
 reth-downloaders.workspace = true
@@ -43,7 +43,8 @@ reth-chainspec.workspace = true
 reth-node-events.workspace = true
 reth-optimism-evm.workspace = true
 reth-cli-runner.workspace = true
-reth-node-builder = { workspace = true, features = ["op"] }
+reth-tasks.workspace = true
+reth-node-builder.workspace = true
 reth-tracing.workspace = true
 
 # eth
@@ -97,6 +98,7 @@ keccak-cache-global = [
 jemalloc = [
     "reth-node-core/jemalloc",
     "reth-node-metrics/jemalloc",
+    "reth-provider/jemalloc",
 ]
 jemalloc-prof = [
     "jemalloc",
@@ -109,7 +111,7 @@ jemalloc-symbols = [
 
 tracy = ["reth-tracing/tracy", "reth-node-core/tracy"]
 
-dev = ["dep:proptest", "reth-cli-commands/arbitrary"]
+dev = ["dep:proptest", "reth-cli-commands/arbitrary", "op-alloy-consensus/arbitrary"]
 
 serde = [
     "alloy-consensus/serde",
@@ -122,4 +124,3 @@ serde = [
     "reth-optimism-chainspec/serde",
 ]
 
-edge = ["reth-cli-commands/edge", "reth-node-core/edge"]

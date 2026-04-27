@@ -23,7 +23,6 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -93,7 +92,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address ethLiquidityImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
-        address feeSplitterImpl;
         address l2DevFeatureFlagsImpl;
         // Config values, take advantage of the harness to capture the config values
         L2ContractsManagerTypes.FullConfig config;
@@ -140,7 +138,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         implementations.crossL2InboxImpl = deployCode("src/L2/CrossL2Inbox.sol:CrossL2Inbox");
         implementations.l2ToL2CrossDomainMessengerImpl =
             deployCode("src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger");
-        implementations.feeSplitterImpl = deployCode("src/L2/FeeSplitter.sol:FeeSplitter");
         implementations.conditionalDeployerImpl = deployCode("src/L2/ConditionalDeployer.sol:ConditionalDeployer");
         implementations.l2DevFeatureFlagsImpl = deployCode("src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags");
     }
@@ -191,7 +188,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         state_.ethLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY);
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
-        state_.feeSplitterImpl = EIP1967Helper.getImplementation(Predeploys.FEE_SPLITTER);
         state_.l2DevFeatureFlagsImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
 
         // Capture config values using the harness
@@ -244,7 +240,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _state1.nativeAssetLiquidityImpl, _state2.nativeAssetLiquidityImpl, "NativeAssetLiquidity impl mismatch"
         );
         assertEq(_state1.liquidityControllerImpl, _state2.liquidityControllerImpl, "LiquidityController impl mismatch");
-        assertEq(_state1.feeSplitterImpl, _state2.feeSplitterImpl, "FeeSplitter impl mismatch");
         assertEq(_state1.l2DevFeatureFlagsImpl, _state2.l2DevFeatureFlagsImpl, "L2DevFeatureFlags impl mismatch");
 
         // Assert config values are equal
@@ -300,11 +295,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _state1.config.liquidityController.owner,
             _state2.config.liquidityController.owner,
             "LiquidityController owner mismatch"
-        );
-        assertEq(
-            address(_state1.config.feeSplitter.sharesCalculator),
-            address(_state2.config.feeSplitter.sharesCalculator),
-            "FeeSplitter sharesCalculator mismatch"
         );
     }
 
@@ -449,13 +439,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
                 == preUpgradeConfig.operatorFeeVault.withdrawalNetwork,
             "OperatorFeeVault.withdrawalNetwork not preserved"
         );
-
-        // FeeSplitter
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            address(preUpgradeConfig.feeSplitter.sharesCalculator),
-            "FeeSplitter.sharesCalculator not preserved"
-        );
     }
 
     /// @notice Tests that calling upgrade() directly (not via DELEGATECALL) reverts.
@@ -552,6 +535,25 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _feeVault.withdrawalNetwork() == _expectedWithdrawalNetwork, "FeeVault.withdrawalNetwork not preserved"
         );
     }
+
+    /// @notice Checks if a predeploy requires initialization.
+    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
+    ///      This determines the upgrade method, not coverage.
+    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
+        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
+            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _predeploy == Predeploys.SEQUENCER_FEE_WALLET
+            || _predeploy == Predeploys.BASE_FEE_VAULT || _predeploy == Predeploys.L1_FEE_VAULT
+            || _predeploy == Predeploys.OPERATOR_FEE_VAULT || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+    }
+
+    /// @notice Checks if a predeploy is deployed and upgradeable.
+    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
+    ///      This avoids calling the proxy's implementation() function which may fail.
+    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
+        address impl = EIP1967Helper.getImplementation(_proxy);
+        return impl != address(0) && impl.code.length > 0;
+    }
 }
 
 /// @title L2ContractsManager_CGT_Test
@@ -611,6 +613,22 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
         );
     }
 
+    /// @notice Tests that upgrade succeeds when LiquidityController.owner() is address(0) on CGT networks.
+    ///         L2CM replays the live owner back into LiquidityController.initialize(), so a renounced
+    ///         ownership state must be preserved across upgrades rather than blocking them.
+    function test_upgrade_whenLiquidityControllerOwnerIsZero_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        vm.mockCall(
+            Predeploys.LIQUIDITY_CONTROLLER, abi.encodeCall(ILiquidityController.owner, ()), abi.encode(address(0))
+        );
+
+        // Upgrade must not revert even though owner is address(0)
+        _executeUpgrade();
+
+        assertEq(ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).owner(), address(0));
+    }
+
     /// @notice Tests that LiquidityController config is preserved after upgrade on CGT networks.
     function test_upgradePreservesLiquidityControllerConfig_onCGTNetwork_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
@@ -637,6 +655,84 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
             liquidityController.gasPayingTokenSymbol(),
             preUpgradeConfig.liquidityController.gasPayingTokenSymbol,
             "LiquidityController.gasPayingTokenSymbol not preserved"
+        );
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_XLayerCGT_Test
+/// @notice Tests the upgrade path for XLayer CGT network where the LiquidityController
+///         does not expose an owner() function. OKX's fork removed the owner() getter and ties
+///         authorization to ProxyAdmin.owner() directly instead of Ownable.
+contract L2ContractsManager_Upgrade_XLayerCGT_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Simulates OKX's LiquidityController state where owner() reverts.
+    ///         In OKX's fork, the initialize() signature omits the _owner argument and
+    ///         authorization is checked against ProxyAdmin.owner() directly.
+    function _simulateXLayerLiquidityController() internal {
+        vm.mockCallRevert(
+            Predeploys.LIQUIDITY_CONTROLLER,
+            abi.encodeCall(ILiquidityController.owner, ()),
+            abi.encode("XLayer: owner() not supported")
+        );
+    }
+
+    /// @notice Tests that _loadFullConfig falls back to ProxyAdmin.owner() when
+    ///         LiquidityController.owner() reverts, as it does on X Layer.
+    function test_loadFullConfigUsesProxyAdminOwner_whenLiquidityControllerOwnerReverts_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        address proxyAdminOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        _simulateXLayerLiquidityController();
+
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
+
+        assertEq(
+            config.liquidityController.owner,
+            proxyAdminOwner,
+            "Should fall back to ProxyAdmin.owner() when LiquidityController.owner() reverts"
+        );
+    }
+
+    /// @notice Tests that the upgrade succeeds on an X Layer network and the post-upgrade
+    ///         LiquidityController owner is set to ProxyAdmin.owner().
+    function test_upgradeSetsProxyAdminOwner_whenLiquidityControllerOwnerReverts_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        address proxyAdminOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        _simulateXLayerLiquidityController();
+
+        _executeUpgrade();
+
+        // Clear mocked calls so the newly deployed implementation's owner() is readable.
+        vm.clearMockedCalls();
+
+        assertEq(
+            ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).owner(),
+            proxyAdminOwner,
+            "LiquidityController owner should be ProxyAdmin.owner() after X Layer upgrade"
+        );
+    }
+
+    /// @notice Tests that gasPayingToken metadata is preserved through the upgrade
+    ///         on X Layer networks where LiquidityController.owner() reverts.
+    function test_upgradePreservesGasPayingTokenMetadata_whenLiquidityControllerOwnerReverts_succeeds() public {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
+        string memory preUpgradeName = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenName();
+        string memory preUpgradeSymbol = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenSymbol();
+
+        _simulateXLayerLiquidityController();
+        _executeUpgrade();
+        vm.clearMockedCalls();
+
+        assertEq(
+            ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenName(),
+            preUpgradeName,
+            "gasPayingTokenName should be preserved after X Layer upgrade"
+        );
+        assertEq(
+            ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenSymbol(),
+            preUpgradeSymbol,
+            "gasPayingTokenSymbol should be preserved after X Layer upgrade"
         );
     }
 }
@@ -758,7 +854,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertEq(
             result.liquidityControllerImpl, implementations.liquidityControllerImpl, "liquidityControllerImpl mismatch"
         );
-        assertEq(result.feeSplitterImpl, implementations.feeSplitterImpl, "feeSplitterImpl mismatch");
         assertEq(
             result.conditionalDeployerImpl, implementations.conditionalDeployerImpl, "conditionalDeployerImpl mismatch"
         );
@@ -794,7 +889,6 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         assertTrue(result.ethLiquidityImpl != address(0), "ethLiquidityImpl is zero");
         assertTrue(result.nativeAssetLiquidityImpl != address(0), "nativeAssetLiquidityImpl is zero");
         assertTrue(result.liquidityControllerImpl != address(0), "liquidityControllerImpl is zero");
-        assertTrue(result.feeSplitterImpl != address(0), "feeSplitterImpl is zero");
         assertTrue(result.conditionalDeployerImpl != address(0), "conditionalDeployerImpl is zero");
         assertTrue(result.l2DevFeatureFlagsImpl != address(0), "l2DevFeatureFlagsImpl is zero");
     }
@@ -922,25 +1016,6 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         predeploys_[0] = Predeploys.LIQUIDITY_CONTROLLER;
     }
 
-    /// @notice Checks if a predeploy requires initialization.
-    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
-    ///      This determines the upgrade method, not coverage.
-    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
-        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
-            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
-            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.FEE_SPLITTER || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
-    }
-
-    /// @notice Checks if a predeploy is deployed and upgradeable.
-    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
-    ///      This avoids calling the proxy's implementation() function which may fail.
-    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
-        address impl = EIP1967Helper.getImplementation(_proxy);
-        return impl != address(0) && impl.code.length > 0;
-    }
-
     /// @notice Tests that all predeploys from Predeploys.sol receive the expected upgrade call.
     ///         Uses vm.expectCall() to verify that upgradeTo or upgradeToAndCall is called.
     /// @dev If L2CM misses a predeploy that exists in Predeploys.sol, this test will fail.
@@ -997,11 +1072,9 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
 contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
-    /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags has not been deployed by:
-    ///         1. Etching the current implementation to have no code.
-    ///         2. Pointing implementations.l2DevFeatureFlagsImpl to a fresh address with no code,
-    ///            so that after the upgrade sets the new impl pointer, the null-safe guard in
-    ///            _isDevFeatureEnabled fires and returns false.
+    /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags
+    ///         has not been deployed. Empties the current proxy implementation so that the
+    ///         null-safe guard in `_isDevFeatureEnabled` fires and returns false.
     function _simulateNoFlagsImpl() internal {
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
@@ -1010,9 +1083,6 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
             .checked_write(false);
-
-        implementations.l2DevFeatureFlagsImpl = makeAddr("emptyFlagsImpl");
-        _deployL2CM();
     }
 
     /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
@@ -1027,19 +1097,16 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
         _executeUpgrade();
     }
 
-    /// @notice Tests that all 7 interop predeploys retain their pre-upgrade implementations
+    /// @notice Tests that all interop predeploys retain their pre-upgrade implementations
     ///         when the flags implementation has no code.
     function test_upgrade_skipsInteropPredeploys_succeeds() public {
-        address[] memory interopPredeploys = new address[](7);
+        address[] memory interopPredeploys = new address[](4);
         interopPredeploys[0] = Predeploys.CROSS_L2_INBOX;
         interopPredeploys[1] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
         interopPredeploys[2] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
         interopPredeploys[3] = Predeploys.ETH_LIQUIDITY;
-        interopPredeploys[4] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY;
-        interopPredeploys[5] = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
-        interopPredeploys[6] = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
 
-        address[] memory preUpgradeImpls = new address[](7);
+        address[] memory preUpgradeImpls = new address[](4);
         for (uint256 i = 0; i < interopPredeploys.length; i++) {
             preUpgradeImpls[i] = EIP1967Helper.getImplementation(interopPredeploys[i]);
         }
@@ -1082,5 +1149,144 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
             implementations.l2StandardBridgeImpl,
             "L2StandardBridge should be upgraded"
         );
+    }
+}
+
+/// @title L2ContractsManager_Reverter_Harness
+/// @notice Test helper whose runtime bytecode is etched over each initializable predeploy's new
+///         implementation in the atomicity test. Exposes `version()` so it passes the L2CM
+///         downgrade guard, then reverts from its fallback when the initializer is invoked via
+///         `upgradeToAndCall`.
+contract L2ContractsManager_Reverter_Harness {
+    /// @notice Thrown from the fallback — i.e. from any call that is not `version()`.
+    error L2ContractsManager_Reverter_Harness_AlwaysReverts();
+
+    /// @notice Returns a version high enough to pass L2CM's downgrade check against any real
+    ///         predeploy version.
+    function version() external pure returns (string memory) {
+        return "99.0.0";
+    }
+
+    /// @notice Reverts on any call that is not `version()` — including the initializer that L2CM
+    ///         dispatches via upgradeToAndCall.
+    fallback() external payable {
+        revert L2ContractsManager_Reverter_Harness_AlwaysReverts();
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_Atomicity_Test
+/// @notice Regression guard: ensures any per-predeploy upgrade failure in
+///         `_apply()` aborts the whole upgrade, covering both the `upgradeToAndCall` and
+///         `upgradeTo` paths.
+contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade_Test {
+    function _countUpgradeablePredeploys(bool _initializable) internal view returns (uint256 count_) {
+        address[] memory all = Predeploys.getUpgradeablePredeploys();
+        for (uint256 i; i < all.length; i++) {
+            if (_requiresInitialization(all[i]) == _initializable && _isPredeployUpgradeable(all[i])) count_++;
+        }
+    }
+
+    // TODO(#19260): Refactor this when we have a proper single source of truth for the predeploys.
+    /// @dev Reverts when `_predeploy` is unmapped so new predeploys cannot slip past this test
+    ///      without the helper being extended.
+    function _getTargetImpl(address _predeploy) internal view returns (address) {
+        // Initializable predeploys (upgradeToAndCall path).
+        if (_predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER) return implementations.l2CrossDomainMessengerImpl;
+        if (_predeploy == Predeploys.L2_STANDARD_BRIDGE) return implementations.l2StandardBridgeImpl;
+        if (_predeploy == Predeploys.L2_ERC721_BRIDGE) return implementations.l2ERC721BridgeImpl;
+        if (_predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY) {
+            return implementations.optimismMintableERC20FactoryImpl;
+        }
+        if (_predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY) {
+            return implementations.optimismMintableERC721FactoryImpl;
+        }
+        if (_predeploy == Predeploys.SEQUENCER_FEE_WALLET) return implementations.sequencerFeeWalletImpl;
+        if (_predeploy == Predeploys.BASE_FEE_VAULT) return implementations.baseFeeVaultImpl;
+        if (_predeploy == Predeploys.L1_FEE_VAULT) return implementations.l1FeeVaultImpl;
+        if (_predeploy == Predeploys.OPERATOR_FEE_VAULT) return implementations.operatorFeeVaultImpl;
+        if (_predeploy == Predeploys.LIQUIDITY_CONTROLLER) return implementations.liquidityControllerImpl;
+
+        // Non-initializable predeploys (upgradeTo path).
+        if (_predeploy == Predeploys.GAS_PRICE_ORACLE) return implementations.gasPriceOracleImpl;
+        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
+            return Config.sysFeatureCustomGasToken() ? implementations.l1BlockCGTImpl : implementations.l1BlockImpl;
+        }
+        if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+            return Config.sysFeatureCustomGasToken()
+                ? implementations.l2ToL1MessagePasserCGTImpl
+                : implementations.l2ToL1MessagePasserImpl;
+        }
+        if (_predeploy == Predeploys.PROXY_ADMIN) return implementations.proxyAdminImpl;
+        if (_predeploy == Predeploys.L2_DEV_FEATURE_FLAGS) return implementations.l2DevFeatureFlagsImpl;
+        if (_predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY) return implementations.nativeAssetLiquidityImpl;
+        if (_predeploy == Predeploys.SCHEMA_REGISTRY) return implementations.schemaRegistryImpl;
+        if (_predeploy == Predeploys.EAS) return implementations.easImpl;
+        if (_predeploy == Predeploys.CROSS_L2_INBOX) return implementations.crossL2InboxImpl;
+        if (_predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+            return implementations.l2ToL2CrossDomainMessengerImpl;
+        }
+        if (_predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE) return implementations.superchainETHBridgeImpl;
+        if (_predeploy == Predeploys.ETH_LIQUIDITY) return implementations.ethLiquidityImpl;
+        if (_predeploy == Predeploys.CONDITIONAL_DEPLOYER) return implementations.conditionalDeployerImpl;
+
+        revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
+    }
+
+    /// @notice Forces each initializable predeploy's initializer to revert and asserts the whole
+    ///         `upgrade()` reverts. The inner `L2ContractsManager_Reverter_Harness_AlwaysReverts` is swallowed
+    ///         by `Proxy.upgradeToAndCall` (which wraps the delegatecall result in a `require`);
+    ///         the outer revert is therefore the Proxy's string error.
+    function test_upgrade_initializerRevertPropagates_reverts() public {
+        address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
+        uint256 coveredCount;
+
+        for (uint256 i = 0; i < allPredeploys.length; i++) {
+            address predeploy = allPredeploys[i];
+            if (!_requiresInitialization(predeploy)) continue;
+            if (!_isPredeployUpgradeable(predeploy)) continue;
+
+            uint256 snapshotId = vm.snapshotState();
+            vm.etch(_getTargetImpl(predeploy), address(new L2ContractsManager_Reverter_Harness()).code);
+
+            // Proxy.upgradeToAndCall wraps the inner revert in `require(success, "Proxy: ...")`,
+            // so the outer revert is Error(string) with the Proxy's message.
+            vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+            _executeUpgrade();
+
+            vm.revertToState(snapshotId);
+            coveredCount++;
+        }
+
+        assertEq(coveredCount, _countUpgradeablePredeploys(true));
+    }
+
+    /// @notice Forces each non-initializable predeploy's new implementation to be code-less and
+    ///         asserts the whole `upgrade()` reverts with `L2ContractsManager_EmptyImplementation`.
+    ///         Mirrors the initializer test for the `upgradeTo` path.
+    function test_upgrade_emptyImplementationPropagates_reverts() public {
+        address[] memory allPredeploys = Predeploys.getUpgradeablePredeploys();
+        uint256 coveredCount;
+
+        for (uint256 i = 0; i < allPredeploys.length; i++) {
+            address predeploy = allPredeploys[i];
+            if (_requiresInitialization(predeploy)) continue;
+            if (!_isPredeployUpgradeable(predeploy)) continue;
+
+            uint256 snapshotId = vm.snapshotState();
+            address targetImpl = _getTargetImpl(predeploy);
+            vm.etch(targetImpl, hex"");
+
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, targetImpl
+                )
+            );
+            _executeUpgrade();
+
+            vm.revertToState(snapshotId);
+            coveredCount++;
+        }
+
+        assertEq(coveredCount, _countUpgradeablePredeploys(false));
     }
 }

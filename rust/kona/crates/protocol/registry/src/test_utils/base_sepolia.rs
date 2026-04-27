@@ -8,6 +8,8 @@ use alloy_op_hardforks::{
     BASE_SEPOLIA_ISTHMUS_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP,
 };
 use alloy_primitives::{address, b256, uint};
+#[cfg(feature = "rollup_config_override")]
+use kona_genesis::FJORD_MAX_SEQUENCER_DRIFT;
 use kona_genesis::{
     BASE_SEPOLIA_BASE_FEE_CONFIG, ChainGenesis, HardForkConfig, RollupConfig, SystemConfig,
 };
@@ -44,6 +46,8 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     seq_window_size: 3600,
     channel_timeout: 300,
     granite_channel_timeout: 50,
+    #[cfg(feature = "rollup_config_override")]
+    fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
     l1_chain_id: 11155111,
     l2_chain_id: Chain::base_sepolia(),
     chain_op_config: BASE_SEPOLIA_BASE_FEE_CONFIG,
@@ -65,7 +69,6 @@ pub const BASE_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
     batch_inbox_address: address!("ff00000000000000000000000000000000084532"),
     deposit_contract_address: address!("49f53e41452c74589e85ca1677426ba426459e85"),
     l1_system_config_address: address!("f272670eb55e895584501d564afeb048bed26194"),
-    protocol_versions_address: address!("79add5713b383daa0a138d3c4780c7a1804a8090"),
     superchain_config_address: Some(address!("C2Be75506d5724086DEB7245bd260Cc9753911Be")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,

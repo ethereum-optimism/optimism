@@ -40,6 +40,9 @@ pub enum BatchDecodingError {
     /// Empty buffer
     #[error("Empty buffer")]
     EmptyBuffer,
+    /// Unknown batch type
+    #[error("Unknown batch type: {0}")]
+    UnknownBatchType(u8),
     /// Error decoding an Alloy RLP
     #[error("Error decoding an Alloy RLP: {0}")]
     AlloyRlpError(alloy_rlp::Error),

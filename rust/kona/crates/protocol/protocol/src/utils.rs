@@ -9,7 +9,7 @@ use op_alloy_consensus::{OpBlock, decode_holocene_extra_data, decode_jovian_extr
 
 use crate::{
     L1BlockInfoBedrockOnlyFields as _, L1BlockInfoEcotoneBaseFields as _, L1BlockInfoTx,
-    OpBlockConversionError, SpanBatchError, SpanDecodingError,
+    MAX_SPAN_BATCH_ELEMENTS, OpBlockConversionError, SpanBatchError, SpanDecodingError,
 };
 
 /// Converts the [`OpBlock`] to a partial [`SystemConfig`].
@@ -116,6 +116,12 @@ pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, TxType), SpanBatchError> 
     let tx_payload = if rlp_header.list {
         // Grab the raw RLP for the transaction data from `r`. It was unaffected since we copied it.
         let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
+        if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
+            return Err(SpanBatchError::TooBigSpanBatchSize);
+        }
+        if r.len() < payload_length_with_header {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+        }
         let payload = r[0..payload_length_with_header].to_vec();
         r.advance(payload_length_with_header);
         Ok(payload)
@@ -379,5 +385,30 @@ mod tests {
             da_footprint_gas_scalar: None,
         };
         assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_read_tx_data_truncated_payload() {
+        // RLP list header claiming 100 bytes of payload, but only 3 bytes actually present.
+        // 0xf8 0x64 = list header with 1-byte length prefix, payload length 100
+        let mut data: &[u8] = &[0xf8, 0x64, 0x00, 0x00, 0x00];
+        let err = read_tx_data(&mut data).unwrap_err();
+        assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
+
+    #[test]
+    fn test_read_tx_data_exceeds_max_span_batch_elements() {
+        // RLP list header claiming MAX_SPAN_BATCH_ELEMENTS + 1 bytes of payload.
+        // 0xfa = list with 3-byte length prefix (0xf7 + 3), then 0x989681 = 10_000_001.
+        // Header::decode validates the claimed length against the buffer, so we must provide
+        // a buffer large enough for decoding to succeed before the max size check triggers.
+        let mut data = vec![0u8; MAX_SPAN_BATCH_ELEMENTS as usize + 5];
+        data[0] = 0xfa;
+        data[1] = 0x98;
+        data[2] = 0x96;
+        data[3] = 0x81;
+        let mut slice: &[u8] = &data;
+        let err = read_tx_data(&mut slice).unwrap_err();
+        assert_eq!(err, SpanBatchError::TooBigSpanBatchSize);
     }
 }
