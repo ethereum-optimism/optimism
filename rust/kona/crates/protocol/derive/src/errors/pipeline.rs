@@ -397,6 +397,7 @@ pub enum PipelineEncodingError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_eips::BlockNumHash;
     use core::error::Error;
 
     #[test]
@@ -407,18 +408,16 @@ mod tests {
         let err = PipelineErrorKind::Critical(PipelineError::Eof);
         assert!(err.source().is_some());
 
-        let err = PipelineErrorKind::Reset(ResetError::BadParentHash(
-            Default::default(),
-            Default::default(),
-        ));
+        let err =
+            PipelineErrorKind::Reset(ResetError::BadParentHash(B256::default(), B256::default()));
         assert!(err.source().is_some());
     }
 
     #[test]
     fn test_pipeline_error_source() {
         let err = PipelineError::AttributesBuilder(BuilderError::BlockMismatch(
-            Default::default(),
-            Default::default(),
+            BlockNumHash::default(),
+            BlockNumHash::default(),
         ));
         assert!(err.source().is_some());
 
@@ -446,13 +445,13 @@ mod tests {
     #[test]
     fn test_reset_error_kinds() {
         let reset_errors = [
-            ResetError::BadParentHash(Default::default(), Default::default()),
+            ResetError::BadParentHash(B256::default(), B256::default()),
             ResetError::BadTimestamp(0, 0),
             ResetError::L1OriginMismatch(0, 0),
-            ResetError::ReorgDetected(Default::default(), Default::default()),
+            ResetError::ReorgDetected(B256::default(), B256::default()),
             ResetError::AttributesBuilder(BuilderError::BlockMismatch(
-                Default::default(),
-                Default::default(),
+                BlockNumHash::default(),
+                BlockNumHash::default(),
             )),
             ResetError::HoloceneActivation,
             ResetError::BlobsUnavailable(0),

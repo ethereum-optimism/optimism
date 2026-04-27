@@ -319,7 +319,7 @@ mod tests {
         let result = attributes_queue.create_next_attributes(batch, parent).await.unwrap_err();
         assert_eq!(
             result,
-            PipelineErrorKind::Reset(ResetError::BadParentHash(Default::default(), bad_hash))
+            PipelineErrorKind::Reset(ResetError::BadParentHash(B256::default(), bad_hash))
         );
     }
 

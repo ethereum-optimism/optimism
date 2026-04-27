@@ -68,9 +68,13 @@ where
                 MAX_RLP_BYTES_PER_CHANNEL_BEDROCK
             };
 
+            #[allow(clippy::cast_possible_truncation)]
+            // SAFETY: `max_rlp_bytes_per_channel` is one of two protocol-fixed constants
+            // (Fjord/Bedrock), each fitting comfortably in `usize` on every supported target.
+            let max_rlp_bytes_per_channel = max_rlp_bytes_per_channel as usize;
             self.next_batch = Some(BatchReader::new(
                 &channel[..],
-                max_rlp_bytes_per_channel as usize,
+                max_rlp_bytes_per_channel,
                 origin.timestamp,
             ));
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_BATCH_READER_SET, 1);
@@ -124,6 +128,8 @@ where
         match next_batch.decompress() {
             Ok(()) => {
                 // Record the decompressed size and type.
+                #[allow(clippy::cast_precision_loss)]
+                // SAFETY: cast is for metrics gauge reporting only.
                 let _size = next_batch.decompressed.len() as f64;
                 let _ty = if next_batch.brotli_used {
                     BatchReader::CHANNEL_VERSION_BROTLI
@@ -224,6 +230,8 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::cast_possible_truncation)]
+    // SAFETY: `MAX_RLP_BYTES_PER_CHANNEL_FJORD` is a protocol constant fitting in `usize`.
     async fn test_flush_channel_reader() {
         let mock = TestChannelReaderProvider::new(vec![Ok(Some(new_compressed_batch_data()))]);
         let mut reader = ChannelReader::new(mock, Arc::new(RollupConfig::default()));
@@ -237,6 +245,8 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::cast_possible_truncation)]
+    // SAFETY: `MAX_RLP_BYTES_PER_CHANNEL_FJORD` is a protocol constant fitting in `usize`.
     async fn test_reset_channel_reader() {
         let mock = TestChannelReaderProvider::new(vec![Ok(None)]);
         let mut reader = ChannelReader::new(mock, Arc::new(RollupConfig::default()));

@@ -1,5 +1,8 @@
 //! Blob Data Source
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{
     BlobData, BlobProvider, ChainProvider, DataAvailabilityProvider, PipelineError,
     PipelineErrorKind, PipelineResult, ResetError,

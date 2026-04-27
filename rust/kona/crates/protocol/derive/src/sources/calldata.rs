@@ -1,5 +1,8 @@
 //! `CallData` Source
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{ChainProvider, DataAvailabilityProvider, PipelineError, PipelineResult};
 use alloc::{boxed::Box, collections::VecDeque};
 use alloy_consensus::{Transaction, TxEnvelope, transaction::SignerRecoverable};

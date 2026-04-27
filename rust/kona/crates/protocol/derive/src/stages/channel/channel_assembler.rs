@@ -102,6 +102,8 @@ where
         if let Some(channel) = self.channel.as_mut() {
             // Track the number of blocks until the channel times out.
             let timeout = channel.open_block_number() + self.cfg.channel_timeout(origin.timestamp);
+            #[allow(clippy::cast_precision_loss)]
+            // SAFETY: cast is for metrics gauge reporting only.
             let _margin = timeout.saturating_sub(origin.number) as f64;
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, _margin);
 
@@ -124,6 +126,8 @@ where
                 return Err(PipelineError::NotEnoughData.temp());
             }
 
+            #[allow(clippy::cast_precision_loss)]
+            // SAFETY: cast is for metrics gauge reporting only.
             let _size = channel.size() as f64;
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, _size);
 
@@ -132,12 +136,20 @@ where
             } else {
                 MAX_RLP_BYTES_PER_CHANNEL_BEDROCK
             };
-            kona_macros::set!(
-                gauge,
-                crate::metrics::Metrics::PIPELINE_MAX_RLP_BYTES,
-                max_rlp_bytes_per_channel as f64
-            );
-            if channel.size() > max_rlp_bytes_per_channel as usize {
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+            // SAFETY: cast is for metrics gauge reporting only; the constant fits in `usize`.
+            {
+                kona_macros::set!(
+                    gauge,
+                    crate::metrics::Metrics::PIPELINE_MAX_RLP_BYTES,
+                    max_rlp_bytes_per_channel as f64
+                );
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            // SAFETY: `max_rlp_bytes_per_channel` is one of two protocol-fixed constants
+            // (Fjord/Bedrock), each fitting comfortably in `usize` on every supported target.
+            let max_rlp_bytes_per_channel_usize = max_rlp_bytes_per_channel as usize;
+            if channel.size() > max_rlp_bytes_per_channel_usize {
                 warn!(
                     target: "channel_assembler",
                     "Compressed channel size exceeded max RLP bytes per channel, dropping channel (ID: {}) with {} bytes",
@@ -341,6 +353,8 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::cast_possible_truncation)]
+    // SAFETY: the protocol constants fit in `usize` on every supported target.
     async fn test_assembler_size_limit_exceeded_bedrock() {
         let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());
@@ -376,6 +390,8 @@ mod test {
     }
 
     #[tokio::test]
+    #[allow(clippy::cast_possible_truncation)]
+    // SAFETY: the protocol constants fit in `usize` on every supported target.
     async fn test_assembler_size_limit_exceeded_fjord() {
         let trace_store: TraceStorage = TraceStorage::default();
         let layer = CollectingLayer::new(trace_store.clone());

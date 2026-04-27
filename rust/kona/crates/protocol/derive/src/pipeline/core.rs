@@ -262,6 +262,7 @@ mod tests {
     use super::*;
     use crate::{DerivationPipeline, test_utils::*};
     use alloc::{string::ToString, sync::Arc};
+    use alloy_primitives::{Address, B256};
     use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{RollupConfig, SystemConfig};
     use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
@@ -272,8 +273,8 @@ mod tests {
             attributes: OpPayloadAttributes {
                 payload_attributes: PayloadAttributes {
                     timestamp: 0,
-                    prev_randao: Default::default(),
-                    suggested_fee_recipient: Default::default(),
+                    prev_randao: B256::default(),
+                    suggested_fee_recipient: Address::default(),
                     withdrawals: None,
                     parent_beacon_block_root: None,
                     slot_number: None,

@@ -500,7 +500,10 @@ mod tests {
         let file_contents = &(&*file_contents)[..file_contents.len() - 1];
         let data = alloy_primitives::hex::decode(file_contents).unwrap();
         let bytes: alloy_primitives::Bytes = data.into();
-        BatchReader::new(bytes, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize, 0)
+        #[allow(clippy::cast_possible_truncation)]
+        // SAFETY: `MAX_RLP_BYTES_PER_CHANNEL_FJORD` is a protocol constant fitting in `usize`.
+        let max_rlp_bytes = MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize;
+        BatchReader::new(bytes, max_rlp_bytes, 0)
     }
 
     #[test]
@@ -1035,7 +1038,7 @@ mod tests {
         mock.origin = Some(BlockInfo {
             number: 16_988_980_031_808_077_784,
             timestamp: 1_639_845_845,
-            parent_hash: Default::default(),
+            parent_hash: B256::default(),
             hash: origin_check,
         });
         let origin = mock.origin;

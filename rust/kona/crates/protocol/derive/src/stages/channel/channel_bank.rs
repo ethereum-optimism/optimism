@@ -1,5 +1,8 @@
 //! This module contains the `ChannelBank` struct.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{
     ChannelReaderProvider, NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError,
     PipelineErrorKind, PipelineResult, Stage,

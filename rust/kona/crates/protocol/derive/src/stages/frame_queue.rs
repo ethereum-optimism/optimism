@@ -1,5 +1,8 @@
 //! This module contains the [`FrameQueue`] stage of the derivation pipeline.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{
     NextFrameProvider, OriginAdvancer, OriginProvider, PipelineError, PipelineResult, Stage,
 };
@@ -140,13 +143,21 @@ where
         self.queue.extend(frames);
 
         // Update metrics with last frame count
-        kona_macros::set!(
-            gauge,
-            crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_BUFFER,
-            self.queue.len() as f64
-        );
-        let _queue_size = self.queue.iter().map(|f| f.size()).sum::<usize>() as f64;
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM, _queue_size);
+        #[allow(clippy::cast_precision_loss)]
+        // SAFETY: cast is for metrics gauge reporting only.
+        {
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_BUFFER,
+                self.queue.len() as f64
+            );
+            let _queue_size = self.queue.iter().map(Frame::size).sum::<usize>() as f64;
+            kona_macros::set!(
+                gauge,
+                crate::metrics::Metrics::PIPELINE_FRAME_QUEUE_MEM,
+                _queue_size
+            );
+        }
 
         // Prune frames if Holocene is active.
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;

@@ -108,12 +108,11 @@ where
     fn origin(&self) -> Option<BlockInfo> {
         self.channel_assembler.as_ref().map_or_else(
             || {
-                self.channel_bank.as_ref().map_or_else(
-                    || self.prev.as_ref().and_then(|prev| prev.origin()),
-                    |channel_bank| channel_bank.origin(),
-                )
+                self.channel_bank
+                    .as_ref()
+                    .map_or_else(|| self.prev.as_ref().and_then(P::origin), ChannelBank::origin)
             },
-            |channel_assembler| channel_assembler.origin(),
+            ChannelAssembler::origin,
         )
     }
 }

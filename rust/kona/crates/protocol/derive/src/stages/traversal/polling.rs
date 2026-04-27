@@ -1,5 +1,8 @@
 //! Contains the [`PollingTraversal`] stage of the derivation pipeline.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{
     ChainProvider, L1RetrievalProvider, OriginAdvancer, OriginProvider, PipelineError,
     PipelineResult, ResetError, Stage,

@@ -61,36 +61,42 @@ where
     }
 
     /// Sets the rollup config for the pipeline.
+    #[must_use]
     pub fn rollup_config(mut self, rollup_config: Arc<RollupConfig>) -> Self {
         self.rollup_config = Some(rollup_config);
         self
     }
 
     /// Sets the origin L1 block for the pipeline.
+    #[must_use]
     pub const fn origin(mut self, origin: BlockInfo) -> Self {
         self.origin = Some(origin);
         self
     }
 
     /// Sets the data availability provider for the pipeline.
+    #[must_use]
     pub fn dap_source(mut self, dap_source: D) -> Self {
         self.dap_source = Some(dap_source);
         self
     }
 
     /// Sets the builder for the pipeline.
+    #[must_use]
     pub fn builder(mut self, builder: B) -> Self {
         self.builder = Some(builder);
         self
     }
 
     /// Sets the l2 chain provider for the pipeline.
+    #[must_use]
     pub fn l2_chain_provider(mut self, l2_chain_provider: T) -> Self {
         self.l2_chain_provider = Some(l2_chain_provider);
         self
     }
 
     /// Sets the chain provider for the pipeline.
+    #[must_use]
     pub fn chain_provider(mut self, chain_provider: P) -> Self {
         self.chain_provider = Some(chain_provider);
         self

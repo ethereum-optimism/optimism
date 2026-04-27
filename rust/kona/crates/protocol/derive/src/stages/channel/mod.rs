@@ -7,6 +7,9 @@
 //! the [`Batch`](kona_protocol::Batch)es to the
 //! [`BatchQueue`](crate::stages::BatchQueue) stage.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::types::PipelineResult;
 use alloc::boxed::Box;
 use async_trait::async_trait;

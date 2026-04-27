@@ -36,30 +36,35 @@ impl FrameQueueBuilder {
     }
 
     /// Sets the rollup config.
+    #[must_use]
     pub fn with_rollup_config(mut self, config: &RollupConfig) -> Self {
         self.config = Some(config.clone());
         self
     }
 
     /// Set the origin block.
+    #[must_use]
     pub const fn with_origin(mut self, origin: BlockInfo) -> Self {
         self.origin = Some(origin);
         self
     }
 
     /// With expected frames.
+    #[must_use]
     pub fn with_expected_frames(mut self, frames: &[Frame]) -> Self {
         self.expected_frames = frames.to_vec();
         self
     }
 
     /// Sets the expected error type.
+    #[must_use]
     pub fn with_expected_err(mut self, err: PipelineErrorKind) -> Self {
         self.expected_err = Some(err);
         self
     }
 
     /// With raw frames.
+    #[must_use]
     pub fn with_raw_frames(mut self, raw: Bytes) -> Self {
         let mock = self.mock.unwrap_or_else(|| TestFrameQueueProvider::new(vec![Ok(raw)]));
         self.mock = Some(mock);
@@ -67,6 +72,7 @@ impl FrameQueueBuilder {
     }
 
     /// Adds frames to the mock provider.
+    #[must_use]
     pub fn with_frames(mut self, frames: &[Frame]) -> Self {
         let encoded = encode_frames(frames);
         let mock = self.mock.unwrap_or_else(|| TestFrameQueueProvider::new(vec![Ok(encoded)]));

@@ -1,5 +1,8 @@
 //! Contains the `BlobData` struct.
 
+#![allow(clippy::redundant_pub_crate)]
+// SAFETY: `pub(crate)` items are required to satisfy the workspace-level `unreachable_pub` lint.
+
 use crate::{BlobDecodingError, BlobProviderError};
 use alloc::{boxed::Box, vec};
 use alloy_eips::eip4844::{BYTES_PER_BLOB, Blob, VERSIONED_HASH_VERSION_KZG};
