@@ -309,7 +309,7 @@ reth-primitives-traits = { version = "0.3.0", default-features = false }
 reth-rpc-traits = { version = "0.3.0", default-features = false }
 reth-zstd-compressors = { version = "0.3.0", default-features = false }
 
-# ==================== RETH CRATES (git @ 27bfddeada3953edc22759080a3659ccea62ca1f) ====================
+# ==================== RETH CRATES (git tag v2.1.0) ====================
 reth = { git = "https://github.com/paradigmxyz/reth", version = "2.1.0", tag = "v2.1.0" }
 reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth", version = "2.1.0", tag = "v2.1.0" }
 reth-chain-state = { git = "https://github.com/paradigmxyz/reth", version = "2.1.0", tag = "v2.1.0" }
@@ -384,7 +384,7 @@ reth-trie-db = { git = "https://github.com/paradigmxyz/reth", version = "2.1.0",
 # ==================== REVM (latest: op-reth versions) ====================
 revm = { version = "38.0.0", default-features = false }
 revm-bytecode = { version = "10.0.0", default-features = false }
-revm-database = { version = "13.0.0", default-features = false }
+revm-database = { version = "13.0.1", default-features = false }
 revm-state = { version = "11.0.0", default-features = false }
 revm-primitives = { version = "23.0.0", default-features = false }
 revm-interpreter = { version = "35.0.0", default-features = false }
