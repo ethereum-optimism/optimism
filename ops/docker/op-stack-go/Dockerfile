@@ -246,6 +246,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 # Copy the entire rust workspace since kona depends on sibling crates (op-alloy, alloy-op-evm, etc.)
 COPY ./rust /rust
+# kona-hardforks build.rs probes ancestor paths for the embedded NUT bundle JSON.
+# Keep op-core as a sibling of /rust so Docker builds see the monorepo layout.
+COPY ./op-core/nuts/bundles /op-core/nuts/bundles
 WORKDIR /rust
 # Map TARGETARCH to Rust target triple, install it, and build
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/rust/target \
