@@ -25,12 +25,13 @@ type PresetConfig struct {
 	L1GethExecPath             string
 	AddedGameTypes             []gameTypes.GameType
 	RespectedGameTypes         []gameTypes.GameType
-	EnableCannonKonaForChall   bool
-	EnableTimeTravel           bool
-	MaxSequencingWindow        *uint64
-	RequireInteropNotAtGen     bool
-	MessageExpiryWindow        *uint64
-	UseInteropFilter           bool
+	// DisableCannonKonaForChall disables cannon-kona support in the op-challenger; cannon-kona is enabled by default.
+	DisableCannonKonaForChall bool
+	EnableTimeTravel          bool
+	MaxSequencingWindow       *uint64
+	RequireInteropNotAtGen    bool
+	MessageExpiryWindow       *uint64
+	UseInteropFilter          bool
 	// InteropLogBackfillDepth, if non-zero, configures the supernode to backfill
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration

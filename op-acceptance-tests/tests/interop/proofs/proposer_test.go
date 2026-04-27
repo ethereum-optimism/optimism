@@ -9,7 +9,7 @@ import (
 
 func TestProposer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
 
 	dgf := sys.DisputeGameFactory()
 
