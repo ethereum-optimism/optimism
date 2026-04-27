@@ -120,7 +120,39 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Open the file for reading
-	file, err := os.Open(absFilePath)
+// Ensure the resolved file path is contained within the configured data directory
+absFilePath, err := filepath.Abs(filePath)
+if err != nil {
+	s.logError("error resolving file path", err, dbName)
+	http.Error(w, "internal server error", http.StatusInternalServerError)
+	return
+}
+
+// Resolve symlinks to prevent bypass
+evalPath, err := filepath.EvalSymlinks(absFilePath)
+if err != nil {
+	s.logError("error evaluating symlinks", err, dbName)
+	http.Error(w, "file not found", http.StatusNotFound)
+	return
+}
+
+// Get the absolute path of the data directory
+absDatDir, err := filepath.Abs(s.config.DataDir)
+if err != nil {
+	s.logError("error resolving data directory", err, dbName)
+	http.Error(w, "internal server error", http.StatusInternalServerError)
+	return
+}
+
+// Verify the resolved path is within the allowed directory
+if !strings.HasPrefix(filepath.Clean(evalPath), filepath.Clean(absDatDir)+string(os.PathSeparator)) && filepath.Clean(evalPath) != filepath.Clean(absDatDir) {
+	s.logError("attempt to access file outside of data directory", fmt.Errorf("invalid path %q", absFilePath), dbName)
+	http.Error(w, "file not found", http.StatusNotFound)
+	return
+}
+
+// Open the file for reading
+file, err := os.Open(evalPath)
 	if err != nil {
 		s.logError("error opening file", err, dbName)
 		http.Error(w, "file not found", http.StatusNotFound)
