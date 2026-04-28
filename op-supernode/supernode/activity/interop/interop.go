@@ -188,6 +188,28 @@ func (i *Interop) Name() string {
 	return "interop"
 }
 
+// firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
+// to verify. It is backfillEndTimestamp+1 after log backfill, otherwise the
+// safe-head-derived startup timestamp.
+func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	if i.backfillEndTimestamp != 0 {
+		next := i.backfillEndTimestamp + 1
+		if next < i.activationTimestamp {
+			return i.activationTimestamp, nil
+		}
+		return next, nil
+	}
+	if i.firstVerifiableSet {
+		return i.firstVerifiable, nil
+	}
+	if i.verifiedDB != nil {
+		if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			return i.activationTimestamp, nil
+		}
+	}
+	return i.resolveFirstVerifiableTimestamp(ctx)
+}
+
 // New constructs a new Interop activity.
 func New(
 	log log.Logger,
