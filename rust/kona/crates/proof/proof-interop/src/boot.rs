@@ -231,6 +231,18 @@ pub enum BootstrapError {
         /// Second chain id whose embedded depset differs from `a`'s.
         b: u64,
     },
+    /// Some chain ids in the proof have an embedded dependency set, others do not.
+    /// Mixing trusted embedded data with oracle-supplied data for the missing chains
+    /// would defeat the purpose of embedding, so partial coverage is rejected.
+    #[error(
+        "proof partially covered by embedded dependency sets: covered={covered:?}, uncovered={uncovered:?}; either all proof chains must have embedded coverage or none"
+    )]
+    PartialDependencySetCoverage {
+        /// Chain ids that resolved to an embedded [`DependencySet`].
+        covered: Vec<u64>,
+        /// Chain ids that have no embedded [`DependencySet`].
+        uncovered: Vec<u64>,
+    },
 }
 
 /// Reads the raw pre-state from the preimage oracle.
@@ -259,12 +271,19 @@ where
     Ok(Bytes::from(pre))
 }
 
-/// Loads the dependency set, preferring the registry-embedded one when it covers all
-/// chain ids in the proof, falling back to the preimage oracle otherwise.
+/// Loads the dependency set, preferring the registry-embedded one when every chain id in
+/// the proof has embedded coverage, and falling back to the preimage oracle only when no
+/// chain id has embedded coverage.
 ///
-/// When the embedded registry contains depsets but they cover only some of the proof's
-/// chain ids, falls back to the oracle. When the chain ids span two distinct embedded
-/// clusters, returns a [`BootstrapError::CrossDependencySetProof`].
+/// Three outcomes:
+/// - **All chain ids embedded, same cluster** — return the embedded [`DependencySet`].
+/// - **Chain ids span two embedded clusters** — return [`BootstrapError::CrossDependencySetProof`].
+/// - **Some chain ids embedded, others not** — return [`BootstrapError::PartialDependencySetCoverage`].
+///   Mixing trusted embedded data with oracle-supplied data for the missing chains would
+///   let an attacker insert non-cluster chains via the oracle, so partial coverage is a
+///   hard error rather than a fallback.
+/// - **No chain id is embedded** — fall back to the preimage oracle (preserving today's
+///   oracle-only behavior for binaries built without an embedded depset).
 async fn load_dependency_set<O>(
     oracle: &O,
     chain_ids: &[u64],
@@ -275,48 +294,53 @@ where
 {
     let mut chosen: Option<&DependencySet> = None;
     let mut chosen_via: Option<u64> = None;
-    let mut all_covered = true;
+    let mut covered: Vec<u64> = Vec::new();
+    let mut uncovered: Vec<u64> = Vec::new();
+
     for id in chain_ids {
         match embedded.get(id) {
-            Some(ds) => match chosen {
-                None => {
-                    chosen = Some(ds);
-                    chosen_via = Some(*id);
+            Some(ds) => {
+                covered.push(*id);
+                match chosen {
+                    None => {
+                        chosen = Some(ds);
+                        chosen_via = Some(*id);
+                    }
+                    Some(prev) if prev == ds => {}
+                    Some(_) => {
+                        return Err(BootstrapError::CrossDependencySetProof {
+                            a: chosen_via.expect("chosen_via set whenever chosen is Some"),
+                            b: *id,
+                        });
+                    }
                 }
-                Some(prev) if prev == ds => {}
-                Some(_) => {
-                    return Err(BootstrapError::CrossDependencySetProof {
-                        a: chosen_via.expect("chosen_via set whenever chosen is Some"),
-                        b: *id,
-                    });
-                }
-            },
+            }
             None => {
-                all_covered = false;
+                uncovered.push(*id);
             }
         }
     }
-    if let (Some(ds), true) = (chosen, all_covered) {
-        return Ok(ds.clone());
+
+    match (chosen, uncovered.is_empty()) {
+        (Some(ds), true) => Ok(ds.clone()),
+        (Some(_), false) => {
+            Err(BootstrapError::PartialDependencySetCoverage { covered, uncovered })
+        }
+        (None, _) => {
+            warn!(
+                target: "boot_loader",
+                "No embedded dependency set covers proof chain ids {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
+                chain_ids
+            );
+            let ser_cfg = oracle
+                .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
+                .await
+                .map_err(OracleProviderError::Preimage)?;
+            let ds: DependencySet =
+                serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?;
+            Ok(ds)
+        }
     }
-    if embedded.is_empty() {
-        warn!(
-            target: "boot_loader",
-            "No embedded dependency sets found, falling back to preimage oracle. This is insecure in production without additional validation!"
-        );
-    } else {
-        warn!(
-            target: "boot_loader",
-            "Embedded dependency sets do not fully cover proof chain ids {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
-            chain_ids
-        );
-    }
-    let ser_cfg = oracle
-        .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
-        .await
-        .map_err(OracleProviderError::Preimage)?;
-    let ds: DependencySet = serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?;
-    Ok(ds)
 }
 
 #[cfg(test)]
@@ -382,18 +406,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn embedded_depset_partial_coverage_falls_back_to_oracle() {
-        // Embedded covers {1}, proof needs {1, 2}.
-        let oracle = MockOracle {
-            depset_payload: serde_json::to_vec(&make_depset(&[1u64, 2u64])).unwrap(),
-            ..Default::default()
-        };
+    async fn embedded_depset_partial_coverage_errors() {
+        // Embedded covers {1}, proof needs {1, 2}. Partial coverage is rejected — the
+        // oracle is NOT consulted because mixing trusted embedded data with oracle-supplied
+        // data for the missing chain would let an attacker insert non-cluster chains.
+        let oracle = MockOracle::default();
         let embedded = embed(vec![make_depset(&[1u64])]);
-        let out = load_dependency_set(&oracle, &[1, 2], &embedded).await.unwrap();
-        assert_eq!(out.dependencies.len(), 2);
-        let fetched = oracle.fetched.lock().clone();
-        assert_eq!(fetched.len(), 1);
-        assert_eq!(fetched[0], PreimageKey::new_local(DEPENDENCY_SET_KEY.to()));
+        let err = load_dependency_set(&oracle, &[1, 2], &embedded).await.unwrap_err();
+        match err {
+            BootstrapError::PartialDependencySetCoverage { covered, uncovered } => {
+                assert_eq!(covered, vec![1u64]);
+                assert_eq!(uncovered, vec![2u64]);
+            }
+            other => panic!("expected PartialDependencySetCoverage, got {other:?}"),
+        }
+        assert!(oracle.fetched.lock().is_empty());
     }
 
     #[tokio::test]
