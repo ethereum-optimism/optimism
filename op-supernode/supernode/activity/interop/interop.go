@@ -258,6 +258,30 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.started = true
 	i.mu.Unlock()
 
+	firstVerifiableLog := uint64(0)
+	if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		firstVerifiableLog = lastTS + 1
+	} else {
+		for {
+			first, err := i.resolveFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				firstVerifiableLog = first
+				break
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.log.Info("interop first verifiable timestamp resolved",
+		"activationTimestamp", i.activationTimestamp,
+		"firstVerifiableTimestamp", firstVerifiableLog)
+
 	if i.logBackfillDepth > 0 {
 		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
 		for {
@@ -274,32 +298,7 @@ func (i *Interop) Start(ctx context.Context) error {
 			case <-time.After(errorBackoffPeriod):
 			}
 		}
-	} else if _, initialized := i.verifiedDB.LastTimestamp(); !initialized {
-		for {
-			first, err := i.resolveFirstVerifiableTimestamp(i.ctx)
-			if err == nil {
-				i.firstVerifiable = first
-				i.firstVerifiableSet = true
-				break
-			}
-			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
-			select {
-			case <-i.ctx.Done():
-				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
-			case <-time.After(errorBackoffPeriod):
-			}
-		}
 	}
-	firstVerifiableLog := uint64(0)
-	if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
-		firstVerifiableLog = lastTS + 1
-	} else if first, err := i.firstVerifiableTimestamp(i.ctx); err == nil {
-		firstVerifiableLog = first
-	}
-	i.log.Info("interop first verifiable timestamp resolved",
-		"activationTimestamp", i.activationTimestamp,
-		"backfillEndTimestamp", i.backfillEndTimestamp,
-		"firstVerifiableTimestamp", firstVerifiableLog)
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 

@@ -67,9 +67,13 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 		return 0, nil
 	}
 
-	firstVerifiable, err := i.resolveFirstVerifiableTimestamp(i.ctx)
-	if err != nil {
-		return 0, err
+	firstVerifiable := i.firstVerifiable
+	if !i.firstVerifiableSet {
+		var err error
+		firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if firstVerifiable == i.activationTimestamp {
 		return 0, nil
