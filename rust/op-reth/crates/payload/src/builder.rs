@@ -55,7 +55,9 @@ where
 
 /// Wraps refund entries in a post-exec transaction and executes it via `execute`.
 ///
-/// Returns `true` if a post-exec transaction was executed, `false` if `entries` is empty.
+/// # Returns
+/// - `true` if a post-exec transaction was executed.
+/// - `false` if `entries` is empty.
 ///
 /// The post-exec transaction MUST execute successfully: any error is surfaced as
 /// `PayloadBuilderError::EvmExecutionError` so the payload build aborts. A verifier
