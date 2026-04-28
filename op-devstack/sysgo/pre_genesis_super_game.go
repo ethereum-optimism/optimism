@@ -33,7 +33,6 @@ func preparePreGenesisSuperGame(
 	l1Net *L1Network,
 	l1EL *L1Geth,
 	migration *interopMigrationState,
-	enableCannonKona bool,
 	gameCfg *PreGenesisSuperGameConfig,
 	l2Nets ...*L2Network,
 ) {
@@ -85,11 +84,7 @@ func preparePreGenesisSuperGame(
 		startingProposal,
 		l2Nets[0].ChainID(),
 	)
-
-	gameType := superCannonGameType
-	if enableCannonKona {
-		gameType = superCannonKonaGameType
-	}
+	gameType := superCannonKonaGameType
 
 	claimedChains := make([]eth.ChainIDAndOutput, 0, len(l2Nets))
 	for i, l2Net := range l2Nets {
