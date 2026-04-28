@@ -57,7 +57,7 @@ lazy_static::lazy_static! {
         for ds in depsets {
             for chain_id in ds.dependencies.keys().copied() {
                 if let Some(existing) = by_chain.insert(chain_id, ds.clone()) {
-                    debug_assert_eq!(
+                    assert_eq!(
                         existing, ds,
                         "embedded depsets contain overlapping clusters; build script bug"
                     );
