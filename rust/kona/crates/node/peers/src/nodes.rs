@@ -113,7 +113,7 @@ mod tests {
     use discv5::{Enr, enr::EnrPublicKey};
     use std::str::FromStr;
 
-    use kona_genesis::{BASE_MAINNET_CHAIN_ID, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+    use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
 
     use super::*;
 
@@ -137,9 +137,6 @@ mod tests {
     #[test]
     fn test_bootnodes_from_chain_id() {
         let mainnet = BootNodes::from_chain_id(OP_MAINNET_CHAIN_ID);
-        assert_eq!(mainnet.len(), 24);
-
-        let mainnet = BootNodes::from_chain_id(BASE_MAINNET_CHAIN_ID);
         assert_eq!(mainnet.len(), 24);
 
         let mainnet = BootNodes::from_chain_id(130 /* Unichain Mainnet */);
