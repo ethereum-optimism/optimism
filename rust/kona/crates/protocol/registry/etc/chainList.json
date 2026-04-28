@@ -43,27 +43,6 @@
     }
   },
   {
-    "name": "Base",
-    "identifier": "mainnet/base",
-    "chainId": 8453,
-    "rpc": [
-      "https://mainnet.base.org"
-    ],
-    "explorers": [
-      "https://explorer.base.org"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissionless"
-    }
-  },
-  {
     "name": "Binary Mainnet",
     "identifier": "mainnet/tbn",
     "chainId": 624,
@@ -654,27 +633,6 @@
     }
   },
   {
-    "name": "Base Sepolia Testnet",
-    "identifier": "sepolia/base",
-    "chainId": 84532,
-    "rpc": [
-      "https://sepolia.base.org"
-    ],
-    "explorers": [
-      "https://sepolia-explorer.base.org"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Binary Sepolia",
     "identifier": "sepolia/tbn",
     "chainId": 625,
@@ -1094,27 +1052,6 @@
     },
     "faultProofs": {
       "status": "permissioned"
-    }
-  },
-  {
-    "name": "Base devnet 0",
-    "identifier": "sepolia-dev-0/base-devnet-0",
-    "chainId": 11763072,
-    "rpc": [
-      ""
-    ],
-    "explorers": [
-      ""
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia-dev-0"
-    },
-    "faultProofs": {
-      "status": "permissionless"
     }
   },
   {

@@ -5,7 +5,6 @@ create_superchain_specs!(
     ("arena-z", "mainnet"),
     ("arena-z", "sepolia"),
     ("automata", "mainnet"),
-    ("base-devnet-0", "sepolia-dev-0"),
     ("bob", "mainnet"),
     ("boba", "sepolia"),
     ("boba", "mainnet"),
