@@ -75,11 +75,9 @@ mod tests {
 
     #[test]
     #[cfg(feature = "serde")]
-    fn op_supervisor_depset_json_round_trip() {
-        // Verbatim sample matching op-supervisor's `StaticConfigDependencySet.MarshalJSON` shape:
-        // string-keyed dependencies map plus optional `overrideMessageExpiryWindow`.
-        let json = include_str!("../../tests/fixtures/op_supervisor_depset.json");
-        let parsed: DependencySet = serde_json::from_str(json).expect("parse op-supervisor depset");
+    fn depset_json_round_trip() {
+        let json = include_str!("../../tests/fixtures/dependency_set.json");
+        let parsed: DependencySet = serde_json::from_str(json).unwrap();
         let reserialized = serde_json::to_string(&parsed).unwrap();
         let parsed_again: DependencySet = serde_json::from_str(&reserialized).unwrap();
         assert_eq!(parsed, parsed_again);
