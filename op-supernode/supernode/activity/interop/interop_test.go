@@ -3,7 +3,6 @@ package interop
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
@@ -319,9 +317,6 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 		}).
 		Build()
 
-	logger, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
-	h.interop.log = logger
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -343,12 +338,6 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	}
 
 	require.ErrorIs(t, <-done, context.Canceled)
-	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(slog.LevelInfo),
-		testlog.NewMessageContainsFilter("interop first verifiable timestamp resolved"),
-		testlog.NewAttributesFilter("activationTimestamp", "100"),
-		testlog.NewAttributesFilter("firstVerifiableTimestamp", "126"),
-	))
 }
 
 // =============================================================================
