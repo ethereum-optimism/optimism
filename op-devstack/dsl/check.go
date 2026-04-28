@@ -95,24 +95,49 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 const maxInSyncGap = 10
 
 // InSyncFn checks that baseNode and refNode are converged on the same canonical
-// chain at the given safety level. On each attempt it re-samples both heads
-// live and considers the nodes in sync when:
-//  1. the two head numbers differ by at most maxInSyncGap; and
-//  2. at the lower of the two heights, both nodes agree on the canonical block hash.
+// chain at the given safety level. Before the retry loop it records the higher
+// of the two starting heads as a catch-up target, so the slower node must reach
+// at least where the faster node was when the check began. On each attempt it
+// re-samples both heads live and considers the nodes in sync when:
+//  1. the slower head has reached the catch-up target; and
+//  2. the two head numbers differ by at most maxInSyncGap; and
+//  3. at the lower of the two heights, both nodes agree on the canonical block hash.
 //
+// The catch-up target prevents falsely passing when both heads sit below a
+// recent divergence point and happen to agree on shared pre-reorg history.
 // Unlike MatchedFn this does not require both live heads to be equal in the
 // same polling tick. Unlike a single-snapshot approach it tolerates either side
 // reorging during the wait, since both heads are re-sampled every attempt.
 func InSyncFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
 	return func() error {
 		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", lvl)
-		logger.Info("Expecting nodes to converge", "max_gap", maxInSyncGap)
 		baseProvider, baseCanLookup := baseNode.(ChainBlockProvider)
 		refProvider, refCanLookup := refNode.(ChainBlockProvider)
+
+		initialBase := baseNode.ChainSyncStatus(chainID, lvl)
+		initialRef := refNode.ChainSyncStatus(chainID, lvl)
+		catchupTarget := initialBase.Number
+		if initialRef.Number > catchupTarget {
+			catchupTarget = initialRef.Number
+		}
+		logger.Info("Expecting nodes to converge",
+			"initial_base", initialBase, "initial_ref", initialRef,
+			"catchup_target", catchupTarget, "max_gap", maxInSyncGap)
+
 		return retry.Do0(ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				base := baseNode.ChainSyncStatus(chainID, lvl)
 				ref := refNode.ChainSyncStatus(chainID, lvl)
+
+				lowerNumber := base.Number
+				if ref.Number < lowerNumber {
+					lowerNumber = ref.Number
+				}
+				if lowerNumber < catchupTarget {
+					logger.Info("Slower node still catching up to initial high water mark",
+						"base", base, "ref", ref, "catchup_target", catchupTarget)
+					return fmt.Errorf("nodes not in sync: slower head at %d, must reach %d: %s", lowerNumber, catchupTarget, lvl)
+				}
 
 				var gap uint64
 				if base.Number > ref.Number {
