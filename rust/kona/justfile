@@ -119,11 +119,14 @@ build-native *args='':
 # spec baked into cannon-builder:v1.0.0 (target-c-int-width: 64 → corrected to 32).
 # See commit 04ab310dc6: the baked spec miscompiles str equality, so the client
 # crashes under cannon when run via the kona-host-client-offline-cannon job.
+# The -v op-core/nuts/bundles` bind mount exposes op-core/nuts/bundles at /workdir/op-core/nuts/bundles
+# so the kona-hardforks build script's ancestor walk for op-core/ succeeds.
 build-cannon-client:
   docker run \
     --rm \
     -v {{KONA_ROOT}}/../:/workdir \
     -v {{KONA_ROOT}}/docker/cannon/mips64-unknown-none.json:/mips64-unknown-none.json:ro \
+    -v {{KONA_ROOT}}/../../op-core/nuts/bundles:/workdir/op-core/nuts/bundles:ro \
     -w="/workdir" \
     us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client --profile release-client-lto
 

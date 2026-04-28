@@ -18,6 +18,7 @@ const (
 	VMTypeAlphabet   = "ALPHABET"
 	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
+	VMTypeZK         = "ZK"          // ZK dispute game — uses a ZK verifier instead of a MIPS VM.
 )
 
 func (v VMType) MipsVersion() uint64 {
@@ -46,6 +47,17 @@ type AdditionalDisputeGame struct {
 	ChainProofParams
 	VMType        VMType
 	MakeRespected bool
+	// ZKDisputeGame holds ZK-specific configuration. Only used when VMType == VMTypeZK.
+	ZKDisputeGame *ZKDisputeGameParams `json:"zkDisputeGame,omitempty" toml:"zkDisputeGame,omitempty"`
+}
+
+// ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
+type ZKDisputeGameParams struct {
+	Verifier             common.Address `json:"verifier" toml:"verifier"`
+	AbsolutePrestate     common.Hash    `json:"absolutePrestate" toml:"absolutePrestate"`
+	MaxChallengeDuration uint64         `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
+	MaxProveDuration     uint64         `json:"maxProveDuration" toml:"maxProveDuration"`
+	ChallengerBond       *hexutil.Big   `json:"challengerBond" toml:"challengerBond"`
 }
 
 type L2DevGenesisParams struct {
@@ -101,6 +113,7 @@ var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
+var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -151,6 +164,29 @@ func (c *ChainIntent) Check() error {
 
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
+	}
+
+	for _, game := range c.AdditionalDisputeGames {
+		if game.VMType == VMTypeZK {
+			if game.ZKDisputeGame == nil {
+				return fmt.Errorf("%w: zkDisputeGame config must be set when VMType is ZK, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.Verifier == (common.Address{}) {
+				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
+				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.MaxChallengeDuration == 0 {
+				return fmt.Errorf("%w: MaxChallengeDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.MaxProveDuration == 0 {
+				return fmt.Errorf("%w: MaxProveDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.ChallengerBond == nil || game.ZKDisputeGame.ChallengerBond.ToInt().Sign() <= 0 {
+				return fmt.Errorf("%w: ChallengerBond must be set to a positive value, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+		}
 	}
 
 	return nil

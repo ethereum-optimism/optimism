@@ -1750,10 +1750,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_succeeds() public {
         // Run the deploy and standard validator checks.
         // In standard mode, CANNON and CANNON_KONA are disabled → PLDG-10,CKDG-10.
-        // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-10.
+        // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-SHAPE,SCKDG-10.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
@@ -1894,7 +1894,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.startingRespectedGameType = permType;
-        string memory expectedErrors = superRoot ? "SCKDG-10" : "PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
         if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
@@ -2339,11 +2339,30 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigMismatch.selector);
     }
 
+    /// @notice Tests that the migration function reverts when no chains are provided.
+    function test_migrate_noChains_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.chainSystemConfigs = new ISystemConfig[](0);
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain uses a custom gas token.
+    function test_migrate_cgtChain_reverts() public {
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.isCustomGasToken, ()), abi.encode(true)
+        );
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_CustomGasTokenNotSupported.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
-        // Only SUPER_CANNON (4) and SUPER_PERMISSIONED_CANNON (5) are valid for migration.
+        // TODO(#20030): Remove SUPER_CANNON once it's disabled in migrator.
         vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON.raw());
+        vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON_KONA.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED_CANNON.raw());
 
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
@@ -2372,6 +2391,36 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
+    ///         Features.INTEROP enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
+    function test_migrate_interopFeatureNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Mock one chain's SystemConfig to report Features.INTEROP as disabled.
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropFeatureNotEnabled.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
+    ///         Features.ETH_LOCKBOX enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
+    function test_migrate_ethLockboxFeatureNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Mock one chain's SystemConfig to report Features.ETH_LOCKBOX as disabled.
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
+            abi.encode(false)
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_EthLockboxFeatureNotEnabled.selector);
     }
 }
 

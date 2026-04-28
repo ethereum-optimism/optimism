@@ -222,7 +222,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	if cfg.PreGenesisSuperGame != nil {
-		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.EnableCannonKonaForChall, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
+		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
 	}
 
 	var l2AEL, l2BEL L2ELNode

@@ -867,7 +867,6 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {
 	dec := json.NewDecoder(in)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(c); err != nil {
 		return fmt.Errorf("failed to decode rollup config: %w", err)
 	}

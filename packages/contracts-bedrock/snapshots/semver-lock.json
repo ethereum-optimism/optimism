@@ -20,12 +20,12 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x8aa5d42903e7ddcd4bd7b750cc398026c65f1266a3ec3f91bed1cb0c56098acd",
-    "sourceCodeHash": "0x3ee501b53a566505bec689731fbfcc712ad2c82c6579befad562303738c4d3ad"
+    "initCodeHash": "0x55775112dfd25c0470fc267496c603cb27fece0a3f79d900ddc6b619c657f73f",
+    "sourceCodeHash": "0xd631818bab3c638423c3111f85b29840ab109deb7762186cb1141a8d4d14178b"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0x1101a3124e60908ec3e7690b33389d835d0405416d107114edd1684528f39bee",
-    "sourceCodeHash": "0xe9baa6201cba314f5db2f30a6d8c6c23fcdc2e2407246c9e0624d7e781f511e3"
+    "initCodeHash": "0xf09c4037bec1e0fbf679f1250e8d21d4a208829be24e16a83711e94c9b4b1004",
+    "sourceCodeHash": "0x58224f9b9403ca597a9aa649757c667396838eee89db2e7553aab755dd5fba26"
   },
   "src/L1/ProtocolVersions.sol:ProtocolVersions": {
     "initCodeHash": "0x7b1797bcc9b34c752d36493b69bd749750d72566bc34f2c85d950132c7cfc882",

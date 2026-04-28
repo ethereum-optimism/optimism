@@ -230,25 +230,6 @@ func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 	}
 }
 
-func WithCannonKonaGameTypeAdded() Option {
-	return option{
-		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
-		},
-	}
-}
-
-func WithChallengerCannonKonaEnabled() Option {
-	return option{
-		kinds: optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-		},
-	}
-}
-
 func WithTimeTravelEnabled() Option {
 	return option{
 		kinds: optionKindTimeTravel,

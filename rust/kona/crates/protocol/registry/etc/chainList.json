@@ -39,28 +39,7 @@
       "chain": "mainnet"
     },
     "faultProofs": {
-      "status": "permissionless"
-    }
-  },
-  {
-    "name": "Base",
-    "identifier": "mainnet/base",
-    "chainId": 8453,
-    "rpc": [
-      "https://mainnet.base.org"
-    ],
-    "explorers": [
-      "https://explorer.base.org"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissionless"
+      "status": "permissioned"
     }
   },
   {
@@ -103,7 +82,7 @@
       "chain": "mainnet"
     },
     "faultProofs": {
-      "status": "none"
+      "status": "permissioned"
     }
   },
   {
@@ -166,7 +145,7 @@
       "chain": "mainnet"
     },
     "faultProofs": {
-      "status": "none"
+      "status": "permissioned"
     }
   },
   {
@@ -465,27 +444,6 @@
     }
   },
   {
-    "name": "SnaxChain",
-    "identifier": "mainnet/snax",
-    "chainId": 2192,
-    "rpc": [
-      "https://mainnet.snaxchain.io"
-    ],
-    "explorers": [
-      "https://explorer.snaxchain.io"
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Soneium",
     "identifier": "mainnet/soneium",
     "chainId": 1868,
@@ -672,27 +630,6 @@
     },
     "faultProofs": {
       "status": "permissioned"
-    }
-  },
-  {
-    "name": "Base Sepolia Testnet",
-    "identifier": "sepolia/base",
-    "chainId": 84532,
-    "rpc": [
-      "https://sepolia.base.org"
-    ],
-    "explorers": [
-      "https://sepolia-explorer.base.org"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "permissionless"
     }
   },
   {
@@ -1051,7 +988,7 @@
       "chain": "sepolia"
     },
     "faultProofs": {
-      "status": "permissioned"
+      "status": "permissionless"
     }
   },
   {
@@ -1115,27 +1052,6 @@
     },
     "faultProofs": {
       "status": "permissioned"
-    }
-  },
-  {
-    "name": "Base devnet 0",
-    "identifier": "sepolia-dev-0/base-devnet-0",
-    "chainId": 11763072,
-    "rpc": [
-      ""
-    ],
-    "explorers": [
-      ""
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia-dev-0"
-    },
-    "faultProofs": {
-      "status": "permissionless"
     }
   },
   {
@@ -1262,7 +1178,7 @@
       "chain": "rehearsal-0-bn"
     },
     "faultProofs": {
-      "status": "permissionless"
+      "status": "permissioned"
     }
   },
   {
@@ -1283,7 +1199,7 @@
       "chain": "rehearsal-0-bn"
     },
     "faultProofs": {
-      "status": "permissionless"
+      "status": "permissioned"
     }
   },
   {
@@ -1329,45 +1245,25 @@
     }
   },
   {
-    "name": "test1",
-    "identifier": "test1/testnet",
-    "chainId": 123999119,
+    "name": "Celo Sepolia Testnet",
+    "identifier": "sepolia/celo-sep",
+    "chainId": 11142220,
     "rpc": [
-      "https://rpc.test1.com"
+      "https://forno.celo-sepolia.celo-testnet.org"
     ],
     "explorers": [
-      "https://explorer.test1.com"
+      "https://celo-sepolia.blockscout.com"
     ],
-    "superchainLevel": 0,
+    "superchainLevel": 2,
     "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
+    "dataAvailabilityType": "alt-da",
     "parent": {
       "type": "L2",
-      "chain": "testnet"
+      "chain": "sepolia"
     },
+    "gasPayingToken": "0x3C7011fD5e6Aed460cAa4985cF8d8Caba435b092",
     "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "test2",
-    "identifier": "test2/testnet",
-    "chainId": 223999119,
-    "rpc": [
-      "https://rpc.test2.com"
-    ],
-    "explorers": [
-      "https://explorer.test2.com"
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "testnet"
-    },
-    "faultProofs": {
-      "status": "none"
+      "status": "permissioned"
     }
   }
 ]

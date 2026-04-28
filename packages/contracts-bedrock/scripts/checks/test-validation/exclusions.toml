@@ -78,11 +78,12 @@ contract_name_validation = [
 # - Fixing misspelled function names in test contracts
 # - Restructuring tests to match actual function signatures
 function_name_validation = [
-    "test/L1/ProxyAdminOwnedBase.t.sol",     # Tests internal functions not in ABI
-    "test/L1/SystemConfig.t.sol",            # Tests internal functions not in ABI
-    "test/safe/SafeSigners.t.sol",           # Function name validation issues
-    "test/libraries/Predeploys.t.sol",       # Function 'uncategorizedInterop' doesn't exist in library
-    "test/libraries/TransientContext.t.sol", # Function 'reentrantAware' doesn't exist in library
+    "test/L1/ProxyAdminOwnedBase.t.sol",                       # Tests internal functions not in ABI
+    "test/L1/SystemConfig.t.sol",                              # Tests internal functions not in ABI
+    "test/L1/opcm/OPContractsManagerMigrationValidator.t.sol",  # Tests organized by validation section, not by function
+    "test/safe/SafeSigners.t.sol",                             # Function name validation issues
+    "test/libraries/Predeploys.t.sol",                         # Function 'uncategorizedInterop' doesn't exist in library
+    "test/libraries/TransientContext.t.sol",                   # Function 'reentrantAware' doesn't exist in library
 ]
 
 [excluded_tests]

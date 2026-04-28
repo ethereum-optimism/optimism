@@ -94,11 +94,11 @@ pub fn karst() -> &'static Precompiles {
         let mut precompiles = jovian().clone();
 
         let mut to_remove = Precompiles::default();
-        to_remove.extend([modexp::BERLIN, secp256r1::P256VERIFY]);
+        to_remove.extend([modexp::BERLIN, secp256r1::P256VERIFY, bn254_pair::JOVIAN]);
 
         precompiles.difference(&to_remove);
 
-        precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA]);
+        precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA, bn254_pair::KARST]);
 
         precompiles
     })
@@ -218,6 +218,27 @@ pub mod bn254_pair {
     }
 
     eth_precompile_fn!(jovian_precompile, run_pair_jovian);
+
+    /// Max input size for the bn254 pair precompile after the Karst hardfork.
+    pub const KARST_MAX_INPUT_SIZE: usize = 57_600;
+    /// Bn254 pair precompile after the Karst hardfork.
+    pub const KARST: Precompile =
+        Precompile::new(PrecompileId::Bn254Pairing, bn254::pair::ADDRESS, karst_precompile);
+
+    /// Run the bn254 pair precompile with the Karst input size limit.
+    pub fn run_pair_karst(input: &[u8], gas_limit: u64) -> EthPrecompileResult {
+        if input.len() > KARST_MAX_INPUT_SIZE {
+            return Err(PrecompileHalt::Bn254PairLength);
+        }
+        bn254::run_pair(
+            input,
+            bn254::pair::ISTANBUL_PAIR_PER_POINT,
+            bn254::pair::ISTANBUL_PAIR_BASE,
+            gas_limit,
+        )
+    }
+
+    eth_precompile_fn!(karst_precompile, run_pair_karst);
 }
 
 /// `Bls12_381` precompile.
@@ -347,6 +368,15 @@ mod tests {
     };
     use std::vec;
 
+    /// Canonical bn256 pairing test vector (EIP-197): two pairs chosen so the
+    /// pairing product is the identity — a successful run returns `1` (32 bytes).
+    /// Shared by the Jovian and Karst accelerated-pairing tests.
+    const BN254_PAIR_IDENTITY_INPUT: [u8; 384] = hex!(
+        "2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc"
+    );
+    const BN254_PAIR_IDENTITY_OUTPUT: [u8; 32] =
+        hex!("0000000000000000000000000000000000000000000000000000000000000001");
+
     #[test]
     fn test_bn254_pair() {
         let input = hex::decode(
@@ -397,14 +427,8 @@ mod tests {
 
     #[test]
     fn test_accelerated_bn254_pairing_jovian() {
-        const TEST_INPUT: [u8; 384] = hex!(
-            "2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc"
-        );
-        const EXPECTED_OUTPUT: [u8; 32] =
-            hex!("0000000000000000000000000000000000000000000000000000000000000001");
-
-        let res = bn254_pair::run_pair_jovian(TEST_INPUT.as_ref(), u64::MAX);
-        assert!(matches!(res, Ok(outcome) if **outcome.bytes == EXPECTED_OUTPUT));
+        let res = bn254_pair::run_pair_jovian(BN254_PAIR_IDENTITY_INPUT.as_ref(), u64::MAX);
+        assert!(matches!(res, Ok(outcome) if **outcome.bytes == BN254_PAIR_IDENTITY_OUTPUT));
     }
 
     #[test]
@@ -412,6 +436,32 @@ mod tests {
         let input = [0u8; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1];
         let res = bn254_pair::run_pair_jovian(&input, u64::MAX);
         assert!(matches!(res, Err(PrecompileHalt::Bn254PairLength)));
+    }
+
+    #[test]
+    fn test_accelerated_bn254_pairing_karst() {
+        let res = bn254_pair::run_pair_karst(BN254_PAIR_IDENTITY_INPUT.as_ref(), u64::MAX);
+        assert!(matches!(res, Ok(outcome) if **outcome.bytes == BN254_PAIR_IDENTITY_OUTPUT));
+    }
+
+    #[test]
+    fn test_accelerated_bn254_pairing_bad_input_len_karst() {
+        let input = [0u8; bn254_pair::KARST_MAX_INPUT_SIZE + 1];
+        let res = bn254_pair::run_pair_karst(&input, u64::MAX);
+        assert!(matches!(res, Err(PrecompileHalt::Bn254PairLength)));
+    }
+
+    #[test]
+    fn test_get_karst_precompile_with_bad_input_len() {
+        let precompiles = OpPrecompiles::new_with_spec(OpSpecId::KARST);
+        let bn254_pair_precompile = precompiles.precompiles().get(&bn254::pair::ADDRESS).unwrap();
+
+        let bad_input_len = bn254_pair::KARST_MAX_INPUT_SIZE + 1;
+        assert!(bad_input_len < bn254_pair::JOVIAN_MAX_INPUT_SIZE);
+        let input = vec![0u8; bad_input_len];
+
+        let res = bn254_pair_precompile.execute(&input, u64::MAX, 0).unwrap();
+        assert!(matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Bn254PairLength)));
     }
 
     #[test]

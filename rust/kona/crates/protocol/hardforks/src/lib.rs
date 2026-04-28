@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[macro_use]
+mod nut_bundle;
+
 mod traits;
 pub use traits::Hardfork;
 

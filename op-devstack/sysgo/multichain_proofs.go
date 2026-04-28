@@ -81,7 +81,6 @@ func attachSupervisorSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pr
 		false,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -176,7 +175,6 @@ func attachSuperChallengerAndProposer(
 		true,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -241,16 +239,17 @@ func startSuperProposer(
 	logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 	proposerCLIConfig := &ps.CLIConfig{
-		L1EthRpc:                     l1EL.UserRPC(),
-		PollInterval:                 500 * time.Millisecond,
-		AllowNonFinalized:            true,
-		TxMgrConfig:                  setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
-		RPCConfig:                    oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
-		LogConfig:                    oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
-		MetricsConfig:                opmetrics.CLIConfig{},
-		PprofConfig:                  oppprof.CLIConfig{},
-		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
-		ProposalInterval:             6 * time.Second,
+		L1EthRpc:          l1EL.UserRPC(),
+		PollInterval:      500 * time.Millisecond,
+		AllowNonFinalized: true,
+		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
+		RPCConfig:         oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
+		LogConfig:         oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
+		MetricsConfig:     opmetrics.CLIConfig{},
+		PprofConfig:       oppprof.CLIConfig{},
+		DGFAddress:        l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
+		ProposalInterval:  6 * time.Second,
+		// TODO(#20030): Switch to superCannonKonaGameType once SUPER_CANNON is disabled in migrator
 		DisputeGameType:              superCannonGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
@@ -300,7 +299,6 @@ func startInteropChallenger(
 	useSuperNode bool,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
-	enableCannonKona bool,
 ) *L2Challenger {
 	require := t.Require()
 	require.NotEmpty(l2Nets, "at least one L2 network is required")
@@ -332,14 +330,9 @@ func startInteropChallenger(
 		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.InteropVariant),
 		sharedchallenger.WithSuperCannonGameType(),
 		sharedchallenger.WithSuperPermissionedGameType(),
-	}
-	if enableCannonKona {
-		t.Log("Enabling cannon-kona for super challenger")
-		options = append(options,
-			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-			sharedchallenger.WithSuperCannonKonaGameType(),
-			sharedchallenger.WithExperimentalWitnessEndpoint(),
-		)
+		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+		sharedchallenger.WithSuperCannonKonaGameType(),
+		sharedchallenger.WithExperimentalWitnessEndpoint(),
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),

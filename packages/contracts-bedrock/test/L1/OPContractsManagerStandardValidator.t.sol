@@ -3,8 +3,10 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { SuperGameTestInit } from "test/setup/SuperGameTestInit.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
+import { OPContractsManagerMigrationValidator_TestInit } from "test/L1/opcm/OPContractsManagerMigrationValidator.t.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -35,6 +37,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -43,6 +46,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -52,6 +56,9 @@ contract BadDisputeGameFactoryReturner {
     /// @notice Address of the OPContractsManagerStandardValidator instance.
     IOPContractsManagerStandardValidator public immutable validator;
 
+    /// @notice Address of the IStandardValidatorUtils instance.
+    IStandardValidatorUtils public immutable validatorUtils;
+
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
 
@@ -59,21 +66,24 @@ contract BadDisputeGameFactoryReturner {
     IDisputeGameFactory public immutable fakeDisputeGameFactory;
 
     /// @param _validator The OPContractsManagerStandardValidator instance.
+    /// @param _validatorUtils The IStandardValidatorUtils instance.
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
         IOPContractsManagerStandardValidator _validator,
+        IStandardValidatorUtils _validatorUtils,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
         validator = _validator;
+        validatorUtils = _validatorUtils;
         realDisputeGameFactory = _realDisputeGameFactory;
         fakeDisputeGameFactory = _fakeDisputeGameFactory;
     }
 
     /// @notice Returns the real or fake DisputeGameFactory address.
     function disputeGameFactory() external view returns (IDisputeGameFactory) {
-        if (msg.sender == address(validator)) {
+        if (msg.sender == address(validator) || msg.sender == address(validatorUtils)) {
             return fakeDisputeGameFactory;
         } else {
             return realDisputeGameFactory;
@@ -100,7 +110,7 @@ contract BadVersionReturner {
 
     /// @notice Returns the real or fake semver
     function version() external view returns (string memory) {
-        if (msg.sender == address(validator)) {
+        if (msg.sender == address(validator) || msg.sender == address(validator.standardValidatorUtils())) {
             return mockVersion;
         } else {
             return versioned.version();
@@ -224,7 +234,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
         // Deploy the BadDisputeGameFactoryReturner once.
         badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
-            standardValidator, disputeGameFactory, IDisputeGameFactory(address(0xbad))
+            standardValidator,
+            standardValidator.standardValidatorUtils(),
+            disputeGameFactory,
+            IDisputeGameFactory(address(0xbad))
         );
 
         if (isL1ForkTest()) {
@@ -973,8 +986,9 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
             abi.encode(address(0))
         );
         // SUPER_PERMISSIONED_CANNON is not registered in non-super mode, so DF-50 fires.
+        // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
         // PDDG-10 also fires because PERMISSIONED_CANNON impl is null.
-        assertEq("DF-50,PDDG-10", _validate(true));
+        assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
     }
 
     /// @notice Tests that SCDG-NOSHAPE fires when SUPER_CANNON has a registered impl in non-super mode.
@@ -1042,7 +1056,8 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encode(address(0))
         );
         // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
-        assertEq("DF-50,PDDG-10", _validate(true));
+        // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
+        assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1407,7 +1422,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)),
             abi.encode(address(0))
         );
-        assertEq("CKDG-10", _validate(true));
+        assertEq("CKDG-NOSHAPE,CKDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1733,21 +1748,9 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
 /// @title OPContractsManagerStandardValidator_SuperMode_TestInit
 /// @notice Base contract for super mode StandardValidator tests. Requires SUPER_ROOT_GAMES_MIGRATION flag.
 ///         After setUp, the chain has both SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA enabled.
-abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is CommonTest {
+abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is SuperGameTestInit {
     /// @notice The l2ChainId.
     uint256 l2ChainId;
-
-    /// @notice The cannon prestate (used by SUPER_PERMISSIONED_CANNON).
-    Claim cannonPrestate;
-
-    /// @notice The cannonKona prestate (used by SUPER_CANNON_KONA).
-    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
-
-    /// @notice The proposer role.
-    address proposer;
-
-    /// @notice The challenger role.
-    address challenger;
 
     /// @notice The DisputeGameFactory instance.
     IDisputeGameFactory dgf;
@@ -1777,7 +1780,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Comm
     }
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
-    function _enableSuperCannonKona() internal {
+    function _enableSuperCannonKona() internal override {
         address owner = proxyAdmin.owner();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
@@ -1920,8 +1923,11 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         assertEq("CKDG-SHAPE", _validate(true));
     }
 
-    /// @notice Tests that enabling legacy SUPER_CANNON in super mode triggers SCDG-SHAPE.
+    /// @notice Tests that enabling SUPER_CANNON in super mode triggers SCDG-SHAPE.
+    /// TODO(#20030): Once SUPER_CANNON is disabled in migrator and the SCDG-SHAPE check is re-added
+    ///               to assertValidSuperRootDisputeGames, unskip this test.
     function test_validate_superCannonNotDisabled_succeeds() public {
+        vm.skip(true);
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
@@ -1939,6 +1945,16 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         );
         // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
         assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
+    }
+
+    /// @notice Tests that disabling SUPER_CANNON_KONA triggers SCKDG-SHAPE.
+    function test_validate_superCannonKonaNotRegistered_succeeds() public {
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(address(0))
+        );
+        assertEq("SCKDG-SHAPE,SCKDG-10", _validate(true));
     }
 }
 
@@ -1995,13 +2011,14 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
     OPContractsManagerStandardValidator_SuperMode_TestInit
 {
     /// @notice Tests SCKDG-10 when SUPER_CANNON_KONA implementation is null.
+    ///         Also fires SCKDG-SHAPE from the shape check in assertValidSuperRootDisputeGames.
     function test_validate_superPermissionlessDisputeGameNullImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
             abi.encode(address(0))
         );
-        assertEq("SCKDG-10", _validate(true));
+        assertEq("SCKDG-SHAPE,SCKDG-10", _validate(true));
     }
 
     /// @notice Tests SCKDG-20 when SUPER_CANNON_KONA version is invalid.
@@ -2277,5 +2294,100 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     function test_validate_zkDisputeGameWrongChainId_succeeds() public {
         DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId + 1);
         assertEq("ZKDG-60", _validate(true));
+    }
+}
+
+/// @title OPContractsManagerStandardValidator_ValidateMigratedChain_Test
+/// @notice Tests the validateMigratedChain entrypoint on the StandardValidator, which delegates to
+///         the MigrationValidator with SharedImplementations built from the StandardValidator's state.
+contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
+    OPContractsManagerMigrationValidator_TestInit
+{
+    /// @notice Tests that validateMigratedChain succeeds with no errors on a valid post-migration state.
+    function test_validateMigratedChain_succeeds() public view {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        string memory errors = standardValidator.validateMigratedChain(
+            IOPContractsManagerMigrationValidator.MigrationValidationInput({
+                dgf: sharedDGF,
+                chainSystemConfigs: chains,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                proposer: proposer
+            }),
+            false
+        );
+        assertEq(errors, "");
+    }
+
+    /// @notice Helper to build migration input with 2 chains.
+    function _migrationInput()
+        internal
+        view
+        returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
+    {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        return IOPContractsManagerMigrationValidator.MigrationValidationInput({
+            dgf: sharedDGF,
+            chainSystemConfigs: chains,
+            cannonPrestate: cannonPrestate.raw(),
+            cannonKonaPrestate: cannonKonaPrestate.raw(),
+            proposer: proposer
+        });
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override succeeds
+    ///         when DGF owner is mocked to match the overridden address.
+    function test_validateMigratedChainWithOverrides_l1PAOMultisigMatch_succeeds() public {
+        address overrideMultisig = makeAddr("overrideMultisig");
+        vm.mockCall(address(sharedDGF), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(overrideMultisig));
+        // ProxyAdmin.owner() must also match, otherwise MIG-SDGF-30 still fires via SharedContracts.
+        vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrideMultisig));
+        // DelayedWETH proxyAdminOwner must also match overridden l1PAOMultisig.
+        vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(overrideMultisig));
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: overrideMultisig, challenger: address(0) });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        assertEq(errors, "");
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides with l1PAOMultisig override triggers
+    ///         MIG-SDGF-30 when DGF owner does not match the overridden address.
+    function test_validateMigratedChainWithOverrides_l1PAOMultisigMismatch_succeeds() public {
+        // Use a different address as override — DGF owner stays as the real l1PAOMultisig,
+        // so the override causes a mismatch.
+        address wrongMultisig = makeAddr("wrongMultisig");
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: wrongMultisig, challenger: address(0) });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and surfaces the shared
+        // DelayedWETH proxyAdminOwner mismatch under both super-game drill-downs.
+        assertEq("MIG-SDGF-30,MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", errors);
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override when
+    ///         the SPDG game args challenger matches the overridden address.
+    function test_validateMigratedChainWithOverrides_challengerMatch_succeeds() public {
+        address overrideChallenger = makeAddr("overrideChallenger");
+        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, overrideChallenger);
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: overrideChallenger });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        assertEq(errors, "");
+    }
+
+    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override, causing
+    ///         MIG-SPDG-130 when the SPDG game args challenger does not match the overridden address.
+    function test_validateMigratedChainWithOverrides_challengerMismatch_succeeds() public {
+        address wrongChallenger = makeAddr("wrongChallenger");
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: wrongChallenger });
+        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
+        assertEq("MIG-SPDG-130", errors);
     }
 }

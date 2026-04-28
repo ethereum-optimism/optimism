@@ -8,6 +8,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -121,6 +122,50 @@ func deployDisputeGame(
 			}
 			vmAddr = out.MipsSingleton
 		}
+	case state.VMTypeZK:
+		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
+		if zkImpl == (common.Address{}) {
+			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
+		}
+		if game.ZKDisputeGame == nil {
+			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
+		}
+		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
+		}
+		zk := game.ZKDisputeGame
+		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
+			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
+		}
+		gameArgs := gameargs.ZKGameArgs{
+			AbsolutePrestate:     zk.AbsolutePrestate,
+			Verifier:             zk.Verifier,
+			MaxChallengeDuration: zk.MaxChallengeDuration,
+			MaxProveDuration:     zk.MaxProveDuration,
+			ChallengerBond:       zk.ChallengerBond.ToInt(),
+			AnchorStateRegistry:  thisState.OpChainContracts.AnchorStateRegistryProxy,
+			Weth:                 thisState.OpChainContracts.DelayedWethPermissionlessGameProxy,
+			L2ChainID:            new(big.Int).SetBytes(thisIntent.ID[:]),
+		}.Pack()
+		zkInput := opcm.SetDisputeGameImplInput{
+			Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
+			Impl:                zkImpl,
+			AnchorStateRegistry: common.Address{},
+			GameType:            game.DisputeGameType,
+			GameArgs:            gameArgs,
+		}
+		if game.MakeRespected {
+			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
+		}
+		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
+			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
+		}
+		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
+			GameType:    game.DisputeGameType,
+			VMType:      game.VMType,
+			GameAddress: zkImpl,
+		})
+		return nil
 	default:
 		return fmt.Errorf("unsupported VM type: %v", game.VMType)
 	}

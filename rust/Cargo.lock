@@ -5797,10 +5797,14 @@ version = "0.4.5"
 dependencies = [
  "alloy-eips 2.0.0",
  "alloy-primitives",
+ "anyhow",
  "kona-protocol",
+ "once_cell",
  "op-alloy-consensus",
  "op-revm",
  "revm",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

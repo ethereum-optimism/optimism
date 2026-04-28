@@ -117,6 +117,11 @@ func addGameTypesForRuntime(
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
+	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
+	if enabled[gameTypes.ZKDisputeGameType] {
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
+	}
+
 	// OPCMv2 requires all 7 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	configs := []embedded.DisputeGameConfig{
@@ -149,7 +154,12 @@ func addGameTypesForRuntime(
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
+		{
+			Enabled:             enabled[gameTypes.ZKDisputeGameType],
+			InitBond:            initBond,
+			GameType:            embedded.GameTypeZKDisputeGame,
+			ZKDisputeGameConfig: zkDisputeGameConfig,
+		},
 	}
 	// Zero out init bond for disabled games.
 	for i := range configs {
@@ -172,6 +182,18 @@ func addGameTypesForRuntime(
 			},
 		},
 	})
+}
+
+// ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
+// The verifier is set to address(0) as a placeholder; real deployments must supply a valid verifier.
+func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *embedded.ZKDisputeGameConfig {
+	return &embedded.ZKDisputeGameConfig{
+		AbsolutePrestate:     common.Hash{},    // placeholder for devstack
+		Verifier:             common.Address{}, // address(0) — external verifier not yet wired
+		MaxChallengeDuration: 604800,           // 7 days
+		MaxProveDuration:     259200,           // 3 days
+		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
+	}
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {

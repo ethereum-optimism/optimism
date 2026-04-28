@@ -96,7 +96,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	for id, mock := range h.mocks {
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth)
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth, nil)
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
@@ -137,7 +137,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
 				require.NotNil(t, interop)
 				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
@@ -161,7 +161,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
 				require.Nil(t, interop)
 			},
 		},
@@ -1211,7 +1211,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	mock.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 
 	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
-	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0)
+	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()

@@ -117,7 +117,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Challenger *L2Challenger
 	if spec.StartChallenger {
-		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.EnableCannonKonaForChall)
+		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL)
 	}
 
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
@@ -320,7 +320,6 @@ func startMinimalChallenger(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2CL L2CLNode,
-	enableCannonKona bool,
 ) *L2Challenger {
 	require := t.Require()
 	challengerSecret, err := keys.Secret(devkeys.ChallengerRole.Key(l2Net.ChainID().ToBig()))
@@ -338,14 +337,9 @@ func startMinimalChallenger(
 		sharedchallenger.WithCannonGameType(),
 		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
-	}
-	if enableCannonKona {
-		t.Log("Enabling cannon-kona for challenger")
-		options = append(options,
-			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-			sharedchallenger.WithCannonKonaGameType(),
-			sharedchallenger.WithExperimentalWitnessEndpoint(),
-		)
+		sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+		sharedchallenger.WithCannonKonaGameType(),
+		sharedchallenger.WithExperimentalWitnessEndpoint(),
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
 		t.Ctx(),
