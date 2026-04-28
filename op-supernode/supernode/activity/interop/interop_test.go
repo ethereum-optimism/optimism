@@ -1027,9 +1027,18 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, uint64(126), first)
 
+	interop.backfillEndTimestamp = 200
+	first, err = interop.firstVerifiableTimestamp(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(126), first, "persisted verifier lower bound takes precedence over restart backfill")
+
 	verified, err := interop.VerifiedAtTimestamp(125)
 	require.NoError(t, err)
 	require.True(t, verified, "timestamp before first committed result remains covered by the startup handoff")
+
+	verified, err = interop.VerifiedAtTimestamp(150)
+	require.NoError(t, err)
+	require.False(t, verified, "restart backfill must not widen the implicit handoff range")
 
 	plan, err := interop.buildRewindPlan(126)
 	require.NoError(t, err)

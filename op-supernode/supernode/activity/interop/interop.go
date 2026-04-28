@@ -189,9 +189,15 @@ func (i *Interop) Name() string {
 }
 
 // firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
-// to verify. It is backfillEndTimestamp+1 after log backfill, otherwise the
-// safe-head-derived startup timestamp.
+// to verify. If verification has already committed results, the first committed
+// timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
+// after log backfill, or the safe-head-derived startup timestamp.
 func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	if i.verifiedDB != nil {
+		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
+			return first, nil
+		}
+	}
 	if i.backfillEndTimestamp != 0 {
 		next := i.backfillEndTimestamp + 1
 		if next < i.activationTimestamp {
@@ -201,11 +207,6 @@ func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) 
 	}
 	if i.firstVerifiableSet {
 		return i.firstVerifiable, nil
-	}
-	if i.verifiedDB != nil {
-		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
-			return first, nil
-		}
 	}
 	return i.resolveFirstVerifiableTimestamp(ctx)
 }
