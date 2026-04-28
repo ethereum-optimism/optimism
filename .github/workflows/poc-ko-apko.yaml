@@ -1,0 +1,88 @@
+name: POC ko/apko
+
+on:
+  push:
+    branches:
+      - 'develop'
+  pull_request:
+    branches:
+      - 'develop'
+    paths:
+      - '.github/workflows/poc-ko-apko.yaml'
+      - '.ko.yaml'
+      - 'op-batcher/**'
+      - 'op-conductor/**'
+      - 'op-dispute-mon/**'
+      - 'op-dripper/**'
+      - 'op-faucet/**'
+      - 'op-interop-filter/**'
+      - 'op-interop-mon/**'
+      - 'op-node/**'
+      - 'op-proposer/**'
+      - 'op-supervisor/**'
+      - 'op-supernode/**'
+      - 'op-test-sequencer/**'
+      - 'op-alt-da/**'
+      - 'op-service/**'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: op-batcher
+            ko_importpath: ./op-batcher/cmd
+          - image_name: op-conductor
+            ko_importpath: ./op-conductor/cmd
+          - image_name: op-dispute-mon
+            ko_importpath: ./op-dispute-mon/cmd
+          - image_name: op-dripper
+            ko_importpath: ./op-dripper/cmd
+          - image_name: op-faucet
+            ko_importpath: ./op-faucet/cmd
+          - image_name: op-interop-filter
+            ko_importpath: ./op-interop-filter/cmd
+          - image_name: op-interop-mon
+            ko_importpath: ./op-interop-mon/cmd
+          - image_name: op-node
+            ko_importpath: ./op-node/cmd
+          - image_name: op-proposer
+            ko_importpath: ./op-proposer/cmd
+          - image_name: op-supervisor
+            ko_importpath: ./op-supervisor/cmd
+          - image_name: op-supernode
+            ko_importpath: ./op-supernode/cmd
+          - image_name: op-test-sequencer
+            ko_importpath: ./op-test-sequencer/cmd
+          - image_name: da-server
+            ko_importpath: ./op-alt-da/cmd/daserver
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@236c1ba2ea2b46d997303d76217ca2b8a81b8e83
+    with:
+      mode: ko
+      image_name: ${{ matrix.image_name }}
+      ko_importpath: ${{ matrix.ko_importpath }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+      tag: poc-ko
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+  result:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          if [[ "$BUILD_RESULT" != "success" ]]; then
+            echo "build: $BUILD_RESULT"
+            exit 1
+          fi
