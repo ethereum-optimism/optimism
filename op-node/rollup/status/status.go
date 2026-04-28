@@ -56,7 +56,7 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 		st.data.UnsafeL2 = x.UnsafeL2Head
 		st.data.SafeL2 = x.SafeL2Head
-		if st.data.LocalSafeL2.Number < x.SafeL2Head.Number {
+		if shouldAdvanceL2Ref(st.data.LocalSafeL2, x.SafeL2Head) {
 			st.data.LocalSafeL2 = x.SafeL2Head
 		}
 		st.data.FinalizedL2 = x.FinalizedL2Head
@@ -96,6 +96,16 @@ func (st *StatusTracker) UpdateSyncStatus() {
 		published = st.data
 		st.published.Store(&published)
 	}
+}
+
+func shouldAdvanceL2Ref(current, next eth.L2BlockRef) bool {
+	if next == (eth.L2BlockRef{}) {
+		return false
+	}
+	if current == (eth.L2BlockRef{}) {
+		return true
+	}
+	return next.Number > current.Number
 }
 
 func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
