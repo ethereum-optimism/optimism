@@ -197,7 +197,18 @@ library Predeploys {
 
     /// @notice Returns all predeploy implementation records.
     /// @dev THE SINGLE SOURCE OF TRUTH for predeploy configuration.
-    ///      Records are ordered to match the L2ContractsManagerTypes.Implementations struct field order.
+    ///      When adding a new predeploy, update ALL of the following:
+    ///        1. Predeploys.sol (this file)
+    ///           - Add an `address internal constant` for the proxy address above.
+    ///           - Add a `PredeployRecord` entry here and bump the array size.
+    ///        2. src/L2/L2ContractsManager.sol
+    ///           - Add an `address internal immutable` declaration.
+    ///           - Assign it via `findImpl()` in the constructor.
+    ///           - Call `upgradeTo` or `upgradeToAndCall` for it in `_apply()`.
+    ///           - Add an entry to `getImplementations()` and bump the array count.
+    ///        3. scripts/L2Genesis.s.sol
+    ///           - Add a `setXxx()` setter function.
+    ///           - Call it from `setPredeployImplementations()`.
     ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
@@ -505,7 +516,7 @@ library Predeploys {
             proxy: L2_DEV_FEATURE_FLAGS,
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deployGasLimit: 315055,
+            deployGasLimit: 315_217,
             devFeatureGate: DevFeatures.L2CM,
             isCustomGasToken: false,
             isInterop: false,

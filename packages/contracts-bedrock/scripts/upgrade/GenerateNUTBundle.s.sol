@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Utilities
 import { Script } from "forge-std/Script.sol";
-
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
@@ -12,6 +11,7 @@ import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
@@ -54,8 +54,8 @@ contract GenerateNUTBundle is Script {
     /// @notice Gas limits for the upgrade.
     UpgradeUtils.GasLimits internal gasLimits;
 
-    /// @notice Expected implementations for the upgrade.
-    L2ContractsManagerTypes.Implementations internal implementations;
+    /// @notice Name + implementation records for all predeploys, derived from the registry. Passed to L2CM constructor.
+    L2ContractsManagerTypes.ImplRecord[] internal _implRecords;
 
     /// @notice Ordered list of all implementation configurations.
     /// @dev This is the single source of truth for what implementations exist and which ones
@@ -70,6 +70,7 @@ contract GenerateNUTBundle is Script {
         // across multiple setUp/run calls.
         delete _txns;
         delete _implementationConfigs;
+        delete _implRecords;
 
         gasLimits = UpgradeUtils.gasLimits();
     }
@@ -97,8 +98,8 @@ contract GenerateNUTBundle is Script {
         // Phase 2: Implementation deployments
         _generateImplementationDeployments();
 
-        // Build the implementations struct
-        implementations = _getImplementations();
+        // Build impl records from the registry-derived deployment configs
+        _getImplementations();
 
         // Phase 3: Pre-L2CM deployment
         // Add fork-specific deployment or upgrade logic that must occur between the implementation deployment
@@ -213,7 +214,7 @@ contract GenerateNUTBundle is Script {
         if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
             // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
             // L2ProxyAdmin upgrade
-            _generateL2ProxyAdminUpgrade(implementations.proxyAdminImpl);
+            _generateL2ProxyAdminUpgrade();
         }
     }
 
@@ -252,12 +253,12 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Generates L2ProxyAdmin upgrade transaction.
     /// @dev    It upgrades the L2ProxyAdmin to add the upgradePredeploys() function.
-    /// @param _proxyAdminImpl Address of the new L2ProxyAdmin implementation.
     /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
-    function _generateL2ProxyAdminUpgrade(address _proxyAdminImpl) internal {
+    function _generateL2ProxyAdminUpgrade() internal {
+        address proxyAdminImpl = findImplByName("L2ProxyAdmin");
         _txns.push(
             UpgradeUtils.createUpgradeTxn(
-                "L2ProxyAdmin", Predeploys.PROXY_ADMIN, _proxyAdminImpl, gasLimits.proxyAdminUpgrade
+                "L2ProxyAdmin", Predeploys.PROXY_ADMIN, proxyAdminImpl, gasLimits.proxyAdminUpgrade
             )
         );
     }
@@ -287,7 +288,7 @@ contract GenerateNUTBundle is Script {
     ///      with all implementation addresses encoded in its constructor.
     function _generateL2CMDeployment() internal {
         // Encode constructor arguments
-        bytes memory l2cmArgs = abi.encode(implementations);
+        bytes memory l2cmArgs = abi.encode(_implRecords);
 
         // Deploy L2ContractsManager with encoded implementation addresses
         _txns.push(
@@ -307,7 +308,7 @@ contract GenerateNUTBundle is Script {
     ///      L2ContractsManager.upgrade() function to perform the actual upgrades.
     function _generateUpgradeExecution() internal {
         // Encode constructor arguments
-        bytes memory l2cmArgs = abi.encode(implementations);
+        bytes memory l2cmArgs = abi.encode(_implRecords);
 
         // Compute L2ContractsManager address
         address l2cm = UpgradeUtils.computeCreate2Address(
@@ -336,51 +337,26 @@ contract GenerateNUTBundle is Script {
     /// @return impl_ The implementation address, or reverts if not found.
     function findImplByName(string memory _name) public view returns (address impl_) {
         for (uint256 i = 0; i < _implementationConfigs.length; i++) {
-            if (keccak256(bytes(_implementationConfigs[i].name)) == keccak256(bytes(_name))) {
+            if (LibString.eq(_implementationConfigs[i].name, _name)) {
                 return _implementationConfigs[i].implementation;
             }
         }
         revert(string.concat("GenerateNUTBundle: implementation not found: ", _name));
     }
 
-    /// @notice Retrieves all expected implementation addresses for the upgrade.
-    /// @dev All addresses are looked up from the implementationConfigs array, which contains
-    ///      deterministically computed CREATE2 addresses using the hardcoded salt. This ensures
-    ///      identical addresses across all chains executing the upgrade.
-    /// @return implementations_ Struct containing all implementation addresses.
-    function _getImplementations()
-        internal
-        view
-        returns (L2ContractsManagerTypes.Implementations memory implementations_)
-    {
-        implementations_ = L2ContractsManagerTypes.Implementations({
-            storageSetterImpl: findImplByName("StorageSetter"),
-            l2CrossDomainMessengerImpl: findImplByName("L2CrossDomainMessenger"),
-            gasPriceOracleImpl: findImplByName("GasPriceOracle"),
-            l2StandardBridgeImpl: findImplByName("L2StandardBridge"),
-            sequencerFeeWalletImpl: findImplByName("SequencerFeeVault"),
-            optimismMintableERC20FactoryImpl: findImplByName("OptimismMintableERC20Factory"),
-            l2ERC721BridgeImpl: findImplByName("L2ERC721Bridge"),
-            l1BlockImpl: findImplByName("L1Block"),
-            l1BlockCGTImpl: findImplByName("L1BlockCGT"),
-            l2ToL1MessagePasserImpl: findImplByName("L2ToL1MessagePasser"),
-            l2ToL1MessagePasserCGTImpl: findImplByName("L2ToL1MessagePasserCGT"),
-            optimismMintableERC721FactoryImpl: findImplByName("OptimismMintableERC721Factory"),
-            proxyAdminImpl: findImplByName("L2ProxyAdmin"),
-            baseFeeVaultImpl: findImplByName("BaseFeeVault"),
-            l1FeeVaultImpl: findImplByName("L1FeeVault"),
-            operatorFeeVaultImpl: findImplByName("OperatorFeeVault"),
-            schemaRegistryImpl: findImplByName("SchemaRegistry"),
-            easImpl: findImplByName("EAS"),
-            crossL2InboxImpl: findImplByName("CrossL2Inbox"),
-            l2ToL2CrossDomainMessengerImpl: findImplByName("L2ToL2CrossDomainMessenger"),
-            superchainETHBridgeImpl: findImplByName("SuperchainETHBridge"),
-            ethLiquidityImpl: findImplByName("ETHLiquidity"),
-            nativeAssetLiquidityImpl: findImplByName("NativeAssetLiquidity"),
-            liquidityControllerImpl: findImplByName("LiquidityController"),
-            conditionalDeployerImpl: findImplByName("ConditionalDeployer"),
-            l2DevFeatureFlagsImpl: findImplByName("L2DevFeatureFlags")
-        });
+    /// @notice Populates _implRecords from _implementationConfigs.
+    /// @dev Builds the name + implementation array passed to the L2ContractsManager constructor.
+    ///      Derived entirely from the registry via buildImplementationDeploymentConfigs(),
+    ///      so adding a new predeploy to getAllRecords() automatically includes it here.
+    function _getImplementations() internal {
+        for (uint256 i = 0; i < _implementationConfigs.length; i++) {
+            _implRecords.push(
+                L2ContractsManagerTypes.ImplRecord({
+                    name: _implementationConfigs[i].name,
+                    impl: _implementationConfigs[i].implementation
+                })
+            );
+        }
     }
 
     /// @notice Builds the implementation configurations for all contracts to be deployed.
@@ -422,5 +398,9 @@ contract GenerateNUTBundle is Script {
 
     function implementationConfigs() public view returns (ImplementationConfig[] memory) {
         return _implementationConfigs;
+    }
+
+    function implRecords() public view returns (L2ContractsManagerTypes.ImplRecord[] memory) {
+        return _implRecords;
     }
 }

@@ -11,7 +11,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 
 /// @title GenerateNUTBundleTest
 /// @notice Tests that GenerateNUTBundle correctly generates Network Upgrade Transaction bundles
@@ -129,20 +128,17 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
-    /// @notice Tests that the implementation deployment list length matches the Implementations struct field count.
+    /// @notice Tests that the implementation deployment list length matches the ImplRecord array length.
     /// @dev The deployment list is: 1 StorageSetter + all registry records.
-    ///      The Implementations struct has one field per record plus StorageSetter.
+    ///      The ImplRecord array passed to the L2CM constructor must have one entry per deployment.
     ///      If these diverge, a new predeploy was added to one location but not the other.
-    function test_implementationCount_matchesStructFields_succeeds() public {
-        L2ContractsManagerTypes.Implementations memory emptyImpl;
-        uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
-
-        script.buildImplementationDeploymentConfigs();
+    function test_implementationCount_matchesImplRecordArray_succeeds() public {
+        script.run();
 
         assertEq(
             script.implementationConfigs().length,
-            structFieldCount,
-            "Config count (registry records + StorageSetter) must equal Implementations struct field count"
+            script.implRecords().length,
+            "Config count (registry records + StorageSetter) must equal ImplRecord array length"
         );
     }
 
