@@ -506,9 +506,8 @@ func TestLogBackfill_NoOpWhenNoChains(t *testing.T) {
 
 // TestLogBackfill_ActivationInFuture asserts the edge case where the
 // configured activation is ahead of every chain's cross-safe tip.
-// firstVerifiableTimestamp is the common startup readiness gate, so backfill
-// must return an error and retry rather than claiming a range end that has not
-// become cross-safe yet.
+// firstVerifiableTimestamp clamps to activation, and backfill must no-op
+// instead of sealing beyond the current cross-safe head.
 func TestLogBackfill_ActivationInFuture(t *testing.T) {
 	const act = uint64(2000)
 	depth := 100 * time.Second
@@ -539,11 +538,10 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 	h.interop.ctx = context.Background()
 
 	end, err := h.interop.runLogBackfill()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "before activation timestamp")
+	require.NoError(t, err)
 	require.Zero(t, end)
 	require.Zero(t, outputCalls.Load(),
-		"no blocks fetched: backfill waits when activation is ahead of cross-safe")
+		"no blocks fetched: backfill no-ops when activation is ahead of cross-safe")
 
 	chain10 := h.Mock(10)
 	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
@@ -552,8 +550,8 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 	require.Equal(t, act, h.interop.activationTimestamp,
 		"protocol activation must not change")
 
-	_, err = h.interop.firstVerifiableTimestamp(context.Background())
-	require.Error(t, err, "main loop also waits on the shared readiness gate")
+	requireFirstVerifiableTimestamp(t, h.interop, act,
+		"main loop resumes at activation when cross-safe is still pre-activation")
 }
 
 // TestLogBackfill_ClampsStartToGenesis asserts that when a chain's genesis

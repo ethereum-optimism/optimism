@@ -191,8 +191,8 @@ func TestInteropActivationTimestampFlagEnvVar(t *testing.T) {
 /*
 Spec: firstVerifiableTimestamp is the common interop startup readiness gate.
 
-  - It returns an error while virtual-node sync status is unavailable or before
-    every chain's cross-safe head reaches activation.
+  - It returns an error while virtual-node sync status is unavailable or local
+    safe has not advanced.
   - Once ready, it returns activation when there are no chains, or one past the
     minimum cross-safe timestamp across chains otherwise.
   - The no-backfill startup path uses that same timestamp for its first
@@ -240,7 +240,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "cross-safe before activation blocks startup",
+			name: "cross-safe before activation returns activation",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -251,7 +251,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 					}).
 					Build()
 			},
-			wantErr: true,
+			want: 100,
 		},
 		{
 			name: "cross-safe at activation returns timestamp after activation",

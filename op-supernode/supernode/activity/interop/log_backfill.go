@@ -54,7 +54,7 @@ func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, 
 		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
 	}
 	if minCrossSafeTime < i.activationTimestamp {
-		return 0, fmt.Errorf("minimum cross-safe timestamp %d is before activation timestamp %d", minCrossSafeTime, i.activationTimestamp)
+		return i.activationTimestamp, nil
 	}
 	return minCrossSafeTime + 1, nil
 }
@@ -70,6 +70,9 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	firstVerifiable, err := i.resolveFirstVerifiableTimestamp(i.ctx)
 	if err != nil {
 		return 0, err
+	}
+	if firstVerifiable == i.activationTimestamp {
+		return 0, nil
 	}
 	endTime := firstVerifiable - 1
 
