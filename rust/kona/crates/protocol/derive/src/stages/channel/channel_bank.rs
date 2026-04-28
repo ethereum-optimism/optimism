@@ -532,11 +532,17 @@ mod tests {
         let _guard = tracing::subscriber::set_default(subscriber);
 
         let configs: [RollupConfig; 2] = [
-            kona_registry::ROLLUP_CONFIGS.get(&10).cloned().unwrap(),
-            kona_registry::ROLLUP_CONFIGS.get(&8453).cloned().unwrap(),
+            RollupConfig { channel_timeout: 10, ..Default::default() },
+            RollupConfig {
+                channel_timeout: 10,
+                granite_channel_timeout: 5,
+                hardforks: HardForkConfig { granite_time: Some(0), ..Default::default() },
+                ..Default::default()
+            },
         ];
 
         for cfg in configs {
+            let channel_timeout = cfg.channel_timeout(0);
             let frames = [
                 crate::frame!(0xFF, 0, vec![0xDD; 50], false),
                 crate::frame!(0xFF, 1, vec![0xDD; 50], true),
@@ -549,7 +555,7 @@ mod tests {
             let err = channel_bank.next_data().await.unwrap_err();
             assert_eq!(err, PipelineError::NotEnoughData.temp());
 
-            for _ in 0..cfg.channel_timeout + 1 {
+            for _ in 0..channel_timeout + 1 {
                 channel_bank.advance_origin().await.unwrap();
             }
 
