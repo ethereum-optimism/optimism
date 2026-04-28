@@ -468,37 +468,33 @@ mod tests {
     }
 
     #[test]
-    fn repeated_sload_refunds_without_account_double_count() {
+    fn repeated_storage_refunds_without_account_double_count() {
         let account = address!("00000000000000000000000000000000000000aa");
-        let slot = b256!("0000000000000000000000000000000000000000000000000000000000000001");
-        let mut inspector = SDMWarmingInspector::default();
 
-        inspector.begin_tx(PostExecTxContext { tx_index: 0, kind: PostExecTxKind::Normal });
-        inspector.observe_slot_touch(account, slot, false);
-        let first = inspector.finish_tx();
-        assert_eq!(first.refund_total, 0);
+        for (is_sstore, expected_refund, slot) in [
+            (
+                false,
+                SLOAD_REWARM_REFUND,
+                b256!("0000000000000000000000000000000000000000000000000000000000000001"),
+            ),
+            (
+                true,
+                SSTORE_REWARM_REFUND,
+                b256!("0000000000000000000000000000000000000000000000000000000000000002"),
+            ),
+        ] {
+            let mut inspector = SDMWarmingInspector::default();
 
-        inspector.begin_tx(PostExecTxContext { tx_index: 1, kind: PostExecTxKind::Normal });
-        inspector.observe_slot_touch(account, slot, false);
-        let second = inspector.finish_tx();
-        assert_eq!(second.refund_total, 2000);
-    }
+            inspector.begin_tx(PostExecTxContext { tx_index: 0, kind: PostExecTxKind::Normal });
+            inspector.observe_slot_touch(account, slot, is_sstore);
+            let first = inspector.finish_tx();
+            assert_eq!(first.refund_total, 0);
 
-    #[test]
-    fn repeated_sstore_refunds_without_account_double_count() {
-        let account = address!("00000000000000000000000000000000000000aa");
-        let slot = b256!("0000000000000000000000000000000000000000000000000000000000000002");
-        let mut inspector = SDMWarmingInspector::default();
-
-        inspector.begin_tx(PostExecTxContext { tx_index: 0, kind: PostExecTxKind::Normal });
-        inspector.observe_slot_touch(account, slot, true);
-        let first = inspector.finish_tx();
-        assert_eq!(first.refund_total, 0);
-
-        inspector.begin_tx(PostExecTxContext { tx_index: 1, kind: PostExecTxKind::Normal });
-        inspector.observe_slot_touch(account, slot, true);
-        let second = inspector.finish_tx();
-        assert_eq!(second.refund_total, 2100);
+            inspector.begin_tx(PostExecTxContext { tx_index: 1, kind: PostExecTxKind::Normal });
+            inspector.observe_slot_touch(account, slot, is_sstore);
+            let second = inspector.finish_tx();
+            assert_eq!(second.refund_total, expected_refund);
+        }
     }
 
     #[test]
@@ -559,8 +555,13 @@ mod tests {
         inspector.begin_tx(PostExecTxContext { tx_index: 0, kind: PostExecTxKind::Normal });
         inspector.observe_account_touch(account, true);
         let _ = inspector.finish_tx();
+
+        inspector.begin_tx(PostExecTxContext { tx_index: 1, kind: PostExecTxKind::Normal });
+        inspector.observe_account_touch(account, true);
+        let _ = inspector.finish_tx();
+
         let last = inspector.take_last_tx_result();
-        assert_eq!(last.refund_total, 0);
+        assert_eq!(last.refund_total, ACCOUNT_REWARM_REFUND);
         assert_eq!(inspector.take_last_tx_result().refund_total, 0);
     }
 }

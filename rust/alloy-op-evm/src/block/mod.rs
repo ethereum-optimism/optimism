@@ -1250,13 +1250,7 @@ mod tests {
         db
     }
 
-    fn build_executor<'a>(
-        db: &'a mut State<InMemoryDB>,
-        receipt_builder: &'a OpAlloyReceiptBuilder,
-        op_chain_hardforks: &'a OpChainHardforks,
-        gas_limit: u64,
-        jovian_timestamp: u64,
-    ) -> OpBlockExecutor<
+    type SDMTestExecutor<'a> = OpBlockExecutor<
         OpEvm<
             &'a mut State<InMemoryDB>,
             NoOpInspector,
@@ -1265,7 +1259,19 @@ mod tests {
         >,
         &'a OpAlloyReceiptBuilder,
         &'a OpChainHardforks,
-    > {
+    >;
+
+    const DEFAULT_DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
+    const DEFAULT_GAS_LIMIT: u64 = 100_000;
+    const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
+
+    fn build_executor<'a>(
+        db: &'a mut State<InMemoryDB>,
+        receipt_builder: &'a OpAlloyReceiptBuilder,
+        op_chain_hardforks: &'a OpChainHardforks,
+        gas_limit: u64,
+        jovian_timestamp: u64,
+    ) -> SDMTestExecutor<'a> {
         let ctx = Context::mainnet()
             .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
@@ -1293,29 +1299,67 @@ mod tests {
         )
     }
 
+    struct SDMExecutorFixture {
+        db: State<InMemoryDB>,
+        receipt_builder: OpAlloyReceiptBuilder,
+        op_chain_hardforks: OpChainHardforks,
+        gas_limit: u64,
+        jovian_timestamp: u64,
+    }
+
+    impl SDMExecutorFixture {
+        fn new(da_footprint_gas_scalar: u16, gas_limit: u64, jovian_timestamp: u64) -> Self {
+            Self {
+                db: prepare_jovian_db(da_footprint_gas_scalar),
+                receipt_builder: OpAlloyReceiptBuilder::default(),
+                op_chain_hardforks: OpChainHardforks::new(
+                    OpHardfork::op_mainnet().into_iter().chain(vec![(
+                        OpHardfork::Jovian,
+                        ForkCondition::Timestamp(jovian_timestamp),
+                    )]),
+                ),
+                gas_limit,
+                jovian_timestamp,
+            }
+        }
+
+        fn default() -> Self {
+            Self::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, DEFAULT_GAS_LIMIT, JOVIAN_TIMESTAMP)
+        }
+
+        fn executor(&mut self) -> SDMTestExecutor<'_> {
+            build_executor(
+                &mut self.db,
+                &self.receipt_builder,
+                &self.op_chain_hardforks,
+                self.gas_limit,
+                self.jovian_timestamp,
+            )
+        }
+
+        fn executor_with_post_exec_mode(
+            &mut self,
+            post_exec_mode: PostExecMode,
+        ) -> SDMTestExecutor<'_> {
+            let mut executor = self.executor();
+            executor.set_post_exec_mode(post_exec_mode);
+            executor
+        }
+    }
+
+    fn post_exec_payload(
+        block_number: u64,
+        gas_refund_entries: Vec<SDMGasEntry>,
+    ) -> PostExecPayload {
+        PostExecPayload { version: 1, block_number, gas_refund_entries }
+    }
+
     #[test]
     fn test_jovian_da_footprint_estimation() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
+        let mut fixture = SDMExecutorFixture::default();
+        let mut executor = fixture.executor();
 
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-
-        let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
+        let tx_inner = TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() };
 
         let tx = Recovered::new_unchecked(
             OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
@@ -1340,25 +1384,11 @@ mod tests {
 
     #[test]
     fn test_jovian_da_footprint_estimation_out_of_gas() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
         const GAS_LIMIT: u64 = 100;
 
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
+        let mut fixture =
+            SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
+        let mut executor = fixture.executor();
 
         let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
 
@@ -1398,24 +1428,11 @@ mod tests {
     #[test]
     fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
         const DA_FOOTPRINT_GAS_SCALAR: u16 = 2000;
-        const JOVIAN_TIMESTAMP: u64 = 1746806402;
         const GAS_LIMIT: u64 = 200_000;
 
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
+        let mut fixture =
+            SDMExecutorFixture::new(DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
+        let mut executor = fixture.executor();
 
         let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
 
@@ -1450,56 +1467,26 @@ mod tests {
 
     #[test]
     fn test_mismatched_payload_block_number_fails_pre_execution() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
+        let mut fixture = SDMExecutorFixture::default();
         // build_executor configures BlockEnv with block number 0; a payload anchored to a
         // different block must be rejected before any tx runs.
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 42,
-            gas_refund_entries: vec![],
-        }));
+        let mut executor = fixture
+            .executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(42, vec![])));
 
         let err =
             executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
-        match err {
-            BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
-                assert_eq!(
-                    err.to_string(),
-                    OpBlockExecutionError::InvalidPostExecPayload(
-                        "payload block number 42 does not match block number 0".to_string(),
-                    )
-                    .to_string(),
-                );
-            }
-            _ => panic!("expected invalid post-exec payload error"),
-        }
+        assert_invalid_post_exec(err, "payload block number 42 does not match block number 0");
     }
 
     fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
         match err {
             BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
-                assert_eq!(
-                    err.to_string(),
-                    OpBlockExecutionError::InvalidPostExecPayload(expected_reason.to_string())
-                        .to_string(),
-                );
+                match err.downcast_ref::<OpBlockExecutionError>() {
+                    Some(OpBlockExecutionError::InvalidPostExecPayload(reason)) => {
+                        assert_eq!(reason, expected_reason);
+                    }
+                    other => panic!("expected invalid post-exec payload error, got: {other:?}"),
+                }
             }
             other => panic!("expected invalid post-exec payload error, got: {other:?}"),
         }
@@ -1507,34 +1494,17 @@ mod tests {
 
     #[test]
     fn test_duplicate_payload_index_fails_pre_execution() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
+        let mut fixture = SDMExecutorFixture::default();
         // Two entries colliding on tx index 3 — the second insert must be flagged at construction
         // and surface as a pre-execution failure.
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![
-                SDMGasEntry { index: 3, gas_refund: 10 },
-                SDMGasEntry { index: 3, gas_refund: 20 },
-            ],
-        }));
+        let mut executor =
+            fixture.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
+                0,
+                vec![
+                    SDMGasEntry { index: 3, gas_refund: 10 },
+                    SDMGasEntry { index: 3, gas_refund: 20 },
+                ],
+            )));
 
         let err = executor
             .apply_pre_execution_changes()
@@ -1543,96 +1513,29 @@ mod tests {
     }
 
     #[test]
-    fn test_verifier_rejects_payload_targeting_deposit_tx() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
+    fn test_verifier_rejects_payload_targeting_non_normal_tx() {
+        for (tx_index, is_deposit, is_post_exec, raw_gas_used, expected_reason) in [
+            (0, true, false, 21_000, "payload entry targets deposit tx index 0"),
+            (4, false, true, 0, "payload entry targets post-exec tx index 4"),
+        ] {
+            let mut fixture = SDMExecutorFixture::default();
+            let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
+                post_exec_payload(0, vec![SDMGasEntry { index: tx_index, gas_refund: 1 }]),
+            ));
 
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
-        }));
-
-        let err = executor
-            .verifier_post_exec_refund_for_tx(0, true, false, 21_000)
-            .expect_err("payload entries must not target deposit txs");
-        assert_invalid_post_exec(err, "payload entry targets deposit tx index 0");
-    }
-
-    #[test]
-    fn test_verifier_rejects_payload_targeting_post_exec_tx() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![SDMGasEntry { index: 4, gas_refund: 1 }],
-        }));
-
-        // A 0x7D tx reaching this helper with an entry at its own index would mean the payload
-        // is attributing a refund to the post-exec tx itself — refunds are per-normal-tx only.
-        let err = executor
-            .verifier_post_exec_refund_for_tx(4, false, true, 0)
-            .expect_err("payload entries must not target the post-exec tx itself");
-        assert_invalid_post_exec(err, "payload entry targets post-exec tx index 4");
+            let err = executor
+                .verifier_post_exec_refund_for_tx(tx_index, is_deposit, is_post_exec, raw_gas_used)
+                .expect_err("payload entries must not target non-normal txs");
+            assert_invalid_post_exec(err, expected_reason);
+        }
     }
 
     #[test]
     fn test_verifier_rejects_refund_exceeding_raw_gas() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![SDMGasEntry { index: 2, gas_refund: 50_000 }],
-        }));
+        let mut fixture = SDMExecutorFixture::default();
+        let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
+            post_exec_payload(0, vec![SDMGasEntry { index: 2, gas_refund: 50_000 }]),
+        ));
 
         // raw_gas_used < payload refund — a refund that exceeds the tx's raw cost is
         // impossible under SDM semantics and must be rejected, otherwise canonical gas
@@ -1654,29 +1557,10 @@ mod tests {
 
     #[test]
     fn test_verifier_returns_zero_when_no_entry_for_tx() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![SDMGasEntry { index: 7, gas_refund: 42 }],
-        }));
+        let mut fixture = SDMExecutorFixture::default();
+        let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
+            post_exec_payload(0, vec![SDMGasEntry { index: 7, gas_refund: 42 }]),
+        ));
 
         // Normal tx that has no entry in the payload — the deposit/post-exec guards must NOT
         // fire, the helper must return 0 so execution proceeds with raw gas unchanged.
@@ -1688,48 +1572,23 @@ mod tests {
 
     #[test]
     fn test_finish_reports_all_unconsumed_post_exec_entries() {
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
-        executor.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
-            version: 1,
-            block_number: 0,
-            gas_refund_entries: vec![
-                SDMGasEntry { index: 2, gas_refund: 7 },
-                SDMGasEntry { index: 5, gas_refund: 11 },
-            ],
-        }));
+        let mut fixture = SDMExecutorFixture::default();
+        let executor =
+            fixture.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
+                0,
+                vec![
+                    SDMGasEntry { index: 2, gas_refund: 7 },
+                    SDMGasEntry { index: 5, gas_refund: 11 },
+                ],
+            )));
 
         let Err(err) = executor.finish() else {
             panic!("unconsumed verifier entries must fail");
         };
-        match err {
-            BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
-                assert_eq!(
-                    err.to_string(),
-                    OpBlockExecutionError::InvalidPostExecPayload(
-                        "2 unconsumed post-exec payload entries for tx indexes [2, 5]".to_string(),
-                    )
-                    .to_string(),
-                );
-            }
-            _ => panic!("expected invalid post-exec payload error"),
-        }
+        assert_invalid_post_exec(
+            err,
+            "2 unconsumed post-exec payload entries for tx indexes [2, 5]",
+        );
     }
 
     /// Followers running with SDM disabled must reject any block that carries a post-exec
@@ -1741,25 +1600,9 @@ mod tests {
         use alloy_consensus::Sealable;
         use op_alloy::consensus::build_post_exec_tx;
 
-        const DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
-        const GAS_LIMIT: u64 = 100_000;
-        const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
-
-        let mut db = prepare_jovian_db(DA_FOOTPRINT_GAS_SCALAR);
-        let op_chain_hardforks = OpChainHardforks::new(
-            OpHardfork::op_mainnet()
-                .into_iter()
-                .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-        );
-        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let mut fixture = SDMExecutorFixture::default();
         // build_executor leaves post_exec_mode at the default (Disabled).
-        let mut executor = build_executor(
-            &mut db,
-            &receipt_builder,
-            &op_chain_hardforks,
-            GAS_LIMIT,
-            JOVIAN_TIMESTAMP,
-        );
+        let mut executor = fixture.executor();
         assert!(matches!(executor.post_exec, PostExecState::Disabled));
 
         let post_exec_tx = build_post_exec_tx(0, vec![]);
