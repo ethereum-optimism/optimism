@@ -39,8 +39,8 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	initialChecks := make([]dsl.CheckFunc, 0, len(chains)*2)
 	for _, chain := range chains {
 		initialChecks = append(initialChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, initialChecks...)
@@ -107,9 +107,9 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	divergenceChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		divergenceChecks = append(divergenceChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, divergenceChecks...)
@@ -138,9 +138,9 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	finalChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		finalChecks = append(finalChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, finalChecks...)

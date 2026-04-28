@@ -31,6 +31,10 @@ type SyncStatusProvider interface {
 	String() string
 }
 
+type ChainBlockProvider interface {
+	ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockID, error)
+}
+
 var _ SyncStatusProvider = (*L2CLNode)(nil)
 var _ SyncStatusProvider = (*Supervisor)(nil)
 
@@ -81,6 +85,47 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 				}
 				logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
 				return fmt.Errorf("expected head to match: %s", lvl)
+			})
+	}
+}
+
+// InSyncFn checks that baseNode has incorporated the refNode head observed when the check starts.
+// Unlike MatchedFn, this does not require both live heads to be equal in the same polling tick.
+func InSyncFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
+	return func() error {
+		target := refNode.ChainSyncStatus(chainID, lvl)
+		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", lvl, "target", target)
+		logger.Info("Expecting node to sync to reference")
+		blockProvider, canVerifyCanonicalBlock := baseNode.(ChainBlockProvider)
+		return retry.Do0(ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				base := baseNode.ChainSyncStatus(chainID, lvl)
+				if base.Number < target.Number {
+					logger.Info("Node sync status", "base", base.Number, "target", target.Number)
+					return fmt.Errorf("expected head to reach reference: %s", lvl)
+				}
+				if base.Number == target.Number {
+					if base.Hash == target.Hash {
+						logger.Info("Node reached reference", "target", target.Number)
+						return nil
+					}
+					logger.Info("Node reached target number with different hash", "base", base, "target", target)
+					return fmt.Errorf("expected head to match reference at target number: %s", lvl)
+				}
+				if !canVerifyCanonicalBlock {
+					return fmt.Errorf("base head advanced past reference but canonical block cannot be verified: %s", lvl)
+				}
+				block, err := blockProvider.ChainBlockID(chainID, target.Number)
+				if err != nil {
+					logger.Warn("Failed to fetch canonical block at reference height; will retry", "err", err)
+					return err
+				}
+				if block.Hash == target.Hash {
+					logger.Info("Node includes reference", "target", target.Number, "base", base.Number)
+					return nil
+				}
+				logger.Info("Node has different canonical block at reference height", "base_block", block, "target", target)
+				return fmt.Errorf("expected canonical block to match reference: %s", lvl)
 			})
 	}
 }
