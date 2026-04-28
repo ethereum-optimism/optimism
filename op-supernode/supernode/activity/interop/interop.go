@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -178,6 +179,7 @@ type Interop struct {
 	l1Checker l1ConsistencyChecker
 
 	logBackfillDepth time.Duration
+	metrics          *resources.SupernodeMetrics
 }
 
 func (i *Interop) Name() string {
@@ -208,6 +210,7 @@ func New(
 	dataDir string,
 	l1Source l1ByNumberSource,
 	logBackfillDepth time.Duration,
+	metrics *resources.SupernodeMetrics,
 ) *Interop {
 	verifiedDB, err := OpenVerifiedDB(dataDir)
 	if err != nil {
@@ -234,6 +237,9 @@ func New(
 	if messageExpiryWindow == 0 {
 		messageExpiryWindow = defaultMessageExpiryWindow
 	}
+	if metrics == nil {
+		metrics = resources.NewSupernodeMetrics()
+	}
 	i := &Interop{
 		log:                 log,
 		chains:              chains,
@@ -243,6 +249,7 @@ func New(
 		activationTimestamp: activationTimestamp,
 		messageExpiryWindow: messageExpiryWindow,
 		logBackfillDepth:    logBackfillDepth,
+		metrics:             metrics,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -368,6 +375,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		return false, fmt.Errorf("get pending transition: %w", err)
 	}
 	if pending != nil {
+		i.metrics.InteropRoundDecisions.WithLabelValues(pending.Decision.String()).Inc()
 		return i.applyPendingTransition(*pending)
 	}
 
@@ -375,6 +383,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	i.metrics.InteropRoundDecisions.WithLabelValues(output.Decision.String()).Inc()
 	if output.Decision == DecisionWait {
 		return i.refreshCurrentL1OnWait()
 	}
@@ -565,6 +574,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		if err := i.applyRewindPlan(*pending.Rewind); err != nil {
 			return false, fmt.Errorf("apply rewind plan: %w", err)
 		}
+		i.metrics.InteropRewinds.Inc()
 		if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
@@ -609,6 +619,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
+			} else {
+				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
 		// Resume non-invalidated chains. Invalidated chains are resumed by RewindEngine.
@@ -645,6 +657,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
+		i.metrics.InteropTimestampsVerified.Inc()
+		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
 		// L1Inclusion is the max L1 block used for derivation across all chains at this
 		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
 		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to

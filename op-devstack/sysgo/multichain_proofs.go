@@ -241,16 +241,17 @@ func startSuperProposer(
 	logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 	proposerCLIConfig := &ps.CLIConfig{
-		L1EthRpc:                     l1EL.UserRPC(),
-		PollInterval:                 500 * time.Millisecond,
-		AllowNonFinalized:            true,
-		TxMgrConfig:                  setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
-		RPCConfig:                    oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
-		LogConfig:                    oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
-		MetricsConfig:                opmetrics.CLIConfig{},
-		PprofConfig:                  oppprof.CLIConfig{},
-		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
-		ProposalInterval:             6 * time.Second,
+		L1EthRpc:          l1EL.UserRPC(),
+		PollInterval:      500 * time.Millisecond,
+		AllowNonFinalized: true,
+		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
+		RPCConfig:         oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
+		LogConfig:         oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
+		MetricsConfig:     opmetrics.CLIConfig{},
+		PprofConfig:       oppprof.CLIConfig{},
+		DGFAddress:        l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
+		ProposalInterval:  6 * time.Second,
+		// TODO(#20030): Switch to superCannonKonaGameType once SUPER_CANNON is disabled in migrator
 		DisputeGameType:              superCannonGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,

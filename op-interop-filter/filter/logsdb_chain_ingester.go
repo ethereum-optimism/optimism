@@ -318,28 +318,22 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 	return results, nil
 }
 
-func (c *LogsDBChainIngester) findAndSetEarliestBlock(latestBlock uint64) {
+func (c *LogsDBChainIngester) findAndSetEarliestBlock() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Walk backward from latest to find the first block that can be opened.
-	// The anchor block (sealed but not fully ingested) will fail OpenBlock
-	// because it has no predecessor checkpoint data, so we'll identify
-	// the first block with actual log data.
-	earliest := latestBlock
-	for blockNum := latestBlock; blockNum > 0; blockNum-- {
-		_, _, _, err := c.logsDB.OpenBlock(blockNum)
-		if err != nil {
-			// This block can't be opened, the one after it is earliest queryable
-			earliest = blockNum + 1
-			break
-		}
-		earliest = blockNum
+	// The first sealed block is the anchor checkpoint. The earliest ingested
+	// block with log data is the next block after it.
+	first, err := c.logsDB.FirstSealedBlock()
+	if err != nil {
+		c.log.Warn("Failed to find first sealed block in DB", "err", err)
+		return
 	}
+	earliest := first.Number + 1
 
 	c.earliestIngestedBlock.Store(earliest)
 	c.earliestIngestedBlockSet.Store(true)
-	c.log.Info("Found earliest block in DB", "block", earliest)
+	c.log.Info("Found earliest block in DB", "block", earliest, "anchor", first.Number)
 }
 
 // calculateStartingBlock returns the block number where ingestion should start,
@@ -516,7 +510,7 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", nextBlock)
 
 		if !c.earliestIngestedBlockSet.Load() {
-			c.findAndSetEarliestBlock(latestSealed.Number)
+			c.findAndSetEarliestBlock()
 		}
 
 		return nextBlock, nil

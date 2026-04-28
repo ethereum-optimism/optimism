@@ -724,6 +724,7 @@ func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
 
 	// Verify earliest block was found
 	require.True(t, ingester2.earliestIngestedBlockSet.Load())
+	require.Equal(t, uint64(100), ingester2.earliestIngestedBlock.Load())
 }
 
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {

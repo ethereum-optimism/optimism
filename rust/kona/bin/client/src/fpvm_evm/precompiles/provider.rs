@@ -62,7 +62,8 @@ where
             OpSpecId::ECOTONE | OpSpecId::FJORD => accelerated_ecotone::<H, O>(),
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
             OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
-            OpSpecId::JOVIAN | OpSpecId::KARST | OpSpecId::INTEROP => accelerated_jovian::<H, O>(),
+            OpSpecId::JOVIAN => accelerated_jovian::<H, O>(),
+            OpSpecId::KARST | OpSpecId::INTEROP => accelerated_karst::<H, O>(),
         };
 
         Self {
@@ -298,6 +299,24 @@ where
     base
 }
 
+/// The accelerated precompiles for the karst spec.
+fn accelerated_karst<H, O>() -> Vec<AcceleratedPrecompile<H, O>>
+where
+    H: HintWriterClient + Send + Sync,
+    O: PreimageOracleClient + Send + Sync,
+{
+    let mut base = accelerated_jovian::<H, O>();
+
+    // Replace the bn254 pair precompile with the Karst version (reduced input size limit).
+    base.retain(|p| p.address != bn254::pair::ADDRESS);
+    base.push(AcceleratedPrecompile::new(
+        bn254::pair::ADDRESS,
+        super::bn128_pair::fpvm_bn128_pair_karst::<H, O>,
+    ));
+
+    base
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -478,16 +497,12 @@ mod test {
         let isthmus_provider =
             OpFpvmPrecompiles::new_with_spec(OpSpecId::ISTHMUS, hint_writer, oracle_reader);
 
-        // Post-Jovian specs must have the same accelerated precompile addresses as Jovian.
+        // Each post-Jovian spec accelerates the same set of addresses as the previous fork.
+        // The dispatched function at a given address may still change (e.g. KARST swaps the
+        // bn254 pair function at 0x08 for a stricter input-size check).
         let jovian_addrs: Vec<_> = {
             let mut addrs: Vec<_> =
                 jovian_provider.accelerated_precompiles.keys().copied().collect();
-            addrs.sort();
-            addrs
-        };
-        let interop_addrs: Vec<_> = {
-            let mut addrs: Vec<_> =
-                interop_provider.accelerated_precompiles.keys().copied().collect();
             addrs.sort();
             addrs
         };
@@ -497,11 +512,20 @@ mod test {
             addrs.sort();
             addrs
         };
+        let interop_addrs: Vec<_> = {
+            let mut addrs: Vec<_> =
+                interop_provider.accelerated_precompiles.keys().copied().collect();
+            addrs.sort();
+            addrs
+        };
         assert_eq!(
-            jovian_addrs, interop_addrs,
-            "INTEROP should use Jovian accelerated precompiles"
+            jovian_addrs, karst_addrs,
+            "KARST should accelerate the same addresses as JOVIAN (functions may differ)"
         );
-        assert_eq!(jovian_addrs, karst_addrs, "KARST should use Jovian accelerated precompiles");
+        assert_eq!(
+            karst_addrs, interop_addrs,
+            "INTEROP should accelerate the same addresses as KARST (functions may differ)"
+        );
 
         // Verify the non-accelerated precompile sets point to the correct static instances.
         assert!(
@@ -520,6 +544,35 @@ mod test {
             core::ptr::eq(interop_provider.inner.precompiles, karst()),
             "INTEROP should use karst() precompiles"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_karst_bn128_pair_enforces_karst_limit() {
+        use crate::fpvm_evm::precompiles::test_utils::test_accelerated_precompile;
+
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            // 301 pairs × 192 bytes = 57_792 — aligned to PAIR_ELEMENT_LEN and one pair
+            // above BN256_MAX_PAIRING_SIZE_KARST (57_600).
+            const OVER_KARST_LIMIT: usize = 57_792;
+            let input = vec![0u8; OVER_KARST_LIMIT];
+
+            let karst_provider = OpFpvmPrecompiles::new_with_spec(
+                OpSpecId::KARST,
+                hint_writer.clone(),
+                oracle_reader.clone(),
+            );
+            let karst_fn = karst_provider
+                .accelerated_precompiles
+                .get(&bn254::pair::ADDRESS)
+                .copied()
+                .expect("KARST must have bn254 pair accelerated precompile");
+            let karst_res = karst_fn(&input, u64::MAX, hint_writer, oracle_reader);
+            assert!(
+                matches!(karst_res, Err(revm::precompile::PrecompileHalt::Bn254PairLength)),
+                "KARST should reject input > 57_600 bytes with Bn254PairLength"
+            );
+        })
+        .await;
     }
 
     #[test]

@@ -147,11 +147,12 @@ func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
 
 func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {
 	return &config.L1BeaconEndpointConfig{
-		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
-		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
-		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
-		BeaconCheckIgnore:      ctx.Bool(flags.BeaconCheckIgnore.Name),
-		BeaconFetchAllSidecars: ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+		BeaconAddr:                 ctx.String(flags.BeaconAddr.Name),
+		BeaconHeader:               ctx.String(flags.BeaconHeader.Name),
+		BeaconFallbackAddrs:        ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
+		BeaconCheckIgnore:          ctx.Bool(flags.BeaconCheckIgnore.Name),
+		BeaconFetchAllSidecars:     ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+		BeaconSlotDurationOverride: ctx.Uint64(flags.BeaconSlotDurationOverride.Name),
 	}
 }
 

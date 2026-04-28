@@ -92,6 +92,7 @@ func (s *Supernode) RestartInteropActivity(wipeLogsDBs bool) error {
 		s.cfg.DataDir,
 		s.l1Client,
 		s.cfg.InteropLogBackfillDepth,
+		s.supernodeMetrics,
 	)
 	if newIA == nil {
 		return fmt.Errorf("supernode: failed to construct replacement interop activity")

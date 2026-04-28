@@ -109,6 +109,14 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
 		Category: L1RPCCategory,
 	}
+	BeaconSlotDurationOverride = &cli.Uint64Flag{
+		Name:     "l1.beacon.slot-duration-override",
+		Usage:    "Duration in seconds of an L1 slot. When set (non-zero), bypasses the beacon /eth/v1/config/spec fetch and uses this value as SECONDS_PER_SLOT. Useful for devnets where the beacon spec endpoint is unavailable (e.g. anvil).",
+		Required: false,
+		Value:    0,
+		EnvVars:  prefixEnvVars("L1_BEACON_SLOT_DURATION_OVERRIDE"),
+		Category: L1RPCCategory,
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:     "syncmode",
 		Usage:    fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
@@ -472,6 +480,7 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
+	BeaconSlotDurationOverride,
 	SyncModeFlag,
 	SyncModeReqRespFlag,
 	SyncModeOffsetELSafeFlag,
