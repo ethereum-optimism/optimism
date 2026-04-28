@@ -89,43 +89,86 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 	}
 }
 
-// InSyncFn checks that baseNode has incorporated the refNode head observed when the check starts.
-// Unlike MatchedFn, this does not require both live heads to be equal in the same polling tick.
+// maxInSyncGap is the largest difference (in blocks) between two node heads
+// that InSyncFn will tolerate while still considering the nodes in sync. If
+// the heads are further apart than this the slower node has not caught up yet.
+const maxInSyncGap = 10
+
+// InSyncFn checks that baseNode and refNode are converged on the same canonical
+// chain at the given safety level. On each attempt it re-samples both heads
+// live and considers the nodes in sync when:
+//  1. the two head numbers differ by at most maxInSyncGap; and
+//  2. at the lower of the two heights, both nodes agree on the canonical block hash.
+//
+// Unlike MatchedFn this does not require both live heads to be equal in the
+// same polling tick. Unlike a single-snapshot approach it tolerates either side
+// reorging during the wait, since both heads are re-sampled every attempt.
 func InSyncFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
 	return func() error {
-		target := refNode.ChainSyncStatus(chainID, lvl)
-		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", lvl, "target", target)
-		logger.Info("Expecting node to sync to reference")
-		blockProvider, canVerifyCanonicalBlock := baseNode.(ChainBlockProvider)
+		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", lvl)
+		logger.Info("Expecting nodes to converge", "max_gap", maxInSyncGap)
+		baseProvider, baseCanLookup := baseNode.(ChainBlockProvider)
+		refProvider, refCanLookup := refNode.(ChainBlockProvider)
 		return retry.Do0(ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				base := baseNode.ChainSyncStatus(chainID, lvl)
-				if base.Number < target.Number {
-					logger.Info("Node sync status", "base", base.Number, "target", target.Number)
-					return fmt.Errorf("expected head to reach reference: %s", lvl)
+				ref := refNode.ChainSyncStatus(chainID, lvl)
+
+				var gap uint64
+				if base.Number > ref.Number {
+					gap = base.Number - ref.Number
+				} else {
+					gap = ref.Number - base.Number
 				}
-				if base.Number == target.Number {
-					if base.Hash == target.Hash {
-						logger.Info("Node reached reference", "target", target.Number)
+				if gap > maxInSyncGap {
+					logger.Info("Nodes too far apart to be in sync", "base", base, "ref", ref, "gap", gap)
+					return fmt.Errorf("nodes not in sync: heads %d blocks apart (max %d): %s", gap, maxInSyncGap, lvl)
+				}
+
+				if base.Number == ref.Number {
+					if base.Hash == ref.Hash {
+						logger.Info("Nodes in sync at matching head", "head", base)
 						return nil
 					}
-					logger.Info("Node reached target number with different hash", "base", base, "target", target)
-					return fmt.Errorf("expected head to match reference at target number: %s", lvl)
+					logger.Info("Nodes diverged at matching head height", "base", base, "ref", ref)
+					return fmt.Errorf("nodes not in sync: same height %d but different hash: %s", base.Number, lvl)
 				}
-				if !canVerifyCanonicalBlock {
-					return fmt.Errorf("base head advanced past reference but canonical block cannot be verified: %s", lvl)
+
+				// Different heights within the allowed gap: check the higher node's
+				// canonical block at the lower height matches the lower node's hash.
+				lowerID, lowerSide := base, "base"
+				higherID, higherSide := ref, "ref"
+				higherProvider, higherCanLookup := refProvider, refCanLookup
+				if ref.Number < base.Number {
+					lowerID, lowerSide = ref, "ref"
+					higherID, higherSide = base, "base"
+					higherProvider, higherCanLookup = baseProvider, baseCanLookup
 				}
-				block, err := blockProvider.ChainBlockID(chainID, target.Number)
+
+				if !higherCanLookup {
+					logger.Info("Cannot verify canonical block on higher node",
+						"lower_side", lowerSide, "lower", lowerID,
+						"higher_side", higherSide, "higher", higherID)
+					return fmt.Errorf("nodes not in sync: %s ahead but cannot verify its canonical block: %s", higherSide, lvl)
+				}
+				canonical, err := higherProvider.ChainBlockID(chainID, lowerID.Number)
 				if err != nil {
-					logger.Warn("Failed to fetch canonical block at reference height; will retry", "err", err)
+					logger.Warn("Failed to fetch canonical block on higher node; will retry",
+						"lower_side", lowerSide, "lower", lowerID,
+						"higher_side", higherSide, "higher", higherID, "err", err)
 					return err
 				}
-				if block.Hash == target.Hash {
-					logger.Info("Node includes reference", "target", target.Number, "base", base.Number)
+				if canonical.Hash == lowerID.Hash {
+					logger.Info("Nodes in sync; higher includes lower as canonical",
+						"lower_side", lowerSide, "lower", lowerID,
+						"higher_side", higherSide, "higher", higherID)
 					return nil
 				}
-				logger.Info("Node has different canonical block at reference height", "base_block", block, "target", target)
-				return fmt.Errorf("expected canonical block to match reference: %s", lvl)
+				logger.Info("Nodes diverged at lower height",
+					"lower_side", lowerSide, "lower", lowerID,
+					"higher_side", higherSide, "higher", higherID,
+					"higher_canonical_at_lower", canonical)
+				return fmt.Errorf("nodes not in sync: %s canonical block at height %d does not match %s head: %s", higherSide, lowerID.Number, lowerSide, lvl)
 			})
 	}
 }
