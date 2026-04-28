@@ -11,7 +11,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
