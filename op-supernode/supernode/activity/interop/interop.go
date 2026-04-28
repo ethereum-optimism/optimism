@@ -870,13 +870,17 @@ func (i *Interop) CurrentL1() eth.BlockID {
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
-// For timestamps before the activation timestamp, this returns true since interop
-// wasn't active yet and verification proceeds automatically.
-// For timestamps at or after the activation timestamp, this checks the verifiedDB.
+// Timestamps before the first verifiable timestamp are already covered by
+// pre-activation consensus or by the safe-head startup handoff.
 func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
-	// Timestamps before the activation timestamp are considered verified
-	// because interop wasn't active yet
 	if ts < i.activationTimestamp {
+		return true, nil
+	}
+	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return false, err
+	}
+	if ts < firstVerifiable {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)

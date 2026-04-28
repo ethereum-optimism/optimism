@@ -962,6 +962,28 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 			},
 		},
 		{
+			name: "safe-head handoff timestamps are verified",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+						m.syncStatusFull = &eth.SyncStatus{
+							SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
+							LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
+						}
+					}).
+					Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				verified, err := h.interop.VerifiedAtTimestamp(125)
+				require.NoError(t, err)
+				require.True(t, verified)
+
+				verified, err = h.interop.VerifiedAtTimestamp(126)
+				require.NoError(t, err)
+				require.False(t, verified)
+			},
+		},
+		{
 			name: "committed timestamp verified",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
