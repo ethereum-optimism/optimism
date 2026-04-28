@@ -170,19 +170,25 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
 		// Interop only activates for chains in a multi-chain dependency set;
 		// single-chain superchains have nothing to interoperate with.
+		// Regardless we still execute the NUT bundle of upgrade transactions on all chains, but the
+		// logic execute by the L2ContractManager will ensure that the interop-specific contracts are
+		// only activated on interop chains.
 		if len(ba.depSet.Chains()) > 1 {
-			// Interop's activation block consists of:
-			//  1. A pre-bundle `L1Block.setFeature(INTEROP)` call.
-			//  2. The interop NUT bundle to upgrade the contracts and deploy interop specific contracts.
-			//  3. A post-bundle `ETHLiquidity` funding deposit with mint and value set to `u128::MAX`.
+			// Call `L1Block.setFeature(INTEROP)` to signal to the L2 ContractManager to activate interop contracts
 			setFeatureTx, err := interopSetFeatureTx()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop setFeature wrapper: %w", err))
 			}
-			bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to load interop NUT bundle: %w", err))
-			}
+		}
+
+		// The interop NUT bundle executes on all chains
+		bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to load interop NUT bundle: %w", err))
+		}
+
+		if len(ba.depSet.Chains()) > 1 {
+			// Mint and send `u128::MAX` to the ETHLiquidity contract
 			fundingTx, err := interopETHLiquidityFundingTx()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop ETHLiquidity funding wrapper: %w", err))
