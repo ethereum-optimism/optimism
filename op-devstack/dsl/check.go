@@ -92,7 +92,7 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 // maxInSyncGap is the largest difference (in blocks) between two node heads
 // that InSyncFn will tolerate while still considering the nodes in sync. If
 // the heads are further apart than this the slower node has not caught up yet.
-const maxInSyncGap = 10
+const maxInSyncGap = 5
 
 // InSyncFn checks that baseNode and refNode are converged on the same canonical
 // chain at the given safety level. Before the retry loop it records the higher
