@@ -137,9 +137,11 @@ type Interop struct {
 
 	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
 	// this is used for loop handoff from log backfill to main processing.
-	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1,
-	// or activationTimestamp if backfill was not used.
+	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
+	// after backfill, or the safe-head-derived startup timestamp when backfill was not used.
 	backfillEndTimestamp uint64
+	firstVerifiableSet   bool
+	firstVerifiable      uint64
 
 	dataDir string
 
@@ -184,21 +186,6 @@ type Interop struct {
 
 func (i *Interop) Name() string {
 	return "interop"
-}
-
-// firstVerifiableTimestamp is the earliest timestamp the main loop will
-// attempt to verify. It is activationTimestamp when backfill did not run,
-// or backfillEndTimestamp+1 when it did (clamped so it never falls below
-// activation, though by construction backfillEndTimestamp >= activation).
-func (i *Interop) firstVerifiableTimestamp() uint64 {
-	if i.backfillEndTimestamp == 0 {
-		return i.activationTimestamp
-	}
-	next := i.backfillEndTimestamp + 1
-	if next < i.activationTimestamp {
-		return i.activationTimestamp
-	}
-	return next
 }
 
 // New constructs a new Interop activity.
@@ -287,7 +274,32 @@ func (i *Interop) Start(ctx context.Context) error {
 			case <-time.After(errorBackoffPeriod):
 			}
 		}
+	} else if _, initialized := i.verifiedDB.LastTimestamp(); !initialized {
+		for {
+			first, err := i.resolveFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				break
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
 	}
+	firstVerifiableLog := uint64(0)
+	if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		firstVerifiableLog = lastTS + 1
+	} else if first, err := i.firstVerifiableTimestamp(i.ctx); err == nil {
+		firstVerifiableLog = first
+	}
+	i.log.Info("interop first verifiable timestamp resolved",
+		"activationTimestamp", i.activationTimestamp,
+		"backfillEndTimestamp", i.backfillEndTimestamp,
+		"firstVerifiableTimestamp", firstVerifiableLog)
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 
@@ -451,7 +463,11 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.firstVerifiableTimestamp()
+		next, err := i.firstVerifiableTimestamp(i.ctx)
+		if err != nil {
+			return obs, err
+		}
+		obs.NextTimestamp = next
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -685,7 +701,11 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.firstVerifiableTimestamp() {
+	first, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return RewindPlan{}, err
+	}
+	if lastTS <= first {
 		return plan, nil
 	}
 
