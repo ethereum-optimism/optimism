@@ -171,6 +171,10 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		// Interop only activates for chains in a multi-chain dependency set;
 		// single-chain superchains have nothing to interoperate with.
 		if len(ba.depSet.Chains()) > 1 {
+			// Interop's activation block consists of:
+			//  1. A pre-bundle `L1Block.setFeature(INTEROP)` call.
+			//  2. The interop NUT bundle to upgrade the contracts and deploy interop specific contracts.
+			//  3. A post-bundle `ETHLiquidity` funding deposit with mint and value set to `u128::MAX`.
 			setFeatureTx, err := interopSetFeatureTx()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop setFeature wrapper: %w", err))
