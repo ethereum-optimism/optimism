@@ -307,7 +307,8 @@ where
     }
 }
 
-/// Composite inspector that always includes the post-exec warming inspector.
+/// Composite inspector that always includes the [`SDMWarmingInspector`] alongside a
+/// caller-provided inner inspector, fanning every hook to both.
 #[derive(Debug, Clone)]
 pub struct PostExecCompositeInspector<I> {
     inner: I,
