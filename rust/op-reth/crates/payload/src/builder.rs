@@ -881,7 +881,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{build_post_exec_recovered_tx, try_include_post_exec_tx};
+    use super::{OpPayloadBuilder, build_post_exec_recovered_tx, try_include_post_exec_tx};
+    use crate::config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig};
     use alloy_consensus::Typed2718;
     use alloy_evm::RecoveredTx;
     use alloy_primitives::Address;
@@ -890,6 +891,24 @@ mod tests {
     use reth_optimism_primitives::OpTransactionSigned;
     use reth_payload_builder_primitives::PayloadBuilderError;
     use std::cell::Cell;
+
+    // Ensures the payload builder keeps SDM disabled by default and preserves the explicit
+    // integration-test override when swapping in a transaction source.
+    #[test]
+    fn payload_builder_preserves_sdm_config() {
+        let default = OpBuilderConfig::new(OpDAConfig::default(), OpGasLimitConfig::default());
+        assert!(!default.sdm_enabled);
+
+        let builder = OpPayloadBuilder::<(), (), (), (), ()>::with_builder_config(
+            (),
+            (),
+            (),
+            OpBuilderConfig::new_with_sdm(OpDAConfig::default(), OpGasLimitConfig::default(), true),
+        )
+        .with_transactions(42u64);
+        assert!(builder.config.sdm_enabled);
+        assert_eq!(builder.best_transactions, 42);
+    }
 
     #[test]
     fn build_post_exec_recovered_tx_wraps_entries_in_post_exec_tx() {

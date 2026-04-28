@@ -399,13 +399,14 @@ where
 mod tests {
     use super::*;
     use alloc::collections::BTreeMap;
-    use alloy_consensus::{Header, Receipt};
+    use alloy_consensus::{Block, BlockBody, Header, Receipt, Sealable};
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
         Address, B256, LogData, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -413,8 +414,8 @@ mod tests {
         AccountRevertInit, BundleStateInit, Chain, ExecutionOutcome, RevertsInit,
     };
     use reth_optimism_chainspec::{BASE_MAINNET, OpChainSpec, OpChainSpecBuilder};
-    use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt};
-    use reth_primitives_traits::{Account, RecoveredBlock};
+    use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
         database::{BundleState, CacheDB},
         database_interface::EmptyDBTyped,
@@ -442,6 +443,51 @@ mod tests {
         assert!(chain_spec.is_jovian_active_at_timestamp(0));
         assert!(!evm_config.is_sdm_active_at_timestamp(0));
         assert!(evm_config.with_sdm_enabled(true).is_sdm_active_at_timestamp(0));
+    }
+
+    fn block_with_post_exec_tx(
+        number: u64,
+        timestamp: u64,
+        tx_block_number: u64,
+    ) -> SealedBlock<OpBlock> {
+        SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
+            header: Header { number, timestamp, ..Default::default() },
+            body: BlockBody {
+                transactions: vec![OpTransactionSigned::PostExec(
+                    build_post_exec_tx(
+                        tx_block_number,
+                        vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+                    )
+                    .seal_slow(),
+                )],
+                ..Default::default()
+            },
+        })
+    }
+
+    // Covers config-driven SDM activation for imported blocks: disabled nodes reject 0x7d,
+    // enabled nodes enter Verify mode, and malformed payload anchors are rejected.
+    #[test]
+    fn context_for_block_applies_sdm_post_exec_mode() {
+        let disabled_err = test_evm_config()
+            .context_for_block(&block_with_post_exec_tx(7, 123, 7))
+            .expect_err("SDM disabled rejects 0x7d");
+        assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
+
+        let evm_config = test_evm_config().with_sdm_enabled(true);
+        let ctx = evm_config
+            .context_for_block(&block_with_post_exec_tx(7, 123, 7))
+            .expect("SDM-enabled block parses");
+        let PostExecMode::Verify(payload) = ctx.post_exec_mode else {
+            panic!("expected Verify mode");
+        };
+        assert_eq!(payload.block_number, 7);
+        assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
+
+        let mismatch_err = evm_config
+            .context_for_block(&block_with_post_exec_tx(7, 123, 8))
+            .expect_err("payload block number mismatch is invalid");
+        assert!(matches!(mismatch_err, EIP1559ParamError::InvalidPostExecPayload));
     }
 
     #[test]

@@ -1354,6 +1354,73 @@ mod tests {
         PostExecPayload { version: 1, block_number, gas_refund_entries }
     }
 
+    fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
+        let tx_inner = TxLegacy {
+            nonce,
+            gas_limit: 50_000,
+            to: alloy_primitives::TxKind::Call(to),
+            ..Default::default()
+        };
+
+        Recovered::new_unchecked(
+            OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ))),
+            Address::ZERO,
+        )
+    }
+
+    // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
+    // post-exec tx, then a verifier replays the same tx stream and consumes the payload.
+    #[test]
+    fn test_post_exec_producer_verifier_roundtrip() {
+        use alloy_consensus::Sealable;
+        use op_alloy::consensus::build_post_exec_tx;
+
+        let target = Address::from([0x11; 20]);
+        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
+
+        let mut producer_fixture = SDMExecutorFixture::default();
+        let mut producer = producer_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        let first_user_gas = producer
+            .execute_transaction(&user_txs[0])
+            .expect("producer executes first user tx")
+            .tx_gas_used();
+        let second_user_gas = producer
+            .execute_transaction(&user_txs[1])
+            .expect("producer executes second user tx")
+            .tx_gas_used();
+        assert!(second_user_gas < first_user_gas, "second user tx should receive an SDM refund");
+
+        let entries = producer.take_post_exec_entries();
+        assert!(!entries.is_empty(), "producer should emit at least one SDM refund entry");
+        assert_eq!(entries[0].index, 1, "the second tx reuses block-warmed addresses");
+        assert!(entries[0].gas_refund > 0);
+
+        let post_exec_recovered = Recovered::new_unchecked(
+            OpTxEnvelope::PostExec(build_post_exec_tx(0, entries.clone()).seal_slow()),
+            Address::ZERO,
+        );
+        assert_eq!(producer.execute_transaction(&post_exec_recovered).unwrap().tx_gas_used(), 0);
+        let (_, produced) = producer.finish().expect("producer finishes block");
+
+        let mut verifier_fixture = SDMExecutorFixture::default();
+        let mut verifier = verifier_fixture
+            .executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(0, entries)));
+        for tx in &user_txs {
+            verifier.execute_transaction(tx).expect("verifier executes user tx");
+        }
+        assert_eq!(verifier.execute_transaction(&post_exec_recovered).unwrap().tx_gas_used(), 0);
+        let (_, verified) = verifier.finish().expect("verifier consumes all entries");
+
+        assert_eq!(verified.gas_used, produced.gas_used);
+        assert_eq!(verified.blob_gas_used, produced.blob_gas_used);
+        assert_eq!(verified.receipts, produced.receipts);
+        assert_eq!(verified.receipts.len(), user_txs.len() + 1);
+    }
+
     #[test]
     fn test_jovian_da_footprint_estimation() {
         let mut fixture = SDMExecutorFixture::default();

@@ -395,15 +395,68 @@ where
 #[cfg(test)]
 mod tests {
     use alloc::vec;
+    use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_evm::{
-        EvmInternals,
+        EvmInternals, FromRecoveredTx,
         precompiles::{Precompile, PrecompileInput},
     };
-    use alloy_primitives::U256;
+    use alloy_primitives::{Signature, TxKind, U256};
     use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{context::CfgEnv, database::EmptyDB, precompile::PrecompileHalt};
+    use revm::{
+        context::CfgEnv,
+        database::{EmptyDB, InMemoryDB},
+        precompile::PrecompileHalt,
+        state::AccountInfo,
+    };
 
     use super::*;
+
+    fn legacy_op_tx(nonce: u64, caller: Address, target: Address) -> OpTx {
+        let tx =
+            TxLegacy { nonce, gas_limit: 100_000, to: TxKind::Call(target), ..Default::default() }
+                .into_signed(Signature::new(
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                ));
+
+        OpTx::from_recovered_tx(&tx, caller)
+    }
+
+    // Verifies the raw OpEvm post-exec hook: this test enables SDM tracking directly with
+    // `begin_post_exec_tx` rather than via node config, and confirms it forces the inspector path
+    // even when normal tracing is disabled.
+    #[test]
+    fn op_evm_post_exec_tracking_runs_when_inspector_is_otherwise_disabled() {
+        let caller = Address::ZERO;
+        let target = Address::from([0x22; 20]);
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(
+            caller,
+            AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
+        );
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
+            db,
+            EvmEnv::new(
+                CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+                BlockEnv { gas_limit: 1_000_000, ..Default::default() },
+            ),
+        );
+        assert!(!evm.inspect, "factory-created EVM should start with user inspection disabled");
+
+        let mut tracked_refund = |tx_index| {
+            evm.begin_post_exec_tx(post_exec::PostExecTxContext {
+                tx_index,
+                kind: post_exec::PostExecTxKind::Normal,
+            });
+            // `transact_raw` does not commit state in this low-level test, so reuse nonce 0.
+            evm.transact_raw(legacy_op_tx(0, caller, target)).expect("tx executes");
+            evm.take_last_post_exec_tx_result().refund_total
+        };
+
+        assert_eq!(tracked_refund(0), 0);
+        assert!(tracked_refund(1) > 0, "second tx should observe block-warmed addresses");
+    }
 
     #[test]
     fn test_precompiles_jovian_fail() {
