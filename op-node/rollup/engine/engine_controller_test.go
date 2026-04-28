@@ -895,9 +895,9 @@ func TestTryUpdateEngine_SyncingInELSyncModeIsAccepted(t *testing.T) {
 	// Mock ForkchoiceUpdate to return SYNCING
 	mockEngine.ExpectForkchoiceUpdate(
 		&eth.ForkchoiceState{
-			HeadBlockHash:      unsafeRef.Hash,
-			SafeBlockHash:      safeRef.Hash,
-			FinalizedBlockHash: finalRef.Hash,
+			HeadBlockHash: unsafeRef.Hash,
+			SafeBlockHash: safeRef.Hash,
+			// we omit FinalizedBlockHash because we expect it to NOT be set in EL sync mode
 		},
 		nil,
 		&eth.ForkchoiceUpdatedResult{
