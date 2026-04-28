@@ -34,7 +34,6 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RollupConfig {
     /// The genesis state of the rollup.
     pub genesis: ChainGenesis,
@@ -817,62 +816,9 @@ mod tests {
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
     }
 
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_deserialize_reference_rollup_config() {
+    fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
-
-        let raw: &str = r#"
-        {
-          "genesis": {
-            "l1": {
-              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
-              "number": 10
-            },
-            "l2": {
-              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
-              "number": 0
-            },
-            "l2_time": 1725557164,
-            "system_config": {
-              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
-              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
-              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000,
-              "baseFeeScalar": 1234,
-              "blobBaseFeeScalar": 5678,
-              "eip1559Denominator": 10,
-              "eip1559Elasticity": 20,
-              "operatorFeeScalar": 30,
-              "operatorFeeConstant": 40,
-              "minBaseFee": 50,
-              "daFootprintGasScalar": 10
-            }
-          },
-          "block_time": 2,
-          "max_sequencer_drift": 600,
-          "seq_window_size": 3600,
-          "channel_timeout": 300,
-          "l1_chain_id": 3151908,
-          "l2_chain_id": 1337,
-          "regolith_time": 0,
-          "canyon_time": 0,
-          "delta_time": 0,
-          "ecotone_time": 0,
-          "fjord_time": 0,
-          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
-          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
-          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "chain_op_config": {
-            "eip1559Elasticity": 6,
-            "eip1559Denominator": 50,
-            "eip1559DenominatorCanyon": 250
-            },
-          "alt_da": null
-        }
-        "#;
-
-        let expected = RollupConfig {
+        RollupConfig {
             genesis: ChainGenesis {
                 l1: BlockNumHash {
                     hash: b256!("481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54"),
@@ -923,8 +869,63 @@ mod tests {
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
-        };
+        }
+    }
 
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_reference_rollup_config() {
+        let raw: &str = r#"
+        {
+          "genesis": {
+            "l1": {
+              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
+              "number": 10
+            },
+            "l2": {
+              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
+              "number": 0
+            },
+            "l2_time": 1725557164,
+            "system_config": {
+              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+              "gasLimit": 30000000,
+              "baseFeeScalar": 1234,
+              "blobBaseFeeScalar": 5678,
+              "eip1559Denominator": 10,
+              "eip1559Elasticity": 20,
+              "operatorFeeScalar": 30,
+              "operatorFeeConstant": 40,
+              "minBaseFee": 50,
+              "daFootprintGasScalar": 10
+            }
+          },
+          "block_time": 2,
+          "max_sequencer_drift": 600,
+          "seq_window_size": 3600,
+          "channel_timeout": 300,
+          "l1_chain_id": 3151908,
+          "l2_chain_id": 1337,
+          "regolith_time": 0,
+          "canyon_time": 0,
+          "delta_time": 0,
+          "ecotone_time": 0,
+          "fjord_time": 0,
+          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
+          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
+          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
+          "chain_op_config": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+            },
+          "alt_da": null
+        }
+        "#;
+
+        let expected = expected_rollup_config();
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
     }
@@ -947,7 +948,15 @@ mod tests {
               "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
               "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
               "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000
+              "gasLimit": 30000000,
+              "baseFeeScalar": 1234,
+              "blobBaseFeeScalar": 5678,
+              "eip1559Denominator": 10,
+              "eip1559Elasticity": 20,
+              "operatorFeeScalar": 30,
+              "operatorFeeConstant": 40,
+              "minBaseFee": 50,
+              "daFootprintGasScalar": 10
             }
           },
           "block_time": 2,
@@ -965,16 +974,17 @@ mod tests {
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
           "chain_op_config": {
-            "eip1559_elasticity": 100,
-            "eip1559_denominator": 100,
-            "eip1559_denominator_canyon": 100
+            "eip1559_elasticity": 6,
+            "eip1559_denominator": 50,
+            "eip1559_denominator_canyon": 250
           },
           "unknown_field": "unknown"
         }
         "#;
 
-        let err = serde_json::from_str::<RollupConfig>(raw).unwrap_err();
-        assert_eq!(err.classify(), serde_json::error::Category::Data);
+        let expected = expected_rollup_config();
+        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
+        assert_eq!(deserialized, expected);
     }
 
     #[test]
