@@ -26,6 +26,23 @@ use crate::OpEvm;
 
 use super::*;
 
+/// Wraps a `TxLegacy` in an `OpTxEnvelope::Legacy` recovered with a zero signer.
+fn recovered_legacy(tx: TxLegacy) -> Recovered<OpTxEnvelope> {
+    Recovered::new_unchecked(
+        OpTxEnvelope::Legacy(tx.into_signed(Signature::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ))),
+        Address::ZERO,
+    )
+}
+
+/// Build the standard verifier payload (version 1) used by every test.
+fn post_exec_payload(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> PostExecPayload {
+    PostExecPayload { version: 1, block_number, gas_refund_entries }
+}
+
 #[test]
 fn test_with_encoded() {
     let executor_factory = OpBlockExecutorFactory::new(
@@ -36,14 +53,7 @@ fn test_with_encoded() {
     let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
     let evm = executor_factory.evm_factory.create_evm(&mut db, EvmEnv::default());
     let mut executor = executor_factory.create_executor(evm, OpBlockExecutionCtx::default());
-    let tx = Recovered::new_unchecked(
-        OpTxEnvelope::Legacy(TxLegacy::default().into_signed(Signature::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ))),
-        Address::ZERO,
-    );
+    let tx = recovered_legacy(TxLegacy::default());
     let tx_with_encoded = WithEncoded::new(tx.encoded_2718().into(), tx.clone());
 
     // make sure we can use both `WithEncoded` and transaction itself as inputs.
@@ -178,6 +188,14 @@ impl SDMExecutorFixture {
         executor.set_post_exec_mode(post_exec_mode);
         executor
     }
+
+    /// Shorthand for an executor in `Verify` mode against `post_exec_payload(block, entries)`.
+    fn verifier(&mut self, block_number: u64, entries: Vec<SDMGasEntry>) -> SDMTestExecutor<'_> {
+        self.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
+            block_number,
+            entries,
+        )))
+    }
 }
 
 impl Default for SDMExecutorFixture {
@@ -190,28 +208,13 @@ impl Default for SDMExecutorFixture {
 fn test_jovian_da_footprint_estimation() {
     let mut fixture = SDMExecutorFixture::default();
     let mut executor = fixture.executor();
-
-    let tx_inner = TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() };
-
-    let tx = Recovered::new_unchecked(
-        OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ))),
-        Address::ZERO,
-    );
+    let tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
-
-    assert!(executor.da_footprint_used == 0);
 
     let expected_da_footprint = executor.jovian_da_footprint_estimation(&tx_env, &tx).unwrap();
 
-    // make sure we can use both `WithEncoded` and transaction itself as inputs.
-    let res = executor.execute_transaction(&tx);
-    assert!(res.is_ok());
-
-    assert!(executor.da_footprint_used == expected_da_footprint);
+    executor.execute_transaction(&tx).expect("legacy tx executes");
+    assert_eq!(executor.da_footprint_used, expected_da_footprint);
 }
 
 #[test]
@@ -221,27 +224,12 @@ fn test_jovian_da_footprint_estimation_out_of_gas() {
     let mut fixture =
         SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
     let mut executor = fixture.executor();
-
-    let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
-
-    let tx = Recovered::new_unchecked(
-        OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ))),
-        Address::ZERO,
-    );
+    let tx = recovered_legacy(TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
-
-    assert!(executor.da_footprint_used == 0);
 
     let expected_da_footprint = executor.jovian_da_footprint_estimation(&tx_env, &tx).unwrap();
 
-    // make sure we can use both `WithEncoded` and transaction itself as inputs.
-    let res = executor.execute_transaction(&tx);
-    assert!(res.is_err());
-    let err = res.unwrap_err();
+    let err = executor.execute_transaction(&tx).expect_err("must reject when DA exceeds limit");
     match err {
         BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
             assert_eq!(
@@ -264,32 +252,17 @@ fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
 
     let mut fixture = SDMExecutorFixture::new(DA_FOOTPRINT_GAS_SCALAR, GAS_LIMIT, JOVIAN_TIMESTAMP);
     let mut executor = fixture.executor();
-
-    let tx_inner = TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() };
-
-    let tx = Recovered::new_unchecked(
-        OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ))),
-        Address::ZERO,
-    );
+    let tx = recovered_legacy(TxLegacy { gas_limit: GAS_LIMIT, ..Default::default() });
     let tx_env = tx.to_tx_env();
 
-    assert!(executor.da_footprint_used == 0);
-
     let expected_da_footprint = executor.jovian_da_footprint_estimation(&tx_env, &tx).unwrap();
-
-    // make sure we can use both `WithEncoded` and transaction itself as inputs.
     let gas_used_tx =
         executor.execute_transaction(&tx).expect("failed to execute transaction").tx_gas_used();
 
-    // The gas used when executing the transaction should be the legacy value...
+    // The legacy gas used must stay below the DA-derived footprint so the latter dominates.
     assert!(gas_used_tx < expected_da_footprint);
 
-    // The gas used when finishing the executor should be the DA footprint since this is higher
-    // than the legacy gas used and jovian is active...
+    // After Jovian, `blob_gas_used` reports the DA footprint when it exceeds the legacy gas used.
     let (_, result) = executor.finish().expect("failed to finish executor");
     assert_eq!(result.blob_gas_used, expected_da_footprint);
     assert_eq!(result.gas_used, gas_used_tx);
@@ -298,6 +271,42 @@ fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
 
 mod sdm {
     use super::*;
+    use alloy_consensus::Sealable;
+    use op_alloy::consensus::build_post_exec_tx;
+
+    /// Builds a recovered post-exec (0x7D) tx with a zero signer.
+    fn recovered_post_exec(
+        block_number: u64,
+        entries: Vec<SDMGasEntry>,
+    ) -> Recovered<OpTxEnvelope> {
+        Recovered::new_unchecked(
+            OpTxEnvelope::PostExec(build_post_exec_tx(block_number, entries).seal_slow()),
+            Address::ZERO,
+        )
+    }
+
+    fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
+        recovered_legacy(TxLegacy {
+            nonce,
+            gas_limit: 50_000,
+            to: alloy_primitives::TxKind::Call(to),
+            ..Default::default()
+        })
+    }
+
+    fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
+        match err {
+            BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
+                match err.downcast_ref::<OpBlockExecutionError>() {
+                    Some(OpBlockExecutionError::InvalidPostExecPayload(reason)) => {
+                        assert_eq!(reason, expected_reason);
+                    }
+                    other => panic!("expected invalid post-exec payload error, got: {other:?}"),
+                }
+            }
+            other => panic!("expected invalid post-exec payload error, got: {other:?}"),
+        }
+    }
 
     #[test]
     fn test_settlement_state_account_preserves_original_info() {
@@ -345,52 +354,10 @@ mod sdm {
         assert_eq!(bundle_account.info.as_ref().unwrap().balance, U256::from(12));
     }
 
-    fn post_exec_payload(
-        block_number: u64,
-        gas_refund_entries: Vec<SDMGasEntry>,
-    ) -> PostExecPayload {
-        PostExecPayload { version: 1, block_number, gas_refund_entries }
-    }
-
-    fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
-        let tx_inner = TxLegacy {
-            nonce,
-            gas_limit: 50_000,
-            to: alloy_primitives::TxKind::Call(to),
-            ..Default::default()
-        };
-
-        Recovered::new_unchecked(
-            OpTxEnvelope::Legacy(tx_inner.into_signed(Signature::new(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ))),
-            Address::ZERO,
-        )
-    }
-
-    fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
-        match err {
-            BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
-                match err.downcast_ref::<OpBlockExecutionError>() {
-                    Some(OpBlockExecutionError::InvalidPostExecPayload(reason)) => {
-                        assert_eq!(reason, expected_reason);
-                    }
-                    other => panic!("expected invalid post-exec payload error, got: {other:?}"),
-                }
-            }
-            other => panic!("expected invalid post-exec payload error, got: {other:?}"),
-        }
-    }
-
     // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
     // post-exec tx, then a verifier replays the same tx stream and consumes the payload.
     #[test]
     fn test_post_exec_producer_verifier_roundtrip() {
-        use alloy_consensus::Sealable;
-        use op_alloy::consensus::build_post_exec_tx;
-
         let target = Address::from([0x11; 20]);
         let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
 
@@ -411,16 +378,12 @@ mod sdm {
         assert_eq!(entries[0].index, 1, "the second tx reuses block-warmed addresses");
         assert!(entries[0].gas_refund > 0);
 
-        let post_exec_recovered = Recovered::new_unchecked(
-            OpTxEnvelope::PostExec(build_post_exec_tx(0, entries.clone()).seal_slow()),
-            Address::ZERO,
-        );
+        let post_exec_recovered = recovered_post_exec(0, entries.clone());
         assert_eq!(producer.execute_transaction(&post_exec_recovered).unwrap().tx_gas_used(), 0);
         let (_, produced) = producer.finish().expect("producer finishes block");
 
         let mut verifier_fixture = SDMExecutorFixture::default();
-        let mut verifier = verifier_fixture
-            .executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(0, entries)));
+        let mut verifier = verifier_fixture.verifier(0, entries);
         for tx in &user_txs {
             verifier.execute_transaction(tx).expect("verifier executes user tx");
         }
@@ -435,11 +398,10 @@ mod sdm {
 
     #[test]
     fn test_mismatched_payload_block_number_fails_pre_execution() {
-        let mut fixture = SDMExecutorFixture::default();
         // build_executor configures BlockEnv with block number 0; a payload anchored to a
         // different block must be rejected before any tx runs.
-        let mut executor = fixture
-            .executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(42, vec![])));
+        let mut fixture = SDMExecutorFixture::default();
+        let mut executor = fixture.verifier(42, vec![]);
 
         let err =
             executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
@@ -448,17 +410,16 @@ mod sdm {
 
     #[test]
     fn test_duplicate_payload_index_fails_pre_execution() {
-        let mut fixture = SDMExecutorFixture::default();
         // Two entries colliding on tx index 3 — the second insert must be flagged at construction
         // and surface as a pre-execution failure.
-        let mut executor =
-            fixture.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
-                0,
-                vec![
-                    SDMGasEntry { index: 3, gas_refund: 10 },
-                    SDMGasEntry { index: 3, gas_refund: 20 },
-                ],
-            )));
+        let mut fixture = SDMExecutorFixture::default();
+        let mut executor = fixture.verifier(
+            0,
+            vec![
+                SDMGasEntry { index: 3, gas_refund: 10 },
+                SDMGasEntry { index: 3, gas_refund: 20 },
+            ],
+        );
 
         let err = executor
             .apply_pre_execution_changes()
@@ -473,9 +434,8 @@ mod sdm {
             (4, false, true, 0, "payload entry targets post-exec tx index 4"),
         ] {
             let mut fixture = SDMExecutorFixture::default();
-            let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
-                post_exec_payload(0, vec![SDMGasEntry { index: tx_index, gas_refund: 1 }]),
-            ));
+            let executor =
+                fixture.verifier(0, vec![SDMGasEntry { index: tx_index, gas_refund: 1 }]);
 
             let err = executor
                 .verifier_post_exec_refund_for_tx(tx_index, is_deposit, is_post_exec, evm_gas_used)
@@ -487,9 +447,7 @@ mod sdm {
     #[test]
     fn test_verifier_rejects_refund_exceeding_evm_gas() {
         let mut fixture = SDMExecutorFixture::default();
-        let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
-            post_exec_payload(0, vec![SDMGasEntry { index: 2, gas_refund: 50_000 }]),
-        ));
+        let executor = fixture.verifier(0, vec![SDMGasEntry { index: 2, gas_refund: 50_000 }]);
 
         // evm_gas_used < payload refund — a refund that exceeds the tx's EVM-reported cost is
         // impossible under SDM semantics and must be rejected, otherwise canonical_gas_used
@@ -522,9 +480,7 @@ mod sdm {
             ("post-exec tx with no payload entry", 3, false, true),
         ] {
             let mut fixture = SDMExecutorFixture::default();
-            let executor = fixture.executor_with_post_exec_mode(PostExecMode::Verify(
-                post_exec_payload(0, vec![SDMGasEntry { index: 7, gas_refund: 42 }]),
-            ));
+            let executor = fixture.verifier(0, vec![SDMGasEntry { index: 7, gas_refund: 42 }]);
 
             let refund = executor
                 .verifier_post_exec_refund_for_tx(tx_index, is_deposit, is_post_exec, 21_000)
@@ -536,14 +492,10 @@ mod sdm {
     #[test]
     fn test_finish_reports_all_unconsumed_post_exec_entries() {
         let mut fixture = SDMExecutorFixture::default();
-        let executor =
-            fixture.executor_with_post_exec_mode(PostExecMode::Verify(post_exec_payload(
-                0,
-                vec![
-                    SDMGasEntry { index: 2, gas_refund: 7 },
-                    SDMGasEntry { index: 5, gas_refund: 11 },
-                ],
-            )));
+        let executor = fixture.verifier(
+            0,
+            vec![SDMGasEntry { index: 2, gas_refund: 7 }, SDMGasEntry { index: 5, gas_refund: 11 }],
+        );
 
         let Err(err) = executor.finish() else {
             panic!("unconsumed verifier entries must fail");
@@ -560,18 +512,12 @@ mod sdm {
     /// and the two nodes' states would diverge without anyone noticing.
     #[test]
     fn test_disabled_mode_rejects_post_exec_tx() {
-        use alloy_consensus::Sealable;
-        use op_alloy::consensus::build_post_exec_tx;
-
         let mut fixture = SDMExecutorFixture::default();
         // build_executor leaves post_exec_mode at the default (Disabled).
         let mut executor = fixture.executor();
         assert!(matches!(executor.post_exec, PostExecState::Disabled));
 
-        let post_exec_tx = build_post_exec_tx(0, vec![]);
-        let envelope = OpTxEnvelope::PostExec(post_exec_tx.seal_slow());
-        let tx = Recovered::new_unchecked(envelope, Address::ZERO);
-
+        let tx = recovered_post_exec(0, vec![]);
         let err =
             executor.execute_transaction(&tx).expect_err("0x7D tx in Disabled mode must fail");
         assert_invalid_post_exec(
