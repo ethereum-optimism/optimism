@@ -1,0 +1,12 @@
+defaultBaseImage: chainguard/static:latest
+
+defaultEnv:
+  - CGO_ENABLED=0
+
+defaultFlags:
+  - -trimpath
+
+defaultLdflags:
+  - -s -w
+  - -X main.GitCommit={{.Git.FullCommit}}
+  - -X main.GitDate={{.Date}}
