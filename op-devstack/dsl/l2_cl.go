@@ -403,8 +403,8 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
-func (cl *L2CLNode) InSyncFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
-	return InSyncFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
+func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
 func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) {
@@ -415,8 +415,8 @@ func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, a
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (cl *L2CLNode) InSync(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
-	cl.require.NoError(cl.InSyncFn(refNode, lvl, attempts)())
+func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.InSyncFn(other, lvl, attempts)())
 }
 
 func (cl *L2CLNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {

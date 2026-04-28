@@ -489,16 +489,16 @@ func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLev
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) InSyncFn(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
-	return InSyncFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
 func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (el *L2ELNode) InSync(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
-	el.require.NoError(el.InSyncFn(refNode, lvl, attempts)())
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
 }
 
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
