@@ -16,10 +16,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -28,15 +26,6 @@ import (
 // progressLogInterval is how often to log ingestion progress.
 const progressLogInterval = 10 * time.Second
 
-// EthClient defines the interface for fetching block and receipt data.
-// This allows for dependency injection in tests.
-type EthClient interface {
-	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
-	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error)
-	Close()
-}
-
 // LogsDBChainIngester handles block ingestion and log storage for a single chain.
 // It uses an RPC client to fetch blocks and a logsdb database for storage.
 type LogsDBChainIngester struct {
@@ -44,7 +33,6 @@ type LogsDBChainIngester struct {
 	metrics metrics.Metricer
 	chainID eth.ChainID
 
-	rpcClient        client.RPC
 	ethClient        EthClient
 	logsDB           *logs.DB
 	dataDir          string
@@ -85,30 +73,8 @@ func NewLogsDBChainIngester(
 
 	logger = logger.New("chain", chainID)
 
-	rpcClient, err := client.NewRPC(ctx, logger, rpcURL)
+	ethClient, err := NewRPCEthClient(ctx, logger, rpcURL)
 	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
-	}
-
-	ethClient, err := sources.NewEthClient(
-		rpcClient,
-		logger,
-		nil,
-		&sources.EthClientConfig{
-			ReceiptsCacheSize:     1000,
-			TransactionsCacheSize: 1000,
-			HeadersCacheSize:      1000,
-			PayloadsCacheSize:     100,
-			MaxRequestsPerBatch:   20,
-			MaxConcurrentRequests: 10,
-			TrustRPC:              false,
-			MustBePostMerge:       true,
-			RPCProviderKind:       sources.RPCKindStandard,
-		},
-	)
-	if err != nil {
-		rpcClient.Close()
 		cancel()
 		return nil, fmt.Errorf("failed to create eth client for chain %s: %w", chainID, err)
 	}
@@ -117,7 +83,6 @@ func NewLogsDBChainIngester(
 		log:              logger,
 		metrics:          m,
 		chainID:          chainID,
-		rpcClient:        rpcClient,
 		ethClient:        ethClient,
 		dataDir:          dataDir,
 		startTimestamp:   startTimestamp,
@@ -163,9 +128,6 @@ func (c *LogsDBChainIngester) Stop() error {
 
 	if c.ethClient != nil {
 		c.ethClient.Close()
-	}
-	if c.rpcClient != nil {
-		c.rpcClient.Close()
 	}
 
 	return nil
