@@ -452,6 +452,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
 mod test {
     use super::{MessageGraph, detect_cycles};
     use crate::{
@@ -515,8 +516,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         graph.resolve().await.unwrap();
     }
 
@@ -537,15 +545,13 @@ mod test {
 
         let mut deps = BTreeMap::new();
         deps.insert(CHAIN_A_ID, ChainDependency {});
-        let dep_set =
-            DependencySet { dependencies: deps, override_message_expiry_window: None };
+        let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
             MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .await
                 .unwrap();
-        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err()
-        else {
+        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("Expected InvalidMessages")
         };
         assert_eq!(
@@ -571,15 +577,13 @@ mod test {
 
         let mut deps = BTreeMap::new();
         deps.insert(CHAIN_B_ID, ChainDependency {});
-        let dep_set =
-            DependencySet { dependencies: deps, override_message_expiry_window: None };
+        let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
 
         let graph =
             MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
                 .await
                 .unwrap();
-        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err()
-        else {
+        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
             panic!("Expected InvalidMessages")
         };
         assert_eq!(
@@ -613,8 +617,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -641,8 +652,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -675,8 +693,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -714,8 +739,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -751,8 +783,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -785,8 +824,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -818,8 +864,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -854,8 +907,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -889,8 +949,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -923,8 +990,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -961,7 +1035,10 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY).await.unwrap();
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+                .await
+                .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -998,7 +1075,10 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY).await.unwrap();
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+                .await
+                .unwrap();
         graph.resolve().await.unwrap();
     }
 
@@ -1028,10 +1108,15 @@ mod test {
         let filtered_headers =
             headers.into_iter().filter(|(chain_id, _)| *chain_id != CHAIN_A_ID).collect();
 
-        let graph =
-            MessageGraph::derive(&filtered_headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap();
+        let graph = MessageGraph::derive(
+            &filtered_headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         graph.resolve().await.unwrap();
     }
 
@@ -1079,8 +1164,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1138,8 +1230,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1322,8 +1421,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
 
         // Cycle detection must not flag these messages as cyclic. Per-message validation
         // may still reject them (the test provider has no historical blocks), but that is
