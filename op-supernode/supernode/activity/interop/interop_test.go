@@ -1006,6 +1006,36 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 	}
 }
 
+func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	dataDir := t.TempDir()
+	db, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+	require.NoError(t, db.Commit(VerifiedResult{
+		Timestamp:   126,
+		L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0x1")},
+		L2Heads:     map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 126, Hash: common.HexToHash("0x2")}},
+	}))
+	require.NoError(t, db.Close())
+
+	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	require.NotNil(t, interop)
+	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
+
+	first, err := interop.firstVerifiableTimestamp(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(126), first)
+
+	verified, err := interop.VerifiedAtTimestamp(125)
+	require.NoError(t, err)
+	require.True(t, verified, "timestamp before first committed result remains covered by the startup handoff")
+
+	plan, err := interop.buildRewindPlan(126)
+	require.NoError(t, err)
+	require.Equal(t, uint64(126), plan.RewindAtOrAfter)
+}
+
 // =============================================================================
 // TestIsActiveAt
 // =============================================================================

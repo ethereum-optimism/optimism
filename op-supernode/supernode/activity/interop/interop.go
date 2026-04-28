@@ -203,8 +203,8 @@ func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) 
 		return i.firstVerifiable, nil
 	}
 	if i.verifiedDB != nil {
-		if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
-			return i.activationTimestamp, nil
+		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
+			return first, nil
 		}
 	}
 	return i.resolveFirstVerifiableTimestamp(ctx)
