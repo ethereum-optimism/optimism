@@ -102,6 +102,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
 		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
+		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
+		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
 	}
 
 	return nil
