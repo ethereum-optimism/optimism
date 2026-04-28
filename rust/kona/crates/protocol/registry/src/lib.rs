@@ -60,20 +60,13 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{
-        BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP,
-    };
+    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
 
     #[test]
     fn test_hardcoded_rollup_configs() {
-        let test_cases = [
-            (10, test_utils::OP_MAINNET_CONFIG),
-            (8453, test_utils::BASE_MAINNET_CONFIG),
-            (11155420, test_utils::OP_SEPOLIA_CONFIG),
-            (84532, test_utils::BASE_SEPOLIA_CONFIG),
-        ]
-        .to_vec();
+        let test_cases =
+            [(10, test_utils::OP_MAINNET_CONFIG), (11155420, test_utils::OP_SEPOLIA_CONFIG)]
+                .to_vec();
 
         for (chain_id, expected) in test_cases {
             let derived = super::ROLLUP_CONFIGS.get(&chain_id).unwrap();
@@ -83,11 +76,11 @@ mod tests {
 
     #[test]
     fn test_chain_by_ident() {
-        const ALLOY_BASE: AlloyChain = AlloyChain::base_mainnet();
+        const ALLOY_OP: AlloyChain = AlloyChain::optimism_mainnet();
 
-        let chain_by_ident = CHAINS.get_chain_by_ident("mainnet/base").unwrap();
-        let chain_by_alloy_ident = CHAINS.get_chain_by_alloy_ident(&ALLOY_BASE).unwrap();
-        let chain_by_id = CHAINS.get_chain_by_id(8453).unwrap();
+        let chain_by_ident = CHAINS.get_chain_by_ident("mainnet/op").unwrap();
+        let chain_by_alloy_ident = CHAINS.get_chain_by_alloy_ident(&ALLOY_OP).unwrap();
+        let chain_by_id = CHAINS.get_chain_by_id(10).unwrap();
 
         assert_eq!(chain_by_ident, chain_by_id);
         assert_eq!(chain_by_alloy_ident, chain_by_id);
@@ -95,11 +88,11 @@ mod tests {
 
     #[test]
     fn test_rollup_config_by_ident() {
-        const ALLOY_BASE: AlloyChain = AlloyChain::base_mainnet();
+        const ALLOY_OP: AlloyChain = AlloyChain::optimism_mainnet();
 
-        let rollup_config_by_ident = scr_rollup_config_by_ident("mainnet/base").unwrap();
-        let rollup_config_by_alloy_ident = scr_rollup_config_by_alloy_ident(&ALLOY_BASE).unwrap();
-        let rollup_config_by_id = ROLLUP_CONFIGS.get(&8453).unwrap();
+        let rollup_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
+        let rollup_config_by_alloy_ident = scr_rollup_config_by_alloy_ident(&ALLOY_OP).unwrap();
+        let rollup_config_by_id = ROLLUP_CONFIGS.get(&10).unwrap();
 
         assert_eq!(rollup_config_by_ident, rollup_config_by_id);
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
@@ -107,18 +100,6 @@ mod tests {
 
     #[test]
     fn test_jovian_timestamps() {
-        let base_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/base").unwrap();
-        assert_eq!(
-            base_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(BASE_MAINNET_JOVIAN_TIMESTAMP)
-        );
-
-        let base_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/base").unwrap();
-        assert_eq!(
-            base_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(BASE_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
-
         let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
         assert_eq!(
             op_mainnet_config_by_ident.hardforks.jovian_time,
