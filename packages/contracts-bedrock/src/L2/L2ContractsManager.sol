@@ -218,21 +218,8 @@ contract L2ContractsManager is ISemver {
         // LiquidityController
         if (fullConfig_.isCustomGasToken) {
             ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
-
-            address _liquidityControllerOwner;
-            // X Layer removed the owner() getter from their LiquidityController fork.
-            // Fall back to ProxyAdmin.owner() so the upgrade can migrate them to the OP Stack
-            // implementation, which restores a standard Ownable owner initialized to that address.
-            // TODO(#19468): Remove the fallback after the Karst upgrade.
-            // eip150-safe
-            try liquidityController.owner() returns (address owner_) {
-                _liquidityControllerOwner = owner_;
-            } catch {
-                _liquidityControllerOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-            }
-
             fullConfig_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
-                owner: _liquidityControllerOwner,
+                owner: liquidityController.owner(),
                 gasPayingTokenName: liquidityController.gasPayingTokenName(),
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
