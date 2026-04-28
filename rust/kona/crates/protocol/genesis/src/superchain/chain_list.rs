@@ -129,7 +129,7 @@ mod tests {
     fn read_chain_list_file() {
         let chain_list = include_str!("../../../registry/etc/chainList.json");
         let chains: Vec<Chain> = serde_json::from_str(chain_list).unwrap();
-        let base_chain = chains.iter().find(|c| c.name == "Base").unwrap();
-        assert_eq!(base_chain.chain_id, 8453);
+        let op_chain = chains.iter().find(|c| c.name == "OP Mainnet").unwrap();
+        assert_eq!(op_chain.chain_id, 10);
     }
 }
