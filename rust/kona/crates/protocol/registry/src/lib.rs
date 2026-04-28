@@ -64,11 +64,9 @@ mod tests {
 
     #[test]
     fn test_hardcoded_rollup_configs() {
-        let test_cases = [
-            (10, test_utils::OP_MAINNET_CONFIG),
-            (11155420, test_utils::OP_SEPOLIA_CONFIG),
-        ]
-        .to_vec();
+        let test_cases =
+            [(10, test_utils::OP_MAINNET_CONFIG), (11155420, test_utils::OP_SEPOLIA_CONFIG)]
+                .to_vec();
 
         for (chain_id, expected) in test_cases {
             let derived = super::ROLLUP_CONFIGS.get(&chain_id).unwrap();
