@@ -205,7 +205,7 @@ impl SDMWarmingInspector {
             return;
         }
 
-        // Storage accesses should never also claim the account rebate.
+        // Storage accesses should never also claim the account refund.
         self.observe_account_touch(address, false);
 
         if self.current_tx.touched_slots.insert((address, slot)) &&
