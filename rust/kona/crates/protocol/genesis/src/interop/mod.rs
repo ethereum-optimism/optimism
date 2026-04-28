@@ -46,6 +46,11 @@ pub enum ClusterError {
 /// `[interop]` section.
 ///
 /// The output is deterministic: clusters are sorted by their minimum chain id.
+///
+/// `override_message_expiry_window` is always `None` on the returned depsets — the
+/// chain TOML schema has no override field, so any override must come through a
+/// custom-config `depsets.json`. If the schema grows one, [`InteropConfig`] and this
+/// function need to change together.
 pub fn aggregate_clusters<'a, I>(chains: I) -> Result<Vec<DependencySet>, ClusterError>
 where
     I: IntoIterator<Item = (u64, &'a InteropConfig)>,
