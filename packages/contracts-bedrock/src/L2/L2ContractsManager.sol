@@ -378,17 +378,6 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL
         );
-        // TODO(#19468): Remove this migration step after Karst. Post-Karst, the feature
-        // mapping will already be populated from the upgrade, making this call unnecessary.
-        // After upgrading L1Block to the CGT impl, populate the feature mapping so that
-        // isCustomGasToken() continues to return true. The new impl reads from the mapping
-        // rather than the legacy storage slot.
-        if (
-            _config.isCustomGasToken
-                && !IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)
-        ) {
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
-        }
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
