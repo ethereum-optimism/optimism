@@ -12,7 +12,7 @@ use kona_preimage::{
     errors::PreimageOracleError,
 };
 use kona_proof::errors::OracleProviderError;
-use kona_registry::{HashMap, L1_CONFIGS, ROLLUP_CONFIGS};
+use kona_registry::{DEPENDENCY_SETS, HashMap, L1_CONFIGS, ROLLUP_CONFIGS};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -134,7 +134,7 @@ impl BootInfo {
             chain_ids.iter().map(|id| (*id, ROLLUP_CONFIGS[id].clone())).collect()
         } else {
             let missing_ids: Vec<u64> =
-                chain_ids.into_iter().filter(|id| !ROLLUP_CONFIGS.contains_key(id)).collect();
+                chain_ids.iter().copied().filter(|id| !ROLLUP_CONFIGS.contains_key(id)).collect();
             warn!(
                 target: "boot_loader",
                 "No rollup config found for chain IDs {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
@@ -147,14 +147,7 @@ impl BootInfo {
             serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?
         };
 
-        // Load the dependency set configuration from the preimage oracle.
-        let dependency_set: DependencySet = {
-            let ser_cfg = oracle
-                .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
-                .await
-                .map_err(OracleProviderError::Preimage)?;
-            serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?
-        };
+        let dependency_set = load_dependency_set(oracle, &chain_ids, &DEPENDENCY_SETS).await?;
 
         // Attempt to load the l1 config from the chain ID. If there is no config for the chain,
         // fall back to loading the config from the preimage oracle.
@@ -228,6 +221,16 @@ pub enum BootstrapError {
     /// The l1 config is invalid because the chain ids are not the same.
     #[error("The l1 config is invalid because the chain ids are not the same.")]
     InvalidL1Config,
+    /// The proof references chains from disjoint embedded interop clusters.
+    #[error(
+        "proof references chains from {a} and {b} which are in different embedded dependency sets"
+    )]
+    CrossDependencySetProof {
+        /// First chain id (resolved earliest in the proof's chain list).
+        a: u64,
+        /// Second chain id whose embedded depset differs from `a`'s.
+        b: u64,
+    },
 }
 
 /// Reads the raw pre-state from the preimage oracle.
@@ -254,4 +257,173 @@ where
     }
 
     Ok(Bytes::from(pre))
+}
+
+/// Loads the dependency set, preferring the registry-embedded one when it covers all
+/// chain ids in the proof, falling back to the preimage oracle otherwise.
+///
+/// When the embedded registry contains depsets but they cover only some of the proof's
+/// chain ids, falls back to the oracle. When the chain ids span two distinct embedded
+/// clusters, returns a [`BootstrapError::CrossDependencySetProof`].
+async fn load_dependency_set<O>(
+    oracle: &O,
+    chain_ids: &[u64],
+    embedded: &HashMap<u64, DependencySet>,
+) -> Result<DependencySet, BootstrapError>
+where
+    O: PreimageOracleClient + Send,
+{
+    let mut chosen: Option<&DependencySet> = None;
+    let mut chosen_via: Option<u64> = None;
+    let mut all_covered = true;
+    for id in chain_ids {
+        match embedded.get(id) {
+            Some(ds) => match chosen {
+                None => {
+                    chosen = Some(ds);
+                    chosen_via = Some(*id);
+                }
+                Some(prev) if prev == ds => {}
+                Some(_) => {
+                    return Err(BootstrapError::CrossDependencySetProof {
+                        a: chosen_via.expect("chosen_via set whenever chosen is Some"),
+                        b: *id,
+                    });
+                }
+            },
+            None => {
+                all_covered = false;
+            }
+        }
+    }
+    if let (Some(ds), true) = (chosen, all_covered) {
+        return Ok(ds.clone());
+    }
+    if embedded.is_empty() {
+        warn!(
+            target: "boot_loader",
+            "No embedded dependency sets found, falling back to preimage oracle. This is insecure in production without additional validation!"
+        );
+    } else {
+        warn!(
+            target: "boot_loader",
+            "Embedded dependency sets do not fully cover proof chain ids {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
+            chain_ids
+        );
+    }
+    let ser_cfg = oracle
+        .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
+        .await
+        .map_err(OracleProviderError::Preimage)?;
+    let ds: DependencySet = serde_json::from_slice(&ser_cfg).map_err(OracleProviderError::Serde)?;
+    Ok(ds)
+}
+
+#[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
+mod tests {
+    use super::*;
+    use alloc::{boxed::Box, vec, vec::Vec};
+    use kona_genesis::{ChainDependency, DependencySet};
+    use kona_preimage::{HintWriterClient, errors::PreimageOracleError};
+    use kona_registry::HashMap;
+
+    #[derive(Default)]
+    struct MockOracle {
+        fetched: spin::Mutex<Vec<PreimageKey>>,
+        depset_payload: Vec<u8>,
+    }
+
+    #[async_trait::async_trait]
+    impl PreimageOracleClient for MockOracle {
+        async fn get(&self, key: PreimageKey) -> Result<Vec<u8>, PreimageOracleError> {
+            self.fetched.lock().push(key);
+            Ok(self.depset_payload.clone())
+        }
+        async fn get_exact(
+            &self,
+            _key: PreimageKey,
+            _buf: &mut [u8],
+        ) -> Result<(), PreimageOracleError> {
+            unimplemented!("not exercised by load_dependency_set tests")
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HintWriterClient for MockOracle {
+        async fn write(&self, _hint: &str) -> Result<(), PreimageOracleError> {
+            unimplemented!("not exercised by load_dependency_set tests")
+        }
+    }
+
+    fn make_depset(chain_ids: &[u64]) -> DependencySet {
+        let dependencies = chain_ids.iter().map(|id| (*id, ChainDependency {})).collect();
+        DependencySet { dependencies, override_message_expiry_window: None }
+    }
+
+    fn embed(depsets: Vec<DependencySet>) -> HashMap<u64, DependencySet> {
+        let mut by_chain = HashMap::default();
+        for ds in depsets {
+            for id in ds.dependencies.keys() {
+                by_chain.insert(*id, ds.clone());
+            }
+        }
+        by_chain
+    }
+
+    #[tokio::test]
+    async fn embedded_depset_covers_all_chains_does_not_call_oracle() {
+        let oracle = MockOracle::default();
+        let depset = make_depset(&[1u64, 2u64]);
+        let embedded = embed(vec![depset.clone()]);
+        let out = load_dependency_set(&oracle, &[1, 2], &embedded).await.unwrap();
+        assert_eq!(out, depset);
+        assert!(oracle.fetched.lock().is_empty());
+    }
+
+    #[tokio::test]
+    async fn embedded_depset_partial_coverage_falls_back_to_oracle() {
+        // Embedded covers {1}, proof needs {1, 2}.
+        let oracle = MockOracle {
+            depset_payload: serde_json::to_vec(&make_depset(&[1u64, 2u64])).unwrap(),
+            ..Default::default()
+        };
+        let embedded = embed(vec![make_depset(&[1u64])]);
+        let out = load_dependency_set(&oracle, &[1, 2], &embedded).await.unwrap();
+        assert_eq!(out.dependencies.len(), 2);
+        let fetched = oracle.fetched.lock().clone();
+        assert_eq!(fetched.len(), 1);
+        assert_eq!(fetched[0], PreimageKey::new_local(DEPENDENCY_SET_KEY.to()));
+    }
+
+    #[tokio::test]
+    async fn no_embedded_depsets_falls_back_to_oracle() {
+        let oracle = MockOracle {
+            depset_payload: serde_json::to_vec(&make_depset(&[1u64])).unwrap(),
+            ..Default::default()
+        };
+        let out = load_dependency_set(&oracle, &[1], &HashMap::default()).await.unwrap();
+        assert_eq!(out.dependencies.len(), 1);
+        let fetched = oracle.fetched.lock().clone();
+        assert_eq!(fetched.len(), 1);
+        assert_eq!(fetched[0], PreimageKey::new_local(DEPENDENCY_SET_KEY.to()));
+    }
+
+    #[tokio::test]
+    async fn cross_cluster_proof_errors() {
+        // Embedded has TWO disjoint clusters: {1} and {2}.
+        let cluster_a = make_depset(&[1u64]);
+        let cluster_b = make_depset(&[2u64]);
+        let embedded = embed(vec![cluster_a, cluster_b]);
+        let oracle = MockOracle::default();
+        let err = load_dependency_set(&oracle, &[1, 2], &embedded).await.unwrap_err();
+        match err {
+            BootstrapError::CrossDependencySetProof { a, b } => {
+                assert_eq!(a, 1);
+                assert_eq!(b, 2);
+            }
+            other => panic!("expected CrossDependencySetProof, got {other:?}"),
+        }
+        assert!(oracle.fetched.lock().is_empty());
+    }
 }
