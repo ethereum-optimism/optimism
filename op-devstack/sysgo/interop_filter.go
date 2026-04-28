@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/filter"
+	interopfilterflags "github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -109,6 +110,8 @@ func startInteropFilter(
 		RPCAddr:             "127.0.0.1",
 		RPCPort:             0, // Auto-assign
 		Version:             "devstack",
+		RPCConcurrency:      interopfilterflags.DefaultRPCConcurrency,
+		FetchConcurrency:    interopfilterflags.DefaultFetchConcurrency,
 	}
 
 	t.Require().NoError(cfg.Check(), "invalid interop filter config")
