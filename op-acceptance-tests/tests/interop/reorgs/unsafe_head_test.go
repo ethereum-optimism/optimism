@@ -83,6 +83,16 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		}
 	}
 
+	{
+		waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+		err := wait.For(waitCtx, 100*time.Millisecond, func() (bool, error) {
+			ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+			return ref.Number == divergenceBlockNumber_A && ref.Hash != originalRef_A.Hash, nil
+		})
+		waitCancel()
+		require.NoError(t, err, "EL never switched to the conflicting unsafe head at block %d", divergenceBlockNumber_A)
+	}
+
 	// start batcher on chain A
 	sys.L2BatcherA.Start()
 
