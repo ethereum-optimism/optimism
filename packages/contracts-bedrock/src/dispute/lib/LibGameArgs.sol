@@ -8,6 +8,7 @@ import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 library LibGameArgs {
     uint256 public constant PERMISSIONLESS_ARGS_LENGTH = 124;
     uint256 public constant PERMISSIONED_ARGS_LENGTH = 164;
+    uint256 public constant ZK_ARGS_LENGTH = 172;
 
     /// @notice Struct representing the game arguments.
     struct GameArgs {
@@ -93,8 +94,6 @@ library LibGameArgs {
     function isValidPermissionedArgs(bytes memory _args) internal pure returns (bool) {
         return _args.length == PERMISSIONED_ARGS_LENGTH;
     }
-
-    uint256 public constant ZK_ARGS_LENGTH = 172;
 
     /// @notice Checks if the provided game arguments are valid for a ZK dispute game.
     function isValidZKArgs(bytes memory _args) internal pure returns (bool) {

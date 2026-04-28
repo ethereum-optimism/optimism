@@ -4,7 +4,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use alloy_primitives::Address;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
-use revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
+use revm::precompile::{EthPrecompileOutput, EthPrecompileResult, PrecompileHalt};
 
 /// Address of the KZG point evaluation precompile.
 pub(crate) const KZG_POINT_EVAL_ADDR: Address = revm::precompile::u64_to_address(0x0A);
@@ -15,7 +15,7 @@ pub(crate) fn fpvm_kzg_point_eval<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
@@ -23,11 +23,11 @@ where
     const GAS_COST: u64 = 50_000;
 
     if gas_limit < GAS_COST {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     if input.len() != 192 {
-        return Err(PrecompileError::BlobInvalidInputLength);
+        return Err(PrecompileHalt::BlobInvalidInputLength);
     }
 
     let result_data = kona_proof::block_on(precompile_run! {
@@ -35,9 +35,9 @@ where
         oracle_reader,
         &[KZG_POINT_EVAL_ADDR.as_slice(), &GAS_COST.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(GAS_COST, result_data.into()))
+    Ok(EthPrecompileOutput::new(GAS_COST, result_data.into()))
 }
 
 #[cfg(test)]
@@ -79,7 +79,7 @@ mod test {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
             let accelerated_result =
                 fpvm_kzg_point_eval(&[], 0, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }
@@ -89,7 +89,7 @@ mod test {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
             let accelerated_result =
                 fpvm_kzg_point_eval(&[], u64::MAX, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::BlobInvalidInputLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::BlobInvalidInputLength));
         })
         .await;
     }

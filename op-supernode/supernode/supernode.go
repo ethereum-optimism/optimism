@@ -35,7 +35,7 @@ type Supernode struct {
 	requestStop context.CancelCauseFunc
 	stopped     bool
 	cfg         *config.CLIConfig
-	chains      map[eth.ChainID]cc.ChainContainer
+	chains      map[eth.ChainID]cc.InteropChain
 	// activitiesMu guards reads and writes of the activities slice. Concurrent
 	// readers (onChainReset, InteropActivity, Stop) can race with the
 	// test-only RestartInteropActivity path that swaps the interop activity
@@ -50,8 +50,9 @@ type Supernode struct {
 	httpServer      *httputil.HTTPServer
 	rpcRouter       *resources.Router
 	// Metrics router/server for per-chain metrics
-	metrics      *resources.MetricsService
-	metricsFanIn *resources.MetricsFanIn
+	metrics          *resources.MetricsService
+	metricsFanIn     *resources.MetricsFanIn
+	supernodeMetrics *resources.SupernodeMetrics
 	// cached address when available
 	rpcAddr string
 
@@ -66,7 +67,7 @@ type Supernode struct {
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
-	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.ChainContainer)}
+	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -87,6 +88,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
 	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
+	s.supernodeMetrics = resources.NewSupernodeMetrics()
+	s.metricsFanIn.AddGatherer(s.supernodeMetrics.Registry())
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -98,15 +101,22 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry)
+		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
 		s.chains[chainID] = container
+	}
+
+	// Narrow the chain map to ChainContainer for activities that must not invoke
+	// reorg-triggering operations. Only interop gets the wider InteropChain view.
+	narrowChains := make(map[eth.ChainID]cc.ChainContainer, len(s.chains))
+	for id, c := range s.chains {
+		narrowChains[id] = c
 	}
 
 	// Initialize fixed activities
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
-		supernodeactivity.New(log.New("activity", "supernode"), s.chains),
-		superroot.New(log.New("activity", "superroot"), s.chains),
+		supernodeactivity.New(log.New("activity", "supernode"), narrowChains),
+		superroot.New(log.New("activity", "superroot"), narrowChains),
 	}
 
 	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
@@ -130,7 +140,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 				break
 			}
 		}
-		interopActivity := interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth)
+		interopActivity := interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
@@ -283,7 +293,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 	}
 	for chainID, chain := range s.chains {
 		s.wg.Add(1)
-		go func(chainID eth.ChainID, chain cc.ChainContainer) {
+		go func(chainID eth.ChainID, chain cc.InteropChain) {
 			defer s.wg.Done()
 			if err := chain.Start(lifecycleCtx); err != nil {
 				s.log.Error("error starting chain", "chain_id", chainID.String(), "error", err)

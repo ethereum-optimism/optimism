@@ -16,7 +16,7 @@ import (
 
 func TestChallengerPlaysGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -38,7 +38,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -61,7 +61,7 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 
 func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
 	dsl.CheckAll(t,
 		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
@@ -83,4 +83,22 @@ func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	for _, claim := range claims {
 		require.Equal(t, attacker.Address(), claim.Claimant())
 	}
+}
+
+func TestChallengerCountersPreGenesisGame(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(
+		t,
+		presets.WithPreGenesisSuperGame(
+			eth.Bytes32(common.HexToHash("0x1111000000000000000000000000000000000000000000000000000000000000")),
+			eth.Bytes32(common.HexToHash("0x2222000000000000000000000000000000000000000000000000000000000000")),
+		),
+	)
+
+	game := sys.DisputeGameFactory().SuperGameAtIndex(0)
+	genesisTime := sys.L2ChainA.Escape().RollupConfig().Genesis.L2Time
+	require.EqualValues(t, genesisTime, game.StartingL2SequenceNumber(), "pre-genesis game should anchor at rollup genesis")
+	require.Greater(t, game.L2SequenceNumber(), genesisTime, "pre-genesis game should dispute a post-genesis timestamp")
+
+	game.RootClaim().WaitForCounterClaim()
 }

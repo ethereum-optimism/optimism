@@ -1,5 +1,6 @@
 //! RPC integration tests.
 
+use reth_chainspec::EthChainSpec;
 use reth_network::types::NatResolver;
 use reth_node_builder::{NodeBuilder, NodeHandle};
 use reth_node_core::{
@@ -8,7 +9,7 @@ use reth_node_core::{
 };
 use reth_optimism_chainspec::BASE_MAINNET;
 use reth_optimism_node::OpNode;
-use reth_rpc_api::servers::AdminApiServer;
+use reth_rpc_api::{EthConfigApiClient, servers::AdminApiServer};
 use reth_tasks::Runtime;
 
 // <https://github.com/paradigmxyz/reth/issues/19765>
@@ -38,6 +39,32 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
     let info = api.node_info().await.unwrap();
 
     assert_eq!(info.ip, external_ip);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+
+    let exec = Runtime::test();
+
+    // Node setup
+    let network = BASE_MAINNET.clone();
+    let mut network_args = NetworkArgs::default().with_unused_ports();
+    network_args.discovery.discv5_port = 0;
+    network_args.discovery.discv5_port_ipv6 = 0;
+    let node_config = NodeConfig::test()
+        .map_chain(network.clone())
+        .with_network(network_args)
+        .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
+
+    let NodeHandle { node, node_exit_future: _ } =
+        NodeBuilder::new(node_config).testing_node(exec).node(OpNode::default()).launch().await?;
+
+    let client = node.add_ons_handle.rpc_server_handles().rpc.http_client().unwrap();
+    let config = client.config().await?;
+    assert_eq!(config.current.chain_id, network.clone().chain_id());
 
     Ok(())
 }

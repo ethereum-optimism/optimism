@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -182,8 +181,8 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 		ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 		SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
 		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersion(rollup.OPStackSupport),
-		RecommendedProtocolVersion: params.ProtocolVersion(rollup.OPStackSupport),
+		RequiredProtocolVersion:    params.OPStackSupport,
+		RecommendedProtocolVersion: params.OPStackSupport,
 	}
 
 	output, recompiled, err := deploySuperchain(ctx, input)

@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @custom:semver 1.10.1
+    string public constant version = "1.10.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -362,10 +362,10 @@ contract MIPS64 is ISemver {
         }
     }
 
-    /// @notice Loads a subword of byteLength size contained from memory based on the low-order bits of vaddr
-    /// @param _vaddr The virtual address of the the subword.
+    /// @notice Loads a subword of byteLength size from memory based on the low-order bits of vaddr.
+    /// @param _vaddr The virtual address of the subword.
     /// @param _byteLength The size of the subword.
-    /// @param _signExtend Whether to sign extend the selected subwrod.
+    /// @param _signExtend Whether to sign extend the selected subword.
     function loadSubWord(
         State memory _state,
         uint64 _vaddr,

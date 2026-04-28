@@ -447,7 +447,7 @@ contract DeployOPChain is Script {
         // support deploying straight to permissioned games, and the starting root does not
         // matter for that, as long as it is non-zero, since no games will be played. We do not
         // deploy the permissionless game (and therefore do not set a starting root for it here)
-        // because to to update to the permissionless game, we will need to update its starting
+        // because updating to the permissionless game will require updating its starting
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
         // You can `console.logBytes(abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT()))` to get the bytes that

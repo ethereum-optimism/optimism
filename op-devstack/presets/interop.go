@@ -111,7 +111,7 @@ func NewSimpleInteropSuperProofs(t devtest.T, opts ...Option) *SimpleInterop {
 // NewSimpleInteropSupernodeProofs creates a fresh SimpleInterop target for the current
 // test using the super-root proofs system backed by op-supernode.
 func NewSimpleInteropSupernodeProofs(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropSupernodeProofs", opts, supernodeProofsPresetSupportedOptionKinds)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropSupernodeProofs", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
 
@@ -125,7 +125,7 @@ func NewSingleChainInteropSupernodeProofs(t devtest.T, opts ...Option) *SingleCh
 // NewSimpleInteropIsthmusSuper creates a fresh SimpleInterop target for the current test
 // using the Isthmus super-root system backed by op-supernode.
 func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropIsthmusSuper", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
@@ -134,6 +134,16 @@ func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
 func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
+}
+
+// NewSingleChainInteropSuperRootAtGenesis creates a fresh SingleChainInterop
+// target where SuperPermissionedDisputeGame is installed in the permissioned
+// slot as part of the initial op-deployer apply - no post-deploy OPCMv2
+// migration runs. This exercises the initial-deploy path for super-root
+// dispute games tracked by ethereum-optimism/optimism#18729.
+func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *SingleChainInterop {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropSuperRootAtGenesis", opts, supernodeProofsPresetSupportedOptionKinds)
+	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
 // NewSimpleInterop creates a fresh SimpleInterop target for the current test.

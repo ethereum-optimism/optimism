@@ -81,8 +81,13 @@ where
                     info!(target: "superchain_consolidator", "Superchain consolidation complete");
                     return Ok(());
                 }
-                Err(ConsolidationError::MessageGraph(MessageGraphError::InvalidMessages(_))) => {
-                    // If invalid messages are still present in the graph, continue the loop.
+                Err(ConsolidationError::MessageGraph(
+                    MessageGraphError::InvalidMessages(_) |
+                    MessageGraphError::CyclicDependency { .. },
+                )) => {
+                    // If invalid messages or cyclic dependencies are found, continue the loop.
+                    // The affected chains have been replaced with deposit-only blocks by
+                    // consolidate_once, so the next iteration will exclude them.
                 }
                 Err(e) => {
                     error!(target: "superchain_consolidator", "Error consolidating superchain: {:?}", e);
@@ -122,12 +127,20 @@ where
         )
         .await?;
 
-        // Attempt to resolve the message graph. If there were any invalid messages found, we must
-        // initiate a re-execution of the original block, with only deposit transactions.
-        if let Err(MessageGraphError::InvalidMessages(invalid_chains)) = graph.resolve().await {
-            self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
-                .await?;
-            return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+        // Attempt to resolve the message graph. If there were any invalid messages or cyclic
+        // dependencies found, re-execute the affected chains with deposit-only transactions.
+        match graph.resolve().await {
+            Err(MessageGraphError::InvalidMessages(invalid_chains)) => {
+                self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
+                    .await?;
+                return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+            }
+            Err(MessageGraphError::CyclicDependency { chain_ids }) => {
+                self.re_execute_deposit_only(&chain_ids).await?;
+                return Err(MessageGraphError::CyclicDependency { chain_ids }.into());
+            }
+            Err(e) => return Err(e.into()),
+            Ok(()) => {}
         }
 
         Ok(())

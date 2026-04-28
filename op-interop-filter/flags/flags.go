@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -41,17 +42,17 @@ var (
 		EnvVars: prefixEnvVars("DATA_DIR"),
 		Value:   "",
 	}
-	BackfillDurationFlag = &cli.StringFlag{
+	BackfillDurationFlag = &cli.DurationFlag{
 		Name:    "backfill-duration",
 		Usage:   "Duration to backfill on startup (e.g., 24h, 30m, 1h30m)",
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
-		Value:   "24h",
+		Value:   24 * time.Hour,
 	}
-	MessageExpiryWindowFlag = &cli.StringFlag{
+	MessageExpiryWindowFlag = &cli.DurationFlag{
 		Name:    "message-expiry-window",
 		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
 		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
-		Value:   "168h", // 7 days default, matching op-supervisor
+		Value:   168 * time.Hour, // 7 days default, matching op-supervisor
 	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",
@@ -87,17 +88,17 @@ var (
 		EnvVars: prefixEnvVars("RPC_PORT"),
 		Value:   8545,
 	}
-	PollIntervalFlag = &cli.StringFlag{
+	PollIntervalFlag = &cli.DurationFlag{
 		Name:    "poll-interval",
 		Usage:   "Interval for polling new blocks from L2 RPCs (e.g., 2s, 500ms)",
 		EnvVars: prefixEnvVars("POLL_INTERVAL"),
-		Value:   "2s",
+		Value:   2 * time.Second,
 	}
-	ValidationIntervalFlag = &cli.StringFlag{
+	ValidationIntervalFlag = &cli.DurationFlag{
 		Name:    "validation-interval",
 		Usage:   "Interval for cross-chain validation loop (e.g., 500ms, 1s)",
 		EnvVars: prefixEnvVars("VALIDATION_INTERVAL"),
-		Value:   "500ms",
+		Value:   500 * time.Millisecond,
 	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
 		Name:    "dangerously-enable-passthrough",

@@ -112,7 +112,7 @@ library VMStatuses {
     /// @notice The VM has executed successfully and the outcome is invalid.
     VMStatus internal constant INVALID = VMStatus.wrap(1);
 
-    /// @notice The VM has paniced.
+    /// @notice The VM has panicked.
     VMStatus internal constant PANIC = VMStatus.wrap(2);
 
     /// @notice The VM execution is still in progress.

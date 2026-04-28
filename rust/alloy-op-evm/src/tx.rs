@@ -118,6 +118,16 @@ impl revm::context::Transaction for OpTx {
     }
 }
 
+impl revm::handler::SystemCallTx for OpTx {
+    fn new_system_tx_with_caller(
+        caller: Address,
+        system_contract_address: Address,
+        data: Bytes,
+    ) -> Self {
+        Self(OpTransaction::new_system_tx_with_caller(caller, system_contract_address, data))
+    }
+}
+
 impl op_revm::transaction::OpTxTr for OpTx {
     fn enveloped_tx(&self) -> Option<&Bytes> {
         self.0.enveloped_tx()

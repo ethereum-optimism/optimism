@@ -151,7 +151,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 		return l2Unsafe.Number > 0 && l2Unsafe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
 
-	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 30)
 
 	// Pick reorg block
 	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
@@ -159,10 +159,13 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 
 	// Make few more unsafe blocks which will be reorged out
 	sys.L2EL.Advanced(eth.Unsafe, 4)
-	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 30)
 
 	// Stop Verifier CL
 	sys.L2CLB.Stop()
+	// Capture verifier's frozen unsafe head to use as a lower bound for what
+	// the sequencer must exceed after the reorg.
+	verUnsafeFrozen := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 
 	// Reorg L1 block which unsafe block L1 Origin points to
 	l1BlockBeforeReorg := sys.L1EL.BlockRefByNumber(l2BlockBeforeReorg.L1Origin.Number)
@@ -187,6 +190,12 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	l2BlockAfterReorg := sys.L2EL.BlockRefByNumber(l2BlockBeforeReorg.Number)
 	require.NotEqual(l2BlockAfterReorg.Hash, l2BlockBeforeReorg.Hash)
 	logger.Info("Triggered L2 reorg", "l2", l2BlockAfterReorg)
+
+	// Wait for the sequencer to strictly exceed the verifier's frozen height
+	// before asserting seq > ver — ReorgTriggered only guarantees the block at
+	// l2BlockBeforeReorg.Number has been rewritten, not that the sequencer has
+	// rebuilt past the verifier.
+	sys.L2EL.Reached(eth.Unsafe, verUnsafeFrozen.Number+1, 30)
 
 	// Check the divergence before restarting verifier L2CLB
 	verUnsafe := sys.L2ELB.BlockRefByLabel(eth.Unsafe)

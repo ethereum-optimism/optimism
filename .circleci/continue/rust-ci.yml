@@ -130,18 +130,6 @@ commands:
             done
             sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
 
-  install-cargo-binstall:
-    description: "Install cargo-binstall for fast binary installations"
-    steps:
-      - run:
-          name: Install cargo-binstall
-          command: |
-            if command -v cargo-binstall >/dev/null 2>&1; then
-              echo "cargo-binstall already installed"
-              exit 0
-            fi
-            curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-
   rust-setup-env:
     description: "Fix rust mise environment variables"
     steps:
@@ -447,11 +435,6 @@ jobs:
       - rust-prepare-and-restore-cache: &deny-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-deny
-          command: |
-            command -v cargo-deny >/dev/null || cargo binstall --no-confirm cargo-deny
       - run:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
@@ -477,12 +460,6 @@ jobs:
       - rust-prepare-and-restore-cache: &zepter-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
-      - install-cargo-binstall
-      - run:
-          name: Install zepter
-          command: |
-            command -v zepter >/dev/null || cargo binstall --no-confirm zepter
-            zepter --version
       - run:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
@@ -504,11 +481,6 @@ jobs:
       - rust-prepare-and-restore-cache: &typos-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
-      - install-cargo-binstall
-      - run:
-          name: Install typos-cli
-          command: |
-            command -v typos >/dev/null || cargo binstall --no-confirm typos-cli
       - run:
           name: Check for typos
           working_directory: <<parameters.directory>>
@@ -577,10 +549,10 @@ jobs:
       command:
         description: "Doc test command to run"
         type: string
-        default: "cargo test --workspace --doc"
+        default: "just test-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -622,11 +594,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
-      - install-cargo-binstall
-      - run:
-          name: Install nextest
-          command: |
-            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
@@ -654,11 +621,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-udeps
           profile: "release"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-udeps
-          command: |
-            command -v cargo-udeps >/dev/null || cargo binstall --no-confirm cargo-udeps
       - run:
           name: Check unused dependencies
           working_directory: <<parameters.directory>>
@@ -688,11 +650,6 @@ jobs:
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -718,11 +675,6 @@ jobs:
           directory: rust
           prefix: rust-hack
           features: "all"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-hack
-          command: |
-            command -v cargo-hack >/dev/null || cargo binstall --no-confirm cargo-hack
       - run:
           name: Run cargo hack
           working_directory: rust
@@ -794,11 +746,6 @@ jobs:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
       - rust-prepare
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-llvm-cov
-          command: |
-            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
       - run:
           name: Build cannon
           command: |
@@ -891,12 +838,6 @@ jobs:
           directory: rust
           prefix: kona-coverage
           version: "1"
-      - install-cargo-binstall
-      - run:
-          name: Install cargo-llvm-cov and nextest
-          command: |
-            command -v cargo-llvm-cov >/dev/null || cargo binstall --no-confirm cargo-llvm-cov
-            command -v cargo-nextest >/dev/null || cargo binstall --locked --no-confirm cargo-nextest
       - run:
           name: Generate lockfile if needed
           working_directory: rust
@@ -922,11 +863,6 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - run:
-          name: Install lychee
-          command: |
-            curl -sSfL https://github.com/lycheeverse/lychee/releases/download/v0.15.1/lychee-v0.15.1-x86_64-unknown-linux-gnu.tar.gz | tar xz
-            sudo mv lychee /usr/local/bin/
       - run:
           name: Check links
           working_directory: rust/kona
@@ -1051,7 +987,6 @@ workflows:
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
-          command: "cargo test --doc --workspace --all-features"
           context: *rust-ci-context
 
       - rust-ci-docs:

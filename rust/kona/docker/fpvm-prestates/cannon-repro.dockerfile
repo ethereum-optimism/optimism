@@ -33,6 +33,10 @@ COPY --from=custom_configs / /usr/local/kona-custom-configs
 # Copy kona source from build context
 COPY . /kona
 
+# Pull in the NUT bundle JSONs from the monorepo context so the kona-hardforks
+# build.rs ancestor walk finds op-core/ as a parent of the crate directory.
+COPY --from=monorepo op-core/nuts/bundles /kona/op-core/nuts/bundles
+
 ENV KONA_CUSTOM_CONFIGS=$KONA_CUSTOM_CONFIGS
 ENV KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs
 

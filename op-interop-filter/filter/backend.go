@@ -152,6 +152,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 
 	if !b.Ready() {
 		b.metrics.RecordCheckAccessList(false)
+		b.log.Debug("Backend not ready; rejecting access list check")
 		return types.ErrUninitialized
 	}
 

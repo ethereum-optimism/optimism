@@ -19,7 +19,6 @@
           "isthmus_time": 1746806401,
           "jovian_time": 1764691201
         },
-        "protocol_versions_addr": "0xdedaddeaddeaddeaddeaddeaddeaddeaddeadded",
         "superchain_config_addr": "0xdedaddeaddeaddeaddeaddeaddeaddeaddeadded",
         "op_contracts_manager_proxy_addr": null
       },

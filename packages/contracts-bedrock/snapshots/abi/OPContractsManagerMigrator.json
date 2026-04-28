@@ -107,12 +107,32 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_CustomGasTokenNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_EthLockboxFeatureNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InteropFeatureNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InteropNotEnabled",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_NoChains",
     "type": "error"
   },
   {

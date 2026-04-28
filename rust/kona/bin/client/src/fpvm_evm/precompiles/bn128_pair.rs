@@ -4,7 +4,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use revm::precompile::{
-    PrecompileError, PrecompileOutput, PrecompileResult,
+    EthPrecompileOutput, EthPrecompileResult, PrecompileHalt,
     bn254::{
         PAIR_ELEMENT_LEN,
         pair::{self, ISTANBUL_PAIR_BASE, ISTANBUL_PAIR_PER_POINT},
@@ -13,6 +13,7 @@ use revm::precompile::{
 
 const BN256_MAX_PAIRING_SIZE_GRANITE: usize = 112_687;
 const BN256_MAX_PAIRING_SIZE_JOVIAN: usize = 81_984;
+const BN256_MAX_PAIRING_SIZE_KARST: usize = 57_600;
 
 /// Runs the FPVM-accelerated `ecpairing` precompile call.
 pub(crate) fn fpvm_bn128_pair<H, O>(
@@ -20,7 +21,7 @@ pub(crate) fn fpvm_bn128_pair<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
@@ -29,11 +30,11 @@ where
         (input.len() / PAIR_ELEMENT_LEN) as u64 * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE;
 
     if gas_used > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     if !input.len().is_multiple_of(PAIR_ELEMENT_LEN) {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     let precompile = pair::ISTANBUL;
@@ -43,9 +44,9 @@ where
         oracle_reader,
         &[precompile.address().as_slice(), &gas_used.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(gas_used, result_data.into()))
+    Ok(EthPrecompileOutput::new(gas_used, result_data.into()))
 }
 
 /// Runs the FPVM-accelerated `ecpairing` precompile call, with the input size limited by the
@@ -55,13 +56,13 @@ pub(crate) fn fpvm_bn128_pair_granite<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BN256_MAX_PAIRING_SIZE_GRANITE {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     fpvm_bn128_pair(input, gas_limit, hint_writer, oracle_reader)
@@ -74,13 +75,32 @@ pub(crate) fn fpvm_bn128_pair_jovian<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BN256_MAX_PAIRING_SIZE_JOVIAN {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
+    }
+
+    fpvm_bn128_pair(input, gas_limit, hint_writer, oracle_reader)
+}
+
+/// Runs the FPVM-accelerated `ecpairing` precompile call, with the input size limited by the
+/// Karst hardfork.
+pub(crate) fn fpvm_bn128_pair_karst<H, O>(
+    input: &[u8],
+    gas_limit: u64,
+    hint_writer: &H,
+    oracle_reader: &O,
+) -> EthPrecompileResult
+where
+    H: HintWriterClient + Send + Sync,
+    O: PreimageOracleClient + Send + Sync,
+{
+    if input.len() > BN256_MAX_PAIRING_SIZE_KARST {
+        return Err(PrecompileHalt::Bn254PairLength);
     }
 
     fpvm_bn128_pair(input, gas_limit, hint_writer, oracle_reader)
@@ -140,7 +160,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair(&input, 0, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }
@@ -152,7 +172,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }
@@ -168,7 +188,7 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair_granite(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }
@@ -200,7 +220,39 @@ mod test {
             let accelerated_result =
                 fpvm_bn128_pair_jovian(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
 
-            assert!(matches!(accelerated_result, PrecompileError::Bn254PairLength));
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_karst() {
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            let granite_result =
+                fpvm_bn128_pair_granite(TEST_INPUT.as_ref(), u64::MAX, hint_writer, oracle_reader)
+                    .unwrap();
+            let karst_result =
+                fpvm_bn128_pair_karst(TEST_INPUT.as_ref(), u64::MAX, hint_writer, oracle_reader)
+                    .unwrap();
+
+            assert_eq!(granite_result.bytes, karst_result.bytes);
+            assert_eq!(granite_result.gas_used, karst_result.gas_used);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_bad_input_len_karst() {
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            // Calculate the next aligned size (multiple of PAIR_ELEMENT_LEN) that exceeds
+            // BN256_MAX_PAIRING_SIZE_KARST
+            const INPUT_SIZE: usize =
+                ((BN256_MAX_PAIRING_SIZE_KARST / PAIR_ELEMENT_LEN) + 1) * PAIR_ELEMENT_LEN;
+            let input = [0u8; INPUT_SIZE];
+            let accelerated_result =
+                fpvm_bn128_pair_karst(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
+
+            assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
     }

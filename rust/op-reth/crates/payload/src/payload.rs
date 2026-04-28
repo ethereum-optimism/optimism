@@ -82,8 +82,16 @@ impl reth_payload_primitives::ExecutionPayload for OpExecData {
         self.0.payload.as_v1().gas_used
     }
 
+    fn gas_limit(&self) -> u64 {
+        self.0.payload.as_v1().gas_limit
+    }
+
     fn transaction_count(&self) -> usize {
         self.0.payload.as_v1().transactions.len()
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -135,6 +143,10 @@ impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
 
     fn parent_beacon_block_root(&self) -> Option<B256> {
         self.0.payload_attributes.parent_beacon_block_root
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -228,6 +240,10 @@ impl<T: Decodable2718 + Send + Sync + Debug + Clone + Unpin + 'static>
 
     fn parent_beacon_block_root(&self) -> Option<B256> {
         self.parent_beacon_block_root
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 

@@ -369,7 +369,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset)), // TODO(#19102): add support for L2CM
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset)),
 		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
@@ -387,7 +387,6 @@ func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
 // devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on whether Interop should be
 // enabled or not.
 func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
-	// TODO(#19102): add support for L2CM
 	var bitmap common.Hash
 	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)

@@ -35,10 +35,12 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -606,22 +608,41 @@ contract DeployImplementations is Script {
         opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
 
+        IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
+            DeployUtils.createDeterministic({
+                _name: "StandardValidatorUtils.sol:StandardValidatorUtils",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IStandardValidatorUtils.__constructor__, ())),
+                _salt: _salt
+            })
+        );
+
+        IOPContractsManagerMigrationValidator migrationValidatorImpl = IOPContractsManagerMigrationValidator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerMigrationValidator.sol:OPContractsManagerMigrationValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerMigrationValidator.__constructor__, ())
+                ),
+                _salt: _salt
+            })
+        );
+
+        bytes memory standardValidatorCtorCall = abi.encodeCall(
+            IOPContractsManagerStandardValidator.__constructor__,
+            (
+                standardValidatorUtils,
+                migrationValidatorImpl,
+                opcmImplementations,
+                _input.superchainConfigProxy,
+                _input.l1ProxyAdminOwner,
+                _input.challenger,
+                _input.withdrawalDelaySeconds,
+                _input.devFeatureBitmap
+            )
+        );
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManagerStandardValidator.__constructor__,
-                        (
-                            opcmImplementations,
-                            _input.superchainConfigProxy,
-                            _input.l1ProxyAdminOwner,
-                            _input.challenger,
-                            _input.withdrawalDelaySeconds,
-                            _input.devFeatureBitmap
-                        )
-                    )
-                ),
+                _args: DeployUtils.encodeConstructor(standardValidatorCtorCall),
                 _salt: _salt
             })
         );

@@ -230,25 +230,6 @@ func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 	}
 }
 
-func WithCannonKonaGameTypeAdded() Option {
-	return option{
-		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
-		},
-	}
-}
-
-func WithChallengerCannonKonaEnabled() Option {
-	return option{
-		kinds: optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-		},
-	}
-}
-
 func WithTimeTravelEnabled() Option {
 	return option{
 		kinds: optionKindTimeTravel,
@@ -320,6 +301,28 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.InteropLogBackfillDepth = d
+		},
+	}
+}
+
+// WithPreGenesisSuperGame seeds one invalid super dispute game before the
+// rollup start block so tests can exercise supernode/challenger behaviour
+// when a game's L1 head predates rollup genesis. The claimed outputs follow
+// the preset chain order (`l2a`, `l2b` for two-chain presets).
+func WithPreGenesisSuperGame(claimedOutputs ...eth.Bytes32) Option {
+	var kinds optionKinds
+	if len(claimedOutputs) > 0 {
+		kinds = optionKindPreGenesisSuperGame
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if len(claimedOutputs) == 0 {
+				return
+			}
+			cfg.PreGenesisSuperGame = &sysgo.PreGenesisSuperGameConfig{
+				ClaimedOutputs: append([]eth.Bytes32(nil), claimedOutputs...),
+			}
 		},
 	}
 }

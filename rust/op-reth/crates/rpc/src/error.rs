@@ -188,6 +188,7 @@ where
             EVMError::Database(err) => Self::Eth(err.into()),
             EVMError::Header(err) => Self::Eth(err.into()),
             EVMError::Custom(err) => Self::Eth(EthApiError::EvmCustom(err)),
+            EVMError::CustomAny(err) => Self::Eth(EthApiError::EvmCustom(format!("{err:?}"))),
         }
     }
 }

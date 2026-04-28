@@ -170,10 +170,13 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
 	if !hasBlocks {
-		// The main loop starts at runtimeActivationTimestamp (which may have been
-		// advanced past the protocol activation by backfill). If the DB is empty,
+		// The main loop starts at firstVerifiableTimestamp. If the DB is empty,
 		// this is the only timestamp the main loop would legitimately seal first.
-		if ts == i.runtimeActivationTimestamp {
+		firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+		if err != nil {
+			return eth.BlockID{}, hasBlocks, err
+		}
+		if ts == firstVerifiable {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		// Backfill's first block is TargetBlockNumber(T_lo), which floors the

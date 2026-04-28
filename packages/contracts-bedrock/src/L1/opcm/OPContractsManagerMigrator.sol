@@ -45,8 +45,20 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when attempting to migrate a CGT chain.
+    error OPContractsManagerMigrator_CustomGasTokenNotSupported();
+
+    /// @notice Thrown when the chainSystemConfigs array is empty.
+    error OPContractsManagerMigrator_NoChains();
+
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
+
+    /// @notice Thrown when a chain's SystemConfig does not have Features.INTEROP enabled.
+    error OPContractsManagerMigrator_InteropFeatureNotEnabled();
+
+    /// @notice Thrown when a chain's SystemConfig does not have Features.ETH_LOCKBOX enabled.
+    error OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
 
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
@@ -75,14 +87,21 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///      upgraded to the current OPCM release version before calling migrate.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
+        // Check that at least one chain is being migrated.
+        if (_input.chainSystemConfigs.length == 0) {
+            revert OPContractsManagerMigrator_NoChains();
+        }
+
         // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
 
         // Check that the starting respected game type is a valid super game type.
+        // TODO(#20030): Remove SUPER_CANNON — only allow SUPER_CANNON_KONA and SUPER_PERMISSIONED_CANNON.
         if (
             _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
+                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
                 && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
@@ -238,6 +257,20 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     )
         internal
     {
+        // CGT chains must not be migrated — prevents incorrect pooling into shared ETHLockbox.
+        if (_systemConfig.isCustomGasToken()) {
+            revert OPContractsManagerMigrator_CustomGasTokenNotSupported();
+        }
+
+        // Verify INTEROP is already enabled (set by OPCMv2.upgrade()).
+        // migrateToSharedDisputeGame requires both INTEROP and ETH_LOCKBOX.
+        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            revert OPContractsManagerMigrator_InteropFeatureNotEnabled();
+        }
+        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            revert OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
+        }
+
         // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
         IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
         IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
@@ -272,10 +305,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-        // NOTE: This requires the portal to already be upgraded to the interop version
-        // (OptimismPortal2). And it requires the feature flag for INTEROP to be enabled
-        // If the portal is not on the interop version, this call will
-        // fail.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
 

@@ -186,10 +186,14 @@ where
         {
             upgrade_transactions.append(&mut Hardforks::JOVIAN.txs().collect());
         }
+        // Starting with Karst, upgrade transactions carry their own gas budget that is
+        // added to the block gas limit at the fork activation block.
+        let mut upgrade_gas: u64 = 0;
         if self.rollup_cfg.is_karst_active(next_l2_time) &&
             !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
+            upgrade_gas += Hardforks::KARST.upgrade_gas();
         }
         if self.rollup_cfg.is_interop_active(next_l2_time) &&
             !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
@@ -249,9 +253,10 @@ where
             },
             transactions: Some(txs),
             no_tx_pool: Some(true),
-            gas_limit: Some(u64::from_be_bytes(
-                alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes(),
-            )),
+            gas_limit: Some(
+                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
+                    upgrade_gas,
+            ),
             eip_1559_params: sys_config.eip_1559_params(
                 &self.rollup_cfg,
                 l2_parent.block_info.timestamp,

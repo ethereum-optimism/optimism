@@ -9,6 +9,154 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func validBaseChainIntent() *ChainIntent {
+	return &ChainIntent{
+		ID: common.HexToHash("0x01"),
+		Roles: ChainRoles{
+			L1ProxyAdminOwner: common.HexToAddress("0x01"),
+			L2ProxyAdminOwner: common.HexToAddress("0x02"),
+			SystemConfigOwner: common.HexToAddress("0x03"),
+			UnsafeBlockSigner: common.HexToAddress("0x04"),
+			Batcher:           common.HexToAddress("0x05"),
+			Proposer:          common.HexToAddress("0x06"),
+			Challenger:        common.HexToAddress("0x07"),
+		},
+		Eip1559DenominatorCanyon:   5000,
+		Eip1559Denominator:         5000,
+		Eip1559Elasticity:          5000,
+		GasLimit:                   30_000_000,
+		BaseFeeVaultRecipient:      common.HexToAddress("0x08"),
+		L1FeeVaultRecipient:        common.HexToAddress("0x09"),
+		SequencerFeeVaultRecipient: common.HexToAddress("0x0A"),
+		OperatorFeeVaultRecipient:  common.HexToAddress("0x0B"),
+	}
+}
+
+func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
+	verifier := common.HexToAddress("0xabc")
+	prestate := common.HexToHash("0xdef")
+
+	tests := []struct {
+		name      string
+		game      AdditionalDisputeGame
+		expectErr error
+	}{
+		{
+			name: "valid ZK game passes",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: nil,
+		},
+		{
+			name: "nil ZKDisputeGame params fails",
+			game: AdditionalDisputeGame{
+				VMType:        VMTypeZK,
+				ZKDisputeGame: nil,
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero Verifier address fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:         common.Address{},
+					AbsolutePrestate: prestate,
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero AbsolutePrestate fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:         verifier,
+					AbsolutePrestate: common.Hash{},
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero MaxChallengeDuration fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 0,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero MaxProveDuration fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     0,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "nil ChallengerBond fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       nil,
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			name: "zero ChallengerBond fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					Verifier:             verifier,
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(0)),
+				},
+			},
+			expectErr: ErrZKDisputeGameMissingParams,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaseChainIntent()
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{tt.game}
+			err := c.Check()
+			if tt.expectErr != nil {
+				require.ErrorIs(t, err, tt.expectErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetInitialLiquidity(t *testing.T) {
 	tests := []struct {
 		name     string

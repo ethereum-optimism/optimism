@@ -199,6 +199,29 @@ func migrateSuperRoots(
 	superrootTime uint64,
 	primaryL2 eth.ChainID,
 ) common.Address {
+	return migrateSuperRootsWithProposal(
+		t,
+		keys,
+		migration,
+		l1ChainID,
+		l1EL,
+		Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
+		},
+		primaryL2,
+	)
+}
+
+func migrateSuperRootsWithProposal(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	startingAnchorRoot Proposal,
+	primaryL2 eth.ChainID,
+) common.Address {
 	require := t.Require()
 	require.NotNil(migration, "interop migration state is required")
 	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
@@ -261,18 +284,14 @@ func migrateSuperRoots(
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},
 		},
-		StartingAnchorRoot: Proposal{
-			Root:             common.Hash(superRoot),
-			L2SequenceNumber: big.NewInt(int64(superrootTime)),
-		},
+		StartingAnchorRoot:        startingAnchorRoot,
 		StartingRespectedGameType: superCannonGameType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)
 	migrateCallData, err := migrateCall.Pack()
 	require.NoError(err)
 
-	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "must have configured L1 proxy admin owner")
+	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	t.Log("Executing OPCM migration via SetCode delegatecall")
 	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, migrateCallData)

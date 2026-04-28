@@ -50,8 +50,8 @@ contract PreimageOracle is ISemver {
     uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.1.4
-    string public constant version = "1.1.4";
+    /// @custom:semver 1.1.5
+    string public constant version = "1.1.5";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -98,7 +98,7 @@ contract PreimageOracle is ISemver {
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
     /// @notice Mapping of claimants to proposal UUIDs to bond amounts.
     mapping(address => mapping(uint256 => uint256)) public proposalBonds;
-    /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
+    /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorption process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
     /// @notice Mapping of claimants to proposal UUIDs to blocks which leaves were added to the merkle tree.
     mapping(address => mapping(uint256 => uint64[])) public proposalBlocks;
@@ -318,7 +318,7 @@ contract PreimageOracle is ISemver {
             // Compute the versioned hash. The SHA2 hash of the 48 byte commitment is masked with the version byte,
             // which is currently 1. https://eips.ethereum.org/EIPS/eip-4844#parameters
             // SAFETY: We're only reading 48 bytes from `_commitment` into scratch space, so we're not reading into the
-            //         free memory ptr region. Since the exact number of btyes that is copied into scratch space is
+            //         free memory ptr region. Since the exact number of bytes that is copied into scratch space is
             //         the same size as the hash input, there's no concern of dirty memory being read into the hash
             //         input.
             calldatacopy(0x00, _commitment.offset, 0x30)
@@ -379,7 +379,7 @@ contract PreimageOracle is ISemver {
             // since memory at end is guaranteed to be clean.
             part := mload(add(ptr, _partOffset))
 
-            // Compute the key: `keccak256(commitment ++ z)`. Since the exact number of btyes that is copied into
+            // Compute the key: `keccak256(commitment ++ z)`. Since the exact number of bytes that is copied into
             // scratch space is the same size as the hash input, there's no concern of dirty memory being read into
             // the hash input.
             calldatacopy(ptr, _commitment.offset, 0x30)
@@ -426,7 +426,7 @@ contract PreimageOracle is ISemver {
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
             // Check if the precompile call has at least the required gas.
-            // This assumes there are no further memory expansion costs until after the staticall on the precompile
+            // This assumes there are no further memory expansion costs until after the staticcall on the precompile
             // Also assumes that the gas expended in setting up the staticcall is less than PRECOMPILE_CALL_RESERVED_GAS
             // require(gas() >= (requiredGas * 64 / 63) + reservedGas)
             if lt(mul(gas(), 63), add(mul(_requiredGas, 64), mul(PRECOMPILE_CALL_RESERVED_GAS, 63))) {
@@ -436,7 +436,7 @@ contract PreimageOracle is ISemver {
             }
 
             // Call the precompile to get the result.
-            // SAFETY: Given the above gas check, the staticall cannot fail due to insufficient gas.
+            // SAFETY: Given the above gas check, the staticcall cannot fail due to insufficient gas.
             res :=
                 staticcall(
                     gas(), // forward all gas
@@ -456,7 +456,7 @@ contract PreimageOracle is ISemver {
                 revert(0x1c, 4)
             }
 
-            // Reuse the `ptr` to store the preimage part: <sizePrefix ++ precompileStatus ++ returrnData>
+            // Reuse the `ptr` to store the preimage part: <sizePrefix ++ precompileStatus ++ returnData>
             // put size as big-endian uint64 at start of pre-image
             mstore(ptr, shl(192, size))
             ptr := add(ptr, 0x08)
@@ -466,7 +466,7 @@ contract PreimageOracle is ISemver {
             // write precompile return data to the rest of `ptr`
             returndatacopy(add(ptr, 0x01), 0x0, returndatasize())
 
-            // compute part given ofset
+            // compute part given offset
             part := mload(add(sub(ptr, 0x08), _partOffset))
         }
         preimagePartOk[key][_partOffset] = true;
@@ -639,7 +639,7 @@ contract PreimageOracle is ISemver {
             if (metaData.bytesProcessed() != metaData.claimedSize()) revert InvalidInputSize();
         }
 
-        // Perist the latest branch to storage.
+        // Persist the latest branch to storage.
         proposalBranches[msg.sender][_uuid] = branch;
         // Persist the block number that these leaves were added in. This assists off-chain observers in reconstructing
         // the proposal merkle tree by querying block bodies.
