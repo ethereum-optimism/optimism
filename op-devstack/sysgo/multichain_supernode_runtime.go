@@ -155,13 +155,13 @@ func startSupernodeELWithInteropURL(
 	}
 }
 
-func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -189,7 +189,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	}
 
 	var interopActivationTimestamp *uint64
-	if interopAtGenesis {
+	if lagoonAtGenesis {
 		ts := l2Net.rollupCfg.Genesis.L2Time
 		interopActivationTimestamp = &ts
 	}
@@ -457,9 +457,9 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 				// pre-interop state. This matches the supernode's
 				// InteropActivationTimestamp and allows testing the fork transition.
 				l2Cfg.WithForkAtGenesis(opforks.Karst)
-				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
 			} else {
-				l2Cfg.WithForkAtGenesis(opforks.Interop)
+				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 			}
 		}
 	}

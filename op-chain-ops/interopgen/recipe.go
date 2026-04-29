@@ -121,9 +121,9 @@ func (r *InteropDevRecipe) hydrated() InteropDevRecipe {
 const defaultBlockTime = 2
 
 type InteropDevL2Recipe struct {
-	ChainID       uint64
-	BlockTime     uint64
-	InteropOffset uint64
+	ChainID      uint64
+	BlockTime    uint64
+	LagoonOffset uint64
 	// TODO(#20084): remove alongside L2Config.UseL2CM.
 	UseL2CM bool
 }
@@ -270,7 +270,7 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisIsthmusTimeOffset:  new(hexutil.Uint64),
 				L2GenesisJovianTimeOffset:   new(hexutil.Uint64),
 				L2GenesisKarstTimeOffset:    new(hexutil.Uint64),
-				L2GenesisInteropTimeOffset:  (*hexutil.Uint64)(&r.InteropOffset),
+				L2GenesisLagoonTimeOffset:   (*hexutil.Uint64)(&r.LagoonOffset),
 				L1CancunTimeOffset:          new(hexutil.Uint64),
 				L1PragueTimeOffset:          new(hexutil.Uint64),
 			},

@@ -35,7 +35,7 @@ where
     /// The L1 receipts fetcher.
     receipts_fetcher: L1P,
     /// Optional interop dependency set. Required when interop is scheduled for the
-    /// chain (`rollup_cfg.hardforks.interop_time.is_some()`); ignored otherwise.
+    /// chain (`rollup_cfg.hardforks.lagoon_time.is_some()`); ignored otherwise.
     dependency_set: Option<Arc<DependencySet>>,
 }
 
@@ -48,7 +48,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if `rcfg.hardforks.interop_time.is_some() && dependency_set.is_none()`.
+    /// Panics if `rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()`.
     /// A chain that has interop scheduled must have a dependency set provided,
     /// otherwise the builder would silently diverge from op-node on interop
     /// activation (emitting different number of upgrade transactions, or the wrong
@@ -61,11 +61,11 @@ where
         dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         assert!(
-            !(rcfg.hardforks.interop_time.is_some() && dependency_set.is_none()),
+            !(rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()),
             "StatefulAttributesBuilder: interop is scheduled for this chain \
-             (interop_time = {:?}) but no DependencySet was provided. \
+             (lagoon_time = {:?}) but no DependencySet was provided. \
              This would silently diverge from op-node on interop activation.",
-            rcfg.hardforks.interop_time,
+            rcfg.hardforks.lagoon_time,
         );
         Self {
             rollup_cfg: rcfg,
@@ -164,39 +164,39 @@ where
         }
 
         let mut upgrade_transactions: Vec<Bytes> =
-            if self.rollup_cfg.is_ecotone_active(next_l2_time) &&
-                !self.rollup_cfg.is_ecotone_active(l2_parent.block_info.timestamp)
+            if self.rollup_cfg.is_ecotone_active(next_l2_time)
+                && !self.rollup_cfg.is_ecotone_active(l2_parent.block_info.timestamp)
             {
                 Hardforks::ECOTONE.txs().collect()
             } else {
                 vec![]
             };
-        if self.rollup_cfg.is_fjord_active(next_l2_time) &&
-            !self.rollup_cfg.is_fjord_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_fjord_active(next_l2_time)
+            && !self.rollup_cfg.is_fjord_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::FJORD.txs().collect());
         }
-        if self.rollup_cfg.is_isthmus_active(next_l2_time) &&
-            !self.rollup_cfg.is_isthmus_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_isthmus_active(next_l2_time)
+            && !self.rollup_cfg.is_isthmus_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::ISTHMUS.txs().collect());
         }
-        if self.rollup_cfg.is_jovian_active(next_l2_time) &&
-            !self.rollup_cfg.is_jovian_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_jovian_active(next_l2_time)
+            && !self.rollup_cfg.is_jovian_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::JOVIAN.txs().collect());
         }
         // Starting with Karst, upgrade transactions carry their own gas budget that is
         // added to the block gas limit at the fork activation block.
         let mut upgrade_gas: u64 = 0;
-        if self.rollup_cfg.is_karst_active(next_l2_time) &&
-            !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_karst_active(next_l2_time)
+            && !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
             upgrade_gas += Hardforks::KARST.upgrade_gas();
         }
-        if self.rollup_cfg.is_interop_active(next_l2_time) &&
-            !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_interop_active(next_l2_time)
+            && !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
             // The Interop NUT bundle executes on all chains. The setFeature and
             // ETHLiquidity funding wrappers only execute for chains in a multi-chain
@@ -204,16 +204,16 @@ where
             // Interop-specific contracts. Matches op-node's gate at
             // op-node/rollup/derive/attributes.go.
             // `dependency_set` is guaranteed Some(_) here because the constructor
-            // panics when interop_time.is_some() && dependency_set.is_none().
+            // panics when lagoon_time.is_some() && dependency_set.is_none().
             let dependency_set = self.dependency_set.as_ref().expect(
                 "dependency_set must be Some when interop is active — constructor invariant",
             );
             let activate_interop_contracts = dependency_set.dependencies.len() > 1;
             upgrade_transactions.append(
-                &mut Hardforks::INTEROP.txs_for_activation(activate_interop_contracts).collect(),
+                &mut Hardforks::LAGOON.txs_for_activation(activate_interop_contracts).collect(),
             );
             upgrade_gas +=
-                Hardforks::INTEROP.upgrade_gas_for_activation(activate_interop_contracts);
+                Hardforks::LAGOON.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
@@ -256,8 +256,8 @@ where
             transactions: Some(txs),
             no_tx_pool: Some(true),
             gas_limit: Some(
-                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
-                    upgrade_gas,
+                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes())
+                    + upgrade_gas,
             ),
             eip_1559_params: sys_config.eip_1559_params(
                 &self.rollup_cfg,
@@ -816,7 +816,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -867,7 +867,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -904,7 +904,7 @@ mod tests {
     #[should_panic(expected = "no DependencySet was provided")]
     fn test_stateful_builder_new_panics_when_interop_scheduled_without_dependency_set() {
         let cfg = Arc::new(RollupConfig {
-            hardforks: HardForkConfig { interop_time: Some(100), ..Default::default() },
+            hardforks: HardForkConfig { lagoon_time: Some(100), ..Default::default() },
             ..Default::default()
         });
         let l1_cfg = Arc::new(L1Config::sepolia().into());

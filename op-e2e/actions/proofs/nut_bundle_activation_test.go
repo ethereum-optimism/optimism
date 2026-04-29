@@ -137,7 +137,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	switch fork {
 	case forks.Karst:
 		assertKarstActivation(t, env, actHeader)
-	case forks.Interop:
+	case forks.Lagoon:
 		assertInteropActivation(t, env, actHeader)
 	}
 
@@ -156,7 +156,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// The activation transition itself is covered by
 	// TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests via
 	// kona-host super.
-	if fork == forks.Interop {
+	if fork == forks.Lagoon {
 		return
 	}
 

@@ -1,6 +1,6 @@
 //! Contains all hardforks represented in the [`crate::Hardfork`] type.
 
-use crate::{Ecotone, Fjord, Interop, Isthmus, Jovian, Karst};
+use crate::{Ecotone, Fjord, Isthmus, Jovian, Karst, Lagoon};
 
 /// Optimism Hardforks
 ///
@@ -34,7 +34,7 @@ use crate::{Ecotone, Fjord, Interop, Isthmus, Jovian, Karst};
 /// Build interop hardfork upgrade transactions:
 /// ```rust
 /// use kona_hardforks::{Hardfork, Hardforks};
-/// let interop_upgrade_tx = Hardforks::INTEROP.txs();
+/// let interop_upgrade_tx = Hardforks::LAGOON.txs();
 /// assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 30);
 /// ```
 #[derive(Debug, Default, Clone, Copy)]
@@ -57,8 +57,8 @@ impl Hardforks {
     /// The Karst hardfork upgrade transactions.
     pub const KARST: Karst = Karst;
 
-    /// The Interop hardfork upgrade transactions.
-    pub const INTEROP: Interop = Interop;
+    /// The Lagoon hardfork upgrade transactions.
+    pub const LAGOON: Lagoon = Lagoon;
 }
 
 #[cfg(test)]
@@ -84,7 +84,7 @@ mod tests {
         let karst_upgrade_tx = Hardforks::KARST.txs();
         assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 31);
 
-        let interop_upgrade_tx = Hardforks::INTEROP.txs();
+        let interop_upgrade_tx = Hardforks::LAGOON.txs();
         assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 30);
     }
 }

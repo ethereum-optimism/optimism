@@ -359,8 +359,8 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset), cfg.UseL2CM),
-		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset), cfg.UseL2CM),
+		UseInterop:                               multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -368,9 +368,9 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 	return nil
 }
 
-// interopAtGenesis returns true if the Interop fork is scheduled to activate at genesis.
+// lagoonAtGenesis returns true if the Lagoon fork is scheduled to activate at genesis.
 // Using a nil offset means Interop is not scheduled at all.
-func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
+func lagoonAtGenesis(interopOffset *hexutil.Uint64) bool {
 	return interopOffset != nil && *interopOffset == 0
 }
 

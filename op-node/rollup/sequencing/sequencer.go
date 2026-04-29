@@ -638,10 +638,10 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Karst upgrade block")
 	}
 
-	// For the Interop activation block we must not include any sequencer transactions.
+	// For the Lagoon activation block we must not include any sequencer transactions.
 	if d.rollupCfg.IsInteropActivationBlock(uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true
-		d.log.Info("Sequencing Interop upgrade block")
+		d.log.Info("Sequencing Lagoon upgrade block")
 	}
 
 	if recoverMode {

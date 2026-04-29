@@ -105,7 +105,7 @@ func TestJSONRollupConfigSetLoader_LoadRollupConfigSet(t *testing.T) {
 	require.False(t, configSet.IsInterop(eth.ChainIDFromUInt64(20), 2500))
 	require.True(t, configSet.IsInterop(eth.ChainIDFromUInt64(20), 3500))
 
-	// Test Interop activation block checks
+	// Test Lagoon activation block checks
 	require.False(t, configSet.IsInteropActivationBlock(eth.ChainIDFromUInt64(10), 1998))
 	require.True(t, configSet.IsInteropActivationBlock(eth.ChainIDFromUInt64(10), 2000))
 	require.False(t, configSet.IsInteropActivationBlock(eth.ChainIDFromUInt64(10), 2002))

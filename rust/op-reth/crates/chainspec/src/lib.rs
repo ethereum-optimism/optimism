@@ -208,10 +208,10 @@ impl OpChainSpecBuilder {
         self
     }
 
-    /// Enable Interop at genesis
+    /// Enable Lagoon at genesis
     pub fn interop_activated(mut self) -> Self {
         self = self.karst_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Interop, ForkCondition::Timestamp(0));
+        self.inner = self.inner.with_fork(OpHardfork::Lagoon, ForkCondition::Timestamp(0));
         self
     }
 
@@ -411,7 +411,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
             (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
             (OpHardfork::Karst.boxed(), genesis_info.karst_time),
-            (OpHardfork::Interop.boxed(), genesis_info.interop_time),
+            (OpHardfork::Lagoon.boxed(), genesis_info.lagoon_time),
         ];
 
         let mut time_hardforks = time_hardfork_opts
@@ -477,8 +477,8 @@ impl OpGenesisInfo {
             .unwrap_or_default(),
             ..Default::default()
         };
-        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info &&
-            let (Some(elasticity), Some(denominator)) = (
+        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info
+            && let (Some(elasticity), Some(denominator)) = (
                 optimism_base_fee_info.eip1559_elasticity,
                 optimism_base_fee_info.eip1559_denominator,
             )
@@ -515,9 +515,9 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 
     // If Isthmus is active, overwrite the withdrawals root with the storage root of predeploy
     // `L2ToL1MessagePasser.sol`
-    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp) &&
-        let Some(predeploy) = genesis.alloc.get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS) &&
-        let Some(storage) = &predeploy.storage
+    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp)
+        && let Some(predeploy) = genesis.alloc.get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS)
+        && let Some(storage) = &predeploy.storage
     {
         header.withdrawals_root = Some(storage_root_unhashed(storage.iter().filter_map(
             |(k, v)| {
@@ -1217,7 +1217,7 @@ mod tests {
             EthereumHardfork::Prague.boxed(),
             OpHardfork::Isthmus.boxed(),
             OpHardfork::Jovian.boxed(),
-            // OpHardfork::Interop.boxed(),
+            // OpHardfork::Lagoon.boxed(),
         ];
 
         for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {

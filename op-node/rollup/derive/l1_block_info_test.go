@@ -218,7 +218,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(forks.Isthmus)
 		jovianTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate jovian just after genesis
-		rollupCfg.InteropTime = &jovianTime
+		rollupCfg.LagoonTime = &jovianTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, jovianTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -242,7 +242,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
-		rollupCfg.ActivateAtGenesis(forks.Interop)
+		rollupCfg.ActivateAtGenesis(forks.Lagoon)
 		// run 1 block after interop transition
 		timestamp := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, timestamp)
@@ -257,7 +257,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(forks.Jovian)
 		interopTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate interop just after genesis
-		rollupCfg.InteropTime = &interopTime
+		rollupCfg.LagoonTime = &interopTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, interopTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -269,7 +269,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
-		rollupCfg.ActivateAtGenesis(forks.Interop)
+		rollupCfg.ActivateAtGenesis(forks.Lagoon)
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, rollupCfg.Genesis.L2Time)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)

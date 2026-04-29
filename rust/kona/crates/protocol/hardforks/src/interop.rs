@@ -29,11 +29,11 @@ const ETH_LIQUIDITY_FUND_AMOUNT: u128 = u128::MAX;
 /// `bytes32` representation of the INTEROP feature constant (right-padded ASCII).
 const INTEROP_FEATURE: [u8; 32] = *b"INTEROP\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
-/// The Interop hardfork.
+/// The Lagoon hardfork.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct Interop;
+pub struct Lagoon;
 
-impl Interop {
+impl Lagoon {
     /// Returns the pre-bundle `L1Block.setFeature(INTEROP)` deposit.
     fn set_feature_tx() -> TxDeposit {
         let selector = &keccak256(b"setFeature(bytes32)")[..4];
@@ -117,7 +117,7 @@ impl Interop {
     }
 }
 
-impl Hardfork for Interop {
+impl Hardfork for Lagoon {
     fn txs(&self) -> impl Iterator<Item = Bytes> + '_ {
         self.txs_for_activation(true)
     }
@@ -134,13 +134,13 @@ mod tests {
     #[test]
     fn deposits_have_correct_count() {
         // 1 setFeature + 28 bundle txs + 1 ETHLiquidity funding = 30
-        assert_eq!(Interop::deposits(true).len(), 30);
-        assert_eq!(Interop::deposits(false).len(), 28);
+        assert_eq!(Lagoon::deposits(true).len(), 30);
+        assert_eq!(Lagoon::deposits(false).len(), 28);
     }
 
     #[test]
     fn first_tx_is_set_feature() {
-        let deps = Interop::deposits(true);
+        let deps = Lagoon::deposits(true);
         assert_eq!(deps[0].to, TxKind::Call(Predeploys::L1_BLOCK_INFO));
         assert_eq!(deps[0].mint, 0);
         assert_eq!(deps[0].value, U256::ZERO);
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn last_tx_is_eth_liquidity_funding_with_max_mint_and_value() {
-        let deps = Interop::deposits(true);
+        let deps = Lagoon::deposits(true);
         let last = deps.last().unwrap();
         assert_eq!(last.to, TxKind::Call(Predeploys::ETH_LIQUIDITY));
         assert_eq!(last.mint, u128::MAX);
@@ -162,21 +162,22 @@ mod tests {
     #[test]
     fn upgrade_gas_sums_all_three_pieces() {
         let bundle_gas = interop_nut_bundle().total_gas();
-        let interop = Interop {};
-        let total = interop.upgrade_gas_for_activation(true);
+        let lagoon = Lagoon {};
+        let total = lagoon.upgrade_gas_for_activation(true);
         assert_eq!(total, SET_FEATURE_GAS + bundle_gas + ETH_LIQUIDITY_FUND_GAS);
-        assert_eq!(interop.upgrade_gas_for_activation(false), bundle_gas);
+        assert_eq!(lagoon.upgrade_gas_for_activation(false), bundle_gas);
     }
 
     #[test]
     fn first_bundle_tx_uses_qualified_intent() {
-        let deps = Interop::deposits(true);
+        let deps = Lagoon::deposits(true);
         // deps[0] = wrapper, deps[1] = first bundle tx
         // The build script generates the bundle with a capitalized fork name
         // ("interop" → "Interop"), so the qualified intent on the kona side is
-        // "Interop 0: ...". (Note: the op-node Go side uses lowercase
-        // forks.Interop. This pre-existing capitalization difference also
-        // applies to Karst.)
+        // "Interop 0: ...". This matches the hardcoded intent literals in
+        // op-node's interop_activation_transactions.go to preserve
+        // source_hash determinism. The bundle prefix stays concept-level
+        // "Interop" even though the fork was renamed to Lagoon.
         let expected_intent = "Interop 0: Deploy StorageSetter Implementation";
         let expected = UpgradeDepositSource { intent: String::from(expected_intent) }.source_hash();
         assert_eq!(deps[1].source_hash, expected);
