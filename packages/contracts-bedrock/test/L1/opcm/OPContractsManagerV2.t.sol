@@ -540,6 +540,26 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
     }
 
+    /// @notice Tests that upgrade does not perform one-off interop activation.
+    function test_upgrade_doesNotActivateInterop_succeeds() public {
+        bool interopEnabledBefore = systemConfig.isFeatureEnabled(Features.INTEROP);
+        bool lockboxEnabledBefore = systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        uint256 portalBalanceBefore = 1 ether;
+        vm.deal(address(optimismPortal2), portalBalanceBefore);
+
+        IETHLockbox lockboxBefore = optimismPortal2.ethLockbox();
+        uint256 lockboxBalanceBefore = address(lockboxBefore).balance;
+
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(systemConfig.isFeatureEnabled(Features.INTEROP), interopEnabledBefore, "INTEROP activation changed");
+        assertEq(
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), lockboxEnabledBefore, "ETH_LOCKBOX activation changed"
+        );
+        assertEq(address(optimismPortal2).balance, portalBalanceBefore, "portal liquidity migrated during upgrade");
+        assertEq(address(lockboxBefore).balance, lockboxBalanceBefore, "lockbox balance changed during upgrade");
+    }
+
     /// @notice Tests that the upgrade function reverts when not delegatecalled.
     function test_upgrade_notDelegateCalled_reverts() public {
         vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
@@ -2186,19 +2206,23 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function test_migrate_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
-        // Pre-migration setup: Get old lockboxes and fund them.
-        IETHLockbox oldLockbox1;
-        IETHLockbox oldLockbox2;
-        uint256 lockbox1Balance = 10 ether;
-        uint256 lockbox2Balance = 5 ether;
-        {
-            IOptimismPortal2 oldPortal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
-            IOptimismPortal2 oldPortal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
-            oldLockbox1 = oldPortal1.ethLockbox();
-            oldLockbox2 = oldPortal2.ethLockbox();
-            vm.deal(address(oldLockbox1), lockbox1Balance);
-            vm.deal(address(oldLockbox2), lockbox2Balance);
-        }
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+
+        assertFalse(chainContracts1.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 1 INTEROP starts enabled");
+        assertFalse(chainContracts2.systemConfig.isFeatureEnabled(Features.INTEROP), "Chain 2 INTEROP starts enabled");
+        assertFalse(
+            chainContracts1.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "Chain 1 ETH_LOCKBOX starts enabled"
+        );
+        assertFalse(
+            chainContracts2.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "Chain 2 ETH_LOCKBOX starts enabled"
+        );
+
+        // Pre-migration setup: fund the portals directly.
+        uint256 portal1Balance = 10 ether;
+        uint256 portal2Balance = 5 ether;
+        vm.deal(address(portal1), portal1Balance);
+        vm.deal(address(portal2), portal2Balance);
 
         // Pre-migration: Get old DisputeGameFactories.
         IDisputeGameFactory oldDGF1 = IDisputeGameFactory(payable(chainContracts1.systemConfig.disputeGameFactory()));
@@ -2210,10 +2234,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Assert that the old game implementations are now zeroed out.
         _assertOldGamesZeroed(oldDGF1);
         _assertOldGamesZeroed(oldDGF2);
-
-        // Grab the two OptimismPortal addresses.
-        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
-        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
 
         // Grab the AnchorStateRegistry from the OptimismPortal for both chains, confirm same.
         assertEq(
@@ -2266,18 +2286,80 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "SUPER_PERMISSIONED_CANNON init bond mismatch"
         );
 
-        // Check that liquidity was migrated from old lockboxes to the new shared lockbox.
-        assertEq(address(oldLockbox1).balance, 0, "Old lockbox 1 should have 0 balance after migration");
-        assertEq(address(oldLockbox2).balance, 0, "Old lockbox 2 should have 0 balance after migration");
+        // Check that portal liquidity was migrated directly to the new shared lockbox.
+        assertEq(address(portal1).balance, 0, "Portal 1 should have 0 balance after migration");
+        assertEq(address(portal2).balance, 0, "Portal 2 should have 0 balance after migration");
         assertEq(
             address(newLockbox).balance,
-            lockbox1Balance + lockbox2Balance,
-            "New lockbox should have combined balance from both old lockboxes"
+            portal1Balance + portal2Balance,
+            "New lockbox should have combined balance from both portals"
         );
+    }
 
-        // Check that the old lockboxes are authorized on the new lockbox.
-        assertTrue(newLockbox.authorizedLockboxes(oldLockbox1), "Old lockbox 1 should be authorized on new lockbox");
-        assertTrue(newLockbox.authorizedLockboxes(oldLockbox2), "Old lockbox 2 should be authorized on new lockbox");
+    /// @notice Tests that existing per-chain lockbox liquidity is swept into the shared lockbox.
+    function test_migrate_sweepsExistingLockbox_succeeds() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IETHLockbox oldLockbox1 = chainContracts1.ethLockbox;
+        IAnchorStateRegistry oldASR = portal1.anchorStateRegistry();
+        uint256 oldLockboxBalance = 7 ether;
+        vm.deal(address(oldLockbox1), oldLockboxBalance);
+
+        // Simulate a chain that already had a per-chain ETHLockbox attached before the interop
+        // migration. The migrator must sweep this old lockbox after moving the portal to the shared
+        // lockbox so the old liquidity is not stranded.
+        vm.mockCall(address(portal1), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(oldLockbox1)));
+
+        _doMigration(input);
+
+        vm.clearMockedCalls();
+
+        IETHLockbox newLockbox = portal1.ethLockbox();
+        assertNotEq(address(newLockbox), address(oldLockbox1), "Migration should move portal to shared lockbox");
+        assertNotEq(
+            address(portal1.anchorStateRegistry()), address(oldASR), "Migration should move portal to shared ASR"
+        );
+        assertEq(address(oldLockbox1).balance, 0, "Old lockbox should have 0 balance after migration");
+        assertEq(address(newLockbox).balance, oldLockboxBalance, "New lockbox should receive old lockbox balance");
+        assertTrue(newLockbox.authorizedLockboxes(oldLockbox1), "Old lockbox should be authorized on new lockbox");
+    }
+
+    /// @notice Tests that migration respects a pause keyed to an existing per-chain lockbox.
+    function test_migrate_oldLockboxPaused_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IETHLockbox oldLockbox1 = chainContracts1.ethLockbox;
+
+        // Simulate a chain that already had ETH_LOCKBOX enabled with a per-chain lockbox. The
+        // migrator must check the pause before switching the portal to the shared lockbox, or this
+        // local pause would become invisible because SystemConfig.paused() keys off ethLockbox().
+        vm.mockCall(address(portal1), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(oldLockbox1)));
+        vm.prank(address(chainContracts1.proxyAdmin));
+        chainContracts1.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        ISuperchainConfig superchainConfig1 = chainContracts1.systemConfig.superchainConfig();
+        vm.prank(superchainConfig1.guardian());
+        superchainConfig1.pause(address(oldLockbox1));
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory returnData) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (input)));
+        assertFalse(success, "migration should revert while the old lockbox is paused");
+        assertEq(bytes4(returnData), IOPContractsManagerMigrator.OPContractsManagerMigrator_SystemPaused.selector);
+
+        vm.clearMockedCalls();
+    }
+
+    /// @notice Tests that migration cannot be rerun.
+    function test_migrate_calledTwice_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        _doMigration(input);
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (input)));
+        assertFalse(success, "second migration should revert");
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.
@@ -2391,36 +2473,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
-    }
-
-    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
-    ///         Features.INTEROP enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
-    function test_migrate_interopFeatureNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Mock one chain's SystemConfig to report Features.INTEROP as disabled.
-        vm.mockCall(
-            address(chainContracts1.systemConfig),
-            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)),
-            abi.encode(false)
-        );
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropFeatureNotEnabled.selector);
-    }
-
-    /// @notice Tests that the migration function reverts when a chain's SystemConfig does not have
-    ///         Features.ETH_LOCKBOX enabled, simulating Step 1 (OPCMv2.upgrade) not having run.
-    function test_migrate_ethLockboxFeatureNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        // Mock one chain's SystemConfig to report Features.ETH_LOCKBOX as disabled.
-        vm.mockCall(
-            address(chainContracts1.systemConfig),
-            abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
-            abi.encode(false)
-        );
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_EthLockboxFeatureNotEnabled.selector);
     }
 }
 
