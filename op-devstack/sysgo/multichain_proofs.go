@@ -139,7 +139,7 @@ func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntim
 	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
 	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
 
-	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
+	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
 	return runtime
 }
 
@@ -327,7 +327,6 @@ func startInteropChallenger(
 		sharedchallenger.WithPrivKey(challengerSecret),
 		sharedchallenger.WithDepset(staticDepSet),
 		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.InteropVariant),
-		sharedchallenger.WithSuperCannonGameType(),
 		sharedchallenger.WithSuperPermissionedGameType(),
 		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 		sharedchallenger.WithSuperCannonKonaGameType(),

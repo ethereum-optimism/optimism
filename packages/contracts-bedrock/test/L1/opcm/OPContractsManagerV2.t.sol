@@ -30,6 +30,7 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsManagerMigrator.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
@@ -760,6 +761,44 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             "game impl not restored"
         );
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), originalBond, "init bond not restored");
+    }
+
+    /// @notice Tests that a stale SUPER_CANNON registration left over from a prior OPCM is
+    ///         cleared by the upgrade. SUPER_CANNON is no longer in the OPCMv2 deploy/upgrade
+    ///         allow-list, so the standard 6-config upgrade input does not touch type 4. The
+    ///         StandardValidator's SCDG-SHAPE / SCDG-NOSHAPE checks both require
+    ///         gameImpls(SUPER_CANNON) == address(0), so the upgrade must clear any pre-existing
+    ///         registration unconditionally.
+    function test_upgrade_clearsStaleSuperCannonRegistration_succeeds() public {
+        // Pre-register a fake SUPER_CANNON impl + bond as the current DGF owner.
+        IDisputeGame staleImpl = IDisputeGame(address(0xDEAD));
+        address dgfOwner = disputeGameFactory.owner();
+        vm.startPrank(dgfOwner);
+        disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, staleImpl, hex"");
+        disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 1 ether);
+        vm.stopPrank();
+
+        // Sanity: confirm the stale state is in place pre-upgrade.
+        assertEq(
+            address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)),
+            address(staleImpl),
+            "stale SUPER_CANNON impl not pre-registered"
+        );
+        assertEq(
+            disputeGameFactory.initBonds(GameTypes.SUPER_CANNON), 1 ether, "stale SUPER_CANNON bond not pre-registered"
+        );
+
+        // Run the standard 6-config upgrade. The StandardValidator runs inside
+        // _runOpcmV2UpgradeAndChecks, so a missing clear would fail validation here.
+        runCurrentUpgradeV2(chainPAO);
+
+        // Explicitly assert SUPER_CANNON has been cleared post-upgrade.
+        assertEq(
+            address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)),
+            address(0),
+            "stale SUPER_CANNON impl not cleared"
+        );
+        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON), 0, "stale SUPER_CANNON bond not cleared");
     }
 
     /// @notice Tests that disabling a game type removes it from the factory.
