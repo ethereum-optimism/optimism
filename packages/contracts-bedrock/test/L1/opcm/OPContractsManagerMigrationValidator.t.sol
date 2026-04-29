@@ -122,7 +122,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -150,22 +150,16 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
-        dgConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,

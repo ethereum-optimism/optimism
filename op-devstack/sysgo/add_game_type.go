@@ -151,7 +151,6 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{

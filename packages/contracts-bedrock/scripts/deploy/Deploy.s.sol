@@ -404,7 +404,7 @@ contract Deploy is Deployer {
 
     function getSuperRootDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -424,12 +424,6 @@ contract Deploy is Deployer {
             gameArgs: bytes("")
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -441,7 +435,7 @@ contract Deploy is Deployer {
                 })
             )
         });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
@@ -451,7 +445,7 @@ contract Deploy is Deployer {
                 })
             )
         });
-        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -482,7 +476,7 @@ contract Deploy is Deployer {
 
     function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -518,22 +512,16 @@ contract Deploy is Deployer {
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: bytes("")
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
-        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,

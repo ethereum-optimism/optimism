@@ -155,9 +155,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.17
+    /// @custom:semver 7.1.18
     function version() public pure returns (string memory) {
-        return "7.1.17";
+        return "7.1.18";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -693,14 +693,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
         // All valid game types. StandardValidator is responsible for rejecting game types that
         // should not be used in a given mode (e.g., legacy types in super root mode).
-        GameType[] memory validGameTypes = new GameType[](7);
+        GameType[] memory validGameTypes = new GameType[](6);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
-        validGameTypes[3] = GameTypes.SUPER_CANNON;
-        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
-        validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
-        validGameTypes[6] = GameTypes.ZK_DISPUTE_GAME;
+        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_CANNON_KONA;
+        validGameTypes[5] = GameTypes.ZK_DISPUTE_GAME;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {

@@ -289,14 +289,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: bytes("")
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: bytes("")
             })
@@ -1188,14 +1180,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: hex""
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0.08 ether,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -1727,14 +1711,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
-                gameArgs: bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: superRoot,
                 initBond: superRoot ? DEFAULT_DISPUTE_GAME_INIT_BOND : 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -2019,7 +1995,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -2047,22 +2023,16 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
-        dgConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -2580,7 +2550,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         // Set up dispute game configs.
         address initialChallenger = makeAddr("challenger");
         address initialProposer = makeAddr("proposer");
-        baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](7);
+        baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
         baseConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -2608,22 +2578,16 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         baseConfig.disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: bytes("")
         });
         baseConfig.disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        baseConfig.disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
-        baseConfig.disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        baseConfig.disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
