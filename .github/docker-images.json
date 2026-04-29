@@ -100,11 +100,6 @@
       "check": "go",
       "paths": ["op-interop-filter/**"]
     },
-    "op-rbuilder": {
-      "type": "rust",
-      "check": "rust",
-      "paths": ["op-rbuilder/**"]
-    },
     "kona-node": {
       "type": "rust",
       "check": "rust",

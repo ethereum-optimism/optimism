@@ -6,13 +6,14 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Sealed};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
+use op_alloy_consensus::TxPostExec;
 use reth_basic_payload_builder::PayloadConfig;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_node_api::{BuildNextEnv, NodePrimitives, PayloadBuilderError};
@@ -172,7 +173,7 @@ where
     P: OpProofsStore + Clone + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
     N: OpPayloadPrimitives,
-    N::SignedTx: reth_optimism_primitives::BuildPostExecTransaction,
+    N::SignedTx: From<Sealed<TxPostExec>>,
     EvmConfig: reth_optimism_evm::ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Provider::ChainSpec>,
