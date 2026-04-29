@@ -205,7 +205,7 @@ mod tests {
     fake_hardfork_constructors! {
         timestamp:
             karst => Karst,
-            interop => Interop,
+            lagoon => Lagoon,
             jovian => Jovian,
             isthmus => Isthmus,
             holocene => Holocene,
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
-    #[test_case::test_case(FakeHardfork::interop(), OpSpecId::INTEROP; "Interop")]
+    #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::INTEROP; "Lagoon")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
     #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]

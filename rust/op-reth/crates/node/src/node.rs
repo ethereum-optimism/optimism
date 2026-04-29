@@ -1141,8 +1141,8 @@ where
 
         // The Op txpool maintenance task is only spawned when interop is scheduled/active and a
         // supervisor is configured
-        if ctx.chain_spec().op_fork_activation(OpHardfork::Lagoon) != ForkCondition::Never
-            && let Some(ref supervisor) = supervisor_client
+        if ctx.chain_spec().op_fork_activation(OpHardfork::Lagoon) != ForkCondition::Never &&
+            let Some(ref supervisor) = supervisor_client
         {
             // Spawn failsafe polling task (shares supervisor client via clone)
             ctx.task_executor().spawn_critical_task(
