@@ -973,7 +973,7 @@ jobs:
   check-kontrol-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
