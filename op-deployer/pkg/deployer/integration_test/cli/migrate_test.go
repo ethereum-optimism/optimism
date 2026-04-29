@@ -272,8 +272,8 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	systemConfigProxy := st.Chains[0].SystemConfigProxy
 
-	// Run migrate-v2 command. This CLI path encodes permissionless super-root
-	// game args, so the registered game type must match the respected type.
+	// Run migrate-v2 command. SUPER_CANNON (4) is retired; SUPER_CANNON_KONA (9)
+	// is the canonical permissionless super-root respected game type.
 	migrateOutput := runner.ExpectSuccessWithNetwork(t, []string{
 		"manage",
 		"migrate",
@@ -283,7 +283,7 @@ func TestCLIMigrateV2(t *testing.T) {
 		"--opcm-impl-address", impls.OpcmV2.Hex(),
 		"--system-config-proxy-address", systemConfigProxy.Hex(),
 		"--dispute-game-enabled",
-		"--dispute-game-type", "9", // GameTypeSuperCannonKona (9)
+		"--dispute-game-type", "0", // GameTypeCannon (0)
 		"--dispute-absolute-prestate", "0x0000000000000000000000000000000000000000000000000000000000000abc",
 		"--starting-anchor-root", "0x0000000000000000000000000000000000000000000000000000000000000def",
 		"--starting-anchor-l2-sequence-number", "1",

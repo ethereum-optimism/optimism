@@ -1000,9 +1000,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         address zkImpl = opcmV2.implementations().zkDisputeGameImpl;
-        v2UpgradeInput.disputeGameConfigs[6].enabled = true;
-        v2UpgradeInput.disputeGameConfigs[6].initBond = 1 ether;
-        v2UpgradeInput.disputeGameConfigs[6].gameArgs = abi.encode(
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
                 verifier: IZKVerifier(address(0xBEEF)),
@@ -1033,7 +1033,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
 
         // Set ZK config to enabled (but the dev feature is mocked as disabled above).
-        v2UpgradeInput.disputeGameConfigs[6].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
@@ -1046,9 +1046,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // Enable ZK with initial config.
-        v2UpgradeInput.disputeGameConfigs[6].enabled = true;
-        v2UpgradeInput.disputeGameConfigs[6].initBond = 1 ether;
-        v2UpgradeInput.disputeGameConfigs[6].gameArgs = abi.encode(
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
                 verifier: IZKVerifier(address(0xBEEF)),
@@ -1061,7 +1061,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
         // Rotate to new prestate and verifier.
-        v2UpgradeInput.disputeGameConfigs[6].gameArgs = abi.encode(
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
                 verifier: IZKVerifier(address(0xDEAD)),
@@ -1081,9 +1081,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // First enable ZK game.
-        v2UpgradeInput.disputeGameConfigs[6].enabled = true;
-        v2UpgradeInput.disputeGameConfigs[6].initBond = 1 ether;
-        v2UpgradeInput.disputeGameConfigs[6].gameArgs = abi.encode(
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
                 verifier: IZKVerifier(address(0xBEEF)),
@@ -1096,8 +1096,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond should be set");
 
         // Now disable ZK game.
-        v2UpgradeInput.disputeGameConfigs[6].enabled = false;
-        v2UpgradeInput.disputeGameConfigs[6].initBond = 0;
+        v2UpgradeInput.disputeGameConfigs[5].enabled = false;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 0;
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 0, "ZK init bond should be zero after disable"
@@ -1794,8 +1794,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_enableZKGame_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
-        deployConfig.disputeGameConfigs[6].enabled = true;
-        deployConfig.disputeGameConfigs[6].initBond = 1 ether;
+        deployConfig.disputeGameConfigs[5].enabled = true;
+        deployConfig.disputeGameConfigs[5].initBond = 1 ether;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(

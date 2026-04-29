@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -200,66 +201,62 @@ func TestMigrateCLIV2Flags(t *testing.T) {
 }
 
 func TestMigrateDefaultGameTypeFlags(t *testing.T) {
-	require.Equal(t, uint64(manageMigrateDefaultGameType), DisputeGameTypeFlag.Value)
-	require.Equal(t, uint64(manageMigrateDefaultGameType), MigrateStartingRespectedGameTypeFlag.Value)
+	require.Equal(t, uint64(standard.DisputeGameType), DisputeGameTypeFlag.Value)
+	require.Equal(t, uint64(migrateStartingRespectedGameTypeDefault), MigrateStartingRespectedGameTypeFlag.Value)
 }
 
-func TestMigrateCLIRejectsMismatchedGameTypesBeforeRPC(t *testing.T) {
-	app := cli.NewApp()
-	flagSet := flag.NewFlagSet("test-migrate-mismatched-game-types", flag.ContinueOnError)
-
-	for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
-		require.NoError(t, cliFlag.Apply(flagSet))
+func TestMigrateCLIRejectsSuperCannonBeforeRPC(t *testing.T) {
+	cases := []struct {
+		name       string
+		dispute    uint64
+		respected  uint64
+		errFlagArg string
+	}{
+		{
+			name:       "dispute-game-type SUPER_CANNON",
+			dispute:    uint64(superCannonGameType),
+			respected:  9,
+			errFlagArg: "--dispute-game-type = 4",
+		},
+		{
+			name:       "starting-respected-game-type SUPER_CANNON",
+			dispute:    9,
+			respected:  uint64(superCannonGameType),
+			errFlagArg: "--starting-respected-game-type = 4",
+		},
 	}
 
-	flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
-	flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
-	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-	flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
-	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
-	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-	flagSet.Uint64(DisputeGameTypeFlag.Name, 9, "doc")
-	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 5, "doc")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := cli.NewApp()
+			flagSet := flag.NewFlagSet(tc.name, flag.ContinueOnError)
 
-	ctx := cli.NewContext(app, flagSet, nil)
+			for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
+				require.NoError(t, cliFlag.Apply(flagSet))
+			}
 
-	err := MigrateCLI(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "--dispute-game-type (9) must equal --starting-respected-game-type (5)")
-	require.NotContains(t, err.Error(), "failed to dial RPC")
-}
+			flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
+			flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
+			flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
+			flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
+			flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
+			flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
+			flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
+			flagSet.Uint64(DisputeGameTypeFlag.Name, tc.dispute, "doc")
+			flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
+			flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
+			flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
+			flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, tc.respected, "doc")
 
-func TestMigrateCLIRejectsUnsupportedGameTypeBeforeRPC(t *testing.T) {
-	app := cli.NewApp()
-	flagSet := flag.NewFlagSet("test-migrate-unsupported-game-type", flag.ContinueOnError)
+			ctx := cli.NewContext(app, flagSet, nil)
 
-	for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
-		require.NoError(t, cliFlag.Apply(flagSet))
+			err := MigrateCLI(ctx)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.errFlagArg)
+			require.Contains(t, err.Error(), "SUPER_CANNON")
+			require.NotContains(t, err.Error(), "failed to dial RPC")
+		})
 	}
-
-	flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
-	flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
-	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-	flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
-	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
-	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-	flagSet.Uint64(DisputeGameTypeFlag.Name, 5, "doc")
-	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 5, "doc")
-
-	ctx := cli.NewContext(app, flagSet, nil)
-
-	err := MigrateCLI(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "--dispute-game-type (5) must be 9 (Super Cannon Kona)")
-	require.NotContains(t, err.Error(), "failed to dial RPC")
 }
 
 func TestMigrateCLIV2Uint32Overflow(t *testing.T) {

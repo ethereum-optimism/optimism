@@ -183,18 +183,16 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	}
 	migrateStartingRespectedGameType := uint32(migrateStartingRespectedGameTypeU64)
 
-	if disputeGameType != migrateStartingRespectedGameType {
+	if disputeGameType == superCannonGameType {
 		return fmt.Errorf(
-			"--%s (%d) must equal --%s (%d): the CLI registers the sole disputeGameConfig under --%s, and the respected type needs a matching impl",
+			"--%s = %d (SUPER_CANNON) is retired and no longer accepted by OPCMv2",
 			DisputeGameTypeFlag.Name, disputeGameType,
-			MigrateStartingRespectedGameTypeFlag.Name, migrateStartingRespectedGameType,
-			DisputeGameTypeFlag.Name,
 		)
 	}
-	if disputeGameType != manageMigrateDefaultGameType {
+	if migrateStartingRespectedGameType == superCannonGameType {
 		return fmt.Errorf(
-			"--%s (%d) must be %d (Super Cannon Kona): manage migrate encodes bytes32-only game args and currently supports only the permissionless super-root Kona game",
-			DisputeGameTypeFlag.Name, disputeGameType, manageMigrateDefaultGameType,
+			"--%s = %d (SUPER_CANNON) is retired and no longer accepted by OPCMv2",
+			MigrateStartingRespectedGameTypeFlag.Name, migrateStartingRespectedGameType,
 		)
 	}
 
