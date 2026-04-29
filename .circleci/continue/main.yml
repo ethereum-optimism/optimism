@@ -1626,7 +1626,7 @@ jobs:
   go-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
