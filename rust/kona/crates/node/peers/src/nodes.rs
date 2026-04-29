@@ -139,7 +139,7 @@ mod tests {
         let mainnet = BootNodes::from_chain_id(OP_MAINNET_CHAIN_ID);
         assert_eq!(mainnet.len(), 24);
 
-        let mainnet = BootNodes::from_chain_id(BASE_MAINNET_CHAIN_ID);
+        let mainnet = BootNodes::from_chain_id(57073 /* Ink */);
         assert_eq!(mainnet.len(), 24);
 
         let mainnet = BootNodes::from_chain_id(130 /* Unichain Mainnet */);
@@ -153,6 +153,11 @@ mod tests {
 
         let unknown = BootNodes::from_chain_id(0);
         assert!(unknown.is_empty());
+
+        // Base was removed from the superchain registry, so its chain id no
+        // longer resolves to a known parent and yields no bootnodes.
+        let base = BootNodes::from_chain_id(BASE_MAINNET_CHAIN_ID);
+        assert!(base.is_empty());
     }
 
     #[test]
