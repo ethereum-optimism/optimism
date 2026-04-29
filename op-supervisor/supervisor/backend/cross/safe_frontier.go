@@ -37,7 +37,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1Source eth.BlockID, h
 				}
 				if candidate.Source.Number > inL1Source.Number {
 					return fmt.Errorf("local-safe hazard block %s derived from L1 block %s is after scope %s: %w",
-						hazardBlock.ID(), initSource, inL1Source, types.ErrOutOfScope)
+						hazardBlock.ID(), candidate.Source, inL1Source, types.ErrOutOfScope)
 				}
 			} else {
 				return fmt.Errorf("failed to determine cross-derived of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
