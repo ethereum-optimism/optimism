@@ -927,7 +927,7 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     parameters:
       always-succeed:
-        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        description: Force always succeed (skip API gate)
         type: boolean
         default: false
     steps:
