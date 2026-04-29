@@ -696,12 +696,15 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 		case fetched = <-slots[blockNum%concurrency]:
 		}
 
-		if nextFetch <= endBlock {
-			startFetch(nextFetch)
-			nextFetch++
+		if fetched.blockNum != blockNum {
+			return blockNum, lastLogTime, fmt.Errorf("expected fetched block %d but got %d", blockNum, fetched.blockNum)
 		}
 		if fetched.err != nil {
 			return blockNum, lastLogTime, fmt.Errorf("failed to fetch block %d: %w", blockNum, fetched.err)
+		}
+		if nextFetch <= endBlock {
+			startFetch(nextFetch)
+			nextFetch++
 		}
 		if err := c.writeFetchedBlock(fetched); err != nil {
 			return blockNum, lastLogTime, err
