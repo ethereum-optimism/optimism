@@ -924,10 +924,15 @@ jobs:
 
   required-rust-ci:
     docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: small
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate; for contracts-feature-tests-short)
+        type: boolean
+        default: false
     steps:
-      - run: echo "Required Rust CI checks passed"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
 # ============================================================================
 # WORKFLOWS
@@ -1079,9 +1084,12 @@ workflows:
       # -----------------------------------------------------------------------
       - required-rust-ci:
           requires:
-            - rust-tests
-            - rust-clippy
-            - rust-docs
+            - rust-tests: terminal
+            - rust-clippy: terminal
+            - rust-docs: terminal
+          context:
+            - circleci-api-token
+  # =====================================
 
   # ==========================================================================
   # Required Rust CI gate (skip) — runs when no rust changes and no dispatch
@@ -1113,10 +1121,11 @@ workflows:
 
       - required-rust-ci:
           requires:
-            - rust-tests
-            - op-reth-integration-tests
-            - kona-build-fpvm-cannon-client
-
+            - rust-tests: terminal
+            - op-reth-integration-tests: terminal
+            - kona-build-fpvm-cannon-client: terminal
+          context:
+            - circleci-api-token
   # ==========================================================================
   # Kona scheduled workflows
   # ==========================================================================
