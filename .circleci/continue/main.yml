@@ -1610,6 +1610,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - attach_workspace:
+          at: .
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
@@ -1655,6 +1657,39 @@ jobs:
           name: check op-geth version
           command: |
             just check-op-geth-version
+
+  # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
+  # makes it available to downstream Go-build jobs via persist_to_workspace.
+  # The zip itself is gitignored; this job is the only place it gets built in CI.
+  #
+  # Always rebuilds — no cache. The script is fast (depth-1 SR clone + zip
+  # ~10s) and most of the job's wall-clock is mise restore anyway. Always
+  # rebuilding gives strong consistency (every run validates the committed
+  # .sha256 against a freshly-built zip) without cache-key complexity.
+  prep-superchain:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: build superchain bundle
+          command: just sync-superchain
+      - run:
+          # Catches non-deterministic builds and stale .sha256 commits: if the
+          # rebuilt zip differs from what was approved in review, the .sha256
+          # file written by sync-superchain.sh will diverge from the committed
+          # one and this fails. The init.go runtime checks (SHA256 of embedded
+          # zip, COMMIT entry, op-geth cross-commit) run as part of go-tests
+          # downstream — no need to repeat them here.
+          name: verify rebuilt bundle matches committed .sha256
+          command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+      - persist_to_workspace:
+          root: .
+          paths:
+            - op-core/superchain/superchain-configs.zip
 
   check-nut-locks:
     docker:
@@ -2470,9 +2505,14 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - go-lint:
+          requires:
+            - prep-superchain
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-op-geth-version:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-nut-locks:
@@ -2521,6 +2561,7 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - go-binaries-for-sysgo
+            - prep-superchain
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -2540,6 +2581,7 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - go-binaries-for-sysgo
+            - prep-superchain
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

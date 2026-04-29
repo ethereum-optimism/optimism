@@ -3,11 +3,12 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
-use alloy_consensus::{BlockHeader, Transaction, Typed2718};
+use alloy_consensus::{BlockHeader, Transaction, Typed2718, transaction::Recovered};
 use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_consensus::SDMGasEntry;
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -19,8 +20,11 @@ use reth_evm::{
     },
 };
 use reth_execution_types::BlockExecutionOutput;
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, transaction::OpTransaction};
+use reth_optimism_primitives::{
+    BuildPostExecTransaction, L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction,
+};
 use reth_optimism_txpool::{
     OpPooledTx,
     estimated_da_size::DataAvailabilitySized,
@@ -41,6 +45,47 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
+where
+    Tx: BuildPostExecTransaction,
+{
+    Tx::build_recovered_post_exec(block_number, entries)
+}
+
+/// Wraps refund entries in a post-exec transaction and executes it via `execute`.
+///
+/// # Returns
+/// - `true` if a post-exec transaction was executed.
+/// - `false` if `entries` is empty.
+///
+/// The post-exec transaction MUST execute successfully: any error is surfaced as
+/// `PayloadBuilderError::EvmExecutionError` so the payload build aborts. A verifier
+/// replaying this block will expect the post-exec tx to match the refunds it observes,
+/// so dropping the tx (or returning an empty block) on failure would produce a payload
+/// that no honest verifier can reproduce.
+fn try_include_post_exec_tx<Tx, Err>(
+    block_number: u64,
+    entries: Vec<SDMGasEntry>,
+    execute: impl FnOnce(Recovered<Tx>) -> Result<u64, Err>,
+) -> Result<bool, PayloadBuilderError>
+where
+    Tx: BuildPostExecTransaction,
+    Err: core::error::Error + Send + Sync + 'static,
+{
+    if entries.is_empty() {
+        return Ok(false);
+    }
+
+    let post_exec_recovered = build_post_exec_recovered_tx(block_number, entries);
+
+    execute(post_exec_recovered).map_err(|err| {
+        warn!(target: "payload_builder", %err, "post-exec tx execution failed, aborting payload");
+        PayloadBuilderError::evm(err)
+    })?;
+    debug!(target: "payload_builder", "post-exec tx included in block");
+    Ok(true)
+}
 
 /// Optimism's payload builder
 #[derive(Debug)]
@@ -156,7 +201,8 @@ where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks>,
     N: OpPayloadPrimitives,
-    Evm: ConfigureEvm<
+    N::SignedTx: BuildPostExecTransaction,
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Client::ChainSpec>,
         >,
@@ -238,9 +284,10 @@ impl<Pool, Client, Evm, N, Txs> PayloadBuilder
     for OpPayloadBuilder<Pool, Client, Evm, Txs, OpPayloadBuilderAttributes<N::SignedTx>>
 where
     N: OpPayloadPrimitives,
+    N::SignedTx: BuildPostExecTransaction,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<
                 OpPayloadBuilderAttributes<N::SignedTx>,
@@ -363,12 +410,13 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
+        N::SignedTx: BuildPostExecTransaction,
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
@@ -406,6 +454,12 @@ impl<Txs> OpBuilder<'_, Txs> {
                 // can skip building the block
                 return Ok(BuildOutcomeKind::Aborted { fees: info.total_fees });
             }
+        }
+
+        if ctx.sdm_production_enabled() {
+            let block_number = builder.evm_mut().block().number().saturating_to();
+            let entries = builder.executor_mut().take_post_exec_entries();
+            try_include_post_exec_tx(block_number, entries, |tx| builder.execute_transaction(tx))?;
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
@@ -448,12 +502,13 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: &OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
+        N::SignedTx: BuildPostExecTransaction,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
@@ -597,7 +652,7 @@ pub struct OpPayloadBuilderCtx<
 
 impl<Evm, ChainSpec, Attrs> OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>
 where
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives: OpPayloadPrimitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, HeaderTy<Evm::Primitives>, ChainSpec>,
         >,
@@ -622,6 +677,12 @@ where
         )
     }
 
+    /// Returns whether SDM production is enabled for this payload by the explicit integration-test
+    /// override.
+    pub const fn sdm_production_enabled(&self) -> bool {
+        self.builder_config.sdm_enabled
+    }
+
     /// Returns the unique id for this payload job.
     pub fn payload_id(&self) -> PayloadId {
         self.attributes().payload_id()
@@ -639,12 +700,13 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>,
+            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>
+                          + PostExecExecutorExt,
         > + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
-            .builder_for_next_block(
+            .post_exec_builder_for_next_block(
                 db,
                 self.parent(),
                 Evm::NextBlockEnvCtx::build_next_env(
@@ -653,6 +715,11 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
+                if self.sdm_production_enabled() {
+                    PostExecMode::Produce
+                } else {
+                    PostExecMode::Disabled
+                },
             )
             .map_err(PayloadBuilderError::other)
     }
@@ -813,3 +880,6 @@ where
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -56,6 +56,12 @@ pub use chain::{
     HardForkConfig, L1ChainConfig, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID, Roles,
 };
 
+pub mod interop;
+pub use interop::{
+    ChainDependency, ClusterError, DependencySet, InteropConfig, MESSAGE_EXPIRY_WINDOW,
+    aggregate_clusters,
+};
+
 mod genesis;
 pub use genesis::ChainGenesis;
 

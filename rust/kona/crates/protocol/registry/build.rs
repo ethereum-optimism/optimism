@@ -6,10 +6,23 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use kona_genesis::{Chain, ChainConfig, ChainList, Superchain, SuperchainConfig, Superchains};
+use kona_genesis::{
+    Chain, ChainConfig, ChainList, DependencySet, InteropConfig, Superchain, SuperchainConfig,
+    Superchains, aggregate_clusters,
+};
 use serde::de::DeserializeOwned;
 
 fn main() {
+    // Always reset `etc/depsets.json` to the empty list before deriving the embedded
+    // depsets from KONA_BIND / KONA_CUSTOM_CONFIGS, so the file content is deterministic
+    // for the configured inputs and never carries stale entries from a prior build.
+    let etc_dir = std::path::Path::new("etc");
+    if !etc_dir.exists() {
+        std::fs::create_dir_all(etc_dir).unwrap();
+    }
+    let depsets_path = std::path::Path::new("etc/depsets.json");
+    write_depsets(depsets_path, &[]);
+
     // If the `KONA_BIND` environment variable is _not_ set, then return early.
     let kona_bind: bool =
         std::env::var("KONA_BIND").unwrap_or_else(|_| "false".to_string()) == "true";
@@ -92,6 +105,21 @@ fn main() {
 
     let output_path = std::path::Path::new("etc/configs.json");
     std::fs::write(output_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
+
+    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block and
+    // overwrite `etc/depsets.json` with the resulting list.
+    let interop_chains: Vec<(u64, &InteropConfig)> = superchains
+        .superchains
+        .iter()
+        .flat_map(|sc| sc.chains.iter())
+        .filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i)))
+        .collect();
+    let depsets = aggregate_clusters(interop_chains.iter().map(|(id, cfg)| (*id, *cfg)))
+        .unwrap_or_else(|e| {
+            panic!("failed to aggregate interop clusters from superchain configs: {e}")
+        });
+    write_depsets(depsets_path, &depsets);
+
     merge_custom_configs();
 }
 
@@ -106,6 +134,7 @@ fn merge_custom_configs() {
     if std::env::var("KONA_CUSTOM_CONFIGS_TEST") == Ok("true".to_string()) {
         println!("cargo:rerun-if-changed=etc/chainList.json");
         println!("cargo:rerun-if-changed=etc/configs.json");
+        println!("cargo:rerun-if-changed=etc/depsets.json");
     }
 
     if !kona_custom_configs {
@@ -130,12 +159,15 @@ fn merge_custom_configs() {
 
     let target_chain_list = Path::new("etc/chainList.json");
     let target_superchains = Path::new("etc/configs.json");
+    let target_depsets = Path::new("etc/depsets.json");
 
     validate_chain_configs(&custom_chain_list_path, &custom_configs_path);
 
     merge_chain_list(&custom_chain_list_path, target_chain_list);
     merge_superchain_configs(&custom_configs_path, target_superchains);
+    merge_custom_depsets(&custom_configs_dir, target_depsets);
     validate_chain_configs(target_chain_list, target_superchains);
+    validate_depsets(target_depsets, target_chain_list);
 }
 
 fn merge_chain_list(custom_path: &Path, target_path: &Path) {
@@ -319,4 +351,53 @@ fn write_pretty_json<T: serde::Serialize>(path: &Path, value: &T) {
             .unwrap_or_else(|e| panic!("Failed to serialize {}: {e}", path.display())),
     )
     .unwrap_or_else(|e| panic!("Failed to write {}: {e}", path.display()));
+}
+
+fn write_depsets(target: &Path, depsets: &[DependencySet]) {
+    let json = serde_json::to_string_pretty(depsets)
+        .unwrap_or_else(|e| panic!("Failed to serialize {}: {e}", target.display()));
+    fs::write(target, json).unwrap_or_else(|e| panic!("Failed to write {}: {e}", target.display()));
+}
+
+fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
+    let path = custom_dir.join("depsets.json");
+    println!("cargo:rerun-if-changed={}", path.display());
+    if !path.exists() {
+        return;
+    }
+    let custom: Vec<DependencySet> = read_json(&path);
+    let mut existing: Vec<DependencySet> = read_json(target);
+    for new_ds in custom {
+        for existing_ds in &existing {
+            let collisions: Vec<u64> = new_ds
+                .dependencies
+                .keys()
+                .filter(|k| existing_ds.dependencies.contains_key(k))
+                .copied()
+                .collect();
+            assert!(
+                collisions.is_empty() || existing_ds == &new_ds,
+                "Custom depset overlaps existing cluster on chain ids {collisions:?} but the cluster contents differ"
+            );
+        }
+        if !existing.iter().any(|d| d == &new_ds) {
+            existing.push(new_ds);
+        }
+    }
+    write_depsets(target, &existing);
+}
+
+fn validate_depsets(target: &Path, chain_list_path: &Path) {
+    let depsets: Vec<DependencySet> = read_json(target);
+    let chain_list: ChainList = read_json(chain_list_path);
+    let known: BTreeSet<u64> = chain_list.chains.iter().map(|c| c.chain_id).collect();
+    for ds in &depsets {
+        for id in ds.dependencies.keys() {
+            assert!(
+                known.contains(id),
+                "Depset references chain id {id} which is not in {}",
+                chain_list_path.display()
+            );
+        }
+    }
 }

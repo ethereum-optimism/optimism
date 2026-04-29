@@ -17,6 +17,7 @@ use tracing::{error, info};
 use transition::sub_transition;
 
 use crate::fpvm_evm::FpvmOpEvmFactory;
+use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
 
 pub(crate) mod consolidate;
 pub(crate) mod transition;
@@ -76,7 +77,8 @@ where
         }
     };
 
-    let evm_factory = FpvmOpEvmFactory::new(hint_client, oracle_client);
+    let evm_factory =
+        PostExecEvmFactoryAdapter::new(FpvmOpEvmFactory::new(hint_client, oracle_client));
 
     // Load in the agreed pre-state from the preimage oracle in order to determine the active
     // sub-problem.

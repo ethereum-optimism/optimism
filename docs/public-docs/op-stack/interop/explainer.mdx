@@ -25,8 +25,7 @@ OP Stack interoperability provides the following benefits:
 ## OP Stack interoperability architecture
 
 A pre-interop OP Stack node consists of two pieces of software: a consensus client (e.g. op-node) and an execution client, which is responsible for processing user transactions and constructing blocks (e.g. op-geth).
-OP Stack interoperability among OP Stack chains is enabled via a new service called [*OP Supervisor*](/chain-operators/reference/components/op-supervisor).
-Every node operator is expected to run this service in addition to the [rollup node](/operators/node-operators/architecture#rollup-node) and [execution client](/operators/node-operators/architecture#execution-client).
+OP Stack interop adds a cross-chain message safety layer to the rollup node: before the execution client includes an executing message in a block, the node verifies that the matching initiating message really exists on the source chain, and tracks the safety of every chain whose log events the local chain depends on.
 
 ```mermaid
 
@@ -34,12 +33,11 @@ graph LR
 
   classDef chain fill:#FFE
   classDef transparent fill:none, stroke:none
-  
+
   subgraph chain1[OP Stack chain #1]
     node1[OP Node]
-    super1[OP-Supervisor]
     geth1[Execution Engine]
-    node1<-->super1--->geth1<-->node1
+    node1<-->geth1
   end
   subgraph X[ ]
     chain2[OP Stack chain #2]
@@ -47,17 +45,17 @@ graph LR
     l1node[L1 Consensus Layer]
   end
 
-  chain2-->|log events|super1
-  chain3-->|log events|super1
-  l1node-->|block status|super1
+  chain2-->|log events|node1
+  chain3-->|log events|node1
+  l1node-->|block status|node1
 
   class chain1,chain2,chain3 chain
   class X transparent
 ```
 
-OP-Supervisor holds a database of all the log events of all the chains in the OP Stack interoperability cluster.
-Every event can potentially initiate a cross-domain message, and it is the job of OP-Supervisor to validate that the log event really happened on the source chain.
-Additionally, OP-Supervisor reads information from L1's consensus layer to determine the transaction safety of L2 blocks.
+Every node participating in interop keeps a database of the log events of the chains in its dependency set.
+Every event can potentially initiate a cross-domain message, and the node validates that the log event really happened on the source chain.
+The node also reads information from L1's consensus layer to determine the transaction safety of L2 blocks.
 
 ## How messages get from one chain to the other
 
@@ -68,20 +66,16 @@ To understand *why* we need this additional service, it is useful to know how in
 sequenceDiagram
     participant app as Application
     participant src as Source Chain
-    box rgba(0,0,0,0.1) Destination Chain
-      participant dst-sup as OP-Supervisor
-      participant dst-geth as Execution Engine
-    end
+    participant dst as Destination Chain Node
     app->>src: Transaction
-    src->>dst-sup: Log Event
-    note over src,dst-sup: Log Event = Initializing Message
-    app->>dst-geth: Transaction
-    dst-geth->>dst-geth: Call to CrossL2Inbox to execute or verify a message.
-    dst-geth->>dst-sup: Did you receive this initiating message?
-    dst-sup->>dst-geth: Yes
-    note left of dst-geth: Call is successful
-    dst-geth->>dst-geth: CrossL2Inbox emits ExecutingMessage.
-    note over dst-geth: Executing Message
+    src->>dst: Log Event
+    note over src,dst: Log Event = Initiating Message
+    app->>dst: Transaction
+    dst->>dst: Call to CrossL2Inbox to execute or verify a message.
+    dst->>dst: Verify the initiating message exists on source.
+    note left of dst: Call is successful
+    dst->>dst: CrossL2Inbox emits ExecutingMessage.
+    note over dst: Executing Message
 ```
 
 Cross-domain messages require two transactions.

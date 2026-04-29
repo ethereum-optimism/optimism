@@ -55,6 +55,18 @@
   },
   "redirects": [
     {
+      "source": "/stack/interop/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/interop/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/chain-operators/reference/components/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
       "source": "/chain-operators/tools/op-deployer/usage/upgrade",
       "destination": "/notices/op-deployer-upgrade-deprecation"
     },
@@ -405,10 +417,6 @@
     {
       "source": "/stack/interop/tools",
       "destination": "/interop/tools"
-    },
-    {
-      "source": "/stack/interop/op-supervisor",
-      "destination": "/interop/op-supervisor"
     },
     {
       "source": "/stack/interop/tools/supersim",
@@ -797,10 +805,6 @@
     {
       "source": "/interop/message-passing",
       "destination": "/app-developers/guides/interoperability/message-passing"
-    },
-    {
-      "source": "/interop/op-supervisor",
-      "destination": "/chain-operators/reference/components/op-supervisor"
     },
     {
       "source": "/interop/predeploy",
@@ -2007,13 +2011,7 @@
             "pages": [
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
-              "chain-operators/reference/standard-configuration",
-              {
-                "group": "Components",
-                "pages": [
-                  "chain-operators/reference/components/op-supervisor"
-                ]
-              }
+              "chain-operators/reference/standard-configuration"
             ]
           }
         ]
