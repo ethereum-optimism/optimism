@@ -2686,6 +2686,7 @@ workflows:
             - memory-all-opn-op-geth: terminal
             - memory-all-opn-op-reth: terminal
             - memory-all-kona-op-reth: terminal
+            - required-rust-ci: terminal
           context:
             - circleci-api-token
           filters:
@@ -3216,8 +3217,8 @@ workflows:
               pattern: "^gh-readonly-queue/.*"
               value: << pipeline.git.branch >>
           - and:
-            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+              - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+              - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
           always-succeed: true
