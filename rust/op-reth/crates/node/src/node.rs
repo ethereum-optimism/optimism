@@ -49,7 +49,7 @@ use reth_optimism_rpc::{
     eth::{OpEthApiBuilder, ext::OpEthExtApi},
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
-    witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
+    witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
@@ -135,6 +135,29 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
         })
     }
 }
+/// Helper trait for OP primitives whose block is the standard alloy block shape.
+pub trait OpReplayNodePrimitives:
+    OpPayloadPrimitives
+    + NodePrimitives<
+        Block = alloy_consensus::Block<Self::_TX, Self::_Header>,
+        BlockBody = alloy_consensus::BlockBody<Self::_TX, Self::_Header>,
+        BlockHeader = Self::_Header,
+        SignedTx = Self::_TX,
+    >
+{
+}
+
+impl<T> OpReplayNodePrimitives for T where
+    T: OpPayloadPrimitives
+        + NodePrimitives<
+            Block = alloy_consensus::Block<T::_TX, T::_Header>,
+            BlockBody = alloy_consensus::BlockBody<T::_TX, T::_Header>,
+            BlockHeader = T::_Header,
+            SignedTx = T::_TX,
+        >
+{
+}
+
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
 pub trait OpNodeTypes:
     NodeTypes<Payload = OpEngineTypes, ChainSpec: OpHardforks + Hardforks, Primitives = OpPrimitives>
@@ -615,7 +638,7 @@ where
     N: FullNodeComponents<
             Types: NodeTypes<
                 ChainSpec: OpHardforks + Hardforks,
-                Primitives: OpPayloadPrimitives<_Header: HeaderMut>,
+                Primitives: OpReplayNodePrimitives<_Header: HeaderMut>,
             >,
             Evm: ConfigurePostExecEvm<
                 Primitives = PrimitivesTy<N::Types>,
@@ -687,6 +710,7 @@ where
                 ctx.node.provider().clone(),
                 ctx.node.task_executor().clone(),
                 builder,
+                ctx.node.evm_config().clone(),
             );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
@@ -710,7 +734,14 @@ where
                 modules.merge_if_module_configured(RethRpcModule::Eth, eth_config.into_rpc())?;
 
                 debug!(target: "reth::cli", "Installing debug payload witness rpc endpoint");
-                modules.merge_if_module_configured(RethRpcModule::Debug, debug_ext.into_rpc())?;
+                modules.merge_if_module_configured(
+                    RethRpcModule::Debug,
+                    DebugExecutionWitnessApiServer::into_rpc(debug_ext.clone()),
+                )?;
+                modules.merge_if_module_configured(
+                    RethRpcModule::Debug,
+                    OpDebugPostExecApiServer::into_rpc(debug_ext.clone()),
+                )?;
 
                 // extend the miner namespace if configured in the regular http server
                 modules.add_or_replace_if_module_configured(
@@ -750,7 +781,7 @@ where
     N: FullNodeComponents<
             Types: NodeTypes<
                 ChainSpec: OpHardforks + Hardforks,
-                Primitives: OpPayloadPrimitives<_Header: HeaderMut>,
+                Primitives: OpReplayNodePrimitives<_Header: HeaderMut>,
             >,
             Evm: ConfigurePostExecEvm<
                 Primitives = PrimitivesTy<N::Types>,

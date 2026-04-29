@@ -37,6 +37,7 @@ reth-provider.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-flashblocks.workspace = true
 reth-optimism-payload-builder.workspace = true
+reth-optimism-post-exec-replay.workspace = true
 reth-optimism-txpool.workspace = true
 # TODO remove node-builder import
 reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat", "serde"] }

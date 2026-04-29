@@ -68,7 +68,7 @@ pub use tx::OpTx;
 
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
-    post_exec::PostExecExecutorExt,
+    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind},
 };
 
 mod post_exec_ext;
