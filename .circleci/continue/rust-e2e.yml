@@ -390,6 +390,17 @@ workflows:
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
+  rust-e2e-gate-skip:
+    when:
+      and:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        - not: << pipeline.parameters.c-rust_changes_detected >>
+        - << pipeline.parameters.c-non_docs_changes >>
+    jobs:
+      - contracts-bedrock-build:
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
           name: kona-build-release
           directory: rust
