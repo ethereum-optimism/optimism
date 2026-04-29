@@ -55,6 +55,18 @@
   },
   "redirects": [
     {
+      "source": "/stack/interop/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/interop/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/chain-operators/reference/components/op-supervisor",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
       "source": "/chain-operators/tools/op-deployer/usage/upgrade",
       "destination": "/notices/op-deployer-upgrade-deprecation"
     },
