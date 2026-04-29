@@ -1016,6 +1016,7 @@ func TestLogsDBChainIngester_IngestBlock_RPCError(t *testing.T) {
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to fetch block 100")
+	require.Contains(t, err.Error(), "fetch block info")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
@@ -1050,6 +1051,7 @@ func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to fetch block 100")
+	require.Contains(t, err.Error(), "fetch block receipts")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) {

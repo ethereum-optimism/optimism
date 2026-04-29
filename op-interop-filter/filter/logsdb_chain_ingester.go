@@ -670,10 +670,17 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 	startFetch := func(blockNum uint64) {
 		slot := slots[blockNum%concurrency]
 		go func() {
+			// Resolve the number to a hash first, then fetch receipts by hash so
+			// the receipts are pinned to the block identity we are about to write.
 			blockInfo, err := c.ethClient.InfoByNumber(rangeCtx, blockNum)
 			var receipts gethTypes.Receipts
-			if err == nil {
+			if err != nil {
+				err = fmt.Errorf("fetch block info: %w", err)
+			} else {
 				_, receipts, err = c.ethClient.FetchReceipts(rangeCtx, blockInfo.Hash())
+				if err != nil {
+					err = fmt.Errorf("fetch block receipts: %w", err)
+				}
 			}
 			select {
 			case slot <- blockFetch{blockNum: blockNum, blockInfo: blockInfo, receipts: receipts, err: err}:
