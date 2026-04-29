@@ -15,6 +15,18 @@ type SupernodeMetrics struct {
 	InteropRoundDecisions     *prometheus.CounterVec
 	InteropRewinds            prometheus.Counter
 
+	// SLI-SN-4: Interop Verification Latency
+	InteropVerificationDuration prometheus.Histogram
+	// SLI-SN-5: Chain Rewind Depth
+	ChainRewindDepthBlocks *prometheus.HistogramVec
+	// SLI-SN-6: Deny List Size
+	DenyListEntries *prometheus.GaugeVec
+	// SLI-SN-7: Log Backfill Progress
+	LogBackfillProgress *prometheus.GaugeVec
+	LogBackfillRetries  *prometheus.CounterVec
+	// SLI-SN-8: Activity Errors
+	ActivityErrors *prometheus.CounterVec
+
 	registry *prometheus.Registry
 }
 
@@ -52,6 +64,38 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_rewinds_total",
 			Help:      "Total number of interop rewinds due to L1 consistency failures.",
 		}),
+		InteropVerificationDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "supernode",
+			Name:      "interop_verification_duration_seconds",
+			Help:      "Time from timestamp available on all chains to verified result persisted.",
+			Buckets:   []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60},
+		}),
+		ChainRewindDepthBlocks: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "supernode",
+			Name:      "chain_rewind_depth_blocks",
+			Help:      "Depth in blocks of chain rewinds triggered by invalidation.",
+			Buckets:   []float64{1, 2, 5, 10, 50, 100, 500},
+		}, []string{"chain_id"}),
+		DenyListEntries: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "denylist_entries_total",
+			Help:      "Current number of entries in the deny list per chain.",
+		}, []string{"chain_id"}),
+		LogBackfillProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "log_backfill_progress",
+			Help:      "Log backfill progress per chain (0.0 to 1.0).",
+		}, []string{"chain_id"}),
+		LogBackfillRetries: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "log_backfill_retries_total",
+			Help:      "Total number of log backfill retry attempts per chain.",
+		}, []string{"chain_id"}),
+		ActivityErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "activity_errors_total",
+			Help:      "Total number of activity errors by activity name and error type.",
+		}, []string{"activity", "error_type"}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -61,6 +105,12 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.InteropVerifiedTimestamp,
 		m.InteropRoundDecisions,
 		m.InteropRewinds,
+		m.InteropVerificationDuration,
+		m.ChainRewindDepthBlocks,
+		m.DenyListEntries,
+		m.LogBackfillProgress,
+		m.LogBackfillRetries,
+		m.ActivityErrors,
 	)
 	return m
 }

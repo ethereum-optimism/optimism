@@ -115,6 +115,7 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
+	totalBlocks := endNum - startNum + 1
 	for num := startNum; num <= endNum; num++ {
 		out, err := chain.OutputV0AtBlockNumber(ctx, num)
 		if err != nil {
@@ -128,6 +129,11 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 
 		if err := i.sealBlockDataIntoLogsDB(cid, bid, blockInfo, receipts, blockInfo.Time(), true); err != nil {
 			return err
+		}
+
+		if totalBlocks > 0 && i.metrics != nil {
+			progress := float64(num-startNum+1) / float64(totalBlocks)
+			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
 		}
 	}
 	return nil
