@@ -999,7 +999,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: large
     parameters:
       test_list:
         description: List of test files to run
@@ -1065,6 +1065,7 @@ jobs:
             forge test --match-path "$MATCH_PATH" --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
+            FOUNDRY_THREADS: "2"
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
