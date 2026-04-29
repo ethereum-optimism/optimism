@@ -452,7 +452,13 @@ func buildAfterChainHeadTests(
 	priorResp := sn.SuperRootAtTimestamp(boundaryTimestamp - 1)
 	priorVerifiedAtCurrent := priorResp.Data != nil && priorResp.Data.VerifiedRequiredL1.Number <= l1HeadCurrent.Number
 
-	claimTimestamp := endTimestamp + 100
+	// claimTimestamp must lie strictly past test 6's index (boundary+3, optimistic
+	// step) for the trace to contain it. Both `boundaryTimestamp` and the test
+	// indices are boundary-relative, so this constant must be too — anchoring it
+	// to `endTimestamp` would race the same way the original Stage 2b boundary
+	// did under CI scheduling pauses.
+	const claimBuffer = 5 // small cushion past boundary+3
+	claimTimestamp := boundaryTimestamp + claimBuffer
 
 	tests := make([]*transitionTest, 0, 6)
 
