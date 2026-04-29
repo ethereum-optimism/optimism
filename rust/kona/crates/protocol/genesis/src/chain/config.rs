@@ -108,6 +108,16 @@ pub struct ChainConfig {
     /// Addresses
     #[cfg_attr(feature = "serde", serde(rename = "Addresses", alias = "addresses"))]
     pub addresses: Option<AddressList>,
+    /// Interop configuration. Present when `[interop]` is set in the chain TOML.
+    ///
+    /// `serde(skip_serializing_if = "Option::is_none")` keeps the on-disk JSON
+    /// stable for chains that don't declare interop — round-tripping
+    /// `etc/configs.json` does not gain `"interop": null` lines.
+    #[cfg_attr(
+        feature = "serde",
+        serde(rename = "interop", default, skip_serializing_if = "Option::is_none")
+    )]
+    pub interop: Option<crate::InteropConfig>,
 }
 
 impl ChainConfig {
@@ -267,6 +277,24 @@ mod tests {
 
         let deserialized: ChainConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized.name, "Base");
+    }
+
+    #[test]
+    fn test_chain_config_with_interop_dependencies() {
+        // Verbatim copy of the rehearsal-0-bn-0 chain TOML (interop cluster of 2).
+        let toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml");
+        let cfg: ChainConfig = toml::from_str(toml_src).expect("parse rehearsal-0-bn-0.toml");
+        let interop = cfg.interop.as_ref().expect("interop section present");
+        assert!(interop.dependencies.contains_key(&420120009));
+        assert!(interop.dependencies.contains_key(&420120010));
+    }
+
+    #[test]
+    fn test_chain_config_without_interop_skipped_in_json() {
+        // ChainConfig::default() has interop: None; serializing must omit the key entirely.
+        let cfg = ChainConfig::default();
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(!json.contains("interop"), "expected `interop` key to be omitted; got: {json}");
     }
 
     #[test]

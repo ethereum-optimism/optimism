@@ -1,15 +1,19 @@
-use crate::MESSAGE_EXPIRY_WINDOW;
+//! Dependency set primitives shared by `kona-interop` and `kona-registry`.
+
+use super::MESSAGE_EXPIRY_WINDOW;
 use alloc::collections::BTreeMap;
 use alloy_primitives::ChainId;
 
 /// Configuration for a dependency of a chain
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ChainDependency {}
 
 /// Configuration for the dependency set
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[allow(clippy::zero_sized_map_values)]
@@ -67,5 +71,15 @@ mod tests {
             override_value,
             "Should return override expiry window when it's non-zero"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn depset_json_round_trip() {
+        let json = include_str!("../../tests/fixtures/dependency_set.json");
+        let parsed: DependencySet = serde_json::from_str(json).unwrap();
+        let reserialized = serde_json::to_string(&parsed).unwrap();
+        let parsed_again: DependencySet = serde_json::from_str(&reserialized).unwrap();
+        assert_eq!(parsed, parsed_again);
     }
 }

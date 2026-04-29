@@ -1,17 +1,21 @@
 use crate::{
     chainspec::CustomChainSpec,
     engine::{CustomExecutionData, CustomPayloadBuilderAttributes},
-    evm::{CustomBlockAssembler, alloy::CustomEvmFactory, executor::CustomBlockExecutionCtx},
+    evm::{
+        CustomBlockAssembler, CustomBlockExecutor, alloy::CustomEvmFactory,
+        executor::CustomBlockExecutionCtx,
+    },
     primitives::{Block, CustomHeader, CustomNodePrimitives, CustomTransaction},
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{Decodable2718, eip2718::WithEncoded};
-use alloy_evm::EvmEnv;
-use alloy_op_evm::OpBlockExecutionCtx;
+use alloy_evm::{Database, EvmEnv, block::BlockExecutorFor};
+use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, post_exec::PostExecExecutorExt};
 use alloy_rpc_types_engine::PayloadError;
 use op_alloy_rpc_types_engine::flashblock::OpFlashblockPayloadBase;
 use op_revm::OpSpecId;
 use reth_engine_primitives::ExecutableTxIterator;
+use reth_evm::execute::{BasicBlockBuilder, BlockBuilder};
 use reth_node_api::{BuildNextEnv, ConfigureEvm, PayloadBuilderError};
 use reth_node_builder::{ConfigureEngineEvm, NewPayloadError};
 use reth_op::{
@@ -19,8 +23,10 @@ use reth_op::{
     evm::primitives::{EvmEnvFor, ExecutionCtxFor},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
 };
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
 use reth_primitives_traits::{SealedBlock, SealedHeader, SignedTransaction};
 use reth_rpc_api::eth::helpers::pending_block::BuildPendingEnv;
+use revm::database::State;
 use revm_primitives::Bytes;
 use std::sync::Arc;
 
@@ -80,6 +86,7 @@ impl ConfigureEvm for CustomEvmConfig {
                 parent_hash: block.header().parent_hash(),
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 extra_data: block.header().extra_data().clone(),
+                post_exec_mode: PostExecMode::default(),
             },
             extension: block.extension,
         })
@@ -95,6 +102,7 @@ impl ConfigureEvm for CustomEvmConfig {
                 parent_hash: parent.hash(),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data,
+                post_exec_mode: PostExecMode::default(),
             },
             extension: attributes.extension,
         })
@@ -190,5 +198,75 @@ where
         let inner = OpNextBlockEnvAttributes::build_next_env(attributes, parent, chain_spec)?;
 
         Ok(CustomNextBlockEnvAttributes { inner, extension: 0 })
+    }
+}
+
+impl ConfigurePostExecEvm for CustomEvmConfig {
+    fn post_exec_executor_for_block<'a, DB: Database>(
+        &'a self,
+        db: &'a mut State<DB>,
+        block: &'a SealedBlock<Block>,
+        post_exec_mode: PostExecMode,
+    ) -> Result<impl BlockExecutorFor<'a, Self, &'a mut State<DB>> + PostExecExecutorExt, Self::Error>
+    {
+        let evm = self.evm_for_block(db, block.header())?;
+        let ctx = OpBlockExecutionCtx {
+            parent_hash: block.header().parent_hash(),
+            parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
+            post_exec_mode,
+        };
+
+        let inner = OpBlockExecutor::new(
+            evm,
+            ctx,
+            self.inner.chain_spec().clone(),
+            *self.inner.executor_factory.receipt_builder(),
+        );
+
+        Ok(CustomBlockExecutor::new(inner))
+    }
+
+    fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
+        &'a self,
+        db: &'a mut State<DB>,
+        parent: &'a SealedHeader<CustomHeader>,
+        attributes: Self::NextBlockEnvCtx,
+        post_exec_mode: PostExecMode,
+    ) -> Result<
+        impl BlockBuilder<
+            Primitives = CustomNodePrimitives,
+            Executor: BlockExecutorFor<'a, Self, &'a mut State<DB>> + PostExecExecutorExt,
+        > + 'a,
+        Self::Error,
+    > {
+        let evm_env = self.next_evm_env(parent, &attributes)?;
+        let evm = self.evm_with_env(db, evm_env);
+        let ctx = CustomBlockExecutionCtx {
+            inner: OpBlockExecutionCtx {
+                parent_hash: parent.hash(),
+                parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
+                extra_data: attributes.inner.extra_data.clone(),
+                post_exec_mode,
+            },
+            extension: attributes.extension,
+        };
+
+        let inner = OpBlockExecutor::new(
+            evm,
+            ctx.inner.clone(),
+            self.inner.chain_spec().clone(),
+            *self.inner.executor_factory.receipt_builder(),
+        );
+
+        let executor = CustomBlockExecutor::new(inner);
+
+        Ok(BasicBlockBuilder::<'a, Self, _, _, CustomNodePrimitives> {
+            executor,
+            transactions: Vec::new(),
+            ctx,
+            parent,
+            assembler: self.block_assembler(),
+        })
     }
 }

@@ -9,9 +9,14 @@
 
 extern crate alloc;
 
+use alloc::vec::Vec;
+
 pub use alloy_primitives::map::HashMap;
 use kona_genesis::L1ChainConfig;
-pub use kona_genesis::{Chain, ChainConfig, ChainList, RollupConfig};
+pub use kona_genesis::{
+    Chain, ChainConfig, ChainDependency, ChainList, DependencySet, MESSAGE_EXPIRY_WINDOW,
+    RollupConfig,
+};
 
 pub mod superchain;
 pub use superchain::Registry;
@@ -39,6 +44,28 @@ lazy_static::lazy_static! {
     /// L1 chain configurations exported from the registry
     /// Note: the l1 chain configurations are not exported from the superchain registry but rather from a genesis dump file.
     pub static ref L1_CONFIGS: HashMap<u64, L1ChainConfig> = _INIT.l1_configs.clone();
+
+    /// All interop dependency sets embedded into this binary, keyed by L2 chain id.
+    /// Each chain that belongs to an interop cluster maps to that cluster's
+    /// [`DependencySet`]; chains in disjoint clusters map to **different** values.
+    /// Cross-cluster proofs must be rejected by the consumer (see `BootInfo::load`).
+    pub static ref DEPENDENCY_SETS: HashMap<u64, DependencySet> = {
+        let raw = include_str!("../etc/depsets.json");
+        let depsets: Vec<DependencySet> = serde_json::from_str(raw)
+            .expect("parse embedded etc/depsets.json");
+        let mut by_chain: HashMap<u64, DependencySet> = HashMap::default();
+        for ds in depsets {
+            for chain_id in ds.dependencies.keys().copied() {
+                if let Some(existing) = by_chain.insert(chain_id, ds.clone()) {
+                    assert_eq!(
+                        existing, ds,
+                        "embedded depsets contain overlapping clusters; build script bug"
+                    );
+                }
+            }
+        }
+        by_chain
+    };
 }
 
 /// Returns a [`RollupConfig`] by its identifier.
@@ -172,5 +199,23 @@ mod tests {
             ROLLUP_CONFIGS.contains_key(&test2_chain_id),
             "rollup config missing for {test2_chain_id}"
         );
+
+        let depset = DEPENDENCY_SETS
+            .get(&test1_chain_id)
+            .expect("test1 chain id present in embedded depsets");
+        assert!(depset.dependencies.contains_key(&test1_chain_id));
+        assert!(depset.dependencies.contains_key(&test2_chain_id));
+        // Both chain ids must map to the SAME depset value (cluster identity).
+        assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
+    }
+
+    #[test]
+    fn embedded_depsets_empty_by_default() {
+        // Without KONA_CUSTOM_CONFIGS or KONA_BIND, etc/depsets.json is `[]`.
+        if CUSTOM_CONFIGS_TEST_ENABLED == Some("true") {
+            // The custom test path embeds the fixture; skip.
+            return;
+        }
+        assert!(DEPENDENCY_SETS.is_empty(), "default build should not embed any depsets");
     }
 }

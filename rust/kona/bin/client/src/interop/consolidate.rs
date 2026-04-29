@@ -3,8 +3,11 @@
 use super::FaultProofProgramError;
 use crate::interop::util::fetch_output_block_hash;
 use alloc::sync::Arc;
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::OpTxEnv;
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpAlloyReceiptBuilder, OpTxEnv},
+};
 use core::fmt::Debug;
 use kona_executor::TrieDBProvider;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
@@ -12,8 +15,8 @@ use kona_proof::{CachingOracle, l2::OracleL2ChainProvider};
 use kona_proof_interop::{
     BootInfo, HintType, OracleInteropProvider, PreState, SuperchainConsolidator,
 };
-use kona_registry::{HashMap, ROLLUP_CONFIGS};
-use op_alloy_consensus::OpTxEnvelope;
+use kona_registry::{HashMap, ROLLUP_CONFIGS, RollupConfig};
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
 use tracing::{error, info};
@@ -36,6 +39,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Debug + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'a> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'a> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     info!(target: "client_interop", "Deriving local-safe headers from prestate");
 
