@@ -1062,10 +1062,11 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            forge test --threads 1 --match-path "$MATCH_PATH" --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
-            FOUNDRY_THREADS: "2"
+            FOUNDRY_THREADS: "1"
+            RAYON_NUM_THREADS: "1"
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
