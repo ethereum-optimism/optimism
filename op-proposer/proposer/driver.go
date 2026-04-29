@@ -13,9 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -324,6 +326,11 @@ func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output source.Pro
 		// Add legacy data only if available
 		if output.Legacy.HeadL1 != (eth.L1BlockRef{}) {
 			logCtx = append(logCtx, "l1head", output.Legacy.HeadL1.Number)
+		}
+		// Attempt to decode revert reason using the DisputeGameFactory ABI
+		if revertData, ok := errutil.ExtractRevertData(err); ok {
+			factoryABI := snapshots.LoadDisputeGameFactoryABI()
+			logCtx = append(logCtx, "revert_reason", errutil.DecodeRevertReasonWithABIs(revertData, factoryABI))
 		}
 		l.Log.Error("Failed to send proposal transaction", logCtx...)
 		return
