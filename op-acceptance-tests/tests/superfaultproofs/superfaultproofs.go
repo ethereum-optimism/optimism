@@ -825,7 +825,6 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].CLNode.WaitForStall(types.LocalSafe)
 
 	heads := make([]eth.L2BlockRef, len(chains))
-	var boundaryTimestamp uint64
 	for i, c := range chains {
 		parent := c.EL.BlockRefByLabel(eth.Unsafe)
 		sys.TestSequencer.SequenceBlock(t, c.ID, parent.Hash)
@@ -834,33 +833,47 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 			"chain %s SequenceBlock must produce a block at parent.Time+blockTime", c.ID)
 		t.Require().Equalf(parent.Number+1, heads[i].Number,
 			"chain %s SequenceBlock must produce exactly one new block", c.ID)
-		if heads[i].Time > boundaryTimestamp {
-			boundaryTimestamp = heads[i].Time
+	}
+
+	// Drive catch-up to convergence: every chain's head time must equal the max
+	// head time across all chains. Each iteration extends every chain whose head
+	// is below the current max by exactly one block. A single pass per chain isn't
+	// enough because extending a 2 s lag-chain by one block can push the max
+	// forward by 2 s, leaving a 1 s chain behind.
+	//
+	// Termination: each iteration advances at least one chain by at least 1 s
+	// (= min block time across configurations), and chain advances are bounded
+	// by the initial max-min gap, which is bounded.
+	for {
+		target := heads[0].Time
+		for _, h := range heads[1:] {
+			if h.Time > target {
+				target = h.Time
+			}
 		}
+		converged := true
+		for i, c := range chains {
+			if heads[i].Time < target {
+				sys.TestSequencer.SequenceBlock(t, c.ID, heads[i].Hash)
+				next := c.EL.BlockRefByLabel(eth.Unsafe)
+				t.Require().Equalf(heads[i].Time+c.Cfg.BlockTime, next.Time,
+					"chain %s SequenceBlock catch-up must produce a block at parent.Time+blockTime", c.ID)
+				t.Require().Equalf(heads[i].Number+1, next.Number,
+					"chain %s SequenceBlock catch-up must produce exactly one new block", c.ID)
+				heads[i] = next
+				converged = false
+			}
+		}
+		if converged {
+			break
+		}
+	}
+	boundaryTimestamp := heads[0].Time
+	for _, h := range heads[1:] {
+		t.Require().Equalf(boundaryTimestamp, h.Time,
+			"all chain heads must converge to boundaryTimestamp after catch-up")
 	}
 	t.Require().NotZero(boundaryTimestamp, "boundary timestamp must be set")
-
-	// Catch up any lagging chain (whose new head time is below boundaryTimestamp)
-	// by extending it with additional SequenceBlock calls until its head time
-	// meets or exceeds boundaryTimestamp. Without this, chains with different
-	// block times (or chains that drifted in Stage 2) would fail
-	// AwaitValidatedTimestamp because the lagging chain has no L1 block covering
-	// boundaryTimestamp.
-	for i, c := range chains {
-		for heads[i].Time < boundaryTimestamp {
-			sys.TestSequencer.SequenceBlock(t, c.ID, heads[i].Hash)
-			next := c.EL.BlockRefByLabel(eth.Unsafe)
-			t.Require().Equalf(heads[i].Time+c.Cfg.BlockTime, next.Time,
-				"chain %s SequenceBlock catch-up must produce a block at parent.Time+blockTime", c.ID)
-			heads[i] = next
-		}
-	}
-	// Re-derive the final boundaryTimestamp as the max head time after catch-up.
-	for _, h := range heads {
-		if h.Time > boundaryTimestamp {
-			boundaryTimestamp = h.Time
-		}
-	}
 
 	// Restart batchers briefly so the new boundary blocks (and any pre-boundary
 	// blocks not yet on L1) land on L1 and the supernode validates boundaryTimestamp.
@@ -872,13 +885,14 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[0].Batcher.Stop()
 	chains[1].Batcher.Stop()
 
-	// Post-Stage 2b invariant for the AfterChainHead tests: every chain's head
-	// covers boundaryTimestamp, and no chain has a block past head (sequencers
-	// stayed stopped, so head.Time + blockTime <= boundaryTimestamp + blockTime).
+	// Post-Stage 2b invariant for the AfterChainHead tests: every chain's
+	// canonical head sits exactly at boundaryTimestamp. Sequencers stay stopped,
+	// so no chain has a block past boundaryTimestamp; batchers stop after
+	// submitting boundary blocks, so no L1 batch covers past boundary either.
 	for _, c := range chains {
 		head := c.EL.BlockRefByLabel(eth.Unsafe)
-		t.Require().GreaterOrEqualf(head.Time+c.Cfg.BlockTime, boundaryTimestamp+1,
-			"chain %s head must cover boundaryTimestamp", c.ID)
+		t.Require().Equalf(boundaryTimestamp, head.Time,
+			"chain %s head must be at boundaryTimestamp exactly", c.ID)
 	}
 
 	// --- Stage 3: Build expected transition states --------------------------
@@ -989,7 +1003,6 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains[1].CLNode.WaitForStall(types.LocalSafe)
 
 	heads := make([]eth.L2BlockRef, len(chains))
-	var boundaryTimestamp uint64
 	for i, c := range chains {
 		parent := c.EL.BlockRefByLabel(eth.Unsafe)
 		sys.TestSequencer.SequenceBlock(t, c.ID, parent.Hash)
@@ -998,26 +1011,38 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 			"chain %s SequenceBlock must produce a block at parent.Time+blockTime", c.ID)
 		t.Require().Equalf(parent.Number+1, heads[i].Number,
 			"chain %s SequenceBlock must produce exactly one new block", c.ID)
-		if heads[i].Time > boundaryTimestamp {
-			boundaryTimestamp = heads[i].Time
+	}
+
+	for {
+		target := heads[0].Time
+		for _, h := range heads[1:] {
+			if h.Time > target {
+				target = h.Time
+			}
 		}
+		converged := true
+		for i, c := range chains {
+			if heads[i].Time < target {
+				sys.TestSequencer.SequenceBlock(t, c.ID, heads[i].Hash)
+				next := c.EL.BlockRefByLabel(eth.Unsafe)
+				t.Require().Equalf(heads[i].Time+c.Cfg.BlockTime, next.Time,
+					"chain %s SequenceBlock catch-up must produce a block at parent.Time+blockTime", c.ID)
+				t.Require().Equalf(heads[i].Number+1, next.Number,
+					"chain %s SequenceBlock catch-up must produce exactly one new block", c.ID)
+				heads[i] = next
+				converged = false
+			}
+		}
+		if converged {
+			break
+		}
+	}
+	boundaryTimestamp := heads[0].Time
+	for _, h := range heads[1:] {
+		t.Require().Equalf(boundaryTimestamp, h.Time,
+			"all chain heads must converge to boundaryTimestamp after catch-up")
 	}
 	t.Require().NotZero(boundaryTimestamp, "boundary timestamp must be set")
-
-	for i, c := range chains {
-		for heads[i].Time < boundaryTimestamp {
-			sys.TestSequencer.SequenceBlock(t, c.ID, heads[i].Hash)
-			next := c.EL.BlockRefByLabel(eth.Unsafe)
-			t.Require().Equalf(heads[i].Time+c.Cfg.BlockTime, next.Time,
-				"chain %s SequenceBlock catch-up must produce a block at parent.Time+blockTime", c.ID)
-			heads[i] = next
-		}
-	}
-	for _, h := range heads {
-		if h.Time > boundaryTimestamp {
-			boundaryTimestamp = h.Time
-		}
-	}
 
 	chains[0].Batcher.Start()
 	chains[1].Batcher.Start()
@@ -1028,8 +1053,8 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	for _, c := range chains {
 		head := c.EL.BlockRefByLabel(eth.Unsafe)
-		t.Require().GreaterOrEqualf(head.Time+c.Cfg.BlockTime, boundaryTimestamp+1,
-			"chain %s head must cover boundaryTimestamp", c.ID)
+		t.Require().Equalf(boundaryTimestamp, head.Time,
+			"chain %s head must be at boundaryTimestamp exactly", c.ID)
 	}
 
 	// -- Stage 3: Build expected transition states --------------------------
