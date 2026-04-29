@@ -390,3 +390,24 @@ workflows:
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
+      - rust-build-binary:
+          name: kona-build-release
+          directory: rust
+          profile: release
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # Proof tests - single kind only, interop excluded per original config
+      - kona-proof-action-tests:
+          name: kona-proof-action-single
+          kind: single
+          requires:
+            - kona-build-release
+            - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+      - required-rust-e2e:
+          requires:
+            - kona-proof-action-single: terminal
+          context:
+            - circleci-api-token
