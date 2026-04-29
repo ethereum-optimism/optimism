@@ -25,9 +25,12 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 
 		// Then we deploy
 		output, err := deploySuperchain.Run(DeploySuperchainInput{
-			Guardian:                  common.BigToAddress(big.NewInt(1)),
-			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-			Paused:                    true,
+			Guardian:                   common.BigToAddress(big.NewInt(1)),
+			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
+			Paused:                     true,
+			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
+			RequiredProtocolVersion:    common.Hash{0x01},
+			RecommendedProtocolVersion: common.Hash{0x01},
 		})
 
 		// And do some simple asserts
@@ -47,9 +50,12 @@ func TestNewDeploySuperchainScriptForge(t *testing.T) {
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
 	output, recompiled, err := deploySuperchain(context.Background(), DeploySuperchainInput{
-		Guardian:                  common.BigToAddress(big.NewInt(1)),
-		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-		Paused:                    true,
+		Guardian:                   common.BigToAddress(big.NewInt(1)),
+		SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
+		Paused:                     true,
+		ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
+		RequiredProtocolVersion:    common.Hash{0x01},
+		RecommendedProtocolVersion: common.Hash{0x01},
 	})
 
 	require.NoError(t, err)

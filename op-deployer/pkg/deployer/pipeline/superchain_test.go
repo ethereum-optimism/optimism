@@ -169,9 +169,12 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
 
 	input := opcm.DeploySuperchainInput{
-		Guardian:                  common.BigToAddress(big.NewInt(1)),
-		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-		Paused:                    false,
+		Guardian:                   common.BigToAddress(big.NewInt(1)),
+		SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
+		Paused:                     false,
+		ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
+		RequiredProtocolVersion:    common.Hash{0x01},
+		RecommendedProtocolVersion: common.Hash{0x01},
 	}
 
 	output, recompiled, err := deploySuperchain(ctx, input)
