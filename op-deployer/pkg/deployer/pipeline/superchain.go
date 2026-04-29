@@ -6,8 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
-	"github.com/ethereum/go-ethereum/params"
 )
 
 func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
@@ -21,12 +19,9 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	lgr.Info("deploying superchain")
 
 	input := opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner:  intent.SuperchainRoles.SuperchainProxyAdminOwner,
-		ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
-		Guardian:                   intent.SuperchainRoles.SuperchainGuardian,
-		Paused:                     false,
-		RequiredProtocolVersion:    params.OPStackSupport,
-		RecommendedProtocolVersion: params.OPStackSupport,
+		SuperchainProxyAdminOwner: intent.SuperchainRoles.SuperchainProxyAdminOwner,
+		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
+		Paused:                    false,
 	}
 
 	var dso opcm.DeploySuperchainOutput
@@ -55,8 +50,6 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		SuperchainProxyAdminImpl: dso.SuperchainProxyAdmin,
 		SuperchainConfigProxy:    dso.SuperchainConfigProxy,
 		SuperchainConfigImpl:     dso.SuperchainConfigImpl,
-		ProtocolVersionsProxy:    dso.ProtocolVersionsProxy,
-		ProtocolVersionsImpl:     dso.ProtocolVersionsImpl,
 	}
 	st.SuperchainRoles = intent.SuperchainRoles
 

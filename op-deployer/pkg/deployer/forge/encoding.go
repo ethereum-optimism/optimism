@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, error) {
@@ -47,8 +46,6 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 	case reflect.TypeOf(common.Address{}):
 		return "address", nil
 	case reflect.TypeOf(common.Hash{}):
-		return "bytes32", nil
-	case reflect.TypeOf(params.ProtocolVersion{}):
 		return "bytes32", nil
 	case reflect.TypeOf(big.NewInt(0)).Elem():
 		return "uint256", nil

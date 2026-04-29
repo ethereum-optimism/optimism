@@ -22,7 +22,6 @@ type DeployImplementationsInput struct {
 	FaultGameV2ClockExtension       *big.Int
 	FaultGameV2MaxClockDuration     *big.Int
 	SuperchainConfigProxy           common.Address
-	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address
 	L1ProxyAdminOwner               common.Address
 	Challenger                      common.Address
@@ -47,7 +46,6 @@ type DeployImplementationsOutput struct {
 	DisputeGameFactoryImpl           common.Address `json:"disputeGameFactoryImplAddress"`
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
-	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
 	FaultDisputeGameImpl             common.Address `json:"faultDisputeGameImplAddress"`
 	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`

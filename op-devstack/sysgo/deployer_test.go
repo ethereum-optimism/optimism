@@ -75,7 +75,6 @@ func newValidIntentBuilder() intentbuilder.Builder {
 	_, superchain := builder.WithSuperchain()
 	superchain.WithProxyAdminOwner(common.HexToAddress("0x1"))
 	superchain.WithGuardian(common.HexToAddress("0x2"))
-	superchain.WithProtocolVersionsOwner(common.HexToAddress("0x3"))
 	superchain.WithChallenger(common.HexToAddress("0x4"))
 
 	builder, _ = builder.WithL1(eth.ChainIDFromUInt64(1))

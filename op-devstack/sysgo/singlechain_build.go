@@ -127,7 +127,6 @@ func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, b
 	_, superCfg := builder.WithSuperchain()
 	intentbuilder.WithDevkeySuperRoles(t, keys, l1ChainID, superCfg)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 }

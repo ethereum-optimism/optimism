@@ -19,11 +19,8 @@ const (
 	DevFeatureBitmapFlagName                = "dev-feature-bitmap"
 	ProxyOwnerFlagName                      = "proxy-owner"
 	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
-	ProtocolVersionsOwnerFlagName           = "protocol-versions-owner"
 	GuardianFlagName                        = "guardian"
 	PausedFlagName                          = "paused"
-	RequiredProtocolVersionFlagName         = "required-protocol-version"
-	RecommendedProtocolVersionFlagName      = "recommended-protocol-version"
 )
 
 var (
@@ -111,12 +108,6 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN_OWNER"),
 		Value:   common.Address{}.Hex(),
 	}
-	ProtocolVersionsOwnerFlag = &cli.StringFlag{
-		Name:    ProtocolVersionsOwnerFlagName,
-		Usage:   "Owner address for protocol versions",
-		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_OWNER"),
-		Value:   common.Address{}.Hex(),
-	}
 	GuardianFlag = &cli.StringFlag{
 		Name:    GuardianFlagName,
 		Usage:   "Guardian address",
@@ -128,25 +119,10 @@ var (
 		Usage:   "Initial paused state",
 		EnvVars: deployer.PrefixEnvVar("PAUSED"),
 	}
-	RequiredProtocolVersionFlag = &cli.StringFlag{
-		Name:    RequiredProtocolVersionFlagName,
-		Usage:   "Required protocol version (semver)",
-		EnvVars: deployer.PrefixEnvVar("REQUIRED_PROTOCOL_VERSION"),
-	}
-	RecommendedProtocolVersionFlag = &cli.StringFlag{
-		Name:    RecommendedProtocolVersionFlagName,
-		Usage:   "Recommended protocol version (semver)",
-		EnvVars: deployer.PrefixEnvVar("RECOMMENDED_PROTOCOL_VERSION"),
-	}
 	SuperchainConfigProxyFlag = &cli.StringFlag{
 		Name:    "superchain-config-proxy",
 		Usage:   "Superchain config proxy.",
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_CONFIG_PROXY"),
-	}
-	ProtocolVersionsProxyFlag = &cli.StringFlag{
-		Name:    "protocol-versions-proxy",
-		Usage:   "Protocol versions proxy.",
-		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_PROXY"),
 	}
 	L1ProxyAdminOwnerFlag = &cli.StringFlag{
 		Name:    "l1-proxy-admin-owner",
@@ -188,7 +164,6 @@ var ImplementationsFlags = []cli.Flag{
 	DisputeClockExtensionFlag,
 	DisputeMaxClockDurationFlag,
 	SuperchainConfigProxyFlag,
-	ProtocolVersionsProxyFlag,
 	L1ProxyAdminOwnerFlag,
 	SuperchainProxyAdminFlag,
 	ChallengerFlag,
@@ -213,11 +188,8 @@ var SuperchainFlags = []cli.Flag{
 	OutfileFlag,
 	deployer.ArtifactsLocatorFlag,
 	SuperchainProxyAdminOwnerFlag,
-	ProtocolVersionsOwnerFlag,
 	GuardianFlag,
 	PausedFlag,
-	RequiredProtocolVersionFlag,
-	RecommendedProtocolVersionFlag,
 	deployer.AutoVerifyFlag,
 	deployer.VerifierFlag,
 	deployer.VerifierUrlFlag,

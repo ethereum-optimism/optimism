@@ -49,11 +49,6 @@ func TestStandardAddresses(t *testing.T) {
 			common.HexToAddress("0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"),
 			common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
 		},
-		{
-			ProtocolVersionsOwner,
-			common.HexToAddress("0x847B5c174615B1B7fDF770882256e2D3E95b9D92"),
-			common.HexToAddress("0xfd1D2e729aE8eEe2E146c033bf4400fE75284301"),
-		},
 	}
 	for _, test := range tests {
 		fname := runtime.FuncForPC(reflect.ValueOf(test.f).Pointer()).Name()

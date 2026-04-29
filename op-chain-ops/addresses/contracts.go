@@ -19,8 +19,6 @@ type SuperchainContracts struct {
 	SuperchainProxyAdminImpl common.Address
 	SuperchainConfigProxy    common.Address
 	SuperchainConfigImpl     common.Address
-	ProtocolVersionsProxy    common.Address
-	ProtocolVersionsImpl     common.Address
 }
 
 // ImplementationsContracts struct contains all the implementation contracts for a superchain
