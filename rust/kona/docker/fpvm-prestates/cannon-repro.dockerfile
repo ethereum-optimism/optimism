@@ -102,12 +102,24 @@ COPY rust/op-reth/ /app/rust/op-reth/
 # succeeds inside the rust/-scoped build.
 COPY op-core/nuts/bundles /app/op-core/nuts/bundles
 
-# --- Layer 4: Build kona-client ELF ---
+# --- Layer 4: Custom chain configs ---
+# Always copy from the named build context. The justfile stages an empty
+# temp dir when KONA_CUSTOM_CONFIGS_DIR is unset, so this COPY succeeds in
+# both modes without conditional Dockerfile logic.
+ARG KONA_CUSTOM_CONFIGS=false
+COPY --from=kona-custom-configs / /usr/local/kona-custom-configs
+ENV KONA_CUSTOM_CONFIGS=${KONA_CUSTOM_CONFIGS}
+
+# --- Layer 5: Build kona-client ELF ---
 # build-kona-client-elf sets CARGO_BUILD_TARGET to the corrected target spec
 # from the source tree, overriding cannon-builder's baked-in spec.
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/rust/target \
-    cd /app/rust && just build-kona-client-elf ${VARIANT} && \
+    cd /app/rust && \
+    if [ "$KONA_CUSTOM_CONFIGS" = "true" ]; then \
+      export KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs; \
+    fi && \
+    just build-kona-client-elf ${VARIANT} && \
     cp /app/rust/target/mips64-unknown-none/release-client-lto/${VARIANT} /app/kona-elf
 
 ################################################################
