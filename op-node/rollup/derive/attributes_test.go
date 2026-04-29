@@ -408,14 +408,20 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		}
 
 		t.Run("WithSingleChainDepSet", func(t *testing.T) {
-			// Single-chain superchains skip Interop activation entirely; the
-			// activation block contains only the L1 info deposit.
+			// Single-chain superchains execute the bundle upgrades but skip the
+			// Interop-specific setFeature and ETHLiquidity funding wrappers.
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 				eth.ChainIDFromUInt64(42): {},
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			require.Len(t, attrs.Transactions, 1, "single-chain depset must produce no Interop upgrade txs")
+			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
+			require.NoError(t, err)
+
+			require.Len(t, attrs.Transactions, len(bundleTxs)+1) // +1 for L1Info tx
+			for i, tx := range bundleTxs {
+				require.Equal(t, tx, attrs.Transactions[i+1])
+			}
 		})
 
 		t.Run("WithMultiChainDepSet", func(t *testing.T) {
