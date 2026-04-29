@@ -964,7 +964,7 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 }
 
 // RunPreForkActivationTest verifies that super-root transitions produce
-// correct results when the Lagoon fork is scheduled but not yet active.
+// correct results when the Lagoon (interop activation) fork is scheduled but not yet active.
 // It sends an initiating message on chain A and a (reverting) executing
 // message on chain B to ensure the proof system handles interop-related
 // transactions correctly even before the fork activates.

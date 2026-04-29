@@ -149,7 +149,7 @@ func (cfg *Config) Check() error {
 		return ErrMissingPectraBlobSchedule
 	}
 	if cfg.Rollup.LagoonTime != nil && cfg.DependencySet == nil {
-		return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.LagoonTime)
+		return fmt.Errorf("the Lagoon (interop activation) upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.LagoonTime)
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)

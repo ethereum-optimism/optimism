@@ -19,7 +19,7 @@ func TestInteropAtGenesis(t *testing.T) {
 		want   bool
 	}{
 		{"nil offset: Lagoon not scheduled", nil, false},
-		{"zero offset: Lagoon active at genesis", &zero, true},
+		{"zero offset: Lagoon activates interop at genesis", &zero, true},
 		{"non-zero offset: Lagoon delayed activation", &nonzero, false},
 	}
 	for _, tt := range tests {
