@@ -948,7 +948,6 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-rust_changes_detected >>
-            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -1100,7 +1099,6 @@ workflows:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
-        - << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - rust-ci-cargo-tests:
           name: rust-tests
@@ -1124,21 +1122,6 @@ workflows:
             - rust-tests: terminal
             - op-reth-integration-tests: terminal
             - kona-build-fpvm-cannon-client: terminal
-          context:
-            - circleci-api-token
-
-  # ==========================================================================
-  # Required Rust CI gate (noop) — runs on docs-only PRs so the required
-  # GitHub check still posts and the merge queue doesn't deadlock.
-  # ==========================================================================
-  rust-ci-gate-noop:
-    when:
-      and:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-non_docs_changes >>
-    jobs:
-      - required-rust-ci:
-          always-succeed: true
           context:
             - circleci-api-token
 
