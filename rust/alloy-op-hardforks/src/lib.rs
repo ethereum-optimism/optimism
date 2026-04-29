@@ -365,8 +365,8 @@ impl Index<EthereumHardfork> for OpChainHardforks {
             // Dao Hardfork is not needed for OpChainHardforks
             Dao | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
             Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
-            Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople
-            | Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
+            Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
+            Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
             London | ArrowGlacier | GrayGlacier => &self[Bedrock],
             Paris if self.is_op_mainnet() => &ForkCondition::TTD {
                 activation_block_number: OP_MAINNET_BEDROCK_BLOCK,

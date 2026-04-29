@@ -208,10 +208,10 @@ impl NodeCommand {
         let mut source = Some(error);
         while let Some(err) = source {
             let err_str = err.to_string().to_lowercase();
-            if err_str.contains("signature invalid")
-                || (err_str.contains("jwt") && err_str.contains("invalid"))
-                || err_str.contains("unauthorized")
-                || err_str.contains("authentication failed")
+            if err_str.contains("signature invalid") ||
+                (err_str.contains("jwt") && err_str.contains("invalid")) ||
+                err_str.contains("unauthorized") ||
+                err_str.contains("authentication failed")
             {
                 return true;
             }
@@ -406,8 +406,8 @@ impl NodeCommand {
     /// using the provided [`PathBuf`]. If the file is not found,
     /// it will return the default JWT secret.
     pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret
-            && let Ok(secret) = std::fs::read_to_string(path)
+        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
+            let Ok(secret) = std::fs::read_to_string(path)
         {
             return JwtSecret::from_hex(secret)
                 .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
@@ -430,9 +430,9 @@ impl NodeCommand {
             |_| {
                 let secret = JwtSecret::random();
 
-                if let Ok(mut file) = File::create(file_name)
-                    && let Err(e) =
-                        file.write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
+                if let Ok(mut file) = File::create(file_name) &&
+                    let Err(e) = file
+                        .write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
                 {
                     return Err(anyhow::anyhow!("Failed to write JWT secret to file: {e}"));
                 }

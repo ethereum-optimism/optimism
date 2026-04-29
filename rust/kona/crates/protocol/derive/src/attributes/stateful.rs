@@ -164,39 +164,39 @@ where
         }
 
         let mut upgrade_transactions: Vec<Bytes> =
-            if self.rollup_cfg.is_ecotone_active(next_l2_time)
-                && !self.rollup_cfg.is_ecotone_active(l2_parent.block_info.timestamp)
+            if self.rollup_cfg.is_ecotone_active(next_l2_time) &&
+                !self.rollup_cfg.is_ecotone_active(l2_parent.block_info.timestamp)
             {
                 Hardforks::ECOTONE.txs().collect()
             } else {
                 vec![]
             };
-        if self.rollup_cfg.is_fjord_active(next_l2_time)
-            && !self.rollup_cfg.is_fjord_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_fjord_active(next_l2_time) &&
+            !self.rollup_cfg.is_fjord_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::FJORD.txs().collect());
         }
-        if self.rollup_cfg.is_isthmus_active(next_l2_time)
-            && !self.rollup_cfg.is_isthmus_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_isthmus_active(next_l2_time) &&
+            !self.rollup_cfg.is_isthmus_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::ISTHMUS.txs().collect());
         }
-        if self.rollup_cfg.is_jovian_active(next_l2_time)
-            && !self.rollup_cfg.is_jovian_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_jovian_active(next_l2_time) &&
+            !self.rollup_cfg.is_jovian_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::JOVIAN.txs().collect());
         }
         // Starting with Karst, upgrade transactions carry their own gas budget that is
         // added to the block gas limit at the fork activation block.
         let mut upgrade_gas: u64 = 0;
-        if self.rollup_cfg.is_karst_active(next_l2_time)
-            && !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_karst_active(next_l2_time) &&
+            !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
             upgrade_gas += Hardforks::KARST.upgrade_gas();
         }
-        if self.rollup_cfg.is_interop_active(next_l2_time)
-            && !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
+        if self.rollup_cfg.is_interop_active(next_l2_time) &&
+            !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
             // The Interop NUT bundle executes on all chains. The setFeature and
             // ETHLiquidity funding wrappers only execute for chains in a multi-chain
@@ -256,8 +256,8 @@ where
             transactions: Some(txs),
             no_tx_pool: Some(true),
             gas_limit: Some(
-                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes())
-                    + upgrade_gas,
+                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
+                    upgrade_gas,
             ),
             eip_1559_params: sys_config.eip_1559_params(
                 &self.rollup_cfg,

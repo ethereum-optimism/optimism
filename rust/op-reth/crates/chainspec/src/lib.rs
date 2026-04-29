@@ -477,8 +477,8 @@ impl OpGenesisInfo {
             .unwrap_or_default(),
             ..Default::default()
         };
-        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info
-            && let (Some(elasticity), Some(denominator)) = (
+        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info &&
+            let (Some(elasticity), Some(denominator)) = (
                 optimism_base_fee_info.eip1559_elasticity,
                 optimism_base_fee_info.eip1559_denominator,
             )
@@ -515,9 +515,9 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 
     // If Isthmus is active, overwrite the withdrawals root with the storage root of predeploy
     // `L2ToL1MessagePasser.sol`
-    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp)
-        && let Some(predeploy) = genesis.alloc.get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS)
-        && let Some(storage) = &predeploy.storage
+    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp) &&
+        let Some(predeploy) = genesis.alloc.get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS) &&
+        let Some(storage) = &predeploy.storage
     {
         header.withdrawals_root = Some(storage_root_unhashed(storage.iter().filter_map(
             |(k, v)| {
