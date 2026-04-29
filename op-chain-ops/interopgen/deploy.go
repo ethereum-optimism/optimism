@@ -290,7 +290,6 @@ func MigrateInterop(
 
 	const (
 		GameTypeCannon          = uint32(0)
-		GameTypeSuperCannon     = uint32(4)
 		GameTypeSuperCannonKona = uint32(9)
 	)
 
@@ -304,12 +303,6 @@ func MigrateInterop(
 					Enabled:  true,
 					InitBond: big.NewInt(0),
 					GameType: GameTypeCannon,
-					GameArgs: cannonGameArgs,
-				},
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
-					GameType: GameTypeSuperCannon,
 					GameArgs: cannonGameArgs,
 				},
 				{
