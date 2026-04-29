@@ -129,8 +129,11 @@ impl From<alloy_rpc_types_engine::PayloadAttributes> for OpPayloadAttrs {
 
 impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
     fn payload_id(&self, parent_hash: &B256) -> PayloadId {
-        // Use the default engine API message version for computing the payload id.
-        payload_id_optimism(parent_hash, &self.0, EngineApiMessageVersion::default() as u8)
+        // Revisit if op-node ever bumps its FCU version. Pre-PR-#23202 reth threaded the
+        // version through `PayloadBuilderAttributes::try_new(parent, attrs, version)`; the
+        // refactor removed that channel, so for now V3 is the only correct choice instead
+        // of the V4 default
+        payload_id_optimism(parent_hash, &self.0, EngineApiMessageVersion::V3 as u8)
     }
 
     fn timestamp(&self) -> u64 {
