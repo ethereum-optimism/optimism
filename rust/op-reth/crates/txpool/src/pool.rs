@@ -18,10 +18,11 @@ use metrics::Counter;
 use reth_metrics::Metrics;
 use reth_transaction_pool::{
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BestTransactionsAttributes,
-    BlobStoreError, BlockInfo, GetPooledTransactionLimit, NewTransactionEvent, PoolResult,
-    PoolSize, PoolTransaction, PoolUpdateKind, PropagatedTransactions, TransactionEvents,
-    TransactionListenerKind, TransactionOrigin, TransactionPool, TransactionPoolExt,
-    ValidPoolTransaction,
+    BlobStore, BlobStoreError, BlockInfo, EthPoolTransaction, GetPooledTransactionLimit,
+    NewTransactionEvent, Pool, PoolConfig, PoolResult, PoolSize, PoolTransaction, PoolUpdateKind,
+    PropagatedTransactions, TransactionEvents, TransactionListenerKind, TransactionOrdering,
+    TransactionOrigin, TransactionPool, TransactionPoolExt, TransactionValidationOutcome,
+    TransactionValidator, ValidPoolTransaction,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
@@ -139,6 +140,16 @@ where
         Self { inner, reorg_state, metrics: OpPoolMetrics::default() }
     }
 
+    /// Number of transactions in the entire pool.
+    pub fn len(&self) -> usize {
+        self.inner.pool_size().total
+    }
+
+    /// Whether the pool is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns true if interop filtering should fire on this
     /// `add_external_transactions` call.
     ///
@@ -190,6 +201,48 @@ where
             self.metrics.reorg_interop_txs_filtered.increment(removed as u64);
         }
         filtered
+    }
+}
+
+impl<V, T, S> OpPool<Pool<V, T, S>>
+where
+    V: TransactionValidator,
+    V::Transaction: EthPoolTransaction,
+    T: TransactionOrdering<Transaction = V::Transaction>,
+    S: BlobStore,
+{
+    /// Returns the wrapped pool internals.
+    pub fn inner(&self) -> &reth_transaction_pool::pool::PoolInner<V, T, S> {
+        self.inner.inner()
+    }
+
+    /// Get the config the pool was configured with.
+    pub fn config(&self) -> &PoolConfig {
+        self.inner.config()
+    }
+
+    /// Get the validator reference.
+    pub fn validator(&self) -> &V {
+        self.inner.validator()
+    }
+
+    /// Validates the given transaction.
+    pub async fn validate(
+        &self,
+        origin: TransactionOrigin,
+        transaction: V::Transaction,
+    ) -> TransactionValidationOutcome<V::Transaction> {
+        self.inner.validator().validate_transaction(origin, transaction).await
+    }
+
+    /// Returns whether or not the pool is over its configured size and transaction count limits.
+    pub fn is_exceeded(&self) -> bool {
+        self.inner.is_exceeded()
+    }
+
+    /// Returns the configured blob store.
+    pub fn blob_store(&self) -> &S {
+        self.inner.blob_store()
     }
 }
 
@@ -383,7 +436,7 @@ mod tests {
     use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::address;
-    use reth_transaction_pool::test_utils::MockTransaction;
+    use reth_transaction_pool::test_utils::{MockTransaction, testing_pool};
     use std::sync::atomic::Ordering;
 
     /// Creates a mock EIP-1559 transaction with the given access list.
@@ -609,5 +662,20 @@ mod tests {
         // add_transaction (RPC/Local path) is never affected by the reorg filter.
         let result = pool.add_transaction(TransactionOrigin::Local, interop).await;
         assert!(result.is_err(), "NoopTransactionPool always rejects, proving tx was forwarded");
+    }
+
+    #[tokio::test]
+    async fn test_standard_pool_public_methods_are_exposed() {
+        let pool = OpPool::new(testing_pool(), false);
+
+        assert!(pool.is_empty());
+        assert_eq!(pool.len(), 0);
+        assert!(!pool.is_exceeded());
+        assert!(std::ptr::eq(pool.config(), pool.inner().config()));
+        assert!(std::ptr::eq(pool.validator(), pool.inner().validator()));
+        assert!(std::ptr::eq(pool.blob_store(), pool.inner().blob_store()));
+
+        let outcome = pool.validate(TransactionOrigin::External, mock_normal_tx()).await;
+        assert!(outcome.is_valid());
     }
 }
