@@ -168,17 +168,19 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		// Interop only activates for chains in a multi-chain dependency set;
-		// single-chain superchains have nothing to interoperate with.
-		// Regardless we still execute the NUT bundle of upgrade transactions on all chains, but the
-		// logic execute by the L2ContractManager will ensure that the interop-specific contracts are
-		// only activated on interop chains.
-		if len(ba.depSet.Chains()) > 1 {
+		// The Interop NUT bundle executes on all chains. The setFeature and
+		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
+		// dependency set, which signals the L2ContractsManager to activate
+		// Interop-specific contracts.
+		isInteropChain := len(ba.depSet.Chains()) > 1
+		if isInteropChain {
 			// Call `L1Block.setFeature(INTEROP)` to signal to the L2 ContractManager to activate interop contracts
 			setFeatureTx, err := interopSetFeatureTx()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop setFeature wrapper: %w", err))
 			}
+			upgradeTxs = append(upgradeTxs, setFeatureTx)
+			upgradeGas += interopSetFeatureGas
 		}
 
 		// The interop NUT bundle executes on all chains
@@ -186,15 +188,17 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to load interop NUT bundle: %w", err))
 		}
+		upgradeTxs = append(upgradeTxs, bundleTxs...)
+		upgradeGas += bundleGas
 
-		if len(ba.depSet.Chains()) > 1 {
+		if isInteropChain {
 			// Mint and send `u128::MAX` to the ETHLiquidity contract
 			fundingTx, err := interopETHLiquidityFundingTx()
 			if err != nil {
 				return nil, NewCriticalError(fmt.Errorf("failed to build interop ETHLiquidity funding wrapper: %w", err))
 			}
-			upgradeTxs = append(append(append(upgradeTxs, setFeatureTx), bundleTxs...), fundingTx)
-			upgradeGas += interopSetFeatureGas + bundleGas + interopETHLiquidityFundGas
+			upgradeTxs = append(upgradeTxs, fundingTx)
+			upgradeGas += interopETHLiquidityFundGas
 		}
 	}
 

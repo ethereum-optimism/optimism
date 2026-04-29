@@ -198,18 +198,23 @@ where
         if self.rollup_cfg.is_interop_active(next_l2_time) &&
             !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
-            // Interop only activates for chains in a multi-chain dependency set;
-            // single-chain superchains have nothing to interoperate with. Matches
-            // op-node's gate at op-node/rollup/derive/attributes.go.
+            // The Interop NUT bundle executes on all chains. The setFeature and
+            // ETHLiquidity funding wrappers only execute for chains in a multi-chain
+            // dependency set, which signals the L2ContractsManager to activate
+            // Interop-specific contracts. Matches op-node's gate at
+            // op-node/rollup/derive/attributes.go.
             // `dependency_set` is guaranteed Some(_) here because the constructor
             // panics when interop_time.is_some() && dependency_set.is_none().
             let dependency_set = self.dependency_set.as_ref().expect(
                 "dependency_set must be Some when interop is active — constructor invariant",
             );
-            if dependency_set.dependencies.len() > 1 {
-                upgrade_transactions.append(&mut Hardforks::INTEROP.txs().collect());
-                upgrade_gas += Hardforks::INTEROP.upgrade_gas();
-            }
+            let activate_interop_contracts = dependency_set.dependencies.len() > 1;
+            upgrade_transactions.append(
+                &mut Hardforks::INTEROP
+                    .txs_for_activation(activate_interop_contracts)
+                    .collect(),
+            );
+            upgrade_gas += Hardforks::INTEROP.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
@@ -778,10 +783,8 @@ mod tests {
     // ---------------------------------------------------------------------------
     // Interop activation gating tests
     //
-    // Interop activates only when the dependency set has more than one chain;
-    // single-chain superchains skip interop activation entirely. When activated,
-    // the activation block emits the full Interop NUT bundle (setFeature wrapper
-    // + bundle + ETHLiquidity funding wrapper). Go reference:
+    // The Interop bundle executes for all chains. Multi-chain dependency sets
+    // additionally emit the setFeature and ETHLiquidity funding wrappers. Go reference:
     // op-node/rollup/derive/attributes.go.
     // ---------------------------------------------------------------------------
 
@@ -796,7 +799,7 @@ mod tests {
         Arc::new(DependencySet { dependencies, override_message_expiry_window: None })
     }
 
-    /// Interop-activated, single-chain `dep-set` → no interop upgrade txs.
+    /// Interop-activated, single-chain `dep-set` → bundle txs only.
     #[tokio::test]
     async fn test_prepare_payload_with_interop_single_chain() {
         let block_time = 2;
@@ -842,8 +845,9 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 0 interop txs (single-chain superchains skip interop activation).
-        assert_eq!(payload.transactions.unwrap().len(), 1);
+        // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
+        // setFeature and ETHLiquidity funding wrappers.
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
     }
 
     /// Interop-activated, multi-chain `dep-set` → full bundle wrapped with setFeature + funding.
