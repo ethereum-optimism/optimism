@@ -931,7 +931,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: large
     parameters:
       build_args:
         description: Forge build arguments
