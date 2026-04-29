@@ -30,10 +30,10 @@ type Metrics struct {
 	registry *prometheus.Registry
 	factory  opmetrics.Factory
 
-	info             *prometheus.GaugeVec
-	up               prometheus.Gauge
-	failsafeEnabled  prometheus.Gauge
-	chainHead        *prometheus.GaugeVec
+	info                     *prometheus.GaugeVec
+	up                       prometheus.Gauge
+	failsafeEnabled          prometheus.Gauge
+	chainHead                *prometheus.GaugeVec
 	checkAccessTotal         *prometheus.CounterVec
 	checkAccessListDuration  prometheus.Histogram
 	checkAccessListRejectVec *prometheus.CounterVec
