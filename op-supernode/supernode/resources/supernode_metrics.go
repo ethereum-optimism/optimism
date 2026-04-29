@@ -8,24 +8,18 @@ import "github.com/prometheus/client_golang/prometheus"
 // NewSupernodeMetrics(), which creates functional counters not attached
 // to any scraped registry (safe for tests).
 type SupernodeMetrics struct {
-	VNRestarts                *prometheus.CounterVec
-	InteropTimestampsVerified prometheus.Counter
-	InteropInvalidations      *prometheus.CounterVec
-	InteropVerifiedTimestamp  prometheus.Gauge
-	InteropRoundDecisions     *prometheus.CounterVec
-	InteropRewinds            prometheus.Counter
-
-	// SLI-SN-4: Interop Verification Latency
+	VNRestarts                  *prometheus.CounterVec
+	InteropTimestampsVerified   prometheus.Counter
+	InteropInvalidations        *prometheus.CounterVec
+	InteropVerifiedTimestamp    prometheus.Gauge
+	InteropRoundDecisions       *prometheus.CounterVec
+	InteropRewinds              prometheus.Counter
 	InteropVerificationDuration prometheus.Histogram
-	// SLI-SN-5: Chain Rewind Depth
-	ChainRewindDepthBlocks *prometheus.HistogramVec
-	// SLI-SN-6: Deny List Size
-	DenyListEntries *prometheus.GaugeVec
-	// SLI-SN-7: Log Backfill Progress
-	LogBackfillProgress *prometheus.GaugeVec
-	LogBackfillRetries  *prometheus.CounterVec
-	// SLI-SN-8: Activity Errors
-	ActivityErrors *prometheus.CounterVec
+	ChainRewindDepthBlocks      *prometheus.HistogramVec
+	DenyListEntries             *prometheus.GaugeVec
+	LogBackfillProgress         *prometheus.GaugeVec
+	LogBackfillRetries          *prometheus.CounterVec
+	ActivityErrors              *prometheus.CounterVec
 
 	registry *prometheus.Registry
 }
