@@ -95,9 +95,15 @@ build-kona-env:
   #!/usr/bin/env bash
   set -euo pipefail
   MONOREPO_ROOT="{{KONA_ROOT}}/../.."
+  # The Dockerfile unconditionally COPYs from the `kona-custom-configs`
+  # named context. Lint and build-cannon-client never bake custom configs,
+  # so point it at an empty temp dir.
+  EMPTY_CONFIGS_DIR=$(mktemp -d)
+  trap 'rm -rf "${EMPTY_CONFIGS_DIR}"' EXIT
   docker build \
     --platform linux/amd64 \
     --target kona-build-env \
+    --build-context kona-custom-configs="${EMPTY_CONFIGS_DIR}" \
     -t kona-cannon-env:local \
     -f "{{KONA_ROOT}}/docker/fpvm-prestates/cannon-repro.dockerfile" \
     "$MONOREPO_ROOT"
