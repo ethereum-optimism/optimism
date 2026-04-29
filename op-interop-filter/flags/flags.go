@@ -14,7 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
 
-const EnvVarPrefix = "OP_INTEROP_FILTER"
+const (
+	EnvVarPrefix            = "OP_INTEROP_FILTER"
+	DefaultRPCConcurrency   = 100
+	DefaultFetchConcurrency = 64
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
@@ -109,13 +113,13 @@ var (
 		Name:    "rpc-concurrency",
 		Usage:   "Maximum number of concurrent RPC requests per chain",
 		EnvVars: prefixEnvVars("RPC_CONCURRENCY"),
-		Value:   100,
+		Value:   DefaultRPCConcurrency,
 	}
 	FetchConcurrencyFlag = &cli.IntFlag{
 		Name:    "fetch-concurrency",
 		Usage:   "Number of blocks to fetch concurrently during ingestion. Must be <= rpc-concurrency.",
 		EnvVars: prefixEnvVars("FETCH_CONCURRENCY"),
-		Value:   64,
+		Value:   DefaultFetchConcurrency,
 	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
 		Name:    "dangerously-enable-passthrough",
