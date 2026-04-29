@@ -782,7 +782,8 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
 	startingBlock := c.calculateStartingBlock()
 	if blockNum <= startingBlock {
-		progress := float64(blockNum-c.earliestIngestedBlock.Load()) / float64(startingBlock-c.earliestIngestedBlock.Load()+1)
+		earliest := c.earliestIngestedBlock.Load()
+		progress := float64(blockNum-earliest+1) / float64(startingBlock-earliest+1)
 		c.log.Info("Ingestion progress",
 			"block", blockNum,
 			"target", startingBlock,
