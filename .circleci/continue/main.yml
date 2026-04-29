@@ -999,7 +999,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     parameters:
       test_list:
         description: List of test files to run
