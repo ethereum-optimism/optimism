@@ -28,61 +28,216 @@ on:
       - 'go.sum'
   workflow_dispatch:
 
+env:
+  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - image_name: op-batcher
-            ko_importpath: ./op-batcher/cmd
-          - image_name: op-conductor
-            ko_importpath: ./op-conductor/cmd
-          - image_name: op-dispute-mon
-            ko_importpath: ./op-dispute-mon/cmd
-          - image_name: op-dripper
-            ko_importpath: ./op-dripper/cmd
-          - image_name: op-faucet
-            ko_importpath: ./op-faucet/cmd
-          - image_name: op-interop-filter
-            ko_importpath: ./op-interop-filter/cmd
-          - image_name: op-interop-mon
-            ko_importpath: ./op-interop-mon/cmd
-          - image_name: op-node
-            ko_importpath: ./op-node/cmd
-          - image_name: op-proposer
-            ko_importpath: ./op-proposer/cmd
-          - image_name: op-supervisor
-            ko_importpath: ./op-supervisor/cmd
-          - image_name: op-supernode
-            ko_importpath: ./op-supernode/cmd
-          - image_name: op-test-sequencer
-            ko_importpath: ./op-test-sequencer/cmd
-          - image_name: da-server
-            ko_importpath: ./op-alt-da/cmd/daserver
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@236c1ba2ea2b46d997303d76217ca2b8a81b8e83
-    with:
-      mode: ko
-      image_name: ${{ matrix.image_name }}
-      ko_importpath: ${{ matrix.ko_importpath }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
-      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
-      tag: poc-ko
+        service:
+          - name: op-batcher
+            importpath: ./op-batcher/cmd
+          - name: op-conductor
+            importpath: ./op-conductor/cmd
+          - name: op-dispute-mon
+            importpath: ./op-dispute-mon/cmd
+          - name: op-dripper
+            importpath: ./op-dripper/cmd
+          - name: op-faucet
+            importpath: ./op-faucet/cmd
+          - name: op-interop-filter
+            importpath: ./op-interop-filter/cmd
+          - name: op-interop-mon
+            importpath: ./op-interop-mon/cmd
+          - name: op-node
+            importpath: ./op-node/cmd
+          - name: op-proposer
+            importpath: ./op-proposer/cmd
+          - name: op-supervisor
+            importpath: ./op-supervisor/cmd
+          - name: op-supernode
+            importpath: ./op-supernode/cmd
+          - name: op-test-sequencer
+            importpath: ./op-test-sequencer/cmd
+          - name: da-server
+            importpath: ./op-alt-da/cmd/daserver
+        arch:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            suffix: arm64
+    runs-on: ${{ matrix.arch.runner }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v4
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Setup ko
+        uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@fc2174804b84f912b1f6d334e9463f484f1c552d # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}/locations/global/workloadIdentityPools/github/providers/github-oidc
+          create_credentials_file: true
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+      - name: Build with ko
+        id: build
+        env:
+          KO_DOCKER_REPO: ${{ env.REGISTRY }}/${{ matrix.service.name }}
+          KO_CONFIG_PATH: ${{ github.workspace }}
+        run: |
+          image=$(ko build \
+            --bare \
+            --sbom=spdx \
+            --platform=${{ matrix.arch.platform }} \
+            -t "build-${{ matrix.arch.suffix }}-${{ github.sha }}" \
+            ${{ matrix.service.importpath }})
+          digest="${image##*@}"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Built ${{ matrix.service.name }} (${{ matrix.arch.platform }}): ${digest}"
+
+      - name: Save digest
+        run: echo "${{ steps.build.outputs.digest }}" > "/tmp/digest-${{ matrix.arch.suffix }}.txt"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: digest-${{ matrix.service.name }}-${{ matrix.arch.suffix }}
+          path: /tmp/digest-${{ matrix.arch.suffix }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: merge (${{ matrix.service }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - op-batcher
+          - op-conductor
+          - op-dispute-mon
+          - op-dripper
+          - op-faucet
+          - op-interop-filter
+          - op-interop-mon
+          - op-node
+          - op-proposer
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - da-server
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
       attestations: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
+        with:
+          egress-policy: audit
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@fc2174804b84f912b1f6d334e9463f484f1c552d # v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}/locations/global/workloadIdentityPools/github/providers/github-oidc
+
+      - name: Login to GCP Artifact Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: us-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.auth_token }}
+
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: /tmp/digests
+          pattern: digest-${{ matrix.service }}-*
+          merge-multiple: true
+
+      - name: Create multi-arch manifest
+        id: manifest
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ matrix.service }}"
+          digest_refs=""
+          for digest_file in /tmp/digests/*.txt; do
+            digest=$(cat "$digest_file")
+            digest_refs="${digest_refs} ${IMAGE}@${digest}"
+          done
+
+          docker buildx imagetools create \
+            -t "${IMAGE}:${{ github.sha }}" \
+            -t "${IMAGE}:poc-ko" \
+            ${digest_refs}
+
+          inspect=$(docker buildx imagetools inspect "${IMAGE}:${{ github.sha }}")
+          manifest_digest=$(echo "$inspect" | grep 'Digest:' | head -1 | awk '{print $2}')
+          echo "digest=${manifest_digest}" >> "$GITHUB_OUTPUT"
+
+          platforms=$(echo "$inspect" | grep -E 'Platform:' | awk '{print $2}' | tr '\n' ', ' | sed 's/,$//')
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Multi-arch Manifest: ${{ matrix.service }}
+
+          | | |
+          |---|---|
+          | **Image** | \`${IMAGE}\` |
+          | **Digest** | \`${manifest_digest}\` |
+          | **Platforms** | ${platforms} |
+
+          ### Tags
+          - \`${{ github.sha }}\`
+          - \`poc-ko\`
+          EOF
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ matrix.service }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
 
   result:
-    needs: [build]
+    needs: [build, merge]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check
         env:
           BUILD_RESULT: ${{ needs.build.result }}
+          MERGE_RESULT: ${{ needs.merge.result }}
         run: |
-          if [[ "$BUILD_RESULT" != "success" ]]; then
+          if [[ "$BUILD_RESULT" != "success" || "$MERGE_RESULT" != "success" ]]; then
             echo "build: $BUILD_RESULT"
+            echo "merge: $MERGE_RESULT"
             exit 1
           fi
