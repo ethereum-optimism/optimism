@@ -47,7 +47,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
 	cfg := &rollup.Config{
 		L2ChainID:  big.NewInt(123),
-		LagoonTime: new(uint64), // Lagoon active from genesis
+		LagoonTime: new(uint64), // Lagoon activates interop from genesis
 	}
 
 	mockStream := &mockEventStream{}

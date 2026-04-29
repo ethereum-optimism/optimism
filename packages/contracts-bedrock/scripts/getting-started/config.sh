@@ -116,7 +116,7 @@ if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
   append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
 fi
 
-# Activate the Lagoon fork
+# Activate the Lagoon (interop activation) fork
 if [ -n "${LAGOON_TIME_OFFSET}" ]; then
   append_with_default "l2GenesisLagoonTimeOffset" "LAGOON_TIME_OFFSET" "0x0"
 fi

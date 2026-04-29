@@ -38,7 +38,7 @@ type ActivationConfig interface {
 	// guarantee of existence isn't provided by the caller context.
 	IsInterop(chainID eth.ChainID, ts uint64) bool
 
-	// IsInteropActivationBlock returns true if the given timestamp is for an Lagoon activation block.
+	// IsInteropActivationBlock returns true if the given timestamp is for a Lagoon activation block.
 	// It panics if the chain is not part of the rollup config set.
 	// Use HasChain first to check if the chain is part of the rollup config set if
 	// guarantee of existence isn't provided by the caller context.

@@ -22,7 +22,7 @@ type L1TraversalManagedSource interface {
 }
 
 // L1TraversalManaged is an alternative version of L1Traversal,
-// that supports manually operated L1 traversal, as used in the Interop upgrade.
+// that supports manually operated L1 traversal, as used in the Lagoon (interop activation) upgrade.
 type L1TraversalManaged struct {
 	block eth.L1BlockRef
 
