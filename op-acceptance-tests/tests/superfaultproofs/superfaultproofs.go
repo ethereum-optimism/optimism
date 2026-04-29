@@ -175,20 +175,39 @@ func freezeAndMeasure(
 		}
 	}
 
-	// Margin must be large enough that:
-	//   - ttest > every chain's settled unsafe head (no chain has a block at ttest
-	//     or ttest+1, so the supernode will return InvalidTransition).
-	//   - ttest > boundaryTimestamp so l1HeadAdvanced (which only derives boundary)
-	//     can't derive ttest, making the trace provider return InvalidTransition.
-	// Sequencers are stopped — no chain can produce more blocks regardless of how
-	// long the rest of the test takes — so ttest stays valid forever.
-	const margin = 2
+	// Margin must be ≥ max chain block time so that for every chain c,
+	// TargetBlockNumber(ttest) > UnsafeL2.Number — i.e. the supernode returns
+	// NotFound at ttest (and ttest+1) for every chain. Hard-coding "2" here
+	// would silently break tests 5/6 the moment someone adds a 3s chain.
+	maxBlockTime := uint64(0)
+	for _, c := range chains {
+		if c.Cfg.BlockTime > maxBlockTime {
+			maxBlockTime = c.Cfg.BlockTime
+		}
+	}
+	margin := maxBlockTime + 1
 	ttest = maxUnsafeTs + margin
 	if ttest < endTimestamp+2 {
 		ttest = endTimestamp + 2
 	}
+
+	// Defensive: ttest+1 must stay strictly inside the trace window
+	// [startTimestamp, claimTimestamp). claimTimestamp in buildAfterChainHeadTests
+	// is endTimestamp+100; if a pathological scheduling pause pushed maxUnsafeTs
+	// that close to claimTimestamp, the trace index for test 6 would land outside
+	// the trace and fail with a confusing out-of-range error rather than the
+	// InvalidTransition the test expects. Surface the real problem here.
+	t.Require().Lessf(ttest+1, endTimestamp+afterChainHeadClaimTimestampOffset,
+		"ttest=%d too close to claimTimestamp=%d; chain overshot during freeze",
+		ttest, endTimestamp+afterChainHeadClaimTimestampOffset)
+
 	return boundaryTimestamp, l1HeadAdvanced, ttest
 }
+
+// afterChainHeadClaimTimestampOffset is the offset past endTimestamp at which the
+// after-chain-head subtests anchor their claim timestamp. Defined here so
+// freezeAndMeasure can bound ttest+1 strictly inside the trace.
+const afterChainHeadClaimTimestampOffset = 100
 
 // superRootAtTimestamp constructs a SuperV1 from each chain's output at the given timestamp.
 func superRootAtTimestamp(t devtest.T, chains []*chain, timestamp uint64) eth.SuperV1 {
@@ -509,7 +528,7 @@ func buildAfterChainHeadTests(
 	// root won't be either, and InvalidTransition cascades to later steps.
 	endBoundaryVerified := boundaryResp.Data != nil && boundaryResp.Data.VerifiedRequiredL1.Number <= l1HeadCurrent.Number
 
-	claimTimestamp := endTimestamp + 100
+	claimTimestamp := endTimestamp + afterChainHeadClaimTimestampOffset
 
 	// Trace indices for ttest. The trace index → (timestamp, step) mapping is:
 	//   timestamp = startTimestamp + (idx+1)/stepsPerTimestamp
