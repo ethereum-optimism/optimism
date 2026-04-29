@@ -17,106 +17,61 @@ import (
 
 func TestBuildDevFeatureBitmap(t *testing.T) {
 	interopBit := devfeatures.OptimismPortalInteropFlag
-	l2cmBit := devfeatures.L2CMFlag
-	interopAndL2CM := devfeatures.EnableDevFeature(interopBit, l2cmBit)
 
 	tests := []struct {
-		name        string
-		useInterop  bool
-		disableL2CM bool
-		setOverride bool
-		bitmap      any
-		wantError   bool
-		wantBitmap  common.Hash
+		name       string
+		useInterop bool
+		bitmap     any
+		wantError  bool
+		wantBitmap common.Hash
 	}{
 		{
-			name:       "no override, defaults: L2CM on, interop off",
-			wantBitmap: l2cmBit,
-		},
-		{
-			name:        "no override, DisableL2CM=true: zero bitmap",
-			disableL2CM: true,
-			wantBitmap:  common.Hash{},
-		},
-		{
-			name:       "no override, UseInterop=true: interop mismatch error",
+			name:       "UseInterop=true, interop bit set: interop enabled",
 			useInterop: true,
+			bitmap:     interopBit,
+			wantError:  false,
+			wantBitmap: interopBit,
+		},
+		{
+			name:       "UseInterop=true, interop bit not set: interop not enabled",
+			useInterop: true,
+			bitmap:     common.Hash{},
 			wantError:  true,
 		},
 		{
-			name:        "override with L2CM only: ok",
-			setOverride: true,
-			bitmap:      l2cmBit,
-			wantBitmap:  l2cmBit,
+			name:       "UseInterop=false, interop bit set: interop not enabled",
+			useInterop: false,
+			bitmap:     interopBit,
+			wantError:  true,
 		},
 		{
-			name:        "override with interop only, DisableL2CM=false: L2CM mismatch error",
-			useInterop:  true,
-			setOverride: true,
-			bitmap:      interopBit,
-			wantError:   true,
+			name:       "UseInterop=false, interop bit not set: no-op",
+			useInterop: false,
+			bitmap:     common.Hash{},
+			wantError:  false,
+			wantBitmap: common.Hash{},
 		},
 		{
-			name:        "override with interop+L2CM, UseInterop=true: ok",
-			useInterop:  true,
-			setOverride: true,
-			bitmap:      interopAndL2CM,
-			wantBitmap:  interopAndL2CM,
+			name:       "UseInterop=true, interop bit set (using hex string): interop enabled",
+			useInterop: true,
+			bitmap:     interopBit.Hex(),
+			wantError:  false,
+			wantBitmap: interopBit,
 		},
 		{
-			name:        "override with interop only, DisableL2CM=true, UseInterop=true: ok (kill switch)",
-			useInterop:  true,
-			disableL2CM: true,
-			setOverride: true,
-			bitmap:      interopBit,
-			wantBitmap:  interopBit,
-		},
-		{
-			name:        "override zero, DisableL2CM=true: ok (full kill switch)",
-			disableL2CM: true,
-			setOverride: true,
-			bitmap:      common.Hash{},
-			wantBitmap:  common.Hash{},
-		},
-		{
-			name:        "override with L2CM only, DisableL2CM=true: L2CM mismatch error",
-			disableL2CM: true,
-			setOverride: true,
-			bitmap:      l2cmBit,
-			wantError:   true,
-		},
-		{
-			name:        "override hex string with L2CM bit: ok",
-			setOverride: true,
-			bitmap:      l2cmBit.Hex(),
-			wantBitmap:  l2cmBit,
-		},
-		{
-			name:        "override hex string zero, DisableL2CM=true: ok",
-			disableL2CM: true,
-			setOverride: true,
-			bitmap:      common.Hash{}.Hex(),
-			wantBitmap:  common.Hash{},
-		},
-		{
-			name:        "override with interop+L2CM, UseInterop=false: interop mismatch error",
-			useInterop:  false,
-			setOverride: true,
-			bitmap:      interopAndL2CM,
-			wantError:   true,
+			name:       "UseInterop=false, interop bit not set (using hex string): no-op",
+			useInterop: false,
+			bitmap:     common.Hash{}.Hex(),
+			wantError:  false,
+			wantBitmap: common.Hash{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overrides := map[string]any{}
-			if tt.setOverride {
-				overrides["devFeatureBitmap"] = tt.bitmap
-			}
 			intent := &state.Intent{
 				L1ContractsLocator:    &artifacts.Locator{},
 				UseInterop:            tt.useInterop,
-				DisableL2CM:           tt.disableL2CM,
-				GlobalDeployOverrides: overrides,
+				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.bitmap},
 			}
 			result, err := buildDevFeatureBitmap(intent)
 			if tt.wantError {

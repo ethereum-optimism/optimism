@@ -528,7 +528,7 @@ func TestProofParamOverrides(t *testing.T) {
 		"faultGameClockExtension":                 standard.DisputeClockExtension + 1,
 		"faultGameMaxClockDuration":               standard.DisputeMaxClockDuration + 1,
 		"dangerouslyAllowCustomDisputeParameters": true,
-		"devFeatureBitmap":                        devfeatures.L2CMFlag,
+		"devFeatureBitmap":                        common.Hash{},
 	}
 
 	require.NoError(t, deployer.ApplyPipeline(ctx, opts))

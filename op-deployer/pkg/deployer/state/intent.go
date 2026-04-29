@@ -95,8 +95,6 @@ type Intent struct {
 	Chains                []*ChainIntent             `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any             `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 	UseInterop            bool                       `json:"useInterop" toml:"useInterop"`
-	// TODO(#20084): Remove DisableL2CM with the broader L2CMFlag cleanup.
-	DisableL2CM bool `json:"disableL2CM" toml:"disableL2CM"`
 
 	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
 	// the deployer output is directed to produce a L1 genesis state for development.

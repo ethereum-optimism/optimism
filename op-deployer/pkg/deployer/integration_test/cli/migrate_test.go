@@ -130,7 +130,6 @@ func TestCLIMigrateV2(t *testing.T) {
 	require.NoError(t, err, "Failed to deploy superchain contracts")
 
 	devFeatureBitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag)
-	devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.L2CMFlag)
 
 	// Deploy OPCM V2 implementations (with OPCMV2DevFlag)
 	cfg := bootstrap.ImplementationsConfig{
