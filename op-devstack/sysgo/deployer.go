@@ -294,7 +294,7 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 		}
 	}
 }

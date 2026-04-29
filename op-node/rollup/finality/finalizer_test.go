@@ -485,7 +485,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
 		fi := NewFinalizer(context.Background(), logger, &rollup.Config{
-			InteropTime: &refC1.Time,
+			LagoonTime: &refC1.Time,
 		}, nil, true, l1F, ec)
 		fi.AttachEmitter(emitter)
 
@@ -498,7 +498,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 
-		// C1 was Interop, C0 was not yet interop and can be finalized
+		// C1 was Lagoon, C0 was not yet interop and can be finalized
 		fi.OnEvent(ctx, TryFinalizeEvent{})
 		require.Equal(t, refC0, ec.finalizedL2)
 		emitter.AssertExpectations(t)

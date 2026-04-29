@@ -104,7 +104,7 @@ impl RollupNodeBuilder {
 
     /// Sets the interop [`DependencySet`] on the [`RollupNodeBuilder`].
     ///
-    /// Must be called when the rollup config schedules the Interop hardfork.
+    /// Must be called when the rollup config schedules the Lagoon hardfork.
     /// When not set, the underlying [`kona_derive::StatefulAttributesBuilder`]
     /// constructor panics on an interop-scheduled chain.
     pub fn with_dependency_set(self, dependency_set: Option<Arc<DependencySet>>) -> Self {

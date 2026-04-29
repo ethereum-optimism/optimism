@@ -344,7 +344,7 @@ func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes
 }
 
 func (m *IndexingMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
-	// TODO: maybe cache non-genesis anchor point when seeing safe Interop activation block?
+	// TODO: maybe cache non-genesis anchor point when seeing safe Lagoon activation block?
 	//  Only needed if we don't test for activation block in the supervisor.
 	if !m.cfg.IsInterop(m.cfg.Genesis.L2Time) {
 		return supervisortypes.DerivedBlockRefPair{}, &gethrpc.JsonError{

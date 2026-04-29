@@ -42,7 +42,7 @@ func TestInteropUpgrade(gt *testing.T) {
 	for _, c := range chains {
 		// Sanity check: chain interop activation time was correctly configured
 		genesisTime = c.RollupCfg.Genesis.L2Time
-		require.Equal(t, uint64(interopActivationOffset), *c.RollupCfg.InteropTime-genesisTime, "interop activation offset does not match configured expectation")
+		require.Equal(t, uint64(interopActivationOffset), *c.RollupCfg.LagoonTime-genesisTime, "interop activation offset does not match configured expectation")
 
 		// Sanity check: chain is at genesis block and interop is not activated according to config and unsafe head timestamp
 		dsl.RequireUnsafeTimeOffset(t, c, 0) // Interop not be enabled
@@ -83,7 +83,7 @@ func TestInteropUpgrade(gt *testing.T) {
 
 		syncAsserter.RequireSeqSyncStatus(func() {
 			// Build another L2 block so that Interop activates
-			system.AddL2Block(c, dsl.WithL2BlocksUntilTimestamp(*c.Sequencer.RollupCfg.InteropTime))
+			system.AddL2Block(c, dsl.WithL2BlocksUntilTimestamp(*c.Sequencer.RollupCfg.LagoonTime))
 		}, dsl.WithUnsafeAdvancesTo(2), dsl.WithCrossUnsafeAdvancesTo(2)) // assert unsafe and crossUnsafe advance by one
 
 		dsl.RequireUnsafeTimeOffset(t, c, 4) // interop should be enabled

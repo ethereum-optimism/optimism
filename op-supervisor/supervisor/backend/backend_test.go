@@ -40,8 +40,8 @@ func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
 		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
 		staticDepSet[chainID] = &depset.StaticConfigDependency{}
 		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
-			InteropTime: &zero,
-			BlockTime:   2,
+			LagoonTime: &zero,
+			BlockTime:  2,
 		}
 	}
 	depSet, err := depset.NewStaticConfigDependencySet(staticDepSet)
@@ -200,7 +200,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 		Time:       block0.Time + 2,
 	}
 
-	rollupCfgSet[chainA].InteropTime = &blockX.Time
+	rollupCfgSet[chainA].LagoonTime = &blockX.Time
 	rollupCfgSet[chainA].Genesis = depset.Genesis{
 		L2: types.BlockSealFromRef(block0),
 	}

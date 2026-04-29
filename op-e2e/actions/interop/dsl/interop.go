@@ -124,7 +124,7 @@ func SetMessageExpiryTime(expiryTime uint64) setupOption {
 func SetInteropOffsetForAllL2s(offset uint64) setupOption {
 	return func(recipe *interopgen.InteropDevRecipe) {
 		for i, l2 := range recipe.L2s {
-			l2.InteropOffset = offset
+			l2.LagoonOffset = offset
 			recipe.L2s[i] = l2
 		}
 	}
@@ -137,7 +137,7 @@ func SetInteropForkScheduledButInactive() setupOption {
 		// but not so far it will overflow when added to current time.
 		val := uint64(365 * 24 * 60 * 60)
 		for key := range recipe.L2s {
-			recipe.L2s[key].InteropOffset = val
+			recipe.L2s[key].LagoonOffset = val
 		}
 	}
 }

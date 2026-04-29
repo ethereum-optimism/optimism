@@ -133,7 +133,7 @@ impl ChainBuilder {
     }
 
     pub fn with_interop_activation_time(&mut self, activation: u64) -> &mut Self {
-        self.modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = Some(activation))
+        self.modify_rollup_cfg(|cfg| cfg.hardforks.lagoon_time = Some(activation))
     }
 
     pub fn modify_header(&mut self, f: impl FnOnce(&mut Header)) -> &mut Self {

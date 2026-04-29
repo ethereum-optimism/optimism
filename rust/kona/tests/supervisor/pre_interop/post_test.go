@@ -24,7 +24,7 @@ func testSupervisorActivationBlock(t devtest.T, sys *presets.SimpleInterop, net 
 	t.Logger().Info("Waiting for interop activation block to be cross-safe")
 	sys.Supervisor.WaitForL2HeadToAdvanceTo(net.ChainID(), stypes.CrossSafe, activationBlock)
 
-	interopTime := net.Escape().ChainConfig().InteropTime
+	interopTime := net.Escape().ChainConfig().LagoonTime
 	pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
 	require.NotNil(pre, "Pre-interop block should be found before interop time")
 
@@ -49,7 +49,7 @@ func TestPostInbox(gt *testing.T) {
 	sys := newMinimalPreInterop(t)
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		el := net.PrimaryEL()
 		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
@@ -78,8 +78,8 @@ func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	sys.L2ChainB.WaitForBlock()
 
 	// Get interop activation time
-	interopTime := sys.L2ChainA.Escape().ChainConfig().InteropTime
-	require.NotNil(interopTime, "InteropTime must be set")
+	interopTime := sys.L2ChainA.Escape().ChainConfig().LagoonTime
+	require.NotNil(interopTime, "LagoonTime must be set")
 
 	logger.Info("Starting comprehensive post-interop upgrade tests", "interopTime", *interopTime)
 
@@ -111,7 +111,7 @@ func testSupervisorAnchorBlock(t devtest.T, sys *presets.SimpleInterop) {
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 
 		// Gate test to not time out before upgrade happens
-		forkTimestamp := net.Escape().ChainConfig().InteropTime
+		forkTimestamp := net.Escape().ChainConfig().LagoonTime
 		t.Gate().NotNil(forkTimestamp, "Must have fork configured")
 		t.Gate().Greater(*forkTimestamp, uint64(0), "Must not start fork at genesis")
 		upgradeTime := time.Unix(int64(*forkTimestamp), 0)
@@ -119,7 +119,7 @@ func testSupervisorAnchorBlock(t devtest.T, sys *presets.SimpleInterop) {
 			t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
 		}
 
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 		sys.Supervisor.WaitForL2HeadToAdvanceTo(net.ChainID(), stypes.CrossSafe, activationBlock)
 
 		logger.Info("Validating anchor block timing",

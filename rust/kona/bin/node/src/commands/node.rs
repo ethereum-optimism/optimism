@@ -109,7 +109,7 @@ pub struct NodeCommand {
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
     /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Interop hardfork; the inner
+    /// rollup config schedules the Lagoon hardfork; the inner
     /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
     /// silent state-divergence bug into a startup crash.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
@@ -208,10 +208,10 @@ impl NodeCommand {
         let mut source = Some(error);
         while let Some(err) = source {
             let err_str = err.to_string().to_lowercase();
-            if err_str.contains("signature invalid") ||
-                (err_str.contains("jwt") && err_str.contains("invalid")) ||
-                err_str.contains("unauthorized") ||
-                err_str.contains("authentication failed")
+            if err_str.contains("signature invalid")
+                || (err_str.contains("jwt") && err_str.contains("invalid"))
+                || err_str.contains("unauthorized")
+                || err_str.contains("authentication failed")
             {
                 return true;
             }
@@ -340,7 +340,7 @@ impl NodeCommand {
     /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
     ///
     /// Enforces the invariant that when the rollup config schedules the
-    /// Interop hardfork, the operator must supply a dependency-set JSON file.
+    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
     /// Errors rather than panicking so the operator sees a clear message.
     fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
         match &self.interop_dependency_set {
@@ -353,12 +353,12 @@ impl NodeCommand {
                 })?;
                 Ok(Some(Arc::new(dep_set)))
             }
-            None if cfg.hardforks.interop_time.is_some() => bail!(
-                "Interop is scheduled for this chain (interop_time = {:?}), but \
+            None if cfg.hardforks.lagoon_time.is_some() => bail!(
+                "Interop is scheduled for this chain (lagoon_time = {:?}), but \
                  --interop.dependency-set was not provided. Supply the dependency-set \
                  JSON file matching op-node's --interop.dependency-set to avoid silent \
                  state divergence on interop activation.",
-                cfg.hardforks.interop_time,
+                cfg.hardforks.lagoon_time,
             ),
             None => Ok(None),
         }
@@ -406,8 +406,8 @@ impl NodeCommand {
     /// using the provided [`PathBuf`]. If the file is not found,
     /// it will return the default JWT secret.
     pub fn l2_jwt_secret(&self) -> anyhow::Result<JwtSecret> {
-        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret &&
-            let Ok(secret) = std::fs::read_to_string(path)
+        if let Some(path) = &self.l2_client_args.l2_engine_jwt_secret
+            && let Ok(secret) = std::fs::read_to_string(path)
         {
             return JwtSecret::from_hex(secret)
                 .map_err(|e| anyhow::anyhow!("Failed to parse JWT secret: {e}"));
@@ -430,9 +430,9 @@ impl NodeCommand {
             |_| {
                 let secret = JwtSecret::random();
 
-                if let Ok(mut file) = File::create(file_name) &&
-                    let Err(e) = file
-                        .write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
+                if let Ok(mut file) = File::create(file_name)
+                    && let Err(e) =
+                        file.write_all(alloy_primitives::hex::encode(secret.as_bytes()).as_bytes())
                 {
                     return Err(anyhow::anyhow!("Failed to write JWT secret to file: {e}"));
                 }

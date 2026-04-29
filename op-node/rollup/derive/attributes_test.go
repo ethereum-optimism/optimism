@@ -231,7 +231,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := uint64(0)
 		epoch := l1Info.ID()
@@ -271,7 +271,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number // same origin again, so the sequence number is not reset
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
@@ -383,7 +383,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			cfg := mkCfg()
 			cfg.ActivateAtGenesis(forks.Isthmus)
 			interopTime := uint64(1000)
-			cfg.InteropTime = &interopTime
+			cfg.LagoonTime = &interopTime
 			rng := rand.New(rand.NewSource(1234))
 			l1Fetcher := &testutils.MockL1Source{}
 			defer l1Fetcher.AssertExpectations(t)

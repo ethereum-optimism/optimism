@@ -13,7 +13,7 @@
       }
     },
     "block_time": 2,
-    "interop_time": 2000
+    "lagoon_time": 2000
   },
   "20": {
     "genesis": {
@@ -29,6 +29,6 @@
       }
     },
     "block_time": 2,
-    "interop_time": 3000
+    "lagoon_time": 3000
   }
 }

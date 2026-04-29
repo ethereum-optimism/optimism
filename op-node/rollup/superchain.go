@@ -99,7 +99,7 @@ func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
 	cfg.HoloceneTime = hardforks.HoloceneTime
 	cfg.PectraBlobScheduleTime = hardforks.PectraBlobScheduleTime
 	cfg.IsthmusTime = hardforks.IsthmusTime
-	cfg.InteropTime = hardforks.InteropTime
+	cfg.LagoonTime = hardforks.InteropTime
 	cfg.JovianTime = hardforks.JovianTime
 	cfg.KarstTime = hardforks.KarstTime
 }

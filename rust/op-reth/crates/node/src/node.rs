@@ -1127,7 +1127,7 @@ where
 
         // Enable the interop filter on reorg whenever interop is scheduled or already active
         let interop_filter_enabled =
-            ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never;
+            ctx.chain_spec().op_fork_activation(OpHardfork::Lagoon) != ForkCondition::Never;
         let transaction_pool = OpPool::new(inner_pool, interop_filter_enabled);
 
         reth_node_builder::components::spawn_maintenance_tasks(
@@ -1141,8 +1141,8 @@ where
 
         // The Op txpool maintenance task is only spawned when interop is scheduled/active and a
         // supervisor is configured
-        if ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never &&
-            let Some(ref supervisor) = supervisor_client
+        if ctx.chain_spec().op_fork_activation(OpHardfork::Lagoon) != ForkCondition::Never
+            && let Some(ref supervisor) = supervisor_client
         {
             // Spawn failsafe polling task (shares supervisor client via clone)
             ctx.task_executor().spawn_critical_task(

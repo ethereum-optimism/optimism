@@ -14,8 +14,8 @@ func TestNext(t *testing.T) {
 	}{
 		{"first fork", Bedrock, Regolith},
 		{"middle fork", Ecotone, Fjord},
-		{"second-to-last", Karst, Interop},
-		{"last fork returns None", Interop, None},
+		{"second-to-last", Karst, Lagoon},
+		{"last fork returns None", Lagoon, None},
 		{"unknown fork returns None", Name("unknown"), None},
 	}
 	for _, tc := range tests {
@@ -34,7 +34,7 @@ func TestPrev(t *testing.T) {
 		{"first fork returns None", Bedrock, None},
 		{"second fork", Regolith, Bedrock},
 		{"middle fork", Fjord, Ecotone},
-		{"last fork", Interop, Karst},
+		{"last fork", Lagoon, Karst},
 		{"unknown fork returns None", Name("unknown"), None},
 	}
 	for _, tc := range tests {
@@ -69,7 +69,7 @@ func TestFrom(t *testing.T) {
 		require.Len(t, got, len(All)-4) // Bedrock, Regolith, Canyon, Delta excluded
 	})
 	t.Run("from last returns single", func(t *testing.T) {
-		require.Equal(t, []Name{Interop}, From(Interop))
+		require.Equal(t, []Name{Lagoon}, From(Lagoon))
 	})
 	t.Run("unknown fork panics", func(t *testing.T) {
 		require.Panics(t, func() { From(Name("unknown")) })

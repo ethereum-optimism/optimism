@@ -51,7 +51,7 @@ where
     /// Constructs a new oracle-backed derivation pipeline.
     ///
     /// `dependency_set` must be `Some` when the rollup config schedules the
-    /// Interop hardfork. The [`StatefulAttributesBuilder`] panics at
+    /// Lagoon hardfork. The [`StatefulAttributesBuilder`] panics at
     /// construction otherwise. Pass `None` only when interop is not scheduled
     /// for this chain.
     #[allow(clippy::too_many_arguments)]

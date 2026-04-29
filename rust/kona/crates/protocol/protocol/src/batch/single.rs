@@ -155,10 +155,10 @@ impl SingleBatch {
 
         // If this is the first block in the jovian or interop hardfork, and the batch contains any
         // transactions, it must be dropped.
-        if (cfg.is_first_jovian_block(self.timestamp) ||
-            cfg.is_first_karst_block(self.timestamp) ||
-            cfg.is_first_interop_block(self.timestamp)) &&
-            !self.transactions.is_empty()
+        if (cfg.is_first_jovian_block(self.timestamp)
+            || cfg.is_first_karst_block(self.timestamp)
+            || cfg.is_first_interop_block(self.timestamp))
+            && !self.transactions.is_empty()
         {
             warn!(
                 target: "single_batch",
@@ -176,8 +176,8 @@ impl SingleBatch {
                 return BatchValidity::Drop(BatchDropReason::DepositTransaction);
             }
             // If isthmus is not active yet and the transaction is a 7702, drop the batch.
-            if !cfg.is_isthmus_active(self.timestamp) &&
-                tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
+            if !cfg.is_isthmus_active(self.timestamp)
+                && tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
             {
                 return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
             }
@@ -620,7 +620,7 @@ mod tests {
         let cfg = RollupConfig {
             max_sequencer_drift: 1,
             block_time: 1,
-            hardforks: HardForkConfig { interop_time: Some(1), ..Default::default() },
+            hardforks: HardForkConfig { lagoon_time: Some(1), ..Default::default() },
             ..Default::default()
         };
         let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];

@@ -26,7 +26,7 @@ func TestPreNoInbox(gt *testing.T) {
 	t.Logger().Info("Starting")
 
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
-		interopTime := net.Escape().ChainConfig().InteropTime
+		interopTime := net.Escape().ChainConfig().LagoonTime
 		t.Require().NotNil(interopTime)
 		pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
 		el := net.PrimaryEL()
@@ -42,7 +42,7 @@ func TestPreNoInbox(gt *testing.T) {
 
 	// try access the sync-status of the supervisor, assert that the sync-status returns the expected error
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
-		interopTime := net.Escape().ChainConfig().InteropTime
+		interopTime := net.Escape().ChainConfig().LagoonTime
 
 		_, err := sys.Supervisor.Escape().QueryAPI().SyncStatus(t.Ctx())
 		require.ErrorContains(err, "supervisor status tracker not ready")
@@ -59,8 +59,8 @@ func TestPreNoInbox(gt *testing.T) {
 		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
-		interopTimeA := sys.L2ChainA.Escape().ChainConfig().InteropTime
-		interopTimeB := sys.L2ChainB.Escape().ChainConfig().InteropTime
+		interopTimeA := sys.L2ChainA.Escape().ChainConfig().LagoonTime
+		interopTimeB := sys.L2ChainB.Escape().ChainConfig().LagoonTime
 
 		eventLoggerAddress := alice.DeployEventLogger()
 

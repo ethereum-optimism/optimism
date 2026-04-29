@@ -62,7 +62,7 @@ pub trait InteropValidator: Send + Sync {
     /// This function checks whether the provided timestamp is *after* that activation,
     /// skipping the activation block itself.
     ///
-    /// Returns `false` if `interop_time` is not configured.
+    /// Returns `false` if `lagoon_time` is not configured.
     fn is_post_interop(&self, chain_id: ChainId, timestamp: u64) -> bool;
 
     /// Returns `true` if the block is the interop activation block for the specified chain.
@@ -70,6 +70,6 @@ pub trait InteropValidator: Send + Sync {
     /// An interop activation block is defined as the block that is right after the
     /// interop activation time.
     ///
-    /// Returns `false` if `interop_time` is not configured.
+    /// Returns `false` if `lagoon_time` is not configured.
     fn is_interop_activation_block(&self, chain_id: ChainId, block: BlockInfo) -> bool;
 }

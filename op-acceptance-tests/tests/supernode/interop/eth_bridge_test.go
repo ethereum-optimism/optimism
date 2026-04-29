@@ -50,8 +50,8 @@ func TestSupernodeInteropETHBridgeActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newPostGenesisSupernodeInterop(t)
 
-	activationA := sys.L2A.AwaitActivation(t, forks.Interop)
-	activationB := sys.L2B.AwaitActivation(t, forks.Interop)
+	activationA := sys.L2A.AwaitActivation(t, forks.Lagoon)
+	activationB := sys.L2B.AwaitActivation(t, forks.Lagoon)
 	t.Require().Greater(activationA.Number, uint64(0), "interop must activate after genesis on chain A")
 	t.Require().Greater(activationB.Number, uint64(0), "interop must activate after genesis on chain B")
 
@@ -63,8 +63,8 @@ func TestSupernodeInteropETHBridgeRoundTrip(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newPostGenesisSupernodeInterop(t)
 
-	sys.L2A.AwaitActivation(t, forks.Interop)
-	sys.L2B.AwaitActivation(t, forks.Interop)
+	sys.L2A.AwaitActivation(t, forks.Lagoon)
+	sys.L2B.AwaitActivation(t, forks.Lagoon)
 
 	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
 	daveB := sys.FunderB.NewFundedEOA(eth.OneEther)

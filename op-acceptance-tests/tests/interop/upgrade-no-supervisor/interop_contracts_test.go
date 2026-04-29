@@ -24,7 +24,7 @@ func TestInteropContractsDeployed(gt *testing.T) {
 
 	// Wait for interop activation - for interop at genesis this is block 0,
 	// but the upgrade transactions run in the first block
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Interop)
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Lagoon)
 	logger.Info("interop activated", "block", activationBlock.Number, "hash", activationBlock.Hash)
 
 	client := sys.L2EL.Escape().L2EthClient()

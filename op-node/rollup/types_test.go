@@ -209,7 +209,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		k := uint64(1677119343)
 		config.KarstTime = &k
 		it := uint64(1677119344)
-		config.InteropTime = &it
+		config.LagoonTime = &it
 
 		out := config.Description(nil)
 		// Don't check human-readable part of the date, it's timezone-dependent.
@@ -223,7 +223,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
 		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Karst: @ %d ~ ", k))
-		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
+		require.Contains(t, out, fmt.Sprintf("Lagoon: @ %d ~ ", it))
 	})
 }
 
@@ -345,9 +345,9 @@ func TestActivations(t *testing.T) {
 			},
 		},
 		{
-			name: "Interop",
+			name: "Lagoon",
 			setUpgradeTime: func(t *uint64, c *Config) {
-				c.InteropTime = t
+				c.LagoonTime = t
 			},
 			checkEnabled: func(t uint64, c *Config) bool {
 				return c.IsInterop(t)
@@ -629,7 +629,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.IsthmusTime = &isthmusTime
 				cfg.JovianTime = &jovianTime
 				cfg.KarstTime = &karstTime
-				cfg.InteropTime = &interopTime
+				cfg.LagoonTime = &interopTime
 			},
 			expectedErr: nil,
 		},
@@ -845,7 +845,7 @@ func TestConfig_IsActivationBlock(t *testing.T) {
 		{forks.Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
 		{forks.Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
 		{forks.Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
-		{forks.Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
+		{forks.Lagoon, func(cfg *Config, ts uint64) { cfg.LagoonTime = &ts }},
 	}
 
 	for _, tc := range tests {

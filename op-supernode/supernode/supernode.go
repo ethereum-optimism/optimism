@@ -178,7 +178,7 @@ func checkLogBackfillRequiresInteropActivation(depth time.Duration, resolved *ui
 	if resolved != nil {
 		return nil
 	}
-	return fmt.Errorf("interop.log-backfill-depth=%s requires an interop activation timestamp (set --interop.activation-timestamp or configure rollup InteropTime on every chain)", depth)
+	return fmt.Errorf("interop.log-backfill-depth=%s requires an interop activation timestamp (set --interop.activation-timestamp or configure rollup LagoonTime on every chain)", depth)
 }
 
 func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
@@ -195,7 +195,7 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 			continue
 		}
 
-		if vnCfg.Rollup.InteropTime == nil {
+		if vnCfg.Rollup.LagoonTime == nil {
 			if resolved != nil {
 				return nil, fmt.Errorf("chain %s has no interop activation timestamp, but chain %s is configured for timestamp %d", chainID, resolvedChain, *resolved)
 			}
@@ -207,18 +207,18 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 		}
 
 		if missingChain != nil {
-			return nil, fmt.Errorf("chain %s is configured for interop activation timestamp %d, but chain %s has no interop activation timestamp", chainID, *vnCfg.Rollup.InteropTime, *missingChain)
+			return nil, fmt.Errorf("chain %s is configured for interop activation timestamp %d, but chain %s has no interop activation timestamp", chainID, *vnCfg.Rollup.LagoonTime, *missingChain)
 		}
 
 		if resolved == nil {
-			ts := *vnCfg.Rollup.InteropTime
+			ts := *vnCfg.Rollup.LagoonTime
 			resolved = &ts
 			resolvedChain = chainID
 			continue
 		}
 
-		if *resolved != *vnCfg.Rollup.InteropTime {
-			return nil, fmt.Errorf("mismatched interop activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.InteropTime)
+		if *resolved != *vnCfg.Rollup.LagoonTime {
+			return nil, fmt.Errorf("mismatched interop activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.LagoonTime)
 		}
 	}
 

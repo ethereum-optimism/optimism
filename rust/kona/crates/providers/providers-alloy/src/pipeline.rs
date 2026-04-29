@@ -56,7 +56,7 @@ impl OnlinePipeline {
     /// Constructs a new polled derivation pipeline that is initialized.
     ///
     /// `dependency_set` must be `Some` when the rollup config schedules the
-    /// Interop hardfork. The inner [`StatefulAttributesBuilder`] constructor
+    /// Lagoon hardfork. The inner [`StatefulAttributesBuilder`] constructor
     /// panics otherwise; turning a silent state-divergence bug into a
     /// startup crash.
     #[allow(clippy::too_many_arguments)]
