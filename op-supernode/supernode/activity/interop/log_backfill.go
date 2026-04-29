@@ -10,6 +10,33 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
+// resolveFirstVerifiableTimestamp consults all chain sync statuses and returns
+// the first timestamp not already covered by the minimum cross-safe head.
+func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	if len(i.chains) == 0 {
+		return i.activationTimestamp, nil
+	}
+
+	minCrossSafeTime := uint64(math.MaxUint64)
+	for _, chain := range i.chains {
+		syncStatus, err := chain.SyncStatus(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
+		}
+		// local safe should advance even if cross safe has nothing to work from.
+		if syncStatus.LocalSafeL2.Number == 0 {
+			return 0, fmt.Errorf("chain %s: local safe L2 number is 0", chain.ID())
+		}
+		i.log.Debug("first verifiable timestamp: sync status",
+			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
+		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
+	}
+	if minCrossSafeTime < i.activationTimestamp {
+		return i.activationTimestamp, nil
+	}
+	return minCrossSafeTime + 1, nil
+}
+
 func (i *Interop) runLogBackfill() (uint64, error) {
 	if i.logBackfillDepth <= 0 {
 		return 0, nil
@@ -18,36 +45,25 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 		return 0, nil
 	}
 
-	// identify the minimum cross-safe time across all chains
-	minCrossSafeTime := uint64(math.MaxUint64)
-	for _, chain := range i.chains {
-		syncStatus, err := chain.SyncStatus(i.ctx)
+	firstVerifiable := i.firstVerifiable
+	if !i.firstVerifiableSet {
+		var err error
+		firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
 		if err != nil {
-			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
+			return 0, err
 		}
-		// watch that local safe advances to become non-zero
-		// local safe should advance even if cross safe has nothing to work from
-		if syncStatus.LocalSafeL2.Number == 0 {
-			return 0, fmt.Errorf("chain %s: local safe L2 number is 0", chain.ID())
-		}
-		i.log.Debug("log backfill: sync status",
-			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
-		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
 	}
-
-	// if activation falls after the backfill range end, don't backfill
-	if i.activationTimestamp > minCrossSafeTime {
-		i.log.Info("log backfill: activation timestamp falls after backfill range end, skipping backfill",
-			"activationTimestamp", i.activationTimestamp, "minCrossSafeTime", minCrossSafeTime)
+	if firstVerifiable == i.activationTimestamp {
 		return 0, nil
 	}
+	endTime := firstVerifiable - 1
 
 	// naively, end minus depth is the ideal backfill start.
 	// guard the subtraction so a young chain (crossSafe < depth) doesn't wrap.
 	depthSec := uint64(i.logBackfillDepth.Seconds())
 	var idealStart uint64
-	if minCrossSafeTime >= depthSec {
-		idealStart = minCrossSafeTime - depthSec
+	if endTime >= depthSec {
+		idealStart = endTime - depthSec
 	}
 	// clamp to the activation timestamp: never backfill before activation.
 	startTime := max(idealStart, i.activationTimestamp)
@@ -72,9 +88,9 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 				i.log.Error("log backfill: timestamp to block number for start", "chain", chain.ID(), "err", err)
 				return
 			}
-			endNum, err := chain.TimestampToBlockNumber(i.ctx, minCrossSafeTime)
+			endNum, err := chain.TimestampToBlockNumber(i.ctx, endTime)
 			if err != nil {
-				errCh <- fmt.Errorf("chain %s: timestamp to block number for end %d: %w", chain.ID(), minCrossSafeTime, err)
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for end %d: %w", chain.ID(), endTime, err)
 				i.log.Error("log backfill: timestamp to block number for end", "chain", chain.ID(), "err", err)
 				return
 			}
@@ -91,7 +107,7 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	for err := range errCh {
 		return 0, err
 	}
-	return minCrossSafeTime, nil
+	return endTime, nil
 }
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {

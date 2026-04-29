@@ -137,9 +137,11 @@ type Interop struct {
 
 	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
 	// this is used for loop handoff from log backfill to main processing.
-	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1,
-	// or activationTimestamp if backfill was not used.
+	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
+	// after backfill, or the safe-head-derived startup timestamp when backfill was not used.
 	backfillEndTimestamp uint64
+	firstVerifiableSet   bool
+	firstVerifiable      uint64
 
 	dataDir string
 
@@ -186,19 +188,27 @@ func (i *Interop) Name() string {
 	return "interop"
 }
 
-// firstVerifiableTimestamp is the earliest timestamp the main loop will
-// attempt to verify. It is activationTimestamp when backfill did not run,
-// or backfillEndTimestamp+1 when it did (clamped so it never falls below
-// activation, though by construction backfillEndTimestamp >= activation).
-func (i *Interop) firstVerifiableTimestamp() uint64 {
-	if i.backfillEndTimestamp == 0 {
-		return i.activationTimestamp
+// firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
+// to verify. If verification has already committed results, the first committed
+// timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
+// after log backfill, or the safe-head-derived startup timestamp.
+func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	if i.verifiedDB != nil {
+		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
+			return first, nil
+		}
 	}
-	next := i.backfillEndTimestamp + 1
-	if next < i.activationTimestamp {
-		return i.activationTimestamp
+	if i.backfillEndTimestamp != 0 {
+		next := i.backfillEndTimestamp + 1
+		if next < i.activationTimestamp {
+			return i.activationTimestamp, nil
+		}
+		return next, nil
 	}
-	return next
+	if i.firstVerifiableSet {
+		return i.firstVerifiable, nil
+	}
+	return i.resolveFirstVerifiableTimestamp(ctx)
 }
 
 // New constructs a new Interop activity.
@@ -270,6 +280,30 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.ctx, i.cancel = context.WithCancel(ctx)
 	i.started = true
 	i.mu.Unlock()
+
+	firstVerifiableLog := uint64(0)
+	if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		firstVerifiableLog = lastTS + 1
+	} else {
+		for {
+			first, err := i.resolveFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				firstVerifiableLog = first
+				break
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.log.Info("interop first verifiable timestamp resolved",
+		"activationTimestamp", i.activationTimestamp,
+		"firstVerifiableTimestamp", firstVerifiableLog)
 
 	if i.logBackfillDepth > 0 {
 		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
@@ -451,7 +485,11 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.firstVerifiableTimestamp()
+		next, err := i.firstVerifiableTimestamp(i.ctx)
+		if err != nil {
+			return obs, err
+		}
+		obs.NextTimestamp = next
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -685,7 +723,11 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.firstVerifiableTimestamp() {
+	first, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return RewindPlan{}, err
+	}
+	if lastTS <= first {
 		return plan, nil
 	}
 
@@ -850,13 +892,17 @@ func (i *Interop) CurrentL1() eth.BlockID {
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
-// For timestamps before the activation timestamp, this returns true since interop
-// wasn't active yet and verification proceeds automatically.
-// For timestamps at or after the activation timestamp, this checks the verifiedDB.
+// Timestamps before the first verifiable timestamp are already covered by
+// pre-activation consensus or by the safe-head startup handoff.
 func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
-	// Timestamps before the activation timestamp are considered verified
-	// because interop wasn't active yet
 	if ts < i.activationTimestamp {
+		return true, nil
+	}
+	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return false, err
+	}
+	if ts < firstVerifiable {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)

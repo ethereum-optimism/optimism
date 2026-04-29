@@ -105,6 +105,9 @@ type Config struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
+
+	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
+	RoundRobinLeaderTransfer bool
 }
 
 // Check validates the CLIConfig.
@@ -213,6 +216,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:         oppprof.ReadCLIConfig(ctx),
 		RPC:                 oprpc.ReadCLIConfig(ctx),
+		// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
+		RoundRobinLeaderTransfer: ctx.Bool(flags.RoundRobinLeaderTransfer.Name),
 	}, nil
 }
 

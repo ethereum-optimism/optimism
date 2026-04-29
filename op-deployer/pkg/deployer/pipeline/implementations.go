@@ -84,6 +84,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
 		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
+		OpcmUtilsImpl:                    dio.OpcmUtils,
+		OpcmMigratorImpl:                 dio.OpcmMigrator,
 		OpcmV2Impl:                       dio.OpcmV2,
 		OpcmContainerImpl:                dio.OpcmContainer,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
@@ -102,6 +104,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
 		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
+		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
+		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
 	}
 
 	return nil

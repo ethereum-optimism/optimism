@@ -16,6 +16,9 @@ pub enum MessageGraphError<E: Debug> {
     /// Missing a [`RollupConfig`](kona_genesis::RollupConfig) for a chain ID
     #[error("Missing a RollupConfig for chain ID {0}")]
     MissingRollupConfig(u64),
+    /// A message references a chain that is not in the dependency set.
+    #[error("chain {0} is not part of the dependency set")]
+    ChainNotInDependencySet(u64),
     /// Interop provider error
     #[error("Interop provider: {0}")]
     InteropProviderError(#[from] E),
