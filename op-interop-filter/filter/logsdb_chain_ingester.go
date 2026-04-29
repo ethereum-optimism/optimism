@@ -35,7 +35,6 @@ type EthClient interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error)
-	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, gethTypes.Receipts, error)
 	Close()
 }
 
@@ -671,7 +670,11 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 	startFetch := func(blockNum uint64) {
 		slot := slots[blockNum%concurrency]
 		go func() {
-			blockInfo, receipts, err := c.ethClient.FetchReceiptsByNumber(rangeCtx, blockNum)
+			blockInfo, err := c.ethClient.InfoByNumber(rangeCtx, blockNum)
+			var receipts gethTypes.Receipts
+			if err == nil {
+				_, receipts, err = c.ethClient.FetchReceipts(rangeCtx, blockInfo.Hash())
+			}
 			select {
 			case slot <- blockFetch{blockNum: blockNum, blockInfo: blockInfo, receipts: receipts, err: err}:
 			case <-rangeCtx.Done():

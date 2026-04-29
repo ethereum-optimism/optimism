@@ -126,26 +126,32 @@ type delayedFetchEthClient struct {
 	completed []uint64
 }
 
-func (m *delayedFetchEthClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, gethTypes.Receipts, error) {
+func (m *delayedFetchEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
 	if delay := m.delays[number]; delay > 0 {
 		select {
 		case <-time.After(delay):
 		case <-ctx.Done():
-			return nil, nil, ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 
-	blockInfo, receipts, err := m.MockEthClient.FetchReceiptsByNumber(ctx, number)
+	blockInfo, err := m.MockEthClient.InfoByNumber(ctx, number)
 	m.mu.Lock()
 	m.completed = append(m.completed, number)
 	m.mu.Unlock()
-	return blockInfo, receipts, err
+	return blockInfo, err
 }
 
 func (m *delayedFetchEthClient) Completed() []uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]uint64(nil), m.completed...)
+}
+
+func (m *delayedFetchEthClient) ResetCompleted() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.completed = nil
 }
 
 type backfillProgressMetrics struct {
@@ -361,6 +367,7 @@ func TestLogsDBChainIngester_IngestBlockRange_WritesInOrder(t *testing.T) {
 	require.NoError(t, ingester.initLogsDB())
 	t.Cleanup(func() { ingester.logsDB.Close() })
 	require.NoError(t, ingester.sealParentBlock(99))
+	mockClient.ResetCompleted()
 
 	nextBlock, _, err := ingester.ingestBlockRange(100, 101, clock.SystemClock.Now())
 	require.NoError(t, err)
