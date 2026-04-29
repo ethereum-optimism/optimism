@@ -140,7 +140,7 @@ func (t *resetTracker) isL1OriginValid(ctx context.Context, blockNum uint64) (et
 		return eth.L2BlockRef{}, err
 	}
 	if l1Blk.Hash != current.L1Origin.Hash {
-		t.log.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current, "newL1Origin", l1Blk)
+		t.log.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
 		return eth.L2BlockRef{}, nil
 	}
 	t.log.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
