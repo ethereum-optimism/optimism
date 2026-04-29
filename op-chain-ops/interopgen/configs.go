@@ -81,6 +81,7 @@ type L2Config struct {
 	DisputeSplitDepth           uint64
 	DisputeClockExtension       uint64
 	DisputeMaxClockDuration     uint64
+	UseL2CM                     bool
 }
 
 func (c *L2Config) Check(log log.Logger) error {
