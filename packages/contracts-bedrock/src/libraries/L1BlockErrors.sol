@@ -9,3 +9,6 @@ error L1Block_FeatureAlreadyEnabled();
 
 /// @notice Error when a caller is not authorized to set a feature.
 error L1Block_NotAuthorizedToSetFeature();
+
+/// @notice Error when a caller is not authorized to set a dependency set entry time.
+error L1Block_NotAuthorizedToSetDepsetEntryTime();

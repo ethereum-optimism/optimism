@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { ChainId } from "src/libraries/Types.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 interface IL1Block is IProxyAdminOwnedBase {
     error L1Block_FeatureAlreadyEnabled();
+    error L1Block_NotAuthorizedToSetDepsetEntryTime();
     error L1Block_NotAuthorizedToSetFeature();
 
+    event DepsetEntryTimeSet(ChainId indexed chainId, uint256 indexed entryTime);
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
     function DEPOSITOR_ACCOUNT() external pure returns (address addr_);
@@ -15,6 +18,7 @@ interface IL1Block is IProxyAdminOwnedBase {
     function batcherHash() external view returns (bytes32);
     function blobBaseFee() external view returns (uint256);
     function blobBaseFeeScalar() external view returns (uint32);
+    function depsetEntryTime(ChainId) external view returns (uint256);
     function gasPayingToken() external pure returns (address addr_, uint8 decimals_);
     function gasPayingTokenName() external pure returns (string memory name_);
     function gasPayingTokenSymbol() external pure returns (string memory symbol_);
@@ -43,6 +47,7 @@ interface IL1Block is IProxyAdminOwnedBase {
     function setL1BlockValuesJovian() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+    function setDepsetEntryTime(ChainId _chainId) external;
     function setFeature(bytes32 _feature) external;
     function isFeatureEnabled(bytes32) external view returns (bool);
 

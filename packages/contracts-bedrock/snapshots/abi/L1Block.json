@@ -91,6 +91,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "ChainId",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "depsetEntryTime",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "gasPayingToken",
     "outputs": [
@@ -286,6 +305,19 @@
   {
     "inputs": [
       {
+        "internalType": "ChainId",
+        "name": "_chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDepsetEntryTime",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_feature",
         "type": "bytes32"
@@ -396,6 +428,25 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "ChainId",
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "entryTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "DepsetEntryTimeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "feature",
         "type": "bytes32"
@@ -413,6 +464,11 @@
   {
     "inputs": [],
     "name": "L1Block_FeatureAlreadyEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1Block_NotAuthorizedToSetDepsetEntryTime",
     "type": "error"
   },
   {

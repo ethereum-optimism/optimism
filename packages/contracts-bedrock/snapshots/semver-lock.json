@@ -64,11 +64,11 @@
     "sourceCodeHash": "0xb4d1bf3669ba87bbeaf4373145c7e1490478c4a05ba4838a524aa6f0ce7348a6"
   },
   "src/L2/L1Block.sol:L1Block": {
-    "initCodeHash": "0x3814792bacfb53c9b7638b5a09293e3358146ed4e747b4f0fafe28fcca2dc8eb",
-    "sourceCodeHash": "0xdc95fe725355a2da51c2c0ca657b1104401e2f395b78e1d5090425445edc3a5c"
+    "initCodeHash": "0x51586cdfab9219283dc6598ad052b73937704d779e285c4ab4c2e5c92215ea55",
+    "sourceCodeHash": "0xb88a56adef8039ed56dc1036dd37ba60b201323eb14aa4fe979d33c090b737fe"
   },
   "src/L2/L1BlockCGT.sol:L1BlockCGT": {
-    "initCodeHash": "0x7e1d1edefd306ead6f32689506e1fce7ff85408033d7c6465d9f55680b54f70f",
+    "initCodeHash": "0xcadc22b207b72f8eaf32f0a3c2591ca49b718251d9bd505a552215281c02258f",
     "sourceCodeHash": "0x1b361d74944f0972d46ea05a0e40ebc851a54696edf19866161c8edeac7c4752"
   },
   "src/L2/L1FeeVault.sol:L1FeeVault": {

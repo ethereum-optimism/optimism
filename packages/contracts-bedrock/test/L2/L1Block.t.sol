@@ -12,6 +12,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { ChainId } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
@@ -588,5 +589,65 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Tests that isFeatureEnabled with zero bytes32 returns false.
     function test_isFeatureEnabled_zero_succeeds() external view {
         assertFalse(l1Block.isFeatureEnabled(bytes32(0)));
+    }
+}
+
+/// @title L1Block_SetDepsetEntryTime_Test
+/// @notice Tests for the dependency set entry time functionality.
+contract L1Block_SetDepsetEntryTime_Test is L1Block_TestInit {
+    /// @notice Redeclare the event for expectEmit.
+    event DepsetEntryTimeSet(ChainId indexed chainId, uint256 indexed entryTime);
+
+    /// @notice Tests that depsetEntryTime returns zero by default.
+    function test_depsetEntryTime_defaultZero_succeeds(uint256 chainId) external view {
+        assertEq(l1Block.depsetEntryTime(ChainId.wrap(chainId)), 0);
+    }
+
+    /// @notice Tests that setDepsetEntryTime succeeds when called by the depositor.
+    function testFuzz_setDepsetEntryTime_depositor_succeeds(uint256 chainId, uint256 entryTime) external {
+        ChainId wrappedChainId = ChainId.wrap(chainId);
+        vm.warp(entryTime);
+
+        vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
+        emit DepsetEntryTimeSet(wrappedChainId, entryTime);
+
+        vm.prank(depositor);
+        l1Block.setDepsetEntryTime(wrappedChainId);
+
+        assertEq(l1Block.depsetEntryTime(wrappedChainId), entryTime);
+    }
+
+    /// @notice Tests that setDepsetEntryTime succeeds when called by the proxy admin owner.
+    function testFuzz_setDepsetEntryTime_proxyAdminOwner_succeeds(uint256 chainId, uint256 entryTime) external {
+        ChainId wrappedChainId = ChainId.wrap(chainId);
+        vm.warp(entryTime);
+
+        vm.prank(IProxyAdminOwnedBase(address(l1Block)).proxyAdminOwner());
+        l1Block.setDepsetEntryTime(wrappedChainId);
+
+        assertEq(l1Block.depsetEntryTime(wrappedChainId), entryTime);
+    }
+
+    /// @notice Tests that setDepsetEntryTime succeeds when called by the proxy admin.
+    function testFuzz_setDepsetEntryTime_proxyAdmin_succeeds(uint256 chainId, uint256 entryTime) external {
+        ChainId wrappedChainId = ChainId.wrap(chainId);
+        vm.warp(entryTime);
+
+        vm.prank(address(IProxyAdminOwnedBase(address(l1Block)).proxyAdmin()));
+        l1Block.setDepsetEntryTime(wrappedChainId);
+
+        assertEq(l1Block.depsetEntryTime(wrappedChainId), entryTime);
+    }
+
+    /// @notice Tests that setDepsetEntryTime reverts when called by an unauthorized address.
+    function testFuzz_setDepsetEntryTime_notAuthorized_reverts(address notAuthorized, uint256 chainId) external {
+        vm.assume(
+            notAuthorized != depositor && notAuthorized != IProxyAdminOwnedBase(address(l1Block)).proxyAdminOwner()
+                && notAuthorized != address(IProxyAdminOwnedBase(address(l1Block)).proxyAdmin())
+        );
+
+        vm.expectRevert(L1Block_NotAuthorizedToSetDepsetEntryTime.selector);
+        vm.prank(notAuthorized);
+        l1Block.setDepsetEntryTime(ChainId.wrap(chainId));
     }
 }

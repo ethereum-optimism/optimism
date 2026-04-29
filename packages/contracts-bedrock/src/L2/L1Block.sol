@@ -3,7 +3,12 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { L1Block_FeatureAlreadyEnabled, L1Block_NotAuthorizedToSetFeature } from "src/libraries/L1BlockErrors.sol";
+import {
+    L1Block_FeatureAlreadyEnabled,
+    L1Block_NotAuthorizedToSetDepsetEntryTime,
+    L1Block_NotAuthorizedToSetFeature
+} from "src/libraries/L1BlockErrors.sol";
+import { ChainId } from "src/libraries/Types.sol";
 import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
@@ -70,14 +75,22 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
     ///         Once a feature is enabled, it cannot be disabled.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
+    /// @notice Mapping of dependency set chain IDs to the L2 timestamp when each chain entered the dependency set.
+    mapping(ChainId => uint256) public depsetEntryTime;
+
     /// @notice Emitted when a system customization feature is set.
     /// @param feature Feature that was set.
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
-    /// @custom:semver 1.9.0
+    /// @notice Emitted when a dependency set entry time is set.
+    /// @param chainId Chain ID whose dependency set entry time was set.
+    /// @param entryTime L2 timestamp when the chain entered the dependency set.
+    event DepsetEntryTimeSet(ChainId indexed chainId, uint256 indexed entryTime);
+
+    /// @custom:semver 1.10.0
     function version() public pure virtual returns (string memory) {
-        return "1.9.0";
+        return "1.10.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -235,6 +248,15 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
         _setFeature(_feature);
     }
 
+    /// @notice Sets the dependency set entry time for a chain ID to the current L2 timestamp.
+    /// @param _chainId The chain ID to set the dependency set entry time for.
+    function setDepsetEntryTime(ChainId _chainId) external {
+        _assertSetDepsetEntryTimeAuthorized(msg.sender);
+
+        depsetEntryTime[_chainId] = block.timestamp;
+        emit DepsetEntryTimeSet(_chainId, block.timestamp);
+    }
+
     /// @notice Internal helper to enable a feature. Reverts if the feature is already enabled.
     /// @param _feature The feature to enable.
     function _setFeature(bytes32 _feature) internal {
@@ -255,6 +277,19 @@ contract L1Block is ISemver, ProxyAdminOwnedBase {
     function _assertSetFeatureAuthorized(address _sender) internal view {
         if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {
             revert L1Block_NotAuthorizedToSetFeature();
+        }
+    }
+
+    /// @notice Reverts if the sender is not authorized to set a dependency set entry time. The different callers and
+    ///         the motivation for authorization are as follows:
+    ///         - Depositor: Allows setting dependency set entry times from within the CL client's derivation pipeline.
+    ///         - ProxyAdmin: Allows setting dependency set entry times by the L2ContractsManager.
+    ///         - ProxyAdmin Owner: Allows setting dependency set entry times by deposit transactions from the
+    ///           ProxyAdminOwner on L1.
+    /// @param _sender The address to check.
+    function _assertSetDepsetEntryTimeAuthorized(address _sender) internal view {
+        if (!(_sender == DEPOSITOR_ACCOUNT() || _sender == proxyAdminOwner() || _sender == address(proxyAdmin()))) {
+            revert L1Block_NotAuthorizedToSetDepsetEntryTime();
         }
     }
 }

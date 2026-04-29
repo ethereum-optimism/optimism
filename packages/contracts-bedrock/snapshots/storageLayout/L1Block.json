@@ -103,5 +103,12 @@
     "offset": 0,
     "slot": "9",
     "type": "mapping(bytes32 => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "depsetEntryTime",
+    "offset": 0,
+    "slot": "10",
+    "type": "mapping(ChainId => uint256)"
   }
 ]
