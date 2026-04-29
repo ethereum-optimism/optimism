@@ -53,6 +53,7 @@ func TestInteropMigration(t *testing.T) {
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
 	devBitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OptimismPortalInteropFlag)
+	devBitmap = devfeatures.EnableDevFeature(devBitmap, devfeatures.L2CMFlag)
 	intent.GlobalDeployOverrides = map[string]any{
 		"devFeatureBitmap": devBitmap,
 	}

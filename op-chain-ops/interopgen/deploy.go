@@ -369,7 +369,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset)),
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset), cfg.DisableL2CM),
 		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
@@ -384,10 +384,17 @@ func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
 	return interopOffset != nil && *interopOffset == 0
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on whether Interop should be
-// enabled or not.
-func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis.
+// L2CM is enabled by default unless disableL2CM is true. Interop is enabled when
+// enableInterop is true.
+//
+// TODO(#20084): Drop the disableL2CM parameter and the L2CM-gated default with the
+// broader L2CMFlag cleanup; only the interop branch should remain.
+func devFeatureBitmapForL2Genesis(enableInterop, disableL2CM bool) common.Hash {
 	var bitmap common.Hash
+	if !disableL2CM {
+		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.L2CMFlag)
+	}
 	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
 	}

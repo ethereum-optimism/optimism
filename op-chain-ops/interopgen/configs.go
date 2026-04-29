@@ -81,6 +81,8 @@ type L2Config struct {
 	DisputeSplitDepth           uint64
 	DisputeClockExtension       uint64
 	DisputeMaxClockDuration     uint64
+	// TODO(#20084): Remove DisableL2CM with the broader L2CMFlag cleanup.
+	DisableL2CM bool
 }
 
 func (c *L2Config) Check(log log.Logger) error {

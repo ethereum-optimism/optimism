@@ -275,11 +275,16 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 	}
 }
 
-// WithDevFeatureEnabled adds a feature as enabled in the dev feature bitmap
+// WithDevFeatureEnabled adds a feature as enabled in the dev feature bitmap.
+// L2CM is seeded by default (matching the op-deployer default) so that the bitmap
+// override agrees with the DisableL2CM=false default in the resolved Intent.
+//
+// TODO(#20084): Drop the L2CM seed with the broader L2CMFlag cleanup; the helper can
+// then revert to starting from a zero bitmap.
 func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		currentValue := builder.GlobalOverride(devFeatureBitmapKey)
-		var bitmap common.Hash
+		bitmap := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.L2CMFlag)
 		if currentValue != nil {
 			bitmap = currentValue.(common.Hash)
 		}

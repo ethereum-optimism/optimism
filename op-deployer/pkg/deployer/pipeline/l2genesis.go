@@ -201,10 +201,22 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
-// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
+// buildDevFeatureBitmap returns the dev-feature bitmap to pass to L2Genesis.
+//
+// The default bitmap is derived from typed Intent fields:
+//   - L2CM is enabled unless DisableL2CM is true.
+//   - Interop is controlled by UseInterop.
+//
+// GlobalDeployOverrides["devFeatureBitmap"] can replace the bitmap entirely as an
+// emergency knob. The resolved bitmap is then cross-checked against DisableL2CM and
+// UseInterop; a mismatch returns an error rather than silently disabling either feature.
 func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 	var devFeatureBitmap common.Hash
+	// TODO(#20084): Remove the DisableL2CM-gated default with the broader L2CMFlag cleanup.
+	if !intent.DisableL2CM {
+		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.L2CMFlag)
+	}
+
 	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
 	case common.Hash:
 		devFeatureBitmap = v
@@ -212,8 +224,13 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 		devFeatureBitmap = common.HexToHash(v)
 	}
 
-	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
+	// TODO(#20084): Remove the L2CM cross-check with the broader L2CMFlag cleanup.
+	l2cmBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.L2CMFlag)
+	if intent.DisableL2CM == l2cmBitEnabled {
+		return common.Hash{}, fmt.Errorf("L2CM bit in devFeatureBitmap does not match DisableL2CM intent flag")
+	}
 
+	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
 	if intent.UseInterop != interopBitEnabled {
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
 	}
