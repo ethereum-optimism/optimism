@@ -131,7 +131,7 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 			return err
 		}
 
-		if totalBlocks > 0 && i.metrics != nil {
+		if totalBlocks > 0 {
 			progress := float64(num-startNum+1) / float64(totalBlocks)
 			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
 		}
