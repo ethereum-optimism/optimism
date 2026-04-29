@@ -279,6 +279,8 @@ func initAllocType(root string, allocType AllocType) {
 				"l2GenesisHoloceneTimeOffset": nil,
 				"l2GenesisIsthmusTimeOffset":  nil,
 				"l2GenesisJovianTimeOffset":   nil,
+				"l2GenesisKarstTimeOffset":    nil,
+				"l2GenesisInteropTimeOffset":  nil,
 			}
 
 			upgradeSchedule := new(genesis.UpgradeScheduleDeployConfig)

@@ -37,9 +37,10 @@ var forksWithoutNUTBundle = map[forks.Name]bool{}
 // fails, and a fork on the list that gains a bundle also fails (so the
 // exception list cannot silently go stale).
 //
-// The per-fork requirement beyond a JSON bundle is that the fork immediately
-// preceding it is registered in [helpers.Hardforks] — a one-line entry needed
-// for any fork-parametrized test in this package.
+// The per-fork requirement beyond a JSON bundle is that the newest preceding
+// non-NUT fork is registered in [helpers.Hardforks]. Preceding NUT forks are
+// scheduled before the target fork so the activation under test runs against
+// state produced by the same bundle execution path.
 //
 // Fork-specific state assertions (e.g. Karst's proxy implementation swap) are
 // dispatched via the switch in [testActivationBlockNUTBundle]. Future forks
@@ -60,12 +61,12 @@ func TestActivationBlockNUTBundle(gt *testing.T) {
 		require.Falsef(gt, excepted,
 			"fork %s now has a NUT bundle; remove it from forksWithoutNUTBundle", fork)
 
-		preFork := forks.Prev(fork)
-		require.NotEqual(gt, forks.None, preFork, "fork %s has no preceding fork in forks.All", fork)
-		preHelper := lookupHardforkHelper(preFork)
+		preHelperFork := preStateFork(fork)
+		require.NotEqual(gt, forks.None, preHelperFork, "fork %s has no preceding non-NUT fork in forks.All", fork)
+		preHelper := lookupHardforkHelper(preHelperFork)
 		require.NotNil(gt, preHelper,
-			"no pre-fork helper registered for NUT-bundle fork %s (prior fork: %s); add %s to helpers.Hardforks",
-			fork, preFork, preFork)
+			"no pre-fork helper registered for NUT-bundle fork %s (prestate fork: %s); add %s to helpers.Hardforks",
+			fork, preHelperFork, preHelperFork)
 
 		matrix.AddDefaultTestCasesWithName(
 			string(fork),
@@ -83,8 +84,15 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	t := actionsHelpers.NewDefaultTesting(gt)
 
 	offset := uint64(4)
+	priorNUTForks := priorNUTBundleForks(fork)
+	if minOffset := uint64(len(priorNUTForks) + 2); offset < minOffset {
+		offset = minOffset
+	}
 	testSetup := func(dc *genesis.DeployConfig) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		for i, prior := range priorNUTForks {
+			dc.SetForkTimeOffset(prior, ptr(uint64(i+1)))
+		}
 		dc.SetForkTimeOffset(fork, &offset)
 	}
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
@@ -189,20 +197,15 @@ func assertKarstActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Faul
 	}
 }
 
-// assertInteropActivation verifies Interop-specific state changes:
-//   - the INTEROP feature flag flips on L1Block
-//   - the four Interop predeploy proxies (CrossL2Inbox, L2ToL2CrossDomainMessenger,
-//     SuperchainETHBridge, ETHLiquidity) point at non-empty implementation
-//     contracts after activation
-//   - ETHLiquidity is funded with u128::MAX wei
-//
-// These are the externally observable effects of the pre-bundle setFeature
-// wrapper, the L2CM upgradePredeploys() call, and the post-bundle ETHLiquidity
-// funding wrapper.
+// assertInteropActivation verifies Interop-specific wrapper effects when the
+// test configuration enables cross-chain Interop contracts. Single-chain
+// activation still executes the JSON bundle, but intentionally skips the
+// setFeature and ETHLiquidity funding wrappers.
 func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2FaultProofEnv, actHeader *types.Header) {
 	ethCl := env.Engine.EthClient()
 	postBlock := actHeader.Number
 	preBlock := new(big.Int).Sub(postBlock, big.NewInt(1))
+	activateInteropContracts := env.Sd.DependencySet != nil && len(env.Sd.DependencySet.Chains()) > 1
 
 	// L1Block.isFeatureEnabled is mapping(bytes32 => bool) at storage slot 9
 	// (see snapshots/storageLayout/L1Block.json).
@@ -216,6 +219,19 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 	post, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, slot, postBlock)
 	require.NoError(t, err, "read L1Block.isFeatureEnabled(INTEROP) post-activation")
 	require.Truef(t, allZero(pre), "INTEROP feature must be unset pre-activation, got %x", pre)
+
+	preBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, preBlock)
+	require.NoError(t, err, "read ETHLiquidity balance pre-activation")
+	postBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, postBlock)
+	require.NoError(t, err, "read ETHLiquidity balance post-activation")
+	require.True(t, preBalance.Sign() == 0, "ETHLiquidity must have zero balance pre-activation")
+
+	if !activateInteropContracts {
+		require.Truef(t, allZero(post), "single-chain Interop activation must not set feature flag, got %x", post)
+		require.True(t, postBalance.Sign() == 0, "single-chain Interop activation must not fund ETHLiquidity")
+		return
+	}
+
 	require.Equalf(t, byte(1), post[31], "INTEROP feature must be set post-activation, got %x", post)
 
 	// The four Interop predeploys have their EIP-1967 implementation slot set
@@ -241,11 +257,6 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 	}
 
 	// ETHLiquidity must be funded with u128::MAX wei after activation.
-	preBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, preBlock)
-	require.NoError(t, err, "read ETHLiquidity balance pre-activation")
-	postBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, postBlock)
-	require.NoError(t, err, "read ETHLiquidity balance post-activation")
-	require.True(t, preBalance.Sign() == 0, "ETHLiquidity must have zero balance pre-activation")
 	expectedFunding := derive.InteropETHLiquidityFundingAmount()
 	require.Equal(t, expectedFunding, postBalance, "ETHLiquidity must be funded with u128::MAX post-activation")
 }
@@ -268,4 +279,28 @@ func lookupHardforkHelper(name forks.Name) *helpers.Hardfork {
 		}
 	}
 	return nil
+}
+
+func preStateFork(fork forks.Name) forks.Name {
+	for preFork := forks.Prev(fork); preFork != forks.None; preFork = forks.Prev(preFork) {
+		if _, _, err := derive.UpgradeTransactions(preFork); err == nil {
+			continue
+		}
+		return preFork
+	}
+	return forks.None
+}
+
+func priorNUTBundleForks(fork forks.Name) []forks.Name {
+	var reverse []forks.Name
+	for preFork := forks.Prev(fork); preFork != forks.None; preFork = forks.Prev(preFork) {
+		if _, _, err := derive.UpgradeTransactions(preFork); err == nil {
+			reverse = append(reverse, preFork)
+		}
+	}
+
+	for i, j := 0, len(reverse)-1; i < j; i, j = i+1, j-1 {
+		reverse[i], reverse[j] = reverse[j], reverse[i]
+	}
+	return reverse
 }

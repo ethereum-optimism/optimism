@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,12 @@ func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpe
 				ChainConfig: l2Eng.L2Chain().Config(),
 			},
 		}
+	}
+}
+
+func WithDependencySet(depSet *depset.StaticConfigDependencySet) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.DependencySet = depSet
 	}
 }
 

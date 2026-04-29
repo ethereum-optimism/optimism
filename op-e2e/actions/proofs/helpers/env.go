@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -65,6 +66,13 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	}
 
 	sd := e2eutils.Setup(t, dp, genesisAlloc)
+	if sd.RollupCfg.InteropTime != nil && sd.DependencySet == nil {
+		depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
+		})
+		require.NoError(t, err)
+		sd.DependencySet = depSet
+	}
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
@@ -169,6 +177,9 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 	for l2ClaimBlockNum <= finalL2BlockNum { // l2ClaimBlockNum = 0, finalL2BlockNum = 0 is a valid case
 		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 		combinedParams := []FixtureInputParam{defaultParam}
+		if depSet, ok := env.Sd.DependencySet.(*depset.StaticConfigDependencySet); ok {
+			combinedParams = append(combinedParams, WithDependencySet(depSet))
+		}
 		combinedParams = append(combinedParams, fixtureInputParams...)
 		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 		l2ClaimBlockNum++
@@ -179,6 +190,9 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
+	if depSet, ok := env.Sd.DependencySet.(*depset.StaticConfigDependencySet); ok {
+		combinedParams = append(combinedParams, WithDependencySet(depSet))
+	}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
