@@ -129,10 +129,8 @@ impl From<alloy_rpc_types_engine::PayloadAttributes> for OpPayloadAttrs {
 
 impl reth_payload_primitives::PayloadAttributes for OpPayloadAttrs {
     fn payload_id(&self, parent_hash: &B256) -> PayloadId {
-        // Revisit if op-node ever bumps its FCU version. Pre-PR-#23202 reth threaded the
-        // version through `PayloadBuilderAttributes::try_new(parent, attrs, version)`; the
-        // refactor removed that channel, so for now V3 is the only correct choice instead
-        // of the V4 default
+        // Pin to V3 for byte parity with op-node.
+        // See https://github.com/ethereum-optimism/optimism/issues/20226
         payload_id_optimism(parent_hash, &self.0, EngineApiMessageVersion::V3 as u8)
     }
 
