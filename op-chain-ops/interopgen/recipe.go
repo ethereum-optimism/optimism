@@ -131,7 +131,8 @@ type InteropDevL2Recipe struct {
 	ChainID       uint64
 	BlockTime     uint64
 	InteropOffset uint64
-	UseL2CM       bool
+	// TODO(#20084): remove alongside L2Config.UseL2CM.
+	UseL2CM bool
 }
 
 func prefundL2Accounts(l1Cfg *L1Config, l2Cfg *L2Config, addrs devkeys.Addresses) error {

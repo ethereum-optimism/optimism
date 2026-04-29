@@ -384,8 +384,8 @@ func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
 	return interopOffset != nil && *interopOffset == 0
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on whether Interop and L2CM
-// should be enabled or not.
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.
+// TODO(#20084): drop useL2CM and the L2CMFlag branch once DevFeatures are removed.
 func devFeatureBitmapForL2Genesis(enableInterop, useL2CM bool) common.Hash {
 	var bitmap common.Hash
 	if enableInterop {
