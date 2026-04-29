@@ -50,7 +50,7 @@ func upgradeToSuperRoots(
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	anchorRootData := encodeStartingAnchorRoot(t, superRoot, superrootTime)
-	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonGameType)
+	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonKonaGameType)
 
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
 	require.NoError(err, "failed to download artifacts")
