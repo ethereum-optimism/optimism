@@ -515,8 +515,9 @@ func buildAfterChainHeadTests(
 	//   timestamp = startTimestamp + (idx+1)/stepsPerTimestamp
 	//   step      = (idx+1) % stepsPerTimestamp
 	// Consolidation step (step=0) at timestamp ttest sits at idx (ttest - endTimestamp + 1)*sPT - 1.
-	// Chain-A optimistic step (step=1) advancing toward ttest+1's super-root sits at
-	// idx (ttest - endTimestamp + 1)*sPT + 1.
+	// An optimistic step within the ttest → ttest+1 transition sits at the same
+	// timestamp+1 multiplier with step >= 1. We pick step=2 (chain-B optimistic)
+	// to mirror the original test layout (4*sPT - 1 / 4*sPT + 1).
 	timestampDelta := int64(ttest - endTimestamp + 1)
 	consolidateAfterHeadIdx := timestampDelta*stepsPerTimestamp - 1
 	optimisticAfterHeadIdx := timestampDelta*stepsPerTimestamp + 1
@@ -613,8 +614,10 @@ func buildAfterChainHeadTests(
 		ExpectValid:        true,
 	})
 
-	// Test 6: Chain-A optimistic step transitioning toward ttest+1's super-root.
-	// Same reasoning as test 5: ttest+1 is also past every chain's settled head.
+	// Test 6: Optimistic step (chain B) within the transition from ttest's
+	// super-root toward ttest+1's super-root. Same reasoning as test 5:
+	// neither ttest nor ttest+1 have any chain blocks (sequencers are stopped),
+	// so the trace provider returns InvalidTransition at this index.
 	tests = append(tests, &transitionTest{
 		Name:               "AgreedBlockAfterChainHead-Optimistic",
 		AgreedClaim:        super.InvalidTransition,
