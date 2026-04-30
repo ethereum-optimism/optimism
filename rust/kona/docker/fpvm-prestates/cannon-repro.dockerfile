@@ -27,26 +27,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 #    Build kona-client ELF + generate prestate                 #
 ################################################################
 
-# Build the cannon-builder base image from local source to test changes.
-# TODO: Once cannon-builder:v2.0.0 is published, switch back to the registry image:
-#   FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0 AS kona-build-env
-FROM ubuntu:22.04 AS cannon-builder-base
-ENV SHELL=/bin/bash
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
-  ca-certificates \
-  build-essential \
-  curl \
-  g++-mips64-linux-gnuabi64 \
-  libc6-dev-mips64-cross \
-  binutils-mips64-linux-gnuabi64 \
-  llvm \
-  clang \
-  make \
-  cmake \
-  git
-
-FROM cannon-builder-base AS kona-build-env
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0 AS kona-build-env
 SHELL ["/bin/bash", "-c"]
 
 ARG VARIANT=kona-client
