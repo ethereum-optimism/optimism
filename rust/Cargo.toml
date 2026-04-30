@@ -178,6 +178,15 @@ rand_chacha.opt-level = 3
 rand_xorshift.opt-level = 3
 unarray.opt-level = 3
 
+[profile.fast-build]
+inherits = "dev"
+opt-level = 0
+debug = "none"
+split-debuginfo = "off"
+debug-assertions = false
+incremental = true
+codegen-units = 256
+
 [profile.bench]
 debug = true
 

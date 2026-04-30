@@ -24,6 +24,28 @@ install-nightly:
 build *args='':
   cargo build --workspace {{args}}
 
+# Build the workspace, excluding example crates, with a fast compile-only profile by default
+build-no-examples *args='':
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  profile_args="--profile fast-build"
+  case " {{args}} " in
+    *" --release "*|*" --profile "*|*" --profile="*)
+      profile_args=""
+      ;;
+  esac
+
+  exclude_args=""
+  while IFS= read -r package; do
+    exclude_args="$exclude_args --exclude $package"
+  done < <(
+    cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[] | select(.manifest_path | contains("/examples/")) | .name'
+  )
+
+  cargo build --workspace $profile_args $exclude_args {{args}}
+
 # Build the workspace in release mode
 build-release *args='':
   cargo build --workspace --release {{args}}
