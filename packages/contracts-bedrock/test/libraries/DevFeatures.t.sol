@@ -93,7 +93,9 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
 
     /// @notice Tests that ALL_FEATURES against empty bitmap returns false.
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
-        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES));
+        // Strip L2CM because it is hardcoded enabled regardless of bitmap.
+        // TODO(#20084): remove with the broader L2CMFlag cleanup.
+        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.L2CM));
     }
 
     /// @notice Fuzz test: any non-zero feature should match itself exactly.
