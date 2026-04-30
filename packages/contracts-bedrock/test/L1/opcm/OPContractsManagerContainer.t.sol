@@ -162,7 +162,7 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     /// @param _feature The feature to check.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        vm.assume(_feature != DevFeatures.L2CM);
+        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));

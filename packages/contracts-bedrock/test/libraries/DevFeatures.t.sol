@@ -118,7 +118,7 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
         vm.assume(_feature != bytes32(0));
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        vm.assume(_feature != DevFeatures.L2CM);
+        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
         bytes32 disjointBitmap = ~_feature;
         assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
     }
