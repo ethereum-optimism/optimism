@@ -5,6 +5,15 @@ resolve_pr_target_branch() {
   local pr_number="${CIRCLE_PULL_REQUEST##*/}"
   local response
   local url
+  local curl_args=(-fsSL)
+
+  if [ -n "${GH_TOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer ${GH_TOKEN}")
+  elif [ -n "${GITHUB_TOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  elif [ -n "${GHTOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer ${GHTOKEN}")
+  fi
 
   if [ -z "${CIRCLE_PROJECT_USERNAME:-}" ] || [ -z "${CIRCLE_PROJECT_REPONAME:-}" ]; then
     echo "Error: CIRCLE_PROJECT_USERNAME and CIRCLE_PROJECT_REPONAME are required to resolve PR target branch" >&2
@@ -12,7 +21,7 @@ resolve_pr_target_branch() {
   fi
 
   url="https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${pr_number}"
-  response="$(curl -fsSL "$url")" || {
+  response="$(curl "${curl_args[@]}" "$url")" || {
     echo "Error: failed to resolve target branch for PR #${pr_number}" >&2
     return 1
   }
