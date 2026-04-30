@@ -12,6 +12,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -93,6 +94,11 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         // Set proposer/challenger before building migration input.
         proposer = makeAddr("superProposer");
         challenger = standardValidator.challenger();
+
+        // Migrator now requires each chain to already have ETH_LOCKBOX enabled with the portal
+        // pointing at its per-chain lockbox. opcmV2.deploy() provisions the lockbox proxy but
+        // does not flip the feature or wire the portal, so simulate that pre-existing state here.
+        _enableEthLockboxes();
 
         // Run real migration with both SPDG and SCKDG.
         _doMigration(_getDefaultMigrateInput());
@@ -243,6 +249,24 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         prankDelegateCall(proxyAdminOwner);
         (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
         assertTrue(success, "migrate failed");
+    }
+
+    /// @notice Enables a chain's existing per-chain ETHLockbox before migration.
+    /// @param _cts The chain contracts to update.
+    function _enableEthLockbox(IOPContractsManagerV2.ChainContracts memory _cts) internal {
+        if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(address(_cts.proxyAdmin));
+            _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(_cts.optimismPortal), bytes32(slot.slot), bytes32(uint256(uint160(address(_cts.ethLockbox)))));
+    }
+
+    /// @notice Enables both test chains' per-chain ETHLockboxes before migration.
+    function _enableEthLockboxes() internal {
+        _enableEthLockbox(chainContracts1);
+        _enableEthLockbox(chainContracts2);
     }
 
     /// @notice Builds SharedImplementations from the StandardValidator's state.
