@@ -133,18 +133,21 @@ func TestSuperNodeRpc(t *testing.T) {
 		url := "http://localhost/super"
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
+		require.True(t, cfg.UseSuperNode)
 	})
 
 	t.Run("Valid-SuperPermissioned", func(t *testing.T) {
 		url := "http://localhost/super"
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
+		require.True(t, cfg.UseSuperNode)
 	})
 
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/super"
 		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc", "--supernode-rpc", url))
 		require.Equal(t, url, cfg.SuperRPC)
+		require.True(t, cfg.UseSuperNode)
 	})
 }
 
