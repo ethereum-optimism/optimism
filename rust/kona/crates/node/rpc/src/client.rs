@@ -76,7 +76,7 @@ pub enum SequencerAdminAPIError {
     #[error("Error receiving response: response channel closed.")]
     ResponseError,
 
-    /// Sequencer stopped successfully, followed by some error.
+    /// Sequencer stopped successfully, followed by some error or other.
     #[error("Sequencer stopped successfully, followed by error: {0}.")]
     ErrorAfterSequencerWasStopped(String),
 
