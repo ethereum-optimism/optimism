@@ -158,12 +158,12 @@ func (d *recordsBook[K, V]) prune() error {
 		Prefix: d.dsBaseKey.String(),
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to query records for pruning: %w", err)
 	}
 	pending := 0
 	batch, err := d.store.Batch(d.ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create batch for pruning: %w", err)
 	}
 	for result := range results.Next() {
 		// Bail out if the context is done
@@ -174,27 +174,27 @@ func (d *recordsBook[K, V]) prune() error {
 		}
 		v := d.newRecord()
 		if err := v.UnmarshalBinary(result.Value); err != nil {
-			return err
+			return fmt.Errorf("failed to unmarshal record during pruning: %w", err)
 		}
 		if d.hasExpired(v) {
 			if pending > maxPruneBatchSize {
 				if err := batch.Commit(d.ctx); err != nil {
-					return err
+					return fmt.Errorf("failed to commit prune batch: %w", err)
 				}
 				batch, err = d.store.Batch(d.ctx)
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to create new batch during pruning: %w", err)
 				}
 				pending = 0
 			}
 			pending++
 			if err := batch.Delete(d.ctx, ds.NewKey(result.Key)); err != nil {
-				return err
+				return fmt.Errorf("failed to delete expired record %s: %w", result.Key, err)
 			}
 		}
 	}
 	if err := batch.Commit(d.ctx); err != nil {
-		return err
+		return fmt.Errorf("failed to commit final prune batch: %w", err)
 	}
 	return nil
 }
