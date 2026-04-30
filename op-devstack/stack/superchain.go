@@ -5,6 +5,5 @@ import (
 )
 
 type SuperchainDeployment interface {
-	ProtocolVersionsAddr() common.Address
 	SuperchainConfigAddr() common.Address
 }

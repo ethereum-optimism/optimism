@@ -7,6 +7,17 @@ use op_alloy_consensus::interop::SafetyLevel;
 use std::{path::PathBuf, time::Duration};
 use url::Url;
 
+/// Storage schema version for the proofs-history database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ProofsStorageVersion {
+    /// V1 storage schema (original single-table-per-domain layout). Default.
+    #[default]
+    V1,
+    /// V2 storage schema with changeset and history-bitmap tables, enabling
+    /// history-aware reads at any block number within the proof window.
+    V2,
+}
+
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
@@ -145,6 +156,19 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Storage schema version for proofs history. Defaults to v1.
+    ///
+    /// Use `v2` to enable the changeset + history-bitmap schema, which supports
+    /// history-aware reads at any block number within the proof window.
+    ///
+    /// CLI: `--proofs-history.storage-version v2`
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        default_value = "v1"
+    )]
+    pub proofs_history_storage_version: ProofsStorageVersion,
 }
 
 impl Default for RollupArgs {
@@ -168,6 +192,7 @@ impl Default for RollupArgs {
             proofs_history_window: 1_296_000,
             proofs_history_prune_interval: Duration::from_secs(15),
             proofs_history_verification_interval: 0,
+            proofs_history_storage_version: ProofsStorageVersion::V1,
         }
     }
 }

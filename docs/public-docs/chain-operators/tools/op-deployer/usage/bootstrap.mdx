@@ -25,19 +25,14 @@ op-deployer bootstrap superchain \
   --private-key="<contract deployer private key>" \
   --outfile="./.deployer/bootstrap_superchain.json" \
   --superchain-proxy-admin-owner="<role address>" \
-  --protocol-versions-owner="<role address>" \
   --guardian="<role address>"
 ```
 
 ### CLI Arguments
 
-#### `--required-protocol-version`, `--recommended-protocol-version` (optional)
+#### `--superchain-proxy-admin-owner`, `--guardian`
 
-Defaults to `OPStackSupport` value read from `op-geth`, but can be overridden by these flags.
-
-#### `--superchain-proxy-admin-owner`, `--protocol-versions-owner`, `--guardian`
-
-In a dev environment, these can all be hot wallet EOAs. In a production environment, `--guardian` should be an HSM (hardware security module) protected hot wallet and the other two should be multisig cold-wallets (e.g. Gnosis Safes).
+In a dev environment, these can all be hot wallet EOAs. In a production environment, `--guardian` should be an HSM (hardware security module) protected hot wallet and `--superchain-proxy-admin-owner` should be a multisig cold-wallet (e.g. Gnosis Safe).
 
 ### Output
 
@@ -47,9 +42,7 @@ This command will deploy several contracts, and output a JSON like the one below
 {
   "proxyAdminAddress": "0x269b95a33f48a9055b82ce739b0c105a83edd64a",
   "superchainConfigImplAddress": "0x2f4c87818d67fc3c365ea10051b94f98893f3c64",
-  "superchainConfigProxyAddress": "0xd0c74806fa114c0ec176c0bf2e1e84ff0a8f91a1",
-  "protocolVersionsImplAddress": "0xbded9e39e497a34a522af74cf018ca9717c5897e",
-  "protocolVersionsProxyAddress": "0x2e8e4b790044c1e7519caac687caffd4cafca2d4"
+  "superchainConfigProxyAddress": "0xd0c74806fa114c0ec176c0bf2e1e84ff0a8f91a1"
 }
 ```
 
@@ -60,7 +53,6 @@ op-deployer bootstrap implementations \
   --l1-rpc-url="<rpc url>" \
   --outfile="./.deployer/bootstrap_implementations.json" \
   --private-key="<contract deployer private key>" \
-  --protocol-versions-proxy="<contract address output from bootstrap superchain>" \
   --superchain-config-proxy="<contract address output from bootstrap superchain>" \
   --superchain-proxy-admin="<contract address from bootstrap superchain>" \
   --challenger="<role address for the superchain's challenger>" \

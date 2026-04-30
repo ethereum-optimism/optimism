@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 # reth
-reth-codecs.workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
@@ -22,6 +21,7 @@ reth-provider.workspace = true
 reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-trie-common = { workspace = true, features = ["serde"] }
+reth-codecs.workspace = true
 reth-tasks.workspace = true
 
 # workaround: reth-trie/serde-bincode-compat activates serde-bincode-compat on
