@@ -1,6 +1,6 @@
 use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::Header;
-use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFor};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
     OpBlockExecutor,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
@@ -35,7 +35,11 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<
+            Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
+            Receipt = <Self::Primitives as NodePrimitives>::Receipt,
+        > + PostExecExecutorExt
+        + 'a,
         Self::Error,
     >;
 
@@ -51,11 +55,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
-                          + PostExecExecutorExt,
-        > + 'a,
+        impl BlockBuilder<Primitives = Self::Primitives, Executor: PostExecExecutorExt> + 'a,
         Self::Error,
     >;
 }
@@ -79,6 +79,7 @@ where
         + Sync
         + Unpin
         + 'static,
+    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn post_exec_executor_for_block<'a, DB: Database>(
@@ -87,7 +88,11 @@ where
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<
+            Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
+            Receipt = <Self::Primitives as NodePrimitives>::Receipt,
+        > + PostExecExecutorExt
+        + 'a,
         Self::Error,
     > {
         let evm = self.evm_for_block(db, block.header())?;
@@ -108,11 +113,7 @@ where
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
-                          + PostExecExecutorExt,
-        > + 'a,
+        impl BlockBuilder<Primitives = Self::Primitives, Executor: PostExecExecutorExt> + 'a,
         Self::Error,
     > {
         let evm_env = self.next_evm_env(parent, &attributes)?;
@@ -162,6 +163,7 @@ where
         + Sync
         + Unpin
         + 'static,
+    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     F: PostExecEvmFactoryHooks<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>
@@ -184,7 +186,11 @@ where
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<
+            Transaction = <Self::Primitives as NodePrimitives>::SignedTx,
+            Receipt = <Self::Primitives as NodePrimitives>::Receipt,
+        > + PostExecExecutorExt
+        + 'a,
         Self::Error,
     > {
         let evm = self.evm_for_block(db, block.header())?;
@@ -205,11 +211,7 @@ where
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
-                          + PostExecExecutorExt,
-        > + 'a,
+        impl BlockBuilder<Primitives = Self::Primitives, Executor: PostExecExecutorExt> + 'a,
         Self::Error,
     > {
         let evm_env = self.next_evm_env(parent, &attributes)?;

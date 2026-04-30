@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{Decodable2718, eip2718::WithEncoded};
-use alloy_evm::{Database, EvmEnv, block::BlockExecutorFor};
+use alloy_evm::{Database, EvmEnv, block::BlockExecutor};
 use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, post_exec::PostExecExecutorExt};
 use alloy_rpc_types_engine::PayloadError;
 use op_alloy_rpc_types_engine::flashblock::OpFlashblockPayloadBase;
@@ -19,6 +19,7 @@ use reth_evm::execute::{BasicBlockBuilder, BlockBuilder};
 use reth_node_api::{BuildNextEnv, ConfigureEvm, PayloadBuilderError};
 use reth_node_builder::{ConfigureEngineEvm, NewPayloadError};
 use reth_op::{
+    OpReceipt,
     chainspec::{EthChainSpec, OpHardforks},
     evm::primitives::{EvmEnvFor, ExecutionCtxFor},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
@@ -207,8 +208,12 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         db: &'a mut State<DB>,
         block: &'a SealedBlock<Block>,
         post_exec_mode: PostExecMode,
-    ) -> Result<impl BlockExecutorFor<'a, Self, &'a mut State<DB>> + PostExecExecutorExt, Self::Error>
-    {
+    ) -> Result<
+        impl BlockExecutor<Transaction = CustomTransaction, Receipt = OpReceipt>
+        + PostExecExecutorExt
+        + 'a,
+        Self::Error,
+    > {
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
@@ -234,10 +239,7 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = CustomNodePrimitives,
-            Executor: BlockExecutorFor<'a, Self, &'a mut State<DB>> + PostExecExecutorExt,
-        > + 'a,
+        impl BlockBuilder<Primitives = CustomNodePrimitives, Executor: PostExecExecutorExt> + 'a,
         Self::Error,
     > {
         let evm_env = self.next_evm_env(parent, &attributes)?;
