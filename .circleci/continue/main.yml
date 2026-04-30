@@ -996,7 +996,7 @@ jobs:
           mentions: "@security-oncall"
 
   contracts-bedrock-tests:
-    circleci_ip_ranges: true
+    circleci_ip_ranges: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
@@ -1085,7 +1085,7 @@ jobs:
           mentions: "@security-oncall"
 
   contracts-bedrock-heavy-fuzz-nightly:
-    circleci_ip_ranges: true
+    circleci_ip_ranges: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge
@@ -1143,7 +1143,7 @@ jobs:
   # AI Contracts Test Maintenance System
   # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
   ai-contracts-test:
-    circleci_ip_ranges: true
+    circleci_ip_ranges: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: medium
@@ -1883,7 +1883,7 @@ jobs:
         default: 30m
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    circleci_ip_ranges: true
+    circleci_ip_ranges: false
     resource_class: 2xlarge+
     steps:
       - utils/checkout-with-mise:
