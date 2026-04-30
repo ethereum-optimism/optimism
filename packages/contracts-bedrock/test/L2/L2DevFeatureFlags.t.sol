@@ -64,7 +64,7 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public view {
         vm.assume(_feature != bytes32(0));
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        vm.assume(_feature != DevFeatures.L2CM);
+        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
@@ -72,6 +72,15 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
     function test_isDevFeatureEnabled_l2cmAlwaysEnabled_succeeds() public view {
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.L2CM));
+    }
+
+    /// @notice Tests that `isDevFeatureEnabled` returns true for a multi-bit query that includes
+    ///         the L2CM flag, regardless of the stored bitmap.
+    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
+    function testFuzz_isDevFeatureEnabled_l2cmAlwaysEnabledMultiFlag_succeeds(uint8 _bitIndex) public view {
+        vm.assume(bytes32(1 << uint256(_bitIndex)) != DevFeatures.L2CM);
+        bytes32 featureWithL2CM = bytes32(1 << uint256(_bitIndex)) | DevFeatures.L2CM;
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(featureWithL2CM));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.

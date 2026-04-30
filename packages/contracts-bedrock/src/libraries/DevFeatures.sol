@@ -43,7 +43,7 @@ library DevFeatures {
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        if (_feature == L2CM) return true;
+        if ((_feature & L2CM) == L2CM) return true;
         return _feature != 0 && (_bitmap & _feature) == _feature;
     }
 }
