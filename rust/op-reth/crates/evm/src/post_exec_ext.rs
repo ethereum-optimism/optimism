@@ -79,7 +79,6 @@ where
         + Sync
         + Unpin
         + 'static,
-    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn post_exec_executor_for_block<'a, DB: Database>(
@@ -163,7 +162,6 @@ where
         + Sync
         + Unpin
         + 'static,
-    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     F: PostExecEvmFactoryHooks<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>

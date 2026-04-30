@@ -682,7 +682,6 @@ where
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
             Receipt: TxReceipt,
         >,
-    <R::Transaction as TransactionEnvelope>::TxType: Send + 'static,
     Spec: OpHardforks,
 {
     type Transaction = R::Transaction;
@@ -1058,7 +1057,6 @@ where
     Spec: OpHardforks + 'static,
     F: PostExecEvmFactoryHooks + 'static,
     F::Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
-    <R::Transaction as TransactionEnvelope>::TxType: Send + 'static,
     Self: 'static,
 {
     type EvmFactory = PostExecEvmFactoryAdapter<F>;
@@ -1108,7 +1106,6 @@ where
         + FromTxWithEncoded<R::Transaction>
         + OpTxEnv
         + 'static,
-    <R::Transaction as TransactionEnvelope>::TxType: Send + 'static,
     Self: 'static,
 {
     type EvmFactory = OpEvmFactory<Tx>;

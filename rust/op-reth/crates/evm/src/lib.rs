@@ -203,7 +203,6 @@ where
             Receipt: DepositReceipt,
             Transaction: SignedTransaction + OpConsensusTransaction,
         >,
-    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     EvmF: EvmFactory<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>
@@ -311,7 +310,6 @@ where
             Receipt: DepositReceipt,
             Transaction: SignedTransaction + OpConsensusTransaction,
         >,
-    <R::Transaction as alloy_consensus::TransactionEnvelope>::TxType: Send + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn evm_env_for_payload(
