@@ -1,0 +1,6 @@
+target/
+.git/
+.github/
+.gitignore
+tests/
+README.md
