@@ -122,6 +122,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade input is provided.
     error OPContractsManagerV2_InvalidUpgradeInput();
 
+    /// @notice Thrown when ETHLockbox feature state is inconsistent with loaded contracts.
+    error OPContractsManagerV2_InvalidEthLockbox();
+
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
@@ -794,8 +797,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the OptimismPortal. If a chain already uses ETHLockbox, preserve that lockbox
         // during standard upgrades. New interop lockbox activation is performed by migrate().
-        IETHLockbox portalLockbox =
-            _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) ? _cts.ethLockbox : IETHLockbox(address(0));
+        bool isEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        if (isEthLockboxEnabled && address(_cts.ethLockbox) == address(0)) {
+            revert OPContractsManagerV2_InvalidEthLockbox();
+        }
+        IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),

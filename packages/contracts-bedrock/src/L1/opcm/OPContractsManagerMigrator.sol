@@ -54,6 +54,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
+    /// @notice Thrown when a chain does not already have ETHLockbox enabled.
+    error OPContractsManagerMigrator_EthLockboxNotEnabled();
+
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
@@ -269,6 +272,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
+        // Chains must already have ETHLockbox enabled before migrating to the shared interop
+        // lockbox. migrate() moves an existing per-chain lockbox into the shared set; it does not
+        // perform first-time ETHLockbox activation.
+        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(oldLockbox) == address(0)) {
+            revert OPContractsManagerMigrator_EthLockboxNotEnabled();
+        }
+
         // Check the current pause state before mutating the portal's lockbox. For chains that
         // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
         // portal's current lockbox. Reinitializing the portal first would switch the pause
@@ -281,9 +291,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _newLockbox.authorizePortal(portal);
 
         // Enable the features required by portal liquidity migration and shared game migration.
-        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
         if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
             _systemConfig.setFeature(Features.INTEROP, true);
         }

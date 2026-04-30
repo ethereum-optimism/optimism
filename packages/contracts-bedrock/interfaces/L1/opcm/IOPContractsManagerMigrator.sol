@@ -37,6 +37,9 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
+    /// @notice Thrown when a chain does not already have ETHLockbox enabled.
+    error OPContractsManagerMigrator_EthLockboxNotEnabled();
+
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
