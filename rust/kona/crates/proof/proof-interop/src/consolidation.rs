@@ -3,18 +3,22 @@
 use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState};
 use alloc::{collections::BTreeSet, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::OpTxEnv;
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpAlloyReceiptBuilder, OpTxEnv},
+};
 use alloy_primitives::Sealable;
 use alloy_rpc_types_engine::PayloadAttributes;
 use core::fmt::Debug;
 use kona_executor::{Eip1559ValidationError, ExecutorError, StatelessL2Builder};
+use kona_genesis::RollupConfig;
 use kona_interop::{MessageGraph, MessageGraphError};
 use kona_mpt::OrderedListWalker;
 use kona_preimage::CommsClient;
 use kona_proof::{errors::OracleProviderError, l2::OracleL2ChainProvider};
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
-use op_alloy_consensus::{OpTxEnvelope, OpTxType};
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope, OpTxType};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
@@ -49,6 +53,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Debug + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     /// Creates a new [`SuperchainConsolidator`] with the given providers and [Header]s.
     ///

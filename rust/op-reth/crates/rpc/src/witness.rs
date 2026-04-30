@@ -1,11 +1,12 @@
 //! Support for optimism specific witness RPCs.
 
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Sealed};
 use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee_core::{RpcResult, async_trait};
+use op_alloy_consensus::TxPostExec;
 use reth_chainspec::ChainSpecProvider;
-use reth_evm::ConfigureEvm;
 use reth_node_api::{BuildNextEnv, NodePrimitives};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder, OpPayloadPrimitives};
 use reth_optimism_txpool::OpPooledTx;
@@ -41,7 +42,7 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
 
 impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigurePostExecEvm,
     Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
         + BlockReaderIdExt,
 {
@@ -70,7 +71,8 @@ where
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
-    EvmConfig: ConfigureEvm<
+    <Provider::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
+    EvmConfig: ConfigurePostExecEvm<
             Primitives = Provider::Primitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
         > + 'static,

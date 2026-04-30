@@ -1,6 +1,11 @@
 //! Node builder setup tests.
 
-use alloy_op_evm::{OpEvmContext, OpTxError};
+use alloy_op_evm::{
+    OpEvmContext, OpTxError,
+    post_exec::{
+        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+    },
+};
 use alloy_primitives::{Bytes, address};
 use core::marker::PhantomData;
 use op_revm::{OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
@@ -53,6 +58,22 @@ fn test_basic_setup() {
 
             Ok(())
         })
+        .check_launch();
+}
+
+// Launch-plumbing coverage for the SDM CLI/config flag: the node builder should still compose
+// when the experimental override is enabled.
+#[test]
+fn test_basic_setup_with_sdm_enabled_flag() {
+    let config = NodeConfig::new(BASE_MAINNET.clone());
+    let db = create_test_rw_db();
+    let args = RollupArgs { sdm_enabled: true, ..Default::default() };
+    let op_node = OpNode::new(args);
+    let _builder = NodeBuilder::new(config)
+        .with_database(db)
+        .with_types_and_provider::<OpNode, BlockchainProvider<NodeTypesWithDBAdapter<OpNode, _>>>()
+        .with_components(op_node.components())
+        .with_add_ons(op_node.add_ons())
         .check_launch();
 }
 
@@ -126,7 +147,30 @@ fn test_setup_custom_precompiles() {
         }
     }
 
+    impl PostExecEvmFactoryHooks for UniEvmFactory {
+        fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.begin_post_exec_tx(ctx);
+        }
+
+        fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.take_last_post_exec_tx_result()
+        }
+    }
+
     /// Unichain executor builder.
+    ///
+    /// This is a type-level/builder-plumbing test for downstream OP Stack chains that need to
+    /// customize the EVM executor, for example to add chain-specific precompiles. `check_launch`
+    /// does not execute a block or call the custom precompile; it verifies that a custom executor
+    /// builder, custom EVM factory, and OP node components compose into a launchable node config.
     struct UniExecutorBuilder;
 
     impl<Node> ExecutorBuilder<Node> for UniExecutorBuilder
@@ -137,20 +181,21 @@ fn test_setup_custom_precompiles() {
             OpChainSpec,
             <Node::Types as NodeTypes>::Primitives,
             OpRethReceiptBuilder,
-            UniEvmFactory,
+            PostExecEvmFactoryAdapter<UniEvmFactory>,
         >;
 
         async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-            let OpEvmConfig { executor_factory, block_assembler, _pd: _ } =
+            let OpEvmConfig { executor_factory, block_assembler, sdm_enabled, _pd: _ } =
                 OpExecutorBuilder::default().build_evm(ctx).await?;
             let uni_executor_factory = OpBlockExecutorFactory::new(
                 *executor_factory.receipt_builder(),
                 ctx.chain_spec(),
-                UniEvmFactory,
+                PostExecEvmFactoryAdapter::new(UniEvmFactory),
             );
             let uni_evm_config = OpEvmConfig {
                 executor_factory: uni_executor_factory,
                 block_assembler,
+                sdm_enabled,
                 _pd: PhantomData,
             };
             Ok(uni_evm_config)

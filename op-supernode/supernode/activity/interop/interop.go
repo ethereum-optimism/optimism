@@ -286,12 +286,18 @@ func (i *Interop) Start(ctx context.Context) error {
 		firstVerifiableLog = lastTS + 1
 	} else {
 		for {
-			first, err := i.resolveFirstVerifiableTimestamp(i.ctx)
+			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
 			if err == nil {
 				i.firstVerifiable = first
 				i.firstVerifiableSet = true
 				firstVerifiableLog = first
 				break
+			}
+			// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
+			if errors.Is(err, cc.ErrHistoryUnavailable) {
+				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				return fmt.Errorf("interop halted due to unavailable history: %w", err)
 			}
 			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
 			select {
@@ -349,6 +355,20 @@ func (i *Interop) Start(ctx context.Context) error {
 			// Otherwise: immediately ready for next iteration (aggressive catch-up)
 		}
 	}
+}
+
+// readyFirstVerifiableTimestamp resolves the first timestamp that still needs
+// interop verification and proves every chain can serve the optimistic L2/L1
+// data needed to verify it.
+func (i *Interop) readyFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	first, err := i.resolveFirstVerifiableTimestamp(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := i.checkChainsReady(first); err != nil {
+		return 0, err
+	}
+	return first, nil
 }
 
 // Stop stops the Interop activity.

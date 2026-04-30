@@ -303,6 +303,67 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 	}
 }
 
+func TestReadyFirstVerifiableTimestamp(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*mockChainContainer)
+		want      uint64
+		wantErr   error
+	}{
+		{
+			name: "probes optimistic data at selected timestamp",
+			configure: func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
+					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
+				}
+			},
+			want: 126,
+		},
+		{
+			name: "optimistic not found leaves startup unresolved",
+			configure: func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
+					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
+				}
+				m.optimisticAtErr = ethereum.NotFound
+			},
+			wantErr: ethereum.NotFound,
+		},
+		{
+			name: "history unavailable surfaces permanent gap",
+			configure: func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
+					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
+				}
+				m.optimisticAtErr = cc.ErrHistoryUnavailable
+			},
+			wantErr: cc.ErrHistoryUnavailable,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t).
+				WithActivation(100).
+				WithChain(10, tc.configure).
+				Build()
+
+			got, err := h.interop.readyFirstVerifiableTimestamp(context.Background())
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+			require.Equal(t, int32(1), h.Mock(10).callsCompleted.Load())
+			require.Equal(t, tc.want, h.Mock(10).lastRequestedTimestamp)
+		})
+	}
+}
+
 func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	const activation = uint64(100)
 	const safe = uint64(125)

@@ -16,6 +16,8 @@ type Metricer interface {
 	RecordFailsafeEnabled(enabled bool)
 	RecordChainHead(chainID uint64, blockNum uint64)
 	RecordCheckAccessList(success bool)
+	RecordCheckAccessListDuration(duration float64)
+	RecordCheckAccessListRejection(reason string)
 	RecordBackfillProgress(chainID uint64, progress float64)
 	RecordReorgDetected(chainID uint64)
 	RecordLogsAdded(chainID uint64, count int64)
@@ -28,11 +30,13 @@ type Metrics struct {
 	registry *prometheus.Registry
 	factory  opmetrics.Factory
 
-	info             *prometheus.GaugeVec
-	up               prometheus.Gauge
-	failsafeEnabled  prometheus.Gauge
-	chainHead        *prometheus.GaugeVec
-	checkAccessTotal *prometheus.CounterVec
+	info                     *prometheus.GaugeVec
+	up                       prometheus.Gauge
+	failsafeEnabled          prometheus.Gauge
+	chainHead                *prometheus.GaugeVec
+	checkAccessTotal         *prometheus.CounterVec
+	checkAccessListDuration  prometheus.Histogram
+	checkAccessListRejectVec *prometheus.CounterVec
 
 	// Chain-specific metrics
 	backfillProgress              *prometheus.GaugeVec
@@ -88,6 +92,19 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "check_access_list_total",
 			Help:      "Total checkAccessList requests",
 		}, []string{"success"}),
+
+		checkAccessListDuration: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "check_access_list_duration_seconds",
+			Help:      "Duration of CheckAccessList calls in seconds",
+			Buckets:   []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5},
+		}),
+
+		checkAccessListRejectVec: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "check_access_list_rejections_total",
+			Help:      "Access list rejections by reason",
+		}, []string{"reason"}),
 
 		backfillProgress: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -157,6 +174,14 @@ func (m *Metrics) RecordCheckAccessList(success bool) {
 	m.checkAccessTotal.WithLabelValues(label).Inc()
 }
 
+func (m *Metrics) RecordCheckAccessListDuration(duration float64) {
+	m.checkAccessListDuration.Observe(duration)
+}
+
+func (m *Metrics) RecordCheckAccessListRejection(reason string) {
+	m.checkAccessListRejectVec.WithLabelValues(reason).Inc()
+}
+
 func (m *Metrics) RecordBackfillProgress(chainID uint64, progress float64) {
 	m.backfillProgress.WithLabelValues(strconv.FormatUint(chainID, 10)).Set(progress)
 }
@@ -187,6 +212,8 @@ func (n *noopMetrics) RecordUp()                                               {
 func (n *noopMetrics) RecordFailsafeEnabled(enabled bool)                      {}
 func (n *noopMetrics) RecordChainHead(chainID uint64, blockNum uint64)         {}
 func (n *noopMetrics) RecordCheckAccessList(success bool)                      {}
+func (n *noopMetrics) RecordCheckAccessListDuration(duration float64)          {}
+func (n *noopMetrics) RecordCheckAccessListRejection(reason string)            {}
 func (n *noopMetrics) RecordBackfillProgress(chainID uint64, progress float64) {}
 func (n *noopMetrics) RecordReorgDetected(chainID uint64)                      {}
 func (n *noopMetrics) RecordLogsAdded(chainID uint64, count int64)             {}

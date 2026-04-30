@@ -112,7 +112,7 @@ impl SignerRecoverable for OpTransactionSigned {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             OpTypedTransaction::Deposit(TxDeposit { from, .. }) => Ok(*from),
-            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // Post-exec transactions are unsigned system transactions. They use a
             // canonical zero-address signer rather than a cryptographic signature.
             OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
             _ => {
@@ -128,7 +128,7 @@ impl SignerRecoverable for OpTransactionSigned {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             OpTypedTransaction::Deposit(TxDeposit { from, .. }) => Ok(*from),
-            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // Post-exec transactions are unsigned system transactions. They use a
             // canonical zero-address signer rather than a cryptographic signature.
             OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
             _ => {
@@ -144,7 +144,7 @@ impl SignerRecoverable for OpTransactionSigned {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             OpTypedTransaction::Deposit(tx) => Ok(tx.from),
-            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // Post-exec transactions are system transactions. They use a
             // canonical zero-address signer rather than a cryptographic signature.
             OpTypedTransaction::PostExec(tx) => Ok(tx.signer_address()),
             OpTypedTransaction::Legacy(tx) => {

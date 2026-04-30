@@ -131,6 +131,8 @@ type InteropDevL2Recipe struct {
 	ChainID       uint64
 	BlockTime     uint64
 	InteropOffset uint64
+	// TODO(#20084): remove alongside L2Config.UseL2CM.
+	UseL2CM bool
 }
 
 func prefundL2Accounts(l1Cfg *L1Config, l2Cfg *L2Config, addrs devkeys.Addresses) error {
@@ -304,6 +306,7 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 		DisputeSplitDepth:           30,
 		DisputeClockExtension:       10800,  // 3 hours (input in seconds)
 		DisputeMaxClockDuration:     302400, // 3.5 days (input in seconds)
+		UseL2CM:                     r.UseL2CM,
 	}
 
 	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(r.ChainID))

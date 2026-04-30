@@ -331,18 +331,6 @@ target "op-interop-mon" {
 
 // Rust-based images
 
-target "op-rbuilder" {
-  dockerfile = "Dockerfile"
-  context = "op-rbuilder"
-  target = "rbuilder-runtime"
-  args = {
-    RBUILDER_BIN = "op-rbuilder"
-    FEATURES = ""
-  }
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
-}
-
 target "kona-node" {
   dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
   context = "rust"
