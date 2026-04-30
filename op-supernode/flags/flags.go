@@ -122,6 +122,25 @@ var SupernodeOwnedFlags = []string{
 	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
 }
 
+// ExcludedVNFlags lists op-node flag names that should not be cloned into
+// vn.all.* or vn.<id>.* variants. These flags are managed by the supernode
+// and are not configurable per virtual node.
+// Add entries here as the supernode takes ownership of more op-node resources.
+var ExcludedVNFlags = map[string]bool{
+	// Data paths — derived from --data-dir/<chainID>/...
+	"safedb.path":        true,
+	"p2p.peerstore.path": true,
+	"p2p.discovery.path": true,
+	"p2p.priv.path":      true,
+	// P2P listen ports — forced to 0 (dynamic) by the supernode
+	"p2p.listen.tcp": true,
+	"p2p.listen.udp": true,
+	// L1 endpoints — shared across all VNs, configured at supernode level
+	"l1":                  true,
+	"l1.beacon":           true,
+	"l1.http-poll-interval": true,
+}
+
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
@@ -141,6 +160,9 @@ func FullDynamicFlags(chains []uint64) []cli.Flag {
 	// for each op-node flag, add vn.all.<name> and vn.<id>.<name> variants
 	for _, f := range opnodeflags.Flags {
 		baseName := f.Names()[0]
+		if ExcludedVNFlags[baseName] {
+			continue
+		}
 		// vn.all.* env var/alias prefixing
 		allEnvs := upgradeEnvVarPrefixes(f, opnodeflags.EnvVarPrefix, "VN_ALL")
 		allAliases := prefixAliases(f, VNFlagGlobalPrefix)

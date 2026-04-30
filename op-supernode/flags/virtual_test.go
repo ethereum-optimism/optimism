@@ -108,9 +108,12 @@ func TestFullDynamicFlags_ClonesAllFlagsForChainsAndGlobal(t *testing.T) {
 		seen[name] = struct{}{}
 	}
 
-	// For every op-node flag, we expect vn.all.<base> and vn.<id>.<base>
+	// For every non-excluded op-node flag, we expect vn.all.<base> and vn.<id>.<base>
 	for _, f := range opnodeflags.Flags {
 		base := f.Names()[0]
+		if ExcludedVNFlags[base] {
+			continue
+		}
 		globalName := VNFlagGlobalPrefix + base
 		if _, ok := seen[globalName]; !ok {
 			t.Fatalf("missing global clone for %q: expected flag %q", base, globalName)
@@ -120,6 +123,26 @@ func TestFullDynamicFlags_ClonesAllFlagsForChainsAndGlobal(t *testing.T) {
 			if _, ok := seen[perName]; !ok {
 				t.Fatalf("missing per-chain clone for %q: expected flag %q", base, perName)
 			}
+		}
+	}
+}
+
+func TestFullDynamicFlags_ExcludesExcludedVNFlags(t *testing.T) {
+	chains := []uint64{100}
+	flagsOut := FullDynamicFlags(chains)
+	seen := make(map[string]struct{})
+	for _, f := range flagsOut {
+		seen[f.Names()[0]] = struct{}{}
+	}
+
+	for name := range ExcludedVNFlags {
+		globalName := VNFlagGlobalPrefix + name
+		if _, ok := seen[globalName]; ok {
+			t.Fatalf("excluded flag %q should not appear as %q", name, globalName)
+		}
+		perName := fmt.Sprintf("%s%d.%s", VNFlagNamePrefix, 100, name)
+		if _, ok := seen[perName]; ok {
+			t.Fatalf("excluded flag %q should not appear as %q", name, perName)
 		}
 	}
 }
