@@ -112,31 +112,18 @@ func nextTimestampAfterSafeHeads(t devtest.T, chains []*chain) uint64 {
 	return ts
 }
 
-// freezeAndMeasure runs at the end of Stage 2 (with both batchers and both sequencers
-// still running) and produces the deterministic anchor points the after-chain-head
-// subtests need: a validated boundary timestamp, the L1 head that derives it, and a
-// timestamp strictly past every chain's settled unsafe head.
-//
-// Sequence:
-//  1. Wait for every chain's LocalSafe to cover boundaryTimestamp (= endTimestamp+1).
-//     For chains where TargetBlockNumber rounds boundaryTimestamp down to endTimestamp's
-//     block (e.g. 2s blocks at an odd boundary), Reached returns immediately. For 1s
-//     chains we wait one more block. AwaitValidatedTimestamp confirms the supernode
-//     accepts the query.
-//  2. Stop both batchers, then stop both sequencers, then WaitForStall on both
-//     LocalUnsafe and LocalSafe for every chain. The wait-for-stalls absorb arbitrary
-//     scheduling pauses (each requires ≥10s of stable head with a 2-min budget), so
-//     even a 60s pause anywhere between earlier statements cannot leave one chain
-//     ahead of the other in a way the freeze doesn't notice.
-//  3. Read each chain's settled UnsafeL2 timestamp directly from SyncStatus and pick
-//     ttest = max(settled) + margin. Sequencers are stopped, so no chain can produce
-//     more blocks; ttest stays past every chain's head forever.
+// freezeAndMeasure produces the deterministic anchor points the after-chain-head
+// subtests need: a validated boundary timestamp, the L1 head that derives it, and
+// a timestamp strictly past every chain's settled unsafe head. It waits for the
+// boundary timestamp to land on every chain's LocalSafe, stops the batchers and
+// sequencers, waits for both safety levels to stall, then returns max(settled) +
+// margin where margin ≥ max chain block time.
 func freezeAndMeasure(
 	t devtest.T,
 	sys *presets.SimpleInterop,
 	chains []*chain,
 	endTimestamp uint64,
-) (boundaryTimestamp uint64, l1HeadAdvanced eth.BlockID, ttest uint64) {
+) (boundaryTimestamp uint64, l1HeadAdvanced eth.BlockID, afterHeadTimestamp uint64) {
 	boundaryTimestamp = endTimestamp + 1
 
 	// Both batchers are still running at this point. Wait for boundaryTimestamp's
@@ -176,23 +163,14 @@ func freezeAndMeasure(
 	}
 
 	// Margin must be ≥ max chain block time so that for every chain c,
-	// TargetBlockNumber(ttest) > UnsafeL2.Number — i.e. the supernode returns
-	// NotFound at ttest (and ttest+1) for every chain. Today's presets use
-	// block times of 1 s and 2 s; max block time + 1 covers both with one
-	// second of slack.
-	maxBlockTime := uint64(0)
-	for _, c := range chains {
-		if c.Cfg.BlockTime > maxBlockTime {
-			maxBlockTime = c.Cfg.BlockTime
-		}
-	}
-	margin := maxBlockTime + 1
-	ttest = maxUnsafeTs + margin
-	if ttest < endTimestamp+2 {
-		ttest = endTimestamp + 2
-	}
+	// TargetBlockNumber(afterHeadTimestamp) > UnsafeL2.Number — i.e. the supernode
+	// returns NotFound at afterHeadTimestamp (and afterHeadTimestamp+1) for every
+	// chain. Today's presets use block times of 1 s and 2 s; So 3 covers both with
+	// one second of slack.
+	margin := uint64(3)
+	afterHeadTimestamp = max(maxUnsafeTs+margin, endTimestamp+2)
 
-	return boundaryTimestamp, l1HeadAdvanced, ttest
+	return boundaryTimestamp, l1HeadAdvanced, afterHeadTimestamp
 }
 
 // superRootAtTimestamp constructs a SuperV1 from each chain's output at the given timestamp.
@@ -487,16 +465,17 @@ func buildTransitionTests(
 // answer queries at boundaryTimestamp from l1HeadCurrent depends on devstack timing,
 // so the test logic queries actual derivability rather than predicting it.
 //
-// Tests 5/6 anchor on ttest, computed in freezeAndMeasure as a timestamp strictly
-// past every chain's settled unsafe head. After Stage 2b's freeze, sequencers are
-// stopped — no chain can ever have a block at ttest or ttest+1 — so the supernode
-// returns InvalidTransition at the corresponding trace indices regardless of any
+// Tests 5/6 anchor on afterHeadTimestamp, computed in freezeAndMeasure as a
+// timestamp strictly past every chain's settled unsafe head. After Stage 2b's
+// freeze, sequencers are stopped — no chain can ever have a block at
+// afterHeadTimestamp or afterHeadTimestamp+1 — so the supernode returns
+// InvalidTransition at the corresponding trace indices regardless of any
 // scheduling pauses elsewhere in the test.
 func buildAfterChainHeadTests(
 	sn *dsl.Supernode,
 	chains []*chain,
 	end, endBoundary eth.SuperV1,
-	endTimestamp, ttest uint64,
+	endTimestamp, afterHeadTimestamp uint64,
 	l1HeadCurrent, l1HeadAdvanced eth.BlockID,
 	firstOptimisticBoundary, secondOptimisticBoundary interopTypes.OptimisticBlock,
 ) []*transitionTest {
@@ -514,22 +493,24 @@ func buildAfterChainHeadTests(
 	// root won't be either, and InvalidTransition cascades to later steps.
 	endBoundaryVerified := boundaryResp.Data != nil && boundaryResp.Data.VerifiedRequiredL1.Number <= l1HeadCurrent.Number
 
-	// claimTimestamp is derived from ttest so the trace window covers every
-	// index this helper produces, regardless of how far past endTimestamp the
-	// chains overshot during the pre-freeze choreography. The buffer just needs
-	// to be ≥ 2 so the trace contains both consolidateAfterHeadIdx (timestamp
-	// ttest) and optimisticAfterHeadIdx (timestamp ttest+1, step ≥ 1).
+	// claimTimestamp is derived from afterHeadTimestamp so the trace window
+	// covers every index this helper produces, regardless of how far past
+	// endTimestamp the chains overshot during the pre-freeze choreography. The
+	// buffer just needs to be ≥ 2 so the trace contains both
+	// consolidateAfterHeadIdx (timestamp afterHeadTimestamp) and
+	// optimisticAfterHeadIdx (timestamp afterHeadTimestamp+1, step ≥ 1).
 	const claimBuffer = 5
-	claimTimestamp := ttest + claimBuffer
+	claimTimestamp := afterHeadTimestamp + claimBuffer
 
-	// Trace indices for ttest. The trace index → (timestamp, step) mapping is:
+	// Trace indices for afterHeadTimestamp. The trace index → (timestamp, step) mapping is:
 	//   timestamp = startTimestamp + (idx+1)/stepsPerTimestamp
 	//   step      = (idx+1) % stepsPerTimestamp
-	// Consolidation step (step=0) at timestamp ttest sits at idx (ttest - endTimestamp + 1)*sPT - 1.
-	// An optimistic step within the ttest → ttest+1 transition sits at the same
+	// Consolidation step (step=0) at timestamp afterHeadTimestamp sits at idx
+	// (afterHeadTimestamp - endTimestamp + 1)*sPT - 1. An optimistic step within
+	// the afterHeadTimestamp → afterHeadTimestamp+1 transition sits at the same
 	// timestamp+1 multiplier with step >= 1. We pick step=2 (chain-B optimistic)
 	// to mirror the original test layout (4*sPT - 1 / 4*sPT + 1).
-	timestampDelta := int64(ttest - endTimestamp + 1)
+	timestampDelta := int64(afterHeadTimestamp - endTimestamp + 1)
 	consolidateAfterHeadIdx := timestampDelta*stepsPerTimestamp - 1
 	optimisticAfterHeadIdx := timestampDelta*stepsPerTimestamp + 1
 
@@ -604,13 +585,13 @@ func buildAfterChainHeadTests(
 		ExpectValid:        true,
 	})
 
-	// Test 5: Consolidation step at ttest, where no chain has produced a block.
+	// Test 5: Consolidation step at afterHeadTimestamp, where no chain has produced a block.
 	// Anchored on the settled unsafe heads measured in Stage 2b after StopSequencer
 	// + WaitForStall, so the InvalidTransition expectation cannot be invalidated by
 	// further sequencer activity (sequencers are stopped). l1HeadAdvanced only
-	// covers boundaryTimestamp; ttest's data is not derivable. If the earlier
-	// boundary cascade already started at l1HeadCurrent (anyNotDerivable), keep
-	// using l1HeadCurrent so the cascade is consistent throughout.
+	// covers boundaryTimestamp; afterHeadTimestamp's data is not derivable. If the
+	// earlier boundary cascade already started at l1HeadCurrent (anyNotDerivable),
+	// keep using l1HeadCurrent so the cascade is consistent throughout.
 	l1HeadConsolidate := l1HeadAdvanced
 	if anyNotDerivable {
 		l1HeadConsolidate = l1HeadCurrent
@@ -625,10 +606,11 @@ func buildAfterChainHeadTests(
 		ExpectValid:        true,
 	})
 
-	// Test 6: Optimistic step (chain B) within the transition from ttest's
-	// super-root toward ttest+1's super-root. Same reasoning as test 5:
-	// neither ttest nor ttest+1 have any chain blocks (sequencers are stopped),
-	// so the trace provider returns InvalidTransition at this index.
+	// Test 6: Optimistic step (chain B) within the transition from
+	// afterHeadTimestamp's super-root toward afterHeadTimestamp+1's super-root.
+	// Same reasoning as test 5: neither afterHeadTimestamp nor
+	// afterHeadTimestamp+1 have any chain blocks (sequencers are stopped), so the
+	// trace provider returns InvalidTransition at this index.
 	tests = append(tests, &transitionTest{
 		Name:               "AgreedBlockAfterChainHead-Optimistic",
 		AgreedClaim:        super.InvalidTransition,
@@ -869,7 +851,7 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	// and their LocalUnsafe/LocalSafe heads have stalled, so the timestamps the
 	// after-chain-head tests anchor on cannot be invalidated by further chain
 	// activity. See freezeAndMeasure for the full justification.
-	boundaryTimestamp, l1HeadAdvanced, ttest := freezeAndMeasure(t, sys, chains, endTimestamp)
+	boundaryTimestamp, l1HeadAdvanced, afterHeadTimestamp := freezeAndMeasure(t, sys, chains, endTimestamp)
 
 	// --- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -891,7 +873,7 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
 	tests = append(tests, buildAfterChainHeadTests(
-		sys.SuperRoots, chains, end, endBoundary, endTimestamp, ttest, l1HeadCurrent, l1HeadAdvanced,
+		sys.SuperRoots, chains, end, endBoundary, endTimestamp, afterHeadTimestamp, l1HeadCurrent, l1HeadAdvanced,
 		firstOptimisticBoundary, secondOptimisticBoundary)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
@@ -970,7 +952,7 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	// and their LocalUnsafe/LocalSafe heads have stalled, so the timestamps the
 	// after-chain-head tests anchor on cannot be invalidated by further chain
 	// activity. See freezeAndMeasure for the full justification.
-	boundaryTimestamp, l1HeadAdvanced, ttest := freezeAndMeasure(t, sys, chains, endTimestamp)
+	boundaryTimestamp, l1HeadAdvanced, afterHeadTimestamp := freezeAndMeasure(t, sys, chains, endTimestamp)
 
 	// -- Stage 3: Build expected transition states --------------------------
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -992,7 +974,7 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	tests := buildTransitionTests(start, end, step1, step2, padding,
 		l1HeadCurrent, l1HeadBefore, l1HeadAfterFirst, endTimestamp)
 	tests = append(tests, buildAfterChainHeadTests(
-		sys.SuperRoots, chains, end, endBoundary, endTimestamp, ttest, l1HeadCurrent, l1HeadAdvanced,
+		sys.SuperRoots, chains, end, endBoundary, endTimestamp, afterHeadTimestamp, l1HeadCurrent, l1HeadAdvanced,
 		firstOptimisticBoundary, secondOptimisticBoundary)...)
 
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
