@@ -583,7 +583,7 @@ where
     /// `evm.transact` has already charged the sender and paid fee recipients according to
     /// `evm_gas_used`. Lowering only the receipt's `gas_used` would leave those balance changes
     /// in place. This translates the refunded gas back into the exact per-recipient deltas
-    /// `commit_transaction` then applies before state is committed.
+    /// `execute_transaction_without_commit` then applies before state is committed.
     fn post_exec_settlement_deltas(
         &mut self,
         tx: impl RecoveredTx<R::Transaction>,
@@ -804,7 +804,7 @@ where
         }
 
         // Execute transaction and return the result
-        let result = self.evm.transact(tx_env).map_err(|err| {
+        let mut result = self.evm.transact(tx_env).map_err(|err| {
             let hash = tx.tx().trie_hash();
             BlockExecutionError::evm(err, hash)
         })?;
@@ -853,9 +853,7 @@ where
 
         // Canonicalize the result gas and apply any post-exec refund to state in-place. Both
         // operations must run before commit so commit_transaction stays infallible.
-        let mut result = result;
-        let post_exec_refund_amount = post_exec.as_ref().map(|d| d.refund).unwrap_or(0);
-        Self::canonicalize_result_gas(&mut result.result, post_exec_refund_amount);
+        Self::canonicalize_result_gas(&mut result.result, post_exec_refund);
         if let Some(deltas) = post_exec.as_ref() {
             self.apply_post_exec_refund_to_state(&mut result.state, sender, deltas)?;
         }
