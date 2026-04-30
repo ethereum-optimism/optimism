@@ -82,6 +82,13 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	t.Run("all against empty", func(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES))
 	})
+
+	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+	t.Run("L2CM always enabled regardless of bitmap", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, L2CMFlag))
+		require.True(t, IsDevFeatureEnabled(FEATURE_A, L2CMFlag))
+		require.True(t, IsDevFeatureEnabled(L2CMFlag, L2CMFlag))
+	})
 }
 
 func TestEnableDevFeature(t *testing.T) {

@@ -20,7 +20,7 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x55775112dfd25c0470fc267496c603cb27fece0a3f79d900ddc6b619c657f73f",
+    "initCodeHash": "0x9b19e4a170d49941ebfeabbdfe2b5fe7e7301cceae2e8975410344657708501b",
     "sourceCodeHash": "0xd631818bab3c638423c3111f85b29840ab109deb7762186cb1141a8d4d14178b"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
@@ -84,7 +84,7 @@
     "sourceCodeHash": "0x3cfbb6e64a29ecc84d7a35cf4b5786fed354a4f474bbf8be719948a50a64f883"
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
-    "initCodeHash": "0x3670e04d782e5f829a6a55174fa30bc40951333f9a71c35c7c0d6978a01de639",
+    "initCodeHash": "0x21fde94a54708aa2d6f77762a85feb42785a6b44bbcc52d5ed777c1fa8fffdda",
     "sourceCodeHash": "0x4eaf830a1ccfc0e7426fbf21c4c284a81f49b16aa392b213c9894479d51a4a24"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {

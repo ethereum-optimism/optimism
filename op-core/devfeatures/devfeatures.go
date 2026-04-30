@@ -32,6 +32,10 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
+	// L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
+	if flag == L2CMFlag {
+		return true
+	}
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
 
