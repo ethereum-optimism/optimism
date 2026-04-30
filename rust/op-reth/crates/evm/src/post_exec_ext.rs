@@ -1,6 +1,6 @@
 use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::Header;
-use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFor};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded};
 use alloy_op_evm::{
     OpBlockExecutor,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
@@ -12,6 +12,7 @@ use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
     ConfigureEvm, Database,
+    block::BlockExecutor,
     execute::{BasicBlockBuilder, BlockBuilder},
     precompiles::PrecompilesMap,
 };
@@ -35,7 +36,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
         Self::Error,
     >;
 
@@ -53,7 +54,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
+            Executor: BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
                           + PostExecExecutorExt,
         > + 'a,
         Self::Error,
@@ -87,7 +88,7 @@ where
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
         Self::Error,
     > {
         let evm = self.evm_for_block(db, block.header())?;
@@ -110,7 +111,7 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
+            Executor: BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
                           + PostExecExecutorExt,
         > + 'a,
         Self::Error,
@@ -184,7 +185,7 @@ where
         block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
+        impl BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>> + PostExecExecutorExt,
         Self::Error,
     > {
         let evm = self.evm_for_block(db, block.header())?;
@@ -207,7 +208,7 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
-            Executor: BlockExecutorFor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
+            Executor: BlockExecutor<'a, Self::BlockExecutorFactory, &'a mut State<DB>>
                           + PostExecExecutorExt,
         > + 'a,
         Self::Error,

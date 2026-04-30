@@ -12,6 +12,8 @@
 extern crate alloc;
 
 use alloc::sync::Arc;
+#[cfg(feature = "std")]
+use alloy_consensus::TransactionEnvelope;
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
@@ -304,6 +306,7 @@ where
             BlockBody = alloy_consensus::BlockBody<R::Transaction>,
             Block = alloy_consensus::Block<R::Transaction>,
         >,
+    <R::Transaction as TransactionEnvelope>::TxType: Send + 'static,
     OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
     N::SignedTx: Decodable2718 + OpConsensusTransaction,
     R: OpReceiptBuilder<
