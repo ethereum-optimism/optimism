@@ -250,8 +250,8 @@ type Metrics struct {
 	nodeEndpointOutOfSyncCount prometheus.Gauge
 	mixedAvailabilityGames     prometheus.Gauge
 	mixedSafetyGames           prometheus.Gauge
-	differentRootGames prometheus.Gauge
-	gameTypes          prometheus.GaugeVec
+	differentRootGames         prometheus.Gauge
+	gameTypes                  prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
