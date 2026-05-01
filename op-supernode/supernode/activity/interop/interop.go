@@ -447,8 +447,6 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	if output.Decision == DecisionWait {
 		return i.refreshCurrentL1OnWait()
 	}
-	// Record verification latency for decisions that performed actual verification.
-	i.metrics.InteropVerificationDuration.Observe(time.Since(verifyStart).Seconds())
 	if output.Decision == DecisionRewind && obs.LastVerifiedTS == nil {
 		return false, nil
 	}
@@ -460,7 +458,10 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	if err := i.verifiedDB.SetPendingTransition(pendingTx); err != nil {
 		return false, fmt.Errorf("persist pending transition: %w", err)
 	}
-	return i.applyPendingTransition(pendingTx)
+	progress, applyErr := i.applyPendingTransition(pendingTx)
+	// Record verification latency for the full round including apply.
+	i.metrics.InteropVerificationDuration.Observe(time.Since(verifyStart).Seconds())
+	return progress, applyErr
 }
 
 func (i *Interop) refreshCurrentL1OnWait() (bool, error) {
