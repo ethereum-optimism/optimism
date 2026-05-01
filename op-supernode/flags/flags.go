@@ -136,8 +136,8 @@ var ExcludedVNFlags = map[string]bool{
 	"p2p.listen.tcp": true,
 	"p2p.listen.udp": true,
 	// L1 endpoints — shared across all VNs, configured at supernode level
-	"l1":                  true,
-	"l1.beacon":           true,
+	"l1":                    true,
+	"l1.beacon":             true,
 	"l1.http-poll-interval": true,
 }
 
