@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -824,7 +825,13 @@ func (oc *OpConductor) action() {
 func (oc *OpConductor) transferLeader() error {
 	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
 	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
-	err := oc.cons.TransferLeader()
+	// Use round-robin if enabled, otherwise use default Raft leader transfer
+	var err error
+	if oc.cfg.RoundRobinLeaderTransfer {
+		err = oc.transferLeaderRoundRobin()
+	} else {
+		err = oc.cons.TransferLeader()
+	}
 	oc.metrics.RecordLeaderTransfer(err == nil)
 	if err == nil {
 		oc.leader.Store(false)
@@ -840,6 +847,99 @@ func (oc *OpConductor) transferLeader() error {
 		oc.log.Error("failed to transfer leadership", "err", err)
 		return err
 	}
+}
+
+// transferLeaderRoundRobin implements true round-robin leader transfer.
+// This ensures that each cluster member gets a chance to become leader,
+// by always transferring to the next node in sorted order.
+// For example, with nodes [seq1, seq2, seq3]:
+//   - seq1 transfers to seq2
+//   - seq2 transfers to seq3
+//   - seq3 transfers to seq1
+//
+// If a transfer fails (e.g., target node's log is behind), it will try the next node.
+func (oc *OpConductor) transferLeaderRoundRobin() error {
+	// Get cluster membership
+	membership, err := oc.cons.ClusterMembership()
+	if err != nil {
+		return fmt.Errorf("failed to get cluster membership: %w", err)
+	}
+
+	myServerID := oc.cons.ServerID()
+
+	// Collect all voters (including self) for proper ordering
+	var allVoters []consensus.ServerInfo
+	for _, server := range membership.Servers {
+		if server.Suffrage == consensus.Voter {
+			allVoters = append(allVoters, server)
+		}
+	}
+
+	if len(allVoters) <= 1 {
+		oc.log.Warn("no other voters available for leader transfer, skipping")
+		return nil
+	}
+
+	// Sort all voters by ServerID to ensure consistent ordering across all nodes.
+	sort.Slice(allVoters, func(i, j int) bool {
+		return allVoters[i].ID < allVoters[j].ID
+	})
+
+	// Find my position in the sorted list
+	myIdx := -1
+	for i, server := range allVoters {
+		if server.ID == myServerID {
+			myIdx = i
+			break
+		}
+	}
+
+	if myIdx == -1 {
+		return errors.New("current server not found in voter list")
+	}
+
+	// Try to transfer to each voter in round-robin order, starting from the next one.
+	// This handles cases where a recently promoted voter may have stale logs.
+	numOtherVoters := len(allVoters) - 1
+	for attempt := 0; attempt < numOtherVoters; attempt++ {
+		targetIdx := (myIdx + 1 + attempt) % len(allVoters)
+		// Skip self
+		if targetIdx == myIdx {
+			continue
+		}
+		target := allVoters[targetIdx]
+
+		oc.log.Info("round-robin transferring leadership",
+			"from", myServerID,
+			"to", target.ID,
+			"targetAddr", target.Addr,
+			"attempt", attempt+1,
+			"totalVoters", len(allVoters),
+		)
+
+		err := oc.cons.TransferLeaderTo(target.ID, target.Addr)
+		if err == nil {
+			return nil // Success
+		}
+
+		// ErrLeadershipTransferInProgress means a previous transfer is ongoing, just wait
+		if errors.Is(err, raft.ErrLeadershipTransferInProgress) {
+			oc.log.Debug("leadership transfer already in progress, waiting for completion")
+			return nil
+		}
+
+		// Log the failure and try next voter
+		oc.log.Warn("failed to transfer leadership to voter, trying next",
+			"target", target.ID,
+			"err", err,
+			"attempt", attempt+1,
+		)
+	}
+
+	// All round-robin attempts failed, fall back to Raft's default leader transfer
+	// which selects the candidate with the most up-to-date log.
+	oc.log.Warn("round-robin transfer failed for all voters, falling back to default leader transfer")
+	return oc.cons.TransferLeader()
 }
 
 func (oc *OpConductor) stopSequencer() error {

@@ -175,12 +175,14 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
 	superDeployment, err := opcmScripts.DeploySuperchain.Run(opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner:  superCfg.ProxyAdminOwner,
-		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
-		Guardian:                   superCfg.SuperchainConfigGuardian,
-		Paused:                     superCfg.Paused,
-		RequiredProtocolVersion:    superCfg.RequiredProtocolVersion,
-		RecommendedProtocolVersion: superCfg.RecommendedProtocolVersion,
+		SuperchainProxyAdminOwner: superCfg.ProxyAdminOwner,
+		Guardian:                  superCfg.SuperchainConfigGuardian,
+		Paused:                    superCfg.Paused,
+		// Non-zero placeholders for the deprecated ProtocolVersions* inputs;
+		// PR 2 of #20309 removes them from the Solidity script.
+		ProtocolVersionsOwner:      superCfg.ProxyAdminOwner,
+		RequiredProtocolVersion:    common.Hash{0x01},
+		RecommendedProtocolVersion: common.Hash{0x01},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
@@ -200,9 +202,10 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		FaultGameV2MaxClockDuration:     big.NewInt(302400),
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
-		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
-		Challenger:                      superCfg.Challenger,
+		// Non-zero placeholder; PR 2 of #20309 removes the field.
+		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
+		L1ProxyAdminOwner:     superCfg.ProxyAdminOwner,
+		Challenger:            superCfg.Challenger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -213,8 +216,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	return &SuperchainDeployment{
 		Implementations:       Implementations(implementationsDeployment),
 		ProxyAdmin:            superDeployment.SuperchainProxyAdmin,
-		ProtocolVersions:      superDeployment.ProtocolVersionsImpl,
-		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
 		SuperchainConfig:      superDeployment.SuperchainConfigImpl,
 		SuperchainConfigProxy: superDeployment.SuperchainConfigProxy,
 	}, nil
@@ -369,7 +370,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset)), // TODO(#19102): add support for L2CM
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset), cfg.UseL2CM),
 		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
@@ -384,13 +385,15 @@ func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
 	return interopOffset != nil && *interopOffset == 0
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on whether Interop should be
-// enabled or not.
-func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
-	// TODO(#19102): add support for L2CM
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.
+// TODO(#20084): drop useL2CM and the L2CMFlag branch once DevFeatures are removed.
+func devFeatureBitmapForL2Genesis(enableInterop, useL2CM bool) common.Hash {
 	var bitmap common.Hash
 	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
+	}
+	if useL2CM {
+		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.L2CMFlag)
 	}
 	return bitmap
 }

@@ -56,7 +56,7 @@ interface IOPContractsManagerUtils {
 
     error OPContractsManagerUtils_DowngradeNotAllowed(address _contract);
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
-    error OPContractsManagerUtils_InitializingDuringUpgrade();
+    error OPContractsManagerUtils_OZv5InitializableUnsupported();
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
     error OPContractsManagerUtils_UnsupportedGameType();

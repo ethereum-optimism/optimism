@@ -4,8 +4,11 @@ use super::FaultProofProgramError;
 use crate::interop::util::fetch_l2_safe_head_hash;
 use alloc::{boxed::Box, sync::Arc};
 use alloy_consensus::Sealed;
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::OpTxEnv;
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpAlloyReceiptBuilder, OpTxEnv},
+};
 use alloy_primitives::B256;
 use core::fmt::Debug;
 use kona_derive::{EthereumDataSource, PipelineError, PipelineErrorKind};
@@ -20,7 +23,8 @@ use kona_proof::{
     sync::new_oracle_pipeline_cursor,
 };
 use kona_proof_interop::{BootInfo, INVALID_TRANSITION_HASH, OptimisticBlock, PreState};
-use op_alloy_consensus::OpTxEnvelope;
+use kona_registry::RollupConfig;
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
 use tracing::{error, info, warn};
@@ -38,6 +42,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Debug + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'a> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'a> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     // Check if we can short-circuit the transition, if we are within padding.
     if let PreState::TransitionState(ref transition_state) = boot.agreed_pre_state &&

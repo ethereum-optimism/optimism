@@ -9,6 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// DeployImplementationsInput must mirror the Solidity
+// DeployImplementations.s.sol input struct exactly — script ABI matching is
+// checked at load time. The ProtocolVersionsProxy field is no longer
+// populated by callers (zero-valued) and will be removed in the PR 2 sibling
+// of #20309 alongside the Solidity script change.
 type DeployImplementationsInput struct {
 	WithdrawalDelaySeconds          *big.Int
 	MinProposalSizeBytes            *big.Int
@@ -28,6 +33,9 @@ type DeployImplementationsInput struct {
 	Challenger                      common.Address
 }
 
+// DeployImplementationsOutput must mirror DeployImplementations.s.sol's
+// output struct. ProtocolVersionsImpl is no longer read by callers, but
+// stays here until PR 2 of #20309 strips it from Solidity.
 type DeployImplementationsOutput struct {
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
 	OpcmUtils                        common.Address `json:"opcmUtilsAddress"`

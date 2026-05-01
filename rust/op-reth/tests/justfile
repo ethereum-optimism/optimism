@@ -1,7 +1,7 @@
 GO_PKG_NAME := env("GO_PKG_NAME", "proofs/core")
 SOURCE_DIR := justfile_directory()
 OP_DEVSTACK_PROOF_SEQUENCER_EL := env("OP_DEVSTACK_PROOF_SEQUENCER_EL", "op-geth")
-OP_DEVSTACK_PROOF_VALIDATOR_EL := env("OP_DEVSTACK_PROOF_VALIDATOR_EL", "op-reth-with-proof")
+OP_DEVSTACK_PROOF_VALIDATOR_EL := env("OP_DEVSTACK_PROOF_VALIDATOR_EL", "op-reth-proof-v1")
 
 # default recipe
 default:

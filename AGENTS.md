@@ -70,6 +70,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
+- [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when migrating OP Stack–specific code out of op-geth into `op-core/*` so the monorepo can depend on upstream go-ethereum (scope: op-node, op-service, op-batcher, op-proposer, op-challenger, op-faucet, op-supernode, cannon, op-e2e, op-acceptance-tests, op-devstack)
 
 ## External References
 

@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -169,11 +168,6 @@ func loadRollupConfigFromFile(path string) (*rollup.Config, error) {
 	}
 	defer file.Close()
 
-	var cfg rollup.Config
-	dec := json.NewDecoder(file)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON: %w", err)
-	}
-	return &cfg, nil
+	var rollupConfig rollup.Config
+	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
 }

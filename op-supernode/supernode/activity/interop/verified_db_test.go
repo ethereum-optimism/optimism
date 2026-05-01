@@ -23,6 +23,9 @@ func TestVerifiedDB_WriteAndRead(t *testing.T) {
 	lastTs, initialized := db.LastTimestamp()
 	require.False(t, initialized)
 	require.Equal(t, uint64(0), lastTs)
+	firstTs, initialized := db.FirstTimestamp()
+	require.False(t, initialized)
+	require.Equal(t, uint64(0), firstTs)
 
 	// Create test data
 	chainID1 := eth.ChainIDFromUInt64(10)
@@ -54,6 +57,9 @@ func TestVerifiedDB_WriteAndRead(t *testing.T) {
 	lastTs, initialized = db.LastTimestamp()
 	require.True(t, initialized)
 	require.Equal(t, uint64(1000), lastTs)
+	firstTs, initialized = db.FirstTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(1000), firstTs)
 
 	// Read it back
 	retrieved, err := db.Get(1000)
@@ -158,6 +164,9 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	lastTs, initialized := db2.LastTimestamp()
 	require.True(t, initialized)
 	require.Equal(t, uint64(501), lastTs)
+	firstTs, initialized := db2.FirstTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(500), firstTs)
 
 	// Data should be readable
 	result, err := db2.Get(500)
@@ -227,6 +236,9 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		// Last timestamp should be updated to 102
 		lastTs, _ = db.LastTimestamp()
 		require.Equal(t, uint64(102), lastTs)
+		firstTs, ok := db.FirstTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(100), firstTs)
 	})
 
 	t.Run("returns false when no entries deleted", func(t *testing.T) {

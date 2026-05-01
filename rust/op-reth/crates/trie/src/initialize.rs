@@ -17,8 +17,8 @@ use reth_db::{
 };
 use reth_primitives_traits::{Account, StorageEntry};
 use reth_trie_common::{
-    BranchNodeCompact, Nibbles, PackedStoredNibbles, StorageTrieEntry, StoredNibbles,
-    StoredNibblesSubKey,
+    BranchNodeCompact, Nibbles, PackedStorageTrieEntry, PackedStoredNibbles,
+    PackedStoredNibblesSubKey, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey,
 };
 use std::time::Instant;
 use tracing::{debug, info};
@@ -29,11 +29,28 @@ const INITIALIZE_STORAGE_THRESHOLD: usize = 100000;
 /// Threshold for logging progress during initialization
 const INITIALIZE_LOG_THRESHOLD: usize = 100000;
 
+/// Controls which reth DB table codec is used when reading trie data during initialization.
+///
+/// Reth stores trie nibbles in two formats depending on when the node was first synced:
+/// - [`RethTrieStorageLayout::Packed`]: v2 — nibbles packed 2-per-byte, 33-byte fixed-size keys.
+/// - [`RethTrieStorageLayout::Legacy`]: v1 — nibbles stored 1-per-byte, variable-length keys.
+///
+/// The active layout is stored in reth's `Metadata` table under `storage_settings`.
+/// Use [`reth_provider::StorageSettingsCache::cached_storage_settings`] to detect it at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RethTrieStorageLayout {
+    /// v2 packed layout: uses `PackedAccountsTrie` and `PackedStoragesTrie`.
+    Packed,
+    /// v1 legacy layout: uses `AccountsTrie` and `StoragesTrie`.
+    Legacy,
+}
+
 /// Initialization job for external storage.
 #[derive(Debug, Constructor)]
 pub struct InitializationJob<Tx: DbTx, S: OpProofsStore + Send> {
     storage: S,
     tx: Tx,
+    trie_layout: RethTrieStorageLayout,
 }
 
 /// Macro to generate simple cursor iterators for tables
@@ -99,7 +116,18 @@ define_simple_cursor_iter!(
     PackedStoredNibbles,
     BranchNodeCompact
 );
-define_dup_cursor_iter!(StoragesTrieInit, tables::StoragesTrie, B256, StorageTrieEntry);
+define_dup_cursor_iter!(StoragesTrieInit, tables::PackedStoragesTrie, B256, PackedStorageTrieEntry);
+
+// v1 (legacy) accounts trie: 1 nibble per byte, variable-length keys
+define_simple_cursor_iter!(
+    AccountsTrieInitLegacy,
+    tables::AccountsTrie,
+    StoredNibbles,
+    BranchNodeCompact
+);
+
+// v1 (legacy) storage trie: 65-byte StoredNibblesSubKey subkeys
+define_dup_cursor_iter!(StoragesTrieInitLegacy, tables::StoragesTrie, B256, StorageTrieEntry);
 
 /// Trait to estimate the progress of a initialization job based on the key.
 trait CompletionEstimatable {
@@ -120,6 +148,19 @@ impl CompletionEstimatable for B256 {
 }
 
 impl CompletionEstimatable for PackedStoredNibbles {
+    fn estimate_progress(&self) -> f64 {
+        // use the first 6 nibbles as a progress estimate
+        let progress_nibbles =
+            if self.0.is_empty() { Nibbles::new() } else { self.0.slice(0..(self.0.len().min(6))) };
+        let mut val: u64 = 0;
+        for nibble in progress_nibbles.iter() {
+            val = (val << 4) | nibble as u64;
+        }
+        val as f64 / (16u64.pow(progress_nibbles.len() as u32)) as f64
+    }
+}
+
+impl CompletionEstimatable for StoredNibbles {
     fn estimate_progress(&self) -> f64 {
         // use the first 6 nibbles as a progress estimate
         let progress_nibbles =
@@ -262,23 +303,42 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         &self,
         start_key: Option<StoredNibbles>,
     ) -> Result<(), OpProofsStorageError> {
-        let mut start_cursor = self.tx.cursor_read::<tables::PackedAccountsTrie>()?;
+        if matches!(self.trie_layout, RethTrieStorageLayout::Packed) {
+            let mut start_cursor = self.tx.cursor_read::<tables::PackedAccountsTrie>()?;
 
-        if let Some(latest_key) = start_key {
-            let packed_key = PackedStoredNibbles::from(latest_key);
-            start_cursor
-                .seek(packed_key.clone())?
-                .filter(|(k, _)| *k == packed_key)
-                .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            if let Some(latest_key) = start_key {
+                let packed_key = PackedStoredNibbles::from(latest_key);
+                start_cursor
+                    .seek(packed_key.clone())?
+                    .filter(|(k, _)| *k == packed_key)
+                    .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            }
+
+            let source = AccountsTrieInit::new(start_cursor);
+            self.initialize(
+                "accounts trie",
+                source,
+                INITIALIZE_STORAGE_THRESHOLD,
+                INITIALIZE_LOG_THRESHOLD,
+            )?;
+        } else {
+            let mut start_cursor = self.tx.cursor_read::<tables::AccountsTrie>()?;
+
+            if let Some(latest_key) = start_key {
+                start_cursor
+                    .seek(latest_key.clone())?
+                    .filter(|(k, _)| *k == latest_key)
+                    .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            }
+
+            let source = AccountsTrieInitLegacy::new(start_cursor);
+            self.initialize(
+                "accounts trie",
+                source,
+                INITIALIZE_STORAGE_THRESHOLD,
+                INITIALIZE_LOG_THRESHOLD,
+            )?;
         }
-
-        let source = AccountsTrieInit::new(start_cursor);
-        self.initialize(
-            "accounts trie",
-            source,
-            INITIALIZE_STORAGE_THRESHOLD,
-            INITIALIZE_LOG_THRESHOLD,
-        )?;
 
         Ok(())
     }
@@ -288,25 +348,45 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         &self,
         start_key: Option<StorageTrieKey>,
     ) -> Result<(), OpProofsStorageError> {
-        let mut start_cursor = self.tx.cursor_dup_read::<tables::StoragesTrie>()?;
+        if matches!(self.trie_layout, RethTrieStorageLayout::Packed) {
+            let mut start_cursor = self.tx.cursor_dup_read::<tables::PackedStoragesTrie>()?;
 
-        if let Some(latest_key) = start_key {
-            start_cursor
-                .seek_by_key_subkey(
-                    latest_key.hashed_address,
-                    StoredNibblesSubKey::from(latest_key.path.0),
-                )?
-                .filter(|v| v.nibbles.0 == latest_key.path.0)
-                .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            if let Some(latest_key) = start_key {
+                let packed_subkey = PackedStoredNibblesSubKey::from(latest_key.path.0);
+                start_cursor
+                    .seek_by_key_subkey(latest_key.hashed_address, packed_subkey)?
+                    .filter(|v| v.nibbles.0 == latest_key.path.0)
+                    .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            }
+
+            let source = StoragesTrieInit::new(start_cursor);
+            self.initialize(
+                "storage trie",
+                source,
+                INITIALIZE_STORAGE_THRESHOLD,
+                INITIALIZE_LOG_THRESHOLD,
+            )?;
+        } else {
+            let mut start_cursor = self.tx.cursor_dup_read::<tables::StoragesTrie>()?;
+
+            if let Some(latest_key) = start_key {
+                start_cursor
+                    .seek_by_key_subkey(
+                        latest_key.hashed_address,
+                        StoredNibblesSubKey::from(latest_key.path.0),
+                    )?
+                    .filter(|v| v.nibbles.0 == latest_key.path.0)
+                    .ok_or(OpProofsStorageError::InitializeStorageInconsistentState)?;
+            }
+
+            let source = StoragesTrieInitLegacy::new(start_cursor);
+            self.initialize(
+                "storage trie",
+                source,
+                INITIALIZE_STORAGE_THRESHOLD,
+                INITIALIZE_LOG_THRESHOLD,
+            )?;
         }
-
-        let source = StoragesTrieInit::new(start_cursor);
-        self.initialize(
-            "storage trie",
-            source,
-            INITIALIZE_STORAGE_THRESHOLD,
-            INITIALIZE_LOG_THRESHOLD,
-        )?;
 
         Ok(())
     }
@@ -451,6 +531,23 @@ impl<C> InitTable for HashedStoragesInit<C> {
     }
 }
 
+impl<C> InitTable for AccountsTrieInitLegacy<C> {
+    type Key = StoredNibbles;
+    type Value = BranchNodeCompact;
+
+    fn store_entries(
+        store: &impl OpProofsStore,
+        entries: impl IntoIterator<Item = (Self::Key, Self::Value)>,
+    ) -> Result<(), OpProofsStorageError> {
+        let provider = store.initialization_provider()?;
+        provider.store_account_branches(
+            entries.into_iter().map(|(path, branch)| (path.0, Some(branch))).collect(),
+        )?;
+        provider.commit()?;
+        Ok(())
+    }
+}
+
 impl<C> InitTable for AccountsTrieInit<C> {
     type Key = PackedStoredNibbles;
     type Value = BranchNodeCompact;
@@ -472,9 +569,9 @@ impl<C> InitTable for AccountsTrieInit<C> {
 
 impl<C> InitTable for StoragesTrieInit<C> {
     type Key = B256;
-    type Value = StorageTrieEntry;
+    type Value = PackedStorageTrieEntry;
 
-    /// Save mapping of hashed addresses to storage trie entries to storage.
+    /// Save mapping of hashed addresses to packed storage trie entries to storage.
     ///
     /// Same consecutive-grouping approach as `HashedStoragesInit` — preserves
     /// source order for `append_dup`.
@@ -496,6 +593,39 @@ impl<C> InitTable for StoragesTrieInit<C> {
     /// Sequential grouping preserves the cursor's sorted order, so the
     /// committed prefix is always a contiguous range `[min..=resume_key]`,
     /// and no data is skipped on restart.
+    fn store_entries(
+        store: &impl OpProofsStore,
+        entries: impl IntoIterator<Item = (Self::Key, Self::Value)>,
+    ) -> Result<(), OpProofsStorageError> {
+        let provider = store.initialization_provider()?;
+
+        let mut current_address: Option<B256> = None;
+        let mut current_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)> = Vec::new();
+
+        for (hashed_address, storage_entry) in entries {
+            if current_address.as_ref() != Some(&hashed_address) {
+                if let Some(addr) = current_address.take() {
+                    provider.store_storage_branches(addr, std::mem::take(&mut current_nodes))?;
+                }
+                current_address = Some(hashed_address);
+            }
+            current_nodes.push((storage_entry.nibbles.0, Some(storage_entry.node)));
+        }
+
+        if let Some(addr) = current_address {
+            provider.store_storage_branches(addr, current_nodes)?;
+        }
+
+        provider.commit()?;
+        Ok(())
+    }
+}
+
+impl<C> InitTable for StoragesTrieInitLegacy<C> {
+    type Key = B256;
+    type Value = StorageTrieEntry;
+
+    /// Save mapping of hashed addresses to storage trie entries to storage (v1 / legacy format).
     fn store_entries(
         store: &impl OpProofsStore,
         entries: impl IntoIterator<Item = (Self::Key, Self::Value)>,
@@ -598,7 +728,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Packed);
         job.initialize_hashed_accounts(None).unwrap();
 
         // Verify data was stored (will be in sorted order)
@@ -649,7 +779,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Packed);
         job.initialize_hashed_storages(None).unwrap();
 
         // Verify data was stored for addr1
@@ -699,7 +829,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Packed);
         job.initialize_accounts_trie(None).unwrap();
 
         // Verify data was stored
@@ -758,7 +888,7 @@ mod tests {
 
         // Run initialization
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy);
         job.initialize_storages_trie(None).unwrap();
 
         // Verify data was stored for addr1
@@ -810,11 +940,11 @@ mod tests {
             .unwrap();
         drop(cursor);
 
-        // Add account trie
-        let mut cursor = tx.cursor_write::<tables::PackedAccountsTrie>().unwrap();
+        // Add account trie (v1 / legacy format)
+        let mut cursor = tx.cursor_write::<tables::AccountsTrie>().unwrap();
         cursor
             .append(
-                PackedStoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
+                StoredNibbles(Nibbles::from_nibbles_unchecked(vec![1])),
                 &create_test_branch_node(),
             )
             .unwrap();
@@ -835,9 +965,9 @@ mod tests {
 
         tx.commit().unwrap();
 
-        // Run full initialization
+        // Run full initialization (v1 / legacy storage layout)
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy);
         let best_number = 100;
         let best_hash = B256::repeat_byte(0x42);
 
@@ -887,7 +1017,7 @@ mod tests {
         init_provider.commit().expect("commit");
 
         let tx = db.tx().unwrap();
-        let job = InitializationJob::new(storage.clone(), tx);
+        let job = InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Packed);
 
         // Run initialization - should skip
         job.run(100, B256::repeat_byte(0x42)).unwrap();
@@ -940,7 +1070,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_hashed_accounts(None).unwrap();
         }
 
@@ -971,7 +1101,7 @@ mod tests {
         // Initialization #2 (restart)
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_hashed_accounts(Some(k2)).unwrap();
         }
 
@@ -1041,7 +1171,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_hashed_storages(None).unwrap();
         }
 
@@ -1067,7 +1197,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_hashed_storages(Some(HashedStorageKey::new(a2, s21))).unwrap();
         }
 
@@ -1134,7 +1264,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_accounts_trie(None).unwrap();
         }
 
@@ -1160,7 +1290,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Packed);
             job.initialize_accounts_trie(Some(StoredNibbles::from(p2.clone()))).unwrap();
         }
 
@@ -1226,7 +1356,7 @@ mod tests {
         // Initialization #1
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Legacy);
             job.initialize_storages_trie(None).unwrap();
         }
 
@@ -1256,7 +1386,7 @@ mod tests {
         // Initialization #2
         {
             let tx = db.tx().unwrap();
-            let job = InitializationJob::new(store.clone(), tx);
+            let job = InitializationJob::new(store.clone(), tx, RethTrieStorageLayout::Legacy);
             job.initialize_storages_trie(Some(StorageTrieKey::new(a2, StoredNibbles::from(n2.0))))
                 .unwrap();
         }
@@ -1482,7 +1612,7 @@ mod tests {
             ),
         ];
 
-        StoragesTrieInit::<()>::store_entries(&store, entries).unwrap();
+        StoragesTrieInitLegacy::<()>::store_entries(&store, entries).unwrap();
 
         let addresses = store.storage_branch_addresses.lock().unwrap();
         assert_eq!(*addresses, vec![a, b, c], "addresses must be flushed in sorted (cursor) order");

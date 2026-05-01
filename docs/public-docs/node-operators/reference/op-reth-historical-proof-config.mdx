@@ -93,6 +93,10 @@ Prune old proof history to reclaim space.
 op-reth proofs prune --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> --proofs-history.window <PROOFS_HISTORY_WINDOW>
 ```
 
+<Info>
+Pruning runs automatically while the node is up, on the cadence set by `--proofs-history.prune-interval`. Running this command manually is only required at startup if op-reth detects a gap larger than 1000 blocks between the configured window and the data on disk and refuses to start. See the [tutorial](/node-operators/tutorials/reth-historical-proofs#manual-prune) for details.
+</Info>
+
 ### unwind
 
 Unwind the proofs storage to a specific block
@@ -143,7 +147,7 @@ When the `metrics` feature is enabled, the proofs-history system exposes Prometh
 | `hashed_accounts_written` | Gauge | Hashed account entries deleted in the last prune |
 | `hashed_storages_written` | Gauge | Hashed storage entries deleted in the last prune |
 
-### RPC (`op_reth_rpc.*`)
+### RPC (`optimism_rpc.eth_api_ext.*`)
 
 | Metric | Type | Description |
 | --- | --- | --- |

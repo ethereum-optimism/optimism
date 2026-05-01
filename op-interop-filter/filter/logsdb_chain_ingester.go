@@ -212,6 +212,7 @@ func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSe
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
+		c.log.Warn("Contains called but logs DB not initialized")
 		return types.BlockSeal{}, types.ErrUninitialized
 	}
 
@@ -280,6 +281,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
+		c.log.Warn("GetExecMsgsAtTimestamp called but logs DB not initialized")
 		return nil, types.ErrUninitialized
 	}
 
@@ -431,6 +433,10 @@ func (c *LogsDBChainIngester) runIngestion() {
 
 		// Reorg detection: if head moved behind our progress, check hash
 		if head.NumberU64() < nextBlock {
+			c.log.Info("Chain head is behind ingestion progress, waiting for node to catch up",
+				"head", head.NumberU64(),
+				"next_block", nextBlock,
+			)
 			if err := c.checkReorg(head); err != nil {
 				continue
 			}
@@ -646,6 +652,8 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
 
+	c.log.Debug("Ingested block", "block", blockNum, "hash", blockID.Hash, "timestamp", blockInfo.Time(), "logs", logCount)
+
 	// Set earliest block on first successful ingestion (fresh start case).
 	// On restart, findAndSetEarliestBlock handles this instead.
 	if !c.earliestIngestedBlockSet.Load() {
@@ -676,6 +684,17 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 			execMsg, err := processors.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
+			}
+
+			if execMsg != nil {
+				c.log.Debug("Found executing message in block",
+					"block", blockNum,
+					"log_index", logIndex,
+					"src_chain", execMsg.ChainID,
+					"src_block", execMsg.BlockNum,
+					"src_log_index", execMsg.LogIdx,
+					"src_timestamp", execMsg.Timestamp,
+				)
 			}
 
 			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {

@@ -239,7 +239,6 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		_, superCfg := builder.WithSuperchain()
 		intentbuilder.WithDevkeySuperRoles(p, keys, l1ChainID, superCfg)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 	}
@@ -425,7 +424,6 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
-		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxy,
 		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxy,
 	}
 }

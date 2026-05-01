@@ -6,6 +6,7 @@ use alloy_primitives::Bytes;
 use alloy_rpc_types_eth::{BlockError, error::EthRpcErrorCode};
 use alloy_transport::{RpcError, TransportErrorKind};
 use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
+use op_alloy_consensus::PostExecPayloadValidationError;
 use op_revm::OpHaltReason;
 use reth_evm::execute::ProviderError;
 use reth_optimism_evm::OpBlockExecutionError;
@@ -36,6 +37,9 @@ pub enum OpEthApiError {
     /// Wrapper for [`revm_primitives::InvalidTransaction`](InvalidTransaction).
     #[error(transparent)]
     InvalidTransaction(#[from] OpInvalidTransactionError),
+    /// Invalid post-exec payload or post-exec transaction placement.
+    #[error(transparent)]
+    InvalidPostExecPayload(#[from] PostExecPayloadValidationError),
     /// Sequencer client error.
     #[error(transparent)]
     Sequencer(#[from] SequencerClientError),
@@ -57,7 +61,8 @@ impl From<OpEthApiError> for jsonrpsee_types::error::ErrorObject<'static> {
             OpEthApiError::InvalidTransaction(err) => err.into(),
             OpEthApiError::Evm(_) |
             OpEthApiError::L1BlockFeeError |
-            OpEthApiError::L1BlockGasError => internal_rpc_err(err.to_string()),
+            OpEthApiError::L1BlockGasError |
+            OpEthApiError::InvalidPostExecPayload(_) => internal_rpc_err(err.to_string()),
             OpEthApiError::Sequencer(err) => err.into(),
         }
     }

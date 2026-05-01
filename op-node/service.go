@@ -263,12 +263,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	defer file.Close()
 
 	var rollupConfig rollup.Config
-	dec := json.NewDecoder(file)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rollupConfig); err != nil {
-		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
-	}
-	return &rollupConfig, nil
+	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
 }
 
 func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {

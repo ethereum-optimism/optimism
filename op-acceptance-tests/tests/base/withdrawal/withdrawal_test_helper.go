@@ -27,9 +27,6 @@ func withdrawalOpts(gameType gameTypes.GameType) []presets.Option {
 			cfg.DisputeGameType = uint32(gameType)
 		}),
 	}
-	if gameType == gameTypes.CannonKonaGameType {
-		opts = append(opts, presets.WithChallengerCannonKonaEnabled())
-	}
 	return opts
 }
 

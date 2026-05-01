@@ -201,6 +201,20 @@ var (
 		Usage:   "The time frame within which rollup-boost partial healthiness tolerance is evaluated",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_ROLLUP_BOOST_PARTIAL_HEALTHINESS_TOLERANCE_INTERVAL_SECONDS"),
 	}
+	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
+	// When enabled, leader transfer will cycle through all voters in sorted order (by ServerID),
+	// ensuring that even if only one node in the cluster is healthy, it will eventually become leader.
+	// This is useful when Raft's default log-based leader selection keeps choosing unhealthy nodes.
+	//
+	// NOTE: This flag must be enabled on ALL conductors in the cluster to work as intended.
+	// A mixed configuration (some nodes enabled, some disabled) can cause a leadership bounce loop
+	// between round-robin and log-based selection strategies.
+	RoundRobinLeaderTransfer = &cli.BoolFlag{
+		Name:    "raft.round-robin-leader-transfer",
+		Usage:   "Enable deterministic round-robin leader transfer instead of Raft's default log-based selection. Must be enabled on all conductors in the cluster.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_ROUND_ROBIN_LEADER_TRANSFER"),
+		Value:   false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -238,6 +252,7 @@ var optionalFlags = []cli.Flag{
 	HealthcheckExecutionP2pCheckApi,
 	HealthCheckRollupBoostPartialHealthinessToleranceLimit,
 	HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds,
+	RoundRobinLeaderTransfer,
 }
 
 func init() {

@@ -38,6 +38,10 @@ contract OPContractsManagerUtils {
         bytes data;
     }
 
+    /// @notice ERC-7201 Initializable slot used by OpenZeppelin Contracts v5.
+    bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
     /// @notice Emitted when a proxy is created by this contract.
     /// @param name  The name of the proxy.
     /// @param proxy The address of the proxy.
@@ -51,8 +55,8 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract with extra version tags.
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
 
-    /// @notice Thrown when a contract has `_initializing` as true during an upgrade.
-    error OPContractsManagerUtils_InitializingDuringUpgrade();
+    /// @notice Thrown when an upgrade attempts to reset an OpenZeppelin Contracts v5 Initializable contract.
+    error OPContractsManagerUtils_OZv5InitializableUnsupported();
 
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
@@ -336,37 +340,20 @@ contract OPContractsManagerUtils {
         // Upgrade to StorageSetter.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
-        // We need to reset the initialized slot and call the initializer.
-        // NOTE: This reset path still assumes `_offset` is a byte offset within a single
-        // storage slot, the generic one-byte clear can clobber OZ v5 `_initializing` if `_slot`
-        // matches the namespaced Initializable slot, and the hardcoded ERC-7201 slot only covers
-        // the default OZ v5 `_initializableStorageSlot()` layout.
+        // OpenZeppelin Contracts v5 Initializable uses an ERC-7201 namespaced slot instead of
+        // the v4 one-byte `_initialized` field. OPCM does not support the v5 layout, so abort
+        // when the caller points at that slot or the target already has state there.
+        if (
+            _slot == OZ_V5_INITIALIZABLE_SLOT
+                || IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)
+        ) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
-
-        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
-        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
-        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
-        // Slot derivation (ERC-7201):
-        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
-        // ~bytes32(uint256(0xff))
-        // Ref:
-        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
-        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
-        bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
-        uint256 v5Value = uint256(v5Current);
-
-        // A contract should never be mid-initialization during an upgrade. The `_initializing`
-        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
-        if ((v5Value >> 64) & 0xFF != 0) {
-            revert OPContractsManagerUtils_InitializingDuringUpgrade();
-        }
-
-        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
-        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
-        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);

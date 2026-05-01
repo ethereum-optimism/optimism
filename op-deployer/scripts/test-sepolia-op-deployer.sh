@@ -333,7 +333,6 @@ case "$DEPLOY_TYPE" in
         echo ""
         
         PROXY_ADMIN_OWNER=$(read_env_var "DEPLOYER_PROXY_ADMIN_OWNER" "Superchain Proxy Admin Owner: ")
-        PROTOCOL_VERSIONS_OWNER=$(read_env_var "DEPLOYER_PROTOCOL_VERSIONS_OWNER" "Protocol Versions Owner: ")
         GUARDIAN=$(read_env_var "DEPLOYER_GUARDIAN" "Guardian Address: ")
         
         OUTPUT_FILE="$OUTPUT_DIR/sepolia-superchain-$(date +%Y%m%d-%H%M%S).json"
@@ -346,7 +345,6 @@ case "$DEPLOY_TYPE" in
         echo "  These should be from a previous superchain deployment"
         echo ""
         
-        PROTOCOL_VERSIONS_PROXY=$(read_env_var "DEPLOYER_PROTOCOL_VERSIONS_PROXY" "Protocol Versions Proxy Address: ")
         SUPERCHAIN_CONFIG_PROXY=$(read_env_var "DEPLOYER_SUPERCHAIN_CONFIG_PROXY" "Superchain Config Proxy Address: ")
         SUPERCHAIN_PROXY_ADMIN=$(read_env_var "DEPLOYER_SUPERCHAIN_PROXY_ADMIN" "Superchain Proxy Admin Address: ")
         L1_PROXY_ADMIN_OWNER=$(read_env_var "DEPLOYER_L1_PROXY_ADMIN_OWNER" "L1 Proxy Admin Owner Address: ")
@@ -804,7 +802,6 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             "--private-key" "$PRIVATE_KEY"
             "--outfile" "$OUTPUT_FILE"
             "--superchain-proxy-admin-owner" "$PROXY_ADMIN_OWNER"
-            "--protocol-versions-owner" "$PROTOCOL_VERSIONS_OWNER"
             "--guardian" "$GUARDIAN"
         )
     else
@@ -813,7 +810,6 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             "--l1-rpc-url" "$L1_RPC_URL"
             "--private-key" "$PRIVATE_KEY"
             "--outfile" "$OUTPUT_FILE"
-            "--protocol-versions-proxy" "$PROTOCOL_VERSIONS_PROXY"
             "--superchain-config-proxy" "$SUPERCHAIN_CONFIG_PROXY"
             "--superchain-proxy-admin" "$SUPERCHAIN_PROXY_ADMIN"
             "--l1-proxy-admin-owner" "$L1_PROXY_ADMIN_OWNER"
@@ -924,16 +920,14 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
             echo ""
             
-            PROTOCOL_VERSIONS_PROXY=$(jq -r '.protocolVersionsProxyAddress // .ProtocolVersionsProxyAddress' "$OUTPUT_FILE" 2>/dev/null)
             SUPERCHAIN_CONFIG_PROXY=$(jq -r '.superchainConfigProxyAddress // .SuperchainConfigProxyAddress' "$OUTPUT_FILE" 2>/dev/null)
             SUPERCHAIN_PROXY_ADMIN=$(jq -r '.proxyAdminAddress // .ProxyAdminAddress' "$OUTPUT_FILE" 2>/dev/null)
-            
+
             echo "# Environment variables for next deployment"
             echo "export L1_RPC_URL=\"$L1_RPC_URL\""
             echo "export DEPLOYER_PRIVATE_KEY=\"$PRIVATE_KEY\""
             [ -n "$VERIFIER_TYPE" ] && echo "export DEPLOYER_VERIFIER_TYPE=\"$VERIFIER_TYPE\""
             [ -n "$ETHERSCAN_API_KEY" ] && echo "export DEPLOYER_VERIFIER_API_KEY=\"$ETHERSCAN_API_KEY\""
-            echo "export DEPLOYER_PROTOCOL_VERSIONS_PROXY=\"$PROTOCOL_VERSIONS_PROXY\""
             echo "export DEPLOYER_SUPERCHAIN_CONFIG_PROXY=\"$SUPERCHAIN_CONFIG_PROXY\""
             echo "export DEPLOYER_SUPERCHAIN_PROXY_ADMIN=\"$SUPERCHAIN_PROXY_ADMIN\""
             echo "export DEPLOYER_L1_PROXY_ADMIN_OWNER=\"$PROXY_ADMIN_OWNER\""

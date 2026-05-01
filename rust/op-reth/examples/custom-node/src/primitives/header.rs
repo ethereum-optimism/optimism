@@ -54,6 +54,18 @@ impl HeaderMut for CustomHeader {
     fn set_difficulty(&mut self, difficulty: U256) {
         self.inner.difficulty = difficulty;
     }
+
+    fn set_mix_hash(&mut self, mix_hash: B256) {
+        self.inner.mix_hash = mix_hash;
+    }
+
+    fn set_extra_data(&mut self, extra_data: Bytes) {
+        self.inner.extra_data = extra_data;
+    }
+
+    fn set_parent_beacon_block_root(&mut self, root: Option<B256>) {
+        self.inner.parent_beacon_block_root = root;
+    }
 }
 
 impl From<Header> for CustomHeader {

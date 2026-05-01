@@ -100,6 +100,7 @@ allow-git = [
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
   "https://github.com/flashbots/rollup-boost",
+  "https://github.com/sigp/discv5",
 ]
 unknown-registry = "warn"
 unknown-git = "deny"

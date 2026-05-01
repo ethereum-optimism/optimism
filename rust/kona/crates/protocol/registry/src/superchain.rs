@@ -59,59 +59,25 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::string::{String, ToString};
     use alloy_op_hardforks::{
-        BASE_MAINNET_ISTHMUS_TIMESTAMP, BASE_MAINNET_JOVIAN_TIMESTAMP,
-        BASE_SEPOLIA_ISTHMUS_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP,
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
         OP_SEPOLIA_JOVIAN_TIMESTAMP,
     };
     use alloy_primitives::address;
-    use kona_genesis::{AddressList, OP_MAINNET_BASE_FEE_CONFIG, Roles, SuperchainLevel};
 
     #[test]
     fn test_read_chain_configs() {
         let superchains = Registry::from_chain_list();
         assert!(superchains.chain_list.len() > 1);
-        let base_config = ChainConfig {
-            name: String::from("Base"),
-            chain_id: 8453,
-            l1_chain_id: 1,
-            public_rpc: String::from("https://mainnet.base.org"),
-            sequencer_rpc: String::from("https://mainnet-sequencer.base.org"),
-            explorer: String::from("https://explorer.base.org"),
-            superchain_level: SuperchainLevel::StandardCandidate,
-            governed_by_optimism: false,
-            superchain_time: Some(0),
-            batch_inbox_addr: address!("ff00000000000000000000000000000000008453"),
-            hardfork_config: crate::test_utils::BASE_MAINNET_CONFIG.hardforks,
-            block_time: 2,
-            seq_window_size: 3600,
-            max_sequencer_drift: 600,
-            data_availability_type: "eth-da".to_string(),
-            optimism: Some(OP_MAINNET_BASE_FEE_CONFIG),
-            alt_da: None,
-            genesis: crate::test_utils::BASE_MAINNET_CONFIG.genesis,
-            roles: Some(Roles {
-                proxy_admin_owner: Some(
-                    "7bB41C3008B3f03FE483B28b8DB90e19Cf07595c".parse().unwrap(),
-                ),
-                ..Default::default()
-            }),
-            addresses: Some(AddressList {
-                l1_standard_bridge_proxy: Some(address!(
-                    "3154Cf16ccdb4C6d922629664174b904d80F2C35"
-                )),
-                optimism_portal_proxy: Some(address!("49048044D57e1C92A77f79988d21Fa8fAF74E97e")),
-                system_config_proxy: Some(address!("73a79Fab69143498Ed3712e519A88a918e1f4072")),
-                dispute_game_factory_proxy: Some(address!(
-                    "43edb88c4b80fdd2adff2412a7bebf9df42cb40e"
-                )),
-                ..Default::default()
-            }),
-            gas_paying_token: None,
-        };
-        assert_eq!(*superchains.op_chains.get(&8453).unwrap(), base_config);
+        let op_mainnet = superchains.op_chains.get(&10).expect("OP Mainnet config missing");
+        assert_eq!(op_mainnet.name, "OP Mainnet");
+        assert_eq!(op_mainnet.chain_id, 10);
+        assert_eq!(op_mainnet.l1_chain_id, 1);
+        assert_eq!(
+            op_mainnet.batch_inbox_addr,
+            address!("ff00000000000000000000000000000000000010")
+        );
+        assert!(op_mainnet.governed_by_optimism);
     }
 
     #[test]
@@ -131,18 +97,6 @@ mod tests {
 
         let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
         assert_eq!(op_sepolia_config.hardforks.isthmus_time, Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP));
-
-        let base_mainnet_config = superchains.rollup_configs.get(&8453).unwrap();
-        assert_eq!(
-            base_mainnet_config.hardforks.isthmus_time,
-            Some(BASE_MAINNET_ISTHMUS_TIMESTAMP)
-        );
-
-        let base_sepolia_config = superchains.rollup_configs.get(&84532).unwrap();
-        assert_eq!(
-            base_sepolia_config.hardforks.isthmus_time,
-            Some(BASE_SEPOLIA_ISTHMUS_TIMESTAMP)
-        );
     }
 
     #[test]
@@ -153,11 +107,5 @@ mod tests {
 
         let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
         assert_eq!(op_sepolia_config.hardforks.jovian_time, Some(OP_SEPOLIA_JOVIAN_TIMESTAMP));
-
-        let base_mainnet_config = superchains.rollup_configs.get(&8453).unwrap();
-        assert_eq!(base_mainnet_config.hardforks.jovian_time, Some(BASE_MAINNET_JOVIAN_TIMESTAMP));
-
-        let base_sepolia_config = superchains.rollup_configs.get(&84532).unwrap();
-        assert_eq!(base_sepolia_config.hardforks.jovian_time, Some(BASE_SEPOLIA_JOVIAN_TIMESTAMP));
     }
 }

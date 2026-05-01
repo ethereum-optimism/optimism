@@ -48,7 +48,6 @@ type ImplementationsConfig struct {
 	FaultGameClockExtension         uint64             `cli:"dispute-clock-extension"`
 	FaultGameMaxClockDuration       uint64             `cli:"dispute-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
-	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	L1ProxyAdminOwner               common.Address     `cli:"l1-proxy-admin-owner"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
@@ -112,9 +111,6 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
-	}
-	if c.ProtocolVersionsProxy == (common.Address{}) {
-		return errors.New("protocol versions proxy must be specified")
 	}
 	if c.L1ProxyAdminOwner == (common.Address{}) {
 		return errors.New("l1 proxy admin owner must be specified")
@@ -220,10 +216,13 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
 		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
 		SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
-		SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-		L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
-		Challenger:                      cfg.Challenger,
+		// Non-zero placeholder for the deprecated protocolVersionsProxy
+		// field the Solidity script still asserts on. The deployed impls
+		// store but never call into this address; PR 2 of #20309 removes it.
+		ProtocolVersionsProxy: cfg.SuperchainConfigProxy,
+		SuperchainProxyAdmin:  cfg.SuperchainProxyAdmin,
+		L1ProxyAdminOwner:     cfg.L1ProxyAdminOwner,
+		Challenger:            cfg.Challenger,
 	}
 
 	if cfg.UseForge {

@@ -112,6 +112,12 @@ impl OpTransaction for CustomTransaction {
     }
 }
 
+impl From<Sealed<TxPostExec>> for CustomTransaction {
+    fn from(value: Sealed<TxPostExec>) -> Self {
+        Self::Op(value.into())
+    }
+}
+
 impl SignerRecoverable for CustomTransaction {
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         match self {

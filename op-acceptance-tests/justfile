@@ -36,20 +36,21 @@ build-deps:
 #   just test ./op-acceptance-tests/tests/base/...
 #   just test -run TestMyTest ./op-acceptance-tests/tests/base/
 #   just test -count=10 -run TestMyTest ./op-acceptance-tests/tests/base/
+[positional-arguments]
 test *args: build-deps
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{REPO_ROOT}}
     flags=()
-    case " {{args}} " in
+    case " $* " in
         *" -count="*|*" -count "*) ;;
         *) flags+=(-count=1) ;;
     esac
-    case " {{args}} " in
+    case " $* " in
         *" -timeout="*|*" -timeout "*) ;;
         *) flags+=(-timeout 30m) ;;
     esac
-    exec go test "${flags[@]}" {{args}}
+    exec go test "${flags[@]}" "$@"
 
 # Run acceptance tests
 acceptance-test:

@@ -41,8 +41,7 @@ pub use message::{
     parse_logs_to_executing_msgs,
 };
 
-mod depset;
-pub use depset::{ChainDependency, DependencySet};
+pub use kona_genesis::{ChainDependency, DependencySet};
 
 pub use op_alloy_consensus::interop::SafetyLevel;
 

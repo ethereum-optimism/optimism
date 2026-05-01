@@ -81,7 +81,6 @@ func attachSupervisorSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pr
 		false,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -176,7 +175,6 @@ func attachSuperChallengerAndProposer(
 		true,
 		nets,
 		els,
-		cfg.EnableCannonKonaForChall,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -301,7 +299,6 @@ func startInteropChallenger(
 	useSuperNode bool,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
-	enableCannonKona bool,
 ) *L2Challenger {
 	require := t.Require()
 	require.NotEmpty(l2Nets, "at least one L2 network is required")
@@ -333,14 +330,9 @@ func startInteropChallenger(
 		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.InteropVariant),
 		sharedchallenger.WithSuperCannonGameType(),
 		sharedchallenger.WithSuperPermissionedGameType(),
-	}
-	if enableCannonKona {
-		t.Log("Enabling cannon-kona for super challenger")
-		options = append(options,
-			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-			sharedchallenger.WithSuperCannonKonaGameType(),
-			sharedchallenger.WithExperimentalWitnessEndpoint(),
-		)
+		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+		sharedchallenger.WithSuperCannonKonaGameType(),
+		sharedchallenger.WithExperimentalWitnessEndpoint(),
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),

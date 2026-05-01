@@ -28,6 +28,8 @@ type Implementations struct {
 	DisputeGameFactoryImpl           common.Address `json:"DisputeGameFactoryImpl"`
 	AnchorStateRegistryImpl          common.Address `json:"AnchorStateRegistryImpl"`
 	SuperchainConfigImpl             common.Address `json:"SuperchainConfigImpl"`
+	// ProtocolVersionsImpl mirrors opcm.DeployImplementationsOutput; will
+	// be removed in PR 2 of #20309 alongside the Solidity script change.
 	ProtocolVersionsImpl             common.Address `json:"ProtocolVersionsImpl"`
 	FaultDisputeGameImpl             common.Address `json:"FaultDisputeGameImpl"`
 	PermissionedDisputeGameImpl      common.Address `json:"PermissionedDisputeGameImpl"`
@@ -41,9 +43,6 @@ type SuperchainDeployment struct {
 	Implementations
 
 	ProxyAdmin common.Address `json:"ProxyAdmin"`
-
-	ProtocolVersions      common.Address `json:"ProtocolVersions"`
-	ProtocolVersionsProxy common.Address `json:"ProtocolVersionsProxy"`
 
 	SuperchainConfig      common.Address `json:"SuperchainConfig"`
 	SuperchainConfigProxy common.Address `json:"SuperchainConfigProxy"`

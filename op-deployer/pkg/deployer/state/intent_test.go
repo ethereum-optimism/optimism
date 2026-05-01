@@ -229,7 +229,6 @@ func TestValidateCustomValues(t *testing.T) {
 func setSuperchainRoles(intent *Intent) {
 	intent.SuperchainRoles = &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0xa"),
-		ProtocolVersionsOwner:     common.HexToAddress("0xb"),
 		SuperchainGuardian:        common.HexToAddress("0xc"),
 		Challenger:                common.HexToAddress("0xd"),
 	}

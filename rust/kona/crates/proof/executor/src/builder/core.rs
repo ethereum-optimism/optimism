@@ -8,17 +8,19 @@ use crate::{ExecutorError, ExecutorResult, TrieDB, TrieDBError, TrieDBProvider};
 use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed, crypto::RecoveryError};
 use alloy_evm::{
-    EvmFactory, FromRecoveredTx, FromTxWithEncoded,
+    EvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{BlockExecutionResult, BlockExecutor, BlockExecutorFactory},
 };
 use alloy_op_evm::{
-    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    OpBlockExecutionCtx, OpBlockExecutorFactory, PostExecMode,
     block::{OpAlloyReceiptBuilder, OpTxEnv},
 };
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
-use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
+use op_alloy_consensus::{
+    OpReceiptEnvelope, OpTxEnvelope, parse_post_exec_payload_from_transactions,
+};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::{
@@ -106,6 +108,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     /// Creates a new stateless L2 block builder instance.
     ///
@@ -251,19 +259,29 @@ where
         let mut state =
             State::builder().with_database(&mut self.trie_db).with_bundle_update().build();
         let evm = self.factory.evm_factory().create_evm(&mut state, evm_env);
+        // Step 3. Decode and validate the block transactions within the payload attributes.
+        let transactions = attrs
+            .recovered_transactions_with_encoded()
+            .collect::<Result<Vec<_>, RecoveryError>>()
+            .map_err(ExecutorError::Recovery)?;
+        let post_exec_mode = parse_post_exec_payload_from_transactions(
+            transactions.iter().map(RecoveredTx::tx),
+            block_env.number.saturating_to(),
+            self.config.is_sdm_active(block_env.timestamp.saturating_to()),
+        )
+        .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?
+        .map(|parsed| PostExecMode::Verify(parsed.payload))
+        .unwrap_or_default();
+
         let ctx = OpBlockExecutionCtx {
             parent_hash,
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             // This field is unused for individual block building jobs.
             extra_data: Default::default(),
+            post_exec_mode,
         };
         let executor = self.factory.create_executor(evm, ctx);
 
-        // Step 3. Execute the block containing the transactions within the payload attributes.
-        let transactions = attrs
-            .recovered_transactions_with_encoded()
-            .collect::<Result<Vec<_>, RecoveryError>>()
-            .map_err(ExecutorError::Recovery)?;
         let ex_result = executor.execute_block(transactions.iter())?;
 
         info!(

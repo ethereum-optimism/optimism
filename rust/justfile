@@ -16,7 +16,7 @@ default:
 
 # Install the pinned nightly toolchain
 install-nightly:
-  rustup toolchain install {{NIGHTLY}} --component rustfmt
+  rustup toolchain install {{NIGHTLY}} --component rustfmt --component rust-src
 
 ############################### Build ###############################
 
@@ -190,8 +190,55 @@ docs-preview:
 ######################### Kona Prestates ##############################
 
 KONA_DIR := justfile_directory() / "kona"
+MIPS64_TARGET_SPEC := justfile_directory() / "kona/docker/cannon/mips64-unknown-none.json"
 
-# Build all kona prestates
+# Build kona-client for the MIPS64 cannon target
+build-kona-client-elf VARIANT:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Ensure nightly toolchain with rust-src is installed
+    just install-nightly
+
+    # Cross-compilation environment
+    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
+    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
+    export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
+    export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
+
+    # Custom configs support
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      export KONA_CUSTOM_CONFIGS=true
+    fi
+
+    echo "Building kona-client ELF (variant: {{VARIANT}})..."
+    cargo build \
+      -Zbuild-std=core,alloc \
+      -Zjson-target-spec \
+      -p kona-client \
+      --bin {{VARIANT}} \
+      --locked \
+      --profile release-client-lto
+
+# Lint kona-std-fpvm for the MIPS64 cannon target
+lint-kona-cannon:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    just install-nightly
+
+    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
+    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
+    export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
+    export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
+
+    cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -Zjson-target-spec -- -D warnings
+
+# Build all kona prestates (runs natively — use build-kona-reproducible-prestate for Docker)
 build-kona-prestates: build-kona-cannon-prestate build-kona-interop-prestate
 
 build-kona-cannon-prestate:
@@ -200,23 +247,96 @@ build-kona-cannon-prestate:
 build-kona-interop-prestate:
     @just build-kona-prestate kona-client-int prestate-artifacts-cannon-interop
 
+# Build a single kona prestate variant
 build-kona-prestate VARIANT OUTPUT_DIR:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "Building prestate for {{VARIANT}}..."
-    cd "{{KONA_DIR}}/docker/fpvm-prestates"
-    just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}"
+    OUTPUT="{{KONA_DIR}}/{{OUTPUT_DIR}}"
+    mkdir -p "$OUTPUT"
 
-    cd "{{KONA_DIR}}"
+    echo "=== Building cannon ==="
+    # cannon/justfile imports ../justfiles/go.just which imports git.just.
+    # These relative imports resolve from cannon/'s directory, so we cd there
+    # and call just directly — NOT via rust/justfile delegation.
+    cd "{{justfile_directory()}}/../cannon"
+    just cannon
+    CANNON_BIN="$(pwd)/bin/cannon"
+
+    echo "=== Building kona-client ELF (variant: {{VARIANT}}) ==="
+    cd "{{justfile_directory()}}"
+    just build-kona-client-elf {{VARIANT}}
+
+    # Locate the built ELF
+    ELF="{{justfile_directory()}}/target/mips64-unknown-none/release-client-lto/{{VARIANT}}"
+
+    echo "=== Generating prestate ==="
+    "$CANNON_BIN" load-elf \
+      --path="$ELF" \
+      --out="$OUTPUT/prestate.bin.gz" \
+      --meta="$OUTPUT/meta.json" \
+      --type multithreaded64-5
+
+    "$CANNON_BIN" run \
+      --proof-at "=0" \
+      --stop-at "=1" \
+      --input "$OUTPUT/prestate.bin.gz" \
+      --meta "$OUTPUT/meta.json" \
+      --proof-fmt "$OUTPUT/%d.json" \
+      --output ""
+
+    mv "$OUTPUT/0.json" "$OUTPUT/prestate-proof.json"
 
     # Copy with hash-based name for challenger lookup
-    HASH=$(jq -r .pre "{{OUTPUT_DIR}}/prestate-proof.json")
-    cp "{{OUTPUT_DIR}}/prestate.bin.gz" "{{OUTPUT_DIR}}/${HASH}.bin.gz"
+    HASH=$(jq -r .pre "$OUTPUT/prestate-proof.json")
+    cp "$OUTPUT/prestate.bin.gz" "$OUTPUT/${HASH}.bin.gz"
     echo "Prestate for {{VARIANT}}: ${HASH}"
 
+# Build a single reproducible kona prestate variant via Docker.
+# Cannon is built from source as a stage within the Dockerfile.
+# Build context is the monorepo root (same pattern as op-program).
+# Set KONA_CUSTOM_CONFIGS_DIR to bake custom chain configs into the prestate.
+build-kona-reproducible-prestate-variant VARIANT OUTPUT_DIR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    MONOREPO_ROOT="{{justfile_directory()}}/.."
+    OUTPUT="{{KONA_DIR}}/{{OUTPUT_DIR}}"
+
+    # The Dockerfile always copies from the `kona-custom-configs` named build
+    # context, so point it at an empty temp dir when no configs are requested.
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      if [[ ! -d "${KONA_CUSTOM_CONFIGS_DIR}" ]]; then
+        echo "KONA_CUSTOM_CONFIGS_DIR=${KONA_CUSTOM_CONFIGS_DIR} is not a directory" >&2
+        exit 1
+      fi
+      CUSTOM_CONFIGS_CONTEXT="${KONA_CUSTOM_CONFIGS_DIR}"
+      CUSTOM_CONFIGS_FLAG=true
+    else
+      CUSTOM_CONFIGS_CONTEXT=$(mktemp -d)
+      trap 'rm -rf "${CUSTOM_CONFIGS_CONTEXT}"' EXIT
+      CUSTOM_CONFIGS_FLAG=false
+    fi
+
+    docker build \
+      --platform linux/amd64 \
+      --build-arg VARIANT={{VARIANT}} \
+      --build-arg KONA_CUSTOM_CONFIGS="${CUSTOM_CONFIGS_FLAG}" \
+      --build-context kona-custom-configs="${CUSTOM_CONFIGS_CONTEXT}" \
+      --output "$OUTPUT" \
+      --progress plain \
+      -f "{{KONA_DIR}}/docker/fpvm-prestates/cannon-repro.dockerfile" \
+      "$MONOREPO_ROOT"
+
+    # Add hash-named copy for challenger lookup
+    HASH=$(jq -r .pre "$OUTPUT/prestate-proof.json")
+    cp "$OUTPUT/prestate.bin.gz" "$OUTPUT/${HASH}.bin.gz"
+    echo "Prestate for {{VARIANT}}: ${HASH}"
+
+# Build all reproducible kona prestates via Docker
 build-kona-reproducible-prestate:
-    @just build-kona-prestates
+    @just build-kona-reproducible-prestate-variant kona-client prestate-artifacts-cannon
+    @just build-kona-reproducible-prestate-variant kona-client-int prestate-artifacts-cannon-interop
 
 output-kona-prestate-hash:
     @echo "-------------------- Kona Prestates --------------------"

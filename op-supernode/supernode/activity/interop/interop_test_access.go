@@ -6,6 +6,7 @@ package interop
 // in this file so the boundary is easy to audit.
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -70,11 +71,14 @@ func (i *Interop) BackfillEndTimestamp() uint64 {
 	return i.backfillEndTimestamp
 }
 
-// FirstVerifiableTimestamp returns the timestamp at which the main loop
-// begins verification: ActivationTimestamp() when backfill did not run,
-// or BackfillEndTimestamp()+1 when it did.
+// FirstVerifiableTimestamp returns the timestamp at which the main loop begins
+// verification. It is intended for tests after startup has completed.
 func (i *Interop) FirstVerifiableTimestamp() uint64 {
-	return i.firstVerifiableTimestamp()
+	ts, err := i.firstVerifiableTimestamp(context.Background())
+	if err != nil {
+		return 0
+	}
+	return ts
 }
 
 // ---------------------------------------------------------------------------

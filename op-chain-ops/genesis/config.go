@@ -813,24 +813,11 @@ type DevL1DeployConfig struct {
 // SuperchainL1DeployConfig configures parameters of the superchain-wide deployed contracts to L1.
 // This deployment is global, and can be reused between L2s that target the same superchain.
 type SuperchainL1DeployConfig struct {
-	// RequiredProtocolVersion indicates the protocol version that
-	// nodes are required to adopt, to stay in sync with the network.
-	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
-	// RequiredProtocolVersion indicates the protocol version that
-	// nodes are recommended to adopt, to stay in sync with the network.
-	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
-
 	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
 	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 }
 
 func (d *SuperchainL1DeployConfig) Check(log log.Logger) error {
-	if d.RequiredProtocolVersion == (params.ProtocolVersion{}) {
-		log.Warn("RequiredProtocolVersion is empty")
-	}
-	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
-		log.Warn("RecommendedProtocolVersion is empty")
-	}
 	if d.SuperchainConfigGuardian == (common.Address{}) {
 		return fmt.Errorf("%w: SuperchainConfigGuardian cannot be address(0)", ErrInvalidDeployConfig)
 	}
@@ -950,8 +937,6 @@ type L1DependenciesConfig struct {
 
 	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
-
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxy"`
 }
 
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
@@ -1230,8 +1215,6 @@ type L1Deployments struct {
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
-	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
-	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
@@ -1257,8 +1240,6 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
 		SystemConfig:                      contracts.SystemConfigImpl,
 		SystemConfigProxy:                 contracts.SystemConfigProxy,
-		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
-		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
 		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
 		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
 	}

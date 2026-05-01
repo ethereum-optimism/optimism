@@ -18,13 +18,6 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		)
 	})
 
-	t.Run("WithCannonKonaGameTypeAdded", func(t *testing.T) {
-		require.Equal(t,
-			optionKindAddedGameType|optionKindChallengerCannonKona,
-			WithCannonKonaGameTypeAdded().optionKinds(),
-		)
-	})
-
 	t.Run("WithL1Geth", func(t *testing.T) {
 		require.Equal(t,
 			optionKindL1EL,
@@ -82,12 +75,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
-			name:      "minimal with conductors rejects challenger toggle",
-			supported: minimalWithConductorsPresetSupportedOptionKinds,
-			opts:      WithChallengerCannonKonaEnabled(),
-			want:      optionKindChallengerCannonKona,
-		},
-		{
 			name:      "flashblocks allows builder and deployer adapters",
 			supported: singleChainWithFlashblocksPresetSupportedOptionKinds,
 			opts: Combine(
@@ -110,7 +97,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			name:      "shared supernode proofs reject pre-genesis super game",
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(
-				WithChallengerCannonKonaEnabled(),
 				WithTimeTravelEnabled(),
 				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
 			),
@@ -120,7 +106,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			name:      "two l2 supernode proofs accept pre-genesis super game",
 			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(
-				WithChallengerCannonKonaEnabled(),
 				WithTimeTravelEnabled(),
 				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
 			),

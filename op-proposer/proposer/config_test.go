@@ -3,6 +3,7 @@ package proposer
 import (
 	"testing"
 
+	proposerFlags "github.com/ethereum-optimism/optimism/op-proposer/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -10,11 +11,32 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
 )
 
 func TestValidConfigIsValid(t *testing.T) {
 	cfg := validConfig()
 	require.NoError(t, cfg.Check())
+}
+
+func TestNewConfigReadsSuperNodeRpcs(t *testing.T) {
+	var cfg *CLIConfig
+	app := cli.NewApp()
+	app.Flags = proposerFlags.Flags
+	app.Action = func(ctx *cli.Context) error {
+		cfg = NewConfig(ctx)
+		return nil
+	}
+	err := app.Run([]string{
+		"op-proposer",
+		"--supernode-rpcs", "http://localhost:8882/supernode-a",
+		"--supernode-rpcs", "http://localhost:8883/supernode-b",
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"http://localhost:8882/supernode-a",
+		"http://localhost:8883/supernode-b",
+	}, cfg.SuperNodeRpcs)
 }
 
 func TestRollupRpc(t *testing.T) {

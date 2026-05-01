@@ -25,7 +25,6 @@ type PresetConfig struct {
 	L1GethExecPath             string
 	AddedGameTypes             []gameTypes.GameType
 	RespectedGameTypes         []gameTypes.GameType
-	EnableCannonKonaForChall   bool
 	EnableTimeTravel           bool
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool

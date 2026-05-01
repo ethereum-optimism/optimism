@@ -25,6 +25,13 @@ func progressInteropUntil(t *testing.T, i *Interop, maxIters int, cond func() bo
 	}
 }
 
+func requireFirstVerifiableTimestamp(t *testing.T, i *Interop, want uint64, msgAndArgs ...interface{}) {
+	t.Helper()
+	got, err := i.firstVerifiableTimestamp(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, want, got, msgAndArgs...)
+}
+
 func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	const act = uint64(100)
 	depth := 10 * time.Second // crossSafe 110, depth 10s -> T_lo 100; should seal 100..110
@@ -77,7 +84,7 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	h.interop.backfillEndTimestamp = end
 	require.Equal(t, uint64(110), end,
 		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
-	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp(),
+	requireFirstVerifiableTimestamp(t, h.interop, 111,
 		"main loop resumes at backfillEndTimestamp+1")
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
@@ -144,7 +151,7 @@ func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
 	require.GreaterOrEqual(t, syncStatusCalls.Load(), failUntil,
 		"SyncStatus should have been called at least %d times (the failing ones)", failUntil)
 	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp)
-	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp())
+	requireFirstVerifiableTimestamp(t, h.interop, 111)
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
 	cancel()
@@ -257,7 +264,7 @@ func TestLogBackfill_AsymmetricMultiChain(t *testing.T) {
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 	require.Equal(t, uint64(100), end,
 		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
-	require.Equal(t, uint64(101), h.interop.firstVerifiableTimestamp(),
+	requireFirstVerifiableTimestamp(t, h.interop, 101,
 		"main loop resumes at backfillEndTimestamp+1")
 
 	chain10 := h.Mock(10)
@@ -337,7 +344,7 @@ func TestLogBackfill_MisalignedActivation(t *testing.T) {
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 	require.Equal(t, localSafeTs, end,
 		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
-	require.Equal(t, localSafeTs+1, h.interop.firstVerifiableTimestamp())
+	requireFirstVerifiableTimestamp(t, h.interop, localSafeTs+1)
 
 	chain10 := h.Mock(10)
 	db := h.interop.logsDBs[chain10.id]
@@ -399,7 +406,7 @@ func TestLogBackfill_AdvancesActivationAndStartsVerifyAfterCeiling(t *testing.T)
 	h.interop.backfillEndTimestamp = end
 	require.Equal(t, uint64(110), end,
 		"runLogBackfill must return minCrossSafeTime as the end of the sealed range")
-	require.Equal(t, uint64(111), h.interop.firstVerifiableTimestamp(),
+	requireFirstVerifiableTimestamp(t, h.interop, 111,
 		"main loop resumes at backfillEndTimestamp+1")
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
 
@@ -466,11 +473,11 @@ func TestLogBackfill_NoOpWhenDepthZero(t *testing.T) {
 	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
 	require.False(t, has, "logs DB must remain empty")
 
-	// Caller sets backfillEndTimestamp; with end==0 the main loop falls back
-	// to activationTimestamp rather than end+1.
+	// Caller sets backfillEndTimestamp; with end==0 the main loop derives the
+	// first unverified timestamp from the current safe head.
 	h.interop.backfillEndTimestamp = end
-	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
-		"with end==0 the main loop resumes at activationTimestamp")
+	requireFirstVerifiableTimestamp(t, h.interop, 111,
+		"with end==0 the main loop starts after the safe head")
 }
 
 // TestLogBackfill_NoOpWhenNoChains asserts that runLogBackfill short-circuits
@@ -493,18 +500,14 @@ func TestLogBackfill_NoOpWhenNoChains(t *testing.T) {
 	require.Zero(t, end, "empty chains map short-circuits with end=0")
 
 	h.interop.backfillEndTimestamp = end
-	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
+	requireFirstVerifiableTimestamp(t, h.interop, act,
 		"with end==0 the main loop resumes at activationTimestamp")
 }
 
 // TestLogBackfill_ActivationInFuture asserts the edge case where the
 // configured activation is ahead of every chain's cross-safe tip.
-// runLogBackfill must short-circuit with (0, nil) — the "backfill did
-// not run" convention — rather than claiming minCrossSafeTime was
-// sealed when nothing was. This keeps backfillEndTimestamp honest for
-// external observers (devstack/integration assertions) and routes the
-// main loop through the activationTimestamp path of
-// firstVerifiableTimestamp().
+// firstVerifiableTimestamp clamps to activation, and backfill must no-op
+// instead of sealing beyond the current cross-safe head.
 func TestLogBackfill_ActivationInFuture(t *testing.T) {
 	const act = uint64(2000)
 	depth := 100 * time.Second
@@ -536,23 +539,19 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 
 	end, err := h.interop.runLogBackfill()
 	require.NoError(t, err)
-	require.Zero(t, end,
-		"activation-in-future must short-circuit with end=0 (backfill did not run)")
+	require.Zero(t, end)
 	require.Zero(t, outputCalls.Load(),
-		"no blocks fetched: backfill is skipped when activation is ahead of cross-safe")
+		"no blocks fetched: backfill no-ops when activation is ahead of cross-safe")
 
 	chain10 := h.Mock(10)
 	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
-	require.False(t, has, "logs DB must remain empty when backfill is skipped")
+	require.False(t, has, "logs DB must remain empty while backfill waits")
 
 	require.Equal(t, act, h.interop.activationTimestamp,
 		"protocol activation must not change")
 
-	// With end==0 the main loop falls through to activationTimestamp,
-	// which is the correct handoff when activation is still in the future.
-	h.interop.backfillEndTimestamp = end
-	require.Equal(t, act, h.interop.firstVerifiableTimestamp(),
-		"main loop resumes at activationTimestamp when backfill is skipped")
+	requireFirstVerifiableTimestamp(t, h.interop, act,
+		"main loop resumes at activation when cross-safe is still pre-activation")
 }
 
 // TestLogBackfill_ClampsStartToGenesis asserts that when a chain's genesis
