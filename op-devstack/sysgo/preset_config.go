@@ -34,6 +34,11 @@ type PresetConfig struct {
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
+	// SequencerDisabled, when true, starts the real op-node sequencer in the
+	// stopped state on every L2 chain. Default zero value (false) keeps the
+	// historical behavior of starting with the sequencer running. Useful for
+	// tests that drive block production via the TestSequencer Control API.
+	SequencerDisabled bool
 }
 
 func NewPresetConfig() PresetConfig {

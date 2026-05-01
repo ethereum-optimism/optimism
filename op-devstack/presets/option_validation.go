@@ -29,6 +29,7 @@ const (
 	optionKindInteropLogBackfill
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
+	optionKindSequencerDisabled
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -48,7 +49,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindMessageExpiryWindow |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
-	optionKindPreGenesisSuperGame
+	optionKindPreGenesisSuperGame |
+	optionKindSequencerDisabled
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -72,6 +74,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropLogBackfill, label: "interop log backfill depth"},
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
+	{kind: optionKindSequencerDisabled, label: "sequencer disabled"},
 }
 
 func (k optionKinds) String() string {
@@ -158,7 +161,8 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindL1EL |
 	optionKindTimeTravel |
-	optionKindMessageExpiryWindow
+	optionKindMessageExpiryWindow |
+	optionKindSequencerDisabled
 
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
 	optionKindPreGenesisSuperGame

@@ -171,7 +171,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis, !cfg.SequencerDisabled)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
@@ -292,6 +292,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
+		!cfg.SequencerDisabled,
 	)
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
@@ -471,6 +472,7 @@ func startTwoL2SharedSupernode(
 	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
+	sequencerEnabled bool,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
@@ -503,7 +505,7 @@ func startTwoL2SharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
@@ -589,6 +591,7 @@ func startSingleChainSharedSupernode(
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
 	interopAtGenesis bool,
+	sequencerEnabled bool,
 ) (*SuperNode, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
@@ -621,7 +624,7 @@ func startSingleChainSharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},

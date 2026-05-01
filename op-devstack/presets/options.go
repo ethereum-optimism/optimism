@@ -3,6 +3,7 @@ package presets
 import (
 	"time"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -280,6 +281,33 @@ func WithMessageExpiryWindow(window uint64) Option {
 			cfg.MessageExpiryWindow = &v
 		},
 	}
+}
+
+// WithSequencerDisabled starts every L2 chain's real op-node sequencer in the
+// stopped state. By default the sequencer runs from startup; pass this option
+// for tests that drive block production exclusively via the TestSequencer
+// Control API. The sequencer can later be started via L2CLNode.StartSequencer
+// if a test needs to.
+//
+// Currently supported only on the supernode-proofs presets.
+func WithSequencerDisabled() Option {
+	return option{
+		kinds: optionKindSequencerDisabled,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SequencerDisabled = true
+		},
+	}
+}
+
+// WithBatcherDisabled starts every L2 chain's batcher in the stopped state. By
+// default the batcher runs from startup. Pass this option for tests that need
+// fine-grained control over when L2 batches land on L1 — pair it with
+// WithSequencerDisabled() so the chain has no movement at all until the test
+// explicitly drives it. The batcher can later be started via L2Batcher.Start.
+func WithBatcherDisabled() Option {
+	return WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+		cfg.Stopped = true
+	})
 }
 
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
