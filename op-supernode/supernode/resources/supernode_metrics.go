@@ -16,7 +16,7 @@ type SupernodeMetrics struct {
 	InteropRewinds              prometheus.Counter
 	InteropVerificationDuration prometheus.Histogram
 	ChainRewindDepthBlocks      *prometheus.HistogramVec
-	DenyListEntries             *prometheus.GaugeVec
+	DenyListEntries             *prometheus.CounterVec
 	LogBackfillProgress         *prometheus.GaugeVec
 	LogBackfillRetries          *prometheus.CounterVec
 	ActivityErrors              *prometheus.CounterVec
@@ -70,10 +70,10 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Help:      "Depth in blocks of chain rewinds triggered by invalidation.",
 			Buckets:   []float64{1, 2, 5, 10, 50, 100, 500},
 		}, []string{"chain_id"}),
-		DenyListEntries: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		DenyListEntries: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "supernode",
 			Name:      "denylist_entries_total",
-			Help:      "Current number of entries in the deny list per chain.",
+			Help:      "Total number of deny list entries added per chain.",
 		}, []string{"chain_id"}),
 		LogBackfillProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "supernode",

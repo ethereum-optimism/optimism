@@ -357,7 +357,9 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"payloadHash", payloadHash,
 	)
 
-	c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
+	if c.metrics != nil {
+		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
+	}
 
 	// Check if the current chain uses this block at this height
 	if c.engine == nil {
@@ -403,7 +405,9 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	)
 
 	// Record rewind depth: invalidated block was at `height`, rewound to height-1.
-	c.metrics.ChainRewindDepthBlocks.WithLabelValues(c.chainID.String()).Observe(1)
+	if c.metrics != nil {
+		c.metrics.ChainRewindDepthBlocks.WithLabelValues(c.chainID.String()).Observe(1)
+	}
 
 	return true, nil
 }
@@ -412,15 +416,5 @@ func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (
 	if c.denyList == nil {
 		return nil, fmt.Errorf("deny list not initialized")
 	}
-	removed, err := c.denyList.PruneAtOrAfterTimestamp(timestamp)
-	if err == nil {
-		var count float64
-		for _, hashes := range removed {
-			count += float64(len(hashes))
-		}
-		if count > 0 {
-			c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Sub(count)
-		}
-	}
-	return removed, err
+	return c.denyList.PruneAtOrAfterTimestamp(timestamp)
 }
