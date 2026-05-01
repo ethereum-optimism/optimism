@@ -88,18 +88,12 @@ func heightToKey(height uint64) []byte {
 // stateRoot and messagePasserStorageRoot are the output preimage fields for optimistic root computation.
 // Multiple hashes can be denied at the same height.
 func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
-	_, err := d.add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
-	return err
-}
-
-func (d *DenyList) add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	key := heightToKey(height)
 
-	inserted := false
-	err := d.db.Update(func(tx *bolt.Tx) error {
+	return d.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(denyListBucketName)
 
 		existing := b.Get(key)
@@ -125,13 +119,8 @@ func (d *DenyList) add(height uint64, payloadHash common.Hash, decisionTimestamp
 		if err != nil {
 			return err
 		}
-		if err := b.Put(key, encoded); err != nil {
-			return err
-		}
-		inserted = true
-		return nil
+		return b.Put(key, encoded)
 	})
-	return inserted, err
 }
 
 // LastDeniedOutputV0 returns the OutputV0 for the most recently denied block at the given height.
@@ -359,8 +348,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	// Add to deny list with the output preimage fields
-	inserted, err := c.denyList.add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
-	if err != nil {
+	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 
@@ -369,9 +357,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"payloadHash", payloadHash,
 	)
 
-	if inserted && c.metrics != nil {
-		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
-	}
+	c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
 
 	// Check if the current chain uses this block at this height
 	if c.engine == nil {
@@ -417,9 +403,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	)
 
 	// Record rewind depth: invalidated block was at `height`, rewound to height-1.
-	if c.metrics != nil {
-		c.metrics.ChainRewindDepthBlocks.WithLabelValues(c.chainID.String()).Observe(1)
-	}
+	c.metrics.ChainRewindDepthBlocks.WithLabelValues(c.chainID.String()).Observe(1)
 
 	return true, nil
 }
@@ -434,7 +418,7 @@ func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (
 		for _, hashes := range removed {
 			count += float64(len(hashes))
 		}
-		if count > 0 && c.metrics != nil {
+		if count > 0 {
 			c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Sub(count)
 		}
 	}
