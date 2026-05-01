@@ -61,10 +61,12 @@ contract L2DevFeatureFlags_SetDevFeatureBitmap_Test is L2DevFeatureFlags_TestIni
 /// @notice Tests the `isDevFeatureEnabled` function of the `L2DevFeatureFlags` contract.
 contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestInit {
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
-    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public view {
+    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         vm.assume(_feature != bytes32(0));
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
         vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        // Ensure `devFeatureBitmap` contains bytes32(0)
+        vm.store(address(l2DevFeatureFlags), bytes32(uint256(keccak256("l2devfeatureflags.bitmap")) - 1), bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
