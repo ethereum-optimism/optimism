@@ -44,6 +44,8 @@ library DevFeatures {
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
         if (hasFlag(_feature, L2CM)) return true;
+        // CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+        if (hasFlag(_feature, CANNON_KONA)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

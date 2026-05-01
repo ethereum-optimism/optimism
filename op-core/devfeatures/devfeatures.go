@@ -36,6 +36,10 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	if hasFlag(flag, L2CMFlag) {
 		return true
 	}
+	// CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+	if hasFlag(flag, CannonKonaFlag) {
+		return true
+	}
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
 
