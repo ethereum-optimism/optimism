@@ -172,34 +172,12 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
 		// dependency set, which signals the L2ContractsManager to activate
 		// Interop-specific contracts.
-		isInteropChain := len(ba.depSet.Chains()) > 1
-		if isInteropChain {
-			// Call `L1Block.setFeature(INTEROP)` to signal to the L2 ContractManager to activate interop contracts
-			setFeatureTx, err := interopSetFeatureTx()
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop setFeature wrapper: %w", err))
-			}
-			upgradeTxs = append(upgradeTxs, setFeatureTx)
-			upgradeGas += interopSetFeatureGas
-		}
-
-		// The interop NUT bundle executes on all chains
-		bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+		interopTxs, interopGas, err := InteropActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
 		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to load interop NUT bundle: %w", err))
+			return nil, NewCriticalError(err)
 		}
-		upgradeTxs = append(upgradeTxs, bundleTxs...)
-		upgradeGas += bundleGas
-
-		if isInteropChain {
-			// Mint and send `u128::MAX` to the ETHLiquidity contract
-			fundingTx, err := interopETHLiquidityFundingTx()
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop ETHLiquidity funding wrapper: %w", err))
-			}
-			upgradeTxs = append(upgradeTxs, fundingTx)
-			upgradeGas += interopETHLiquidityFundGas
-		}
+		upgradeTxs = append(upgradeTxs, interopTxs...)
+		upgradeGas += interopGas
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)
