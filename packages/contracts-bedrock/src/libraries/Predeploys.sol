@@ -516,7 +516,7 @@ library Predeploys {
             proxy: L2_DEV_FEATURE_FLAGS,
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deployGasLimit: 315_400,
+            deployGasLimit: 328_228,
             devFeatureGate: DevFeatures.L2CM,
             isCustomGasToken: false,
             isInterop: false,
