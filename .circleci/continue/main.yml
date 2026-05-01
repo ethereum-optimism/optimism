@@ -3112,11 +3112,15 @@ workflows:
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
-                - CANNON_KONA
                 - SUPER_ROOT_GAMES_MIGRATION
-                - L2CM
-                - L2CM,CUSTOM_GAS_TOKEN
-                - L2CM,OPTIMISM_PORTAL_INTEROP
+                 # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
+                #   L2CM and CANNON_KONA are now enabled by default, so we do not need to
+                #   explicitly enable them and run these additional jobs. However they are kept here for now so that they
+                #   can easily be reactivated.
+                # - CANNON_KONA
+                # - L2CM
+                # - L2CM,CUSTOM_GAS_TOKEN
+                # - L2CM,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
