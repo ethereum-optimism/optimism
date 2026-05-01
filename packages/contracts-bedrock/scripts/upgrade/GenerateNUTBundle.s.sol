@@ -24,8 +24,7 @@ contract GenerateNUTBundle is Script {
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
 
     /// @notice Name of the upgrade.
-    /// @dev TODO: Update this with the new upgrade name when it is known.
-    string internal constant UPGRADE_NAME = "karst";
+    string internal constant UPGRADE_NAME = "interop";
 
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
