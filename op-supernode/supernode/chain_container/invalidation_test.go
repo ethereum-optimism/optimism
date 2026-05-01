@@ -9,9 +9,11 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -522,6 +524,49 @@ func TestInvalidateBlock(t *testing.T) {
 			require.Equal(t, testOut, storedOutput, "OutputV0 should be stored in denylist after InvalidateBlock")
 		})
 	}
+}
+
+func TestInvalidateBlock_DenyListEntriesMetricCountsNewRecordsOnly(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+	require.NoError(t, err)
+	defer dl.Close()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	c := &simpleChainContainer{
+		chainID:  chainID,
+		denyList: dl,
+		log:      testLogger(),
+		metrics:  resources.NewSupernodeMetrics(),
+	}
+
+	hash := common.HexToHash("0xdead")
+	stateRoot := eth.Bytes32(common.HexToHash("0xstate"))
+	msgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
+
+	rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 10, stateRoot, msgPasserRoot)
+	require.NoError(t, err)
+	require.False(t, rewound)
+	requireDenyListEntries(t, c, chainID, 1)
+
+	rewound, err = c.InvalidateBlock(context.Background(), 5, hash, 10, stateRoot, msgPasserRoot)
+	require.NoError(t, err)
+	require.False(t, rewound)
+	requireDenyListEntries(t, c, chainID, 1)
+
+	removed, err := c.PruneDeniedAtOrAfterTimestamp(10)
+	require.NoError(t, err)
+	require.Len(t, removed[5], 1)
+	requireDenyListEntries(t, c, chainID, 0)
+}
+
+func requireDenyListEntries(t *testing.T, c *simpleChainContainer, chainID eth.ChainID, expected float64) {
+	t.Helper()
+	metric := &dto.Metric{}
+	require.NoError(t, c.metrics.DenyListEntries.WithLabelValues(chainID.String()).Write(metric))
+	require.Equal(t, expected, metric.GetGauge().GetValue())
 }
 
 func TestGetDeniedOutput(t *testing.T) {
