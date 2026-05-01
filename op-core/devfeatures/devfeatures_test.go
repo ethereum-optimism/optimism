@@ -79,37 +79,32 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(ALL_FEATURES, EMPTY_FEATURES))
 	})
 
+	// Hardcoded-on flags share identical override semantics. TODO(#20084): remove with the broader DevFeatures cleanup.
+	hardcoded := []struct {
+		name string
+		flag common.Hash
+	}{
+		{"L2CM", L2CMFlag},
+		{"CannonKona", CannonKonaFlag},
+	}
+
 	t.Run("all against empty", func(t *testing.T) {
-		// Strip L2CM and CannonKona because they are hardcoded enabled regardless of bitmap.
-		// TODO(#20084): remove with the broader L2CMFlag/CannonKonaFlag cleanup.
+		// Strip hardcoded-enabled flags.
 		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(or(L2CMFlag, CannonKonaFlag)))))
 	})
 
-	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-	t.Run("L2CM always enabled regardless of bitmap", func(t *testing.T) {
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, L2CMFlag))
-		require.True(t, IsDevFeatureEnabled(FEATURE_A, L2CMFlag))
-		require.True(t, IsDevFeatureEnabled(L2CMFlag, L2CMFlag))
-	})
+	for _, c := range hardcoded {
+		t.Run(c.name+" always enabled regardless of bitmap", func(t *testing.T) {
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, c.flag))
+			require.True(t, IsDevFeatureEnabled(FEATURE_A, c.flag))
+			require.True(t, IsDevFeatureEnabled(c.flag, c.flag))
+		})
 
-	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-	t.Run("L2CM always enabled when combined with other flags", func(t *testing.T) {
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, L2CMFlag)))
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, L2CMFlag)))
-	})
-
-	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-	t.Run("CannonKona always enabled regardless of bitmap", func(t *testing.T) {
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, CannonKonaFlag))
-		require.True(t, IsDevFeatureEnabled(FEATURE_A, CannonKonaFlag))
-		require.True(t, IsDevFeatureEnabled(CannonKonaFlag, CannonKonaFlag))
-	})
-
-	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-	t.Run("CannonKona always enabled when combined with other flags", func(t *testing.T) {
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, CannonKonaFlag)))
-		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, CannonKonaFlag)))
-	})
+		t.Run(c.name+" always enabled when combined with other flags", func(t *testing.T) {
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, c.flag)))
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, c.flag)))
+		})
+	}
 }
 
 func TestEnableDevFeature(t *testing.T) {
