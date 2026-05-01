@@ -1,18 +1,18 @@
 use super::TxPayment;
 use alloy_consensus::{
-    Sealable, Signed, TransactionEnvelope,
+    Signed, TransactionEnvelope,
     crypto::RecoveryError,
     transaction::{SignerRecoverable, TxHashRef},
 };
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Sealed, Signature};
 use alloy_rlp::BufMut;
-use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, TxPostExec, build_post_exec_tx};
+use op_alloy_consensus::{OpTxEnvelope, TxDeposit, TxPostExec};
 use reth_codecs::{
     Compact,
     alloy::transaction::{CompactEnvelope, FromTxCompact, ToTxCompact},
 };
-use reth_op::{BuildPostExecTransaction, OpTransaction};
+use reth_op::OpTransaction;
 use reth_primitives_traits::InMemorySize;
 use revm_primitives::Address;
 
@@ -112,11 +112,9 @@ impl OpTransaction for CustomTransaction {
     }
 }
 
-impl BuildPostExecTransaction for CustomTransaction {
-    fn build_post_exec(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> Self {
-        Self::Op(OpTxEnvelope::PostExec(
-            build_post_exec_tx(block_number, gas_refund_entries).seal_slow(),
-        ))
+impl From<Sealed<TxPostExec>> for CustomTransaction {
+    fn from(value: Sealed<TxPostExec>) -> Self {
+        Self::Op(value.into())
     }
 }
 

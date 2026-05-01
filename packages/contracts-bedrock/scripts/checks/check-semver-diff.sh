@@ -19,6 +19,65 @@ SEMVER_LOCK="snapshots/semver-lock.json"
 EXCLUDED_CONTRACTS=(
 )
 
+github_token() {
+  if [ -n "${GH_TOKEN:-}" ]; then
+    printf '%s' "$GH_TOKEN"
+  elif [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "$GITHUB_TOKEN"
+  elif [ -n "${GHTOKEN:-}" ]; then
+    printf '%s' "$GHTOKEN"
+  fi
+}
+
+github_repo() {
+  local owner="${CIRCLE_PROJECT_USERNAME:-}"
+  local repo="${CIRCLE_PROJECT_REPONAME:-}"
+  local origin_url
+
+  if [ -z "$owner" ] || [ -z "$repo" ]; then
+    origin_url="$(git config --get remote.origin.url || true)"
+    origin_url="${origin_url%.git}"
+    origin_url="${origin_url#git@github.com:}"
+    origin_url="${origin_url#https://github.com/}"
+    owner="${origin_url%%/*}"
+    repo="${origin_url#*/}"
+  fi
+
+  if [ -n "$owner" ] && [ -n "$repo" ] && [ "$owner" != "$repo" ]; then
+    printf '%s/%s' "$owner" "$repo"
+  fi
+}
+
+fetch_upstream_file_from_github() {
+  local path="$1"
+  local output="$2"
+  local token
+  local repo
+  local url
+  local curl_args=(-fsSL -H "Accept: application/vnd.github.raw")
+
+  token="$(github_token)"
+  repo="$(github_repo)"
+  if [ -z "$token" ] || [ -z "$repo" ]; then
+    return 1
+  fi
+
+  curl_args+=(-H "Authorization: Bearer ${token}")
+  url="https://api.github.com/repos/${repo}/contents/${path}?ref=${TARGET_BRANCH}"
+  curl "${curl_args[@]}" "$url" > "$output"
+}
+
+get_upstream_file() {
+  local path="$1"
+  local output="$2"
+
+  if fetch_upstream_file_from_github "$path" "$output" 2> /dev/null; then
+    return 0
+  fi
+
+  git show "$UPSTREAM_REF":"$path" > "$output" 2> /dev/null
+}
+
 # Helper function to check if a contract is excluded.
 is_excluded() {
   local contract="$1"
@@ -52,7 +111,7 @@ if ! grep -qx "$SEMVER_LOCK" "$changed_files"; then
 fi
 
 # Get the upstream semver-lock.json.
-if ! git show "$UPSTREAM_REF":packages/contracts-bedrock/snapshots/semver-lock.json > "$temp_dir/upstream_semver_lock.json" 2> /dev/null; then
+if ! get_upstream_file packages/contracts-bedrock/snapshots/semver-lock.json "$temp_dir/upstream_semver_lock.json"; then
   echo "❌ Error: Could not find semver-lock.json in the snapshots/ directory of $TARGET_BRANCH branch"
   exit 1
 fi
@@ -94,7 +153,7 @@ for contract in $changed_contracts; do
   # Extract the old and new source files.
   old_source_file="$temp_dir/old_${contract##*/}"
   new_source_file="$temp_dir/new_${contract##*/}"
-  git show "$UPSTREAM_REF":packages/contracts-bedrock/"$contract" > "$old_source_file" 2> /dev/null || true
+  get_upstream_file packages/contracts-bedrock/"$contract" "$old_source_file" || true
   cp "$contract" "$new_source_file"
 
   # Extract the old and new versions.

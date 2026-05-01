@@ -6,7 +6,8 @@ use crate::{
     engine::OpEngineValidator,
     txpool::{OpTransactionPool, OpTransactionValidator},
 };
-use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
+use alloy_primitives::Sealed;
+use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
@@ -42,7 +43,7 @@ use reth_optimism_payload_builder::{
     builder::OpPayloadTransactions,
     config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig},
 };
-use reth_optimism_primitives::{BuildPostExecTransaction, DepositReceipt, OpPrimitives};
+use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
     SequencerClient,
     eth::{OpEthApiBuilder, ext::OpEthExtApi},
@@ -159,7 +160,7 @@ pub trait OpFullNodeTypes:
         Payload: EngineTypes<ExecutionData = OpExecData>,
     >
 where
-    <<Self as NodeTypes>::Primitives as NodePrimitives>::SignedTx: BuildPostExecTransaction,
+    <<Self as NodeTypes>::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
 {
 }
 
@@ -171,7 +172,7 @@ where
             Storage = OpStorage,
             Payload: EngineTypes<ExecutionData = OpExecData>,
         >,
-    <N::Primitives as NodePrimitives>::SignedTx: BuildPostExecTransaction,
+    <N::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
 {
 }
 
@@ -626,7 +627,7 @@ where
             >,
             Pool: TransactionPool<Transaction: OpPooledTx<Consensus = TxTy<N::Types>>>,
         >,
-    TxTy<N::Types>: BuildPostExecTransaction,
+    TxTy<N::Types>: From<Sealed<TxPostExec>>,
     EthB: EthApiBuilder<N>,
     PVB: Send,
     EB: EngineApiBuilder<N>,
@@ -760,7 +761,7 @@ where
                 >,
             >,
         >,
-    TxTy<N::Types>: BuildPostExecTransaction,
+    TxTy<N::Types>: From<Sealed<TxPostExec>>,
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction:
         OpPooledTx<Consensus = TxTy<N::Types>>,
     EthB: EthApiBuilder<N>,
@@ -1322,7 +1323,7 @@ where
                 >,
             >,
         >,
-    TxTy<Node::Types>: BuildPostExecTransaction,
+    TxTy<Node::Types>: From<Sealed<TxPostExec>>,
     Evm: ConfigurePostExecEvm<
             Primitives = PrimitivesTy<Node::Types>,
             NextBlockEnvCtx: BuildNextEnv<

@@ -10,7 +10,10 @@ use op_alloy::consensus::{OpDepositReceipt, OpReceiptEnvelope, OpTxEnvelope, OpT
 #[auto_impl::auto_impl(&, Arc)]
 pub trait OpReceiptBuilder: Debug {
     /// Transaction type.
-    type Transaction: TransactionEnvelope;
+    ///
+    /// `TxType: Send + 'static` is required so that `OpTxResult<H, T>` can satisfy the
+    /// upstream `TxResult` trait bound (`Self: Send + 'static`).
+    type Transaction: TransactionEnvelope<TxType: Send + 'static>;
     /// Receipt type.
     type Receipt;
 

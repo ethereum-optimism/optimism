@@ -143,7 +143,7 @@ where
                 block.header(),
             )
             .map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block post-execution: {err}"))
+                ConsensusError::msg(format!("failed to verify block post-execution: {err}"))
             })?
         }
 

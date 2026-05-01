@@ -30,7 +30,6 @@ func TestDeployScriptsForge(t *testing.T) {
 	require.NoError(t, err)
 
 	superchainProxyAdminOwner := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig))
-	protocolVersionsOwner := shared.AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainIDBig))
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
@@ -73,7 +72,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -89,7 +87,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -134,7 +131,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -150,7 +146,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -194,7 +189,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -210,7 +204,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -267,7 +260,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)

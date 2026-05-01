@@ -9,6 +9,7 @@ import { OPContractsManagerContainer } from "src/L1/opcm/OPContractsManagerConta
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title OPContractsManagerContainer_TestInit
 /// @notice Shared setup for OPContractsManagerContainer tests.
@@ -145,9 +146,14 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     /// @notice Tests that isDevFeatureEnabled returns false when the feature bit is not set.
     /// @param _bitIndex The bit index to test.
     function testFuzz_isDevFeatureEnabled_bitNotSet_succeeds(uint8 _bitIndex) public {
+        bytes32 feature = bytes32(uint256(1) << _bitIndex);
+        // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+        vm.assume(feature != DevFeatures.L2CM);
+        // CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+        vm.assume(feature != DevFeatures.CANNON_KONA);
+
         // Create a bitmap with all bits set except the one we're testing.
         bytes32 bitmap = bytes32(type(uint256).max ^ (uint256(1) << _bitIndex));
-        bytes32 feature = bytes32(uint256(1) << _bitIndex);
 
         OPContractsManagerContainer container = _deploy(bitmap);
 
@@ -157,9 +163,27 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     /// @notice Tests that isDevFeatureEnabled returns false when the bitmap is zero.
     /// @param _feature The feature to check.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
+        // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        // CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+        vm.assume((_feature & DevFeatures.CANNON_KONA) != DevFeatures.CANNON_KONA);
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that isDevFeatureEnabled(L2CM) always returns true regardless of stored bitmap.
+    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
+    function test_isDevFeatureEnabled_l2cmAlwaysEnabled_succeeds() public {
+        OPContractsManagerContainer container = _deploy(bytes32(0));
+        assertTrue(container.isDevFeatureEnabled(DevFeatures.L2CM));
+    }
+
+    /// @notice Tests that isDevFeatureEnabled(CANNON_KONA) always returns true regardless of stored bitmap.
+    /// @dev TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+    function test_isDevFeatureEnabled_cannonKonaAlwaysEnabled_succeeds() public {
+        OPContractsManagerContainer container = _deploy(bytes32(0));
+        assertTrue(container.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
     }
 
     /// @notice Tests that isDevFeatureEnabled returns true for multiple features set at once.

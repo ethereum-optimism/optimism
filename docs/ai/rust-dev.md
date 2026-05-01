@@ -22,6 +22,9 @@ cd rust
 # Build the workspace
 just build
 
+# Build the workspace excluding example crates with the fast-build profile
+just build-no-examples
+
 # Build in release mode
 just build-release
 

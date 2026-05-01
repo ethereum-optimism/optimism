@@ -38,7 +38,8 @@ A `BlockChangeSet` reverse index enables efficient pruning: given a block number
 
 ## Prerequisites
 
-*   op-reth v1.11.4-rc.2 or above, fully synced to chain tip.
+*   op-reth v2.1.0 or above.
+*   An op-reth datadir, either initialized from genesis or restored from a [snapshot](https://datadirs.optimism.io/) (covered in the next two sections).
 *   Basic understanding of [execution client configuration](/node-operators/guides/configuration/execution-clients).
 *   Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time).
 *   NVMe SSD recommended.
@@ -75,13 +76,13 @@ Initialize the core database with the genesis file for your chosen chain (e.g., 
 
 If you prefer to start from a pre-synchronized database snapshot instead of syncing from genesis:
 
-1.  Download and extract the `op-reth` snapshot into your `datadir`.
+1.  Download and extract an `op-reth` snapshot from [datadirs.optimism.io](https://datadirs.optimism.io/) into your `datadir`.
 2.  Skip the `op-reth init` command (step 1 above).
-3.  Proceed to **Initialize Proofs Storage** (step 2 below). The `proofs init` command will initialize the proofs storage based on the state present in the snapshot.
+3.  Proceed to **Initialize Proofs Storage** (step 2 below). The `proofs init` command initializes the proofs database at the snapshot's chain tip — it does not retroactively populate proofs for blocks already in the snapshot.
 
 ### 2. Initialize Proofs Storage
 
-Initialize the separate storage used by the ExEx to store historical proofs.
+Initialize the separate storage used by the ExEx to store historical proofs. This step is **required** before starting the node with `--proofs-history`, even when reusing an existing op-reth datadir or restoring from a snapshot.
 
 ```bash
 ./target/release/op-reth proofs init \
@@ -89,6 +90,10 @@ Initialize the separate storage used by the ExEx to store historical proofs.
   --chain="optimism" \
   --proofs-history.storage-path="/path/to/proofs-db"
 ```
+
+<Info>
+`proofs init` completes in seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization.
+</Info>
 
 ## Running op-reth
 
@@ -100,8 +105,6 @@ Once initialized, you can start the execution client with the `--proofs-history`
   --chain="optimism" \
   --proofs-history \
   --proofs-history.storage-path="/path/to/proofs-db" \
-  --proofs-history.window=956200 \
-  --proofs-history.prune-interval=10s \
   --http \
   --http.port=8545 \
   --http.addr=0.0.0.0 \
@@ -162,32 +165,52 @@ Start the consensus client to drive the execution client. You can use either `op
       --l1-beacon=<BEACON_RPC_URL> \
       --l2-engine-rpc=http://localhost:8551 \
       --l2-engine-jwt-secret=/path/to/jwt-secret.txt \
-      --chain=10
+      --chain=optimism
     ```
   </Tab>
 </Tabs>
 
 ## Verification
 
-After starting both clients, query the sync status of the proofs store:
+After starting both clients, query the sync status of the proofs store via the `debug_proofsSyncStatus` RPC method:
 
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"debug_proofsSyncStatus","params":[],"id":1}' \
+  http://localhost:8545
 ```
-debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
+
+The response has the shape:
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"earliest":<block>,"latest":<block>}}
 ```
 
-Once `latest` tracks the chain tip, `eth_getProof` calls for every block within `[earliest, latest]` will be served from the versioned store.
+Immediately after `proofs init`, both `earliest` and `latest` sit at the chain tip; the window then fills forward as new blocks are committed. `eth_getProof` calls for every block within `[earliest, latest]` will be served from the versioned store. Requests for blocks older than `earliest` will fail or fall back to the default reth implementation.
 
-You can also check the op-reth logs for initialization messages:
+You can also check the op-reth startup logs for messages confirming the proofs-history ExEx is wired up:
 
 ```text
-INFO [..] ExEx initialized ...
+INFO reth::cli: Using on-disk storage for proofs history
+INFO reth::cli: Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)
+INFO reth::cli eth_replaced=true debug_replaced=true: Proofs-history RPC overrides installed
 ```
 
 Ensure `op-node`/`kona-node` and `op-reth` are connected and syncing. `op-reth` should start importing blocks and the proofs storage should begin populating.
 
+## Monitoring
+
+When op-reth is run with the `--metrics=<addr>:<port>` flag, the proofs-history ExEx exposes Prometheus metrics covering proofs-DB sync state (`optimism_trie_block_*`), the background pruner (`optimism_trie_pruner_*`), and `eth_getProof` RPC traffic (`optimism_rpc_eth_api_ext_*`). See the [historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config#metrics) for the full list.
+
 ## Operational Commands
 
-**Manual prune** (if the node fails startup due to a gap > 1000 blocks):
+### Manual prune
+
+Pruning runs automatically in the background on the configured `--proofs-history.prune-interval` (default 15s) and removes data outside the retention window. You should not need to invoke `op-reth proofs prune` under normal operation.
+
+A manual prune is only required in one situation: at startup, if the proofs database contains more than **1000 blocks** of history beyond the configured `--proofs-history.window`, the node refuses to start rather than stalling on a large prune operation. This typically happens after the node has been offline long enough that the configured window has shifted significantly, or after reducing `--proofs-history.window` to a smaller value than was previously in use.
+
+When this happens, op-reth exits with an error indicating the number of blocks to prune. Run the prune command once to bring the database back within the safety threshold, then restart the node:
 
 ```bash
 op-reth proofs prune \
@@ -196,7 +219,9 @@ op-reth proofs prune \
   --proofs-history.window 1296000
 ```
 
-**Unwind** (recover from corruption by reverting to a specific block):
+### Unwind
+
+Recover from corruption by reverting the proofs database to a specific block:
 
 ```bash
 op-reth proofs unwind \
@@ -219,3 +244,8 @@ Benchmarked on Base Sepolia (~700k block window, WETH contract):
 | Throughput | ~5,000 req/s (10 concurrent workers) |
 | Sync overhead | Zero (ExEx processes asynchronously) |
 | Memory | Bounded by window size — no OOM risk |
+
+## Next steps
+
+*   See the [op-reth historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config) for the full set of `--proofs-history.*` flags, management commands, RPC endpoints, and Prometheus metrics.
+*   See the [op-reth configuration reference](/node-operators/reference/op-reth-config) for all standard op-reth flags inherited by this fork.

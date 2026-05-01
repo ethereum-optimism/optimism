@@ -80,7 +80,35 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 
 	t.Run("all against empty", func(t *testing.T) {
-		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES))
+		// Strip L2CM and CannonKona because they are hardcoded enabled regardless of bitmap.
+		// TODO(#20084): remove with the broader L2CMFlag/CannonKonaFlag cleanup.
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(or(L2CMFlag, CannonKonaFlag)))))
+	})
+
+	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+	t.Run("L2CM always enabled regardless of bitmap", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, L2CMFlag))
+		require.True(t, IsDevFeatureEnabled(FEATURE_A, L2CMFlag))
+		require.True(t, IsDevFeatureEnabled(L2CMFlag, L2CMFlag))
+	})
+
+	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+	t.Run("L2CM always enabled when combined with other flags", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, L2CMFlag)))
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, L2CMFlag)))
+	})
+
+	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+	t.Run("CannonKona always enabled regardless of bitmap", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, CannonKonaFlag))
+		require.True(t, IsDevFeatureEnabled(FEATURE_A, CannonKonaFlag))
+		require.True(t, IsDevFeatureEnabled(CannonKonaFlag, CannonKonaFlag))
+	})
+
+	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+	t.Run("CannonKona always enabled when combined with other flags", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, CannonKonaFlag)))
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, CannonKonaFlag)))
 	})
 }
 
@@ -103,6 +131,14 @@ func not(a [32]byte) [32]byte {
 	var out [32]byte
 	for i := 0; i < 32; i++ {
 		out[i] = ^a[i]
+	}
+	return out
+}
+
+func and(a, b [32]byte) [32]byte {
+	var out [32]byte
+	for i := 0; i < 32; i++ {
+		out[i] = a[i] & b[i]
 	}
 	return out
 }

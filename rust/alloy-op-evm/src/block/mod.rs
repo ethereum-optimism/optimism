@@ -10,8 +10,8 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, BlockValidationError, ExecutableTx, GasOutput, OnStateHook,
-        StateChangePostBlockSource, StateChangeSource, StateDB, SystemCaller, TxResult,
+        BlockValidationError, ExecutableTx, GasOutput, OnStateHook, StateChangePostBlockSource,
+        StateChangeSource, StateDB, SystemCaller, TxResult,
         state_changes::{balance_increment_state, post_block_balance_increments},
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
@@ -268,9 +268,16 @@ pub struct OpTxResult<H, T> {
     pub canonical_gas_used: u64,
     /// Canonical post-exec adjustment, if any.
     pub post_exec: Option<PostExecAdjustment>,
+    /// Cached depositor nonce — looked up during execute so commit can be infallible.
+    /// `Some` only for regolith deposit transactions.
+    pub depositor_nonce: Option<u64>,
 }
 
-impl<H, T> TxResult for OpTxResult<H, T> {
+impl<H, T> TxResult for OpTxResult<H, T>
+where
+    H: Send + 'static,
+    T: Send + 'static,
+{
     type HaltReason = H;
 
     fn result(&self) -> &ResultAndState<Self::HaltReason> {
@@ -576,7 +583,7 @@ where
     /// `evm.transact` has already charged the sender and paid fee recipients according to
     /// `evm_gas_used`. Lowering only the receipt's `gas_used` would leave those balance changes
     /// in place. This translates the refunded gas back into the exact per-recipient deltas
-    /// `commit_transaction` then applies before state is committed.
+    /// `execute_transaction_without_commit` then applies before state is committed.
     fn post_exec_settlement_deltas(
         &mut self,
         tx: impl RecoveredTx<R::Transaction>,
@@ -669,6 +676,7 @@ where
     E: PostExecEvm<
             DB: Database + DatabaseCommit + StateDB,
             Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
+            HaltReason: Send + 'static,
         >,
     R: OpReceiptBuilder<
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
@@ -760,6 +768,7 @@ where
                 evm_gas_used: 0,
                 canonical_gas_used: 0,
                 post_exec: None,
+                depositor_nonce: None,
             });
         }
 
@@ -794,7 +803,7 @@ where
         }
 
         // Execute transaction and return the result
-        let result = self.evm.transact(tx_env).map_err(|err| {
+        let mut result = self.evm.transact(tx_env).map_err(|err| {
             let hash = tx.tx().trie_hash();
             BlockExecutionError::evm(err, hash)
         })?;
@@ -826,6 +835,28 @@ where
         )?;
         let post_exec = (post_exec_refund > 0).then_some(deltas);
 
+        // Pre-compute depositor nonce here so `commit_transaction` can be infallible.
+        // Only post-regolith deposit transactions need the depositor account from DB.
+        let sender = *tx.signer();
+        let depositor_nonce = if self.is_regolith && is_deposit {
+            let account = self
+                .evm
+                .db_mut()
+                .basic(sender)
+                .map_err(BlockExecutionError::other)?
+                .unwrap_or_default();
+            Some(account.nonce)
+        } else {
+            None
+        };
+
+        // Canonicalize the result gas and apply any post-exec refund to state in-place. Both
+        // operations must run before commit so commit_transaction stays infallible.
+        Self::canonicalize_result_gas(&mut result.result, post_exec_refund);
+        if let Some(deltas) = post_exec.as_ref() {
+            self.apply_post_exec_refund_to_state(&mut result.state, sender, deltas)?;
+        }
+
         Ok(OpTxResult {
             inner: EthTxResult {
                 result,
@@ -834,31 +865,28 @@ where
             },
             is_deposit,
             is_post_exec: false,
-            sender: *tx.signer(),
+            sender,
             evm_gas_used,
             canonical_gas_used,
             post_exec,
+            depositor_nonce,
         })
     }
 
-    fn commit_transaction(
-        &mut self,
-        output: Self::Result,
-    ) -> Result<GasOutput, BlockExecutionError> {
+    fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
         let tx_index = self.receipts.len() as u64;
         let OpTxResult {
-            inner:
-                EthTxResult { result: ResultAndState { mut result, mut state }, blob_gas_used, tx_type },
+            inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
             is_post_exec,
-            sender,
+            sender: _,
             evm_gas_used: _,
             canonical_gas_used,
             post_exec,
+            depositor_nonce,
         } = output;
 
-        let deltas = post_exec.unwrap_or_default();
-        let post_exec_refund = deltas.refund;
+        let post_exec_refund = post_exec.as_ref().map(|d| d.refund).unwrap_or(0);
 
         if !is_deposit && !is_post_exec && post_exec_refund > 0 {
             if let Some(entries) = self.post_exec.produced_entries_mut() {
@@ -868,21 +896,6 @@ where
         if self.post_exec.is_verifying() && post_exec_refund > 0 {
             self.post_exec.consume_verifier_entry(tx_index);
         }
-
-        // Fetch the depositor account from the database for the deposit nonce.
-        // Note that this *only* needs to be done post-regolith hardfork, as deposit nonces
-        // were not introduced in Bedrock. In addition, regular transactions don't have deposit
-        // nonces, so we don't need to touch the DB for those.
-        let depositor = (self.is_regolith && is_deposit)
-            .then(|| self.evm.db_mut().basic(sender).map(|acc| acc.unwrap_or_default()))
-            .transpose()
-            .map_err(BlockExecutionError::other)?;
-
-        // Canonicalizing the gas in the execution result updates receipt/block gas accounting.
-        // The separate state patch below is still required because the EVM state diff already
-        // contains the EVM-level fee settlement from execution.
-        Self::canonicalize_result_gas(&mut result, post_exec_refund);
-        self.apply_post_exec_refund_to_state(&mut state, sender, &deltas)?;
 
         self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
 
@@ -918,7 +931,7 @@ where
 
                     self.receipt_builder.build_deposit_receipt(OpDepositReceipt {
                         inner: receipt,
-                        deposit_nonce: depositor.map(|account| account.nonce),
+                        deposit_nonce: depositor_nonce,
                         // The deposit receipt version was introduced in Canyon to indicate an
                         // update to how receipt hashes should be computed
                         // when set. The state transition process ensures
@@ -936,7 +949,7 @@ where
 
         self.evm.db_mut().commit(state);
 
-        Ok(GasOutput::new(canonical_gas_used))
+        GasOutput::new(canonical_gas_used)
     }
 
     fn finish(
@@ -1040,9 +1053,9 @@ where
     R: OpReceiptBuilder<
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
             Receipt: TxReceipt,
-        >,
-    Spec: OpHardforks,
-    F: PostExecEvmFactoryHooks,
+        > + 'static,
+    Spec: OpHardforks + 'static,
+    F: PostExecEvmFactoryHooks + 'static,
     F::Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
     Self: 'static,
 {
@@ -1050,6 +1063,15 @@ where
     type ExecutionCtx<'a> = OpBlockExecutionCtx;
     type Transaction = R::Transaction;
     type Receipt = R::Receipt;
+    type TxExecutionResult = OpTxResult<
+        <PostExecEvmFactoryAdapter<F> as EvmFactory>::HaltReason,
+        <R::Transaction as TransactionEnvelope>::TxType,
+    >;
+    type Executor<
+        'a,
+        DB: StateDB,
+        I: Inspector<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Context<DB>>,
+    > = OpBlockExecutor<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Evm<DB, I>, &'a R, &'a Spec>;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.evm_factory
@@ -1059,10 +1081,10 @@ where
         &'a self,
         evm: <PostExecEvmFactoryAdapter<F> as EvmFactory>::Evm<DB, I>,
         ctx: Self::ExecutionCtx<'a>,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
+    ) -> Self::Executor<'a, DB, I>
     where
-        DB: StateDB + 'a,
-        I: Inspector<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Context<DB>> + 'a,
+        DB: StateDB,
+        I: Inspector<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Context<DB>>,
     {
         OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
     }
@@ -1073,8 +1095,8 @@ where
     R: OpReceiptBuilder<
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
             Receipt: TxReceipt,
-        >,
-    Spec: OpHardforks,
+        > + 'static,
+    Spec: OpHardforks + 'static,
     Tx: IntoTxEnv<Tx>
         + Into<OpTransaction<TxEnv>>
         + Default
@@ -1082,13 +1104,20 @@ where
         + core::fmt::Debug
         + FromRecoveredTx<R::Transaction>
         + FromTxWithEncoded<R::Transaction>
-        + OpTxEnv,
+        + OpTxEnv
+        + 'static,
     Self: 'static,
 {
     type EvmFactory = OpEvmFactory<Tx>;
     type ExecutionCtx<'a> = OpBlockExecutionCtx;
     type Transaction = R::Transaction;
     type Receipt = R::Receipt;
+    type TxExecutionResult = OpTxResult<
+        <OpEvmFactory<Tx> as EvmFactory>::HaltReason,
+        <R::Transaction as TransactionEnvelope>::TxType,
+    >;
+    type Executor<'a, DB: StateDB, I: Inspector<<OpEvmFactory<Tx> as EvmFactory>::Context<DB>>> =
+        OpBlockExecutor<<OpEvmFactory<Tx> as EvmFactory>::Evm<DB, I>, &'a R, &'a Spec>;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.evm_factory
@@ -1098,10 +1127,10 @@ where
         &'a self,
         evm: <OpEvmFactory<Tx> as EvmFactory>::Evm<DB, I>,
         ctx: Self::ExecutionCtx<'a>,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
+    ) -> Self::Executor<'a, DB, I>
     where
-        DB: StateDB + 'a,
-        I: Inspector<<OpEvmFactory<Tx> as EvmFactory>::Context<DB>> + 'a,
+        DB: StateDB,
+        I: Inspector<<OpEvmFactory<Tx> as EvmFactory>::Context<DB>>,
     {
         OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
     }

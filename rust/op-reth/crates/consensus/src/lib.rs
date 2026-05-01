@@ -119,7 +119,7 @@ where
         // Check empty shanghai-withdrawals
         if self.chain_spec.is_canyon_active_at_timestamp(block.timestamp()) {
             canyon::ensure_empty_shanghai_withdrawals(block.body()).map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block {}: {err}", block.number()))
+                ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
             })?
         } else {
             return Ok(());
@@ -139,7 +139,7 @@ where
         if self.chain_spec.is_isthmus_active_at_timestamp(block.timestamp()) {
             // storage root of withdrawals pre-deploy is verified post-execution
             isthmus::ensure_withdrawals_storage_root_is_some(block.header()).map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block {}: {err}", block.number()))
+                ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
             })?
         } else {
             // canyon is active, else would have returned already

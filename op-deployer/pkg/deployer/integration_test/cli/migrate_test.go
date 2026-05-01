@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -115,17 +114,14 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	// Deploy superchain contracts first
 	superchainOut, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
-		L1RPCUrl:                   l1RPC,
-		PrivateKey:                 pkHex,
-		ArtifactsLocator:           artifacts.EmbeddedLocator,
-		Logger:                     lgr,
-		SuperchainProxyAdminOwner:  superchainProxyAdminOwner,
-		ProtocolVersionsOwner:      common.Address{'P'},
-		Guardian:                   common.Address{'G'},
-		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
-		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
-		CacheDir:                   testCacheDir,
+		L1RPCUrl:                  l1RPC,
+		PrivateKey:                pkHex,
+		ArtifactsLocator:          artifacts.EmbeddedLocator,
+		Logger:                    lgr,
+		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
+		Guardian:                  common.Address{'G'},
+		Paused:                    false,
+		CacheDir:                  testCacheDir,
 	})
 	require.NoError(t, err, "Failed to deploy superchain contracts")
 
@@ -145,7 +141,6 @@ func TestCLIMigrateV2(t *testing.T) {
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		DevFeatureBitmap:                devFeatureBitmap,
 		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
 		L1ProxyAdminOwner:               superchainProxyAdminOwner,
 		Challenger:                      common.Address{'C'},
@@ -181,7 +176,6 @@ func TestCLIMigrateV2(t *testing.T) {
 	l1ChainIDBig := big.NewInt(int64(l1ChainID))
 	intent.SuperchainRoles.SuperchainProxyAdminOwner = superchainProxyAdminOwner
 	intent.SuperchainRoles.SuperchainGuardian = shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
-	intent.SuperchainRoles.ProtocolVersionsOwner = superchainProxyAdminOwner
 	intent.SuperchainRoles.Challenger = shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
 	for _, chain := range intent.Chains {
@@ -213,8 +207,6 @@ func TestCLIMigrateV2(t *testing.T) {
 		st.SuperchainDeployment = &addresses.SuperchainContracts{
 			SuperchainConfigProxy:    superchainOut.SuperchainConfigProxy,
 			SuperchainConfigImpl:     superchainOut.SuperchainConfigImpl,
-			ProtocolVersionsProxy:    superchainOut.ProtocolVersionsProxy,
-			ProtocolVersionsImpl:     superchainOut.ProtocolVersionsImpl,
 			SuperchainProxyAdminImpl: superchainOut.SuperchainProxyAdmin,
 		}
 	}

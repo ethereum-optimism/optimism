@@ -10,7 +10,7 @@ use alloy_evm::{
     RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, ExecutableTx, GasOutput, OnStateHook, StateDB,
+        ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
@@ -65,10 +65,7 @@ where
         }
     }
 
-    fn commit_transaction(
-        &mut self,
-        output: Self::Result,
-    ) -> Result<GasOutput, BlockExecutionError> {
+    fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
         self.inner.commit_transaction(output)
     }
 
@@ -103,6 +100,10 @@ impl BlockExecutorFactory for CustomEvmConfig {
     type ExecutionCtx<'a> = CustomBlockExecutionCtx;
     type Transaction = CustomTransaction;
     type Receipt = OpReceipt;
+    type TxExecutionResult =
+        OpTxResult<<CustomEvmFactory as alloy_evm::EvmFactory>::HaltReason, OpTxType>;
+    type Executor<'a, DB: StateDB, I: Inspector<OpEvmContext<DB>>> =
+        CustomBlockExecutor<CustomEvm<DB, I, PrecompilesMap>>;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.custom_evm_factory
@@ -112,10 +113,10 @@ impl BlockExecutorFactory for CustomEvmConfig {
         &'a self,
         evm: CustomEvm<DB, I, PrecompilesMap>,
         ctx: CustomBlockExecutionCtx,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
+    ) -> Self::Executor<'a, DB, I>
     where
-        DB: StateDB + 'a,
-        I: Inspector<OpEvmContext<DB>> + 'a,
+        DB: StateDB,
+        I: Inspector<OpEvmContext<DB>>,
     {
         CustomBlockExecutor {
             inner: OpBlockExecutor::new(

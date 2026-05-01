@@ -12,7 +12,6 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 		roles := SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			SuperchainGuardian:        common.HexToAddress("0x2222222222222222222222222222222222222222"),
-			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
 			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 
@@ -23,7 +22,6 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 	t.Run("detects zero address", func(t *testing.T) {
 		roles := SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
-			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
 			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 
@@ -37,11 +35,9 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 	t.Run("error for non-address fields", func(t *testing.T) {
 		roles := struct {
 			SuperchainProxyAdminOwner common.Address
-			ProtocolVersionsOwner     common.Address
 			chainId                   uint64
 		}{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
-			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
 			chainId:                   1,
 		}
 
@@ -55,7 +51,6 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 		roles := SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			SuperchainGuardian:        common.HexToAddress("0x2222222222222222222222222222222222222222"),
-			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
 			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 

@@ -893,7 +893,7 @@ func (e *EngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Blo
 
 // tryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
 func (e *EngineController) tryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-	if concluding && ref.Number > e.localSafeHead.Number {
+	if concluding && eth.L2BlockRefAdvances(e.localSafeHead, ref) {
 		// Promote to local safe
 		e.log.Debug("Updating local safe", "local_safe", ref, "safe", e.SafeL2Head(), "unsafe", e.unsafeHead)
 		e.SetLocalSafeHead(ref)
@@ -1239,7 +1239,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
 		// Inject external cross-safe. Must happen before promoteFinalized
 		// (which rejects finalized > SafeL2Head).
-		if eSafeBlockRef.Number > e.deprecatedSafeHead.Number {
+		if eth.L2BlockRefAdvances(e.deprecatedSafeHead, eSafeBlockRef) {
 			e.PromoteSafe(e.ctx, eSafeBlockRef, eth.L1BlockRef{})
 		}
 		// Directly update the Engine Controller state, bypassing finalizer

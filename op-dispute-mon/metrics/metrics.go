@@ -197,6 +197,8 @@ type Metricer interface {
 
 	RecordOldestGameUpdateTime(t time.Time)
 
+	RecordGameTypes(gameTypeCounts map[string]int)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 	opmetrics.RPCMetricer
@@ -249,6 +251,7 @@ type Metrics struct {
 	mixedAvailabilityGames     prometheus.Gauge
 	mixedSafetyGames           prometheus.Gauge
 	differentRootGames         prometheus.Gauge
+	gameTypes                  prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -445,6 +448,13 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "different_root_games",
 			Help:      "Number of games where nodes returned different roots (output roots for FaultDisputeGame, super roots for SuperFaultDisputeGame) in the last update cycle",
+		}),
+		gameTypes: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "games",
+			Help:      "Number of games in the monitoring window broken down by game type",
+		}, []string{
+			"game_type",
 		}),
 	}
 }
@@ -674,6 +684,12 @@ func labelValuesFor(status GameAgreementStatus) []string {
 
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
+	}
+}
+
+func (m *Metrics) RecordGameTypes(gameTypeCounts map[string]int) {
+	for gameType, count := range gameTypeCounts {
+		m.gameTypes.WithLabelValues(gameType).Set(float64(count))
 	}
 }
 

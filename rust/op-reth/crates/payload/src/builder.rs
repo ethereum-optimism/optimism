@@ -3,18 +3,17 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
-use alloy_consensus::{BlockHeader, Transaction, Typed2718, transaction::Recovered};
+use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_evm::Evm as AlloyEvm;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
-use op_alloy_consensus::SDMGasEntry;
+use op_alloy_consensus::{SDMGasEntry, TxPostExec, build_post_exec_tx};
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     ConfigureEvm, Database,
-    block::BlockExecutorFor,
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
@@ -22,9 +21,7 @@ use reth_evm::{
 use reth_execution_types::BlockExecutionOutput;
 use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{
-    BuildPostExecTransaction, L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction,
-};
+use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
     OpPooledTx,
     estimated_da_size::DataAvailabilitySized,
@@ -48,9 +45,10 @@ use tracing::{debug, trace, warn};
 
 fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
 where
-    Tx: BuildPostExecTransaction,
+    Tx: From<Sealed<TxPostExec>>,
 {
-    Tx::build_recovered_post_exec(block_number, entries)
+    let sealed = build_post_exec_tx(block_number, entries).seal_slow();
+    Recovered::new_unchecked(Tx::from(sealed), Address::ZERO)
 }
 
 /// Wraps refund entries in a post-exec transaction and executes it via `execute`.
@@ -70,7 +68,7 @@ fn try_include_post_exec_tx<Tx, Err>(
     execute: impl FnOnce(Recovered<Tx>) -> Result<u64, Err>,
 ) -> Result<bool, PayloadBuilderError>
 where
-    Tx: BuildPostExecTransaction,
+    Tx: From<Sealed<TxPostExec>>,
     Err: core::error::Error + Send + Sync + 'static,
 {
     if entries.is_empty() {
@@ -201,7 +199,7 @@ where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks>,
     N: OpPayloadPrimitives,
-    N::SignedTx: BuildPostExecTransaction,
+    N::SignedTx: From<Sealed<TxPostExec>>,
     Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Client::ChainSpec>,
@@ -284,7 +282,7 @@ impl<Pool, Client, Evm, N, Txs> PayloadBuilder
     for OpPayloadBuilder<Pool, Client, Evm, Txs, OpPayloadBuilderAttributes<N::SignedTx>>
 where
     N: OpPayloadPrimitives,
-    N::SignedTx: BuildPostExecTransaction,
+    N::SignedTx: From<Sealed<TxPostExec>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Evm: ConfigurePostExecEvm<
@@ -416,7 +414,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
-        N::SignedTx: BuildPostExecTransaction,
+        N::SignedTx: From<Sealed<TxPostExec>>,
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
@@ -459,7 +457,9 @@ impl<Txs> OpBuilder<'_, Txs> {
         if ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
-            try_include_post_exec_tx(block_number, entries, |tx| builder.execute_transaction(tx))?;
+            try_include_post_exec_tx(block_number, entries, |tx| {
+                builder.execute_transaction(tx).map(|g| g.tx_gas_used())
+            })?;
         }
 
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
@@ -508,7 +508,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
-        N::SignedTx: BuildPostExecTransaction,
+        N::SignedTx: From<Sealed<TxPostExec>>,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
@@ -698,11 +698,7 @@ where
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = Evm::Primitives,
-            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>
-                          + PostExecExecutorExt,
-        > + 'a,
+        impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
@@ -763,7 +759,7 @@ where
             };
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
-            info.cumulative_gas_used += gas_used;
+            info.cumulative_gas_used += gas_used.tx_gas_used();
         }
 
         Ok(info)
@@ -867,14 +863,15 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the
             // receipt
-            info.cumulative_gas_used += gas_used;
+            let tx_gas_used = gas_used.tx_gas_used();
+            info.cumulative_gas_used += tx_gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
 
             // update and add to total fees
             let miner_fee = tx
                 .effective_tip_per_gas(base_fee)
                 .expect("fee is always valid; execution succeeded");
-            info.total_fees += U256::from(miner_fee) * U256::from(gas_used);
+            info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
         }
 
         Ok(None)
