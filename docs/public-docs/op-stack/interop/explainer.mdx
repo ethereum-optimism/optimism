@@ -53,7 +53,7 @@ graph LR
 
 A node participating in interop indexes the log events of every chain in its dependency set, because any of those events can serve as an initiating message. The node also reads from L1's consensus layer to determine the safety of L2 blocks.
 
-The cross-chain verification work is built into the rollup node itself, so there is no separate "supervisor" service to run alongside it. Verifying initiating messages on other chains does mean the node operator needs a way to follow each chain in the dependency set — typically by running rollup nodes for those chains as well.
+The cross-chain verification work is built into the rollup node itself. Verifying initiating messages on other chains does mean the node operator needs a way to follow each chain in the dependency set — typically by running rollup nodes for those chains as well.
 
 ## How messages get from one chain to the other
 
@@ -84,7 +84,7 @@ Each executing message [identifies the initiating message uniquely](https://gith
 
 `CrossL2Inbox` itself never reads other chains' state. It just verifies that the executing transaction has *pre-declared* every cross-chain message it intends to use, so that the destination chain's node can check those declarations against its index of source-chain logs *before* the transaction is allowed into a block.
 
-The declarations live in the transaction's [EIP-2930 access list](https://eips.ethereum.org/EIPS/eip-2930), targeting the `CrossL2Inbox` predeploy address. For each executing message, the [interop access-list spec](https://specs.optimism.io/interop/predeploys.html#access-list) defines up to three [typed storage-key entries](https://github.com/ethereum-optimism/optimism/blob/develop/op-supervisor/supervisor/types/types.go#L584-L588):
+The declarations live in the transaction's [EIP-2930 access list](https://eips.ethereum.org/EIPS/eip-2930), targeting the `CrossL2Inbox` predeploy address. For each executing message, the [interop access-list spec](https://specs.optimism.io/interop/predeploys.html#access-list) defines up to three typed storage-key entries:
 
 1.  A **lookup-identity** entry that packs the source chain ID, block number, log timestamp, and log index. This is the hint the node uses to find the referenced log in its index.
 2.  An optional **chain-ID extension** entry, only present when the source chain ID does not fit in 64 bits.
