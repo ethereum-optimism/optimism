@@ -161,7 +161,9 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	require.Equal(t, uint64(170), out.CurrentSafeTimestamp)
 	require.Equal(t, uint64(180), out.CurrentLocalSafeTimestamp)
 	require.Equal(t, uint64(140), out.CurrentFinalizedTimestamp)
-	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
+	// VerifiedRequiredL1 is the MAX of per-chain required L1s — the L1 block
+	// that includes data for every chain.
+	require.Equal(t, uint64(1100), out.Data.VerifiedRequiredL1.Number)
 	// With zero outputs, the superroot will be deterministic, just ensure it's set
 	_ = out.Data.SuperRoot
 }

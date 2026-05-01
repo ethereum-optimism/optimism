@@ -53,9 +53,9 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 	}
 
 	var (
-		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
-		minVerifiedRequiredL1 eth.BlockID
-		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+		optimistic         = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		verifiedRequiredL1 eth.BlockID
+		chainOutputs       = make([]eth.ChainIDAndOutput, 0, len(s.chains))
 	)
 
 	notFound := false
@@ -70,9 +70,10 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
 		}
-		// Verified data is available: update min required L1 and collect the output root
-		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
-			minVerifiedRequiredL1 = verifiedL1
+		// Verified data is available: track the L1 block that includes the data
+		// for every chain — i.e. the MAX of per-chain minimum-required L1s.
+		if verifiedL1.Number > verifiedRequiredL1.Number {
+			verifiedRequiredL1 = verifiedL1
 		}
 		// Compute output root at or before timestamp using the verified L2 block number
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
@@ -121,7 +122,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
 		superRoot := eth.SuperRoot(superV1)
 		response.Data = &eth.SuperRootResponseData{
-			VerifiedRequiredL1: minVerifiedRequiredL1,
+			VerifiedRequiredL1: verifiedRequiredL1,
 			Super:              superV1,
 			SuperRoot:          superRoot,
 		}

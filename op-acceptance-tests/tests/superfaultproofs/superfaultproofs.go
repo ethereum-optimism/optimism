@@ -159,10 +159,6 @@ type transitionTest struct {
 	L1Head             eth.BlockID
 	ClaimTimestamp     uint64
 	ExpectValid        bool
-	// SkipChallenger, if true, runs only the FPP half of this subtest. Used
-	// to work around known op-challenger / op-supernode bugs while still
-	// exercising the FPP path. Each use must reference the tracking issue.
-	SkipChallenger bool
 }
 
 // orderedChains returns the two interop chains sorted by chain ID.
@@ -590,18 +586,9 @@ func buildAfterChainHeadTests(
 	// l1HeadCurrent, so by idx 2*sPT-1 the cascade rule says "always Invalid".
 	test3Agreed := marshalTransition(end, consolidateStep, firstOptNext, secondOptNext)
 	test3Disputed := endNext.Marshal()
-	test3SkipChallenger := false
 	if anyExpects {
 		test3Agreed = interop.InvalidTransition
 		test3Disputed = interop.InvalidTransition
-		// op-supernode bug ethereum-optimism/optimism#20481: at idx 2*sPT-1
-		// (step=0 at boundary) the trace provider's VerifiedRequiredL1 check
-		// uses MIN of per-chain verified L1s instead of MAX, so the boundary
-		// super root looks "verified" at l1HeadCurrent when it isn't. The
-		// challenger then returns SuperRoot(boundary) instead of cascading,
-		// disagreeing with the FPP. Skip the challenger half of this subtest
-		// until the supernode is fixed.
-		test3SkipChallenger = true
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeTimestampAfterChainHeadConsolidate",
@@ -611,7 +598,6 @@ func buildAfterChainHeadTests(
 		ClaimTimestamp:     claimTimestamp,
 		DisputedTraceIndex: 2*stepsPerTimestamp - 1,
 		ExpectValid:        true,
-		SkipChallenger:     test3SkipChallenger,
 	})
 
 	// Test 4 — chain A's optimistic step at boundary+1.
@@ -620,14 +606,8 @@ func buildAfterChainHeadTests(
 	// expects a block at boundary+1 but its LocalSafe is at endTimestamp.
 	// In varied: cascade — agreed and disputed both InvalidTransition.
 	test4Agreed := endNext.Marshal()
-	test4SkipChallenger := false
 	if anyExpects {
 		test4Agreed = interop.InvalidTransition
-		// Same op-supernode bug ethereum-optimism/optimism#20481: agreed at
-		// idx 2*sPT-1 is SuperRoot(boundary) from the buggy challenger when
-		// the cascade rule says it should be InvalidTransition. Skip the
-		// challenger half until the supernode is fixed.
-		test4SkipChallenger = true
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeBlockAfterChainHead-FirstChain",
@@ -637,7 +617,6 @@ func buildAfterChainHeadTests(
 		ClaimTimestamp:     claimTimestamp,
 		DisputedTraceIndex: 2 * stepsPerTimestamp,
 		ExpectValid:        true,
-		SkipChallenger:     test4SkipChallenger,
 	})
 
 	// Tests 5 & 6 — far past chain head. Cascade.
@@ -946,9 +925,6 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
 				test.ClaimTimestamp, test.ExpectValid)
 		})
-		if test.SkipChallenger {
-			continue
-		}
 		t.Run(test.Name+"-challenger", func(t devtest.T) {
 			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
 		})
