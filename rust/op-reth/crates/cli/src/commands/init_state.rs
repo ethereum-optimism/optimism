@@ -12,7 +12,8 @@ use reth_optimism_primitives::{
 };
 use reth_primitives_traits::{SealedHeader, header::HeaderMut};
 use reth_provider::{
-    BlockNumReader, DatabaseProviderFactory, StaticFileProviderFactory, StaticFileWriter,
+    BlockNumReader, DBProvider, DatabaseProviderFactory, StaticFileProviderFactory,
+    StaticFileWriter,
 };
 use std::{io::BufReader, sync::Arc};
 use tracing::info;
@@ -94,6 +95,11 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
                 "Data directory should be empty when calling init-state with --without-ovm."
             ));
         }
+
+        // Commit the RW provider before `init_from_state_dump`: that call opens its own
+        // RW transaction via `provider_factory`, and MDBX permits only one writer at a time —
+        // holding `provider_rw` here would deadlock the inner txn.
+        provider_rw.commit()?;
 
         info!(target: "reth::cli", "Initiating state dump");
 
