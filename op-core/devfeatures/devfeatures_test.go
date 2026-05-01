@@ -80,8 +80,9 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 
 	t.Run("all against empty", func(t *testing.T) {
-		// Strip L2CM because it is hardcoded enabled regardless of bitmap. TODO(#20084): remove with the broader L2CMFlag cleanup.
-		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(L2CMFlag))))
+		// Strip L2CM and CannonKona because they are hardcoded enabled regardless of bitmap.
+		// TODO(#20084): remove with the broader L2CMFlag/CannonKonaFlag cleanup.
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(or(L2CMFlag, CannonKonaFlag)))))
 	})
 
 	// L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
@@ -95,6 +96,19 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	t.Run("L2CM always enabled when combined with other flags", func(t *testing.T) {
 		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, L2CMFlag)))
 		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, L2CMFlag)))
+	})
+
+	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+	t.Run("CannonKona always enabled regardless of bitmap", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, CannonKonaFlag))
+		require.True(t, IsDevFeatureEnabled(FEATURE_A, CannonKonaFlag))
+		require.True(t, IsDevFeatureEnabled(CannonKonaFlag, CannonKonaFlag))
+	})
+
+	// CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+	t.Run("CannonKona always enabled when combined with other flags", func(t *testing.T) {
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, CannonKonaFlag)))
+		require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, CannonKonaFlag)))
 	})
 }
 
