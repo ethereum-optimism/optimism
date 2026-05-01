@@ -533,28 +533,49 @@ func buildAfterChainHeadTests(
 		ExpectValid:        true,
 	})
 
-	// Test 2: Second chain's optimistic block step at boundaryTimestamp.
-	// Uses l1HeadAdvanced which supports boundaryTimestamp's data.
-	tests = append(tests, &transitionTest{
-		Name:               "DisputeTimestampAfterChainHeadChainB",
-		AgreedClaim:        marshalTransition(end, 1, firstOptimisticBoundary),
-		DisputedClaim:      marshalTransition(end, 2, firstOptimisticBoundary, secondOptimisticBoundary),
-		L1Head:             l1HeadAdvanced,
-		ClaimTimestamp:     claimTimestamp,
-		DisputedTraceIndex: consolidateStep + 2,
-		ExpectValid:        true,
-	})
+	// Tests 2 and 3 anchor on boundaryTimestamp using l1HeadCurrent — meaningful
+	// only when the chains share a block time (so neither chain has a new block at
+	// the odd boundary and OptX@boundary == OptX@end). With varied block times the
+	// faster chain has a new block at the boundary, which would put the trace
+	// provider on the regular derivation path rather than the after-chain-head
+	// invariant we want to exercise.
+	if chains[0].Cfg.BlockTime == chains[1].Cfg.BlockTime {
+		// Test 2: Second chain's optimistic block step at boundaryTimestamp.
+		agreedChainB := marshalTransition(end, 1, firstOptimisticBoundary)
+		if firstNotDerivable {
+			agreedChainB = super.InvalidTransition
+		}
+		disputedChainB := marshalTransition(end, 2, firstOptimisticBoundary, secondOptimisticBoundary)
+		if anyNotDerivable {
+			disputedChainB = super.InvalidTransition
+		}
+		tests = append(tests, &transitionTest{
+			Name:               "DisputeTimestampAfterChainHeadChainB",
+			AgreedClaim:        agreedChainB,
+			DisputedClaim:      disputedChainB,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     claimTimestamp,
+			DisputedTraceIndex: consolidateStep + 2,
+			ExpectValid:        true,
+		})
 
-	// Test 3: Consolidation step at boundaryTimestamp.
-	tests = append(tests, &transitionTest{
-		Name:               "DisputeTimestampAfterChainHeadConsolidate",
-		AgreedClaim:        marshalTransition(end, consolidateStep, firstOptimisticBoundary, secondOptimisticBoundary),
-		DisputedClaim:      endBoundary.Marshal(),
-		L1Head:             l1HeadAdvanced,
-		ClaimTimestamp:     claimTimestamp,
-		DisputedTraceIndex: 2*stepsPerTimestamp - 1,
-		ExpectValid:        true,
-	})
+		// Test 3: Consolidation step at boundaryTimestamp.
+		agreedConsolidate := marshalTransition(end, consolidateStep, firstOptimisticBoundary, secondOptimisticBoundary)
+		disputedConsolidate := endBoundary.Marshal()
+		if anyNotDerivable {
+			agreedConsolidate = super.InvalidTransition
+			disputedConsolidate = super.InvalidTransition
+		}
+		tests = append(tests, &transitionTest{
+			Name:               "DisputeTimestampAfterChainHeadConsolidate",
+			AgreedClaim:        agreedConsolidate,
+			DisputedClaim:      disputedConsolidate,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     claimTimestamp,
+			DisputedTraceIndex: 2*stepsPerTimestamp - 1,
+			ExpectValid:        true,
+		})
+	}
 
 	// Test 4: First chain's optimistic block step two timestamps ahead.
 	// When boundaryTimestamp isn't verified with l1HeadCurrent, InvalidTransition cascades.
