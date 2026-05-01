@@ -49,6 +49,30 @@ func TestInteropETHLiquidityFundingTx(t *testing.T) {
 	require.Equal(t, expected.SourceHash(), dep.SourceHash())
 }
 
+func TestInteropActivationUpgradeTransactions(t *testing.T) {
+	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+	require.NoError(t, err)
+
+	singleChainTxs, singleChainGas, err := InteropActivationUpgradeTransactions(false)
+	require.NoError(t, err)
+	require.Equal(t, bundleTxs, singleChainTxs)
+	require.Equal(t, bundleGas, singleChainGas)
+
+	multiChainTxs, multiChainGas, err := InteropActivationUpgradeTransactions(true)
+	require.NoError(t, err)
+	require.Len(t, multiChainTxs, len(bundleTxs)+2)
+	require.Equal(t, bundleTxs, multiChainTxs[1:len(multiChainTxs)-1])
+	require.Equal(t, interopSetFeatureGas+bundleGas+interopETHLiquidityFundGas, multiChainGas)
+
+	setFeatureTx, err := interopSetFeatureTx()
+	require.NoError(t, err)
+	require.Equal(t, setFeatureTx, multiChainTxs[0])
+
+	fundingTx, err := interopETHLiquidityFundingTx()
+	require.NoError(t, err)
+	require.Equal(t, fundingTx, multiChainTxs[len(multiChainTxs)-1])
+}
+
 func TestUpgradeTransactionsInterop(t *testing.T) {
 	txs, gas, err := UpgradeTransactions(forks.Interop)
 	require.NoError(t, err)
