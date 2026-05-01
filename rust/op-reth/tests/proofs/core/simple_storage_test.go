@@ -22,6 +22,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
 	// fetch and verify initial proof (should be zeroed storage)
 	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, bigs.Uint64Strict(receipt.BlockNumber))
 
@@ -50,6 +51,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	t.Logf("reset setValue transaction included in L2 block %d", callRes.BlockNumber)
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(callRes.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), bigs.Uint64Strict(callRes.BlockNumber))
 	// for each case, get proof and verify
 	for _, c := range cases {
 		utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0")}, c.Block)
@@ -71,6 +73,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contract.Address().Hex(), bigs.Uint64Strict(receipt.BlockNumber))
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
 	// fetch and verify initial proof (should be zeroed storage)
 	utils.FetchAndVerifyProofs(t, sys, contract.Address(), []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, bigs.Uint64Strict(receipt.BlockNumber))
 
@@ -108,6 +111,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	t.Logf("reset setValues transaction included in L2 block %d", callRes.BlockNumber)
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(callRes.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), bigs.Uint64Strict(callRes.BlockNumber))
 	// for each case, get proof and verify
 	for _, c := range cases {
 		var slots []common.Hash
@@ -152,6 +156,7 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	t.Logf("deactivateAllowance included in block %d", deactBlock)
 
 	sys.L2ELValidatorNode().WaitForBlockNumber(deactBlock)
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), deactBlock)
 
 	// balance slot for user
 	balanceSlot := contract.GetBalanceSlot(userAddr)
