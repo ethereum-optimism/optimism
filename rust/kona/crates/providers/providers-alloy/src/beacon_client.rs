@@ -362,6 +362,7 @@ mod tests {
     /// and the pipeline to issue a reset rather than retrying indefinitely.
     #[tokio::test]
     async fn test_filtered_beacon_blobs_404_returns_slot_not_found() {
+        assert!(false,"test-failure-temp");
         let slot = 13779552u64; // slot from the real-world missed-slot incident
         let test_blob_hash: FixedBytes<32> = FixedBytes::from_hex(TEST_BLOB_HASH_HEX).unwrap();
         let requested_blob_hashes: Vec<B256> = vec![test_blob_hash];
