@@ -1083,9 +1083,27 @@ workflows:
       # -----------------------------------------------------------------------
       - required-rust-ci:
           requires:
-            - rust-tests: terminal
+            - rust-fmt: terminal
             - rust-clippy: terminal
+            - rust-deny: terminal
+            - rust-typos: terminal
+            - rust-zepter: terminal
+            - rust-tests: terminal
+            - rust-doctest: terminal
             - rust-docs: terminal
+            - rust-udeps: terminal
+            - rust-cargo-hack: terminal
+            - rust-build: terminal
+            - rust-build-release: terminal
+            - rust-check-no-std: terminal
+            - rust-wasm-unknown: terminal
+            - rust-wasm-wasi: terminal
+            - op-reth-compact-codec: terminal
+            - op-reth-integration-tests: terminal
+            - kona-lint-cannon: terminal
+            - kona-build-fpvm-cannon-client: terminal
+            - kona-coverage: terminal
+            - kona-host-client-offline-cannon: terminal
           context:
             - circleci-api-token
   # =====================================
