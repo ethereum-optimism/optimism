@@ -37,7 +37,7 @@ use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::sync::Arc;
 use tokio::task;
-use tracing::{Instrument, debug, info, info_span, warn};
+use tracing::{Instrument, debug, info, info_span};
 
 /// Parses the binary framing of a [`HintType::L2PayloadWitness`] hint.
 ///
@@ -668,25 +668,16 @@ impl HintHandler for InteropHintHandler {
                 );
             }
             HintType::L2PayloadWitness => {
-                // 1. Check feature flag
-                if !cfg.enable_experimental_witness_endpoint {
-                    warn!(
-                        target: "interop_hint_handler",
-                        "L2PayloadWitness hint was sent, but payload witness is disabled. Skipping hint."
-                    );
-                    return Ok(());
-                }
-
-                // 2. Parse hint data
+                // 1. Parse hint data
                 let (parent_block_hash, payload_attributes_bytes, chain_id) =
                     parse_l2_payload_witness_hint(&hint.data)?;
                 let payload_attributes: OpPayloadAttributes =
                     serde_json::from_slice(payload_attributes_bytes)?;
 
-                // 3. Route to correct L2 provider
+                // 2. Route to correct L2 provider
                 let l2_provider = providers.l2(&chain_id)?;
 
-                // 4. Call debug_executePayload RPC
+                // 3. Call debug_executePayload RPC
                 let execute_payload_response = match l2_provider
                     .client()
                     .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
@@ -708,7 +699,7 @@ impl HintHandler for InteropHintHandler {
                     }
                 };
 
-                // 5. Store preimages in KV store
+                // 4. Store preimages in KV store
                 let preimages = execute_payload_response
                     .state
                     .into_iter()
