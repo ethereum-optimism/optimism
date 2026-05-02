@@ -391,6 +391,12 @@ func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
 	if err := CheckCannonKonaBaseFlags(ctx, gameTypes.CannonKonaGameType); err != nil {
 		return err
 	}
+	if !ctx.IsSet(CannonKonaServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonKonaServerFlag.Name)
+	}
+	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && !ctx.IsSet(CannonKonaPreStateFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonKonaGameType), CannonKonaPreStateFlag.Name)
+	}
 	return nil
 }
 
