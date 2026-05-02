@@ -243,7 +243,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) {
 		if c.SuperRPC == "" {
 			return ErrMissingSuperRpc
 		}
@@ -263,7 +263,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
 		if c.SuperRPC == "" {
 			return ErrMissingSuperRpc
 		}
