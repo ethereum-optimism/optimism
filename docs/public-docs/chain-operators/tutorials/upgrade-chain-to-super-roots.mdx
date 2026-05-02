@@ -10,11 +10,25 @@ This runbook walks you through upgrading a single OP Stack chain from output-roo
 
 By the end you will have a chain proposing super-root claims via `op-proposer` against an `op-supernode`, defending them via `op-challenger`, monitored by `op-dispute-mon`, and rejecting creation of new pre-migration games at the factory. Every pre-migration dispute game already in flight continues to resolve, and proven withdrawals are not invalidated.
 
-> **Important:** This is `opcm.upgrade`, not `opcm.migrate`. The chain keeps its own per-chain `AnchorStateRegistry` and `DisputeGameFactory`. Migration to shared interop contracts is a separate procedure.
+> **Important:** This is `opcm.upgrade`, not `opcm.migrate` — the chain keeps its own per-chain `AnchorStateRegistry` and `DisputeGameFactory`.
+
+> Looking to switch from permissioned to permissionless fault proofs? See [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless). This runbook is for chains already running fault proofs that need to move from output-root games to super-root games.
 
 ## Before You Begin
 
-You should be familiar with running `superchain-ops` upgrade tasks, signing through the standard signing workflow, and operating `op-proposer`, `op-challenger`, and `op-dispute-mon`.
+You should be familiar with running `superchain-ops` upgrade tasks, signing through the standard signing workflow, and operating `op-proposer`, `op-challenger`, and `op-dispute-mon`. See [Upgrade using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) for the signing workflow.
+
+### Required tooling
+
+The versions below are the ones the optimism repo's `mise.toml` pins; older versions of `cast` in particular may not parse the function-selector syntax used in this runbook.
+
+| Tool | Minimum version |
+| --- | --- |
+| `foundry` (`cast`, `forge`) | `1.2.3` |
+| `just` | `1.46.0` |
+| `jq` | `1.7.1` |
+| `go` | `1.24.13` |
+| `curl` | any |
 
 ### Gather the Required Inputs
 
@@ -30,7 +44,6 @@ Collect everything below before you start.
 | `AnchorStateRegistry` proxy (referred to below as `<ASR>`) | `cast call <OptimismPortal2> 'anchorStateRegistry()(address)' --rpc-url $L1_RPC` |
 | `DisputeGameFactory` proxy (referred to below as `<DGF>`) | `cast call <OptimismPortal2> 'disputeGameFactory()(address)' --rpc-url $L1_RPC` |
 | `SuperchainConfig` proxy | `cast call <OptimismPortal2> 'superchainConfig()(address)' --rpc-url $L1_RPC` |
-| `SuperchainConfigProxyAdmin` | EIP-1967 admin slot of the `SuperchainConfig` proxy: `cast storage <SuperchainConfig> 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103 --rpc-url $L1_RPC` |
 | Guardian Safe (rollback only) | `cast call <SuperchainConfig> 'guardian()(address)' --rpc-url $L1_RPC` |
 
 **Chain type.** The upgrade preserves the chain's existing permission model. Determine which it is by reading the current respected game type:
@@ -84,8 +97,9 @@ Update the running `op-challenger` for the chain. Keep `--rollup-rpc` and the ex
 | Add | `--supernode-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `op-supernode` RPC URL |
 | Append to | `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | Permissionless: append `super-cannon-kona,super-permissioned`. Permissioned: append `super-permissioned`. |
 | Confirm set | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | The prestate-server URL you validated in the preconditions |
+| Confirm set | `--cannon-kona-network` (`OP_CHALLENGER_CANNON_KONA_NETWORK`) or `--cannon-kona-depset-config` (`OP_CHALLENGER_CANNON_KONA_DEPSET_CONFIG`) | One must be set so kona can resolve the depset for super-root games. Permissioned-only chains that have never run cannon-kona must add this for the first time. |
 
-After the restart, confirm the startup log lists every configured trace type as registered (including the newly added super types), and that there are no connection errors against the supernode RPC.
+Confirm the startup log lists every configured trace type as registered (including the newly added super types), and that there are no connection errors against the supernode RPC.
 
 ### Update op-dispute-mon
 
@@ -108,12 +122,12 @@ The upgrade must re-initialise `<ASR>` with a super-root-shaped starting anchor.
 Compute the value from the supernode using `superroot_atTimestamp`. Pick the supernode's current finalized timestamp (or any recent finalized timestamp), then ask the supernode for the super root at that timestamp:
 
 ```bash
+# .finalized_timestamp is a JSON number (decimal unix seconds).
 TS=$(cast rpc supernode_syncStatus --rpc-url $SUPERNODE_RPC | jq -r '.finalized_timestamp')
+# superroot_atTimestamp expects a hex-encoded JSON string (hexutil.Uint64); cast 2h handles the conversion.
 cast rpc superroot_atTimestamp "$(cast 2h $TS)" --rpc-url $SUPERNODE_RPC | jq -r '.data.super_root'
 echo "timestamp=$TS"
 ```
-
-The `superroot_atTimestamp` parameter is a `hexutil.Uint64`, so it must be passed as a hex-encoded JSON string (e.g. `"0x68000000"`).
 
 Capture two values:
 
@@ -150,25 +164,23 @@ startingAnchorRoot = { root = "0x<super root hash>", l2SequenceNumber = <timesta
 OPCM = "0x<OPCM v7.1.17 address>"
 ```
 
-The template derives everything else from on-chain state and the `SuperchainAddressRegistry`:
-
-* `disputeGameConfigs` is built per-chain in `_buildGameConfigs`, with each game's `enabled` flag inferred from the corresponding pre-migration game's `gameImpls(...)` and proposer/challenger pulled from the registry's `Proposer` / `Challenger` entries.
-* `SuperchainConfig`, `SuperchainConfigProxyAdmin`, and the `StandardValidator` are resolved from the registry and from `OPCM.opcmStandardValidator()`.
+The template derives everything else (per-game-type config, `SuperchainConfig`, validator, etc.) automatically — no further TOML required.
 
 ### Capture expectedValidationErrors
 
-Run the task in simulation mode against an L1 fork:
+Run the task in simulation mode against an L1 fork from inside the task directory:
 
 ```bash
-just simulate <task-path>
+cd superchain-ops/src/tasks/<network>/<NNN-name>
+just simulate
 ```
 
-The template invokes `OPCM.opcmStandardValidator().validate(...)` (or `validateWithOverrides(...)` when the chain's `ProxyAdminOwner` or `Challenger` differs from the standard) with `_allowFailure = true`, and prints the resulting comma-separated error string when it does not match `expectedValidationErrors` in TOML. The default expectation is **no errors** — `expectedValidationErrors = ""` and a clean simulation.
+If the validator's output does not match `expectedValidationErrors` in TOML, the simulation reverts with a message of the form `Unexpected errors: <actual>; expected: <expectedValidationErrors>`. Read the actual codes from that revert message. The default expectation is **no errors** — `expectedValidationErrors = ""` and a clean simulation.
 
 Any non-empty error string must be reviewed code by code, not copy-pasted. For each code:
 
 * **Resolve it** if it points at a fixable input — a wrong address, a wrong prestate, a template release mismatch, a missing override, or a registry entry that needs updating.
-* **Add it to `expectedValidationErrors` only after justifying it** with an inline comment in the TOML explaining why it is structurally expected for this chain. 
+* **Add it to `expectedValidationErrors` only after justifying it** with an inline comment in the TOML explaining why it is structurally expected for this chain.
 
 The simulation passes once every printed code has been either resolved or knowingly added with justification. Treat any code you cannot explain as a hard stop.
 
@@ -221,10 +233,8 @@ cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNO
 # Expect both: non-zero
 
 cast call <DGF> 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
-# Expect: the existing pre-upgrade initBonds(1) value carried over
-
 cast call <DGF> 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
-# Expect: 80000000000000000 (0.08 ether)
+# Expect both: the configured TOML initBond (e.g. 80000000000000000 = 0.08 ether)
 ```
 
 ### Permissioned Chain Checks
@@ -234,7 +244,7 @@ cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMI
 # Expect: non-zero
 
 cast call <DGF> 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
-# Expect: the existing pre-upgrade initBonds(1) value carried over
+# Expect: the configured TOML initBond (e.g. 80000000000000000 = 0.08 ether)
 
 cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
 # Expect: 0x0000000000000000000000000000000000000000
@@ -242,13 +252,13 @@ cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNO
 
 ## Switch op-proposer to Super Roots
 
-Start `op-proposer` with the new configuration:
+Start `op-proposer` with the new configuration.
 
 | Flag (env var) | Old | New |
 | --- | --- | --- |
-| `--rollup-rpc` (`OP_PROPOSER_ROLLUP_RPC`) | set | remove |
+| `--rollup-rpc` (`OP_PROPOSER_ROLLUP_RPC`) | set | **remove** |
 | `--supernode-rpcs` (`OP_PROPOSER_SUPERNODE_RPCS`) | unset | `op-supernode` RPC URL or URLs |
-| `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `0` or `1` | `9` for permissionless, `5` for permissioned |
+| `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `0` or `1` | numeric: `9` for permissionless, `5` for permissioned |
 | `--game-factory-address` (`OP_PROPOSER_GAME_FACTORY_ADDRESS`) | unchanged | unchanged (same `<DGF>`) |
 
 Other flags such as `--proposal-interval` and `--poll-interval` stay the same.
@@ -259,15 +269,16 @@ After start-up, verify:
 * Within one `--proposal-interval`, the proposer submits a new game. Inspect it:
 
   ```bash
-  cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC
+  COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
   # Expect: increased by 1 since the upgrade
+  echo "gameCount=$COUNT"
 
-  cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' <gameCount-1> --rpc-url $L1_RPC
-  # Returns: (gameType, createdAt, gameProxy). Expect gameType to match
-  # the configured super type and gameProxy to be non-zero.
+  read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+  # Expect: gameType matches the configured super type (5 or 9) and gameProxy is non-zero.
+  echo "gameType=$GAME_TYPE createdAt=$CREATED_AT gameProxy=$GAME_PROXY"
 
-  cast call <gameProxy> 'rootClaim()(bytes32)'      --rpc-url $L1_RPC
-  cast call <gameProxy> 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+  cast call $GAME_PROXY 'rootClaim()(bytes32)'        --rpc-url $L1_RPC
+  cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
   ```
 
 * Recompute the super root for the proposed timestamp and confirm it matches the proposal:
@@ -291,8 +302,7 @@ Run these checks once the proposer is stable.
   # 0 = IN_PROGRESS, 1 = CHALLENGER_WINS, 2 = DEFENDER_WINS
   ```
 
-* **Withdrawal against a pre-migration game finalises.** Identify a withdrawal proven against a pre-migration game by filtering `WithdrawalProven` events on `OptimismPortal2` by the proof's dispute game's `gameType()`. Confirm `finalizeWithdrawalTransaction` succeeds for it after the dispute-game finalisation delay.
 * **`op-challenger` is tracing both kinds of game.** The challenger does not break metrics down by game type. Verify via the startup log (every configured trace type, including the new super types, should be listed as registered) and ongoing logs (no scheduler or game-poll errors as super games appear in the factory). The aggregate `op_challenger_tracked_games{status}` should keep advancing.
 * **`op-dispute-mon` reports super-root games.** Dispute-mon also has no per-game-type metric. Confirm aggregate counters (`games_agreement`, `claims`, `resolution_status`) keep incrementing as super games are created and resolved, and that there are no errors in the dispute-mon logs about unrecognised game types.
 * **No new pre-migration games can be created.** Optionally call `DisputeGameFactory.create` with one of the disabled game types and confirm it reverts.
-* **Anchor advances on first super-game finalisation.** Two delays stack before the anchor can move: the game duration (usually 3.5 days) until the game resolves, and then `DISPUTE_GAME_FINALITY_DELAY_SECONDS` (another 3.5 days) before `setAnchorState` will accept the resolved game. The first anchor update therefore typically lands ~7 days after the first super-root game is created. Do not block the rollout on this. Once `op-challenger` calls `setAnchorState` on `<ASR>`, re-run `getAnchorRoot()` and confirm it returns the new game's claim instead of the starting root. Track via `op-dispute-mon` rather than waiting in-line. Schedule a follow-up to close this verification step.
+* **Anchor advances on first super-game finalisation.** The first anchor update typically lands ~7 days after the first super-root game is created (game duration plus `DISPUTE_GAME_FINALITY_DELAY_SECONDS`). Do not block the rollout on this — schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting root. Track via `op-dispute-mon` rather than waiting in-line.
