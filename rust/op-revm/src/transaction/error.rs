@@ -43,7 +43,7 @@ pub enum OpTransactionError {
     /// and special gas accounting rules are applied. Normally on L1, [`EVMError::Transaction`]
     /// errors are cause for non-inclusion, so a special [`OpHaltReason`][crate::OpHaltReason]
     /// variant was introduced to handle this case for failed deposit transactions.
-    HaltedDepositPostRegolith,
+    HaltedDeposit,
     /// Missing enveloped transaction bytes for non-deposit transaction.
     ///
     /// Non-deposit transactions on Optimism must have `enveloped_tx` field set
@@ -60,10 +60,10 @@ impl Display for OpTransactionError {
             Self::DepositSystemTxPostRegolith => {
                 write!(f, "deposit system transactions post regolith hardfork are not supported")
             }
-            Self::HaltedDepositPostRegolith => {
+            Self::HaltedDeposit => {
                 write!(
                     f,
-                    "deposit transaction halted post-regolith; error will be bubbled up to main return handler"
+                    "deposit transaction halted; error will be bubbled up to main return handler"
                 )
             }
             Self::MissingEnvelopedTx => {
@@ -104,8 +104,8 @@ mod test {
             "deposit system transactions post regolith hardfork are not supported"
         );
         assert_eq!(
-            OpTransactionError::HaltedDepositPostRegolith.to_string(),
-            "deposit transaction halted post-regolith; error will be bubbled up to main return handler"
+            OpTransactionError::HaltedDeposit.to_string(),
+            "deposit transaction halted; error will be bubbled up to main return handler"
         );
         assert_eq!(
             OpTransactionError::MissingEnvelopedTx.to_string(),

@@ -360,8 +360,8 @@ where
             // we bubble up to the global return handler. The mint value will be persisted
             // and the caller nonce will be incremented there.
             let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
-            if is_deposit && evm.ctx().cfg().spec().is_enabled_in(OpSpecId::REGOLITH) {
-                return Err(ERROR::from(OpTransactionError::HaltedDepositPostRegolith));
+            if is_deposit {
+                return Err(ERROR::from(OpTransactionError::HaltedDeposit));
             }
         }
         evm.ctx().journal_mut().commit_tx();
@@ -468,7 +468,7 @@ mod tests {
         database_interface::EmptyDB,
         handler::EthFrame,
         interpreter::{CallOutcome, InstructionResult, InterpreterResult},
-        primitives::{Address, B256, Bytes, bytes},
+        primitives::{Address, B256, Bytes, TxKind, bytes},
         state::AccountInfo,
     };
     use rstest::rstest;
@@ -1209,7 +1209,7 @@ mod tests {
                 )),
                 ResultGas::default(),
             ),
-            Err(EVMError::Transaction(OpTransactionError::HaltedDepositPostRegolith))
+            Err(EVMError::Transaction(OpTransactionError::HaltedDeposit))
         )
     }
 
@@ -1332,5 +1332,52 @@ mod tests {
             handler.validate_env(&mut evm),
             Err(EVMError::Transaction(OpTransactionError::MissingEnvelopedTx))
         );
+    }
+
+    #[test]
+    fn test_halted_deposit_tx_bedrock_nonce_bump() {
+        let caller = Address::ZERO;
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(
+            caller,
+            AccountInfo { nonce: 10, balance: U256::from(1000), ..Default::default() },
+        );
+
+        let ctx = Context::op()
+            .with_db(db)
+            .modify_tx_chained(|tx| {
+                tx.deposit.source_hash = B256::from([1u8; 32]);
+                tx.base.caller = caller;
+                tx.base.kind = TxKind::Create;
+            })
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
+
+        let mut evm = ctx.build_op();
+        let mut handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+
+        // 1. Initial validation/setup
+        handler.validate_against_state_and_deduct_caller(&mut evm, &mut Default::default()).unwrap();
+
+        // 2. Simulate execution result that is a Halt (e.g. OutOfGas)
+        let result = handler.execution_result(
+            &mut evm,
+            FrameResult::Call(CallOutcome::new(
+                InterpreterResult {
+                    result: InstructionResult::OutOfGas,
+                    output: Default::default(),
+                    gas: Default::default(),
+                },
+                Default::default()
+            )),
+            ResultGas::default(),
+        );
+
+        if let Err(e) = result {
+            handler.catch_error(&mut evm, e).unwrap();
+        }
+
+        let account = evm.ctx().journal_mut().load_account(caller).unwrap();
+        assert_eq!(account.info.nonce, 11, "Nonce should have been bumped even on Halt in Bedrock");
     }
 }
