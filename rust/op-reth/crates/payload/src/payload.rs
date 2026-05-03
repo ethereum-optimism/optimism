@@ -22,7 +22,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock};
 use reth_primitives_traits::{
-    NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
+    Block as _, NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
 };
 
 /// Re-export for use in downstream arguments.
@@ -442,6 +442,14 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
     pub fn into_sealed_block(self) -> SealedBlock<N::Block> {
         Arc::unwrap_or_clone(self.block)
     }
+
+    /// Converts the built payload into [`OpExecutionData`].
+    pub fn into_execution_data(self) -> OpExecutionData {
+        OpExecutionData::from_block_unchecked(
+            self.block.hash(),
+            &Arc::unwrap_or_clone(self.block).into_block().into_ethereum_block(),
+        )
+    }
 }
 
 impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
@@ -461,6 +469,18 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
 
     fn requests(&self) -> Option<Requests> {
         None
+    }
+}
+
+impl<N: NodePrimitives> From<OpBuiltPayload<N>> for OpExecutionData {
+    fn from(value: OpBuiltPayload<N>) -> Self {
+        value.into_execution_data()
+    }
+}
+
+impl<N: NodePrimitives> From<OpBuiltPayload<N>> for OpExecData {
+    fn from(value: OpBuiltPayload<N>) -> Self {
+        Self::from(value.into_execution_data())
     }
 }
 
