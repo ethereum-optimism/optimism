@@ -901,12 +901,12 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	// Per-chain UnsafeL2 alignment to the boundary. For each chain whose
 	// rollup schedule produces a block at the boundary (endTimestamp + 1),
-	// advance UnsafeL2 to boundary via TestSequencer without batching. The
-	// block exists in chain state but its batch is not on L1, so the
-	// supernode response at the boundary for that chain has
-	// RequiredL1 > l1HeadCurrent — which makes the top-half (challenger)
-	// trace provider return InvalidTransition, matching what the bottom-half
-	// (FPP) returns from L1 alone.
+	// advance UnsafeL2 to boundary via TestSequencer and batch after
+	// l1HeadCurrent. The boundary block's batch lands on L1 only after
+	// l1HeadCurrent was captured, so the supernode response at the boundary
+	// for that chain has RequiredL1 > l1HeadCurrent — which makes the
+	// top-half (challenger) trace provider return InvalidTransition, matching
+	// what the bottom-half (FPP) returns from L1 alone.
 	//
 	// For chains whose schedule does NOT produce a block at the boundary,
 	// UnsafeL2 stays at endTimestamp; the supernode rolls over previous
