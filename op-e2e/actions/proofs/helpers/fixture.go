@@ -29,7 +29,6 @@ type FixtureInputs struct {
 	L1Head         common.Hash                       `toml:"l1-head"`
 	AgreedPrestate []byte                            `toml:"agreed-prestate"`
 	DependencySet  *depset.StaticConfigDependencySet `toml:"dependency-set"`
-	InteropEnabled bool                              `toml:"use-interop"`
 
 	L2Sources []*FaultProofProgramL2Source
 
