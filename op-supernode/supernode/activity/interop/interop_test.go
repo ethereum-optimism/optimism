@@ -1600,8 +1600,8 @@ func TestInterop_ProgressAndRecord_MultiAdvance(t *testing.T) {
 
 // TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind advances twice
 // through progressAndRecord, flips the l1Checker so observeRound sees an
-// inconsistency, and asserts the next progressAndRecord drives a full rewind
-// end to end: verifiedDB trimmed, engines reset, WAL cleared.
+// inconsistency, and asserts the next progressAndRecord drives a Supernode state
+// rewind end to end: verifiedDB trimmed and WAL cleared without rewinding engines.
 func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithActivation(100).
@@ -1644,8 +1644,7 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, pending, "WAL cleared after successful rewind")
 
-	require.Len(t, mock.rewindEngineCalls, 1, "engine rewound exactly once on the recovering chain")
-	require.Equal(t, uint64(101), mock.rewindEngineCalls[0])
+	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
 // =============================================================================
@@ -1999,6 +1998,15 @@ func (m *mockChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (ma
 	}
 	return nil, nil
 }
+func (m *mockChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	for _, hashes := range m.pruneDeniedResult {
+		if len(hashes) == 0 {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
 func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }
@@ -2108,6 +2116,7 @@ func TestPendingTransition_RecoverInvalidatePreservedOnFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{100: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed")
 		}).
 		Build()
@@ -2134,7 +2143,7 @@ func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
 	_, err = h.interop.applyPendingTransition(pending)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "reset chain engine on rewind")
+	require.Contains(t, err.Error(), "reset chain engine after pruning deny-list entries")
 
 	storedPending, err := h.interop.verifiedDB.GetPendingTransition()
 	require.NoError(t, err)
@@ -2154,6 +2163,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, nil).
 					WithChain(8453, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{200: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("chain B rewind failed")
 		}).
 		Build()
@@ -2188,7 +2198,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 
 	// First attempt: chain B's RewindEngine errors, WAL preserved.
 	_, err = h.interop.applyPendingTransition(pending)
-	require.EqualError(t, err, "apply rewind plan: chain 8453: reset chain engine on rewind: chain B rewind failed")
+	require.EqualError(t, err, "apply rewind plan: chain 8453: reset chain engine after pruning deny-list entries: chain B rewind failed")
 
 	stored, err := h.interop.verifiedDB.GetPendingTransition()
 	require.NoError(t, err)
@@ -2217,6 +2227,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{100: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed a")
 		}).
 		WithChain(8453, func(m *mockChainContainer) {
@@ -2253,8 +2264,8 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
 	_, err = h.interop.applyPendingTransition(pending)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "chain 10: reset chain engine on rewind")
-	require.Contains(t, err.Error(), "chain 8453: reset chain engine on rewind")
+	require.Contains(t, err.Error(), "chain 10: reset chain engine after pruning deny-list entries")
+	require.Contains(t, err.Error(), "chain 8453: reset chain engine after pruning deny-list entries")
 }
 
 func TestPendingTransition_RecoverAdvanceAfterCommitClearsPendingTransition(t *testing.T) {
@@ -2380,6 +2391,7 @@ func TestRewindAccepted(t *testing.T) {
 		// logsDB should have been rewound (not cleared)
 		require.True(t, trackingDB.rewindCalled, "logsDB should be rewound to previous frontier")
 		require.Equal(t, 0, trackingDB.clearCalled, "logsDB should not be cleared")
+		require.Empty(t, mock.rewindEngineCalls, "DecisionRewind should not rewind chain engines")
 	})
 
 	t.Run("clears logsDB when rewinding to empty", func(t *testing.T) {

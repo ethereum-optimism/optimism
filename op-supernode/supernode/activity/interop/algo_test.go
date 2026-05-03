@@ -979,6 +979,9 @@ func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) 
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil
 }
+func (m *algoMockChain) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	return false, nil
+}
 func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }
