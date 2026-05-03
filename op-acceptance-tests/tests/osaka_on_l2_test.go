@@ -2,30 +2,28 @@ package tests
 
 import (
 	"context"
+	"encoding/binary"
 	"math/big"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var modexpPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000005")
@@ -44,91 +42,160 @@ func buildModExpInput(base, exp, mod []byte) []byte {
 	return input
 }
 
-// setupKarstForkTest creates a minimal system with Karst activated at block offset 3
-// and returns the L2 client along with pre-fork and post-fork block numbers.
-func setupKarstForkTest(t devtest.T) (l2Client apis.EthClient, preForkBlockNum, postForkBlockNum uint64) {
-	karstOffset := uint64(3)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
+var karstSubtests = []struct{
+	name string
+	opt  sysgo.DeployerOption
+{
+	{name: "pre-karst", opt: sysgo.WithJovianAtGenesis},
+	{name: "post-karst", opt: sysgo.WithKarstAtGenesis},
+}
 
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
-	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum = activationBlock.Number - 1
-	postForkBlockNum = activationBlock.Number + 1
-	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
+// initCodeStaticCall returns contract-creation init-code that:
+//   - copies `input` from the code section into mem[0:len(input)]
+//   - STATICCALLs `addr` with that input, forwarding `gas` (or all remaining
+//     gas via the GAS opcode if gas == 0)
+//   - REVERTs if the call returns 0 (failed); otherwise RETURNs zero bytes.
+//
+// As a consequence the deployment receipt's status reflects whether the
+// precompile call succeeded — making it a usable EVM-behavior assertion
+// from a state-changing transaction.
+func initCodeStaticCall(t devtest.T, addr common.Address, gas uint64, input []byte) []byte {
+	push1 := func(v byte) []byte { return []byte{byte(vm.PUSH1), v} }
+	push8 := func(v uint64) []byte {
+		b := make([]byte, 9)
+		b[0] = byte(vm.PUSH8)
+		binary.BigEndian.PutUint64(b[1:], v)
+		return b
+	}
+	push20 := func(a common.Address) []byte { return append([]byte{byte(vm.PUSH20)}, a.Bytes()...) }
 
-	l2Client = sys.L2EL.EthClient()
-	return
+	gasPart := 9 // PUSH8 + 8 bytes
+	if gas == 0 {
+		gasPart = 1 // GAS opcode
+	}
+	// Sum the byte sizes of every code-section instruction below before the data.
+	codeLen := uint64(9 + 9 + 2 + 1 + 9 + 9 + 9 + 9 + 21 + gasPart + 1 + 1 + 2 + 1 + 2 + 2 + 1 + 1 + 2 + 2 + 1)
+	revertJD := codeLen - 6 // points to the JUMPDEST near the end
+
+	inLen := uint64(len(input))
+
+	var code []byte
+	// CODECOPY input -> mem[0:inLen]
+	code = append(code, push8(inLen)...)   // size
+	code = append(code, push8(codeLen)...) // codeOff
+	code = append(code, push1(0)...)       // memDest
+	code = append(code, byte(vm.CODECOPY)) // (1)
+	// STATICCALL args (push retLen, retOff, argsLen, argsOff, addr, gas)
+	code = append(code, push8(0)...)     // retLen
+	code = append(code, push8(0)...)     // retOff
+	code = append(code, push8(inLen)...) // argsLen
+	code = append(code, push8(0)...)     // argsOff
+	code = append(code, push20(addr)...) // addr
+	if gas == 0 {
+		code = append(code, byte(vm.GAS))
+	} else {
+		code = append(code, push8(gas)...)
+	}
+	code = append(code, byte(vm.STATICCALL))
+	// Branch on success
+	code = append(code, byte(vm.ISZERO))
+	code = append(code, push1(byte(revertJD))...)
+	code = append(code, byte(vm.JUMPI))
+	// Success: RETURN 0 0
+	code = append(code, push1(0)...)
+	code = append(code, push1(0)...)
+	code = append(code, byte(vm.RETURN))
+	// Revert path
+	code = append(code, byte(vm.JUMPDEST))
+	code = append(code, push1(0)...)
+	code = append(code, push1(0)...)
+	code = append(code, byte(vm.REVERT))
+
+	t.Require().Equal(uint64(len(code)), codeLen)
+
+	return append(code, input...)
 }
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
-	// Modexp input exceeding EIP-7823 limits: modulus length is 1025 bytes (limit is 1024)
+	// Modexp input exceeding EIP-7823 limits: modulus length is 1025 bytes (limit is 1024).
 	oversizeMod := make([]byte, 1025)
 	oversizeMod[1024] = 5
 	exceedingLimitInput := buildModExpInput([]byte{2}, []byte{3}, oversizeMod)
 
-	// Pre-fork: oversized modexp input should succeed (EIP-7823 not yet active)
-	result, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: exceedingLimitInput,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err)
-	t.Require().Len(result, 1025, "pre-fork: modexp with oversized input should return 1025-byte result")
+	// Init-code that STATICCALLs modexp with the oversize input and forwards
+	// all remaining gas — pre-Karst the precompile accepts it (deployment
+	// succeeds), post-Karst EIP-7823 rejects it (STATICCALL returns 0 →
+	// init-code reverts → deployment fails).
+	deployData := initCodeStaticCall(t, modexpPrecompile, 0, exceedingLimitInput)
 
-	// Post-fork: oversized modexp input should fail (EIP-7823 enforced)
-	result, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: exceedingLimitInput,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err)
-	t.Require().Empty(result, "post-fork: modexp with oversized input should return empty result due to EIP-7823")
+	for _, sub := range karstSubtests {
+		t.Run(sub.name, func(t devtest.T) {
+			t.Parallel()
+			sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sub.opt))
+			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: within-limit modexp input should still succeed
-	result, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: buildModExpInput([]byte{2}, []byte{3}, []byte{5}),
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err)
-	t.Require().Equal([]byte{3}, result, "2^3 mod 5 should equal 3")
+			tx := txplan.NewPlannedTx(
+				eoa.Plan(),
+				txplan.WithData(deployData),
+				txplan.WithGasLimit(500_000),
+			)
+			receipt, err := tx.Included.Eval(t.Ctx())
+			t.Require().NoError(err, "deployment tx should land on chain")
+
+			if sub.name == "post-karst" {
+				t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status,
+					"post-karst: oversized modexp must be rejected (EIP-7823)")
+			} else {
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status,
+					"pre-karst: oversized modexp should be accepted")
+			}
+
+			claimBlock := receipt.BlockNumber.Uint64()
+			sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+			t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the modexp-7823 chain")
+		})
+	}
 }
 
 func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
+	// Init-code that STATICCALLs modexp with empty input and forwards exactly
+	// 300 gas. The modexp gas floor is 200 pre-Karst (EIP-2565) and 500
+	// post-Karst (EIP-7883), so 300 succeeds pre-fork and OOGs post-fork.
+	deployData := initCodeStaticCall(t, modexpPrecompile, 300, nil)
 
-	// Call modexp with empty calldata. The precompile pads missing bytes with
-	// zeros, giving Bsize=0, Esize=0, Msize=0. This hits exactly the gas floor:
-	//   EIP-2565 (pre-Karst):  max(200, floor(0*0/3)) = 200 gas
-	//   EIP-7883 (post-Karst): max(500, floor(0*0))   = 500 gas
-	// Empty calldata also avoids EIP-7623 calldata cost inflation, so intrinsic
-	// gas is just 21,000 and we can precisely control execution gas via Gas limit.
+	for _, sub := range karstSubtests {
+		t.Run(sub.name, func(t devtest.T) {
+			t.Parallel()
+			sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sub.opt))
+			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Pre-fork: 21,000 + 300 execution gas is enough for 200-gas floor.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_300,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err, "pre-fork: modexp should succeed with 300 execution gas (floor is 200)")
+			tx := txplan.NewPlannedTx(
+				eoa.Plan(),
+				txplan.WithData(deployData),
+				txplan.WithGasLimit(500_000),
+			)
+			receipt, err := tx.Included.Eval(t.Ctx())
+			t.Require().NoError(err, "deployment tx should land on chain")
 
-	// Post-fork: 21,000 + 300 execution gas is NOT enough for 500-gas floor.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_300,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err, "post-fork: modexp should fail with 300 execution gas (floor is 500)")
+			if sub.name == "post-karst" {
+				t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status,
+					"post-karst: modexp must OOG at 300 gas (floor=500)")
+			} else {
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status,
+					"pre-karst: modexp should succeed at 300 gas (floor=200)")
+			}
 
-	// Post-fork: 21,000 + 600 execution gas is enough for 500-gas floor.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_600,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: modexp should succeed with 600 execution gas (floor is 500)")
+			claimBlock := receipt.BlockNumber.Uint64()
+			sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+			t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the modexp-7883 chain")
+		})
+	}
 }
 
 func TestEIP7825TxGasLimitCap(gt *testing.T) {
@@ -186,68 +253,86 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
+	// Init-code that STATICCALLs P256VERIFY forwarding exactly 3,500 gas.
+	// P256VERIFY cost is 3,450 pre-Karst (RIP-7212) and 6,900 post-Karst
+	// (EIP-7951), so 3,500 succeeds pre-fork and OOGs post-fork.
+	deployData := initCodeStaticCall(t, p256VerifyPrecompile, 3_500, nil)
 
-	// Call P256VERIFY with empty calldata. The precompile charges its full gas
-	// cost regardless of input length, then returns empty (input != 160 bytes).
-	// Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic gas
-	// is just 21,000 and we can precisely control execution gas via gas limit.
-	//   RIP-7212 (pre-Karst):  P256VERIFY costs 3,450 gas
-	//   EIP-7951 (post-Karst): P256VERIFY costs 6,900 gas
+	for _, sub := range karstSubtests {
+		t.Run(sub.name, func(t devtest.T) {
+			t.Parallel()
+			sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sub.opt))
+			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Pre-fork: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 24_500,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err, "pre-fork: P256VERIFY should succeed with 3,500 execution gas (cost is 3,450)")
+			tx := txplan.NewPlannedTx(
+				eoa.Plan(),
+				txplan.WithData(deployData),
+				txplan.WithGasLimit(500_000),
+			)
+			receipt, err := tx.Included.Eval(t.Ctx())
+			t.Require().NoError(err, "deployment tx should land on chain")
 
-	// Post-fork: 21,000 + 3,500 execution gas is NOT enough for 6,900-gas precompile.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 24_500,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err, "post-fork: P256VERIFY should fail with 3,500 execution gas (cost is 6,900)")
+			if sub.name == "post-karst" {
+				t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status,
+					"post-karst: P256VERIFY must OOG at 3,500 gas (cost=6,900)")
+			} else {
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status,
+					"pre-karst: P256VERIFY should succeed at 3,500 gas (cost=3,450)")
+			}
 
-	// Post-fork: 21,000 + 7,000 execution gas is enough for 6,900-gas precompile.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 28_000,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: P256VERIFY should succeed with 7,000 execution gas (cost is 6,900)")
+			claimBlock := receipt.BlockNumber.Uint64()
+			sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+			t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the p256-7951 chain")
+		})
+	}
 }
 
 func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
-	// EVM init code that computes CLZ(1) and returns the 32-byte result.
+	// EVM init-code that computes CLZ(1) and RETURNs the 32-byte result.
 	// CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256.
+	// Pre-Karst the CLZ opcode (0x1e) is invalid → halts with all gas consumed
+	// → deployment fails. Post-Karst CLZ is defined → init-code RETURNs and
+	// the runtime bytecode (32 bytes ending in 0xff) is deployed.
 	clzCode := []byte{
-		byte(vm.PUSH1), 1, // stack: [1]
-		byte(vm.CLZ),      // stack: [255] (1 has 255 leading zeros)
-		byte(vm.PUSH1), 0, // stack: [0, 255]
-		byte(vm.MSTORE),    // mem[0:32] = 255
-		byte(vm.PUSH1), 32, // stack: [32]
-		byte(vm.PUSH1), 0, // stack: [0, 32]
-		byte(vm.RETURN), // return mem[0:32]
+		byte(vm.PUSH1), 1,
+		byte(vm.CLZ),
+		byte(vm.PUSH1), 0,
+		byte(vm.MSTORE),
+		byte(vm.PUSH1), 32,
+		byte(vm.PUSH1), 0,
+		byte(vm.RETURN),
 	}
 
-	// Pre-fork: CLZ opcode (0x1e) is not yet valid, so execution should fail.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		Data: clzCode,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().Error(err, "pre-fork: CLZ opcode should not be available")
+	for _, sub := range karstSubtests {
+		t.Run(sub.name, func(t devtest.T) {
+			t.Parallel()
+			sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sub.opt))
+			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: CLZ opcode is valid, execution should succeed.
-	result, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		Data: clzCode,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
-	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
-	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
+			tx := txplan.NewPlannedTx(
+				eoa.Plan(),
+				txplan.WithData(clzCode),
+				txplan.WithGasLimit(200_000),
+			)
+			receipt, err := tx.Included.Eval(t.Ctx())
+			t.Require().NoError(err, "deployment tx should land on chain")
+
+			if sub.name == "post-karst" {
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status,
+					"post-karst: CLZ opcode should be defined")
+			} else {
+				t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status,
+					"pre-karst: CLZ opcode should be invalid")
+			}
+
+			claimBlock := receipt.BlockNumber.Uint64()
+			sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+			t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the CLZ-7939 chain")
+		})
+	}
 }
 
 // TestEIP7825DepositBypassesTxGasLimitCap proves that deposit transactions are not
@@ -259,7 +344,7 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
 	sys.L1Network.WaitForOnline()
 
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
@@ -300,6 +385,10 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit should be included and succeed on L2")
 
 	alicel2.WaitForBalance(depositAmount)
+
+	claimBlock := l2Receipt.BlockNumber.Uint64()
+	sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+	t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the deposit-inclusion block")
 }
 
 // TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block
@@ -310,17 +399,18 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 
 	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
 	// 12 MB into one block requires ~120M gas.
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(
 		sysgo.WithKarstAtGenesis,
 		sysgo.WithL2GasLimit(120_000_000),
 	))
 
-	spamTxs(sys)
+	spamTxs(sys.Minimal)
 
 	// Find a block whose total transaction data exceeds 10 MiB.
 	l2Client := sys.L2EL.EthClient()
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	for {
+	var claimBlock uint64
+	for claimBlock == 0 {
 		select {
 		case <-time.After(l2BlockTime):
 			info, blockTxs, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
@@ -338,12 +428,15 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 			// We use tx data size instead of the total block size since we don't have a client
 			// capable of deserializing block responses.
 			if totalTxSize > params.MaxBlockSize {
-				return
+				claimBlock = info.NumberU64()
 			}
 		case <-t.Ctx().Done():
 			t.Require().NoError(t.Ctx().Err())
 		}
 	}
+
+	sys.L2CL.Reached(types.LocalSafe, claimBlock, 60)
+	t.Require().NoError(sys.RunKona(t, 1, claimBlock), "kona should agree on the oversize block")
 }
 
 func spamTxs(sys *presets.Minimal) {
