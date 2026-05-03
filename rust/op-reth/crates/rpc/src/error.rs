@@ -74,9 +74,9 @@ pub enum OpInvalidTransactionError {
     /// A deposit transaction was submitted as a system transaction post-regolith.
     #[error("no system transactions allowed after regolith")]
     DepositSystemTxPostRegolith,
-    /// A deposit transaction halted post-regolith
-    #[error("deposit transaction halted after regolith")]
-    HaltedDepositPostRegolith,
+    /// A deposit transaction halted on execution across all hardforks.
+    #[error("deposit transaction halted")]
+    HaltedDeposit,
     /// The encoded transaction was missing during evm execution.
     #[error("missing enveloped transaction bytes")]
     MissingEnvelopedTx,
@@ -89,7 +89,7 @@ impl From<OpInvalidTransactionError> for jsonrpsee_types::error::ErrorObject<'st
     fn from(err: OpInvalidTransactionError) -> Self {
         match err {
             OpInvalidTransactionError::DepositSystemTxPostRegolith |
-            OpInvalidTransactionError::HaltedDepositPostRegolith |
+            OpInvalidTransactionError::HaltedDeposit |
             OpInvalidTransactionError::MissingEnvelopedTx => {
                 rpc_err(EthRpcErrorCode::TransactionRejected.code(), err.to_string(), None)
             }
@@ -107,7 +107,7 @@ impl TryFrom<OpTxError> for OpInvalidTransactionError {
             OpTransactionError::DepositSystemTxPostRegolith => {
                 Ok(Self::DepositSystemTxPostRegolith)
             }
-            OpTransactionError::HaltedDepositPostRegolith => Ok(Self::HaltedDepositPostRegolith),
+            OpTransactionError::HaltedDeposit => Ok(Self::HaltedDeposit),
             OpTransactionError::MissingEnvelopedTx => Ok(Self::MissingEnvelopedTx),
             OpTransactionError::Base(err) => Err(err),
         }
@@ -202,7 +202,7 @@ impl FromEvmHalt<OpHaltReason> for OpEthApiError {
     fn from_evm_halt(halt: OpHaltReason, gas_limit: u64) -> Self {
         match halt {
             OpHaltReason::FailedDeposit => {
-                OpInvalidTransactionError::HaltedDepositPostRegolith.into()
+                OpInvalidTransactionError::HaltedDeposit.into()
             }
             OpHaltReason::Base(halt) => EthApiError::from_evm_halt(halt, gas_limit).into(),
         }
