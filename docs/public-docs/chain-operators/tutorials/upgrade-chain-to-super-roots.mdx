@@ -73,7 +73,7 @@ Read the values you need from `chain.json`:
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the target network | OPCM release notes at `https://github.com/ethereum-optimism/optimism/releases` (filter for `op-contracts/v8.x.y` tags). Use the version pinned by the `OPCMUpgradeV800` template. |
+| `OPCM` address for the target network | `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Look up the `op-contracts/v8.x.y` release pinned by the `OPCMUpgradeV800` template and read `op_contracts_manager.address`. |
 | Kona-interop prestate hash | OPCM release manifest. Use the `-interop` kona variant, even if interop is not scheduled for the chain.|
 | Prestate artifact URL | The chain's existing `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the upgrade |
 | `op-supernode` RPC URL | Your infrastructure team |
