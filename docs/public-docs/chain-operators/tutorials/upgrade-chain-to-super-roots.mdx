@@ -65,7 +65,7 @@ Read the values you need from `chain.json`:
 **Chain type.** The upgrade preserves the chain's existing permission model. `chain.json` reports the current respected game type at `.faultProofs.respectedGameType`:
 
 * `1` (`PERMISSIONED_CANNON`) — chain is **permissioned**. The new respected game type is `5` (`SUPER_PERMISSIONED_CANNON`).
-* `0` (`CANNON`) — chain is **permissionless**. The new respected game type is `9` (`SUPER_CANNON_KONA`).
+* `0` (`CANNON`) or `8` (`CANNON_KONA`) — chain is **permissionless**. The new respected game type is `9` (`SUPER_CANNON_KONA`).
 
 **Init bond.** The `OPCMUpgradeV800` template applies a single `initBond` value (in wei) to every enabled super game type. `0.08 ether` (`80000000000000000` wei) is the standard value used on existing chains.
 
