@@ -67,13 +67,13 @@ Read the values you need from `chain.json`:
 * `1` (`PERMISSIONED_CANNON`) — chain is **permissioned**. The new respected game type is `5` (`SUPER_PERMISSIONED_CANNON`).
 * `0` (`CANNON`) — chain is **permissionless**. The new respected game type is `9` (`SUPER_CANNON_KONA`).
 
-**Init bond.** The `OPCMUpgradeV700` template applies a single `initBond` value (in wei) to every enabled super game type. `0.08 ether` (`80000000000000000` wei) is the standard value used on existing chains.
+**Init bond.** The `OPCMUpgradeV800` template applies a single `initBond` value (in wei) to every enabled super game type. `0.08 ether` (`80000000000000000` wei) is the standard value used on existing chains.
 
 **Release artifacts and infrastructure.**
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the target network | OPCM release notes at `https://github.com/ethereum-optimism/optimism/releases` (filter for `op-contracts/v7.x.y` tags). The `OPCMUpgradeV700` template enforces version `7.1.17`. |
+| `OPCM` address for the target network | OPCM release notes at `https://github.com/ethereum-optimism/optimism/releases` (filter for `op-contracts/v8.x.y` tags). Use the version pinned by the `OPCMUpgradeV800` template. |
 | Kona-interop prestate hash | OPCM release manifest. Use the `-interop` kona variant, even if interop is not scheduled for the chain.|
 | Prestate artifact URL | The chain's existing `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the upgrade |
 | `op-supernode` RPC URL | Your infrastructure team |
@@ -82,7 +82,7 @@ Read the values you need from `chain.json`:
 
 Before you change any configuration:
 
-* **Confirm the template injects `overrides.cfg.startingAnchorRoot`.** Open `superchain-ops/src/template/OPCMUpgradeV700.sol` and check `_buildExtraInstructions`. As of writing it only injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Without an `overrides.cfg.startingAnchorRoot` override, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as a third extra instruction. Fix the template before continuing.
+* **Confirm the template injects `overrides.cfg.startingAnchorRoot`.** Open `superchain-ops/src/template/OPCMUpgradeV800.sol` and check `_buildExtraInstructions`. As of writing it only injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Without an `overrides.cfg.startingAnchorRoot` override, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as a third extra instruction. Fix the template before continuing.
 * **Verify the `op-supernode` is healthy.** Confirm it reports a finalized L2 head within the chain's expected finality window:
 
   ```bash
@@ -148,7 +148,7 @@ Capture two values:
 
 ## Build the superchain-ops Task
 
-Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMUpgradeV700` template. The schema below assumes the template has been extended (per the precondition above) to also read a starting super-root anchor and inject it as `overrides.cfg.startingAnchorRoot`.
+Author a new task directory under `superchain-ops/src/tasks/<network>/<NNN-name>/` using the `OPCMUpgradeV800` template. The schema below assumes the template has been extended (per the precondition above) to also read a starting super-root anchor and inject it as `overrides.cfg.startingAnchorRoot`.
 
 ### Configure config.toml
 
@@ -157,7 +157,7 @@ l2chains = [
     {name = "<chain name>", chainId = <chain id>},
 ]
 
-templateName = "OPCMUpgradeV700"
+templateName = "OPCMUpgradeV800"
 
 [[opcmUpgrades]]
 chainId = <chain id>
@@ -173,7 +173,7 @@ startingRespectedGameType = <9 or 5>   # 9 permissionless, 5 permissioned
 startingAnchorRoot = { root = "0x<super root hash>", l2SequenceNumber = <timestamp> }
 
 [addresses]
-OPCM = "0x<OPCM v7.1.17 address>"
+OPCM = "0x<OPCM v8.x.y address>"
 ```
 
 The template derives everything else (per-game-type config, `SuperchainConfig`, validator, etc.) automatically — no further TOML required.
