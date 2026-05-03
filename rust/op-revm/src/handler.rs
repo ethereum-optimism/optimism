@@ -356,9 +356,8 @@ where
             .map_haltreason(OpHaltReason::Base);
 
         if exec_result.is_halt() {
-            // Post-regolith, if the transaction is a deposit transaction and it halts,
-            // we bubble up to the global return handler. The mint value will be persisted
-            // and the caller nonce will be incremented there.
+            // For any deposit transaction that halts, we bubble up to the global return handler.
+            // The mint value will be persisted and the caller nonce will be incremented there.
             let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
             if is_deposit {
                 return Err(ERROR::from(OpTransactionError::HaltedDeposit));
