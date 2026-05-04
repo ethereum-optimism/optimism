@@ -389,10 +389,14 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 
 	// EIP-7623 inflates zero-byte calldata cost to 10 gas/byte, so packing
 	// 12 MB into one block requires ~120M gas.
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(
 		sysgo.WithKarstAtGenesis,
 		sysgo.WithL2GasLimit(120_000_000),
 	))
+	// Make sure the chain is past genesis before submitting txs, so the agreed
+	// block we feed kona below is always >= 1 (genesis output is not reliably
+	// served by OutputAtBlock).
+	sys.L2EL.WaitForBlockNumber(1)
 
 	spamTxs(sys)
 
@@ -417,6 +421,8 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 			// We use tx data size instead of the total block size since we don't have a client
 			// capable of deserializing block responses.
 			if totalTxSize > params.MaxBlockSize {
+				inputs := sys.L2CL.LocalGameInputs(info.NumberU64()-1, info.NumberU64())
+				t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
 				return
 			}
 		case <-t.Ctx().Done():
@@ -425,7 +431,7 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	}
 }
 
-func spamTxs(sys *presets.Minimal) {
+func spamTxs(sys *presets.MinimalWithKona) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 	eoasRR := loadtest.NewRoundRobin(eoas)
