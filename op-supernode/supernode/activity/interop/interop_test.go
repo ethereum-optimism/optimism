@@ -1999,8 +1999,8 @@ func (m *mockChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (ma
 	return nil, nil
 }
 func (m *mockChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
-	for _, hashes := range m.pruneDeniedResult {
-		if len(hashes) == 0 {
+	for decisionTimestamp, hashes := range m.pruneDeniedResult {
+		if decisionTimestamp < timestamp || len(hashes) == 0 {
 			continue
 		}
 		return true, nil
@@ -2116,7 +2116,7 @@ func TestPendingTransition_RecoverInvalidatePreservedOnFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
-			m.pruneDeniedResult = map[uint64][]common.Hash{100: {common.HexToHash("0xdenied")}}
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed")
 		}).
 		Build()
@@ -2163,7 +2163,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, nil).
 					WithChain(8453, func(m *mockChainContainer) {
-			m.pruneDeniedResult = map[uint64][]common.Hash{200: {common.HexToHash("0xdenied")}}
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("chain B rewind failed")
 		}).
 		Build()
@@ -2227,7 +2227,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
-			m.pruneDeniedResult = map[uint64][]common.Hash{100: {common.HexToHash("0xdenied")}}
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed a")
 		}).
 		WithChain(8453, func(m *mockChainContainer) {
@@ -2392,6 +2392,73 @@ func TestRewindAccepted(t *testing.T) {
 		require.True(t, trackingDB.rewindCalled, "logsDB should be rewound to previous frontier")
 		require.Equal(t, 0, trackingDB.clearCalled, "logsDB should not be cleared")
 		require.Empty(t, mock.rewindEngineCalls, "DecisionRewind should not rewind chain engines")
+	})
+
+	t.Run("rewinds all engines when deny-list entries are pruned", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1001: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mockA := h.Mock(10)
+		mockB := h.Mock(8453)
+
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mockA.id: {Number: 100, Hash: common.HexToHash("0xa1")},
+				mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
+			},
+		}))
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1001,
+			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mockA.id: {Number: 101, Hash: common.HexToHash("0xa2")},
+				mockB.id: {Number: 201, Hash: common.HexToHash("0xb2")},
+			},
+		}))
+
+		plan, err := h.interop.buildRewindPlan(1001)
+		require.NoError(t, err)
+		require.NotNil(t, plan.ResetAllChainsTo)
+		require.Equal(t, uint64(1000), *plan.ResetAllChainsTo)
+
+		err = h.interop.applyRewindPlan(plan)
+		require.NoError(t, err)
+		require.Equal(t, []uint64{1000}, mockA.rewindEngineCalls)
+		require.Equal(t, []uint64{1000}, mockB.rewindEngineCalls)
+	})
+
+	t.Run("does not rewind engines for deny-list entries before rewind timestamp", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1000: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0xa1")}},
+		}))
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1001,
+			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0xa2")}},
+		}))
+
+		plan, err := h.interop.buildRewindPlan(1001)
+		require.NoError(t, err)
+		require.Nil(t, plan.ResetAllChainsTo)
 	})
 
 	t.Run("clears logsDB when rewinding to empty", func(t *testing.T) {
