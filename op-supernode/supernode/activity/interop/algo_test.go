@@ -899,8 +899,7 @@ func (m *testBlockInfo) GasLimit() uint64                                     { 
 func (m *testBlockInfo) BlobGasUsed() *uint64                                 { return nil }
 func (m *testBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
 func (m *testBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *testBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
-func (m *testBlockInfo) Header() *types.Header                                { return nil }
+func (m *testBlockInfo) Extra() []byte                                        { return nil }
 func (m *testBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*testBlockInfo)(nil)

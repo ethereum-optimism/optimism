@@ -125,7 +125,9 @@ func (hdr *RPCHeader) CreateGethHeader() *types.Header {
 	}
 }
 
-func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+// Header runs trust/post-merge verification on the RPC-provided header and
+// returns the underlying *types.Header.
+func (hdr *RPCHeader) Header(trustCache bool, mustBePostMerge bool) (*types.Header, error) {
 	if mustBePostMerge {
 		if err := hdr.checkPostMerge(); err != nil {
 			return nil, err
@@ -136,7 +138,15 @@ func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 			return nil, fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, hdr.Hash)
 		}
 	}
-	return eth.HeaderBlockInfoTrusted(hdr.Hash, hdr.CreateGethHeader()), nil
+	return hdr.CreateGethHeader(), nil
+}
+
+func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+	header, err := hdr.Header(trustCache, mustBePostMerge)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hdr.Hash, header), nil
 }
 
 func (hdr *RPCHeader) BlockID() eth.BlockID {

@@ -1701,8 +1701,7 @@ func (m *mockBlockInfo) GasLimit() uint64                                     { 
 func (m *mockBlockInfo) BlobGasUsed() *uint64                                 { return nil }
 func (m *mockBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
 func (m *mockBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *mockBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
-func (m *mockBlockInfo) Header() *types.Header                                { return nil }
+func (m *mockBlockInfo) Extra() []byte                                        { return nil }
 func (m *mockBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*mockBlockInfo)(nil)

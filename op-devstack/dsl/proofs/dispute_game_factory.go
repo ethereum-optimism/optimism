@@ -586,9 +586,5 @@ type ethClientHeaderProvider struct {
 }
 
 func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
-	info, err := p.client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
-	if err != nil {
-		return nil, err
-	}
-	return info.Header(), nil
+	return p.client.HeaderByNumber(ctx, bigs.Uint64Strict(blockNum))
 }
