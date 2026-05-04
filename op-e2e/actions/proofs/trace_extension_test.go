@@ -96,14 +96,12 @@ func runTraceExtensionRepeatedRootAtNextBlockTest(gt *testing.T, testCfg *helper
 	env.RunFaultProofProgram(t, 2, testCfg.CheckResult, params...)
 }
 
-// Test_ProgramAction_SafeHeadTraceExtension checks that op-program correctly handles the trace extension case where
+// TestSafeHeadTraceExtension checks that op-program correctly handles the trace extension case where
 // the claimed l2 block number is after the safe head. The honest actor should repeat the output root from the safe head
 // and op-program should consider it valid even though the claimed l2 block number is not reached.
 // Output roots other than from the safe head should be invalid if the claimed l2 block number is not reached.
-func Test_ProgramAction_SafeHeadTraceExtension(gt *testing.T) {
+func TestSafeHeadTraceExtension(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
@@ -119,14 +117,13 @@ func Test_ProgramAction_SafeHeadTraceExtension(gt *testing.T) {
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
+	matrix.Run(gt)
 }
 
-// Test_ProgramAction_TraceExtensionLeaf checks that both op-program and kona reject a claim that
+// TestTraceExtensionLeaf checks that both op-program and kona reject a claim that
 // maliciously repeats the agreed output root at a later (reachable) block number.
-func Test_ProgramAction_TraceExtensionLeaf(gt *testing.T) {
+func TestTraceExtensionLeaf(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddTestCase(
 		"HonestTransition",
 		nil,
@@ -141,4 +138,5 @@ func Test_ProgramAction_TraceExtensionLeaf(gt *testing.T) {
 		runTraceExtensionRepeatedRootAtNextBlockTest,
 		helpers.ExpectError(claim.ErrClaimNotValid),
 	)
+	matrix.Run(gt)
 }
