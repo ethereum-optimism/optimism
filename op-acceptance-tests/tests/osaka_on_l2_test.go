@@ -233,35 +233,59 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
 	// Call P256VERIFY with empty calldata. The precompile charges its full gas
 	// cost regardless of input length, then returns empty (input != 160 bytes).
 	// Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic gas
 	// is just 21,000 and we can precisely control execution gas via gas limit.
 	//   RIP-7212 (pre-Karst):  P256VERIFY costs 3,450 gas
 	//   EIP-7951 (post-Karst): P256VERIFY costs 6,900 gas
+	planUnderGas := txplan.Combine(
+		txplan.WithTo(&p256VerifyPrecompile),
+		txplan.WithGasLimit(24_500),
+	)
 
-	// Pre-fork: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 24_500,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err, "pre-fork: P256VERIFY should succeed with 3,500 execution gas (cost is 3,450)")
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: 21,000 + 3,500 execution gas is NOT enough for 6,900-gas precompile.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 24_500,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err, "post-fork: P256VERIFY should fail with 3,500 execution gas (cost is 6,900)")
+		// Pre-Karst: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	})
 
-	// Post-fork: 21,000 + 7,000 execution gas is enough for 6,900-gas precompile.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &p256VerifyPrecompile,
-		Gas: 28_000,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: P256VERIFY should succeed with 7,000 execution gas (cost is 6,900)")
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		// Make sure the chain is past genesis before submitting txs, so the agreed
+		// block we feed kona below is always >= 1 (genesis output is not reliably
+		// served by OutputAtBlock).
+		sys.L2EL.WaitForBlockNumber(1)
+
+		// Post-Karst: 21,000 + 3,500 execution gas is NOT enough for 6,900-gas precompile.
+		underGasReceipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusFailed, underGasReceipt.Status)
+
+		// Post-Karst: 21,000 + 7,000 execution gas is enough for 6,900-gas precompile.
+		sufficientReceipt, err := txplan.NewPlannedTx(
+			eoa.Plan(),
+			txplan.WithTo(&p256VerifyPrecompile),
+			txplan.WithGasLimit(28_000),
+		).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, sufficientReceipt.Status)
+
+		// Cross-check kona-host agrees with the live chain over a range that
+		// covers both the OOG case and the within-cost success.
+		agreedBlock := bigs.Uint64Strict(underGasReceipt.BlockNumber) - 1
+		claimBlock := bigs.Uint64Strict(sufficientReceipt.BlockNumber)
+		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
+		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	})
 }
 
 func TestEIP7939CLZ(gt *testing.T) {
