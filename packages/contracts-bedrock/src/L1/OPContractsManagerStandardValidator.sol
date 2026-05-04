@@ -945,7 +945,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-    /// @notice Validates the decoded ZK game args (chainId, weth, asr) against the chain config.
+    /// @notice Validates the decoded ZK game args against the chain config.
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -959,13 +959,17 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        (address _asr, address _weth, uint256 chainId) =
-            LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(chainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        _errors = internalRequire(args.l2ChainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(args.verifier != address(0), string.concat(_errorPrefix, "-80"), _errors);
+        _errors = internalRequire(args.maxChallengeDuration > 0, string.concat(_errorPrefix, "-90"), _errors);
+        _errors = internalRequire(args.maxProveDuration > 0, string.concat(_errorPrefix, "-100"), _errors);
+        _errors = internalRequire(args.challengerBond > 0, string.concat(_errorPrefix, "-110"), _errors);
         _errors = standardValidatorUtils.assertValidDelayedWETH(
             _errors,
             _sysCfg,
-            IDelayedWETH(payable(_weth)),
+            IDelayedWETH(payable(args.weth)),
             _admin,
             expectedL1PAOMultisig(_overrides),
             delayedWETHImpl,
@@ -973,7 +977,13 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errorPrefix
         );
         _errors = standardValidatorUtils.assertValidAnchorStateRegistry(
-            _errors, _sysCfg, factory, IAnchorStateRegistry(_asr), _admin, anchorStateRegistryImpl, _errorPrefix
+            _errors,
+            _sysCfg,
+            factory,
+            IAnchorStateRegistry(args.anchorStateRegistry),
+            _admin,
+            anchorStateRegistryImpl,
+            _errorPrefix
         );
         return _errors;
     }
