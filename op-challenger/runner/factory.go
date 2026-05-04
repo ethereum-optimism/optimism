@@ -28,9 +28,12 @@ func createTraceProvider(
 	localInputs utils.LocalGameInputs,
 	dir string,
 ) (types.TraceProvider, error) {
+	serverExecutor, err := serverExecutorForGameType(logger, gameType)
+	if err != nil {
+		return nil, err
+	}
 	switch gameType {
 	case gameTypes.CannonGameType, gameTypes.SuperCannonGameType:
-		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
@@ -39,7 +42,6 @@ func createTraceProvider(
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType:
-		serverExecutor := vm.NewKonaExecutor()
 		stateConverter := cannon.NewStateConverter(cfg.CannonKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
@@ -47,6 +49,23 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.CannonKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
+	}
+	return nil, errors.New("invalid game type")
+}
+
+// serverExecutorForGameType returns the oracle server executor that matches the
+// production challenger's wiring (op-challenger/game/fault/register.go) for the
+// given game type. Kona splits single-chain and super into separate executors
+// because the kona host CLI exposes them as disjoint subcommands; op-program
+// handles both shapes through one executor.
+func serverExecutorForGameType(logger log.Logger, gameType gameTypes.GameType) (vm.OracleServerExecutor, error) {
+	switch gameType {
+	case gameTypes.CannonGameType, gameTypes.SuperCannonGameType:
+		return vm.NewOpProgramServerExecutor(logger), nil
+	case gameTypes.CannonKonaGameType:
+		return vm.NewKonaExecutor(), nil
+	case gameTypes.SuperCannonKonaGameType:
+		return vm.NewKonaSuperExecutor(), nil
 	}
 	return nil, errors.New("invalid game type")
 }
