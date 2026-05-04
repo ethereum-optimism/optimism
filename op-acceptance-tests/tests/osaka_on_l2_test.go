@@ -162,51 +162,52 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	testCases := map[string]struct {
-		opt       sysgo.DeployerOption
-		expectErr bool
-	}{
-		"pre-karst": {
-			opt: sysgo.WithJovianAtGenesis,
-		},
-		"post-karst": {
-			opt:       sysgo.WithKarstAtGenesis,
-			expectErr: true,
-		},
-	}
-
 	// EIP-7825 caps transaction gas at 2^24 = 16,777,216.
 	// This is a tx validity rule enforced at the txpool/block level, not by the
-	// EVM, so eth_call and eth_simulateV1 don't enforce it. We must send a real
-	// transaction and verify the RPC rejects it.
-	for name, testCase := range testCases {
-		t.Run(name, func(t devtest.T) {
-			t.Parallel()
-			sys := presets.NewMinimal(t, presets.WithDeployerOptions(testCase.opt))
+	// EVM, so eth_call and eth_simulateV1 don't enforce it.
 
-			eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+		// Live chain is on Jovian (no cap). Kona's rollup config is overridden
+		// to claim Karst is at genesis, so kona-with-Karst will reject the
+		// block on EIP-7825 grounds even though op-reth (Jovian) accepts it.
+		sys := presets.NewMinimalWithKona(t,
+			presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
+			presets.WithKonaKarstAtGenesis(),
+		)
+		sys.L2EL.WaitForBlockNumber(1)
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-			planWithGasLimit := func(gas uint64) txplan.Option {
-				return txplan.Combine(
-					eoa.Plan(),
-					txplan.WithGasLimit(gas),
-					txplan.WithTo(&common.Address{}),
-				)
-			}
+		// Tx with gas > 2^24 lands successfully on the live chain (no cap pre-Karst).
+		receipt, err := txplan.NewPlannedTx(
+			eoa.Plan(),
+			txplan.WithTo(&common.Address{}),
+			txplan.WithGasLimit(params.MaxTxGas+1),
+		).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
-			_, err := txplan.NewPlannedTx(planWithGasLimit(params.MaxTxGas)).Success.Eval(t.Ctx())
-			t.Require().NoError(err, "tx with gas at 2^24 should succeed")
+		// Kona, configured with Karst at genesis, rejects that block because
+		// the included tx exceeds the EIP-7825 cap.
+		inputs := sys.L2CL.LocalGameInputs(bigs.Uint64Strict(receipt.BlockNumber)-1, bigs.Uint64Strict(receipt.BlockNumber))
+		t.Require().False(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	})
 
-			tx := txplan.NewPlannedTx(planWithGasLimit(params.MaxTxGas + 1))
-			if testCase.expectErr {
-				_, err := tx.Included.Eval(t.Ctx())
-				t.Require().Error(err, "tx with gas above 2^24 should be rejected")
-			} else {
-				_, err := tx.Success.Eval(t.Ctx())
-				t.Require().NoError(err, "tx with gas above 2^24 should succeed")
-			}
-		})
-	}
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		// Live chain is on Karst — op-reth's RPC rejects a tx with gas > 2^24
+		// at submission time, so it never lands on-chain. Nothing for kona to
+		// validate.
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		_, err := txplan.NewPlannedTx(
+			eoa.Plan(),
+			txplan.WithTo(&common.Address{}),
+			txplan.WithGasLimit(params.MaxTxGas+1),
+		).Included.Eval(t.Ctx())
+		t.Require().Error(err)
+	})
 }
 
 func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
