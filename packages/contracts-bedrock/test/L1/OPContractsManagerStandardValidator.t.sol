@@ -2074,13 +2074,16 @@ contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsMa
         assertEq("ZKDG-NOSHAPE", _validate(true));
     }
 
-    /// @notice Tests ZKDG-10 when ZK feature is enabled but no ZK game impl is registered.
-    ///         This is the positive test ensuring the ZK validation branch is exercised.
-    function test_validate_zkDisputeGameNullImpl_succeeds() public {
+    /// @notice Tests that ZK feature enabled + no ZK impl registered is valid.
+    ///         address(0) in the factory means the chain opted out of ZK (e.g. initial deployment).
+    ///         The validator should skip ZK validation entirely and report no errors.
+    function test_validate_zkFeatureEnabled_noImpl_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        // Enable the ZK feature flag; factory still returns address(0) for ZK_DISPUTE_GAME.
+        // Enable the ZK feature flag in bitmap; factory still returns address(0) for ZK_DISPUTE_GAME.
+        // This is the exact state produced by an initial deployment with ZK disabled.
         _enableZKFeature();
-        assertEq("ZKDG-10", _validate(true));
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)), address(0));
+        assertEq("", _validate(true));
     }
 }
 

@@ -990,6 +990,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        // If no ZK implementation is registered in the factory, the chain has opted out of ZK so nothing to validate.
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
+            return _errors;
+        }
+
         string memory errorPrefix = "ZKDG";
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl;
