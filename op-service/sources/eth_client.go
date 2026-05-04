@@ -139,6 +139,11 @@ type EthClient struct {
 	// common.Hash -> *types.Header
 	headersCache *caching.LRUCache[common.Hash, *types.Header]
 
+	// cache (header, first tx) pairs by block hash. Source of truth for
+	// L2BlockRefBy* and SystemConfigByL2Hash, where the first tx is the L1
+	// info deposit and the rest of the block is irrelevant.
+	headerAndDepositCache *caching.LRUCache[common.Hash, headerAndDeposit]
+
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
 	payloadsCache *caching.LRUCache[common.Hash, *eth.ExecutionPayloadEnvelope]
@@ -163,15 +168,16 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		return nil, errors.New("failed to establish receipts provider")
 	}
 	return &EthClient{
-		client:            client,
-		recProvider:       recProvider,
-		trustRPC:          config.TrustRPC,
-		mustBePostMerge:   config.MustBePostMerge,
-		log:               log,
-		transactionsCache: caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
-		headersCache:      caching.NewLRUCache[common.Hash, *types.Header](metrics, "headers", config.HeadersCacheSize),
-		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", config.PayloadsCacheSize),
-		blockRefsCache:    caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.BlockRefsCacheSize),
+		client:                client,
+		recProvider:           recProvider,
+		trustRPC:              config.TrustRPC,
+		mustBePostMerge:       config.MustBePostMerge,
+		log:                   log,
+		transactionsCache:     caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
+		headersCache:          caching.NewLRUCache[common.Hash, *types.Header](metrics, "headers", config.HeadersCacheSize),
+		headerAndDepositCache: caching.NewLRUCache[common.Hash, headerAndDeposit](metrics, "headers_and_deposits", config.HeadersCacheSize),
+		payloadsCache:         caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", config.PayloadsCacheSize),
+		blockRefsCache:        caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.BlockRefsCacheSize),
 	}, nil
 }
 
@@ -315,6 +321,109 @@ func (s *EthClient) HeaderByNumber(ctx context.Context, number uint64) (*types.H
 func (s *EthClient) HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
 	return s.headerCall(ctx, "eth_getBlockByNumber", label)
+}
+
+// headerAndDeposit pairs a block header with its first transaction (the L1
+// info deposit on L2). Cached by block hash.
+type headerAndDeposit struct {
+	header  *types.Header
+	deposit *types.Transaction
+}
+
+// HeaderAndFirstTx returns the block header and the first transaction (the
+// L1 info deposit on L2) using a single batched JSON-RPC round trip:
+// eth_getBlockByX(id, false) + eth_getTransactionByBlockXAndIndex(id, 0).
+//
+// On a cache hit (when id is a hash), no RPC is issued.
+//
+// For label/number paths, the two calls in the batch can in principle resolve
+// to different blocks under a reorg or new head. This is detected by
+// comparing header.Transactions[0] (a hash, since fullTx=false) against the
+// fetched tx's hash. On mismatch, only the first tx is refetched, by the
+// header's now-known hash. The header is kept (it is internally consistent
+// and represents a valid snapshot of the requested label).
+//
+// Returns an error if the block has no transactions or the first transaction
+// is not a deposit type — both invariants of valid post-Bedrock L2 blocks.
+func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types.Header, *types.Transaction, error) {
+	if h, ok := id.(hashID); ok {
+		if entry, hit := s.headerAndDepositCache.Get(common.Hash(h)); hit {
+			return entry.header, entry.deposit, nil
+		}
+	}
+
+	getBlockMethod, getTxByIndexMethod := blockAndTxByIndexMethods(id)
+
+	var rpcHdr RPCHeaderWithTxHashes
+	var firstTx *types.Transaction
+	batch := []rpc.BatchElem{
+		{Method: getBlockMethod, Args: []any{id.Arg(), false}, Result: &rpcHdr},
+		{Method: getTxByIndexMethod, Args: []any{id.Arg(), hexutil.EncodeUint64(0)}, Result: &firstTx},
+	}
+	if err := s.client.BatchCallContext(ctx, batch); err != nil {
+		return nil, nil, eth.MaybeAsNotFoundErr(err)
+	}
+	if batch[0].Error != nil {
+		return nil, nil, eth.MaybeAsNotFoundErr(batch[0].Error)
+	}
+	if batch[1].Error != nil {
+		return nil, nil, eth.MaybeAsNotFoundErr(batch[1].Error)
+	}
+
+	header, err := rpcHdr.RPCHeader.Header(s.trustRPC, s.mustBePostMerge)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := id.CheckID(rpcHdr.BlockID()); err != nil {
+		return nil, nil, fmt.Errorf("fetched header does not match requested ID: %w", err)
+	}
+	if len(rpcHdr.Transactions) == 0 {
+		return nil, nil, fmt.Errorf("l2 block has no transactions, block hash: %s", rpcHdr.Hash)
+	}
+	if firstTx == nil {
+		return nil, nil, fmt.Errorf("l2 block first tx fetch returned nil, block hash: %s", rpcHdr.Hash)
+	}
+
+	// Consistency check: only needed for non-by-hash paths, where the two
+	// batch calls may resolve to different blocks under a reorg or new head.
+	if _, byHash := id.(hashID); !byHash {
+		if rpcHdr.Transactions[0] != firstTx.Hash() {
+			s.log.Debug("HeaderAndFirstTx: header/tx race detected, refetching tx by hash",
+				"block_hash", rpcHdr.Hash,
+				"header_tx0", rpcHdr.Transactions[0],
+				"got_tx_hash", firstTx.Hash())
+			firstTx = nil
+			err := s.client.CallContext(ctx, &firstTx,
+				"eth_getTransactionByBlockHashAndIndex",
+				rpcHdr.Hash, hexutil.EncodeUint64(0))
+			if err != nil {
+				return nil, nil, fmt.Errorf("retry first tx by hash failed: %w", err)
+			}
+			if firstTx == nil {
+				return nil, nil, fmt.Errorf("retry first tx by hash returned nil, block hash: %s", rpcHdr.Hash)
+			}
+			if rpcHdr.Transactions[0] != firstTx.Hash() {
+				return nil, nil, fmt.Errorf("first tx hash mismatch after retry: header says %s but tx is %s", rpcHdr.Transactions[0], firstTx.Hash())
+			}
+		}
+	}
+
+	if firstTx.Type() != types.DepositTxType {
+		return nil, nil, fmt.Errorf("first payload tx has unexpected tx type: %d", firstTx.Type())
+	}
+
+	s.headersCache.Add(rpcHdr.Hash, header)
+	s.headerAndDepositCache.Add(rpcHdr.Hash, headerAndDeposit{header: header, deposit: firstTx})
+	return header, firstTx, nil
+}
+
+// blockAndTxByIndexMethods returns the (getBlock, getTransactionByIndex) JSON-RPC
+// method names for the given block identifier kind.
+func blockAndTxByIndexMethods(id rpcBlockID) (block, txByIndex string) {
+	if _, ok := id.(hashID); ok {
+		return "eth_getBlockByHash", "eth_getTransactionByBlockHashAndIndex"
+	}
+	return "eth_getBlockByNumber", "eth_getTransactionByBlockNumberAndIndex"
 }
 
 // HeaderAndTxsByHash returns the *types.Header and transactions for the given

@@ -109,11 +109,11 @@ func (s *L2Client) RollupConfig() *rollup.Config {
 
 // L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	envelope, err := s.PayloadByLabel(ctx, label)
+	header, deposit, err := s.HeaderAndFirstTx(ctx, label)
 	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of %s, could not get payload: %w", label, err)
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of %s, could not fetch header+deposit: %w", label, err)
 	}
-	ref, err := derive.PayloadToBlockRef(s.rollupCfg, envelope.ExecutionPayload)
+	ref, err := derive.BlockRefFromHeaderAndDeposit(s.rollupCfg, eth.HeaderBlockInfo(header), deposit)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -123,11 +123,11 @@ func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) 
 
 // L2BlockRefByNumber returns the [eth.L2BlockRef] for the given block number.
 func (s *L2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	envelope, err := s.PayloadByNumber(ctx, num)
+	header, deposit, err := s.HeaderAndFirstTx(ctx, numberID(num))
 	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of height %v, could not get payload: %w", num, err)
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of height %v, could not fetch header+deposit: %w", num, err)
 	}
-	ref, err := derive.PayloadToBlockRef(s.rollupCfg, envelope.ExecutionPayload)
+	ref, err := derive.BlockRefFromHeaderAndDeposit(s.rollupCfg, eth.HeaderBlockInfo(header), deposit)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -142,11 +142,11 @@ func (s *L2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.
 		return ref, nil
 	}
 
-	envelope, err := s.PayloadByHash(ctx, hash)
+	header, deposit, err := s.HeaderAndFirstTx(ctx, hashID(hash))
 	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of hash %v, could not fetch header+deposit: %w", hash, err)
 	}
-	ref, err := derive.PayloadToBlockRef(s.rollupCfg, envelope.ExecutionPayload)
+	ref, err := derive.BlockRefFromHeaderAndDeposit(s.rollupCfg, eth.HeaderBlockInfoTrusted(hash, header), deposit)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -161,11 +161,11 @@ func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (
 		return ref, nil
 	}
 
-	envelope, err := s.PayloadByHash(ctx, hash)
+	header, deposit, err := s.HeaderAndFirstTx(ctx, hashID(hash))
 	if err != nil {
-		return eth.SystemConfig{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
+		return eth.SystemConfig{}, fmt.Errorf("failed to determine SystemConfig of hash %v, could not fetch header+deposit: %w", hash, err)
 	}
-	cfg, err := derive.PayloadToSystemConfig(s.rollupCfg, envelope.ExecutionPayload)
+	cfg, err := derive.SystemConfigFromHeaderAndDeposit(s.rollupCfg, eth.HeaderBlockInfoTrusted(hash, header), deposit)
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}

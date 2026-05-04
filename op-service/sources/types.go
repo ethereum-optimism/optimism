@@ -162,6 +162,15 @@ type RPCBlock struct {
 	Withdrawals  *types.Withdrawals   `json:"withdrawals,omitempty"`
 }
 
+// RPCHeaderWithTxHashes is the response shape of eth_getBlockBy* with
+// fullTx=false: header fields plus the list of transaction hashes (rather
+// than full transactions). Used by HeaderAndFirstTx for the consistency check
+// against the separately fetched first transaction.
+type RPCHeaderWithTxHashes struct {
+	RPCHeader
+	Transactions []common.Hash `json:"transactions"`
+}
+
 func (block *RPCBlock) Verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)

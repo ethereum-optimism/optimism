@@ -3,6 +3,8 @@ package eth
 import (
 	"math/big"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -175,4 +177,54 @@ func HeaderBlockInfo(h *types.Header) BlockInfo {
 // HeaderBlockInfoTrusted returns a BlockInfo, with trusted pre-cached block-hash.
 func HeaderBlockInfoTrusted(hash common.Hash, h *types.Header) BlockInfo {
 	return &headerBlockInfo{hash: hash, header: h}
+}
+
+// payloadBlockInfo is a conversion type of *ExecutionPayload turning it into
+// a BlockInfo. ParentBeaconRoot is not on the bare payload (it lives on the
+// envelope) and is reported as nil.
+type payloadBlockInfo struct{ p *ExecutionPayload }
+
+var _ BlockInfo = (*payloadBlockInfo)(nil)
+
+func (b *payloadBlockInfo) Hash() common.Hash       { return b.p.BlockHash }
+func (b *payloadBlockInfo) ParentHash() common.Hash { return b.p.ParentHash }
+func (b *payloadBlockInfo) Coinbase() common.Address {
+	return b.p.FeeRecipient
+}
+func (b *payloadBlockInfo) Root() common.Hash { return common.Hash(b.p.StateRoot) }
+func (b *payloadBlockInfo) NumberU64() uint64 { return uint64(b.p.BlockNumber) }
+func (b *payloadBlockInfo) Time() uint64      { return uint64(b.p.Timestamp) }
+func (b *payloadBlockInfo) MixDigest() common.Hash {
+	return common.Hash(b.p.PrevRandao)
+}
+func (b *payloadBlockInfo) BaseFee() *big.Int {
+	return (*uint256.Int)(&b.p.BaseFeePerGas).ToBig()
+}
+func (b *payloadBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int {
+	if b.p.ExcessBlobGas == nil {
+		return nil
+	}
+	// CalcBlobFee reads only ExcessBlobGas and Time from the header.
+	hdr := &types.Header{
+		Time:          uint64(b.p.Timestamp),
+		ExcessBlobGas: (*uint64)(b.p.ExcessBlobGas),
+	}
+	return eip4844.CalcBlobFee(chainConfig, hdr)
+}
+func (b *payloadBlockInfo) ExcessBlobGas() *uint64 { return (*uint64)(b.p.ExcessBlobGas) }
+func (b *payloadBlockInfo) ReceiptHash() common.Hash {
+	return common.Hash(b.p.ReceiptsRoot)
+}
+func (b *payloadBlockInfo) GasUsed() uint64 { return uint64(b.p.GasUsed) }
+func (b *payloadBlockInfo) BlobGasUsed() *uint64 {
+	return (*uint64)(b.p.BlobGasUsed)
+}
+func (b *payloadBlockInfo) GasLimit() uint64               { return uint64(b.p.GasLimit) }
+func (b *payloadBlockInfo) ParentBeaconRoot() *common.Hash { return nil }
+func (b *payloadBlockInfo) WithdrawalsRoot() *common.Hash  { return b.p.WithdrawalsRoot }
+func (b *payloadBlockInfo) Extra() []byte                  { return b.p.ExtraData }
+
+// PayloadToInfo returns p as a BlockInfo implementation.
+func PayloadToInfo(p *ExecutionPayload) BlockInfo {
+	return &payloadBlockInfo{p: p}
 }
