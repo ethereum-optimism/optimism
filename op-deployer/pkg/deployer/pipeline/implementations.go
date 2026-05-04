@@ -57,7 +57,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		FaultGameV2ClockExtension:       new(big.Int).SetUint64(proofParams.DisputeClockExtension),
 		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
 		SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 		L1ProxyAdminOwner:               st.SuperchainRoles.SuperchainProxyAdminOwner,
 		Challenger:                      st.SuperchainRoles.Challenger,

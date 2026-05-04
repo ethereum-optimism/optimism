@@ -63,8 +63,8 @@ const (
 	SuperchainProxyAdminOwner SuperchainOperatorRole = 1
 	// SuperchainConfigGuardianKey is the Guardian of the SuperchainConfig.
 	SuperchainConfigGuardianKey SuperchainOperatorRole = 2
-	// Slot 3 was SuperchainProtocolVersionsOwner; left unused so the
-	// deterministic key derivation of subsequent roles stays stable.
+	// Slot 3 is reserved-but-unused so the deterministic key derivation of
+	// subsequent roles stays stable.
 	// DependencySetManagerKey is the key used to manage the dependency set of a superchain.
 	DependencySetManagerKey SuperchainOperatorRole = 4
 )

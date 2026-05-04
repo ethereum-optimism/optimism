@@ -9,7 +9,6 @@ import { Types } from "scripts/libraries/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -58,7 +57,6 @@ contract DeployImplementations is Script {
         uint256 faultGameV2MaxClockDuration;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
-        IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address l1ProxyAdminOwner;
         address challenger;
@@ -83,7 +81,6 @@ contract DeployImplementations is Script {
         IDisputeGameFactory disputeGameFactoryImpl;
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
-        IProtocolVersions protocolVersionsImpl;
         IFaultDisputeGame faultDisputeGameImpl;
         IPermissionedDisputeGame permissionedDisputeGameImpl;
         ISuperFaultDisputeGame superFaultDisputeGameImpl;
@@ -107,7 +104,6 @@ contract DeployImplementations is Script {
 
         // Deploy the implementations.
         deploySuperchainConfigImpl(output_);
-        deployProtocolVersionsImpl(output_);
         deploySystemConfigImpl(output_);
         deployL1CrossDomainMessengerImpl(output_);
         deployL1ERC721BridgeImpl(output_);
@@ -161,7 +157,6 @@ contract DeployImplementations is Script {
         IOPContractsManagerContainer.Implementations memory implementations = IOPContractsManagerContainer
             .Implementations({
             superchainConfigImpl: address(_output.superchainConfigImpl),
-            protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
             optimismPortalImpl: address(_output.optimismPortalImpl),
             ethLockboxImpl: address(_output.ethLockboxImpl),
@@ -230,18 +225,6 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "SuperchainConfigImpl");
         _output.superchainConfigImpl = impl;
-    }
-
-    function deployProtocolVersionsImpl(Output memory _output) private {
-        IProtocolVersions impl = IProtocolVersions(
-            DeployUtils.createDeterministic({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ())),
-                _salt: _salt
-            })
-        );
-        vm.label(address(impl), "ProtocolVersionsImpl");
-        _output.protocolVersionsImpl = impl;
     }
 
     function deploySystemConfigImpl(Output memory _output) private {
@@ -720,9 +703,6 @@ contract DeployImplementations is Script {
             address(_input.superchainConfigProxy) != address(0), "DeployImplementations: superchainConfigProxy not set"
         );
         require(
-            address(_input.protocolVersionsProxy) != address(0), "DeployImplementations: protocolVersionsProxy not set"
-        );
-        require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
@@ -739,8 +719,7 @@ contract DeployImplementations is Script {
             address(_output.delayedWETHImpl),
             address(_output.preimageOracleSingleton),
             address(_output.mipsSingleton),
-            address(_output.superchainConfigImpl),
-            address(_output.protocolVersionsImpl)
+            address(_output.superchainConfigImpl)
         );
 
         address[] memory addrs2 = Solarray.addresses(

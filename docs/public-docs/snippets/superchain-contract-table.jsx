@@ -37,7 +37,6 @@ export const SuperchainContractTable = ({ chain, explorer }) => {
     for (const [key, value] of Object.entries(obj)) {
       if (typeof value === 'string' && /^0x[a-fA-F0-9]{40}$/.test(value)) {
         let newKey = key;
-        if (key === 'protocol_versions_addr') newKey = 'ProtocolVersions';
         if (key === 'superchain_config_addr') newKey = 'SuperchainConfig';
         if (key === 'op_contracts_manager_proxy_addr') newKey = 'OPContractsManagerProxy';
         addresses[newKey] = value;

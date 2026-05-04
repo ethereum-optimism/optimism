@@ -131,7 +131,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
-        saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
         // Core contracts
         artifacts.save("ProxyAdmin", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".ProxyAdmin")));
         saveProxyAndImpl("SystemConfig", opToml, ".addresses.SystemConfigProxy");

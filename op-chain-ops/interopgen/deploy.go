@@ -178,11 +178,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		SuperchainProxyAdminOwner: superCfg.ProxyAdminOwner,
 		Guardian:                  superCfg.SuperchainConfigGuardian,
 		Paused:                    superCfg.Paused,
-		// Non-zero placeholders for the deprecated ProtocolVersions* inputs;
-		// PR 2 of #20309 removes them from the Solidity script.
-		ProtocolVersionsOwner:      superCfg.ProxyAdminOwner,
-		RequiredProtocolVersion:    common.Hash{0x01},
-		RecommendedProtocolVersion: common.Hash{0x01},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
@@ -202,10 +197,8 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		FaultGameV2MaxClockDuration:     big.NewInt(302400),
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
-		// Non-zero placeholder; PR 2 of #20309 removes the field.
-		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
-		L1ProxyAdminOwner:     superCfg.ProxyAdminOwner,
-		Challenger:            superCfg.Challenger,
+		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
+		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
