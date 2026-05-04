@@ -6,8 +6,8 @@ This directory contains the OP Stack acceptance tests. They run against the in-p
 
 The supported execution path is:
 
-- `just` or `just acceptance-test-all`
-- `gotestsum -- go test ./op-acceptance-tests/tests/...`
+- `just` or `just acceptance-test`
+- `gotestsum -- go test ./tests/...`
 
 `devtest.T.MarkFlaky(...)` is used for tests that should downgrade failures to skips in the normal acceptance run. Set `DEVNET_FAIL_FLAKY_TESTS=true` to force those tests to fail normally. Acceptance runs also emit a `flaky-tests.txt` artifact in `op-acceptance-tests/logs/...` listing the current `MarkFlaky(...)` call sites.
 
@@ -32,21 +32,21 @@ just
 
 # Explicit alias
 just acceptance-test
-just acceptance-test-all
 ```
 
 ### Direct CLI Usage
 
 ```bash
-gotestsum --format testname --junitfile ./op-acceptance-tests/results/results.xml -- \
-  -count=1 -p 4 -parallel 4 -timeout 2h ./op-acceptance-tests/tests/...
+mkdir -p results
+gotestsum --format testname --junitfile ./results/results.xml -- \
+  -count=1 -p 4 -parallel 4 -timeout 30m ./tests/...
 ```
 
 The `just` wrapper computes defaults from available CPUs:
 
 - package jobs: CPU count
 - in-package `t.Parallel`: half the CPU count
-- timeout: `2h`
+- timeout: `30m`
 
 Override them with `ACCEPTANCE_TEST_JOBS`, `ACCEPTANCE_TEST_PARALLEL`, and `ACCEPTANCE_TEST_TIMEOUT`.
 
