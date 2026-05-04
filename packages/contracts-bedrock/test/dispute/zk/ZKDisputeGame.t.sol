@@ -1425,6 +1425,22 @@ contract ZKDisputeGame_Credit_Test is ZKDisputeGame_TestInit {
     }
 }
 
+/// @title ZKDisputeGame_RootClaim_Test
+/// @notice Tests the `rootClaimByChainId` function of `ZKDisputeGame`.
+contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
+    /// @notice Tests that rootClaimByChainId returns the same value as rootClaim() for the correct chain ID.
+    function test_rootClaimByChainId_succeeds() public view {
+        assertEq(game.rootClaimByChainId(game.l2ChainId()).raw(), game.rootClaim().raw());
+    }
+
+    /// @notice Tests that rootClaimByChainId reverts when called with a valid but wrong chain ID.
+    function testFuzz_rootClaimByChainId_wrongChainId_reverts(uint256 _chainId) public {
+        vm.assume(_chainId != game.l2ChainId());
+        vm.expectRevert(UnknownChainId.selector);
+        game.rootClaimByChainId(_chainId);
+    }
+}
+
 /// @title ZKDisputeGame_RevertOnReceive_Harness
 /// @notice Helper contract that rejects ETH transfers.
 contract ZKDisputeGame_RevertOnReceive_Harness {
