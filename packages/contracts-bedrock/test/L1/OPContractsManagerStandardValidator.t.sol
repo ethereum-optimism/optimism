@@ -2274,15 +2274,8 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         assertEq(errors, "");
     }
 
-    /// @notice Tests ZKDG-10 when the ZK game implementation is not registered in the factory.
-    function test_validate_zkDisputeGameNullImpl_succeeds() public {
-        vm.mockCall(
-            address(dgf),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
-            abi.encode(address(0))
-        );
-        assertEq("ZKDG-10", _validate(true));
-    }
+    // Note: Tests for address(0) game implementation are skipped since this is treated as valid
+    // at the validator contract level as this indicates that the chain has opted out of ZK
 
     /// @notice Tests ZKDG-20 when the ZK game implementation version does not match the expected.
     function test_validate_zkDisputeGameInvalidVersion_succeeds() public {
@@ -2297,6 +2290,41 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     function test_validate_zkDisputeGameWrongChainId_succeeds() public {
         DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId + 1);
         assertEq("ZKDG-60", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
+    function test_validate_zkDisputeGameZeroAbsolutePrestate_succeeds() public {
+        // absolutePrestate occupies bytes [0-31] of the packed ZK args.
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(0)));
+        assertEq("ZKDG-70", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-80 when the verifier encoded in the ZK game args is the zero address.
+    function test_validate_zkDisputeGameZeroVerifier_succeeds() public {
+        // verifier occupies bytes [32-51] (20-byte address).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(address(0)));
+        assertEq("ZKDG-80", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-90 when the maxChallengeDuration encoded in the ZK game args is zero.
+    function test_validate_zkDisputeGameZeroMaxChallengeDuration_succeeds() public {
+        // maxChallengeDuration occupies bytes [52-59] (uint64).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 52, abi.encodePacked(uint64(0)));
+        assertEq("ZKDG-90", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-100 when the maxProveDuration encoded in the ZK game args is zero.
+    function test_validate_zkDisputeGameZeroMaxProveDuration_succeeds() public {
+        // maxProveDuration occupies bytes [60-67] (uint64).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 60, abi.encodePacked(uint64(0)));
+        assertEq("ZKDG-100", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-110 when the challengerBond encoded in the ZK game args is zero.
+    function test_validate_zkDisputeGameZeroChallengerBond_succeeds() public {
+        // challengerBond occupies bytes [68-99] (uint256).
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 68, abi.encodePacked(uint256(0)));
+        assertEq("ZKDG-110", _validate(true));
     }
 }
 

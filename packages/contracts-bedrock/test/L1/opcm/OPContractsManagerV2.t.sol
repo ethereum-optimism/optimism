@@ -1104,6 +1104,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encode(impls)
         );
 
+        // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO,
             abi.encodeWithSelector(
