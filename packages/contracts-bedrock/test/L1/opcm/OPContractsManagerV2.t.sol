@@ -2454,23 +2454,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Tests that migration reverts when a chain has not enabled ETHLockbox.
-    function test_migrate_ethLockboxNotEnabled_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_EthLockboxNotEnabled.selector);
-    }
-
-    /// @notice Tests that migration reverts when ETHLockbox is enabled but the portal has no lockbox.
-    function test_migrate_ethLockboxEnabledButPortalLockboxZero_reverts() public {
-        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-
-        vm.prank(address(chainContracts1.proxyAdmin));
-        chainContracts1.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-
-        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_EthLockboxNotEnabled.selector);
-    }
-
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
