@@ -501,13 +501,24 @@ func TestSpanBatchReadTxData(t *testing.T) {
 			}
 
 			for txIdx := 0; txIdx < testCase.trials; txIdx++ {
-				r := bytes.NewReader(rawTxs[i])
+				r := bytes.NewReader(rawTxs[txIdx])
 				_, txType, err := ReadTxData(r)
 				require.NoError(t, err)
-				assert.Equal(t, int(txs[i].Type()), txType)
+				assert.Equal(t, int(txs[txIdx].Type()), txType)
 			}
 		})
 	}
+}
+
+func TestSpanBatchReadPostExecTxData(t *testing.T) {
+	rawTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	r := bytes.NewReader(rawTx)
+	txData, txType, err := ReadTxData(r)
+	require.NoError(t, err)
+	require.Equal(t, int(types.PostExecTxType), txType)
+	require.Equal(t, rawTx, txData)
 }
 
 func TestSpanBatchReadTxDataInvalid(t *testing.T) {
