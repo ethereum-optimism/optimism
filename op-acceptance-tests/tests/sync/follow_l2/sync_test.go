@@ -225,10 +225,10 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 
 	// Sequencer unsafe payload will arrive to the verifier, triggering EL sync and filling in the unsafe gap
 	dsl.CheckAll(t,
-		// Match with sequencer with derivation disabled
+		// In sync with sequencer, with derivation disabled
 		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalSafe, attempts),
 		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalUnsafe, attempts),
-		// Match with other verifier with derivation enabled
+		// In sync with other verifier, with derivation enabled
 		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
 		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
 	)

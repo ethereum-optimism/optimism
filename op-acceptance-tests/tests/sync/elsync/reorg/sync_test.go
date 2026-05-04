@@ -232,7 +232,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
 	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 
-	// Unsafe gap is closed
+	// Verifier converged with sequencer's canonical unsafe chain
 	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 50)
 
 	seqUnsafe = sys.L2EL.BlockRefByLabel(eth.Unsafe)
@@ -361,7 +361,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
 	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 
-	// Unsafe gap is closed
+	// Verifier converged with sequencer's canonical unsafe chain
 	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 50)
 
 	seqUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
