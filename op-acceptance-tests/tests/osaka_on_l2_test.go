@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -64,36 +65,58 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
 	// Modexp input exceeding EIP-7823 limits: modulus length is 1025 bytes (limit is 1024)
 	oversizeMod := make([]byte, 1025)
 	oversizeMod[1024] = 5
-	exceedingLimitInput := buildModExpInput([]byte{2}, []byte{3}, oversizeMod)
+	planOversized := txplan.Combine(
+		txplan.WithTo(&modexpPrecompile),
+		txplan.WithData(buildModExpInput([]byte{2}, []byte{3}, oversizeMod)),
+		txplan.WithGasLimit(2_000_000),
+	)
+	withinLimitInput := buildModExpInput([]byte{2}, []byte{3}, []byte{5})
 
-	// Pre-fork: oversized modexp input should succeed (EIP-7823 not yet active)
-	result, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: exceedingLimitInput,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err)
-	t.Require().Len(result, 1025, "pre-fork: modexp with oversized input should return 1025-byte result")
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: oversized modexp input should fail (EIP-7823 enforced)
-	result, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: exceedingLimitInput,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err)
-	t.Require().Empty(result, "post-fork: modexp with oversized input should return empty result due to EIP-7823")
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(), planOversized).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	})
 
-	// Post-fork: within-limit modexp input should still succeed
-	result, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:   &modexpPrecompile,
-		Data: buildModExpInput([]byte{2}, []byte{3}, []byte{5}),
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err)
-	t.Require().Equal([]byte{3}, result, "2^3 mod 5 should equal 3")
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		// Make sure the chain is past genesis before submitting txs, so the agreed
+		// block we feed kona below is always >= 1 (genesis output is not reliably
+		// served by OutputAtBlock).
+		sys.L2EL.WaitForBlockNumber(1)
+
+		// Post-Karst: oversized modulus is rejected, so the tx is included but reverts.
+		oversizedReceipt, err := txplan.NewPlannedTx(eoa.Plan(), planOversized).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusFailed, oversizedReceipt.Status)
+
+		// Post-Karst: within-limit modulus still works.
+		withinLimitReceipt, err := txplan.NewPlannedTx(
+			eoa.Plan(),
+			txplan.WithTo(&modexpPrecompile),
+			txplan.WithData(withinLimitInput),
+			txplan.WithGasLimit(200_000),
+		).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, withinLimitReceipt.Status)
+
+		// Cross-check kona-host agrees with the live chain over a range that
+		// covers both the rejected oversized call and the within-limit success.
+		agreedBlock := oversizedReceipt.BlockNumber.Uint64() - 1
+		claimBlock := withinLimitReceipt.BlockNumber.Uint64()
+		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
+		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	})
 }
 
 func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
