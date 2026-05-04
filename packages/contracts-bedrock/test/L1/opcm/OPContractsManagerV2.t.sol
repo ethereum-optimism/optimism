@@ -1091,6 +1091,27 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that enabling a game type with a zero container implementation reverts.
+    function test_upgrade_enabledGameWithZeroImpl_reverts() public {
+        // Zero out the Cannon implementation in the container
+        // Cannon is always enabled in the default v2UpgradeInput.
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        impls.faultDisputeGameImpl = address(0);
+
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.implementations, ()),
+            abi.encode(impls)
+        );
+
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_ZeroGameImplementation.selector, GameTypes.CANNON
+            )
+        );
+    }
+
     /// @notice Tests that override instructions for the super root migration are blocked when
     ///         the SUPER_ROOT_GAMES_MIGRATION feature flag is not enabled.
     function test_upgrade_overrideBlockedWithoutMigrationFlag_reverts() public {

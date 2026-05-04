@@ -137,6 +137,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade sequence is provided.
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
+    /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
+    error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -927,6 +930,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // If the game is enabled, grab the implementation and craft the game arguments.
             if (_cfg.disputeGameConfigs[i].enabled) {
                 gameImpl = _getGameImpl(_cfg.disputeGameConfigs[i].gameType);
+                if (address(gameImpl) == address(0)) {
+                    revert OPContractsManagerV2_ZeroGameImplementation(_cfg.disputeGameConfigs[i].gameType);
+                }
                 gameArgs = _makeGameArgs(
                     _cfg.l2ChainId, _cts.anchorStateRegistry, _cts.delayedWETH, _cfg.disputeGameConfigs[i]
                 );
