@@ -66,12 +66,15 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 │   └── <a href="./docs/public-docs">public-docs</a>: Public developer documentation for <a href="https://docs.optimism.io">docs.optimism.io</a>
+├── <a href="./justfiles">justfiles</a>: Shared just recipes
+├── <a href="./linter">linter</a>: Repository linting utilities
 ├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
 ├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
 ├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
+├── <a href="./op-core">op-core</a>: Shared OP Stack protocol constants and configuration helpers
 ├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
 ├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
 ├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
@@ -79,12 +82,15 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
 ├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
 ├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
+├── <a href="./op-interop-filter">op-interop-filter</a>: Interop executing-message validator for transaction filtering
 ├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
 ├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
+├── <a href="./op-rbuilder">op-rbuilder</a>: Rust block builder for OP Stack chains
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-supernode">op-supernode</a>: Service for running multiple OP Stack chains in one process
 ├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
 ├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
 ├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
@@ -94,6 +100,8 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+├── <a href="./rollup-boost">rollup-boost</a>: Block builder sidecar for external block production
+├── <a href="./rust">rust</a>: Rust workspace for Kona, op-reth, op-alloy, and related crates
 </pre>
 
 ## Development and Release Process
