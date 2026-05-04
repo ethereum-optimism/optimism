@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
@@ -16,17 +15,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var modexpPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000005")
@@ -43,22 +39,6 @@ func buildModExpInput(base, exp, mod []byte) []byte {
 	input = append(input, exp...)
 	input = append(input, mod...)
 	return input
-}
-
-// setupKarstForkTest creates a minimal system with Karst activated at block offset 3
-// and returns the L2 client along with pre-fork and post-fork block numbers.
-func setupKarstForkTest(t devtest.T) (l2Client apis.EthClient, preForkBlockNum, postForkBlockNum uint64) {
-	karstOffset := uint64(3)
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&karstOffset)))
-
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Karst)
-	t.Require().Greater(activationBlock.Number, uint64(0), "karst must not activate at genesis")
-	preForkBlockNum = activationBlock.Number - 1
-	postForkBlockNum = activationBlock.Number + 1
-	sys.L2EL.WaitForBlockNumber(postForkBlockNum)
-
-	l2Client = sys.L2EL.EthClient()
-	return
 }
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
@@ -292,8 +272,6 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
 	// EVM init code that computes CLZ(1) and returns the 32-byte result.
 	// CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256.
 	clzCode := []byte{
@@ -305,20 +283,50 @@ func TestEIP7939CLZ(gt *testing.T) {
 		byte(vm.PUSH1), 0, // stack: [0, 32]
 		byte(vm.RETURN), // return mem[0:32]
 	}
+	deployPlan := txplan.Combine(
+		txplan.WithData(clzCode),
+		txplan.WithGasLimit(100_000),
+	)
 
-	// Pre-fork: CLZ opcode (0x1e) is not yet valid, so execution should fail.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		Data: clzCode,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().Error(err, "pre-fork: CLZ opcode should not be available")
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: CLZ opcode is valid, execution should succeed.
-	result, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		Data: clzCode,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: CLZ opcode should be available")
-	expected := common.LeftPadBytes([]byte{0xff}, 32) // 255 as uint256
-	t.Require().Equal(expected, result, "CLZ(1) should equal 255")
+		// Pre-Karst: CLZ opcode (0x1e) is invalid; the init code aborts and
+		// deployment fails.
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(), deployPlan).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status)
+	})
+
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		// Make sure the chain is past genesis before submitting txs, so the agreed
+		// block we feed kona below is always >= 1 (genesis output is not reliably
+		// served by OutputAtBlock).
+		sys.L2EL.WaitForBlockNumber(1)
+
+		// Post-Karst: CLZ executes; init code returns 32 bytes; deployment succeeds.
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(), deployPlan).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+		// The deployed code IS the 32-byte CLZ(1) result.
+		deployedCode, err := sys.L2EL.EthClient().CodeAtHash(t.Ctx(), receipt.ContractAddress, receipt.BlockHash)
+		t.Require().NoError(err)
+		t.Require().Equal(common.LeftPadBytes([]byte{0xff}, 32), deployedCode, "CLZ(1) should equal 255")
+
+		// Cross-check kona-host agrees with the live chain over the block where
+		// CLZ was executed.
+		agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
+		claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
+		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
+		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	})
 }
 
 // TestEIP7825DepositBypassesTxGasLimitCap proves that deposit transactions are not
