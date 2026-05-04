@@ -339,8 +339,9 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
 	sys.L1Network.WaitForOnline()
+	sys.L2EL.WaitForBlockNumber(1)
 
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	alicel2 := alice.AsEL(sys.L2EL)
@@ -380,6 +381,14 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit should be included and succeed on L2")
 
 	alicel2.WaitForBalance(depositAmount)
+
+	// Cross-check kona-host agrees with the live chain on the block where the
+	// high-gas deposit landed — proves kona implements the deposit-side bypass
+	// of EIP-7825 (deposits are not subject to the 2^24 cap).
+	agreedBlock := bigs.Uint64Strict(l2Receipt.BlockNumber) - 1
+	claimBlock := bigs.Uint64Strict(l2Receipt.BlockNumber)
+	inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
+	t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
 }
 
 // TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block
