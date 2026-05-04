@@ -14,6 +14,12 @@ ignore = [
   "RUSTSEC-2024-0436",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # hickory-proto <0.26.1 NSEC3 closest-encloser DNSSEC validation unbounded loop;
+  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
+  "RUSTSEC-2026-0118",
+  # hickory-proto <0.26.1 O(n^2) name-compression CPU exhaustion in BinEncoder;
+  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
+  "RUSTSEC-2026-0119",
 ]
 
 # This section is considered when running `cargo deny check bans`.
