@@ -123,35 +123,59 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	l2Client, preForkBlockNum, postForkBlockNum := setupKarstForkTest(t)
-
 	// Call modexp with empty calldata. The precompile pads missing bytes with
 	// zeros, giving Bsize=0, Esize=0, Msize=0. This hits exactly the gas floor:
 	//   EIP-2565 (pre-Karst):  max(200, floor(0*0/3)) = 200 gas
 	//   EIP-7883 (post-Karst): max(500, floor(0*0))   = 500 gas
 	// Empty calldata also avoids EIP-7623 calldata cost inflation, so intrinsic
-	// gas is just 21,000 and we can precisely control execution gas via Gas limit.
+	// gas is exactly 21,000 and we can precisely control execution gas via the tx gas limit.
+	planUnderGas := txplan.Combine(
+		txplan.WithTo(&modexpPrecompile),
+		txplan.WithGasLimit(21_300),
+	)
 
-	// Pre-fork: 21,000 + 300 execution gas is enough for 200-gas floor.
-	_, err := l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_300,
-	}, rpc.BlockNumber(preForkBlockNum))
-	t.Require().NoError(err, "pre-fork: modexp should succeed with 300 execution gas (floor is 200)")
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-	// Post-fork: 21,000 + 300 execution gas is NOT enough for 500-gas floor.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_300,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().Error(err, "post-fork: modexp should fail with 300 execution gas (floor is 500)")
+		// Pre-Karst: 21,000 + 300 execution gas is enough for 200-gas floor.
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+	})
 
-	// Post-fork: 21,000 + 600 execution gas is enough for 500-gas floor.
-	_, err = l2Client.Call(t.Ctx(), ethereum.CallMsg{
-		To:  &modexpPrecompile,
-		Gas: 21_600,
-	}, rpc.BlockNumber(postForkBlockNum))
-	t.Require().NoError(err, "post-fork: modexp should succeed with 600 execution gas (floor is 500)")
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		// Make sure the chain is past genesis before submitting txs, so the agreed
+		// block we feed kona below is always >= 1 (genesis output is not reliably
+		// served by OutputAtBlock).
+		sys.L2EL.WaitForBlockNumber(1)
+
+		// Post-Karst: 21,000 + 300 execution gas is NOT enough for 500-gas floor.
+		underGasReceipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusFailed, underGasReceipt.Status)
+
+		// Post-Karst: 21,000 + 600 execution gas is enough for 500-gas floor.
+		sufficientReceipt, err := txplan.NewPlannedTx(
+			eoa.Plan(),
+			txplan.WithTo(&modexpPrecompile),
+			txplan.WithGasLimit(21_600),
+		).Included.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, sufficientReceipt.Status)
+
+		// Cross-check kona-host agrees with the live chain over a range that
+		// covers both the OOG case and the within-floor success.
+		agreedBlock := bigs.Uint64Strict(underGasReceipt.BlockNumber) - 1
+		claimBlock := bigs.Uint64Strict(sufficientReceipt.BlockNumber)
+		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
+		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	})
 }
 
 func TestEIP7825TxGasLimitCap(gt *testing.T) {
