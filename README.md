@@ -74,7 +74,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
 ├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
-├── <a href="./op-core">op-core</a>: Shared OP Stack protocol constants and configuration helpers
+├── <a href="./op-core">op-core</a>: Shared OP Stack protocol logic and configuration helpers
 ├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
 ├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
 ├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
