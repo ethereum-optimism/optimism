@@ -10,7 +10,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -102,13 +101,9 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     }
 
     function test_initialize_interopFlag_succeeds() external view {
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            /// if devfeature flag is on, check in system config is on
-            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
-        } else {
-            /// if dev feature flag is off, check system config is off
-            assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
-        }
+        // The dev feature only makes interop code available. Runtime INTEROP activation is handled
+        // by OPContractsManagerMigrator so initialization does not enable the SystemConfig feature.
+        assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that initialization sets the correct values.

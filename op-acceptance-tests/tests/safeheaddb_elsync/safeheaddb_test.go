@@ -43,7 +43,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
@@ -65,7 +65,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	// EL Sync after a full database wipe requires more time than the initial sync:
 	// the EL must re-download all blocks via P2P before the CL can begin derivation,
 	// and node A keeps advancing LocalSafe in the meantime.
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 90)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 90)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 90) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
@@ -88,7 +88,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
 
 	preRestartSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
@@ -100,7 +100,7 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 
 	sys.L2CLB.Start()
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 60)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))

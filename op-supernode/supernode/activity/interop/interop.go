@@ -752,6 +752,18 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
+	resetEngines, err := i.shouldResetEnginesOnRewind(lastTS)
+	if err != nil {
+		return RewindPlan{}, err
+	}
+	if resetEngines {
+		if lastTS == 0 {
+			return RewindPlan{}, fmt.Errorf("cannot reset engines before timestamp 0")
+		}
+		resetTo := lastTS - 1
+		plan.ResetAllChainsTo = &resetTo
+	}
+
 	first, err := i.firstVerifiableTimestamp(i.ctx)
 	if err != nil {
 		return RewindPlan{}, err
@@ -765,9 +777,21 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	if err != nil {
 		return RewindPlan{}, fmt.Errorf("read previous verified result at %d: %w", rewindTargetTS, err)
 	}
-	plan.ResetAllChainsTo = &rewindTargetTS
 	plan.TargetHeads = prevResult.L2Heads
 	return plan, nil
+}
+
+func (i *Interop) shouldResetEnginesOnRewind(timestamp uint64) (bool, error) {
+	for chainID, chain := range i.chains {
+		hasDenied, err := chain.HasDeniedAtOrAfterTimestamp(timestamp)
+		if err != nil {
+			return false, fmt.Errorf("chain %s: inspect deny list for rewind: %w", chainID, err)
+		}
+		if hasDenied {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (i *Interop) applyRewindPlan(plan RewindPlan) error {
@@ -798,12 +822,6 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 			i.log.Error("failed to prune deny list on rewind", "chain", chainID, "err", err)
 			recordErr(fmt.Errorf("chain %s: prune deny list on rewind: %w", chainID, err))
 		}
-		if plan.ResetAllChainsTo != nil {
-			if err := chain.RewindEngine(i.ctx, *plan.ResetAllChainsTo, eth.BlockRef{}); err != nil {
-				i.log.Error("failed to reset chain engine on rewind", "chain", chainID, "err", err)
-				recordErr(fmt.Errorf("chain %s: reset chain engine on rewind: %w", chainID, err))
-			}
-		}
 	}
 
 	if plan.TargetHeads == nil {
@@ -812,6 +830,9 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 				i.log.Error("failed to clear logsDB on full rewind", "chain", chainID, "err", err)
 				recordErr(fmt.Errorf("chain %s: clear logsDB on full rewind: %w", chainID, err))
 			}
+		}
+		if len(allErrs) == 0 {
+			i.resetChainEnginesIfNeeded(plan, sortedChainIDs, recordErr)
 		}
 		return errors.Join(allErrs...)
 	}
@@ -834,7 +855,24 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 		}
 	}
 
+	if len(allErrs) == 0 {
+		i.resetChainEnginesIfNeeded(plan, sortedChainIDs, recordErr)
+	}
 	return errors.Join(allErrs...)
+}
+
+func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []eth.ChainID, recordErr func(error)) {
+	if plan.ResetAllChainsTo == nil {
+		return
+	}
+	for _, chainID := range sortedChainIDs {
+		i.log.Warn("rewinding chain engine after pruning deny-list entries",
+			"chain", chainID, "rewindToTimestamp", *plan.ResetAllChainsTo)
+		if err := i.chains[chainID].RewindEngine(i.ctx, *plan.ResetAllChainsTo, eth.BlockRef{}); err != nil {
+			i.log.Error("failed to reset chain engine after pruning deny-list entries", "chain", chainID, "err", err)
+			recordErr(fmt.Errorf("chain %s: reset chain engine after pruning deny-list entries: %w", chainID, err))
+		}
+	}
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,

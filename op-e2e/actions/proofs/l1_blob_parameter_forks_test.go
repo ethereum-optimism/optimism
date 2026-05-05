@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_ProgramAction_BlobParameterForks tests the blob base fee calculation for different forks.
-func Test_ProgramAction_BlobParameterForks(gt *testing.T) {
+// TestBlobParameterForks tests the blob base fee calculation for different forks.
+func TestBlobParameterForks(gt *testing.T) {
 	runBlobParameterForksTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 

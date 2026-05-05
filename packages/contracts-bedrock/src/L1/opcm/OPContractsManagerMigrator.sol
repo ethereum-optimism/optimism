@@ -54,11 +54,8 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
 
-    /// @notice Thrown when a chain's SystemConfig does not have Features.INTEROP enabled.
-    error OPContractsManagerMigrator_InteropFeatureNotEnabled();
-
-    /// @notice Thrown when a chain's SystemConfig does not have Features.ETH_LOCKBOX enabled.
-    error OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
+    /// @notice Thrown when a chain is paused before migration mutates its portal.
+    error OPContractsManagerMigrator_SystemPaused();
 
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
@@ -85,6 +82,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
     ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
     ///      upgraded to the current OPCM release version before calling migrate.
+    /// @dev NOTE: OPContractsManagerV2.upgrade() only performs standard chain upgrades. This
+    ///      function performs the one-off interop activation by enabling required features,
+    ///      connecting each portal to the shared ETHLockbox, migrating liquidity, and moving each
+    ///      portal to the shared dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
         // Check that at least one chain is being migrated.
@@ -262,28 +263,53 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_CustomGasTokenNotSupported();
         }
 
-        // Verify INTEROP is already enabled (set by OPCMv2.upgrade()).
-        // migrateToSharedDisputeGame requires both INTEROP and ETH_LOCKBOX.
-        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
-            revert OPContractsManagerMigrator_InteropFeatureNotEnabled();
-        }
-        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            revert OPContractsManagerMigrator_EthLockboxFeatureNotEnabled();
-        }
-
-        // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
+        // Convert portal to interop portal interface, and grab existing migration state.
         IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
-        IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
+        IETHLockbox oldLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
+        IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
+        // Check the current pause state before mutating the portal's lockbox. For chains that
+        // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
+        // portal's current lockbox. Reinitializing the portal first would switch the pause
+        // identifier to the shared lockbox and could hide an active old-lockbox pause.
+        if (_systemConfig.paused()) {
+            revert OPContractsManagerMigrator_SystemPaused();
+        }
+
         // Authorize the portal on the new ETHLockbox.
-        _newLockbox.authorizePortal(IOptimismPortal(payable(address(portal))));
+        _newLockbox.authorizePortal(portal);
 
-        // Authorize the existing ETHLockbox to use the new ETHLockbox.
-        _newLockbox.authorizeLockbox(existingLockbox);
+        // Enable the features required by portal liquidity migration and shared game migration.
+        // ETH_LOCKBOX must be on so SystemConfig.paused() keys against the portal's lockbox; INTEROP
+        // must be on for the post-migration cross-chain message paths. Both are idempotent.
+        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            _systemConfig.setFeature(Features.INTEROP, true);
+        }
 
-        // Migrate the existing ETHLockbox to the new ETHLockbox.
-        existingLockbox.migrateLiquidity(_newLockbox);
+        // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            address(portal),
+            contractsContainer().implementations().optimismPortalImpl,
+            abi.encodeCall(IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox))
+        );
+
+        // Migrate ETH held directly by the portal into the shared ETHLockbox.
+        portal.migrateLiquidity();
+
+        // Sweep any pre-existing per-chain lockbox liquidity into the shared ETHLockbox. Fresh
+        // chains may have no old lockbox, while already-lockbox-enabled chains can have ETH there
+        // that would be stranded after the portal starts pointing at the shared lockbox.
+        if (address(oldLockbox) != address(0) && address(oldLockbox) != address(_newLockbox)) {
+            // The shared lockbox must authorize the old lockbox before receiveLiquidity() will
+            // accept ETH from oldLockbox.migrateLiquidity().
+            _newLockbox.authorizeLockbox(oldLockbox);
+            oldLockbox.migrateLiquidity(_newLockbox);
+        }
 
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
         // We clear out all potential game types to be safe. These game types are intentionally
@@ -297,12 +323,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
-
-        // Enable the ETH lockbox feature on the SystemConfig if not already enabled.
-        // This is needed for the SystemConfig's paused() function to use the correct identifier.
-        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);

@@ -50,12 +50,10 @@ func runEndOfSourceOutputRootTest(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 	env.RunFaultProofProgram(t, safeHeadNum, testCfg.CheckResult, params...)
 }
 
-// Test_ProgramAction_EndOfSourceOutputRoot verifies that the FPP correctly returns the agreed
+// TestEndOfSourceOutputRoot verifies that the FPP correctly returns the agreed
 // prestate output root when EndOfSource is reached before deriving any new blocks.
-func Test_ProgramAction_EndOfSourceOutputRoot(gt *testing.T) {
+func TestEndOfSourceOutputRoot(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
@@ -79,4 +77,5 @@ func Test_ProgramAction_EndOfSourceOutputRoot(gt *testing.T) {
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.Hash{}),
 	)
+	matrix.Run(gt)
 }

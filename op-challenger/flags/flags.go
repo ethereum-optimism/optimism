@@ -391,6 +391,12 @@ func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
 	if err := CheckCannonKonaBaseFlags(ctx, gameTypes.CannonKonaGameType); err != nil {
 		return err
 	}
+	if !ctx.IsSet(CannonKonaServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonKonaServerFlag.Name)
+	}
+	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && !ctx.IsSet(CannonKonaPreStateFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonKonaGameType), CannonKonaPreStateFlag.Name)
+	}
 	return nil
 }
 
@@ -461,11 +467,11 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			if err := CheckCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
+		case gameTypes.SuperCannonGameType:
 			if err := CheckSuperCannonFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.SuperCannonKonaGameType:
+		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}

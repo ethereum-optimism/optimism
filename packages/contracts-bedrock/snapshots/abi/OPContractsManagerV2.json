@@ -817,6 +817,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_InvalidEthLockbox",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_InvalidGameConfigs",
     "type": "error"
   },

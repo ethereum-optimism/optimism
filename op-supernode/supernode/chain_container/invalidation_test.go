@@ -740,6 +740,26 @@ func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
 	require.Empty(t, records200)
 }
 
+func TestDenyList_HasDeniedAtOrAfterTimestamp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(50, common.HexToHash("0xbbbb"), 12, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(25, common.HexToHash("0xcccc"), 9, eth.Bytes32{}, eth.Bytes32{}))
+
+	ok, err := dl.HasDeniedAtOrAfterTimestamp(11)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = dl.HasDeniedAtOrAfterTimestamp(13)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
 func TestDenyList_GetOutputV0(t *testing.T) {
 	t.Parallel()
 
