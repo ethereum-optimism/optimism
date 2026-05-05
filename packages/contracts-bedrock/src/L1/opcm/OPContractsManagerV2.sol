@@ -935,7 +935,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // If the game is enabled, grab the implementation and craft the game arguments.
             if (_cfg.disputeGameConfigs[i].enabled) {
                 gameImpl = _getGameImpl(_cfg.disputeGameConfigs[i].gameType);
-                if (address(gameImpl) == address(0)) {
+                if (address(gameImpl) == address(0) || address(gameImpl).code.length == 0) {
                     revert OPContractsManagerV2_ZeroGameImplementation(_cfg.disputeGameConfigs[i].gameType);
                 }
                 gameArgs = _makeGameArgs(
