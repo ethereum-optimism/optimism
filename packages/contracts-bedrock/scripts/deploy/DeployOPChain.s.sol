@@ -20,6 +20,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -205,10 +206,29 @@ contract DeployOPChain is Script {
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
             l2ChainId: _input.l2ChainId,
-            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            resourceConfig: _resolveResourceConfig(_input.resourceConfig),
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken
         });
+    }
+
+    /// @notice Resolves the resource config for a deployment. Returns the default
+    ///         when `_override.maxResourceLimit == 0`, otherwise returns the
+    ///         caller-supplied override unchanged. The deeper invariants
+    ///         (precision, bounds, gas-limit headroom) are enforced by
+    ///         `SystemConfig._setResourceConfig` during initialization.
+    /// @param _override The override resource config; treated as "unset" when
+    ///        `maxResourceLimit == 0`.
+    /// @return resolved_ The resource config to use.
+    function _resolveResourceConfig(IResourceMetering.ResourceConfig memory _override)
+        internal
+        pure
+        returns (IResourceMetering.ResourceConfig memory resolved_)
+    {
+        if (_override.maxResourceLimit == 0) {
+            return Constants.DEFAULT_RESOURCE_CONFIG();
+        }
+        return _override;
     }
 
     /// @notice Converts IOPContractsManagerV2.ChainContracts to Output.

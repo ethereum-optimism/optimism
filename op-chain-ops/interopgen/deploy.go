@@ -227,6 +227,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	}
 
 	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
+		ResourceConfig:               opcm.UnsetResourceConfig(),
 		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
 		SystemConfigOwner:            cfg.SystemConfigOwner,
 		Batcher:                      cfg.BatchSenderAddress,

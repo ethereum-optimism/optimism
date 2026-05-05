@@ -10,29 +10,49 @@ import (
 )
 
 func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, error) {
-	var components []abi.ArgumentMarshaling
+	components, err := goStructFields(structType)
+	if err != nil {
+		return abi.Type{}, err
+	}
+	return abi.NewType("tuple", tupleName, components)
+}
 
+// Field tags: `abi:"<name>"` overrides the ABI field name; `abiType:"<type>"`
+// overrides the derived Solidity type (required for widths with no Go
+// primitive, e.g. uint128). Nested structs become nested tuples.
+func goStructFields(structType reflect.Type) ([]abi.ArgumentMarshaling, error) {
+	var components []abi.ArgumentMarshaling
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
-
-		abiType, err := GoTypeToABIType(field.Type)
-		if err != nil {
-			return abi.Type{}, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
+		name := field.Name
+		if tag := field.Tag.Get("abi"); tag != "" {
+			name = tag
 		}
 
-		// Use ABI tag if present, otherwise use field name
-		fieldName := field.Name
-		if abiTag := field.Tag.Get("abi"); abiTag != "" {
-			fieldName = abiTag
+		if t := field.Tag.Get("abiType"); t != "" {
+			components = append(components, abi.ArgumentMarshaling{Name: name, Type: t})
+			continue
 		}
 
-		components = append(components, abi.ArgumentMarshaling{
-			Name: fieldName,
-			Type: abiType,
-		})
+		ft := field.Type
+		if ft.Kind() == reflect.Ptr {
+			ft = ft.Elem()
+		}
+		if t, err := GoTypeToABIType(ft); err == nil {
+			components = append(components, abi.ArgumentMarshaling{Name: name, Type: t})
+			continue
+		}
+		if ft.Kind() == reflect.Struct {
+			inner, err := goStructFields(ft)
+			if err != nil {
+				return nil, fmt.Errorf("field %s: %w", field.Name, err)
+			}
+			components = append(components, abi.ArgumentMarshaling{Name: name, Type: "tuple", Components: inner})
+			continue
+		}
+		return nil, fmt.Errorf("unsupported field type %s", field.Type)
 	}
-
-	return abi.NewType("tuple", tupleName, components)
+	return components, nil
 }
 
 func GoTypeToABIType(goType reflect.Type) (string, error) {

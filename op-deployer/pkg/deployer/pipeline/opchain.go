@@ -13,6 +13,28 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// resourceConfigFromIntent converts the intent-level resource config into the
+// ABI-bound struct passed to the DeployOPChain script. A nil intent value
+// produces the unset sentinel, which the Solidity script interprets as
+// "use Constants.DEFAULT_RESOURCE_CONFIG()".
+func resourceConfigFromIntent(rc *state.ResourceConfig) opcm.ResourceConfig {
+	if rc == nil {
+		return opcm.UnsetResourceConfig()
+	}
+	maxBF := new(big.Int)
+	if rc.MaximumBaseFee != nil {
+		maxBF.Set(rc.MaximumBaseFee.ToInt())
+	}
+	return opcm.ResourceConfig{
+		MaxResourceLimit:            rc.MaxResourceLimit,
+		ElasticityMultiplier:        rc.ElasticityMultiplier,
+		BaseFeeMaxChangeDenominator: rc.BaseFeeMaxChangeDenominator,
+		MinimumBaseFee:              rc.MinimumBaseFee,
+		SystemTxMaxGas:              rc.SystemTxMaxGas,
+		MaximumBaseFee:              maxBF,
+	}
+}
+
 func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
 
@@ -158,6 +180,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
 		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
 		UseCustomGasToken:            thisIntent.IsCustomGasTokenEnabled(),
+		ResourceConfig:               resourceConfigFromIntent(thisIntent.ResourceConfig),
 	}, nil
 }
 

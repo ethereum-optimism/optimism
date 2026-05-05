@@ -47,6 +47,31 @@ type DeployOPChainInput struct {
 	SuperchainConfig    common.Address
 
 	UseCustomGasToken bool
+
+	// ResourceConfig is forwarded verbatim to OPCM. The Solidity script treats
+	// `maxResourceLimit == 0` as "use Constants.DEFAULT_RESOURCE_CONFIG()", so a
+	// zero-valued struct is the conventional way to opt into defaults. Field
+	// order and ABI types must match `IResourceMetering.ResourceConfig`.
+	ResourceConfig ResourceConfig
+}
+
+// ResourceConfig mirrors Solidity's IResourceMetering.ResourceConfig. The
+// `abiType:"uint128"` tag is required because Go has no native uint128 type;
+// the forge encoder honors this tag to select the correct ABI width.
+type ResourceConfig struct {
+	MaxResourceLimit            uint32   `abi:"maxResourceLimit"`
+	ElasticityMultiplier        uint8    `abi:"elasticityMultiplier"`
+	BaseFeeMaxChangeDenominator uint8    `abi:"baseFeeMaxChangeDenominator"`
+	MinimumBaseFee              uint32   `abi:"minimumBaseFee"`
+	SystemTxMaxGas              uint32   `abi:"systemTxMaxGas"`
+	MaximumBaseFee              *big.Int `abi:"maximumBaseFee" abiType:"uint128"`
+}
+
+// UnsetResourceConfig returns the sentinel that tells the Solidity script to
+// use Constants.DEFAULT_RESOURCE_CONFIG(). MaximumBaseFee must be non-nil for
+// ABI encoding even when the value is unused.
+func UnsetResourceConfig() ResourceConfig {
+	return ResourceConfig{MaximumBaseFee: new(big.Int)}
 }
 
 type DeployOPChainOutput struct {

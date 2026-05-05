@@ -13,6 +13,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
@@ -21,6 +22,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract DeployOPChain_TestBase is Test, FeatureFlags {
@@ -132,7 +134,16 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             operatorFeeScalar: 0,
             operatorFeeConstant: 0,
             superchainConfig: superchainConfig,
-            useCustomGasToken: useCustomGasToken
+            useCustomGasToken: useCustomGasToken,
+            // Zeroed: deploy uses Constants.DEFAULT_RESOURCE_CONFIG().
+            resourceConfig: IResourceMetering.ResourceConfig({
+                maxResourceLimit: 0,
+                elasticityMultiplier: 0,
+                baseFeeMaxChangeDenominator: 0,
+                minimumBaseFee: 0,
+                systemTxMaxGas: 0,
+                maximumBaseFee: 0
+            })
         });
     }
 }
@@ -199,6 +210,48 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             true,
             "SystemConfig CUSTOM_GAS_TOKEN feature should be true"
         );
+    }
+
+    /// @notice With a zeroed `resourceConfig` input, the deployed SystemConfig must
+    ///         expose Constants.DEFAULT_RESOURCE_CONFIG().
+    function test_run_resourceConfigDefaulted_succeeds() public {
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        IResourceMetering.ResourceConfig memory got = doo.systemConfigProxy.resourceConfig();
+        IResourceMetering.ResourceConfig memory want = Constants.DEFAULT_RESOURCE_CONFIG();
+        assertEq(got.maxResourceLimit, want.maxResourceLimit, "maxResourceLimit");
+        assertEq(got.elasticityMultiplier, want.elasticityMultiplier, "elasticityMultiplier");
+        assertEq(got.baseFeeMaxChangeDenominator, want.baseFeeMaxChangeDenominator, "baseFeeMaxChangeDenominator");
+        assertEq(got.minimumBaseFee, want.minimumBaseFee, "minimumBaseFee");
+        assertEq(got.systemTxMaxGas, want.systemTxMaxGas, "systemTxMaxGas");
+        assertEq(got.maximumBaseFee, want.maximumBaseFee, "maximumBaseFee");
+    }
+
+    /// @notice A non-zero `resourceConfig` override is forwarded verbatim to OPCM /
+    ///         SystemConfig and must survive initialization. This test demonstrates
+    ///         the motivating use case: a chain with `gasLimit = 5_000_000`.
+    function test_run_resourceConfigCustom_succeeds() public {
+        IResourceMetering.ResourceConfig memory custom = IResourceMetering.ResourceConfig({
+            maxResourceLimit: 4_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+        deployOPChainInput.resourceConfig = custom;
+        deployOPChainInput.gasLimit = 5_000_000;
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        IResourceMetering.ResourceConfig memory got = doo.systemConfigProxy.resourceConfig();
+        assertEq(got.maxResourceLimit, custom.maxResourceLimit, "maxResourceLimit");
+        assertEq(got.elasticityMultiplier, custom.elasticityMultiplier, "elasticityMultiplier");
+        assertEq(got.baseFeeMaxChangeDenominator, custom.baseFeeMaxChangeDenominator, "baseFeeMaxChangeDenominator");
+        assertEq(got.minimumBaseFee, custom.minimumBaseFee, "minimumBaseFee");
+        assertEq(got.systemTxMaxGas, custom.systemTxMaxGas, "systemTxMaxGas");
+        assertEq(got.maximumBaseFee, custom.maximumBaseFee, "maximumBaseFee");
+        assertEq(doo.systemConfigProxy.gasLimit(), 5_000_000, "gasLimit");
     }
 
     function getPermissionedDisputeGame(DeployOPChain.Output memory doo)

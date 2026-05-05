@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 
 library Types {
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.
@@ -53,5 +54,9 @@ library Types {
         ISuperchainConfig superchainConfig;
         // Whether to use the custom gas token.
         bool useCustomGasToken;
+        // Optional resource config override. When `maxResourceLimit` is zero the
+        // chain is deployed with `Constants.DEFAULT_RESOURCE_CONFIG()` and every
+        // other field of this struct is ignored.
+        IResourceMetering.ResourceConfig resourceConfig;
     }
 }

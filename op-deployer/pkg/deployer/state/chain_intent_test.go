@@ -157,6 +157,122 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	}
 }
 
+func TestChainIntentCheck_ResourceConfig(t *testing.T) {
+	uint128Max := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+
+	// Default values from Constants.DEFAULT_RESOURCE_CONFIG().
+	defaultRC := func() *ResourceConfig {
+		return &ResourceConfig{
+			MaxResourceLimit:            20_000_000,
+			ElasticityMultiplier:        10,
+			BaseFeeMaxChangeDenominator: 8,
+			MinimumBaseFee:              1_000_000_000,
+			SystemTxMaxGas:              1_000_000,
+			MaximumBaseFee:              (*hexutil.Big)(uint128Max),
+		}
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(c *ChainIntent)
+		expectErr error
+	}{
+		{
+			name:   "nil resource config passes (uses defaults)",
+			mutate: func(c *ChainIntent) { c.ResourceConfig = nil },
+		},
+		{
+			name: "valid override passes",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.MaxResourceLimit = 4_000_000
+				rc.SystemTxMaxGas = 1_000_000
+				c.GasLimit = 5_000_000
+				c.ResourceConfig = rc
+			},
+		},
+		{
+			name: "zero maxResourceLimit fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.MaxResourceLimit = 0
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "zero elasticityMultiplier fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.ElasticityMultiplier = 0
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "denominator <= 1 fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.BaseFeeMaxChangeDenominator = 1
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "non-divisible maxResourceLimit fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				// 20_000_001 / 10 != exact.
+				rc.MaxResourceLimit = 20_000_001
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "minimum > maximum baseFee fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.MinimumBaseFee = 100
+				rc.MaximumBaseFee = (*hexutil.Big)(big.NewInt(50))
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "maximumBaseFee exceeds uint128 fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				rc.MaximumBaseFee = (*hexutil.Big)(new(big.Int).Add(uint128Max, big.NewInt(1)))
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+		{
+			name: "gas-limit headroom violated fails",
+			mutate: func(c *ChainIntent) {
+				rc := defaultRC()
+				// default sums to 21M; gasLimit stays at 30M baseline so this passes — make it fail.
+				c.GasLimit = 1_000_000
+				c.ResourceConfig = rc
+			},
+			expectErr: ErrIncompatibleValue,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaseChainIntent()
+			tt.mutate(c)
+			err := c.Check()
+			if tt.expectErr != nil {
+				require.ErrorIs(t, err, tt.expectErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetInitialLiquidity(t *testing.T) {
 	tests := []struct {
 		name     string

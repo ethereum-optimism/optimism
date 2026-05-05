@@ -73,6 +73,54 @@ type CustomGasToken struct {
 	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner" toml:"liquidityControllerOwner"`
 }
 
+// ResourceConfig overrides the EIP-1559 deposit-gas-market parameters that are
+// otherwise sourced from `Constants.DEFAULT_RESOURCE_CONFIG()`. Field widths
+// and invariants mirror Solidity's `IResourceMetering.ResourceConfig` and
+// `SystemConfig._setResourceConfig`.
+type ResourceConfig struct {
+	MaxResourceLimit            uint32       `json:"maxResourceLimit" toml:"maxResourceLimit"`
+	ElasticityMultiplier        uint8        `json:"elasticityMultiplier" toml:"elasticityMultiplier"`
+	BaseFeeMaxChangeDenominator uint8        `json:"baseFeeMaxChangeDenominator" toml:"baseFeeMaxChangeDenominator"`
+	MinimumBaseFee              uint32       `json:"minimumBaseFee" toml:"minimumBaseFee"`
+	SystemTxMaxGas              uint32       `json:"systemTxMaxGas" toml:"systemTxMaxGas"`
+	MaximumBaseFee              *hexutil.Big `json:"maximumBaseFee" toml:"maximumBaseFee"`
+}
+
+// Check validates the resource-config invariants enforced by
+// `SystemConfig._setResourceConfig`. The gas-limit headroom check
+// (`maxResourceLimit + systemTxMaxGas <= gasLimit`) is performed by the caller
+// because it depends on the chain's `GasLimit`.
+func (r *ResourceConfig) Check() error {
+	if r.MaxResourceLimit == 0 {
+		return fmt.Errorf("%w: ResourceConfig.maxResourceLimit must be > 0 when override is provided", ErrIncompatibleValue)
+	}
+	if r.ElasticityMultiplier == 0 {
+		return fmt.Errorf("%w: ResourceConfig.elasticityMultiplier must be > 0", ErrIncompatibleValue)
+	}
+	if r.BaseFeeMaxChangeDenominator <= 1 {
+		return fmt.Errorf("%w: ResourceConfig.baseFeeMaxChangeDenominator must be > 1", ErrIncompatibleValue)
+	}
+	if (r.MaxResourceLimit/uint32(r.ElasticityMultiplier))*uint32(r.ElasticityMultiplier) != r.MaxResourceLimit {
+		return fmt.Errorf("%w: ResourceConfig.maxResourceLimit must be evenly divisible by elasticityMultiplier", ErrIncompatibleValue)
+	}
+	if r.MaximumBaseFee == nil {
+		return fmt.Errorf("%w: ResourceConfig.maximumBaseFee must be set", ErrIncompatibleValue)
+	}
+	maxBF := r.MaximumBaseFee.ToInt()
+	if maxBF.Sign() < 0 {
+		return fmt.Errorf("%w: ResourceConfig.maximumBaseFee must be non-negative", ErrIncompatibleValue)
+	}
+	// uint128 upper bound.
+	maxUint128 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+	if maxBF.Cmp(maxUint128) > 0 {
+		return fmt.Errorf("%w: ResourceConfig.maximumBaseFee must fit in uint128", ErrIncompatibleValue)
+	}
+	if big.NewInt(int64(r.MinimumBaseFee)).Cmp(maxBF) > 0 {
+		return fmt.Errorf("%w: ResourceConfig.minimumBaseFee must be <= maximumBaseFee", ErrIncompatibleValue)
+	}
+	return nil
+}
+
 type ChainIntent struct {
 	ID                         common.Hash               `json:"id" toml:"id"`
 	BaseFeeVaultRecipient      common.Address            `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
@@ -93,6 +141,9 @@ type ChainIntent struct {
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
+	// ResourceConfig optionally overrides the EIP-1559 deposit-gas-market
+	// parameters. Leave unset to use Constants.DEFAULT_RESOURCE_CONFIG().
+	ResourceConfig *ResourceConfig `json:"resourceConfig,omitempty" toml:"resourceConfig,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -160,6 +211,23 @@ func (c *ChainIntent) Check() error {
 			return fmt.Errorf("%w: CustomGasToken.InitialLiquidity must be non-negative when custom gas token is enabled, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
+	}
+
+	if c.ResourceConfig != nil {
+		if err := c.ResourceConfig.Check(); err != nil {
+			return fmt.Errorf("%w: chainId=%s", err, c.ID)
+		}
+		// SystemConfig._setResourceConfig requires
+		// `maxResourceLimit + systemTxMaxGas <= gasLimit`.
+		if uint64(c.ResourceConfig.MaxResourceLimit)+uint64(c.ResourceConfig.SystemTxMaxGas) > c.GasLimit {
+			return fmt.Errorf(
+				"%w: ResourceConfig.maxResourceLimit + systemTxMaxGas (%d) must be <= gasLimit (%d), chainId=%s",
+				ErrIncompatibleValue,
+				uint64(c.ResourceConfig.MaxResourceLimit)+uint64(c.ResourceConfig.SystemTxMaxGas),
+				c.GasLimit,
+				c.ID,
+			)
+		}
 	}
 
 	if c.DangerousAltDAConfig.UseAltDA {
