@@ -184,8 +184,6 @@ type Interop struct {
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
 
-	// l1Source resolves the parent of the latest verified L1Inclusion for the
-	// under-claimed i.currentL1 on DecisionAdvance. Must be non-nil.
 	l1Source l1Source
 
 	logBackfillDepth time.Duration
@@ -748,6 +746,29 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("persist frontier logs: %w", err)
 		}
 
+		// Under-claim by one L1 block. L1Inclusion is monotonic in L2 timestamp,
+		// so the next unverified timestamp can share the verified one's
+		// L1Inclusion when no chain advances source between them — common
+		// during the gap between batch postings. Reporting L1Inclusion directly
+		// would lie to consumers that read CurrentL1 ≥ s.l1Head as proof that
+		// everything derivable from L1[≤s.l1Head] is verified. The DecisionWait
+		// branch lifts i.currentL1 back to localL1 between Advances, so progress
+		// isn't gated on the next batch.
+		//
+		// Resolved before ClearPendingTransition so an L1 error retries the
+		// whole transition instead of committing with a stale i.currentL1.
+		currentL1, err := i.previousL1ID(pending.Result.L1Inclusion)
+		if err != nil {
+			return false, fmt.Errorf("resolve under-claimed currentL1: %w", err)
+		}
+		// Cap at min per-chain CurrentL1 so this field is safe individually,
+		// not just when aggregated via syncstatus.Aggregate.
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
+
 		if err := i.commitVerifiedResult(pending.Result.Timestamp, pending.Result.ToVerifiedResult()); err != nil {
 			return false, fmt.Errorf("commit verified result: %w", err)
 		}
@@ -757,23 +778,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
 		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
-		// Under-claim by one L1 block. L1Inclusion is monotonic in L2 timestamp,
-		// so the next unverified timestamp can share the verified one's
-		// L1Inclusion when no chain advances source between them — common
-		// during the gap between batch postings. Reporting L1Inclusion directly
-		// would lie to consumers that read CurrentL1 ≥ s.l1Head as proof that
-		// everything derivable from L1[≤s.l1Head] is verified. The DecisionWait
-		// branch lifts i.currentL1 back to localL1 between Advances, so progress
-		// isn't gated on the next batch.
-		currentL1 := i.previousL1ID(pending.Result.L1Inclusion)
 
-		// Cap at min per-chain CurrentL1 so this field is safe individually,
-		// not just when aggregated via syncstatus.Aggregate.
-		if localL1, err := i.collectCurrentL1(); err != nil {
-			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion-1", "err", err)
-		} else if localL1.Number < currentL1.Number {
-			currentL1 = localL1
-		}
 		i.mu.Lock()
 		i.currentL1 = currentL1
 		i.mu.Unlock()
@@ -913,20 +918,16 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 
 // previousL1ID returns the L1 BlockID one block before target. Looks up by
 // hash so the L1 client's header cache hits on the common-case repeated query.
-// At Number==0, target is returned unchanged. On l1Source error, the hash is
-// dropped: consumers gate on .Number, so a hash-less BlockID is safe.
-func (i *Interop) previousL1ID(target eth.BlockID) eth.BlockID {
+// At Number==0, target is returned unchanged.
+func (i *Interop) previousL1ID(target eth.BlockID) (eth.BlockID, error) {
 	if target.Number == 0 {
-		return target
+		return target, nil
 	}
-	prevNumber := target.Number - 1
 	info, err := i.l1Source.InfoByHash(i.ctx, target.Hash)
 	if err != nil {
-		i.log.Warn("failed to fetch L1Inclusion header on advance, dropping parent hash",
-			"l1", target, "err", err)
-		return eth.BlockID{Number: prevNumber}
+		return eth.BlockID{}, fmt.Errorf("fetch L1 header at %s: %w", target, err)
 	}
-	return eth.BlockID{Number: prevNumber, Hash: info.ParentHash()}
+	return eth.BlockID{Number: target.Number - 1, Hash: info.ParentHash()}, nil
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,
