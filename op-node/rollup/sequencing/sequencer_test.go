@@ -633,6 +633,76 @@ func TestSequencerBuild(t *testing.T) {
 	require.Equal(t, testClock.Now(), nextTime, "start asap on the next block")
 }
 
+func TestSequencerSdmStatusAndBuildAttributes(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	activation := uint64(30_004)
+
+	build := func(t *testing.T, parentTime uint64, desired bool) bool {
+		seq, deps := createSequencer(logger)
+		deps.cfg.SdmTime = &activation
+		emitter := &testutils.MockEmitter{}
+		seq.AttachEmitter(emitter)
+		require.NoError(t, seq.SetSdmEnabled(context.Background(), desired))
+
+		head := eth.L2BlockRef{
+			Hash:   common.Hash{0x22, byte(parentTime)},
+			Number: 100,
+			L1Origin: eth.BlockID{
+				Hash:   common.Hash{0x11, 0xa},
+				Number: 1000,
+			},
+			Time: parentTime,
+		}
+		l1Origin := eth.L1BlockRef{
+			Hash:       common.Hash{0x11, 0xb},
+			ParentHash: head.L1Origin.Hash,
+			Number:     head.L1Origin.Number,
+			Time:       parentTime,
+		}
+		deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+			require.Equal(t, head, l2Head)
+			return l1Origin, nil
+		}
+		seq.latestHead = head
+
+		var enablePostExec bool
+		emitter.ExpectOnceRun(func(ev event.Event) {
+			x, ok := ev.(engine.BuildStartEvent)
+			require.True(t, ok)
+			require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
+			enablePostExec = x.Attributes.Attributes.EnablePostExec
+		})
+		seq.startBuildingBlock()
+		emitter.AssertExpectations(t)
+		return enablePostExec
+	}
+
+	seq, deps := createSequencer(logger)
+	deps.cfg.SdmTime = &activation
+	status, err := seq.SdmStatus(context.Background(), activation-deps.cfg.BlockTime)
+	require.NoError(t, err)
+	require.False(t, status.DesiredEnabled)
+	require.False(t, status.ProtocolActive)
+	require.False(t, status.Effective)
+	require.Equal(t, &activation, status.ActivationTime)
+
+	require.NoError(t, seq.SetSdmEnabled(context.Background(), true))
+	status, err = seq.SdmStatus(context.Background(), activation-deps.cfg.BlockTime)
+	require.NoError(t, err)
+	require.True(t, status.DesiredEnabled)
+	require.False(t, status.ProtocolActive)
+	require.False(t, status.Effective)
+	status, err = seq.SdmStatus(context.Background(), activation)
+	require.NoError(t, err)
+	require.True(t, status.DesiredEnabled)
+	require.True(t, status.ProtocolActive)
+	require.True(t, status.Effective)
+
+	require.False(t, build(t, activation-2*deps.cfg.BlockTime, true), "pre-activation build must not enable PostExec")
+	require.True(t, build(t, activation-deps.cfg.BlockTime, true), "first active timestamp must enable PostExec")
+	require.False(t, build(t, activation, false), "disabled desired state must disable PostExec after activation")
+}
+
 func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	seq, deps := createSequencer(logger)

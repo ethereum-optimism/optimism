@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
@@ -44,6 +45,10 @@ type Metrics interface {
 type SequencerStateListener interface {
 	SequencerStarted() error
 	SequencerStopped() error
+}
+
+type SequencerSdmListener interface {
+	SetSdmEnabled(enabled bool) error
 }
 
 type AsyncGossiper interface {
@@ -91,6 +96,10 @@ type Sequencer struct {
 
 	recoverMode atomic.Bool
 
+	// sdmDesiredEnabled identifies whether the operator wants local SDM/PostExec sequencing enabled.
+	// The effective value is computed per block using the payload timestamp and rollup config.
+	sdmDesiredEnabled atomic.Bool
+
 	// active identifies whether the sequencer is running.
 	// This is an atomic value, so it can be read without locking the whole sequencer.
 	active atomic.Bool
@@ -98,6 +107,10 @@ type Sequencer struct {
 	// listener for sequencer-state changes. Blocking, may error.
 	// May be used to ensure sequencer-state is accurately persisted.
 	listener SequencerStateListener
+
+	// sdmListener for SDM-state changes. Blocking, may error.
+	// May be used to ensure SDM-state is accurately persisted.
+	sdmListener SequencerSdmListener
 
 	conductor conductor.SequencerConductor
 
@@ -164,6 +177,10 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 
 func (d *Sequencer) AttachEmitter(em event.Emitter) {
 	d.emitter = em
+}
+
+func (d *Sequencer) AttachSdmListener(listener SequencerSdmListener) {
+	d.sdmListener = listener
 }
 
 func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -604,6 +621,8 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Warn("Sequencing temporarily without user transactions, in recover mode")
 	}
 
+	attrs.EnablePostExec = d.sdmDesiredEnabled.Load() && d.rollupCfg.IsSDM(uint64(attrs.Timestamp))
+
 	d.log.Debug("prepared attributes for new block",
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),
 		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
@@ -714,6 +733,31 @@ func (d *Sequencer) forceStart() error {
 	d.metrics.SetSequencerState(true)
 	d.log.Info("Sequencer has been started", "next action", d.nextAction)
 	return nil
+}
+
+func (d *Sequencer) SetSdmDesiredEnabled(enabled bool) {
+	d.sdmDesiredEnabled.Store(enabled)
+}
+
+func (d *Sequencer) SetSdmEnabled(ctx context.Context, enabled bool) error {
+	d.SetSdmDesiredEnabled(enabled)
+	if d.sdmListener != nil {
+		if err := d.sdmListener.SetSdmEnabled(enabled); err != nil {
+			return fmt.Errorf("failed to notify SDM-state listener of state change: %w", err)
+		}
+	}
+	return nil
+}
+
+func (d *Sequencer) SdmStatus(ctx context.Context, nextBlockTimestamp uint64) (apis.SdmStatus, error) {
+	desired := d.sdmDesiredEnabled.Load()
+	protocolActive := d.rollupCfg.IsSDM(nextBlockTimestamp)
+	return apis.SdmStatus{
+		DesiredEnabled: desired,
+		ProtocolActive: protocolActive,
+		Effective:      desired && protocolActive,
+		ActivationTime: d.rollupCfg.SdmTime,
+	}, nil
 }
 
 func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {

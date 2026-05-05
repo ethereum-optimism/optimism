@@ -521,6 +521,8 @@ type PayloadAttributes struct {
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 	// MinBaseFee is the minimum base fee, to be specified only post-Jovian
 	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
+	// EnablePostExec requests local PostExec transaction/refund construction when SDM is active.
+	EnablePostExec bool `json:"enablePostExec,omitempty"`
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit

@@ -297,11 +297,12 @@ impl RollupConfig {
     }
 
     /// Returns true if SDM post-exec transactions are active at the given timestamp.
-    ///
-    /// SDM is currently unscheduled and must not activate as part of Jovian or Karst.
     #[must_use]
-    pub const fn is_sdm_active(&self, _timestamp: u64) -> bool {
-        false
+    pub const fn is_sdm_active(&self, timestamp: u64) -> bool {
+        match self.hardforks.sdm_time {
+            Some(t) => timestamp >= t,
+            None => false,
+        }
     }
 
     /// Returns true if Jovian is active at the given timestamp.
@@ -692,7 +693,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sdm_disabled_after_jovian_and_karst() {
+    fn test_sdm_active() {
         let mut config = RollupConfig::default();
         config.hardforks.jovian_time = Some(10);
         config.hardforks.karst_time = Some(20);
@@ -701,6 +702,10 @@ mod tests {
         assert!(!config.is_sdm_active(10));
         assert!(config.is_karst_active(20));
         assert!(!config.is_sdm_active(20));
+
+        config.hardforks.sdm_time = Some(30);
+        assert!(!config.is_sdm_active(29));
+        assert!(config.is_sdm_active(30));
     }
 
     #[test]
@@ -737,6 +742,7 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
+                sdm_time: Some(115),
                 interop_time: Some(120),
             },
             block_time: 2,

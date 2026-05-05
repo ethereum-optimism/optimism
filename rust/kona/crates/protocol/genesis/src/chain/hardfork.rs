@@ -72,6 +72,11 @@ pub struct HardForkConfig {
     /// otherwise.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub karst_time: Option<u64>,
+    /// `sdm_time` sets the activation time for SDM `PostExec` transaction validity.
+    /// Active if `sdm_time` != None && L2 block timestamp >= `Some(sdm_time)`, inactive
+    /// otherwise.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub sdm_time: Option<u64>,
     /// `interop_time` sets the activation time for the Interop network upgrade.
     /// Active if `interop_time` != None && L2 block timestamp >= `Some(interop_time)`, inactive
     /// otherwise.
@@ -109,6 +114,7 @@ impl HardForkConfig {
             ("Isthmus", self.isthmus_time),
             ("Jovian", self.jovian_time),
             ("Karst", self.karst_time),
+            ("SDM", self.sdm_time),
             ("Interop", self.interop_time),
         ]
         .into_iter()
@@ -145,6 +151,7 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
+            sdm_time: None,
             interop_time: None,
         };
 
@@ -193,6 +200,7 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
+            sdm_time: None,
             interop_time: None,
         };
 
@@ -228,7 +236,8 @@ mod tests {
             isthmus_time: Some(9),
             jovian_time: Some(10),
             karst_time: Some(11),
-            interop_time: Some(12),
+            sdm_time: Some(12),
+            interop_time: Some(13),
         };
 
         let mut iter = hardforks.iter();
@@ -243,7 +252,8 @@ mod tests {
         assert_eq!(iter.next(), Some(("Isthmus", Some(9))));
         assert_eq!(iter.next(), Some(("Jovian", Some(10))));
         assert_eq!(iter.next(), Some(("Karst", Some(11))));
-        assert_eq!(iter.next(), Some(("Interop", Some(12))));
+        assert_eq!(iter.next(), Some(("SDM", Some(12))));
+        assert_eq!(iter.next(), Some(("Interop", Some(13))));
         assert_eq!(iter.next(), None);
     }
 }

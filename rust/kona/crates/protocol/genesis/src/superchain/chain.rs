@@ -99,6 +99,7 @@ mod tests {
                     isthmus_time: None,
                     jovian_time: None,
                     karst_time: None,
+                    sdm_time: None,
                     interop_time: None,
                 },
                 superchain_config_addr: None,

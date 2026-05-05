@@ -815,6 +815,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
+                sdm_time: None,
                 interop_time: Some(102),
                 ..Default::default()
             },
@@ -865,6 +866,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
+                sdm_time: None,
                 interop_time: Some(102),
                 ..Default::default()
             },
@@ -917,6 +919,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
+                sdm_time: None,
                 interop_time: Some(102),
                 ..Default::default()
             },
@@ -982,6 +985,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
+                sdm_time: None,
                 interop_time: Some(102),
                 ..Default::default()
             },

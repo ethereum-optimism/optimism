@@ -133,6 +133,10 @@ type Config struct {
 	// Active if KarstTime != nil && L2 block timestamp >= *KarstTime, inactive otherwise.
 	KarstTime *uint64 `json:"karst_time,omitempty"`
 
+	// SdmTime sets the activation time for SDM PostExec transaction validity.
+	// Active if SdmTime != nil && L2 block timestamp >= *SdmTime, inactive otherwise.
+	SdmTime *uint64 `json:"sdm_time,omitempty"`
+
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
@@ -494,6 +498,11 @@ func (c *Config) IsKarst(timestamp uint64) bool {
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.IsForkActive(forks.Interop, timestamp)
+}
+
+// IsSDM returns true if SDM PostExec transaction validity is active at or past the given timestamp.
+func (c *Config) IsSDM(timestamp uint64) bool {
+	return c.SdmTime != nil && timestamp >= *c.SdmTime
 }
 
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
@@ -862,6 +871,7 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Isthmus", "isthmus_time", c.IsthmusTime)
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Karst", "karst_time", c.KarstTime)
+	callback("SDM", "sdm_time", c.SdmTime)
 	callback("Interop", "interop_time", c.InteropTime)
 }
 
