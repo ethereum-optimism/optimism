@@ -36,7 +36,8 @@ type interopTestHarness struct {
 	activationTime   uint64
 	logBackfillDepth time.Duration
 	dataDir          string
-	skipBuild        bool // for tests that need custom construction
+	skipBuild        bool             // for tests that need custom construction
+	l1Source         l1ByNumberSource // optional override; defaults to nil (Advance falls back to hash-less under-claim)
 }
 
 // newInteropTestHarness creates a new test harness with sensible defaults.
@@ -66,6 +67,14 @@ func (h *interopTestHarness) WithLogBackfillDepth(d time.Duration) *interopTestH
 // WithDataDir sets a custom data directory (useful for error testing).
 func (h *interopTestHarness) WithDataDir(dir string) *interopTestHarness {
 	h.dataDir = dir
+	return h
+}
+
+// WithL1Source sets an l1Source so the Advance path can look up the parent of
+// L1Inclusion when computing the under-claimed i.currentL1. Without this, the
+// Advance path falls back to a hash-less BlockID.
+func (h *interopTestHarness) WithL1Source(src l1ByNumberSource) *interopTestHarness {
+	h.l1Source = src
 	return h
 }
 
@@ -100,7 +109,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 		}
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth, nil)
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, h.l1Source, h.logBackfillDepth, nil)
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
@@ -1417,9 +1426,16 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
-			name: "valid result sets L1 to result L1Head",
+			// Advance under-claims i.currentL1 by one L1 block: it becomes
+			// L1Inclusion(T_v) - 1, with the parent's hash from the l1Source.
+			// This avoids over-claiming when the next unverified ts shares the
+			// same L1Inclusion (constant-source run between batches).
+			name: "valid result sets L1 to L1Inclusion - 1 with parent hash",
 			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
+				parent := eth.L1BlockRef{Number: 149, Hash: common.HexToHash("0xParent")}
+				return h.WithL1Source(&mockL1Source{
+					blocks: map[uint64]eth.L1BlockRef{149: parent},
+				}).WithChain(10, func(m *mockChainContainer) {
 					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
 				}).Build()
@@ -1434,8 +1450,80 @@ func TestProgressAndRecord(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, madeProgress, "valid result should advance verified timestamp")
 
-				require.Equal(t, expectedL1Inclusion.Number, h.interop.currentL1.Number)
-				require.Equal(t, expectedL1Inclusion.Hash, h.interop.currentL1.Hash)
+				require.Equal(t, uint64(149), h.interop.currentL1.Number, "must under-claim by one L1 block")
+				require.Equal(t, common.HexToHash("0xParent"), h.interop.currentL1.Hash, "must report parent's hash")
+			},
+		},
+		{
+			// When the l1Source can't fetch the parent, the under-claim still
+			// applies (Number = L1Inclusion - 1) but the hash is dropped. The
+			// current consumers (op-challenger gate, op-proposer log line)
+			// tolerate a zero hash; the safety-critical field is Number.
+			name: "valid result falls back to hash-less under-claim when l1Source fails",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithL1Source(&errorL1Source{err: errors.New("l1 unreachable")}).
+					WithChain(10, func(m *mockChainContainer) {
+						m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
+						m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
+					}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}, L2Heads: blocks}, nil
+				}
+
+				madeProgress, err := h.interop.progressAndRecord()
+				require.NoError(t, err)
+				require.True(t, madeProgress)
+
+				require.Equal(t, uint64(149), h.interop.currentL1.Number)
+				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
+			},
+		},
+		{
+			// Without an l1Source (e.g. tests that don't wire one), Advance
+			// applies the same under-claim with an empty hash.
+			name: "valid result with no l1Source under-claims with empty hash",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}, L2Heads: blocks}, nil
+				}
+
+				madeProgress, err := h.interop.progressAndRecord()
+				require.NoError(t, err)
+				require.True(t, madeProgress)
+
+				require.Equal(t, uint64(149), h.interop.currentL1.Number)
+				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
+			},
+		},
+		{
+			// At L1 genesis (L1Inclusion.Number == 0) there is no earlier block
+			// to under-claim from. The result's L1Inclusion is preserved as-is.
+			name: "valid result at L1Inclusion == 0 is not under-claimed",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithChain(10, func(m *mockChainContainer) {
+					m.currentL1 = eth.BlockRef{Number: 5, Hash: common.HexToHash("0x5")}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
+				}).Build()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesis")}, L2Heads: blocks}, nil
+				}
+
+				madeProgress, err := h.interop.progressAndRecord()
+				require.NoError(t, err)
+				require.True(t, madeProgress)
+
+				require.Equal(t, uint64(0), h.interop.currentL1.Number)
+				require.Equal(t, common.HexToHash("0xGenesis"), h.interop.currentL1.Hash)
 			},
 		},
 		{
