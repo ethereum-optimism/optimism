@@ -331,8 +331,9 @@ type headerAndDeposit struct {
 }
 
 // HeaderAndFirstTx returns the block header and the first transaction (the
-// L1 info deposit on L2) using a single batched JSON-RPC round trip:
-// eth_getBlockByX(id, false) + eth_getTransactionByBlockXAndIndex(id, 0).
+// L1 info deposit on post-Bedrock L2 blocks) using a single batched
+// JSON-RPC round trip: eth_getBlockByX(id, false) +
+// eth_getTransactionByBlockXAndIndex(id, 0).
 //
 // On a cache hit (when id is a hash), no RPC is issued.
 //
@@ -343,8 +344,10 @@ type headerAndDeposit struct {
 // header's now-known hash. The header is kept (it is internally consistent
 // and represents a valid snapshot of the requested label).
 //
-// Returns an error if the block has no transactions or the first transaction
-// is not a deposit type — both invariants of valid post-Bedrock L2 blocks.
+// If the block has no transactions, the returned tx is nil and no error is
+// raised — callers that require a particular first-tx shape (e.g. an L1 info
+// deposit) handle that themselves. The L2 genesis block has no transactions
+// and must not error here.
 func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types.Header, *types.Transaction, error) {
 	if h, ok := id.(hashID); ok {
 		if entry, hit := s.headerAndDepositCache.Get(common.Hash(h)); hit {
@@ -366,9 +369,8 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 	if batch[0].Error != nil {
 		return nil, nil, eth.MaybeAsNotFoundErr(batch[0].Error)
 	}
-	if batch[1].Error != nil {
-		return nil, nil, eth.MaybeAsNotFoundErr(batch[1].Error)
-	}
+	// batch[1].Error is tolerated: a block with no transactions returns null
+	// for tx-by-index-0 and some ELs surface that as a not-found error.
 
 	header, err := rpcHdr.RPCHeader.Header(s.trustRPC, s.mustBePostMerge)
 	if err != nil {
@@ -377,9 +379,15 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 	if err := id.CheckID(rpcHdr.BlockID()); err != nil {
 		return nil, nil, fmt.Errorf("fetched header does not match requested ID: %w", err)
 	}
+
+	// Empty block (e.g. L2 genesis): return header with nil deposit. Callers
+	// that need a first tx will surface their own error.
 	if len(rpcHdr.Transactions) == 0 {
-		return nil, nil, fmt.Errorf("l2 block has no transactions, block hash: %s", rpcHdr.Hash)
+		s.headersCache.Add(rpcHdr.Hash, header)
+		s.headerAndDepositCache.Add(rpcHdr.Hash, headerAndDeposit{header: header, deposit: nil})
+		return header, nil, nil
 	}
+
 	if firstTx == nil {
 		return nil, nil, fmt.Errorf("l2 block first tx fetch returned nil, block hash: %s", rpcHdr.Hash)
 	}
@@ -406,10 +414,6 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 				return nil, nil, fmt.Errorf("first tx hash mismatch after retry: header says %s but tx is %s", rpcHdr.Transactions[0], firstTx.Hash())
 			}
 		}
-	}
-
-	if firstTx.Type() != types.DepositTxType {
-		return nil, nil, fmt.Errorf("first payload tx has unexpected tx type: %d", firstTx.Type())
 	}
 
 	s.headersCache.Add(rpcHdr.Hash, header)

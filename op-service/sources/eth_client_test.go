@@ -330,25 +330,10 @@ func TestEthClient_HeaderAndFirstTx_ByNumber_RaceRetry(t *testing.T) {
 	m.Mock.AssertExpectations(t)
 }
 
-func TestEthClient_HeaderAndFirstTx_FirstTxNotDeposit(t *testing.T) {
-	hdr, _ := randHeader()
-	tx := makeNonDepositTx()
-	rh := rpcHeaderWithTxs(hdr, []common.Hash{tx.Hash()})
-
-	m := new(mockRPC)
-	expectBatchHeaderAndTx(m, func(hdrOut *RPCHeaderWithTxHashes, txOut **types.Transaction) {
-		*hdrOut = *rh
-		*txOut = tx
-	})
-	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	_, _, err = s.HeaderAndFirstTx(ctx, hashID(rh.Hash))
-	require.Error(t, err, "expected first-tx-not-deposit rejection")
-	require.Contains(t, err.Error(), "unexpected tx type")
-}
-
+// TestEthClient_HeaderAndFirstTx_EmptyBlock verifies that empty blocks (e.g.
+// L2 genesis) return (header, nil, nil) without error. Callers that require
+// a particular first-tx shape (e.g. an L1 info deposit) handle that
+// themselves.
 func TestEthClient_HeaderAndFirstTx_EmptyBlock(t *testing.T) {
 	hdr, _ := randHeader()
 	rh := rpcHeaderWithTxs(hdr, nil)
@@ -362,9 +347,10 @@ func TestEthClient_HeaderAndFirstTx_EmptyBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, _, err = s.HeaderAndFirstTx(ctx, hashID(rh.Hash))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no transactions")
+	gotHdr, gotTx, err := s.HeaderAndFirstTx(ctx, hashID(rh.Hash))
+	require.NoError(t, err)
+	require.Equal(t, rh.Hash, gotHdr.Hash())
+	require.Nil(t, gotTx)
 }
 
 // TestReceiptValidation tests that the receipt validation is performed by the underlying RPCReceiptsFetcher
