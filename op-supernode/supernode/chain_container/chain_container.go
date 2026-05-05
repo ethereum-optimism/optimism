@@ -155,6 +155,16 @@ type simpleChainContainer struct {
 	stop               atomic.Bool
 	resetting          atomic.Bool
 	stopped            chan struct{}
+	// gen ("generation") is bumped on every state transition that could make
+	// data gathered earlier inconsistent with state observed later: a new
+	// virtual node being installed (setVN), entry to RewindEngine, and any
+	// observed inner-pipeline reset. Reads are atomic; writes happen under
+	// whichever lock the call site holds, so no separate mutex is needed.
+	//
+	// GatherSuperRootData captures gen at the start of its work and re-reads
+	// it at the end; if it changed in between, the gather has touched a
+	// mixture of old and new state and must not return data.
+	gen                atomic.Uint64
 	log                gethlog.Logger
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
@@ -292,11 +302,13 @@ func (c *simpleChainContainer) getVN() virtual_node.VirtualNode {
 }
 
 // setVN writes c.vn under the lock. Used by the restart loop when it installs
-// a new virtual node on each iteration.
+// a new virtual node on each iteration. Bumps the generation counter so any
+// in-flight gather observes the change at its end check.
 func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 	c.vnMu.Lock()
 	defer c.vnMu.Unlock()
 	c.vn = vn
+	c.gen.Add(1)
 }
 
 func (c *simpleChainContainer) subPath(path string) string {
@@ -606,20 +618,36 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 	return c.OutputV0AtBlockNumber(ctx, blockNum)
 }
 
+// ErrInconsistentSnapshot is returned when GatherSuperRootData detects that
+// the chain container's generation counter changed between the start and end
+// of its work — meaning a virtual node restart, an engine rewind, or another
+// state-mutating event happened during the gather. The returned data is
+// potentially mixed across pre- and post-mutation state and must not be
+// published. Callers should treat this as a transient, retryable signal.
+var ErrInconsistentSnapshot = errors.New("chain state changed during gather")
+
 // GatherSuperRootData consolidates the five per-chain lookups
 // (SyncStatus, VerifierCurrentL1s, VerifiedAt + OutputRootAtL2BlockNumber,
 // OptimisticOutputAtTimestamp + OptimisticAt) the superroot_atTimestamp
 // handler currently makes into a single call.
 //
-// The returned struct distinguishes the legitimate "no block at this
-// timestamp" case (Verified/Optimistic left nil) from a fatal error
-// (returned as the second value).
+// Consistency: c.gen is bumped by every state transition that could make data
+// gathered earlier inconsistent with state observed later (VN restart, engine
+// rewind). We capture c.gen at entry and re-read it after all reads complete.
+// If it changed, ErrInconsistentSnapshot is returned and the gathered data is
+// discarded — the caller can retry on the next tick. If it didn't change, the
+// reads observed a single quiescent state and the result is consistent.
+//
+// Verified/Optimistic left nil distinguishes the legitimate "no block at this
+// timestamp" case from a fatal error (returned as the second value).
 func (c *simpleChainContainer) GatherSuperRootData(ctx context.Context, ts uint64) (ChainSuperRootData, error) {
+	startGen := c.gen.Load()
+
 	var data ChainSuperRootData
 
 	status, err := c.SyncStatus(ctx)
 	if err != nil {
-		return data, fmt.Errorf("sync status: %w", err)
+		return ChainSuperRootData{}, fmt.Errorf("sync status: %w", err)
 	}
 	data.SyncStatus = status
 	data.VerifierCurrentL1s = c.VerifierCurrentL1s()
@@ -629,11 +657,11 @@ func (c *simpleChainContainer) GatherSuperRootData(ctx context.Context, ts uint6
 	case errors.Is(err, ethereum.NotFound):
 		// No fully-verified block at this timestamp. Verified left nil.
 	case err != nil:
-		return data, fmt.Errorf("verified at timestamp %d: %w", ts, err)
+		return ChainSuperRootData{}, fmt.Errorf("verified at timestamp %d: %w", ts, err)
 	default:
 		outRoot, err := c.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
 		if err != nil {
-			return data, fmt.Errorf("output root at l2 block %d: %w", verifiedL2.Number, err)
+			return ChainSuperRootData{}, fmt.Errorf("output root at l2 block %d: %w", verifiedL2.Number, err)
 		}
 		data.Verified = &VerifiedChainData{
 			L2:     verifiedL2,
@@ -647,20 +675,27 @@ func (c *simpleChainContainer) GatherSuperRootData(ctx context.Context, ts uint6
 	case errors.Is(err, ethereum.NotFound):
 		// Optimistic data absent — chain is omitted from the optimistic map.
 	case err != nil:
-		return data, fmt.Errorf("optimistic output at timestamp %d: %w", ts, err)
+		return ChainSuperRootData{}, fmt.Errorf("optimistic output at timestamp %d: %w", ts, err)
 	default:
 		_, optL1, err := c.OptimisticAt(ctx, ts)
 		switch {
 		case errors.Is(err, ethereum.NotFound):
 			// Source L1 unavailable — same treatment as a missing optimistic output.
 		case err != nil:
-			return data, fmt.Errorf("optimistic l1 at timestamp %d: %w", ts, err)
+			return ChainSuperRootData{}, fmt.Errorf("optimistic l1 at timestamp %d: %w", ts, err)
 		default:
 			data.Optimistic = &OptimisticChainData{
 				Output: optOut,
 				L1:     optL1,
 			}
 		}
+	}
+
+	// Final consistency check. Any state-mutating event during the reads above
+	// will have bumped c.gen; if so, the gathered data may straddle pre- and
+	// post-mutation state and we must not return it.
+	if endGen := c.gen.Load(); endGen != startGen {
+		return ChainSuperRootData{}, fmt.Errorf("gen %d → %d: %w", startGen, endGen, ErrInconsistentSnapshot)
 	}
 
 	return data, nil
@@ -717,6 +752,10 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("reset already in progress")
 	}
 	defer c.resetting.Store(false)
+	// Bump the generation up-front so any in-flight gather notices the rewind
+	// at its end check, even if the engine mutation completes before the new
+	// VN is installed by the restart loop.
+	c.gen.Add(1)
 
 	vn := c.getVN()
 	if vn == nil {
