@@ -118,9 +118,7 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 	return 0, nil
 }
 
-func (m *mockCC) GatherSuperRootData(ctx context.Context, ts uint64) (cc.ChainSuperRootData, error) {
-	return cc.ChainSuperRootData{}, nil
-}
+func (m *mockCC) Generation() uint64 { return 0 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 

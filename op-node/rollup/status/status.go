@@ -31,20 +31,20 @@ type StatusTracker struct {
 
 	metrics Metrics
 
-	// onPipelineReset, when non-nil, is invoked synchronously every time the
-	// derivation pipeline emits rollup.ResetEvent. Supernodes use this to
-	// bump a generation counter so an in-flight superroot_atTimestamp gather
-	// can detect mid-call resets.
-	onPipelineReset func()
+	// superAuthority, when non-nil, is notified at the start of every
+	// derivation-pipeline reset via NotifyPipelineReset. Supernodes use this
+	// to bump a per-chain generation counter so an in-flight
+	// superroot_atTimestamp gather can detect mid-call resets.
+	superAuthority rollup.SuperAuthority
 
 	mu sync.RWMutex
 }
 
-func NewStatusTracker(log log.Logger, metrics Metrics, onPipelineReset func()) *StatusTracker {
+func NewStatusTracker(log log.Logger, metrics Metrics, superAuthority rollup.SuperAuthority) *StatusTracker {
 	st := &StatusTracker{
-		log:             log,
-		metrics:         metrics,
-		onPipelineReset: onPipelineReset,
+		log:            log,
+		metrics:        metrics,
+		superAuthority: superAuthority,
 	}
 	st.data = eth.SyncStatus{}
 	st.published.Store(&eth.SyncStatus{})
@@ -80,8 +80,11 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.SafeL2 = eth.L2BlockRef{}
 		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
-		if st.onPipelineReset != nil {
-			st.onPipelineReset()
+		// Notify the supernode (if any) before the published snapshot is
+		// updated by UpdateSyncStatus below — gen bumps before any reader
+		// can observe the zeroed snapshot.
+		if st.superAuthority != nil {
+			st.superAuthority.NotifyPipelineReset()
 		}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe

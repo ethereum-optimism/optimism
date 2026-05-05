@@ -2,13 +2,24 @@ package superroot
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
+
+// ErrInconsistentSnapshot is returned when atTimestamp detects that a chain's
+// generation counter changed between the start and end of its work — meaning
+// a virtual node restart, an engine rewind, or a derivation-pipeline reset
+// happened during the gather. The data we read may straddle pre- and
+// post-mutation state; callers should treat this as a transient retryable
+// signal.
+var ErrInconsistentSnapshot = errors.New("chain state changed during superroot gather")
 
 // Superroot satisfies the RPC Activity interface
 // it provides the superroot at a given timestamp for all chains
@@ -44,21 +55,18 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	// Gather every per-chain field needed for the response in a single call per
-	// chain. The handler is responsible only for cross-chain aggregation; per-chain
-	// reads (sync status, verified, optimistic, output root, etc.) live behind
-	// ChainContainer.GatherSuperRootData so consistency guarantees can be applied
-	// at a single seam.
-	perChain := make(map[eth.ChainID]cc.ChainSuperRootData, len(s.chains))
+	// Capture each chain's generation counter before any reads. ChainContainer
+	// bumps Generation on every state-mutating event that could make data
+	// gathered earlier inconsistent with state observed later (VN restart,
+	// RewindEngine, inner-pipeline rollup.ResetEvent). After all reads we
+	// re-read each counter; if any changed, we discard the response and let
+	// the caller retry rather than return data that mixes pre- and
+	// post-mutation state.
 	chainIDs := make([]eth.ChainID, 0, len(s.chains))
+	startGens := make(map[eth.ChainID]uint64, len(s.chains))
 	for chainID, chain := range s.chains {
-		data, err := chain.GatherSuperRootData(ctx, timestamp)
-		if err != nil {
-			s.log.Warn("failed to gather super root data", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, err
-		}
-		perChain[chainID] = data
 		chainIDs = append(chainIDs, chainID)
+		startGens[chainID] = chain.Generation()
 	}
 	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int { return a.Cmp(b) })
 
@@ -78,8 +86,13 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 	)
 
 	for _, chainID := range chainIDs {
-		data := perChain[chainID]
-		status := data.SyncStatus
+		chain := s.chains[chainID]
+
+		status, err := chain.SyncStatus(ctx)
+		if err != nil {
+			s.log.Warn("failed to get sync status", "chain_id", chainID.String(), "err", err)
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("sync status for chain %v: %w", chainID, err)
+		}
 		if status == nil {
 			status = &eth.SyncStatus{}
 		}
@@ -90,7 +103,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		if minCurrentL1 == (eth.BlockID{}) || currentL1.Number < minCurrentL1.Number {
 			minCurrentL1 = currentL1
 		}
-		for _, verifierL1 := range data.VerifierCurrentL1s {
+		for _, verifierL1 := range chain.VerifierCurrentL1s() {
 			if minCurrentL1 == (eth.BlockID{}) || verifierL1.Number < minCurrentL1.Number {
 				minCurrentL1 = verifierL1
 			}
@@ -110,22 +123,61 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			finalizedInitialized = true
 		}
 
-		if data.Verified == nil {
+		// Verified path. NotFound is benign: the chain has no fully-verified
+		// block at this timestamp, so the response carries no Data.Super.
+		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
+		switch {
+		case errors.Is(err, ethereum.NotFound):
 			notFound = true
-		} else {
-			// MAX across chains of the minimum-required L1 for verification.
-			if data.Verified.L1.Number > verifiedRequiredL1.Number {
-				verifiedRequiredL1 = data.Verified.L1
+		case err != nil:
+			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("verified at timestamp %d for chain %v: %w", timestamp, chainID, err)
+		default:
+			outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
+			if err != nil {
+				s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
+				return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("output root at L2 block %d for chain %v: %w", verifiedL2.Number, chainID, err)
 			}
-			chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: data.Verified.Output})
+			// MAX across chains of the minimum-required L1 for verification.
+			if verifiedL1.Number > verifiedRequiredL1.Number {
+				verifiedRequiredL1 = verifiedL1
+			}
+			chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 		}
 
-		if data.Optimistic != nil {
-			optimistic[chainID] = eth.OutputWithRequiredL1{
-				Output:     data.Optimistic.Output,
-				OutputRoot: eth.OutputRoot(data.Optimistic.Output),
-				RequiredL1: data.Optimistic.L1,
+		// Optimistic path. NotFound on either lookup just elides this chain
+		// from OptimisticAtTimestamp.
+		optOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
+		switch {
+		case errors.Is(err, ethereum.NotFound):
+			// no optimistic data for this chain
+		case err != nil:
+			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("optimistic output at timestamp %d for chain %v: %w", timestamp, chainID, err)
+		default:
+			_, optL1, err := chain.OptimisticAt(ctx, timestamp)
+			switch {
+			case errors.Is(err, ethereum.NotFound):
+				// source L1 unavailable — same treatment as a missing optimistic output
+			case err != nil:
+				s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
+				return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("optimistic L1 at timestamp %d for chain %v: %w", timestamp, chainID, err)
+			default:
+				optimistic[chainID] = eth.OutputWithRequiredL1{
+					Output:     optOut,
+					OutputRoot: eth.OutputRoot(optOut),
+					RequiredL1: optL1,
+				}
 			}
+		}
+	}
+
+	// Final consistency check. If any chain's generation counter changed
+	// during the reads above, the data may straddle a state-mutating event
+	// (VN restart, engine rewind, pipeline reset) and we must not return it.
+	for _, chainID := range chainIDs {
+		if endGen := s.chains[chainID].Generation(); endGen != startGens[chainID] {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("chain %v gen %d → %d: %w", chainID, startGens[chainID], endGen, ErrInconsistentSnapshot)
 		}
 	}
 

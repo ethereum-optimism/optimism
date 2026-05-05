@@ -1948,9 +1948,7 @@ func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2Bl
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
-func (m *mockChainContainer) GatherSuperRootData(ctx context.Context, ts uint64) (cc.ChainSuperRootData, error) {
-	return cc.ChainSuperRootData{}, nil
-}
+func (m *mockChainContainer) Generation() uint64 { return 0 }
 func (m *mockChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
