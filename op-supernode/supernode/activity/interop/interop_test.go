@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
@@ -37,7 +38,7 @@ type interopTestHarness struct {
 	logBackfillDepth time.Duration
 	dataDir          string
 	skipBuild        bool             // for tests that need custom construction
-	l1Source         l1ByNumberSource // optional override; defaults to nil (Advance falls back to hash-less under-claim)
+	l1Source         l1Source // override; nil falls back to stubL1Source in Build
 }
 
 // newInteropTestHarness creates a new test harness with sensible defaults.
@@ -71,7 +72,7 @@ func (h *interopTestHarness) WithDataDir(dir string) *interopTestHarness {
 }
 
 // WithL1Source overrides the default stubL1Source.
-func (h *interopTestHarness) WithL1Source(src l1ByNumberSource) *interopTestHarness {
+func (h *interopTestHarness) WithL1Source(src l1Source) *interopTestHarness {
 	h.l1Source = src
 	return h
 }
@@ -1402,7 +1403,7 @@ func TestProgressAndRecord(t *testing.T) {
 				require.True(t, madeProgress)
 
 				require.Equal(t, uint64(149), h.interop.currentL1.Number)
-				require.Equal(t, stubL1SourceHash, h.interop.currentL1.Hash)
+				require.Equal(t, stubL1SourceParentHash, h.interop.currentL1.Hash)
 			},
 		},
 		{
@@ -2593,25 +2594,32 @@ func (m *mockLogsDBWithState) Close() error { return nil }
 
 var _ LogsDB = (*mockLogsDBWithState)(nil)
 
-// errorL1Source implements l1ByNumberSource and always returns an error.
-// This is separate from mockL1Source in checker_test.go which uses a map lookup.
+// errorL1Source always returns an error.
 type errorL1Source struct {
 	err error
 }
 
-func (m *errorL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
+func (m *errorL1Source) L1BlockRefByNumber(_ context.Context, _ uint64) (eth.L1BlockRef, error) {
 	return eth.L1BlockRef{}, m.err
 }
 
-// stubL1SourceHash is the hash returned by stubL1Source for every block.
-var stubL1SourceHash = common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
+func (m *errorL1Source) InfoByHash(_ context.Context, _ common.Hash) (eth.BlockInfo, error) {
+	return nil, m.err
+}
 
-// stubL1Source returns a fixed-hash L1BlockRef for any number. Default
-// l1Source for the test harness.
+// stubL1SourceParentHash is the parent hash returned by stubL1Source.InfoByHash.
+var stubL1SourceParentHash = common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
+
+// stubL1Source returns a deterministic L1BlockRef / BlockInfo with a fixed
+// parent hash. Default l1Source for the test harness.
 type stubL1Source struct{}
 
 func (stubL1Source) L1BlockRefByNumber(_ context.Context, num uint64) (eth.L1BlockRef, error) {
-	return eth.L1BlockRef{Number: num, Hash: stubL1SourceHash}, nil
+	return eth.L1BlockRef{Number: num, ParentHash: stubL1SourceParentHash}, nil
+}
+
+func (stubL1Source) InfoByHash(_ context.Context, hash common.Hash) (eth.BlockInfo, error) {
+	return &testutils.MockBlockInfo{InfoHash: hash, InfoParentHash: stubL1SourceParentHash}, nil
 }
 
 // progressInteropCompat replicates the old progressInterop() behavior for test compatibility.
