@@ -1838,6 +1838,18 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that deploy reverts when an enabled game has a zero init bond.
+    function test_deploy_enabledGameZeroBond_reverts() public {
+        // Enable Cannon but keep a zero init bond.
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = 0;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that two different senders deploying with the same saltMixer and l2ChainId
     ///         get different contract addresses.
     function test_deploy_differentSendersDifferentAddresses_succeeds() public {
