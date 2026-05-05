@@ -53,6 +53,11 @@ type ChainContainer interface {
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
+	// GatherSuperRootData collects every per-chain field needed to assemble a
+	// superroot_atTimestamp response in a single call. The aim is to centralise
+	// the data gathering so future consistency guarantees can be applied at a
+	// single seam rather than across the handler's many individual reads.
+	GatherSuperRootData(ctx context.Context, ts uint64) (ChainSuperRootData, error)
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
 	// This allows callers to determine the minimum L1 block that all verifiers have processed.
@@ -99,6 +104,32 @@ type InteropChain interface {
 	// chain currently uses that block at the specified height. Returns true if a
 	// rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+}
+
+// ChainSuperRootData carries every per-chain field needed to assemble a
+// superroot_atTimestamp response. Verified and Optimistic are nil when the
+// underlying lookup returned ethereum.NotFound — the caller treats that as
+// "no fully verified block at this timestamp" / "exclude this chain from the
+// optimistic map" rather than an error. Any other error returned by
+// GatherSuperRootData aborts the whole response.
+type ChainSuperRootData struct {
+	SyncStatus         *eth.SyncStatus
+	VerifierCurrentL1s []eth.BlockID
+	Verified           *VerifiedChainData
+	Optimistic         *OptimisticChainData
+}
+
+// VerifiedChainData is the chain's fully-verified contribution at the requested timestamp.
+type VerifiedChainData struct {
+	L2     eth.BlockID
+	L1     eth.BlockID
+	Output eth.Bytes32
+}
+
+// OptimisticChainData is the chain's optimistic (pre-verification) contribution at the requested timestamp.
+type OptimisticChainData struct {
+	Output *eth.OutputV0
+	L1     eth.BlockID
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -573,6 +604,66 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 	}
 
 	return c.OutputV0AtBlockNumber(ctx, blockNum)
+}
+
+// GatherSuperRootData consolidates the five per-chain lookups
+// (SyncStatus, VerifierCurrentL1s, VerifiedAt + OutputRootAtL2BlockNumber,
+// OptimisticOutputAtTimestamp + OptimisticAt) the superroot_atTimestamp
+// handler currently makes into a single call.
+//
+// The returned struct distinguishes the legitimate "no block at this
+// timestamp" case (Verified/Optimistic left nil) from a fatal error
+// (returned as the second value).
+func (c *simpleChainContainer) GatherSuperRootData(ctx context.Context, ts uint64) (ChainSuperRootData, error) {
+	var data ChainSuperRootData
+
+	status, err := c.SyncStatus(ctx)
+	if err != nil {
+		return data, fmt.Errorf("sync status: %w", err)
+	}
+	data.SyncStatus = status
+	data.VerifierCurrentL1s = c.VerifierCurrentL1s()
+
+	verifiedL2, verifiedL1, err := c.VerifiedAt(ctx, ts)
+	switch {
+	case errors.Is(err, ethereum.NotFound):
+		// No fully-verified block at this timestamp. Verified left nil.
+	case err != nil:
+		return data, fmt.Errorf("verified at timestamp %d: %w", ts, err)
+	default:
+		outRoot, err := c.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
+		if err != nil {
+			return data, fmt.Errorf("output root at l2 block %d: %w", verifiedL2.Number, err)
+		}
+		data.Verified = &VerifiedChainData{
+			L2:     verifiedL2,
+			L1:     verifiedL1,
+			Output: outRoot,
+		}
+	}
+
+	optOut, err := c.OptimisticOutputAtTimestamp(ctx, ts)
+	switch {
+	case errors.Is(err, ethereum.NotFound):
+		// Optimistic data absent — chain is omitted from the optimistic map.
+	case err != nil:
+		return data, fmt.Errorf("optimistic output at timestamp %d: %w", ts, err)
+	default:
+		_, optL1, err := c.OptimisticAt(ctx, ts)
+		switch {
+		case errors.Is(err, ethereum.NotFound):
+			// Source L1 unavailable — same treatment as a missing optimistic output.
+		case err != nil:
+			return data, fmt.Errorf("optimistic l1 at timestamp %d: %w", ts, err)
+		default:
+			data.Optimistic = &OptimisticChainData{
+				Output: optOut,
+				L1:     optL1,
+			}
+		}
+	}
+
+	return data, nil
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
