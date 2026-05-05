@@ -121,16 +121,16 @@ type simpleChainContainer struct {
 	// unsynchronized access produces a torn interface read: non-nil type with
 	// nil data pointer, which slips past a plain `vn == nil` check and panics
 	// on the next method dispatch.
-	vnMu               sync.RWMutex
-	vn                 virtual_node.VirtualNode
-	vncfg              *opnodecfg.Config
-	cfg                config.CLIConfig
-	engine             engine_controller.EngineController
-	denyList           *DenyList
-	pause              atomic.Bool
-	stop               atomic.Bool
-	resetting          atomic.Bool
-	stopped            chan struct{}
+	vnMu      sync.RWMutex
+	vn        virtual_node.VirtualNode
+	vncfg     *opnodecfg.Config
+	cfg       config.CLIConfig
+	engine    engine_controller.EngineController
+	denyList  *DenyList
+	pause     atomic.Bool
+	stop      atomic.Bool
+	resetting atomic.Bool
+	stopped   chan struct{}
 	// gen backs Generation(). See the ChainContainer interface for the
 	// invariant; bump sites are setVN, RewindEngine, and NotifyPipelineReset.
 	gen                atomic.Uint64
