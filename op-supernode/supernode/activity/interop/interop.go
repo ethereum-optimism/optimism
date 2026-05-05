@@ -186,7 +186,7 @@ type Interop struct {
 
 	// l1Source resolves the parent of the latest verified L1Inclusion for the
 	// under-claimed i.currentL1 on DecisionAdvance. Must be non-nil.
-	l1Source l1ByNumberSource
+	l1Source l1Source
 
 	logBackfillDepth time.Duration
 	metrics          *resources.SupernodeMetrics
@@ -226,7 +226,7 @@ func New(
 	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
-	l1Source l1ByNumberSource,
+	l1Source l1Source,
 	logBackfillDepth time.Duration,
 	metrics *resources.SupernodeMetrics,
 ) *Interop {
@@ -911,21 +911,22 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 	}
 }
 
-// previousL1ID returns the L1 BlockID one block before target. At Number==0,
-// target is returned unchanged. On l1Source error, the hash is dropped:
-// consumers gate on .Number, so a hash-less BlockID is safe.
+// previousL1ID returns the L1 BlockID one block before target. Looks up by
+// hash so the L1 client's header cache hits on the common-case repeated query.
+// At Number==0, target is returned unchanged. On l1Source error, the hash is
+// dropped: consumers gate on .Number, so a hash-less BlockID is safe.
 func (i *Interop) previousL1ID(target eth.BlockID) eth.BlockID {
 	if target.Number == 0 {
 		return target
 	}
 	prevNumber := target.Number - 1
-	prev, err := i.l1Source.L1BlockRefByNumber(i.ctx, prevNumber)
+	info, err := i.l1Source.InfoByHash(i.ctx, target.Hash)
 	if err != nil {
-		i.log.Warn("failed to fetch parent of L1Inclusion on advance, dropping hash",
-			"l1Number", prevNumber, "err", err)
+		i.log.Warn("failed to fetch L1Inclusion header on advance, dropping parent hash",
+			"l1", target, "err", err)
 		return eth.BlockID{Number: prevNumber}
 	}
-	return prev.ID()
+	return eth.BlockID{Number: prevNumber, Hash: info.ParentHash()}
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,
