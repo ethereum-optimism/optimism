@@ -357,7 +357,11 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 
 	getBlockMethod, getTxByIndexMethod := blockAndTxByIndexMethods(id)
 
-	var rpcHdr RPCHeaderWithTxHashes
+	// Pointer (not value) result so that a JSON `null` response leaves
+	// rpcHdr == nil and we can surface ethereum.NotFound instead of trying to
+	// validate a zero-valued header. The EL returns null for, e.g.,
+	// eth_getBlockByNumber("finalized") before any block has finalized.
+	var rpcHdr *RPCHeaderWithTxHashes
 	var firstTx *types.Transaction
 	batch := []rpc.BatchElem{
 		{Method: getBlockMethod, Args: []any{id.Arg(), false}, Result: &rpcHdr},
@@ -368,6 +372,9 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 	}
 	if batch[0].Error != nil {
 		return nil, nil, eth.MaybeAsNotFoundErr(batch[0].Error)
+	}
+	if rpcHdr == nil {
+		return nil, nil, ethereum.NotFound
 	}
 	// batch[1].Error is tolerated: a block with no transactions returns null
 	// for tx-by-index-0 and some ELs surface that as a not-found error.

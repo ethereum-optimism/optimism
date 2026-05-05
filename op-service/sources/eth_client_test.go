@@ -217,13 +217,14 @@ func makeNonDepositTx() *types.Transaction {
 
 // expectBatchHeaderAndTx wires the mockRPC to fulfill a HeaderAndFirstTx
 // batch (eth_getBlockBy* + eth_getTransactionByBlock*AndIndex). The setup fn
-// receives pointers it must populate.
-func expectBatchHeaderAndTx(m *mockRPC, populate func(hdr *RPCHeaderWithTxHashes, firstTx **types.Transaction)) {
+// receives pointer-to-pointer targets it must populate; leaving them nil
+// emulates a JSON `null` response from the EL.
+func expectBatchHeaderAndTx(m *mockRPC, populate func(hdr **RPCHeaderWithTxHashes, firstTx **types.Transaction)) {
 	m.On("BatchCallContext", mock.Anything, mock.Anything).Once().Run(func(args mock.Arguments) {
 		b := args.Get(1).([]rpc.BatchElem)
-		hdrPtr := b[0].Result.(*RPCHeaderWithTxHashes)
+		hdrPtrPtr := b[0].Result.(**RPCHeaderWithTxHashes)
 		txPtrPtr := b[1].Result.(**types.Transaction)
-		populate(hdrPtr, txPtrPtr)
+		populate(hdrPtrPtr, txPtrPtr)
 	}).Return([]error{nil})
 }
 
@@ -258,8 +259,8 @@ func TestEthClient_HeaderAndFirstTx_ByHash_Happy(t *testing.T) {
 	rh := rpcHeaderWithTxs(hdr, []common.Hash{deposit.Hash()})
 
 	m := new(mockRPC)
-	expectBatchHeaderAndTx(m, func(hdrOut *RPCHeaderWithTxHashes, txOut **types.Transaction) {
-		*hdrOut = *rh
+	expectBatchHeaderAndTx(m, func(hdrOut **RPCHeaderWithTxHashes, txOut **types.Transaction) {
+		*hdrOut = rh
 		*txOut = deposit
 	})
 	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
@@ -279,8 +280,8 @@ func TestEthClient_HeaderAndFirstTx_ByHash_CacheHit(t *testing.T) {
 	rh := rpcHeaderWithTxs(hdr, []common.Hash{deposit.Hash()})
 
 	m := new(mockRPC)
-	expectBatchHeaderAndTx(m, func(hdrOut *RPCHeaderWithTxHashes, txOut **types.Transaction) {
-		*hdrOut = *rh
+	expectBatchHeaderAndTx(m, func(hdrOut **RPCHeaderWithTxHashes, txOut **types.Transaction) {
+		*hdrOut = rh
 		*txOut = deposit
 	})
 	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
@@ -306,8 +307,8 @@ func TestEthClient_HeaderAndFirstTx_ByNumber_RaceRetry(t *testing.T) {
 
 	m := new(mockRPC)
 	// 1) batched call returns header with one tx hash and a tx whose hash does NOT match
-	expectBatchHeaderAndTx(m, func(hdrOut *RPCHeaderWithTxHashes, txOut **types.Transaction) {
-		*hdrOut = *rh
+	expectBatchHeaderAndTx(m, func(hdrOut **RPCHeaderWithTxHashes, txOut **types.Transaction) {
+		*hdrOut = rh
 		*txOut = conflictingTx
 	})
 	// 2) follow-up tx-by-hash-and-index returns the correct tx
@@ -339,8 +340,8 @@ func TestEthClient_HeaderAndFirstTx_EmptyBlock(t *testing.T) {
 	rh := rpcHeaderWithTxs(hdr, nil)
 
 	m := new(mockRPC)
-	expectBatchHeaderAndTx(m, func(hdrOut *RPCHeaderWithTxHashes, txOut **types.Transaction) {
-		*hdrOut = *rh
+	expectBatchHeaderAndTx(m, func(hdrOut **RPCHeaderWithTxHashes, txOut **types.Transaction) {
+		*hdrOut = rh
 		*txOut = nil
 	})
 	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
@@ -351,6 +352,29 @@ func TestEthClient_HeaderAndFirstTx_EmptyBlock(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, rh.Hash, gotHdr.Hash())
 	require.Nil(t, gotTx)
+}
+
+// TestEthClient_HeaderAndFirstTx_ByLabel_NullResult verifies that when the EL
+// returns null for eth_getBlockByNumber (e.g. label="finalized" before any L2
+// block has finalized), HeaderAndFirstTx surfaces ethereum.NotFound instead of
+// trying to validate a zero-valued header. This matches the previous payloadCall
+// behavior and is required for op-node sync/start.go to fall back to the genesis
+// block.
+func TestEthClient_HeaderAndFirstTx_ByLabel_NullResult(t *testing.T) {
+	m := new(mockRPC)
+	// Simulate JSON decode of `null`: leave both result targets untouched.
+	m.On("BatchCallContext", mock.Anything, mock.Anything).Once().
+		Run(func(args mock.Arguments) {
+			// no-op: emulate null response (Result targets remain zero-valued)
+		}).Return([]error{nil})
+
+	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, _, err = s.HeaderAndFirstTx(ctx, eth.BlockLabel("finalized"))
+	require.ErrorIs(t, err, ethereum.NotFound, "expected NotFound for null EL response, got: %v", err)
+	m.Mock.AssertExpectations(t)
 }
 
 // TestReceiptValidation tests that the receipt validation is performed by the underlying RPCReceiptsFetcher
