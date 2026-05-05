@@ -155,7 +155,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.27
+  utils: ethereum-optimism/circleci-utils@dev:testing-alpha
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -1627,6 +1627,11 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run: # testing latest mise version from cirlceci-utils
+         name: Verify mise version
+         command: |
+           mise --version
+           test "$(mise --version | awk '{print $1}')" = "2026.5.0"
       - attach_workspace:
           at: .
       - restore_cache:
