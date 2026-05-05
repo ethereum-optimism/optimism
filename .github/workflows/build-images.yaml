@@ -103,7 +103,7 @@ jobs:
     with:
       mode: ${{ matrix.mode }}
       image_name: ${{ matrix.image_name }}
-      tag: ${{ matrix.tag }}
+      tag: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '24h' || matrix.tag }}
       bake_file: ${{ matrix.bake_file }}
       target: ${{ matrix.target }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
