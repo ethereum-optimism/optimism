@@ -125,9 +125,6 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 	return 0, nil
 }
 
-// generation, when read by the activity, is bumped on demand by tests that
-// want to exercise the start/end consistency check. The default zero value
-// is fine for the happy-path tests.
 func (m *mockCC) Generation() uint64 { return m.gen }
 
 var _ cc.ChainContainer = (*mockCC)(nil)
@@ -399,13 +396,6 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 // assertErr returns a generic error instance used to signal mock failures.
 func assertErr() error { return fmt.Errorf("mock error") }
 
-// TestSuperroot_AtTimestamp_GenChangedDuringGather_ReturnsInconsistentSnapshot
-// exercises the start/end consistency check at the activity level: the
-// chain's Generation() value changes between the first SyncStatus call
-// (entered via the syncStatus override that bumps gen on first invocation)
-// and the final per-chain gen comparison. The handler must discard the
-// gathered data and surface ErrInconsistentSnapshot rather than return a
-// response that mixes pre- and post-mutation state.
 func TestSuperroot_AtTimestamp_GenChangedDuringGather_ReturnsInconsistentSnapshot(t *testing.T) {
 	t.Parallel()
 	chainID := eth.ChainIDFromUInt64(10)
@@ -422,9 +412,8 @@ func TestSuperroot_AtTimestamp_GenChangedDuringGather_ReturnsInconsistentSnapsho
 			FinalizedL2: eth.L2BlockRef{Time: 150},
 		},
 	}
-	// Bump the chain's generation on the first SyncStatus call. By the time
-	// the handler reaches its end-of-gather check, Generation() differs from
-	// the value captured at start.
+	// Bump gen on the first SyncStatus call so the handler's end-check
+	// observes a different value than at start.
 	bumped := false
 	mock.syncStatus = func() (*eth.SyncStatus, error) {
 		if !bumped {

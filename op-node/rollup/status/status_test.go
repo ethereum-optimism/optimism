@@ -79,45 +79,34 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.FinalizedL2)
 }
 
-// stubSuperAuthority counts NotifyPipelineReset invocations and returns
-// no-op defaults for the rest of the SuperAuthority interface. Used by the
-// pipeline-reset notification tests below.
+// stubSuperAuthority counts NotifyPipelineReset invocations.
 type stubSuperAuthority struct {
 	pipelineResets int
 }
 
-func (s *stubSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool)         { return eth.BlockID{}, true }
-func (s *stubSuperAuthority) FinalizedL2Head() (eth.BlockID, bool)             { return eth.BlockID{}, true }
-func (s *stubSuperAuthority) IsDenied(uint64, common.Hash) (bool, error)       { return false, nil }
-func (s *stubSuperAuthority) NotifyPipelineReset()                             { s.pipelineResets++ }
+func (s *stubSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool)   { return eth.BlockID{}, true }
+func (s *stubSuperAuthority) FinalizedL2Head() (eth.BlockID, bool)       { return eth.BlockID{}, true }
+func (s *stubSuperAuthority) IsDenied(uint64, common.Hash) (bool, error) { return false, nil }
+func (s *stubSuperAuthority) NotifyPipelineReset()                       { s.pipelineResets++ }
 
-// TestNotifyPipelineReset_InvokedOnResetEvent proves the StatusTracker calls
-// SuperAuthority.NotifyPipelineReset exactly when it processes a
-// rollup.ResetEvent. Supernodes rely on this to bump their per-chain
-// generation counter so an in-flight superroot_atTimestamp gather can detect
-// mid-call resets.
 func TestNotifyPipelineReset_InvokedOnResetEvent(t *testing.T) {
 	sa := &stubSuperAuthority{}
 	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, sa)
 
-	// Other events must not fire the callback.
 	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
 		SafeL2Head:      eth.L2BlockRef{Number: 102},
 		FinalizedL2Head: eth.L2BlockRef{Number: 99},
 	})
-	require.Equal(t, 0, sa.pipelineResets)
+	require.Equal(t, 0, sa.pipelineResets, "non-reset events must not notify")
 
 	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
 	require.Equal(t, 1, sa.pipelineResets)
 
-	// Re-fired ResetEvent bumps again — every reset is observable.
 	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
-	require.Equal(t, 2, sa.pipelineResets)
+	require.Equal(t, 2, sa.pipelineResets, "every reset must notify")
 }
 
-// TestNotifyPipelineReset_NilSafe confirms a nil SuperAuthority doesn't
-// crash on reset — the supernode-less standalone op-node case.
 func TestNotifyPipelineReset_NilSafe(t *testing.T) {
 	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
 	require.NotPanics(t, func() {

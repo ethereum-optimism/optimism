@@ -31,10 +31,8 @@ type StatusTracker struct {
 
 	metrics Metrics
 
-	// superAuthority, when non-nil, is notified at the start of every
-	// derivation-pipeline reset via NotifyPipelineReset. Supernodes use this
-	// to bump a per-chain generation counter so an in-flight
-	// superroot_atTimestamp gather can detect mid-call resets.
+	// superAuthority, if non-nil, has NotifyPipelineReset called on every
+	// rollup.ResetEvent.
 	superAuthority rollup.SuperAuthority
 
 	mu sync.RWMutex
@@ -80,9 +78,7 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.SafeL2 = eth.L2BlockRef{}
 		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
-		// Notify the supernode (if any) before the published snapshot is
-		// updated by UpdateSyncStatus below — gen bumps before any reader
-		// can observe the zeroed snapshot.
+		// Notify before UpdateSyncStatus below republishes the zeroed snapshot.
 		if st.superAuthority != nil {
 			st.superAuthority.NotifyPipelineReset()
 		}

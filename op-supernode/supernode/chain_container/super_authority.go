@@ -160,13 +160,8 @@ func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2Bloc
 	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
-// NotifyPipelineReset implements rollup.SuperAuthority. The inner derivation
-// pipeline calls this at the start of every rollup.ResetEvent — before any
-// state-mutating reset work is observable to readers. Bumping the chain
-// container's generation counter here ensures any in-flight
-// GatherSuperRootData call detects the reset at its end check and returns
-// ErrInconsistentSnapshot rather than data that mixes pre- and post-reset
-// state.
+// NotifyPipelineReset implements rollup.SuperAuthority by bumping the
+// generation counter on every inner-pipeline rollup.ResetEvent.
 func (c *simpleChainContainer) NotifyPipelineReset() {
 	c.gen.Add(1)
 }

@@ -53,15 +53,12 @@ type ChainContainer interface {
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
-	// Generation returns a counter that is bumped on every state-mutating
-	// event that could make per-chain data gathered earlier inconsistent
-	// with state observed later: VN restart (setVN), entry to RewindEngine,
-	// and inner-pipeline rollup.ResetEvent. Callers that perform multiple
-	// per-chain reads and need them to reflect a single coherent state
-	// (most notably the superroot_atTimestamp handler) capture this value
-	// before the first read and re-read it after the last read; if it has
-	// changed in between, the gathered data may straddle pre- and
-	// post-mutation state and must be discarded.
+	// Generation is bumped on every state-mutating event that could make
+	// data gathered earlier inconsistent with state observed later: VN
+	// restart, RewindEngine entry, and inner-pipeline rollup.ResetEvent.
+	// Callers that perform multiple per-chain reads capture this before the
+	// first read and re-read it after the last; a change between the two
+	// means the reads straddle a mutation and must be discarded.
 	Generation() uint64
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
@@ -134,15 +131,8 @@ type simpleChainContainer struct {
 	stop               atomic.Bool
 	resetting          atomic.Bool
 	stopped            chan struct{}
-	// gen ("generation") is bumped on every state transition that could make
-	// data gathered earlier inconsistent with state observed later: a new
-	// virtual node being installed (setVN), entry to RewindEngine, and any
-	// observed inner-pipeline reset. Reads are atomic; writes happen under
-	// whichever lock the call site holds, so no separate mutex is needed.
-	//
-	// GatherSuperRootData captures gen at the start of its work and re-reads
-	// it at the end; if it changed in between, the gather has touched a
-	// mixture of old and new state and must not return data.
+	// gen backs Generation(). See the ChainContainer interface for the
+	// invariant; bump sites are setVN, RewindEngine, and NotifyPipelineReset.
 	gen                atomic.Uint64
 	log                gethlog.Logger
 	chainID            eth.ChainID
@@ -280,9 +270,8 @@ func (c *simpleChainContainer) getVN() virtual_node.VirtualNode {
 	return c.vn
 }
 
-// setVN writes c.vn under the lock. Used by the restart loop when it installs
-// a new virtual node on each iteration. Bumps the generation counter so any
-// in-flight gather observes the change at its end check.
+// setVN writes c.vn under the lock and bumps gen. Used by the restart loop
+// when it installs a new virtual node on each iteration.
 func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 	c.vnMu.Lock()
 	defer c.vnMu.Unlock()
@@ -320,10 +309,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
-			// Pass the chain container as SuperAuthority. In addition to the
-			// payload denylist / fully-verified head methods, the chain
-			// container's NotifyPipelineReset bumps c.gen so an in-flight
-			// superroot_atTimestamp gather detects mid-call resets.
+			// Pass the chain container as SuperAuthority for payload denylist
+			// and pipeline-reset notification.
 			c.initOverload.SuperAuthority = c
 		}
 		// Pass in the chain container as a SuperAuthority
@@ -657,9 +644,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("reset already in progress")
 	}
 	defer c.resetting.Store(false)
-	// Bump the generation up-front so any in-flight gather notices the rewind
-	// at its end check, even if the engine mutation completes before the new
-	// VN is installed by the restart loop.
+	// Bump up-front so the gen change precedes any engine mutation below.
 	c.gen.Add(1)
 
 	vn := c.getVN()

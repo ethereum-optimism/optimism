@@ -187,14 +187,12 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 		v.cancel()
 	}
 
-	// Clear inner synchronously so SyncStatus / SafeHeadAtL1 / L1AtSafeHead
-	// observe ErrVirtualNodeNotRunning immediately, before the inner-node
-	// drain in the Start goroutine completes. This prevents callers — most
-	// importantly the supernode's superroot_atTimestamp handler — from
-	// reading a stale published snapshot while a concurrent rewind has
-	// mutated the EL underneath. The Start goroutine's inner-node teardown
-	// uses a local reference captured before this field is read, so clearing
-	// it here does not interfere with shutdown.
+	// Clear v.inner synchronously so SyncStatus / SafeHeadAtL1 / L1AtSafeHead
+	// return ErrVirtualNodeNotRunning as soon as Stop is entered, rather than
+	// continuing to serve the last-published snapshot for the duration of the
+	// inner-node drain. The Start goroutine drains via a local reference
+	// captured before this field is read, so the nil here does not affect
+	// teardown.
 	v.inner = nil
 
 	return nil
