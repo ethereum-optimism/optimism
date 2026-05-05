@@ -37,7 +37,7 @@ type interopTestHarness struct {
 	activationTime   uint64
 	logBackfillDepth time.Duration
 	dataDir          string
-	skipBuild        bool             // for tests that need custom construction
+	skipBuild        bool     // for tests that need custom construction
 	l1Source         l1Source // override; nil falls back to stubL1Source in Build
 }
 
