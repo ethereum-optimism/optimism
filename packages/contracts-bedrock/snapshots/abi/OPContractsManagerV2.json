@@ -863,6 +863,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "OPContractsManagerV2_ZeroGameImplementation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "ReservedBitsSet",
     "type": "error"
