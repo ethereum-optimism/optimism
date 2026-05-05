@@ -2,13 +2,10 @@ package superroot
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/internal/syncstatus"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
@@ -47,78 +44,100 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
-	aggregate, err := syncstatus.Aggregate(ctx, s.log, s.chains)
-	if err != nil {
-		return eth.SuperRootAtTimestampResponse{}, err
+	// Gather every per-chain field needed for the response in a single call per
+	// chain. The handler is responsible only for cross-chain aggregation; per-chain
+	// reads (sync status, verified, optimistic, output root, etc.) live behind
+	// ChainContainer.GatherSuperRootData so consistency guarantees can be applied
+	// at a single seam.
+	perChain := make(map[eth.ChainID]cc.ChainSuperRootData, len(s.chains))
+	chainIDs := make([]eth.ChainID, 0, len(s.chains))
+	for chainID, chain := range s.chains {
+		data, err := chain.GatherSuperRootData(ctx, timestamp)
+		if err != nil {
+			s.log.Warn("failed to gather super root data", "chain_id", chainID.String(), "err", err)
+			return eth.SuperRootAtTimestampResponse{}, err
+		}
+		perChain[chainID] = data
+		chainIDs = append(chainIDs, chainID)
 	}
+	slices.SortFunc(chainIDs, func(a, b eth.ChainID) int { return a.Cmp(b) })
 
 	var (
+		minCurrentL1          eth.BlockID
+		minSafeTimestamp      uint64
+		minLocalSafeTimestamp uint64
+		minFinalizedTimestamp uint64
+		safeInitialized       bool
+		localSafeInitialized  bool
+		finalizedInitialized  bool
+
 		optimistic         = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
 		verifiedRequiredL1 eth.BlockID
 		chainOutputs       = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+		notFound           bool
 	)
 
-	notFound := false
-	// Collect verified L2 and L1 blocks at the given timestamp
-	for chainID, chain := range s.chains {
-		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
-		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
-		if errors.Is(err, ethereum.NotFound) {
-			notFound = true
-			continue
-		} else if err != nil {
-			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
+	for _, chainID := range chainIDs {
+		data := perChain[chainID]
+		status := data.SyncStatus
+		if status == nil {
+			status = &eth.SyncStatus{}
 		}
-		// Verified data is available: track the L1 block that includes the data
-		// for every chain — i.e. the MAX of per-chain minimum-required L1s.
-		if verifiedL1.Number > verifiedRequiredL1.Number {
-			verifiedRequiredL1 = verifiedL1
-		}
-		// Compute output root at or before timestamp using the verified L2 block number
-		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
-		if err != nil {
-			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
-		}
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
-	}
 
-	// Collect optimistic data for all chains regardless of whether verified data is available.
-	for chainID, chain := range s.chains {
-		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
-		if errors.Is(err, ethereum.NotFound) {
-			// If optimistic data is also absent, the chain is simply excluded from OptimisticAtTimestamp.
-			continue
-		} else if err != nil {
-			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic block at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
+		// CurrentL1 is the minimum L1 block every derivation pipeline AND every
+		// registered verifier has processed.
+		currentL1 := status.CurrentL1.ID()
+		if minCurrentL1 == (eth.BlockID{}) || currentL1.Number < minCurrentL1.Number {
+			minCurrentL1 = currentL1
 		}
-		// Also include the source L1 for context
-		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
-		if errors.Is(err, ethereum.NotFound) {
-			continue
-		} else if err != nil {
-			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get optimistic source L1 at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
+		for _, verifierL1 := range data.VerifierCurrentL1s {
+			if minCurrentL1 == (eth.BlockID{}) || verifierL1.Number < minCurrentL1.Number {
+				minCurrentL1 = verifierL1
+			}
 		}
-		optimistic[chainID] = eth.OutputWithRequiredL1{
-			Output:     optimisticOut,
-			OutputRoot: eth.OutputRoot(optimisticOut),
-			RequiredL1: optimisticL1,
+
+		// Conservative MIN across chains for the aggregate L2 timestamps.
+		if !localSafeInitialized || status.LocalSafeL2.Time < minLocalSafeTimestamp {
+			minLocalSafeTimestamp = status.LocalSafeL2.Time
+			localSafeInitialized = true
+		}
+		if !safeInitialized || status.SafeL2.Time < minSafeTimestamp {
+			minSafeTimestamp = status.SafeL2.Time
+			safeInitialized = true
+		}
+		if !finalizedInitialized || status.FinalizedL2.Time < minFinalizedTimestamp {
+			minFinalizedTimestamp = status.FinalizedL2.Time
+			finalizedInitialized = true
+		}
+
+		if data.Verified == nil {
+			notFound = true
+		} else {
+			// MAX across chains of the minimum-required L1 for verification.
+			if data.Verified.L1.Number > verifiedRequiredL1.Number {
+				verifiedRequiredL1 = data.Verified.L1
+			}
+			chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: data.Verified.Output})
+		}
+
+		if data.Optimistic != nil {
+			optimistic[chainID] = eth.OutputWithRequiredL1{
+				Output:     data.Optimistic.Output,
+				OutputRoot: eth.OutputRoot(data.Optimistic.Output),
+				RequiredL1: data.Optimistic.L1,
+			}
 		}
 	}
 
 	response := eth.SuperRootAtTimestampResponse{
-		CurrentL1:                 aggregate.CurrentL1,
-		CurrentSafeTimestamp:      aggregate.SafeTimestamp,
-		CurrentLocalSafeTimestamp: aggregate.LocalSafeTimestamp,
-		CurrentFinalizedTimestamp: aggregate.FinalizedTimestamp,
+		CurrentL1:                 minCurrentL1,
+		CurrentSafeTimestamp:      minSafeTimestamp,
+		CurrentLocalSafeTimestamp: minLocalSafeTimestamp,
+		CurrentFinalizedTimestamp: minFinalizedTimestamp,
 		OptimisticAtTimestamp:     optimistic,
-		ChainIDs:                  aggregate.ChainIDs,
+		ChainIDs:                  chainIDs,
 	}
 	if !notFound {
-		// Build super root from collected outputs
 		superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
 		superRoot := eth.SuperRoot(superV1)
 		response.Data = &eth.SuperRootResponseData{

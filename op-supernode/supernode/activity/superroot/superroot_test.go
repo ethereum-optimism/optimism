@@ -2,6 +2,7 @@ package superroot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -117,6 +118,47 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
+}
+
+func (m *mockCC) GatherSuperRootData(ctx context.Context, ts uint64) (cc.ChainSuperRootData, error) {
+	var data cc.ChainSuperRootData
+	status, err := m.SyncStatus(ctx)
+	if err != nil {
+		return data, err
+	}
+	data.SyncStatus = status
+	data.VerifierCurrentL1s = m.VerifierCurrentL1s()
+
+	verL2, verL1, err := m.VerifiedAt(ctx, ts)
+	switch {
+	case errors.Is(err, ethereum.NotFound):
+	case err != nil:
+		return data, err
+	default:
+		out, err := m.OutputRootAtL2BlockNumber(ctx, verL2.Number)
+		if err != nil {
+			return data, err
+		}
+		data.Verified = &cc.VerifiedChainData{L2: verL2, L1: verL1, Output: out}
+	}
+
+	optOut, err := m.OptimisticOutputAtTimestamp(ctx, ts)
+	switch {
+	case errors.Is(err, ethereum.NotFound):
+	case err != nil:
+		return data, err
+	default:
+		_, optL1, err := m.OptimisticAt(ctx, ts)
+		switch {
+		case errors.Is(err, ethereum.NotFound):
+		case err != nil:
+			return data, err
+		default:
+			data.Optimistic = &cc.OptimisticChainData{Output: optOut, L1: optL1}
+		}
+	}
+
+	return data, nil
 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)

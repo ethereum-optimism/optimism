@@ -986,5 +986,8 @@ func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, 
 	return false, nil
 }
 func (m *algoMockChain) SetResetCallback(cb cc.ResetCallback) {}
+func (m *algoMockChain) GatherSuperRootData(ctx context.Context, ts uint64) (cc.ChainSuperRootData, error) {
+	return cc.ChainSuperRootData{}, nil
+}
 
 var _ cc.ChainContainer = (*algoMockChain)(nil)
