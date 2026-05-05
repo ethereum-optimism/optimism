@@ -289,10 +289,19 @@ func (e *EngineController) RequestForkchoiceUpdate(ctx context.Context) {
 }
 
 func (e *EngineController) requestForkchoiceUpdate(ctx context.Context) {
+	safeHead := e.SafeL2Head()
+	finalizedHead := e.FinalizedHead()
+	// Record the effective safe/finalized refs for metrics. In supernode mode,
+	// SafeL2Head() and FinalizedHead() consult the superAuthority and may return
+	// values different from localSafeHead/localFinalizedHead. The metrics recorded
+	// in SetDeprecatedSafeHead/SetFinalizedHead capture only the local values, so
+	// we overwrite them here with the effective heads that the rest of the system uses.
+	e.metrics.RecordL2Ref("l2_safe", safeHead)
+	e.metrics.RecordL2Ref("l2_finalized", finalizedHead)
 	e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
 		UnsafeL2Head:    e.unsafeHead,
-		SafeL2Head:      e.SafeL2Head(),
-		FinalizedL2Head: e.FinalizedHead(),
+		SafeL2Head:      safeHead,
+		FinalizedL2Head: finalizedHead,
 	})
 }
 
