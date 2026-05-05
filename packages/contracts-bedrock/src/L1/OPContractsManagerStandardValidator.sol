@@ -1000,7 +1000,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        // If no ZK implementation is registered in the factory, the chain has opted out of ZK so nothing to validate.
+        // If the DisputeGameFactory does not have a ZKDisputeGame implementation registered,
+        // this chain has opted out of ZKDisputeGame. In this case, there is nothing to validate.
+        // Note: Even if the devFeatureBitmap is on for ZK_DISPUTE_GAME, we treat the deployment pipeline and
+        // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
