@@ -395,31 +395,37 @@ func (s *EthClient) HeaderAndFirstTx(ctx context.Context, id rpcBlockID) (*types
 		return header, nil, nil
 	}
 
-	if firstTx == nil {
-		return nil, nil, fmt.Errorf("l2 block first tx fetch returned nil, block hash: %s", rpcHdr.Hash)
+	// Decide if a tx-by-hash retry is needed:
+	// - firstTx == nil while the block has transactions: transient EL state
+	//   where the same block lookup succeeded for the header call but the
+	//   tx-by-index call inside the same batch returned null (rare but
+	//   observed under derivation pressure).
+	// - rpcHdr.Transactions[0] != firstTx.Hash() on a non-by-hash path:
+	//   the two batch calls resolved to different blocks under a reorg or
+	//   new head.
+	needsRetry := firstTx == nil
+	if !needsRetry {
+		if _, byHash := id.(hashID); !byHash {
+			needsRetry = rpcHdr.Transactions[0] != firstTx.Hash()
+		}
 	}
-
-	// Consistency check: only needed for non-by-hash paths, where the two
-	// batch calls may resolve to different blocks under a reorg or new head.
-	if _, byHash := id.(hashID); !byHash {
+	if needsRetry {
+		s.log.Debug("HeaderAndFirstTx: refetching first tx by hash",
+			"block_hash", rpcHdr.Hash,
+			"header_tx0", rpcHdr.Transactions[0],
+			"first_tx_was_nil", firstTx == nil)
+		firstTx = nil
+		err := s.client.CallContext(ctx, &firstTx,
+			"eth_getTransactionByBlockHashAndIndex",
+			rpcHdr.Hash, hexutil.EncodeUint64(0))
+		if err != nil {
+			return nil, nil, fmt.Errorf("retry first tx by hash failed: %w", err)
+		}
+		if firstTx == nil {
+			return nil, nil, fmt.Errorf("retry first tx by hash returned nil, block hash: %s", rpcHdr.Hash)
+		}
 		if rpcHdr.Transactions[0] != firstTx.Hash() {
-			s.log.Debug("HeaderAndFirstTx: header/tx race detected, refetching tx by hash",
-				"block_hash", rpcHdr.Hash,
-				"header_tx0", rpcHdr.Transactions[0],
-				"got_tx_hash", firstTx.Hash())
-			firstTx = nil
-			err := s.client.CallContext(ctx, &firstTx,
-				"eth_getTransactionByBlockHashAndIndex",
-				rpcHdr.Hash, hexutil.EncodeUint64(0))
-			if err != nil {
-				return nil, nil, fmt.Errorf("retry first tx by hash failed: %w", err)
-			}
-			if firstTx == nil {
-				return nil, nil, fmt.Errorf("retry first tx by hash returned nil, block hash: %s", rpcHdr.Hash)
-			}
-			if rpcHdr.Transactions[0] != firstTx.Hash() {
-				return nil, nil, fmt.Errorf("first tx hash mismatch after retry: header says %s but tx is %s", rpcHdr.Transactions[0], firstTx.Hash())
-			}
+			return nil, nil, fmt.Errorf("first tx hash mismatch after retry: header says %s but tx is %s", rpcHdr.Transactions[0], firstTx.Hash())
 		}
 	}
 

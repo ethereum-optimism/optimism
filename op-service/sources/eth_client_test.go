@@ -354,6 +354,43 @@ func TestEthClient_HeaderAndFirstTx_EmptyBlock(t *testing.T) {
 	require.Nil(t, gotTx)
 }
 
+// TestEthClient_HeaderAndFirstTx_ByHash_FirstTxNilRetry verifies that when
+// the batched tx-by-index call returns null while the header reports a
+// non-empty transaction list (a transient observed in CI under derivation
+// pressure), HeaderAndFirstTx retries the tx fetch by hash. By-hash paths
+// don't normally run the consistency check, but this nil-retry runs
+// regardless.
+func TestEthClient_HeaderAndFirstTx_ByHash_FirstTxNilRetry(t *testing.T) {
+	hdr, _ := randHeader()
+	deposit := makeDepositTx(11)
+	rh := rpcHeaderWithTxs(hdr, []common.Hash{deposit.Hash()})
+
+	m := new(mockRPC)
+	// 1) batch returns header with one tx hash and a nil tx
+	expectBatchHeaderAndTx(m, func(hdrOut **RPCHeaderWithTxHashes, txOut **types.Transaction) {
+		*hdrOut = rh
+		*txOut = nil
+	})
+	// 2) follow-up tx-by-hash-and-index returns the actual tx
+	m.On("CallContext", mock.Anything, mock.Anything,
+		"eth_getTransactionByBlockHashAndIndex",
+		[]any{rh.Hash, hexutil.EncodeUint64(0)}).
+		Run(func(args mock.Arguments) {
+			out := args.Get(1).(**types.Transaction)
+			*out = deposit
+		}).Return([]error{nil})
+
+	s, err := NewEthClient(m, testlog.Logger(t, log.LevelError), nil, testEthClientConfig)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	gotHdr, gotTx, err := s.HeaderAndFirstTx(ctx, hashID(rh.Hash))
+	require.NoError(t, err)
+	require.Equal(t, rh.Hash, gotHdr.Hash())
+	require.Equal(t, deposit.Hash(), gotTx.Hash())
+	m.Mock.AssertExpectations(t)
+}
+
 // TestEthClient_HeaderAndFirstTx_ByLabel_NullResult verifies that when the EL
 // returns null for eth_getBlockByNumber (e.g. label="finalized" before any L2
 // block has finalized), HeaderAndFirstTx surfaces ethereum.NotFound instead of
