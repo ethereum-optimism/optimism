@@ -1407,7 +1407,9 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
-			name: "valid result falls back to hash-less under-claim when l1Source fails",
+			// L1 lookup errors retry the whole transition: no commit, no
+			// ClearPendingTransition, no i.currentL1 update.
+			name: "l1Source error retries the transition",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithL1Source(&errorL1Source{err: errors.New("l1 unreachable")}).
 					WithChain(10, func(m *mockChainContainer) {
@@ -1421,11 +1423,13 @@ func TestProgressAndRecord(t *testing.T) {
 				}
 
 				madeProgress, err := h.interop.progressAndRecord()
-				require.NoError(t, err)
-				require.True(t, madeProgress)
+				require.ErrorContains(t, err, "l1 unreachable")
+				require.False(t, madeProgress)
+				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
 
-				require.Equal(t, uint64(149), h.interop.currentL1.Number)
-				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
+				pending, err := h.interop.verifiedDB.GetPendingTransition()
+				require.NoError(t, err)
+				require.NotNil(t, pending, "transition must be preserved for retry")
 			},
 		},
 		{

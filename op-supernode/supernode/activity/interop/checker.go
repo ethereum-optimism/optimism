@@ -7,9 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// l1Source provides L1 block lookups for the interop activity. By-number is
-// used for consistency checking; by-hash hits the L1 client's header cache and
-// is used to read parent links.
+// l1Source provides L1 block lookups.
 type l1Source interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
