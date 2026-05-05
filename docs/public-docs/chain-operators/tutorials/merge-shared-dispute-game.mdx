@@ -8,7 +8,7 @@ description: Runbook for merging two pre-interop OP Stack chains into a shared D
 
 This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerMigrator.migrate` (`opcm.migrate`). After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
-By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances winding down the retired games on the old per-chain factories.
+By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each still backed by its existing single-chain supernode — winding down the retired games on the old per-chain factories.
 
 > **Critical:** `opcm.migrate` is a one-way operation that invalidates every withdrawal proof submitted but not finalized on either chain. Affected users must re-prove against a new super-root game after migration. Announce the migration window to users at least seven days in advance—long enough for a withdrawal proven just before the announcement to mature past `PROOF_MATURITY_DELAY_SECONDS` and finalize.
 
@@ -23,7 +23,8 @@ This runbook assumes:
 * Exactly two chains, referred to below as `chainA` and `chainB`, are being merged.
 * Neither chain has activated interop yet.
 * Both chains run permissionless fault proofs with `SUPER_CANNON_KONA` (game type `9`) as the respected game type today.
-* A single `op-supernode` instance is in sync and derives both chains in the same process.
+* The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains, each backed by its own **single-chain** `op-supernode` (chainA's stack tracks only chainA; chainB's stack tracks only chainB). These keep running through migration cutover and the subsequent drain window.
+* A separate `op-supernode` instance is in sync and derives **exactly `chainA` and `chainB`** (and no other chains) in the same process. This is the supernode the new shared `op-proposer`, `op-challenger`, and `op-dispute-mon` point at after migration; it must not double as a multi-chain supernode for any other chain or interop cluster.
 * Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.INTEROP` and `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. These features are turned on automatically by `OPContractsManagerV2.upgrade()` when the OPCM container has the `OPTIMISM_PORTAL_INTEROP` dev feature set; that pre-upgrade is a prerequisite for this runbook.
 
 ### Install Required Tooling
@@ -78,7 +79,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="interop"` for the OPCM release version. |
 | `SUPER_PERMISSIONED_CANNON` absolute prestate hash | Same file, same `type="interop"` entry. The two super game types share the kona-interop prestate. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
-| `op-supernode` RPC URL | Your infrastructure team. The supernode must derive both `chainA` and `chainB`. |
+| Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain single-chain supernodes already in use stay attached to their per-chain drain instances and are not replaced. |
 | Privileged `proposer` for `SUPER_PERMISSIONED_CANNON` | The address that may post proposals to the permissioned super game. `op-proposer` is configured to sign with this key. |
 | Privileged `challenger` for `SUPER_PERMISSIONED_CANNON` | The address that may counter proposals on the permissioned super game. Typically a multisig — countering a permissioned proposal is a manual intervention step that is not needed in normal operation. **Not** the key `op-challenger` signs with: `op-challenger` runs with a separate, unprivileged wallet and can still resolve permissioned games permissionlessly. |
 
@@ -127,13 +128,14 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: 9 for both.
   ```
 
-* **Confirm the supernode is in sync and derives both chains.**
+* **Confirm the shared supernode derives exactly the two merging chains.** Verify with your infrastructure team that the instance behind `$SUPERNODE_RPC` has `chainA` and `chainB` in its dependency set and **no** other chains. A supernode that also tracks an unrelated chain (or an interop cluster that includes one) computes super roots over that broader set, and those roots will not match what the shared `SUPER_CANNON_KONA` and `SUPER_PERMISSIONED_CANNON` games verify. The per-chain drain instances continue to use their existing single-chain supernodes; do not repoint them at the shared one.
+* **Confirm the shared supernode is in sync.** It must report a finalized L2 head within both chains' expected finality windows:
 
   ```bash
   cast rpc supernode_syncStatus --rpc-url $SUPERNODE_RPC | jq -r '.finalized_timestamp'
   ```
 
-  If the supernode is materially behind either chain's expected finality window, postpone the migration.
+  If the supernode is materially behind either chain, postpone the migration.
 
 * **Confirm the prestate server serves both super prestates.**
 
