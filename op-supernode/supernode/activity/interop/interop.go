@@ -184,9 +184,8 @@ type Interop struct {
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
 
-	// l1Source is used to look up the parent of L1Inclusion(T_v) when computing
-	// the under-claimed i.currentL1 on DecisionAdvance. Must be non-nil in
-	// production and tests.
+	// l1Source resolves the parent of the latest verified L1Inclusion for the
+	// under-claimed i.currentL1 on DecisionAdvance. Must be non-nil.
 	l1Source l1ByNumberSource
 
 	logBackfillDepth time.Duration
@@ -758,33 +757,18 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
 		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
-		// L1Inclusion is the max L1 block used for derivation across all chains
-		// at this timestamp. Reporting it directly as i.currentL1 over-claims:
-		// L1Inclusion is monotonic in L2 timestamp, so the next unverified
-		// timestamp T_v+1 can have L1Inclusion(T_v+1) == L1Inclusion(T_v) (every
-		// chain's source stays the same — common during the gap between batch
-		// submissions). A consumer relying on aggregate.CurrentL1 ≥ s.l1Head as
-		// proof that everything derivable from L1[≤s.l1Head] is verified would
-		// then be lied to whenever s.l1Head == L1Inclusion(T_v): an unverified
-		// T_v+1 also lives at that L1, and per-chain reads can return Data == nil
-		// while the gate still passes.
-		//
-		// Under-claim by one L1 block. Then aggregate.CurrentL1 cannot equal the
-		// L1 that contains an unverified timestamp, so the gate fails for those
-		// queries and the consumer correctly retries instead of treating
-		// Data == nil as canonical InvalidTransition.
-		//
-		// Liveness: this stalls i.currentL1 at L1Inclusion(T_v) - 1 only while
-		// inside a constant-L1Inclusion run (consecutive timestamps with the
-		// same source). The DecisionWait branch's refreshCurrentL1OnWait lifts
-		// it back to localL1 between Advances, so the dispute game gate passes
-		// during Wait spikes — no waiting on the next batch posting.
+		// Under-claim by one L1 block. L1Inclusion is monotonic in L2 timestamp,
+		// so the next unverified timestamp can share the verified one's
+		// L1Inclusion when no chain advances source between them — common
+		// during the gap between batch postings. Reporting L1Inclusion directly
+		// would lie to consumers that read CurrentL1 ≥ s.l1Head as proof that
+		// everything derivable from L1[≤s.l1Head] is verified. The DecisionWait
+		// branch lifts i.currentL1 back to localL1 between Advances, so progress
+		// isn't gated on the next batch.
 		currentL1 := i.previousL1ID(pending.Result.L1Inclusion)
 
-		// Cap at the min of all chains' CurrentL1 so this field is individually
-		// safe, not just safe when aggregated via syncstatus.Aggregate. The cap
-		// also keeps the hash consistent: if localL1 is the smaller value, we
-		// take its hash from the chain's SyncStatus directly.
+		// Cap at min per-chain CurrentL1 so this field is safe individually,
+		// not just when aggregated via syncstatus.Aggregate.
 		if localL1, err := i.collectCurrentL1(); err != nil {
 			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion-1", "err", err)
 		} else if localL1.Number < currentL1.Number {
@@ -927,16 +911,9 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 	}
 }
 
-// previousL1ID returns the L1 BlockID one block before target. Used to
-// under-claim i.currentL1 on Advance so it never names an L1 block that may
-// still contain unverified data; see applyPendingTransition's DecisionAdvance
-// branch for the full reasoning.
-//
-// At target.Number == 0 there is nothing earlier, so target is returned
-// unchanged. If the l1Source lookup fails (transient L1 RPC error), falls back
-// to a hash-less BlockID{Number: target.Number-1}: Number is the safety-
-// critical field, and current consumers (op-challenger gate uses .Number only;
-// op-proposer logs .Hash but doesn't branch on it) tolerate a zero hash.
+// previousL1ID returns the L1 BlockID one block before target. At Number==0,
+// target is returned unchanged. On l1Source error, the hash is dropped:
+// consumers gate on .Number, so a hash-less BlockID is safe.
 func (i *Interop) previousL1ID(target eth.BlockID) eth.BlockID {
 	if target.Number == 0 {
 		return target
