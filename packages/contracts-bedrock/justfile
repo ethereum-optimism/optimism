@@ -241,11 +241,6 @@ genesis:
 generate-nut-bundle: build-no-tests
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
-# Deploys the contracts.
-deploy:
-  ./scripts/deploy/deploy.sh
-
-
 ########################################################
 #                       SNAPSHOTS                      #
 ########################################################

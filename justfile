@@ -312,10 +312,6 @@ go-tests-short-ci:
 go-tests-ci:
   just _go-tests-ci-internal ""
 
-# Runs action tests for kona with gotestsum for CI.
-go-tests-ci-kona-action:
-  just _go-tests-ci-internal "-count=1 -timeout 60m -run Test_ProgramAction"
-
 # Runs fraud proofs Go tests with gotestsum for CI.
 [script('bash')]
 go-tests-fraud-proofs-ci:

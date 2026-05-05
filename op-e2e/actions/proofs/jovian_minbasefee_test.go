@@ -35,7 +35,7 @@ func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2Fault
 	env.Miner.ActL1EndBlock(t)
 }
 
-func Test_ProgramAction_JovianMinBaseFee(gt *testing.T) {
+func TestJovianMinBaseFee(gt *testing.T) {
 	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)

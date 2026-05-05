@@ -8,6 +8,7 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
@@ -30,12 +31,12 @@ func (p *Prefetcher) nativeReExecuteBlock(
 		return err
 	}
 	notFound, err := retry.Do(ctx, maxAttempts, retry.Exponential(), func() (bool, error) {
-		_, _, err := source.InfoAndTxsByHash(ctx, blockHash)
+		_, _, err := source.HeaderAndTxsByHash(ctx, blockHash)
 		if errors.Is(err, ethereum.NotFound) {
 			return true, nil
 		}
 		if err != nil {
-			p.logger.Warn("Failed to retrieve l2 info and txs", "hash", blockHash, "err", err)
+			p.logger.Warn("Failed to retrieve l2 header and txs", "hash", blockHash, "err", err)
 		}
 		return false, err
 	})
@@ -52,7 +53,7 @@ func (p *Prefetcher) nativeReExecuteBlock(
 	if err != nil {
 		return fmt.Errorf("failed to get l2 source: %w", err)
 	}
-	header, _, err := retrying.InfoAndTxsByHash(ctx, agreedBlockHash)
+	header, _, err := retrying.HeaderAndTxsByHash(ctx, agreedBlockHash)
 	if err != nil {
 		return fmt.Errorf("failed to get agreed block header: %w", err)
 	}
@@ -60,8 +61,9 @@ func (p *Prefetcher) nativeReExecuteBlock(
 	if err != nil {
 		return fmt.Errorf("failed to get agreed output root: %w", err)
 	}
-	p.logger.Info("Re-executing block", "block_hash", blockHash, "block_number", header.NumberU64())
-	if err = p.executor.RunProgram(ctx, p, header.NumberU64()+1, agreedOutput, chainID, hostcommon.NewL2KeyValueStore(p.kvStore)); err != nil {
+	blockNum := bigs.Uint64Strict(header.Number)
+	p.logger.Info("Re-executing block", "block_hash", blockHash, "block_number", blockNum)
+	if err = p.executor.RunProgram(ctx, p, blockNum+1, agreedOutput, chainID, hostcommon.NewL2KeyValueStore(p.kvStore)); err != nil {
 		return err
 	}
 

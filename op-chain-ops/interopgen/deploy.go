@@ -290,7 +290,6 @@ func MigrateInterop(
 
 	const (
 		GameTypeCannon          = uint32(0)
-		GameTypeSuperCannon     = uint32(4)
 		GameTypeSuperCannonKona = uint32(9)
 	)
 
@@ -309,12 +308,6 @@ func MigrateInterop(
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(0),
-					GameType: GameTypeSuperCannon,
-					GameArgs: cannonGameArgs,
-				},
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
 					GameType: GameTypeSuperCannonKona,
 					GameArgs: cannonKonaGameArgs,
 				},
@@ -323,7 +316,7 @@ func MigrateInterop(
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			StartingRespectedGameType: GameTypeSuperCannon,
+			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)

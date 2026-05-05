@@ -451,10 +451,9 @@ func (b *mockBlockInfo) ExcessBlobGas() *uint64                     { return nil
 func (b *mockBlockInfo) BlobGasUsed() *uint64                       { return nil }
 func (b *mockBlockInfo) ParentBeaconRoot() *common.Hash             { return nil }
 func (b *mockBlockInfo) WithdrawalsRoot() *common.Hash              { return nil }
+func (b *mockBlockInfo) Extra() []byte                              { return nil }
 func (b *mockBlockInfo) ID() eth.BlockID                            { return eth.BlockID{Hash: b.hash, Number: b.number} }
 func (b *mockBlockInfo) MixDigest() common.Hash                     { return common.Hash{} }
-func (b *mockBlockInfo) HeaderRLP() ([]byte, error)                 { return nil, nil }
-func (b *mockBlockInfo) Header() *gethTypes.Header                  { return nil }
 
 // LoadCapturedData loads captured test data from a JSON file
 func LoadCapturedData(path string) (*CapturedData, error) {

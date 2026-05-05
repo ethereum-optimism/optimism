@@ -88,6 +88,9 @@ type ChainContainer interface {
 // ChainContainer above so the misuse is caught at compile time.
 type InteropChain interface {
 	ChainContainer
+	// HasDeniedAtOrAfterTimestamp returns true if any deny-list entry has
+	// DecisionTimestamp >= timestamp, without mutating the deny list.
+	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than
 	// or equal to the given timestamp. invalidatedBlock is the block that triggered
 	// the rewind and is passed to reset callbacks.

@@ -45,7 +45,7 @@ func requireL1BlockDAFootprintGasScalarEquals(t actionsHelpers.Testing, env *hel
 	require.Equal(t, scalar, l1BlockScalar, "L1 block DA footprint gas scalar mismatch")
 }
 
-func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
+func TestJovianDAFootprint(gt *testing.T) {
 	const lowDAFootprintGasScalar = 30
 	// Builds a block whose DA footprint is high (near but below gas limit),
 	// then verifies header BlobGasUsed and next block basefee calculation.

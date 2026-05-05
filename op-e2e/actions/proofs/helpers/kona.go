@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -26,6 +27,16 @@ func init() {
 
 func IsKonaConfigured() bool {
 	return konaHostPath != ""
+}
+
+// SkipIfKona skips the test when kona-host is configured (KONA_HOST_PATH set).
+// Use it at the top of action-proof tests that exercise op-program-only
+// behavior and aren't expected to pass under kona-host.
+func SkipIfKona(t *testing.T) {
+	t.Helper()
+	if IsKonaConfigured() {
+		t.Skip("op-program-only test; skipping under kona-host (KONA_HOST_PATH set)")
+	}
 }
 
 func writeConfigs[T any](t helpers.Testing, workDir string, name string, cfg []*T, cfgPaths []string) {

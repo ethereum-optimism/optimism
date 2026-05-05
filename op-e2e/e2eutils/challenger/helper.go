@@ -154,13 +154,6 @@ func WithCannonKona(t *testing.T, system System) Option {
 	}
 }
 
-func WithSuperCannon(t *testing.T, system System) Option {
-	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		handleOptError(t, shared.WithSuperCannonGameType())(c)
-	}
-}
-
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)

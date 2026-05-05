@@ -68,7 +68,6 @@ func TestL1TraversalManaged(t *testing.T) {
 		InfoReceiptRoot:      common.Hash{},
 		InfoGasUsed:          0,
 		InfoGasLimit:         30_000_000,
-		InfoHeaderRLP:        nil,
 		InfoParentBeaconRoot: nil,
 	}, nil, nil)
 	require.NoError(t, tr.ProvideNextL1(context.Background(), b))

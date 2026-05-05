@@ -276,6 +276,34 @@ func (d *DenyList) GetDeniedRecords(height uint64) ([]DenyRecord, error) {
 	return records, err
 }
 
+// HasDeniedAtOrAfterTimestamp returns true if any denied payload has
+// DecisionTimestamp >= timestamp.
+func (d *DenyList) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var found bool
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		c := b.Cursor()
+
+		for _, v := c.First(); v != nil; _, v = c.Next() {
+			records, err := decodeDenyRecords(v)
+			if err != nil {
+				return err
+			}
+			for _, r := range records {
+				if r.DecisionTimestamp >= timestamp {
+					found = true
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	return found, err
+}
+
 // PruneAtOrAfterTimestamp iterates all keys in the bucket, decodes records,
 // removes any where DecisionTimestamp >= timestamp, re-encodes remaining.
 // Returns map of removed hashes by height.
@@ -417,4 +445,11 @@ func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (
 		return nil, fmt.Errorf("deny list not initialized")
 	}
 	return c.denyList.PruneAtOrAfterTimestamp(timestamp)
+}
+
+func (c *simpleChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	if c.denyList == nil {
+		return false, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.HasDeniedAtOrAfterTimestamp(timestamp)
 }

@@ -899,8 +899,7 @@ func (m *testBlockInfo) GasLimit() uint64                                     { 
 func (m *testBlockInfo) BlobGasUsed() *uint64                                 { return nil }
 func (m *testBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
 func (m *testBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *testBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
-func (m *testBlockInfo) Header() *types.Header                                { return nil }
+func (m *testBlockInfo) Extra() []byte                                        { return nil }
 func (m *testBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*testBlockInfo)(nil)
@@ -978,6 +977,9 @@ func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) 
 }
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil
+}
+func (m *algoMockChain) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	return false, nil
 }
 func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil

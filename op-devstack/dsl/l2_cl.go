@@ -373,6 +373,15 @@ func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) 
 	return cl.HeadBlockRef(lvl).ID()
 }
 
+func (cl *L2CLNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockID, error) {
+	cl.require.Equal(chainID, cl.inner.ChainID(), "chain ID mismatch")
+	ref, err := cl.inner.ELClient().BlockRefByNumber(cl.ctx, number)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return ref.ID(), nil
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 	resp, err := cl.inner.RollupAPI().SafeHeadAtL1Block(cl.ctx, l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
@@ -394,12 +403,20 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
+func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
+}
+
 func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) {
 	cl.require.NoError(cl.LaggedFn(refNode, lvl, attempts, allowMatch)())
 }
 
 func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.InSyncFn(other, lvl, attempts)())
 }
 
 func (cl *L2CLNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {

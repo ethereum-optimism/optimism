@@ -188,13 +188,6 @@ func WithPermissionedGameType() Option {
 	}
 }
 
-func WithSuperCannonGameType() Option {
-	return func(_ context.Context, c *config.Config) error {
-		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonGameType)
-		return nil
-	}
-}
-
 func WithSuperCannonKonaGameType() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonKonaGameType)
