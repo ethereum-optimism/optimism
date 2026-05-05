@@ -30,7 +30,7 @@ type mockCC struct {
 	optimisticErr error
 	syncStatusErr error
 
-	gen        uint64                // returned by Generation; tests bump this from hooks
+	gen        uint64                          // returned by Generation; tests bump this from hooks
 	syncStatus func() (*eth.SyncStatus, error) // when set, overrides SyncStatus(); used to bump gen mid-gather
 }
 
