@@ -731,17 +731,10 @@ func TestVirtualNode_SyncStatusDuringShutdown(t *testing.T) {
 	}
 }
 
-// TestVirtualNode_StopClearsInnerBeforeReturn proves that public Stop() clears
-// v.inner synchronously before returning, so that callers of SyncStatus,
-// SafeHeadAtL1, and L1AtSafeHead immediately observe ErrVirtualNodeNotRunning
-// — even while the OLD inner node's Stop() drain is still in progress in the
-// Start goroutine.
-//
-// Without this guarantee, the supernode's superroot_atTimestamp handler can
-// keep reading a stale published SyncStatus snapshot from the stopped VN
-// while a concurrent rewind has already mutated the EL underneath, producing
-// a populated CurrentL1 paired with Data == nil that op-challenger then
-// consumes as InvalidTransition (an incorrect on-chain move).
+// TestVirtualNode_StopClearsInnerBeforeReturn proves that Stop() clears
+// v.inner synchronously before returning, so SyncStatus, SafeHeadAtL1, and
+// L1AtSafeHead return ErrVirtualNodeNotRunning even while the inner node's
+// drain is still in progress in the Start goroutine.
 func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 	t.Parallel()
 	log := createTestLogger()
@@ -752,7 +745,7 @@ func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 	mock.startFunc = func(ctx context.Context) {
 		<-ctx.Done()
 	}
-	mock.stopCh = nil // we use blockingStopMock for Stop sequencing
+	mock.stopCh = nil // blockingStopMock owns Stop sequencing
 
 	stopStarted := make(chan struct{})
 	stopRelease := make(chan struct{})
@@ -774,22 +767,17 @@ func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 		startDone <- vn.Start(context.Background())
 	}()
 
-	// Wait for running.
 	require.Eventually(t, func() bool {
 		return vn.State() == VNStateRunning
 	}, time.Second, 10*time.Millisecond)
 
-	// Sanity-check the pre-Stop state: inner is set, SyncStatus succeeds.
 	_, err := vn.SyncStatus(context.Background())
 	require.NoError(t, err, "pre-Stop SyncStatus should succeed")
 
-	// Call public Stop. This cancels runCtx and (with the fix) clears v.inner
-	// synchronously. Stop must return before the Start goroutine completes
-	// inner.Stop, since blockingStopMock holds the drain open.
 	require.NoError(t, vn.Stop(context.Background()))
 
-	// Confirm the inner-node drain is in progress and still blocked — i.e. the
-	// Start goroutine has not yet completed its post-runCtx.Done() teardown.
+	// Confirm the inner-node drain has started but not finished — Stop returned
+	// while blockingStopMock still holds the drain open.
 	select {
 	case <-stopStarted:
 	case <-time.After(5 * time.Second):
@@ -801,10 +789,8 @@ func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 	default:
 	}
 
-	// While the drain is held open, every read path that consults v.inner must
-	// already see it cleared and return ErrVirtualNodeNotRunning. This is the
-	// load-bearing assertion: it pins the post-Stop synchronous behaviour that
-	// closes the supernode/superroot_atTimestamp race.
+	// Load-bearing assertion: every read path that consults v.inner must see
+	// it cleared while the drain is still open.
 	t.Run("SyncStatus", func(t *testing.T) {
 		_, err := vn.SyncStatus(context.Background())
 		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
@@ -818,7 +804,6 @@ func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
 	})
 
-	// Release the drain so Start can finish.
 	close(stopRelease)
 	select {
 	case <-startDone:
@@ -827,7 +812,6 @@ func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
 		t.Fatal("Start() did not return after inner.Stop() completed")
 	}
 
-	// After full shutdown the read paths must continue to return the same error.
 	_, err = vn.SyncStatus(context.Background())
 	require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
 }

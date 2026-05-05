@@ -45,9 +45,6 @@ func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
 	return m.finalizedL2Head, false
 }
 
-// NotifyPipelineReset is a no-op in the engine tests — they don't exercise
-// the supernode's gen-counter behaviour. Tests that need to assert
-// notifications can wrap this mock or use the stub in op-node/rollup/status.
 func (m *mockSuperAuthority) NotifyPipelineReset() {}
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)

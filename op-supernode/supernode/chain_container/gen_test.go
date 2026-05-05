@@ -9,11 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGenBumpsOnSetVN proves the chain container's generation counter
-// increments every time a new virtual node is installed. The
-// superroot_atTimestamp handler reads Generation() at the start and end of
-// its gather to detect VN restarts; if this assertion regresses, mid-gather
-// VN restarts go undetected.
 func TestGenBumpsOnSetVN(t *testing.T) {
 	t.Parallel()
 	c := &simpleChainContainer{}
@@ -24,11 +19,6 @@ func TestGenBumpsOnSetVN(t *testing.T) {
 	require.Equal(t, before+2, c.gen.Load())
 }
 
-// TestGenBumpsOnRewindEngineEntry proves the chain container's generation
-// counter increments as soon as RewindEngine claims c.resetting — before any
-// engine-mutating work runs. A gather that observes pre-rewind state at
-// start and post-rewind state at end will see the gen difference at its
-// end check and discard the result.
 func TestGenBumpsOnRewindEngineEntry(t *testing.T) {
 	t.Parallel()
 	mockVN := newMockVirtualNode()
@@ -44,18 +34,12 @@ func TestGenBumpsOnRewindEngineEntry(t *testing.T) {
 	before := c.gen.Load()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // ensure the retry loop exits quickly
+	cancel()
 	_ = c.RewindEngine(ctx, 1234, eth.BlockRef{Number: 100, Hash: common.Hash{0x1}})
 
 	require.GreaterOrEqual(t, c.gen.Load(), before+1)
 }
 
-// TestGenBumpsOnNotifyPipelineReset proves NotifyPipelineReset
-// (rollup.SuperAuthority) bumps the generation counter. The StatusTracker
-// invokes this from the inner derivation pipeline's rollup.ResetEvent
-// handler, which is what surfaces non-RewindEngine resets — channel decode
-// errors, blob fetch failures, attribute mismatches, etc. — to in-flight
-// gathers.
 func TestGenBumpsOnNotifyPipelineReset(t *testing.T) {
 	t.Parallel()
 	c := &simpleChainContainer{}

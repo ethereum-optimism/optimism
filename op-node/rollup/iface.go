@@ -24,14 +24,10 @@ type SuperAuthority interface {
 	// Returns true if the payload should not be applied.
 	// The error indicates if the check could not be performed (should be logged but not fatal).
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
-	// NotifyPipelineReset is invoked at the start of every derivation-pipeline
-	// reset — i.e. when the inner node observes rollup.ResetEvent, before any
-	// of the state-mutating work (engine forceReset, SafeDB truncation,
-	// snapshot republish) is observable to readers. Supernodes use this to
-	// bump a per-chain generation counter so an in-flight superroot_atTimestamp
-	// gather can detect mid-call resets and reject inconsistent results.
-	// Implementations must be non-blocking: the StatusTracker holds its mutex
-	// while invoking this method.
+	// NotifyPipelineReset is invoked when the inner node observes
+	// rollup.ResetEvent, before the published sync status is republished
+	// or any reset state changes are visible to readers. Implementations
+	// must be non-blocking: the StatusTracker holds its mutex during the call.
 	NotifyPipelineReset()
 }
 
