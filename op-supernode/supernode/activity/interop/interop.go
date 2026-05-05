@@ -181,8 +181,8 @@ type Interop struct {
 	l1Checker l1ConsistencyChecker
 
 	// l1Source is used to look up the parent of L1Inclusion(T_v) when computing
-	// the under-claimed i.currentL1 on DecisionAdvance. May be nil in tests; the
-	// Advance path falls back to a hash-less BlockID in that case.
+	// the under-claimed i.currentL1 on DecisionAdvance. Must be non-nil in
+	// production and tests.
 	l1Source l1ByNumberSource
 
 	logBackfillDepth time.Duration
@@ -906,20 +906,16 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 // still contain unverified data; see applyPendingTransition's DecisionAdvance
 // branch for the full reasoning.
 //
-// Falls back to a hash-less BlockID{Number: target.Number-1} if the L1 lookup
-// fails or no l1Source was provided (e.g. tests). The Number is the safety-
-// critical field; consumers (op-challenger gate, op-proposer log line) tolerate
-// a zero hash. At target.Number == 0 there is nothing earlier, so target is
-// returned unchanged — i.currentL1 will be the zero BlockID and the consumer
-// gate fails by default.
+// At target.Number == 0 there is nothing earlier, so target is returned
+// unchanged. If the l1Source lookup fails (transient L1 RPC error), falls back
+// to a hash-less BlockID{Number: target.Number-1}: Number is the safety-
+// critical field, and current consumers (op-challenger gate uses .Number only;
+// op-proposer logs .Hash but doesn't branch on it) tolerate a zero hash.
 func (i *Interop) previousL1ID(target eth.BlockID) eth.BlockID {
 	if target.Number == 0 {
 		return target
 	}
 	prevNumber := target.Number - 1
-	if i.l1Source == nil {
-		return eth.BlockID{Number: prevNumber}
-	}
 	prev, err := i.l1Source.L1BlockRefByNumber(i.ctx, prevNumber)
 	if err != nil {
 		i.log.Warn("failed to fetch parent of L1Inclusion on advance, dropping hash",
