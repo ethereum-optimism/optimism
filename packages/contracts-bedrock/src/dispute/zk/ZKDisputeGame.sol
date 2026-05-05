@@ -15,6 +15,7 @@ import {
 } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
+    AnchorRootNotFound,
     BondTransferFailed,
     ClaimAlreadyResolved,
     GameNotFinalized,
@@ -332,6 +333,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
+            if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
