@@ -2169,17 +2169,20 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
             address owner = proxyAdmin.owner();
 
+            // Init all game configs.
+            // note: We set init bond to a non-zero value for all enabled games to avoid config validation reverts
+            // in the OPCM. Other games bonds are irrelevant for the ZK specific validation tests.
             IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
                 new IOPContractsManagerUtils.DisputeGameConfig[](7);
             configs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                initBond: 0.08 ether,
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
             });
             configs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                initBond: 0.08 ether,
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -2191,7 +2194,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             });
             configs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: 0.08 ether,
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
