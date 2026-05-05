@@ -21,7 +21,7 @@ func (m NoopMetrics) RecordL1Ref(name string, ref eth.L1BlockRef) {}
 
 func TestStatus(t *testing.T) {
 
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
 
 	status := tracker.SyncStatus()
 	require.Equal(t, eth.SyncStatus{}, *status)
@@ -65,7 +65,7 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
 	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    genesis,
 		SafeL2Head:      genesis,
@@ -76,4 +76,38 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.SafeL2)
 	require.Equal(t, genesis, status.LocalSafeL2)
 	require.Equal(t, genesis, status.FinalizedL2)
+}
+
+// TestOnPipelineReset_InvokesCallback proves the StatusTracker invokes the
+// onPipelineReset callback exactly when it processes a rollup.ResetEvent.
+// Supernodes rely on this to bump their per-chain generation counter so an
+// in-flight superroot_atTimestamp gather can detect mid-call resets.
+func TestOnPipelineReset_InvokesCallback(t *testing.T) {
+	calls := 0
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, func() {
+		calls++
+	})
+
+	// Other events must not fire the callback.
+	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
+		SafeL2Head:      eth.L2BlockRef{Number: 102},
+		FinalizedL2Head: eth.L2BlockRef{Number: 99},
+	})
+	require.Equal(t, 0, calls)
+
+	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
+	require.Equal(t, 1, calls)
+
+	// Re-fired ResetEvent bumps again — every reset is observable.
+	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
+	require.Equal(t, 2, calls)
+}
+
+// TestOnPipelineReset_NilSafe confirms a nil callback doesn't crash on reset.
+func TestOnPipelineReset_NilSafe(t *testing.T) {
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
+	require.NotPanics(t, func() {
+		tracker.OnEvent(context.Background(), rollup.ResetEvent{})
+	})
 }

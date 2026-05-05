@@ -123,3 +123,4 @@ func TestGatherSuperRootData_RewindEngineBumpsGen(t *testing.T) {
 
 	require.GreaterOrEqual(t, f.c.gen.Load(), before+1, "RewindEngine must bump the generation counter")
 }
+

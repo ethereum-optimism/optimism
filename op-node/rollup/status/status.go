@@ -31,13 +31,20 @@ type StatusTracker struct {
 
 	metrics Metrics
 
+	// onPipelineReset, when non-nil, is invoked synchronously every time the
+	// derivation pipeline emits rollup.ResetEvent. Supernodes use this to
+	// bump a generation counter so an in-flight superroot_atTimestamp gather
+	// can detect mid-call resets.
+	onPipelineReset func()
+
 	mu sync.RWMutex
 }
 
-func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
+func NewStatusTracker(log log.Logger, metrics Metrics, onPipelineReset func()) *StatusTracker {
 	st := &StatusTracker{
-		log:     log,
-		metrics: metrics,
+		log:             log,
+		metrics:         metrics,
+		onPipelineReset: onPipelineReset,
 	}
 	st.data = eth.SyncStatus{}
 	st.published.Store(&eth.SyncStatus{})
@@ -73,6 +80,9 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.SafeL2 = eth.L2BlockRef{}
 		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
+		if st.onPipelineReset != nil {
+			st.onPipelineReset()
+		}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe
 		st.data.CrossUnsafeL2 = x.CrossUnsafe

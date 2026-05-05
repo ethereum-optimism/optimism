@@ -343,6 +343,15 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			}
 			// Pass the chain container as SuperAuthority for payload denylist checks
 			c.initOverload.SuperAuthority = c
+			// Bump the chain container's generation counter every time the
+			// inner derivation pipeline emits rollup.ResetEvent (channel
+			// decode error, blob fetch failure, attribute mismatch, etc.).
+			// An in-flight superroot_atTimestamp gather will detect the
+			// change at its end check and reject the result rather than
+			// return data that mixes pre- and post-reset state.
+			c.initOverload.OnPipelineReset = func() {
+				c.gen.Add(1)
+			}
 		}
 		// Pass in the chain container as a SuperAuthority
 		vn := c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
