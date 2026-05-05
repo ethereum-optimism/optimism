@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
       - name: Plan
         id: plan
-        uses: ethereum-optimism/factory/actions/plan@1a774fb140928b96ec8c73d6a945a81eda46734c # falcorocks/internal-fork-detection
+        uses: ethereum-optimism/factory/actions/plan@34c087314cb7efc271e486e0c7fd84ae0905a135 # falcorocks/internal-fork-detection
         with:
           config: .github/docker-images.json
       - name: Compute cross-platform check sub-matrices
@@ -99,7 +99,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.plan.outputs.matrix_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@1a774fb140928b96ec8c73d6a945a81eda46734c # falcorocks/internal-fork-detection
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@34c087314cb7efc271e486e0c7fd84ae0905a135 # falcorocks/internal-fork-detection
     with:
       mode: ${{ matrix.mode }}
       image_name: ${{ matrix.image_name }}
