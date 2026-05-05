@@ -70,9 +70,7 @@ func (h *interopTestHarness) WithDataDir(dir string) *interopTestHarness {
 	return h
 }
 
-// WithL1Source sets an l1Source so the Advance path can look up the parent of
-// L1Inclusion when computing the under-claimed i.currentL1. Without this, the
-// Advance path falls back to a hash-less BlockID.
+// WithL1Source overrides the default stubL1Source.
 func (h *interopTestHarness) WithL1Source(src l1ByNumberSource) *interopTestHarness {
 	h.l1Source = src
 	return h
@@ -1430,10 +1428,6 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
-			// Advance under-claims i.currentL1 by one L1 block: it becomes
-			// L1Inclusion(T_v) - 1, with the parent's hash from the l1Source.
-			// This avoids over-claiming when the next unverified ts shares the
-			// same L1Inclusion (constant-source run between batches).
 			name: "valid result sets L1 to L1Inclusion - 1 with parent hash",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
@@ -1449,17 +1443,13 @@ func TestProgressAndRecord(t *testing.T) {
 
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
-				require.True(t, madeProgress, "valid result should advance verified timestamp")
+				require.True(t, madeProgress)
 
-				require.Equal(t, uint64(149), h.interop.currentL1.Number, "must under-claim by one L1 block")
-				require.Equal(t, stubL1SourceHash, h.interop.currentL1.Hash, "must report parent's hash from l1Source")
+				require.Equal(t, uint64(149), h.interop.currentL1.Number)
+				require.Equal(t, stubL1SourceHash, h.interop.currentL1.Hash)
 			},
 		},
 		{
-			// When the l1Source can't fetch the parent, the under-claim still
-			// applies (Number = L1Inclusion - 1) but the hash is dropped. The
-			// current consumers (op-challenger gate, op-proposer log line)
-			// tolerate a zero hash; the safety-critical field is Number.
 			name: "valid result falls back to hash-less under-claim when l1Source fails",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithL1Source(&errorL1Source{err: errors.New("l1 unreachable")}).
@@ -1482,8 +1472,6 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
-			// At L1 genesis (L1Inclusion.Number == 0) there is no earlier block
-			// to under-claim from. The result's L1Inclusion is preserved as-is.
 			name: "valid result at L1Inclusion == 0 is not under-claimed",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
@@ -2658,14 +2646,11 @@ func (m *errorL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth
 	return eth.L1BlockRef{}, m.err
 }
 
-// stubL1SourceHash is the canned hash returned by stubL1Source for every L1
-// block. Tests that build with the default harness assert this constant.
+// stubL1SourceHash is the hash returned by stubL1Source for every block.
 var stubL1SourceHash = common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 
-// stubL1Source returns a deterministic L1BlockRef for any number, with a
-// fixed hash. Used as the default l1Source in interopTestHarness so tests
-// that don't care about specific L1 hash plumbing still satisfy the
-// "l1Source must be non-nil" precondition.
+// stubL1Source returns a fixed-hash L1BlockRef for any number. Default
+// l1Source for the test harness.
 type stubL1Source struct{}
 
 func (stubL1Source) L1BlockRefByNumber(_ context.Context, num uint64) (eth.L1BlockRef, error) {
