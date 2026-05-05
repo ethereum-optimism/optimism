@@ -64,6 +64,16 @@ pub enum MessageGraphError<E: Debug> {
         /// The timestamp of the initiating message
         initiating_message_time: u64,
     },
+    /// Interop has not been activated for at least one block on the executing message's chain.
+    #[error(
+        "Interop has not been active for at least one block on executing message's chain. Activation time: {activation_time}, executing message time: {executing_message_time}"
+    )]
+    ExecutedTooEarly {
+        /// The timestamp of the interop activation on the executing chain.
+        activation_time: u64,
+        /// The timestamp of the executing message.
+        executing_message_time: u64,
+    },
     /// Message is in the future
     #[error("Message is in the future. Expected timestamp to be <= {max}, got {actual}")]
     MessageInFuture {
