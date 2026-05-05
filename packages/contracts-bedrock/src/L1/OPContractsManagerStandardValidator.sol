@@ -962,7 +962,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
         _errors = internalRequire(args.l2ChainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
-        _errors = internalRequire(args.verifier != address(0), string.concat(_errorPrefix, "-80"), _errors);
+        _errors = internalRequire(args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors);
         _errors = internalRequire(args.maxChallengeDuration > 0, string.concat(_errorPrefix, "-90"), _errors);
         _errors = internalRequire(args.maxProveDuration > 0, string.concat(_errorPrefix, "-100"), _errors);
         _errors = internalRequire(args.challengerBond > 0, string.concat(_errorPrefix, "-110"), _errors);
