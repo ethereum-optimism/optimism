@@ -109,7 +109,11 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 		}
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, h.l1Source, h.logBackfillDepth, nil)
+	l1Source := h.l1Source
+	if l1Source == nil {
+		l1Source = stubL1Source{}
+	}
+	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, l1Source, h.logBackfillDepth, nil)
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
@@ -150,7 +154,7 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, stubL1Source{}, 0, nil)
 				require.NotNil(t, interop)
 				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
@@ -174,7 +178,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, stubL1Source{}, 0, nil)
 				require.Nil(t, interop)
 			},
 		},
@@ -1133,7 +1137,7 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, 0, nil, dataDir, stubL1Source{}, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -1432,10 +1436,7 @@ func TestProgressAndRecord(t *testing.T) {
 			// same L1Inclusion (constant-source run between batches).
 			name: "valid result sets L1 to L1Inclusion - 1 with parent hash",
 			setup: func(h *interopTestHarness) *interopTestHarness {
-				parent := eth.L1BlockRef{Number: 149, Hash: common.HexToHash("0xParent")}
-				return h.WithL1Source(&mockL1Source{
-					blocks: map[uint64]eth.L1BlockRef{149: parent},
-				}).WithChain(10, func(m *mockChainContainer) {
+				return h.WithChain(10, func(m *mockChainContainer) {
 					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
 				}).Build()
@@ -1451,7 +1452,7 @@ func TestProgressAndRecord(t *testing.T) {
 				require.True(t, madeProgress, "valid result should advance verified timestamp")
 
 				require.Equal(t, uint64(149), h.interop.currentL1.Number, "must under-claim by one L1 block")
-				require.Equal(t, common.HexToHash("0xParent"), h.interop.currentL1.Hash, "must report parent's hash")
+				require.Equal(t, stubL1SourceHash, h.interop.currentL1.Hash, "must report parent's hash from l1Source")
 			},
 		},
 		{
@@ -1466,29 +1467,6 @@ func TestProgressAndRecord(t *testing.T) {
 						m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
 						m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
 					}).Build()
-			},
-			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
-					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}, L2Heads: blocks}, nil
-				}
-
-				madeProgress, err := h.interop.progressAndRecord()
-				require.NoError(t, err)
-				require.True(t, madeProgress)
-
-				require.Equal(t, uint64(149), h.interop.currentL1.Number)
-				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
-			},
-		},
-		{
-			// Without an l1Source (e.g. tests that don't wire one), Advance
-			// applies the same under-claim with an empty hash.
-			name: "valid result with no l1Source under-claims with empty hash",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithChain(10, func(m *mockChainContainer) {
-					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0xL2")}
-				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
@@ -1628,7 +1606,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
-	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, 0, chains, dataDir, stubL1Source{}, 0, nil)
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
@@ -2678,6 +2656,20 @@ type errorL1Source struct {
 
 func (m *errorL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
 	return eth.L1BlockRef{}, m.err
+}
+
+// stubL1SourceHash is the canned hash returned by stubL1Source for every L1
+// block. Tests that build with the default harness assert this constant.
+var stubL1SourceHash = common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
+
+// stubL1Source returns a deterministic L1BlockRef for any number, with a
+// fixed hash. Used as the default l1Source in interopTestHarness so tests
+// that don't care about specific L1 hash plumbing still satisfy the
+// "l1Source must be non-nil" precondition.
+type stubL1Source struct{}
+
+func (stubL1Source) L1BlockRefByNumber(_ context.Context, num uint64) (eth.L1BlockRef, error) {
+	return eth.L1BlockRef{Number: num, Hash: stubL1SourceHash}, nil
 }
 
 // progressInteropCompat replicates the old progressInterop() behavior for test compatibility.
