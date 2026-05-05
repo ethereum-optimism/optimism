@@ -135,7 +135,7 @@ func TestCLIVerify(t *testing.T) {
 		require.Contains(t, output, "Starting automatic contract verification")
 		require.Contains(t, output, "Verification Summary")
 		require.Contains(t, output, "verified=0")
-		require.Contains(t, output, "skipped=5")
+		require.Contains(t, output, "skipped=3")
 		require.Contains(t, output, "failed=0")
 	})
 
