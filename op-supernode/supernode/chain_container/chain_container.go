@@ -53,11 +53,16 @@ type ChainContainer interface {
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
-	// GatherSuperRootData collects every per-chain field needed to assemble a
-	// superroot_atTimestamp response in a single call. The aim is to centralise
-	// the data gathering so future consistency guarantees can be applied at a
-	// single seam rather than across the handler's many individual reads.
-	GatherSuperRootData(ctx context.Context, ts uint64) (ChainSuperRootData, error)
+	// Generation returns a counter that is bumped on every state-mutating
+	// event that could make per-chain data gathered earlier inconsistent
+	// with state observed later: VN restart (setVN), entry to RewindEngine,
+	// and inner-pipeline rollup.ResetEvent. Callers that perform multiple
+	// per-chain reads and need them to reflect a single coherent state
+	// (most notably the superroot_atTimestamp handler) capture this value
+	// before the first read and re-read it after the last read; if it has
+	// changed in between, the gathered data may straddle pre- and
+	// post-mutation state and must be discarded.
+	Generation() uint64
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
 	// This allows callers to determine the minimum L1 block that all verifiers have processed.
@@ -104,32 +109,6 @@ type InteropChain interface {
 	// chain currently uses that block at the specified height. Returns true if a
 	// rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
-}
-
-// ChainSuperRootData carries every per-chain field needed to assemble a
-// superroot_atTimestamp response. Verified and Optimistic are nil when the
-// underlying lookup returned ethereum.NotFound — the caller treats that as
-// "no fully verified block at this timestamp" / "exclude this chain from the
-// optimistic map" rather than an error. Any other error returned by
-// GatherSuperRootData aborts the whole response.
-type ChainSuperRootData struct {
-	SyncStatus         *eth.SyncStatus
-	VerifierCurrentL1s []eth.BlockID
-	Verified           *VerifiedChainData
-	Optimistic         *OptimisticChainData
-}
-
-// VerifiedChainData is the chain's fully-verified contribution at the requested timestamp.
-type VerifiedChainData struct {
-	L2     eth.BlockID
-	L1     eth.BlockID
-	Output eth.Bytes32
-}
-
-// OptimisticChainData is the chain's optimistic (pre-verification) contribution at the requested timestamp.
-type OptimisticChainData struct {
-	Output *eth.OutputV0
-	L1     eth.BlockID
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -341,17 +320,11 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
-			// Pass the chain container as SuperAuthority for payload denylist checks
+			// Pass the chain container as SuperAuthority. In addition to the
+			// payload denylist / fully-verified head methods, the chain
+			// container's NotifyPipelineReset bumps c.gen so an in-flight
+			// superroot_atTimestamp gather detects mid-call resets.
 			c.initOverload.SuperAuthority = c
-			// Bump the chain container's generation counter every time the
-			// inner derivation pipeline emits rollup.ResetEvent (channel
-			// decode error, blob fetch failure, attribute mismatch, etc.).
-			// An in-flight superroot_atTimestamp gather will detect the
-			// change at its end check and reject the result rather than
-			// return data that mixes pre- and post-reset state.
-			c.initOverload.OnPipelineReset = func() {
-				c.gen.Add(1)
-			}
 		}
 		// Pass in the chain container as a SuperAuthority
 		vn := c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
@@ -627,87 +600,10 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 	return c.OutputV0AtBlockNumber(ctx, blockNum)
 }
 
-// ErrInconsistentSnapshot is returned when GatherSuperRootData detects that
-// the chain container's generation counter changed between the start and end
-// of its work — meaning a virtual node restart, an engine rewind, or another
-// state-mutating event happened during the gather. The returned data is
-// potentially mixed across pre- and post-mutation state and must not be
-// published. Callers should treat this as a transient, retryable signal.
-var ErrInconsistentSnapshot = errors.New("chain state changed during gather")
-
-// GatherSuperRootData consolidates the five per-chain lookups
-// (SyncStatus, VerifierCurrentL1s, VerifiedAt + OutputRootAtL2BlockNumber,
-// OptimisticOutputAtTimestamp + OptimisticAt) the superroot_atTimestamp
-// handler currently makes into a single call.
-//
-// Consistency: c.gen is bumped by every state transition that could make data
-// gathered earlier inconsistent with state observed later (VN restart, engine
-// rewind). We capture c.gen at entry and re-read it after all reads complete.
-// If it changed, ErrInconsistentSnapshot is returned and the gathered data is
-// discarded — the caller can retry on the next tick. If it didn't change, the
-// reads observed a single quiescent state and the result is consistent.
-//
-// Verified/Optimistic left nil distinguishes the legitimate "no block at this
-// timestamp" case from a fatal error (returned as the second value).
-func (c *simpleChainContainer) GatherSuperRootData(ctx context.Context, ts uint64) (ChainSuperRootData, error) {
-	startGen := c.gen.Load()
-
-	var data ChainSuperRootData
-
-	status, err := c.SyncStatus(ctx)
-	if err != nil {
-		return ChainSuperRootData{}, fmt.Errorf("sync status: %w", err)
-	}
-	data.SyncStatus = status
-	data.VerifierCurrentL1s = c.VerifierCurrentL1s()
-
-	verifiedL2, verifiedL1, err := c.VerifiedAt(ctx, ts)
-	switch {
-	case errors.Is(err, ethereum.NotFound):
-		// No fully-verified block at this timestamp. Verified left nil.
-	case err != nil:
-		return ChainSuperRootData{}, fmt.Errorf("verified at timestamp %d: %w", ts, err)
-	default:
-		outRoot, err := c.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
-		if err != nil {
-			return ChainSuperRootData{}, fmt.Errorf("output root at l2 block %d: %w", verifiedL2.Number, err)
-		}
-		data.Verified = &VerifiedChainData{
-			L2:     verifiedL2,
-			L1:     verifiedL1,
-			Output: outRoot,
-		}
-	}
-
-	optOut, err := c.OptimisticOutputAtTimestamp(ctx, ts)
-	switch {
-	case errors.Is(err, ethereum.NotFound):
-		// Optimistic data absent — chain is omitted from the optimistic map.
-	case err != nil:
-		return ChainSuperRootData{}, fmt.Errorf("optimistic output at timestamp %d: %w", ts, err)
-	default:
-		_, optL1, err := c.OptimisticAt(ctx, ts)
-		switch {
-		case errors.Is(err, ethereum.NotFound):
-			// Source L1 unavailable — same treatment as a missing optimistic output.
-		case err != nil:
-			return ChainSuperRootData{}, fmt.Errorf("optimistic l1 at timestamp %d: %w", ts, err)
-		default:
-			data.Optimistic = &OptimisticChainData{
-				Output: optOut,
-				L1:     optL1,
-			}
-		}
-	}
-
-	// Final consistency check. Any state-mutating event during the reads above
-	// will have bumped c.gen; if so, the gathered data may straddle pre- and
-	// post-mutation state and we must not return it.
-	if endGen := c.gen.Load(); endGen != startGen {
-		return ChainSuperRootData{}, fmt.Errorf("gen %d → %d: %w", startGen, endGen, ErrInconsistentSnapshot)
-	}
-
-	return data, nil
+// Generation implements ChainContainer. See the interface doc comment for the
+// invariants that callers rely on.
+func (c *simpleChainContainer) Generation() uint64 {
+	return c.gen.Load()
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
