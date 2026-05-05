@@ -122,7 +122,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
@@ -150,22 +150,16 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
-        });
-        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
-        dgConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -330,7 +324,7 @@ contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
 }
 
 /// @title OPContractsManagerMigrationValidator_DGFShape_Test
-/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-50.
+/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-60.
 contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-DGF-10: SUPER_PERMISSIONED_CANNON not registered on shared DGF.
     function test_validate_dgf10SuperPermCannonMissing_succeeds() public {
@@ -382,6 +376,16 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
             abi.encode(address(0xbad))
         );
         assertEq("MIG-DGF-50", _validateMigration(true));
+    }
+
+    /// @notice MIG-DGF-60: Legacy SUPER_CANNON still registered on shared DGF.
+    function test_validate_dgf60SuperCannonStillRegistered_succeeds() public {
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-DGF-60", _validateMigration(true));
     }
 }
 

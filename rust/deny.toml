@@ -68,8 +68,9 @@ exceptions = [
   # aws-lc-sys includes OpenSSL in its composite license expression
   { allow = ["OpenSSL"], name = "aws-lc-sys" },
   # gmp feature (optional, LGPL-licensed)
+  # gmp-mpfr-sys uses deprecated "LGPL-3.0+" identifier; equivalent to "LGPL-3.0-or-later"
   { allow = ["LGPL-3.0-or-later"], crate = "rug" },
-  { allow = ["LGPL-3.0-or-later"], crate = "gmp-mpfr-sys" },
+  { allow = ["LGPL-3.0-or-later", "LGPL-3.0"], crate = "gmp-mpfr-sys" },
   # Grandfathered MPL-2.0 exceptions from op-reth
   { allow = ["MPL-2.0"], name = "option-ext" },
   { allow = ["MPL-2.0"], name = "webpki-root-certs" },

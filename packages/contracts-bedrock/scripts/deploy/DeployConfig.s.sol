@@ -71,8 +71,6 @@ contract DeployConfig is Script {
     uint256 public preimageOracleMinProposalSize;
     uint256 public preimageOracleChallengePeriod;
     uint256 public systemConfigStartBlock;
-    uint256 public requiredProtocolVersion;
-    uint256 public recommendedProtocolVersion;
     uint256 public proofMaturityDelaySeconds;
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
@@ -171,8 +169,6 @@ contract DeployConfig is Script {
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
-        requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
-        recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
         proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
         disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
@@ -373,8 +369,6 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = 126000;
         preimageOracleChallengePeriod = 86400;
         systemConfigStartBlock = 0;
-        requiredProtocolVersion = 1;
-        recommendedProtocolVersion = 1;
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
         respectedGameType = 0;

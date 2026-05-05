@@ -172,8 +172,7 @@ func (f *DisputeGameFactory) SuperGameAtIndex(idx int64) *SuperFaultDisputeGame 
 	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
 	gameType := gameTypes.GameType(gameInfo.GameType)
 	f.require.Truef(
-		gameType == gameTypes.SuperCannonGameType ||
-			gameType == gameTypes.SuperPermissionedGameType ||
+		gameType == gameTypes.SuperPermissionedGameType ||
 			gameType == gameTypes.SuperCannonKonaGameType,
 		"game at index %d is not a supported super game: %v",
 		idx,

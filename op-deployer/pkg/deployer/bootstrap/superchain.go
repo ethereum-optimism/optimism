@@ -173,11 +173,6 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		SuperchainProxyAdminOwner: cfg.SuperchainProxyAdminOwner,
 		Guardian:                  cfg.Guardian,
 		Paused:                    cfg.Paused,
-		// Non-zero placeholders for the deprecated ProtocolVersions* fields
-		// the Solidity script still asserts on. Removed in PR 2 of #20309.
-		ProtocolVersionsOwner:      cfg.SuperchainProxyAdminOwner,
-		RequiredProtocolVersion:    common.Hash{0x01},
-		RecommendedProtocolVersion: common.Hash{0x01},
 	}
 
 	if cfg.UseForge {

@@ -111,7 +111,6 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
         // Set up implementations - use real StorageSetter, mocks for the rest.
         implementations = OPContractsManagerContainer.Implementations({
             superchainConfigImpl: makeAddr("superchainConfigImpl"),
-            protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
             l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
             optimismPortalImpl: makeAddr("optimismPortalImpl"),
             ethLockboxImpl: makeAddr("ethLockboxImpl"),

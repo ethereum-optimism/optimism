@@ -157,7 +157,9 @@ type Interop struct {
 
 	currentL1 eth.BlockID
 
-	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
+	// l1Heads is the snapshot captured with blocksAtTimestamp in observeRound; passing
+	// it through avoids a TOCTOU race against L2 reorgs.
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
 	// It is called after verifyFn in progressInterop, and its results are merged.
@@ -490,7 +492,7 @@ func (i *Interop) progressInterop() (StepOutput, RoundObservation, error) {
 		return *early, obs, nil
 	}
 
-	result, err := i.verify(obs.NextTimestamp, obs.BlocksAtTS)
+	result, err := i.verify(obs.NextTimestamp, obs.BlocksAtTS, obs.L1Heads)
 	if err != nil {
 		return StepOutput{}, obs, err
 	}
@@ -556,13 +558,14 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 }
 
 // verify runs the heavy I/O: log loading, message verification, and cycle detection.
-func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Result, error) {
+// l1Heads must be the snapshot from observeRound — see verifyFn doc comment.
+func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID) (Result, error) {
 	view, err := i.resolveFrontierVerificationView(blocksAtTS)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve frontier verification view: %w", err)
 	}
 
-	result, err := i.verifyFn(ts, blocksAtTS, view)
+	result, err := i.verifyFn(ts, blocksAtTS, l1Heads, view)
 	if err != nil {
 		return Result{}, err
 	}

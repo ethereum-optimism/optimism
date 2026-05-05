@@ -190,7 +190,7 @@ library PastUpgrades {
         // Build dispute game configs with dummy prestates.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // CANNON (game type 0)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -226,16 +226,8 @@ library PastUpgrades {
             )
         });
 
-        // SUPER_CANNON (disabled)
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: hex""
-        });
-
         // SUPER_PERMISSIONED_CANNON (disabled)
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -243,7 +235,7 @@ library PastUpgrades {
         });
 
         // SUPER_CANNON_KONA (disabled)
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
@@ -251,7 +243,7 @@ library PastUpgrades {
         });
 
         // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
-        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
