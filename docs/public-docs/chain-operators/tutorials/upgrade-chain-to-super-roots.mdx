@@ -76,13 +76,14 @@ Read the values you need from `chain.json`:
 | `OPCM` address for the target network | `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Look up the `op-contracts/v8.x.y` release pinned by the `OPCMUpgradeV800` template and read `op_contracts_manager.address`. |
 | Kona-interop prestate hash | OPCM release manifest. Use the `-interop` kona variant, even if interop is not scheduled for the chain.|
 | Prestate artifact URL | The chain's existing `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the upgrade |
-| `op-supernode` RPC URL | Your infrastructure team |
+| `op-supernode` RPC URL | Your infrastructure team. The instance must be configured to track **only this chain** — not a multi-chain supernode that also tracks other chains. |
 
 ### Verify the Preconditions
 
 Before you change any configuration:
 
 * **Confirm the template injects `overrides.cfg.startingAnchorRoot`.** Open `superchain-ops/src/template/OPCMUpgradeV800.sol` and check `_buildExtraInstructions`. As of writing it only injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Without an `overrides.cfg.startingAnchorRoot` override, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as a third extra instruction. Fix the template before continuing.
+* **Confirm the `op-supernode` tracks only this chain.** `op-proposer`, `op-challenger`, and `op-dispute-mon` must point at a supernode instance whose dependency set contains only this chain's L2 chain ID. A supernode that also tracks other chains computes super roots across all of them, and those roots will not match what this chain's `SUPER_CANNON_KONA` / `SUPER_PERMISSIONED_CANNON` games verify. If the same physical operator also runs supernodes for other chains (or an interop cluster), stand up a dedicated single-chain supernode instance for this upgrade.
 * **Verify the `op-supernode` is healthy.** Confirm it reports a finalized L2 head within the chain's expected finality window:
 
   ```bash
