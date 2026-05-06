@@ -17,23 +17,28 @@ import (
 // it provides the superroot at a given timestamp for all chains
 // along with the current L1s and the verified and optimistic L1:L2 pairs
 type Superroot struct {
-	log    gethlog.Logger
-	chains map[eth.ChainID]cc.ChainContainer
+	log              gethlog.Logger
+	chains           map[eth.ChainID]cc.ChainContainer
+	verifiedProvider VerifiedSuperRootProvider
 }
 
-func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer) *Superroot {
+// VerifiedSuperRootProvider supplies durable verifier-owned superroot data.
+type VerifiedSuperRootProvider interface {
+	StoredSuperRootAtTimestamp(ts uint64) (data *eth.SuperRootResponseData, found bool, err error)
+}
+
+func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer, provider VerifiedSuperRootProvider) *Superroot {
 	return &Superroot{
-		log:    log,
-		chains: chains,
+		log:              log,
+		chains:           chains,
+		verifiedProvider: provider,
 	}
 }
 
 func (s *Superroot) Name() string { return "superroot" }
 
-// Reset is a no-op for superroot - it always queries chain containers directly
-// and doesn't maintain any chain-specific cached state.
+// Reset is a no-op for superroot: it does not maintain chain-specific cached state.
 func (s *Superroot) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
-	// No-op: superroot queries chain containers directly
 }
 
 func (s *Superroot) RPCNamespace() string    { return "superroot" }
@@ -53,35 +58,18 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 	}
 
 	var (
-		optimistic         = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
-		verifiedRequiredL1 eth.BlockID
-		chainOutputs       = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+		optimistic   = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		verifiedData *eth.SuperRootResponseData
 	)
 
-	notFound := false
-	// Collect verified L2 and L1 blocks at the given timestamp
-	for chainID, chain := range s.chains {
-		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
-		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
-		if errors.Is(err, ethereum.NotFound) {
-			notFound = true
-			continue
-		} else if err != nil {
-			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
-		}
-		// Verified data is available: track the L1 block that includes the data
-		// for every chain — i.e. the MAX of per-chain minimum-required L1s.
-		if verifiedL1.Number > verifiedRequiredL1.Number {
-			verifiedRequiredL1 = verifiedL1
-		}
-		// Compute output root at or before timestamp using the verified L2 block number
-		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
+	if s.verifiedProvider != nil {
+		data, found, err := s.verifiedProvider.StoredSuperRootAtTimestamp(timestamp)
 		if err != nil {
-			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get stored verified superroot: %w", err)
 		}
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
+		if found {
+			verifiedData = data
+		}
 	}
 
 	// Collect optimistic data for all chains regardless of whether verified data is available.
@@ -116,16 +104,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		CurrentFinalizedTimestamp: aggregate.FinalizedTimestamp,
 		OptimisticAtTimestamp:     optimistic,
 		ChainIDs:                  aggregate.ChainIDs,
-	}
-	if !notFound {
-		// Build super root from collected outputs
-		superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
-		superRoot := eth.SuperRoot(superV1)
-		response.Data = &eth.SuperRootResponseData{
-			VerifiedRequiredL1: verifiedRequiredL1,
-			Super:              superV1,
-			SuperRoot:          superRoot,
-		}
+		Data:                      verifiedData,
 	}
 	return response, nil
 }

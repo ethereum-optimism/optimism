@@ -1073,7 +1073,7 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	dataDir := t.TempDir()
 	db, err := OpenVerifiedDB(dataDir)
 	require.NoError(t, err)
-	require.NoError(t, db.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   126,
 		L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0x1")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{eth.ChainIDFromUInt64(10): {Number: 126, Hash: common.HexToHash("0x2")}},
@@ -1176,7 +1176,7 @@ func TestApplyResultCompat(t *testing.T) {
 					Timestamp:   1001,
 					L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
 					L2Heads: map[eth.ChainID]eth.BlockID{
-						mock.id: {Number: 500, Hash: common.HexToHash("0xL2")},
+						mock.id: {Number: 500, Hash: common.BigToHash(big.NewInt(500))},
 					},
 				}
 
@@ -1373,7 +1373,7 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 		},
 		{
-			name: "valid result sets L1 to result L1Head",
+			name: "valid result uses parent of L1Inclusion as claimable CurrentL1",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
 					m.currentL1 = eth.BlockRef{Number: 200, Hash: common.HexToHash("0x200")}
@@ -1390,8 +1390,8 @@ func TestProgressAndRecord(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, madeProgress, "valid result should advance verified timestamp")
 
-				require.Equal(t, expectedL1Inclusion.Number, h.interop.currentL1.Number)
-				require.Equal(t, expectedL1Inclusion.Hash, h.interop.currentL1.Hash)
+				require.Equal(t, expectedL1Inclusion.Number-1, h.interop.currentL1.Number)
+				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
 			},
 		},
 		{
@@ -2122,12 +2122,12 @@ func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 
 	mock := h.Mock(10)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0x2")}},
@@ -2170,7 +2170,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 	mockA := h.Mock(10)
 	mockB := h.Mock(8453)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2178,7 +2178,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 			mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
 		},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2237,7 +2237,7 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	mockA := h.Mock(10)
 	mockB := h.Mock(8453)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2245,7 +2245,7 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 			mockB.id: {Number: 200, Hash: common.HexToHash("0x2")},
 		},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2277,15 +2277,17 @@ func TestPendingTransition_RecoverAdvanceAfterCommitClearsPendingTransition(t *t
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xL1"), Number: 100},
 		L2Heads: map[eth.ChainID]eth.BlockID{
-			mock.id: {Hash: common.HexToHash("0xaaa"), Number: 500},
+			mock.id: {Hash: common.BigToHash(big.NewInt(500)), Number: 500},
 		},
 	}
 
+	record, err := h.interop.buildVerifiedRecord(result, eth.BlockID{})
+	require.NoError(t, err)
 	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(PendingTransition{
 		Decision: DecisionAdvance,
-		Result:   &result,
+		Verified: &record,
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(result.ToVerifiedResult()))
+	require.NoError(t, h.interop.verifiedDB.CommitRecord(record))
 
 	madeProgress, err := h.interop.progressAndRecord()
 	require.NoError(t, err)
@@ -2312,7 +2314,7 @@ func TestL1CanonicalityCheckErrorPropagates(t *testing.T) {
 	mock := h.Mock(10)
 
 	// Commit a verified result so observeRound has a LastVerified to check
-	err := h.interop.verifiedDB.Commit(VerifiedResult{
+	err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
@@ -2351,13 +2353,13 @@ func TestRewindAccepted(t *testing.T) {
 		}
 
 		// Commit two verified results: T=1000 and T=1001
-		err := h.interop.verifiedDB.Commit(VerifiedResult{
+		err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 100, Hash: common.HexToHash("0x1")}},
 		})
 		require.NoError(t, err)
-		err = h.interop.verifiedDB.Commit(VerifiedResult{
+		err = commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 101, Hash: common.HexToHash("0x2")}},
@@ -2406,7 +2408,7 @@ func TestRewindAccepted(t *testing.T) {
 		mockA := h.Mock(10)
 		mockB := h.Mock(8453)
 
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2414,7 +2416,7 @@ func TestRewindAccepted(t *testing.T) {
 				mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
 			},
 		}))
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2444,12 +2446,12 @@ func TestRewindAccepted(t *testing.T) {
 			Build()
 
 		mock := h.Mock(10)
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0xa1")}},
 		}))
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0xa2")}},
@@ -2468,7 +2470,7 @@ func TestRewindAccepted(t *testing.T) {
 		chainID := h.Mock(10).id
 
 		// Commit one result at activation timestamp
-		err := h.interop.verifiedDB.Commit(VerifiedResult{
+		err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 100}},
@@ -2537,7 +2539,7 @@ func (m *mockLogsDBWithState) Close() error { return nil }
 
 var _ LogsDB = (*mockLogsDBWithState)(nil)
 
-// errorL1Source implements l1ByNumberSource and always returns an error.
+// errorL1Source implements l1Source and always returns an error.
 // This is separate from mockL1Source in checker_test.go which uses a map lookup.
 type errorL1Source struct {
 	err error
@@ -2545,6 +2547,10 @@ type errorL1Source struct {
 
 func (m *errorL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
 	return eth.L1BlockRef{}, m.err
+}
+
+func (m *errorL1Source) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
+	return nil, m.err
 }
 
 // progressInteropCompat replicates the old progressInterop() behavior for test compatibility.
@@ -2669,7 +2675,7 @@ func TestResetIsNoOp(t *testing.T) {
 		Build()
 
 	mock := h.Mock(10)
-	err := h.interop.verifiedDB.Commit(VerifiedResult{
+	err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100}},
@@ -2705,7 +2711,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 
 		// Commit some verified results so the DB is non-empty
 		for ts := uint64(100); ts <= 110; ts++ {
-			err := h.interop.verifiedDB.Commit(VerifiedResult{
+			err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Number: ts + 1000},
 				L2Heads:     map[eth.ChainID]eth.BlockID{h.Mock(10).id: {Number: ts}},
@@ -2733,7 +2739,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 			if ts == 1005 {
 				l2Head = expectedL2
 			}
-			err := h.interop.verifiedDB.Commit(VerifiedResult{
+			err := commitVerifiedResult(h.interop.verifiedDB, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Number: ts * 10}, // L1 inclusion grows with timestamp
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: l2Head},

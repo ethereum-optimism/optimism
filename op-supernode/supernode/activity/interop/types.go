@@ -13,6 +13,33 @@ type VerifiedResult struct {
 	L2Heads     map[eth.ChainID]eth.BlockID `json:"l2Heads"`
 }
 
+// VerifiedRecord is the durable verifier snapshot at a timestamp.
+// It stores only source facts; ResponseData derives the redundant RPC fields.
+type VerifiedRecord struct {
+	Timestamp    uint64                      `json:"timestamp"`
+	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
+	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
+	ChainOutputs []eth.ChainIDAndOutput      `json:"chainOutputs"`
+	CurrentL1    eth.BlockID                 `json:"currentL1"`
+}
+
+func (r VerifiedRecord) ToVerifiedResult() VerifiedResult {
+	return VerifiedResult{
+		Timestamp:   r.Timestamp,
+		L1Inclusion: r.L1Inclusion,
+		L2Heads:     r.L2Heads,
+	}
+}
+
+func (r VerifiedRecord) ResponseData() *eth.SuperRootResponseData {
+	super := eth.NewSuperV1(r.Timestamp, r.ChainOutputs...)
+	return &eth.SuperRootResponseData{
+		VerifiedRequiredL1: r.L1Inclusion,
+		Super:              super,
+		SuperRoot:          eth.SuperRoot(super),
+	}
+}
+
 // InvalidHead pairs a block identifier with the output preimage fields needed
 // for optimistic root computation in the superroot API. The full OutputV0 can
 // be reconstructed on demand via OutputV0() since BlockHash is already in BlockID.
@@ -34,14 +61,12 @@ type Result struct {
 // PendingTransition is the generic write-ahead-log entry for an effectful
 // interop decision. Recovery and steady-state both use the same apply path.
 //
-// Phase 2 keeps this intentionally small:
-// - advance/invalidate carry their Result directly
-// - rewind carries the accepted frontier to rewind from
-// Later phases can expand this into a richer explicit transition plan.
+// DecisionAdvance uses Verified, DecisionInvalidate uses Result, and DecisionRewind uses Rewind.
 type PendingTransition struct {
-	Decision Decision    `json:"decision"`
-	Result   *Result     `json:"result,omitempty"`
-	Rewind   *RewindPlan `json:"rewind,omitempty"`
+	Decision Decision        `json:"decision"`
+	Result   *Result         `json:"result,omitempty"`
+	Verified *VerifiedRecord `json:"verified,omitempty"`
+	Rewind   *RewindPlan     `json:"rewind,omitempty"`
 }
 
 // RewindPlan is the explicit rewind transition persisted in the WAL.

@@ -31,6 +31,16 @@ type mockCC struct {
 	syncStatusErr error
 }
 
+type mockVerifiedProvider struct {
+	data  *eth.SuperRootResponseData
+	found bool
+	err   error
+}
+
+func (m mockVerifiedProvider) StoredSuperRootAtTimestamp(uint64) (*eth.SuperRootResponseData, bool, error) {
+	return m.data, m.found, m.err
+}
+
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
 func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
@@ -123,6 +133,16 @@ var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 	t.Parallel()
+	chainOutputs := []eth.ChainIDAndOutput{
+		{ChainID: eth.ChainIDFromUInt64(10), Output: eth.Bytes32{}},
+		{ChainID: eth.ChainIDFromUInt64(420), Output: eth.Bytes32{}},
+	}
+	super := eth.NewSuperV1(123, chainOutputs...)
+	stored := &eth.SuperRootResponseData{
+		VerifiedRequiredL1: eth.BlockID{Number: 1100},
+		Super:              super,
+		SuperRoot:          eth.SuperRoot(super),
+	}
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
 			verL2:  eth.BlockID{Number: 100},
@@ -151,7 +171,7 @@ func TestSuperroot_AtTimestamp_Succeeds(t *testing.T) {
 			},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, mockVerifiedProvider{data: stored, found: true})
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
@@ -191,16 +211,24 @@ func TestSuperroot_AtTimestamp_ComputesSuperRoot(t *testing.T) {
 		},
 	}
 	ts := uint64(123)
-	s := New(gethlog.New(), chains)
+	chainOutputs := []eth.ChainIDAndOutput{
+		{ChainID: eth.ChainIDFromUInt64(10), Output: out1},
+		{ChainID: eth.ChainIDFromUInt64(420), Output: out2},
+	}
+	super := eth.NewSuperV1(ts, chainOutputs...)
+	s := New(gethlog.New(), chains, mockVerifiedProvider{
+		data: &eth.SuperRootResponseData{
+			VerifiedRequiredL1: eth.BlockID{Number: 1100},
+			Super:              super,
+			SuperRoot:          eth.SuperRoot(super),
+		},
+		found: true,
+	})
 	api := &superrootAPI{s: s}
 	resp, err := api.AtTimestamp(context.Background(), hexutil.Uint64(ts))
 	require.NoError(t, err)
 
 	// Compute expected super root
-	chainOutputs := []eth.ChainIDAndOutput{
-		{ChainID: eth.ChainIDFromUInt64(10), Output: out1},
-		{ChainID: eth.ChainIDFromUInt64(420), Output: out2},
-	}
 	expected := eth.SuperRoot(eth.NewSuperV1(ts, chainOutputs...))
 	require.Equal(t, expected, resp.Data.SuperRoot)
 }
@@ -212,26 +240,24 @@ func TestSuperroot_AtTimestamp_ErrorOnCurrentL1(t *testing.T) {
 			syncStatusErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
 }
 
-func TestSuperroot_AtTimestamp_ErrorOnVerifiedAt(t *testing.T) {
+func TestSuperroot_AtTimestamp_ErrorOnStoredVerifiedData(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
-		eth.ChainIDFromUInt64(10): &mockCC{
-			verifiedErr: assertErr(),
-		},
+		eth.ChainIDFromUInt64(10): &mockCC{},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, mockVerifiedProvider{err: assertErr()})
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
 }
 
-func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
+func TestSuperroot_AtTimestamp_NoStoredVerifiedData(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
@@ -248,7 +274,7 @@ func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAt(t *testing.T) {
 			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2100}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	actual, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
@@ -274,7 +300,7 @@ func TestSuperroot_AtTimestamp_NotFoundOnVerifiedAtAndOptimisticAt(t *testing.T)
 			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2100}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	actual, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
@@ -292,13 +318,13 @@ func TestSuperroot_AtTimestamp_ErrorOnOptimisticAtWhenVerifiedNotFound(t *testin
 			optimisticErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
 }
 
-func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {
+func TestSuperroot_AtTimestamp_DoesNotReadLiveVerifiedOutputRoot(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
@@ -306,10 +332,11 @@ func TestSuperroot_AtTimestamp_ErrorOnOutputRoot(t *testing.T) {
 			outputErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
-	_, err := api.AtTimestamp(context.Background(), 123)
-	require.Error(t, err)
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, out.Data)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnOptimisticAt(t *testing.T) {
@@ -321,7 +348,7 @@ func TestSuperroot_AtTimestamp_ErrorOnOptimisticAt(t *testing.T) {
 			optimisticErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
@@ -330,7 +357,7 @@ func TestSuperroot_AtTimestamp_ErrorOnOptimisticAt(t *testing.T) {
 func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
@@ -353,7 +380,7 @@ func TestSuperroot_AtTimestamp_VerifierL1ReducesCurrentL1(t *testing.T) {
 			verifierL1s: []eth.BlockID{{Number: 1500}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
@@ -377,7 +404,7 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 			verifierL1s: []eth.BlockID{{Number: 3000}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)

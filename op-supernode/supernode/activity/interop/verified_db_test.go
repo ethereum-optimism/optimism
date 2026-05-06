@@ -10,6 +10,32 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+func commitVerifiedResult(v *VerifiedDB, result VerifiedResult) error {
+	return v.CommitRecord(testVerifiedRecord(result))
+}
+
+func testVerifiedRecord(result VerifiedResult) VerifiedRecord {
+	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(result.L2Heads))
+	for chainID, l2Head := range result.L2Heads {
+		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
+			ChainID: chainID,
+			Output:  eth.Bytes32(l2Head.Hash),
+		})
+	}
+	super := eth.NewSuperV1(result.Timestamp, chainOutputs...)
+	currentL1 := result.L1Inclusion
+	if currentL1.Number > 0 {
+		currentL1.Number--
+	}
+	return VerifiedRecord{
+		Timestamp:    result.Timestamp,
+		L1Inclusion:  result.L1Inclusion,
+		L2Heads:      result.L2Heads,
+		ChainOutputs: super.Chains,
+		CurrentL1:    currentL1,
+	}
+}
+
 func TestVerifiedDB_WriteAndRead(t *testing.T) {
 	// Create a temporary directory for the test database
 	dataDir := t.TempDir()
@@ -50,7 +76,7 @@ func TestVerifiedDB_WriteAndRead(t *testing.T) {
 	}
 
 	// Write the first result
-	err = db.Commit(result1)
+	err = commitVerifiedResult(db, result1)
 	require.NoError(t, err)
 
 	// Verify the last timestamp was updated
@@ -95,7 +121,7 @@ func TestVerifiedDB_SequentialCommits(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(10)
 
 	// Commit first timestamp
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   100,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x02"), Number: 2}},
@@ -103,7 +129,7 @@ func TestVerifiedDB_SequentialCommits(t *testing.T) {
 	require.NoError(t, err)
 
 	// Commit next sequential timestamp should succeed
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   101,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x03"), Number: 3},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x04"), Number: 4}},
@@ -111,7 +137,7 @@ func TestVerifiedDB_SequentialCommits(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to commit non-sequential timestamp (gap)
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   105,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x05"), Number: 5},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x06"), Number: 6}},
@@ -119,7 +145,7 @@ func TestVerifiedDB_SequentialCommits(t *testing.T) {
 	require.ErrorIs(t, err, ErrNonSequential)
 
 	// Try to commit already committed timestamp
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   100,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x07"), Number: 7},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x08"), Number: 8}},
@@ -139,14 +165,14 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	db, err := OpenVerifiedDB(dataDir)
 	require.NoError(t, err)
 
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   500,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 50},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xbbbb"), Number: 100}},
 	})
 	require.NoError(t, err)
 
-	err = db.Commit(VerifiedResult{
+	err = commitVerifiedResult(db, VerifiedResult{
 		Timestamp:   501,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xcccc"), Number: 51},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xdddd"), Number: 101}},
@@ -179,7 +205,7 @@ func TestVerifiedDB_Persistence(t *testing.T) {
 	require.Equal(t, uint64(501), result.Timestamp)
 
 	// Next commit should continue from last timestamp
-	err = db2.Commit(VerifiedResult{
+	err = commitVerifiedResult(db2, VerifiedResult{
 		Timestamp:   502,
 		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xeeee"), Number: 52},
 		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xffff"), Number: 102}},
@@ -202,7 +228,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 
 		// Commit several timestamps
 		for ts := uint64(100); ts <= 105; ts++ {
-			err = db.Commit(VerifiedResult{
+			err = commitVerifiedResult(db, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
@@ -253,7 +279,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 
 		// Commit up to timestamp 100
 		for ts := uint64(98); ts <= 100; ts++ {
-			err = db.Commit(VerifiedResult{
+			err = commitVerifiedResult(db, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
@@ -283,7 +309,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 
 		// Commit a few entries
 		for ts := uint64(100); ts <= 102; ts++ {
-			err = db.Commit(VerifiedResult{
+			err = commitVerifiedResult(db, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
@@ -320,7 +346,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 
 		// Commit 100-105
 		for ts := uint64(100); ts <= 105; ts++ {
-			err = db.Commit(VerifiedResult{
+			err = commitVerifiedResult(db, VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
@@ -333,7 +359,7 @@ func TestVerifiedDB_RewindTo(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to commit 103 again (sequential from 102)
-		err = db.Commit(VerifiedResult{
+		err = commitVerifiedResult(db, VerifiedResult{
 			Timestamp:   103,
 			L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xNEW"), Number: 103},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xNEW2"), Number: 103}},
@@ -365,8 +391,8 @@ func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		require.NoError(t, db.Commit(result))
-		require.NoError(t, db.Commit(result))
+		require.NoError(t, commitVerifiedResult(db, result))
+		require.NoError(t, commitVerifiedResult(db, result))
 	})
 
 	t.Run("different struct at same timestamp is rejected", func(t *testing.T) {
@@ -375,11 +401,11 @@ func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		require.NoError(t, db.Commit(result))
+		require.NoError(t, commitVerifiedResult(db, result))
 
 		different := result
 		different.L1Inclusion.Number = 999
-		require.ErrorIs(t, db.Commit(different), ErrAlreadyCommitted)
+		require.ErrorIs(t, commitVerifiedResult(db, different), ErrAlreadyCommitted)
 	})
 
 	t.Run("byte-divergent but struct-equal replays cleanly", func(t *testing.T) {
@@ -392,11 +418,12 @@ func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
 		require.NoError(t, err)
 		defer db.Close()
 
-		require.NoError(t, db.Commit(result))
+		require.NoError(t, commitVerifiedResult(db, result))
 
-		indented, err := json.MarshalIndent(result, "", "  ")
+		record := testVerifiedRecord(result)
+		indented, err := json.MarshalIndent(record, "", "  ")
 		require.NoError(t, err)
-		canonical, err := json.Marshal(result)
+		canonical, err := json.Marshal(record)
 		require.NoError(t, err)
 		require.NotEqual(t, canonical, indented, "indented JSON should diverge from canonical bytes")
 
@@ -404,7 +431,7 @@ func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
 			return tx.Bucket(bucketName).Put(timestampToKey(result.Timestamp), indented)
 		}))
 
-		require.NoError(t, db.Commit(result))
+		require.NoError(t, commitVerifiedResult(db, result))
 	})
 }
 

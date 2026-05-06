@@ -156,6 +156,7 @@ type Interop struct {
 	started bool
 
 	currentL1 eth.BlockID
+	l1Source  l1Source
 
 	// l1Heads is the snapshot captured with blocksAtTimestamp in observeRound; passing
 	// it through avoids a TOCTOU race against L2 reorgs.
@@ -220,7 +221,7 @@ func New(
 	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
-	l1Source l1ByNumberSource,
+	l1Source l1Source,
 	logBackfillDepth time.Duration,
 	metrics *resources.SupernodeMetrics,
 ) *Interop {
@@ -260,8 +261,14 @@ func New(
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
 		messageExpiryWindow: messageExpiryWindow,
+		l1Source:            l1Source,
 		logBackfillDepth:    logBackfillDepth,
 		metrics:             metrics,
+	}
+	if currentL1, found, err := verifiedDB.CurrentL1(); err != nil {
+		log.Warn("failed to load durable interop CurrentL1", "err", err)
+	} else if found {
+		i.currentL1 = currentL1
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -473,10 +480,7 @@ func (i *Interop) refreshCurrentL1OnWait() (bool, error) {
 		i.log.Debug("failed to collect current L1 on wait", "err", err)
 		return false, nil
 	}
-	i.mu.Lock()
-	i.currentL1 = localL1
-	i.mu.Unlock()
-	return false, nil
+	return false, i.updateCurrentL1(localL1)
 }
 
 // progressInterop prepares the next interop action by observing the world,
@@ -612,7 +616,26 @@ func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (Inva
 
 func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation) (PendingTransition, error) {
 	switch output.Decision {
-	case DecisionAdvance, DecisionInvalidate:
+	case DecisionAdvance:
+		result := output.Result
+		currentL1, err := i.claimableCurrentL1(result.L1Inclusion)
+		if err != nil {
+			return PendingTransition{}, fmt.Errorf("resolve claimable current L1: %w", err)
+		}
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance, using claimable L1Inclusion parent", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
+		record, err := i.buildVerifiedRecord(result, currentL1)
+		if err != nil {
+			return PendingTransition{}, fmt.Errorf("build verified record: %w", err)
+		}
+		return PendingTransition{
+			Decision: DecisionAdvance,
+			Verified: &record,
+		}, nil
+	case DecisionInvalidate:
 		result := output.Result
 		return PendingTransition{
 			Decision: output.Decision,
@@ -638,9 +661,9 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		if pending.Rewind == nil {
 			return false, fmt.Errorf("invalid pending rewind transition: missing rewind plan")
 		}
-		i.mu.Lock()
-		i.currentL1 = eth.BlockID{}
-		i.mu.Unlock()
+		if err := i.updateCurrentL1(eth.BlockID{}); err != nil {
+			return false, fmt.Errorf("reset current L1 before rewind: %w", err)
+		}
 		if err := i.applyRewindPlan(*pending.Rewind); err != nil {
 			return false, fmt.Errorf("apply rewind plan: %w", err)
 		}
@@ -710,39 +733,28 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		return false, nil
 
 	case DecisionAdvance:
-		if pending.Result == nil {
+		if pending.Verified == nil {
 			if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 				return false, fmt.Errorf("clear empty advance transition: %w", err)
 			}
 			return false, nil
 		}
-		if err := i.persistFrontierLogs(pending.Result.Timestamp, pending.Result.L2Heads); err != nil {
+		record := *pending.Verified
+		if err := i.persistFrontierLogs(record.Timestamp, record.L2Heads); err != nil {
 			return false, fmt.Errorf("persist frontier logs: %w", err)
 		}
 
-		if err := i.commitVerifiedResult(pending.Result.Timestamp, pending.Result.ToVerifiedResult()); err != nil {
-			return false, fmt.Errorf("commit verified result: %w", err)
+		if err := i.verifiedDB.CommitRecord(record); err != nil {
+			return false, fmt.Errorf("commit verified record: %w", err)
 		}
 		if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}
-		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
+		i.log.Info("committed verified result", "timestamp", record.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
-		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
-		// L1Inclusion is the max L1 block used for derivation across all chains at this
-		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
-		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
-		// the next timestamp (finding its batch at L1 995) without ever reaching L1 1000.
-		// Cap at the min of all nodes' CurrentL1 so this field is individually safe, not
-		// just safe when aggregated with chain CurrentL1s via syncstatus.Aggregate.
-		currentL1 := pending.Result.L1Inclusion
-		if localL1, err := i.collectCurrentL1(); err != nil {
-			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion", "err", err)
-		} else if localL1.Number < currentL1.Number {
-			currentL1 = localL1
-		}
+		i.metrics.InteropVerifiedTimestamp.Set(float64(record.Timestamp))
 		i.mu.Lock()
-		i.currentL1 = currentL1
+		i.currentL1 = record.CurrentL1
 		i.mu.Unlock()
 		return true, nil
 	}
@@ -878,6 +890,81 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 	}
 }
 
+// claimableCurrentL1 returns the highest L1 block the verifier can safely
+// report as fully processed after producing a result included in l1Inclusion.
+// The inclusion block itself may contain additional batch data for later
+// verification rounds, so the claimable block is its parent.
+func (i *Interop) claimableCurrentL1(l1Inclusion eth.BlockID) (eth.BlockID, error) {
+	if l1Inclusion == (eth.BlockID{}) || l1Inclusion.Number == 0 {
+		return l1Inclusion, nil
+	}
+	if i.l1Source == nil {
+		// Tests may construct Interop without an L1 client. Production New always
+		// receives the L1 client and uses the hash-based lookup below.
+		return eth.BlockID{Number: l1Inclusion.Number - 1}, nil
+	}
+	ctx := i.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	info, err := i.l1Source.InfoByHash(ctx, l1Inclusion.Hash)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return eth.BlockID{
+		Hash:   info.ParentHash(),
+		Number: l1Inclusion.Number - 1,
+	}, nil
+}
+
+func (i *Interop) updateCurrentL1(currentL1 eth.BlockID) error {
+	if err := i.verifiedDB.SetCurrentL1(currentL1); err != nil {
+		return err
+	}
+	i.mu.Lock()
+	i.currentL1 = currentL1
+	i.mu.Unlock()
+	return nil
+}
+
+func (i *Interop) buildVerifiedRecord(result Result, currentL1 eth.BlockID) (VerifiedRecord, error) {
+	chainIDs := make([]eth.ChainID, 0, len(result.L2Heads))
+	for chainID := range result.L2Heads {
+		chainIDs = append(chainIDs, chainID)
+	}
+	sort.Slice(chainIDs, func(i, j int) bool {
+		return chainIDs[i].Cmp(chainIDs[j]) < 0
+	})
+
+	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(chainIDs))
+	for _, chainID := range chainIDs {
+		blockID := result.L2Heads[chainID]
+		chain, ok := i.chains[chainID]
+		if !ok {
+			return VerifiedRecord{}, fmt.Errorf("chain %s not found", chainID)
+		}
+		outputV0, err := chain.OutputV0AtBlockNumber(i.ctx, blockID.Number)
+		if err != nil {
+			return VerifiedRecord{}, fmt.Errorf("chain %s: failed to compute OutputV0 for block %d: %w", chainID, blockID.Number, err)
+		}
+		if outputV0.BlockHash != blockID.Hash {
+			return VerifiedRecord{}, fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg",
+				chainID, blockID.Number, blockID.Hash, outputV0.BlockHash)
+		}
+		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
+			ChainID: chainID,
+			Output:  eth.OutputRoot(outputV0),
+		})
+	}
+	return VerifiedRecord{
+		Timestamp:    result.Timestamp,
+		L1Inclusion:  result.L1Inclusion,
+		L2Heads:      result.L2Heads,
+		ChainOutputs: chainOutputs,
+		CurrentL1:    currentL1,
+	}, nil
+}
+
 // collectCurrentL1 collects the current L1 head of all chains,
 // which is the minimum L1 head of all the derivation pipelines in Chain Containers
 func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
@@ -949,10 +1036,6 @@ func (i *Interop) checkChainsReady(ts uint64) (chainsReadyResult, error) {
 	return ready, nil
 }
 
-func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult VerifiedResult) error {
-	return i.verifiedDB.Commit(verifiedResult)
-}
-
 // CurrentL1 returns the L1 block which has been fully considered for interop,
 // whether or not it advanced the verified timestamp.
 func (i *Interop) CurrentL1() eth.BlockID {
@@ -976,6 +1059,21 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)
+}
+
+// StoredSuperRootAtTimestamp returns the verifier's durable superroot response.
+func (i *Interop) StoredSuperRootAtTimestamp(ts uint64) (data *eth.SuperRootResponseData, found bool, err error) {
+	if ts < i.activationTimestamp {
+		return nil, false, nil
+	}
+	record, err := i.verifiedDB.GetRecord(ts)
+	if err == nil {
+		return record.ResponseData(), true, nil
+	}
+	if !errors.Is(err, ErrNotFound) {
+		return nil, false, err
+	}
+	return nil, false, nil
 }
 
 // IsActiveAt reports whether the interop verifier is responsible for verifying

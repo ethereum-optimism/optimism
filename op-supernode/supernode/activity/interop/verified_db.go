@@ -25,8 +25,11 @@ var (
 	u64Len              = 8
 )
 
-// bucketName is the name of the bbolt bucket used to store verified results.
+// bucketName is the name of the bbolt bucket used to store verified records.
 var bucketName = []byte("verified")
+
+var frontierBucketName = []byte("frontier")
+var currentL1Key = []byte("current_l1")
 
 var pendingTransitionBucketName = []byte("pending_transition")
 var pendingTransitionKey = []byte("pending")
@@ -60,6 +63,9 @@ func OpenVerifiedDB(dataDir string) (*VerifiedDB, error) {
 	// Ensure the buckets exist
 	err = db.Update(func(tx *bolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists(bucketName); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists(frontierBucketName); err != nil {
 			return err
 		}
 		_, err := tx.CreateBucketIfNotExists(pendingTransitionBucketName)
@@ -115,61 +121,53 @@ func timestampToKey(ts uint64) []byte {
 	return key
 }
 
-// Commit stores a verified result at the given timestamp.
-// Timestamps must be committed sequentially with no gaps.
-func (v *VerifiedDB) Commit(result VerifiedResult) error {
+// CommitRecord stores the verified record and the verifier's
+// CurrentL1 claim in one bbolt transaction. Timestamps must be committed
+// sequentially with no gaps.
+func (v *VerifiedDB) CommitRecord(record VerifiedRecord) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	ts := result.Timestamp
-
-	// Check for sequential commitment
+	ts := record.Timestamp
 	if v.initialized {
-		if ts != v.lastTimestamp+1 {
-			if ts <= v.lastTimestamp {
-				// Idempotent replay: crash recovery may call Commit again after the
-				// bbolt write succeeded but before ClearPendingTransition. Compare the
-				// deserialized VerifiedResult rather than raw bytes so byte-level
-				// drift in encoding/json across Go versions does not turn a legitimate
-				// replay into a hard ErrAlreadyCommitted.
-				key := timestampToKey(ts)
-				var existing VerifiedResult
-				err := v.db.View(func(tx *bolt.Tx) error {
-					b := tx.Bucket(bucketName)
-					val := b.Get(key)
-					if val == nil {
-						return ErrNotFound
-					}
-					return json.Unmarshal(val, &existing)
-				})
-				if err != nil {
-					return fmt.Errorf("failed to read existing verified result at %d: %w", ts, err)
-				}
-				if reflect.DeepEqual(existing, result) {
-					return nil
-				}
+		switch {
+		case ts == v.lastTimestamp+1:
+		case ts > v.lastTimestamp:
+			return fmt.Errorf("%w: expected %d, got %d", ErrNonSequential, v.lastTimestamp+1, ts)
+		default:
+			// Idempotent replay after a crash may re-apply a WAL entry that was
+			// already committed before ClearPendingTransition ran.
+			existingRecord, err := readVerifiedRecord(v.db, ts)
+			if err != nil {
+				return fmt.Errorf("failed to read existing verified record at %d: %w", ts, err)
+			}
+			if !reflect.DeepEqual(existingRecord, record) {
 				return fmt.Errorf("%w: %d", ErrAlreadyCommitted, ts)
 			}
-			return fmt.Errorf("%w: expected %d, got %d", ErrNonSequential, v.lastTimestamp+1, ts)
+			return nil
 		}
 	}
 
-	value, err := json.Marshal(result)
+	recordValue, err := json.Marshal(record)
 	if err != nil {
-		return fmt.Errorf("failed to marshal verified result: %w", err)
+		return fmt.Errorf("failed to marshal verified record: %w", err)
+	}
+	currentL1Value, err := json.Marshal(record.CurrentL1)
+	if err != nil {
+		return fmt.Errorf("failed to marshal current L1: %w", err)
 	}
 
-	// Store in database
 	key := timestampToKey(ts)
 	err = v.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bucketName)
-		return b.Put(key, value)
+		if err := tx.Bucket(bucketName).Put(key, recordValue); err != nil {
+			return err
+		}
+		return tx.Bucket(frontierBucketName).Put(currentL1Key, currentL1Value)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to write to bbolt: %w", err)
+		return fmt.Errorf("failed to write verified record to bbolt: %w", err)
 	}
 
-	// Update state
 	if !v.initialized {
 		v.firstTimestamp = ts
 	}
@@ -179,38 +177,89 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 	return nil
 }
 
-// Get retrieves the verified result at the given timestamp.
-func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-
+func readVerifiedRecord(db *bolt.DB, ts uint64) (VerifiedRecord, error) {
 	key := timestampToKey(ts)
 	var value []byte
-
-	err := v.db.View(func(tx *bolt.Tx) error {
+	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
 		val := b.Get(key)
 		if val == nil {
 			return ErrNotFound
 		}
-		// Copy the value since it's only valid for the life of the transaction
 		value = make([]byte, len(val))
 		copy(value, val)
 		return nil
 	})
+	if err != nil {
+		return VerifiedRecord{}, err
+	}
+	var record VerifiedRecord
+	if err := json.Unmarshal(value, &record); err != nil {
+		return VerifiedRecord{}, fmt.Errorf("failed to unmarshal verified record: %w", err)
+	}
+	return record, nil
+}
+
+// GetRecord retrieves the durable verified record at the given timestamp.
+func (v *VerifiedDB) GetRecord(ts uint64) (VerifiedRecord, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	record, err := readVerifiedRecord(v.db, ts)
+	if errors.Is(err, ErrNotFound) {
+		return VerifiedRecord{}, ErrNotFound
+	}
+	if err != nil {
+		return VerifiedRecord{}, fmt.Errorf("failed to read verified record at %d: %w", ts, err)
+	}
+	return record, nil
+}
+
+// SetCurrentL1 stores the verifier's durable current L1 claim.
+func (v *VerifiedDB) SetCurrentL1(currentL1 eth.BlockID) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	value, err := json.Marshal(currentL1)
+	if err != nil {
+		return fmt.Errorf("failed to marshal current L1: %w", err)
+	}
+	return v.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(frontierBucketName).Put(currentL1Key, value)
+	})
+}
+
+// CurrentL1 returns the verifier's durable current L1 claim, if any.
+func (v *VerifiedDB) CurrentL1() (eth.BlockID, bool, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	var currentL1 eth.BlockID
+	var found bool
+	err := v.db.View(func(tx *bolt.Tx) error {
+		val := tx.Bucket(frontierBucketName).Get(currentL1Key)
+		if val == nil {
+			return nil
+		}
+		found = true
+		return json.Unmarshal(val, &currentL1)
+	})
+	if err != nil {
+		return eth.BlockID{}, false, fmt.Errorf("failed to read current L1: %w", err)
+	}
+	return currentL1, found, nil
+}
+
+// Get retrieves the verified result view at the given timestamp.
+func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	record, err := readVerifiedRecord(v.db, ts)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return VerifiedResult{}, ErrNotFound
 		}
 		return VerifiedResult{}, fmt.Errorf("failed to read from bbolt: %w", err)
 	}
-
-	var result VerifiedResult
-	if err := json.Unmarshal(value, &result); err != nil {
-		return VerifiedResult{}, fmt.Errorf("failed to unmarshal verified result: %w", err)
-	}
-
-	return result, nil
+	return record.ToVerifiedResult(), nil
 }
 
 // Has returns whether a timestamp has been verified.

@@ -116,7 +116,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		supernodeactivity.New(log.New("activity", "supernode"), narrowChains),
-		superroot.New(log.New("activity", "superroot"), narrowChains),
 	}
 
 	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
@@ -129,6 +128,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	}
 
 	log.Info("initializing interop activity", "enabled", interopActivationTimestamp != nil)
+	var verifiedSuperRootProvider superroot.VerifiedSuperRootProvider
 	// Initialize interop activity if the activation timestamp is known (non-nil).
 	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
 	if interopActivationTimestamp != nil {
@@ -142,12 +142,14 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		}
 		interopActivity := interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		s.activities = append(s.activities, interopActivity)
+		verifiedSuperRootProvider = interopActivity
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
 		}
 		s.interopActivationTs = interopActivationTimestamp
 		s.interopMsgExpiryWindow = msgExpiryWindow
 	}
+	s.activities = append(s.activities, superroot.New(log.New("activity", "superroot"), narrowChains, verifiedSuperRootProvider))
 
 	// Set up reset callbacks on all chain containers
 	// When a chain resets, notify all activities

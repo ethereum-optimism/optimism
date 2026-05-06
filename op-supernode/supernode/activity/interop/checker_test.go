@@ -22,6 +22,20 @@ func (m *mockL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.
 	return ref, nil
 }
 
+func (m *mockL1Source) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
+	for _, ref := range m.blocks {
+		if ref.Hash == hash {
+			return &mockBlockInfo{
+				hash:       ref.Hash,
+				parentHash: ref.ParentHash,
+				number:     ref.Number,
+				timestamp:  ref.Time,
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("block %s not found", hash)
+}
+
 // noopL1Checker treats every set of heads as canonical. Intended for tests that
 // do not exercise L1 consistency — production must always use the real checker.
 type noopL1Checker struct{}
