@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -94,8 +93,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 		// covers both the rejected oversized call and the within-limit success.
 		agreedBlock := bigs.Uint64Strict(oversizedReceipt.BlockNumber) - 1
 		claimBlock := bigs.Uint64Strict(withinLimitReceipt.BlockNumber)
-		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
-		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
 	})
 }
 
@@ -153,8 +151,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 		// covers both the OOG case and the within-floor success.
 		agreedBlock := bigs.Uint64Strict(underGasReceipt.BlockNumber) - 1
 		claimBlock := bigs.Uint64Strict(sufficientReceipt.BlockNumber)
-		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
-		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
 	})
 }
 
@@ -189,8 +186,9 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 
 		// Kona, configured with Karst at genesis, rejects that block because
 		// the included tx exceeds the EIP-7825 cap.
-		inputs := sys.L2CL.LocalGameInputs(bigs.Uint64Strict(receipt.BlockNumber)-1, bigs.Uint64Strict(receipt.BlockNumber))
-		t.Require().False(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+		agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
+		claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
+		t.Require().False(sys.RunKonaNative(agreedBlock, claimBlock))
 	})
 
 	t.Run("post-karst", func(t devtest.T) {
@@ -264,8 +262,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 		// covers both the OOG case and the within-cost success.
 		agreedBlock := bigs.Uint64Strict(underGasReceipt.BlockNumber) - 1
 		claimBlock := bigs.Uint64Strict(sufficientReceipt.BlockNumber)
-		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
-		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
 	})
 }
 
@@ -325,8 +322,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 		// CLZ was executed.
 		agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
 		claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-		inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
-		t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
 	})
 }
 
@@ -387,8 +383,7 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	// of EIP-7825 (deposits are not subject to the 2^24 cap).
 	agreedBlock := bigs.Uint64Strict(l2Receipt.BlockNumber) - 1
 	claimBlock := bigs.Uint64Strict(l2Receipt.BlockNumber)
-	inputs := sys.L2CL.LocalGameInputs(agreedBlock, claimBlock)
-	t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+	t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
 }
 
 // TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block
@@ -431,8 +426,7 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 			// We use tx data size instead of the total block size since we don't have a client
 			// capable of deserializing block responses.
 			if totalTxSize > params.MaxBlockSize {
-				inputs := sys.L2CL.LocalGameInputs(info.NumberU64()-1, info.NumberU64())
-				t.Require().True(rustbin.RunKonaNative(t, t.Logger(), sys.VMConfig, sys.Dir, inputs))
+				t.Require().True(sys.RunKonaNative(info.NumberU64()-1, info.NumberU64()))
 				return
 			}
 		case <-t.Ctx().Done():

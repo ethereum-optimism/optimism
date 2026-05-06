@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -16,8 +17,8 @@ import (
 type MinimalWithKona struct {
 	*Minimal
 
-	VMConfig *vm.Config
-	Dir      string
+	vmConfig *vm.Config
+	dir      string
 }
 
 // NewMinimalWithKona creates a Minimal preset with the kona-host binary located and the chain
@@ -33,9 +34,13 @@ func minimalWithKonaFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) 
 	dir := t.TempDir()
 	return &MinimalWithKona{
 		Minimal:  minimalFromRuntime(t, runtime),
-		VMConfig: runtime.VMConfig(t, dir),
-		Dir:      dir,
+		vmConfig: runtime.VMConfig(t, dir),
+		dir:      dir,
 	}
+}
+
+func (m *MinimalWithKona) RunKonaNative(agreedBlock, claimBlock uint64) bool {
+	return rustbin.RunKonaNative(m.T, m.T.Logger(), m.vmConfig, m.dir, m.L2CL.LocalGameInputs(agreedBlock, claimBlock))
 }
 
 // WithKonaKarstAtGenesis configures kona-host to think Karst was active at
@@ -50,7 +55,7 @@ func WithKonaKarstAtGenesis() Option {
 			if !ok {
 				return
 			}
-			rollupPath := filepath.Join(sys.Dir, "rollup.json")
+			rollupPath := filepath.Join(sys.dir, "rollup.json")
 			data, err := os.ReadFile(rollupPath)
 			sys.T.Require().NoError(err, "read kona rollup config")
 
