@@ -246,13 +246,50 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
-		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-		// Pre-Karst: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
-		receipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
-		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+		// Live chain is on Jovian (RIP-7212, P256VERIFY costs 3,450 gas), so
+		// 21,000 + 3,500 execution gas is enough for the call to succeed. Run
+		// kona two ways to verify it honors its rollup config: with a matching
+		// Jovian config it accepts the block, with Karst forced at genesis it
+		// disagrees because under EIP-7951 the call costs 6,900 gas and would
+		// OOG instead.
+		cases := []struct {
+			name        string
+			konaOpts    []presets.Option
+			konaAccepts bool
+		}{
+			{
+				name:        "kona-with-jovian",
+				konaAccepts: true,
+			},
+			{
+				name:        "kona-with-karst",
+				konaOpts:    []presets.Option{presets.WithKonaKarstAtGenesis()},
+				konaAccepts: false,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t devtest.T) {
+				t.Parallel()
+				opts := append(
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					tc.konaOpts...,
+				)
+				sys := presets.NewMinimalWithKona(t, opts...)
+				sys.L2EL.WaitForBlockNumber(1)
+				eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+				// Pre-Karst: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
+				receipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+				t.Require().NoError(err)
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
+				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
+			})
+		}
 	})
 
 	t.Run("post-karst", func(t devtest.T) {
