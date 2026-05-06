@@ -132,26 +132,3 @@ pub enum SuperRootError {
 
 /// A [Result] alias for the [`SuperRootError`] type.
 pub type SuperRootResult<T> = core::result::Result<T, SuperRootError>;
-
-/// Errors that can occur during interop validation.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum InteropValidationError {
-    /// Interop is not enabled on one or both chains at the required timestamp.
-    #[error("interop not enabled")]
-    InteropNotEnabled,
-
-    /// Executing timestamp is earlier than the initiating timestamp.
-    #[error(
-        "executing timestamp is earlier than initiating timestamp, executing: {executing}, initiating: {initiating}"
-    )]
-    InvalidTimestampInvariant {
-        /// Executing timestamp of the message
-        executing: u64,
-        /// Initiating timestamp of the message
-        initiating: u64,
-    },
-
-    /// Timestamp is outside the allowed interop expiry window.
-    #[error("timestamp outside allowed interop window, timestamp: {0}")]
-    InvalidInteropTimestamp(u64),
-}
