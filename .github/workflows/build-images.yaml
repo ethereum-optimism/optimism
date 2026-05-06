@@ -100,7 +100,7 @@ jobs:
     needs: [plan, prep]
     if: needs.plan.outputs.has_builds == 'true'
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include: ${{ fromJson(needs.plan.outputs.matrix_json) }}
     uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d1304a6e3ef93a8fcb0f672707f5f2ae9737a59d
@@ -130,7 +130,7 @@ jobs:
       && needs.plan.outputs.has_go_check_images == 'true'
       && needs.build.result == 'success'
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.go_check_images_json) }}
         runner:
@@ -152,7 +152,7 @@ jobs:
       && needs.plan.outputs.has_rust_check_images == 'true'
       && needs.build.result == 'success'
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.rust_check_images_json) }}
         runner:
