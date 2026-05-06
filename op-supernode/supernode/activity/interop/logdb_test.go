@@ -1,6 +1,7 @@
 package interop
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -109,6 +111,32 @@ func TestLogsDB_Persistence(t *testing.T) {
 // =============================================================================
 // TestVerifyPreviousTimestampSealed
 // =============================================================================
+
+func TestInteropMessageTimestampAllowed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		activation uint64
+		blockTime  uint64
+		timestamp  uint64
+		want       bool
+	}{
+		{name: "pre activation rejected", activation: 1000, blockTime: 3, timestamp: 999, want: false},
+		{name: "misaligned activation block rejected", activation: 1000, blockTime: 3, timestamp: 1002, want: false},
+		{name: "post activation block accepted", activation: 1000, blockTime: 3, timestamp: 1005, want: true},
+		{name: "aligned activation block rejected", activation: 1000, blockTime: 2, timestamp: 1000, want: false},
+		{name: "aligned post activation block accepted", activation: 1000, blockTime: 2, timestamp: 1002, want: true},
+		{name: "genesis activation accepted", activation: 0, blockTime: 2, timestamp: 0, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, interopMessageTimestampAllowed(tt.activation, tt.blockTime, tt.timestamp))
+		})
+	}
+}
 
 func TestVerifyPreviousTimestampSealed(t *testing.T) {
 	t.Parallel()
@@ -483,6 +511,38 @@ func TestProcessBlockLogs(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "seal failed")
 	})
+}
+
+func TestSealBlockDataIntoLogsDB_FiltersInactiveInteropMessageTimestamps(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	chain := newMockChainContainer(10)
+	chain.blockTimeOverride = 3
+	db := &mockLogsDB{}
+	interop := &Interop{
+		log:                 gethlog.New(),
+		activationTimestamp: 1000,
+		chains:              map[eth.ChainID]cc.InteropChain{chainID: chain},
+		logsDBs:             map[eth.ChainID]LogsDB{chainID: db},
+		ctx:                 context.Background(),
+		firstVerifiableSet:  true,
+		firstVerifiable:     1003,
+	}
+	blockInfo := &testBlockInfo{
+		hash:       common.Hash{0x02},
+		parentHash: common.Hash{0x01},
+		number:     333,
+		timestamp:  999,
+	}
+	receipts := types.Receipts{
+		&types.Receipt{Logs: []*types.Log{{Address: common.Address{0xAA}, Data: []byte{0x01}}}},
+	}
+
+	err := interop.sealBlockDataIntoLogsDB(chainID, eth.BlockID{Hash: common.Hash{0x02}, Number: 333}, blockInfo, receipts, blockInfo.Time(), true)
+	require.NoError(t, err)
+	require.Zero(t, db.addLogCalls, "pre-activation anchor blocks should be sealed without indexing logs")
+	require.Len(t, db.sealBlockCalls, 2)
 }
 
 // =============================================================================

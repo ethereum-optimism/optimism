@@ -64,6 +64,32 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	}
 }
 
+func TestVerifyExecutingMessageRejectsInactiveInitiatingTimestamp(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	executingChainID := eth.ChainIDFromUInt64(20)
+	interop := &Interop{
+		activationTimestamp: 100,
+		messageExpiryWindow: defaultMessageExpiryWindow,
+		log:                 gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID: &algoMockLogsDB{},
+		},
+		chains: map[eth.ChainID]cc.InteropChain{
+			sourceChainID:    newMockChainWithL1(sourceChainID, eth.BlockID{}),
+			executingChainID: newMockChainWithL1(executingChainID, eth.BlockID{}),
+		},
+	}
+
+	err := interop.verifyExecutingMessage(executingChainID, 101, 0, &suptypes.ExecutingMessage{
+		ChainID:   sourceChainID,
+		Timestamp: 99,
+	}, nil)
+
+	require.ErrorIs(t, err, ErrInteropMessageInactive)
+}
+
 // l1HeadsFromMocks builds the snapshot observeRound would produce, by reading optimisticL1
 // from each mock. Mocks tagged with optimisticAtErr are omitted to simulate a missing entry.
 func l1HeadsFromMocks(chains map[eth.ChainID]cc.InteropChain, blocks map[eth.ChainID]eth.BlockID) map[eth.ChainID]eth.BlockID {

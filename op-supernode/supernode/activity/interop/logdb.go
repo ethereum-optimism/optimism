@@ -96,6 +96,30 @@ var (
 	ErrStaleLogsDB = errors.New("logsDB has stale block data from a reorg")
 )
 
+func interopMessageTimestampAllowed(activationTimestamp uint64, blockTime uint64, ts uint64) bool {
+	if ts < activationTimestamp {
+		return false
+	}
+	if activationTimestamp == 0 || blockTime == 0 {
+		return true
+	}
+	if ts < blockTime {
+		return true
+	}
+	// Match supervisor dependency-set semantics: the first block whose timestamp
+	// crosses activation is the activation block, and activation-block logs are
+	// not valid interop initiating/executing messages.
+	return ts-blockTime >= activationTimestamp
+}
+
+func (i *Interop) canContainInteropMessages(chainID eth.ChainID, ts uint64) (bool, error) {
+	chain, ok := i.chains[chainID]
+	if !ok {
+		return false, fmt.Errorf("chain %s not found: %w", chainID, ErrUnknownChain)
+	}
+	return interopMessageTimestampAllowed(i.activationTimestamp, chain.BlockTime(), ts), nil
+}
+
 // persistFrontierLogs persists the exact accepted frontier blocks for a
 // timestamp. Frontier logs are only written here, during DecisionAdvance
 // transition apply — verification itself is read-only.
@@ -134,6 +158,12 @@ func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.Block
 	latestBlock, hasBlocks, err := i.verifyCanAddTimestamp(chainID, db, ts, chain.BlockTime(), isBackfill)
 	if err != nil {
 		return err
+	}
+
+	if ok, err := i.canContainInteropMessages(chainID, blockInfo.Time()); err != nil {
+		return err
+	} else if !ok {
+		receipts = nil
 	}
 
 	if hasBlocks {

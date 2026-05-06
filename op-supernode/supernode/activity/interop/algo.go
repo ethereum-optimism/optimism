@@ -25,6 +25,10 @@ var (
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than the message expiry window).
 	ErrMessageExpired = errors.New("initiating message has expired")
+
+	// ErrInteropMessageInactive is returned when an executing message depends on
+	// a timestamp that is not allowed to contain interop messages.
+	ErrInteropMessageInactive = errors.New("interop message timestamp is inactive")
 )
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
@@ -176,6 +180,19 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
 		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
+	}
+
+	if ok, err := i.canContainInteropMessages(executingChain, executingTimestamp); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("executing chain %s timestamp %d cannot contain interop executing messages: %w",
+			executingChain, executingTimestamp, ErrInteropMessageInactive)
+	}
+	if ok, err := i.canContainInteropMessages(execMsg.ChainID, execMsg.Timestamp); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("initiating chain %s timestamp %d cannot contain interop initiating messages: %w",
+			execMsg.ChainID, execMsg.Timestamp, ErrInteropMessageInactive)
 	}
 
 	// Verify timestamp ordering: initiating message timestamp must be <= executing block timestamp.
