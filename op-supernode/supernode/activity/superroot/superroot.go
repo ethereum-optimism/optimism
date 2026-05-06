@@ -32,10 +32,16 @@ type Superroot struct {
 // VerifierCurrentL1 returns the verifier's frontier L1, used by callers like
 // op-challenger to decide whether all L1 data up to the game's L1 head has
 // been processed. Returns ok=false before the verifier has populated it.
+//
+// IsActiveAt reports whether the verifier is responsible for the timestamp.
+// Used to decide whether absence of a durable record is authoritative
+// (post-activation: yes, no live fallback for Data) or just means there was
+// nothing to record (pre-activation: fall back to live VerifiedAt).
 type VerifiedSuperRootProvider interface {
 	StoredSuperRootAtTimestamp(ts uint64) (data *eth.SuperRootResponseData, found bool, err error)
 	StoredOptimisticAtTimestamp(ts uint64) (optimistic map[eth.ChainID]eth.OutputWithRequiredL1, found bool, err error)
 	VerifierCurrentL1() (eth.BlockID, bool)
+	IsActiveAt(ts uint64) bool
 }
 
 func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer, provider VerifiedSuperRootProvider) *Superroot {
@@ -103,27 +109,31 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
-	// Fall back to live state for timestamps the verifier has not yet committed
-	// (e.g. the in-flight pre-verification window). Once the verifier records
-	// a timestamp, the durable snapshot above is the source of truth.
-	if optimistic == nil {
-		optimistic, err = s.collectLiveOptimistic(ctx, timestamp)
-		if err != nil {
-			return eth.SuperRootAtTimestampResponse{}, err
+	// Live fallback applies ONLY when the verifier is not responsible for the
+	// timestamp — i.e. there is no provider configured at all (preinterop
+	// build), or the timestamp is pre-activation. After interop activation
+	// the verifier is the sole source of truth for both Data and
+	// OptimisticAtTimestamp. Live reads at that point would race with chain
+	// rewinds (the interval between the CurrentL1 read and the per-chain
+	// reads), and would let the challenger act on uncommitted state even
+	// though it has been told CurrentL1 >= game.L1Head.
+	if !s.verifierActiveAt(timestamp) {
+		if optimistic == nil {
+			optimistic, err = s.collectLiveOptimistic(ctx, timestamp)
+			if err != nil {
+				return eth.SuperRootAtTimestampResponse{}, err
+			}
+		}
+		if verifiedData == nil {
+			verifiedData, err = s.collectLiveVerifiedData(ctx, timestamp)
+			if err != nil {
+				return eth.SuperRootAtTimestampResponse{}, err
+			}
 		}
 	}
-
-	// Fall back to live verified state when there is no durable record. This
-	// covers pre-activation timestamps (interop verifier dormant) and any
-	// in-flight window where the verifier has not yet committed. Production
-	// interop timestamps use the durable snapshot above; this path only
-	// reads live data when nothing has been recorded.
-	if verifiedData == nil {
-		verifiedData, err = s.collectLiveVerifiedData(ctx, timestamp)
-		if err != nil {
-			return eth.SuperRootAtTimestampResponse{}, err
-		}
-	}
+	// Post-activation: optimistic and verifiedData remain whatever the
+	// durable provider returned (possibly nil/empty). The challenger reads
+	// "Data == nil" or per-chain absence as authoritative absence.
 
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:                 currentL1,
@@ -135,6 +145,16 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		Data:                      verifiedData,
 	}
 	return response, nil
+}
+
+// verifierActiveAt reports whether the interop verifier is responsible for
+// the timestamp. When no provider is configured, treat the timestamp as
+// inactive so live fallback applies (preinterop deployments).
+func (s *Superroot) verifierActiveAt(ts uint64) bool {
+	if s.verifiedProvider == nil {
+		return false
+	}
+	return s.verifiedProvider.IsActiveAt(ts)
 }
 
 // collectLiveVerifiedData rebuilds SuperRootResponseData from each chain's

@@ -32,14 +32,15 @@ type mockCC struct {
 }
 
 type mockVerifiedProvider struct {
-	data            *eth.SuperRootResponseData
-	found           bool
-	err             error
-	optimistic      map[eth.ChainID]eth.OutputWithRequiredL1
-	optFound        bool
-	optErr          error
-	currentL1       eth.BlockID
-	currentL1Known  bool
+	data           *eth.SuperRootResponseData
+	found          bool
+	err            error
+	optimistic     map[eth.ChainID]eth.OutputWithRequiredL1
+	optFound       bool
+	optErr         error
+	currentL1      eth.BlockID
+	currentL1Known bool
+	activeAt       bool
 }
 
 func (m mockVerifiedProvider) StoredSuperRootAtTimestamp(uint64) (*eth.SuperRootResponseData, bool, error) {
@@ -52,6 +53,10 @@ func (m mockVerifiedProvider) StoredOptimisticAtTimestamp(uint64) (map[eth.Chain
 
 func (m mockVerifiedProvider) VerifierCurrentL1() (eth.BlockID, bool) {
 	return m.currentL1, m.currentL1Known
+}
+
+func (m mockVerifiedProvider) IsActiveAt(uint64) bool {
+	return m.activeAt
 }
 
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
@@ -338,6 +343,73 @@ func TestSuperroot_AtTimestamp_ErrorOnOptimisticAtWhenVerifiedNotFound(t *testin
 	api := &superrootAPI{s: s}
 	_, err := api.AtTimestamp(context.Background(), 123)
 	require.Error(t, err)
+}
+
+func TestSuperroot_AtTimestamp_PostActivationNoRecordReturnsNilData(t *testing.T) {
+	t.Parallel()
+	// Post-activation timestamp with no durable record: the verifier is the
+	// source of truth, so Data must remain nil rather than being filled in
+	// from live local-safe state. This is what makes
+	// "CurrentL1 >= game.L1Head" sufficient for the challenger to know it
+	// is acting on durable cross-safe data.
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{1},
+		},
+	}
+	s := New(gethlog.New(), chains, mockVerifiedProvider{activeAt: true})
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, out.Data)
+}
+
+func TestSuperroot_AtTimestamp_PostActivationDoesNotReadLive(t *testing.T) {
+	t.Parallel()
+	// Post-activation, no durable optimistic snapshot: the response must
+	// reflect "nothing observed" rather than fall back to live SafeDB.
+	// Live reads here would race with chain rewinds and undermine the
+	// CurrentL1 >= game.L1Head durability guarantee.
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{optL2: eth.BlockID{Number: 100}, optL1: eth.BlockID{Number: 1000}},
+	}
+	s := New(gethlog.New(), chains, mockVerifiedProvider{activeAt: true})
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, out.Data)
+	require.Empty(t, out.OptimisticAtTimestamp, "post-activation must not return live optimistic data")
+}
+
+func TestSuperroot_AtTimestamp_PostActivationServesPartialFromProvider(t *testing.T) {
+	t.Parallel()
+	// Post-activation, the provider returns a partial per-chain optimistic
+	// view (e.g. captured by the verifier when only some chains had a block
+	// ready). The handler must pass this through unchanged so the challenger
+	// can pinpoint which chain is the InvalidTransition boundary step.
+	partial := map[eth.ChainID]eth.OutputWithRequiredL1{
+		eth.ChainIDFromUInt64(10): {
+			OutputRoot: eth.Bytes32{1},
+			RequiredL1: eth.BlockID{Number: 999},
+		},
+	}
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{},
+		eth.ChainIDFromUInt64(20): &mockCC{},
+	}
+	s := New(gethlog.New(), chains, mockVerifiedProvider{
+		activeAt:   true,
+		optimistic: partial,
+		optFound:   true,
+	})
+	api := &superrootAPI{s: s}
+	out, err := api.AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Len(t, out.OptimisticAtTimestamp, 1)
+	_, has10 := out.OptimisticAtTimestamp[eth.ChainIDFromUInt64(10)]
+	require.True(t, has10)
 }
 
 func TestSuperroot_AtTimestamp_LiveVerifiedFallbackPropagatesError(t *testing.T) {

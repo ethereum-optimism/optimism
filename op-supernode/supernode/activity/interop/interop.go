@@ -49,9 +49,14 @@ func init() {
 }
 
 // chainsReadyResult holds the parallel query results from checkChainsReady.
+//
+// blocks/l1Heads/observations may be partial: chains that returned NotFound at
+// the queried timestamp are absent. allReady is true only when every chain
+// returned a successful observation.
 type chainsReadyResult struct {
-	blocks  map[eth.ChainID]eth.BlockID // L2 blocks at the timestamp
-	l1Heads map[eth.ChainID]eth.BlockID // per-chain L1 inclusion heads
+	blocks       map[eth.ChainID]eth.BlockID      // L2 blocks at the timestamp
+	l1Heads      map[eth.ChainID]eth.BlockID      // per-chain L1 inclusion heads
+	observations map[eth.ChainID]ChainObservation // persisted snapshot per chain
 }
 
 // RoundObservation is a consistent snapshot of the current round's state,
@@ -147,8 +152,9 @@ type Interop struct {
 
 	messageExpiryWindow uint64
 
-	verifiedDB *VerifiedDB
-	logsDBs    map[eth.ChainID]LogsDB
+	verifiedDB     *VerifiedDB
+	observationsDB *ObservationsDB
+	logsDBs        map[eth.ChainID]LogsDB
 
 	mu      sync.RWMutex
 	ctx     context.Context
@@ -231,6 +237,13 @@ func New(
 		return nil
 	}
 
+	observationsDB, err := OpenObservationsDB(dataDir)
+	if err != nil {
+		log.Error("failed to open observations DB", "err", err)
+		_ = verifiedDB.Close()
+		return nil
+	}
+
 	// Initialize logsDBs for each chain
 	logsDBs := make(map[eth.ChainID]LogsDB)
 	for chainID := range chains {
@@ -241,6 +254,7 @@ func New(
 			for _, db := range logsDBs {
 				_ = db.Close()
 			}
+			_ = observationsDB.Close()
 			_ = verifiedDB.Close()
 			return nil
 		}
@@ -257,6 +271,7 @@ func New(
 		log:                 log,
 		chains:              chains,
 		verifiedDB:          verifiedDB,
+		observationsDB:      observationsDB,
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
@@ -379,8 +394,15 @@ func (i *Interop) readyFirstVerifiableTimestamp(ctx context.Context) (uint64, er
 	if err != nil {
 		return 0, err
 	}
-	if _, err := i.checkChainsReady(first); err != nil {
+	_, allReady, err := i.checkChainsReady(first)
+	if err != nil {
 		return 0, err
+	}
+	if !allReady {
+		// At least one chain reported NotFound — startup must wait until every
+		// chain can serve the optimistic L2/L1 pair. Surface NotFound so the
+		// caller's retry loop polls again.
+		return 0, ethereum.NotFound
 	}
 	return first, nil
 }
@@ -396,6 +418,11 @@ func (i *Interop) Stop(ctx context.Context) error {
 	for chainID, db := range i.logsDBs {
 		if err := db.Close(); err != nil {
 			i.log.Error("failed to close logs DB", "chainID", chainID, "err", err)
+		}
+	}
+	if i.observationsDB != nil {
+		if err := i.observationsDB.Close(); err != nil {
+			i.log.Error("failed to close observations DB", "err", err)
 		}
 	}
 	if i.verifiedDB != nil {
@@ -532,17 +559,29 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		return obs, nil
 	}
 
-	ready, err := i.checkChainsReady(obs.NextTimestamp)
+	ready, allReady, err := i.checkChainsReady(obs.NextTimestamp)
 	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			obs.ChainsReady = false
-			return obs, nil
-		}
 		return obs, err
 	}
-	obs.ChainsReady = true
+	obs.ChainsReady = allReady
 	obs.BlocksAtTS = ready.blocks
 	obs.L1Heads = ready.l1Heads
+
+	// Persist this round's per-chain observation snapshot atomically. Replacing
+	// the snapshot every round — including dropping chains that previously had
+	// a block but no longer do — is what closes the rewind race against the
+	// OptimisticAtTimestamp RPC. The snapshot remains useful even when not
+	// every chain is ready, since the challenger needs partial visibility to
+	// pinpoint which chain's optimistic step is the InvalidTransition boundary.
+	if i.observationsDB != nil {
+		snap := ObservationsSnapshot{
+			Timestamp: obs.NextTimestamp,
+			Chains:    ready.observations,
+		}
+		if err := i.observationsDB.Set(snap); err != nil {
+			i.log.Warn("failed to persist observation snapshot", "ts", obs.NextTimestamp, "err", err)
+		}
+	}
 
 	// Check that all frontier L1 heads AND the accepted L1 head are on the same canonical fork.
 	heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
@@ -817,6 +856,16 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 		return fmt.Errorf("rewind verifiedDB: %w", err)
 	}
 
+	// Drop the in-flight observation snapshot. After a rewind the snapshot's
+	// timestamp may be at or after the rewind point and the per-chain entries
+	// reflect a chain state that's about to change, so it is unsafe to keep
+	// serving. The next observeRound will rebuild it.
+	if i.observationsDB != nil {
+		if err := i.observationsDB.Clear(); err != nil {
+			i.log.Warn("failed to clear observation snapshot during rewind", "err", err)
+		}
+	}
+
 	var allErrs []error
 	recordErr := func(err error) {
 		if err != nil {
@@ -985,39 +1034,69 @@ func (i *Interop) collectCurrentL1() (eth.BlockID, error) {
 	return currentL1, nil
 }
 
-// checkChainsReady checks if all chains are ready to process the next timestamp.
-// Queries all chains in parallel for better performance.
-// Returns both the L2 blocks at the timestamp and the L1 inclusion heads.
-func (i *Interop) checkChainsReady(ts uint64) (chainsReadyResult, error) {
+// checkChainsReady queries every chain for its optimistic head at the given
+// timestamp and the OutputV0 preimage at that head, in parallel.
+//
+// Returns a partial result: chains that didn't have a block at the timestamp
+// (NotFound) are absent from the maps; allReady is true only when every chain
+// returned successfully. A non-NotFound error from any chain (including the
+// follow-up OutputV0 fetch) is propagated as an unrecoverable error since it
+// indicates a transient RPC issue or invariant violation rather than the
+// chain simply not having a block yet.
+//
+// Captures the per-chain observations (L2 head, L1 head, OutputV0 preimage)
+// so callers can persist them as a durable snapshot. Replacing the snapshot
+// each round — including dropping chains that previously had a block but no
+// longer do — is the mechanism that closes the rewind race against
+// OptimisticAtTimestamp queries.
+func (i *Interop) checkChainsReady(ts uint64) (chainsReadyResult, bool, error) {
 	type result struct {
-		chainID eth.ChainID
-		blockID eth.BlockID
-		l1Head  eth.BlockID
-		err     error
+		chainID  eth.ChainID
+		blockID  eth.BlockID
+		l1Head   eth.BlockID
+		outputV0 *eth.OutputV0
+		notFound bool
+		err      error
 	}
 
 	results := make(chan result, len(i.chains))
 
-	// Query all chains in parallel
 	for _, chain := range i.chains {
-		go func(c cc.ChainContainer) {
+		go func(c cc.InteropChain) {
 			// Use OptimisticAt as the single atomic source for both L2 block and L1 head.
 			// This avoids a TOCTOU race between separate LocalSafeBlockAtTimestamp and OptimisticAt calls.
 			l2Block, l1Block, err := c.OptimisticAt(i.ctx, ts)
 			if err != nil {
-				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s not ready for timestamp %d: %w", c.ID(), ts, err)}
+				if errors.Is(err, ethereum.NotFound) {
+					results <- result{chainID: c.ID(), notFound: true}
+					return
+				}
+				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s OptimisticAt %d: %w", c.ID(), ts, err)}
 				return
 			}
-			results <- result{chainID: c.ID(), blockID: l2Block, l1Head: l1Block}
+			outputV0, err := c.OutputV0AtBlockNumber(i.ctx, l2Block.Number)
+			if err != nil {
+				if errors.Is(err, ethereum.NotFound) {
+					results <- result{chainID: c.ID(), notFound: true}
+					return
+				}
+				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s OutputV0AtBlockNumber %d: %w", c.ID(), l2Block.Number, err)}
+				return
+			}
+			if outputV0.BlockHash != l2Block.Hash {
+				results <- result{chainID: c.ID(), err: fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg", c.ID(), l2Block.Number, l2Block.Hash, outputV0.BlockHash)}
+				return
+			}
+			results <- result{chainID: c.ID(), blockID: l2Block, l1Head: l1Block, outputV0: outputV0}
 		}(chain)
 	}
 
-	// Collect all results before returning so every goroutine completes before the
-	// next call spawns a new batch, preventing accumulation of in-flight RPC calls.
 	ready := chainsReadyResult{
-		blocks:  make(map[eth.ChainID]eth.BlockID),
-		l1Heads: make(map[eth.ChainID]eth.BlockID),
+		blocks:       make(map[eth.ChainID]eth.BlockID),
+		l1Heads:      make(map[eth.ChainID]eth.BlockID),
+		observations: make(map[eth.ChainID]ChainObservation),
 	}
+	allReady := true
 	var firstErr error
 	for range i.chains {
 		r := <-results
@@ -1025,16 +1104,26 @@ func (i *Interop) checkChainsReady(ts uint64) (chainsReadyResult, error) {
 			if firstErr == nil {
 				firstErr = r.err
 			}
-		} else {
-			ready.blocks[r.chainID] = r.blockID
-			ready.l1Heads[r.chainID] = r.l1Head
+			allReady = false
+			continue
+		}
+		if r.notFound {
+			allReady = false
+			continue
+		}
+		ready.blocks[r.chainID] = r.blockID
+		ready.l1Heads[r.chainID] = r.l1Head
+		ready.observations[r.chainID] = ChainObservation{
+			L2Head:                   r.blockID,
+			L1Head:                   r.l1Head,
+			StateRoot:                r.outputV0.StateRoot,
+			MessagePasserStorageRoot: r.outputV0.MessagePasserStorageRoot,
 		}
 	}
 	if firstErr != nil {
-		return chainsReadyResult{}, firstErr
+		return chainsReadyResult{}, false, firstErr
 	}
-
-	return ready, nil
+	return ready, allReady, nil
 }
 
 // CurrentL1 returns the L1 block which has been fully considered for interop,
@@ -1093,35 +1182,70 @@ func (i *Interop) StoredSuperRootAtTimestamp(ts uint64) (data *eth.SuperRootResp
 	return nil, false, nil
 }
 
-// StoredOptimisticAtTimestamp returns the per-chain optimistic snapshot taken
-// at the moment of verification. Each entry is the OutputV0 preimage, its
-// hash, and the per-chain L1 block at which the L2 head became safe.
+// StoredOptimisticAtTimestamp returns the per-chain optimistic snapshot at
+// the timestamp, sourced strictly from durable verifier state.
 //
-// Serving from this durable snapshot rather than a live SafeDB read protects
-// against reorg/pipeline-reset races: even if a chain has rewound between the
-// verifier observing it and the RPC being served, callers see the exact
-// observation that the verifier acted on.
+// Two durable sources are consulted, in order:
 //
-// Denylist overlay: when a chain's L2 block at this timestamp was later
-// invalidated and replaced via cross-safe consolidation, the verified record
-// stores the post-replacement (valid) output. The optimistic view must reflect
-// what the chain ORIGINALLY observed before replacement — that's the denied
-// block. The denylist preserves the original preimage and per-chain L1
-// inclusion captured at decision time, so we override with denylist data
-// whenever a denied record exists at the verified L2 head's height.
+//  1. The committed VerifiedRecord at T — full per-chain cross-safe view.
+//  2. The latest ObservationsSnapshot if it covers T — the verifier's most
+//     recent observation pass at T, which may be partial (some chains absent)
+//     when not all chains had a block ready. Partial views are exactly what
+//     the challenger needs to identify which chain's optimistic step is the
+//     InvalidTransition boundary.
+//
+// In both cases, the per-chain entry is overridden with the denylist record
+// at the L2 head's height when present, so the response reflects the
+// originally-observed (now-denied) block rather than its post-consolidation
+// replacement.
+//
+// No live engine or SafeDB read happens here. After interop activation this
+// function is the sole source of OptimisticAtTimestamp data, closing the
+// race that a chain rewind could otherwise introduce between the response's
+// CurrentL1 field and its per-chain optimistic entries.
 func (i *Interop) StoredOptimisticAtTimestamp(ts uint64) (map[eth.ChainID]eth.OutputWithRequiredL1, bool, error) {
 	if ts < i.activationTimestamp {
 		return nil, false, nil
 	}
+
+	// Prefer the verified record when available.
 	record, err := i.verifiedDB.GetRecord(ts)
-	if errors.Is(err, ErrNotFound) {
+	if err == nil {
+		out, err := i.optimisticFromObservations(record.Chains)
+		if err != nil {
+			return nil, false, err
+		}
+		return out, true, nil
+	}
+	if !errors.Is(err, ErrNotFound) {
+		return nil, false, err
+	}
+
+	// No verified record: fall back to the in-flight observation snapshot if
+	// it covers this timestamp.
+	if i.observationsDB == nil {
 		return nil, false, nil
 	}
+	snap, err := i.observationsDB.Get()
 	if err != nil {
 		return nil, false, err
 	}
-	out := make(map[eth.ChainID]eth.OutputWithRequiredL1, len(record.Chains))
-	for id, obs := range record.Chains {
+	if snap == nil || snap.Timestamp != ts {
+		return nil, false, nil
+	}
+	out, err := i.optimisticFromObservations(snap.Chains)
+	if err != nil {
+		return nil, false, err
+	}
+	return out, true, nil
+}
+
+// optimisticFromObservations builds the per-chain optimistic response from a
+// map of ChainObservation, applying the denylist overlay so invalidated
+// blocks surface their original (denied) output and L1 inclusion.
+func (i *Interop) optimisticFromObservations(observations map[eth.ChainID]ChainObservation) (map[eth.ChainID]eth.OutputWithRequiredL1, error) {
+	out := make(map[eth.ChainID]eth.OutputWithRequiredL1, len(observations))
+	for id, obs := range observations {
 		entry := eth.OutputWithRequiredL1{
 			Output:     ptrOf(obs.OutputV0()),
 			OutputRoot: obs.OutputRoot(),
@@ -1130,7 +1254,7 @@ func (i *Interop) StoredOptimisticAtTimestamp(ts uint64) (map[eth.ChainID]eth.Ou
 		if chain, ok := i.chains[id]; ok {
 			deniedV0, deniedL1, err := chain.LastDeniedAtHeight(obs.L2Head.Number)
 			if err != nil {
-				return nil, false, fmt.Errorf("chain %s: deny list lookup at height %d: %w", id, obs.L2Head.Number, err)
+				return nil, fmt.Errorf("chain %s: deny list lookup at height %d: %w", id, obs.L2Head.Number, err)
 			}
 			if deniedV0 != nil {
 				entry = eth.OutputWithRequiredL1{
@@ -1142,7 +1266,7 @@ func (i *Interop) StoredOptimisticAtTimestamp(ts uint64) (map[eth.ChainID]eth.Ou
 		}
 		out[id] = entry
 	}
-	return out, true, nil
+	return out, nil
 }
 
 func ptrOf[T any](v T) *T { return &v }

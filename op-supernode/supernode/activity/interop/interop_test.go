@@ -616,7 +616,7 @@ func TestCheckChainsReady(t *testing.T) {
 	tests := []struct {
 		name   string
 		setup  func(h *interopTestHarness) *interopTestHarness
-		assert func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, err error)
+		assert func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, allReady bool, err error)
 	}{
 		{
 			name: "all chains ready returns blocks",
@@ -627,25 +627,29 @@ func TestCheckChainsReady(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
 				}).Build()
 			},
-			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, err error) {
+			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, allReady bool, err error) {
 				require.NoError(t, err)
+				require.True(t, allReady)
 				require.Len(t, ready.blocks, 2)
 				require.NotEqual(t, common.Hash{}, ready.blocks[h.Mock(10).id].Hash)
 				require.NotEqual(t, common.Hash{}, ready.blocks[h.Mock(8453).id].Hash)
 			},
 		},
 		{
-			name: "one chain not ready returns error",
+			name: "one chain not ready returns partial with allReady=false",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
-					m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
+					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				}).WithChain(8453, func(m *mockChainContainer) {
 					m.blockAtTimestampErr = ethereum.NotFound
 				}).Build()
 			},
-			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, err error) {
-				require.Error(t, err)
-				require.Nil(t, ready.blocks)
+			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, allReady bool, err error) {
+				require.NoError(t, err)
+				require.False(t, allReady)
+				require.Len(t, ready.blocks, 1)
+				require.Contains(t, ready.blocks, h.Mock(10).id)
+				require.NotContains(t, ready.blocks, h.Mock(8453).id)
 			},
 		},
 		{
@@ -659,32 +663,33 @@ func TestCheckChainsReady(t *testing.T) {
 				}
 				return h.Build()
 			},
-			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, err error) {
+			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, allReady bool, err error) {
 				require.NoError(t, err)
+				require.True(t, allReady)
 				require.Len(t, ready.blocks, 5)
 			},
 		},
 		{
 			// Verify that checkChainsReady drains ALL goroutine results before returning,
-			// even when one chain errors early. Without the drain, the slow chain's goroutine
-			// would still be running concurrently when the next call spawns a new batch —
-			// causing goroutine accumulation under repeated retries.
-			name: "drains all goroutine results before returning on error",
+			// even when one chain reports NotFound. Without the drain, the slow chain's
+			// goroutine would still be running concurrently when the next call spawns a
+			// new batch — causing goroutine accumulation under repeated retries.
+			name: "drains all goroutine results before returning on partial",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
-					// Errors immediately, causing an early-return path.
+					// Returns NotFound immediately.
 					m.blockAtTimestampErr = ethereum.NotFound
 				}).WithChain(8453, func(m *mockChainContainer) {
-					// Slow chain: takes longer than the fast-error chain.
+					// Slow chain: takes longer than the fast-not-found chain.
 					// After checkChainsReady returns, callsCompleted must be 1,
 					// proving the function waited for this goroutine to finish.
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 200}
 					m.blockAtTimestampDelay = 30 * time.Millisecond
 				}).Build()
 			},
-			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, err error) {
-				require.Error(t, err)
-				require.Nil(t, ready.blocks)
+			assert: func(t *testing.T, h *interopTestHarness, ready chainsReadyResult, allReady bool, err error) {
+				require.NoError(t, err)
+				require.False(t, allReady)
 				// Both goroutines must have completed before checkChainsReady returned.
 				require.EqualValues(t, 1, h.Mock(10).callsCompleted.Load(), "chain 10 goroutine should have completed")
 				require.EqualValues(t, 1, h.Mock(8453).callsCompleted.Load(), "chain 8453 goroutine should have completed before return")
@@ -696,8 +701,8 @@ func TestCheckChainsReady(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newInteropTestHarness(t)
 			tc.setup(h)
-			ready, err := h.interop.checkChainsReady(1000)
-			tc.assert(t, h, ready, err)
+			ready, allReady, err := h.interop.checkChainsReady(1000)
+			tc.assert(t, h, ready, allReady, err)
 		})
 	}
 }
