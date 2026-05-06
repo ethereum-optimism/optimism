@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { PastNUTBundles } from "test/setup/PastNUTBundles.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 
@@ -67,7 +68,11 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         generateScript = new GenerateNUTBundle();
 
         // Generate bundle
-        generateScript.run();
+        GenerateNUTBundle.Output memory output = generateScript.run();
+
+        // Stage prior committed NUT bundles so chains missing earlier upgrades match the
+        // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
+        PastNUTBundles.stagePastBundles(output.txns, executeScript);
 
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();

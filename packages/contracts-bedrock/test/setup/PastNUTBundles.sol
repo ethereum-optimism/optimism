@@ -13,6 +13,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
@@ -89,30 +90,40 @@ library PastNUTBundles {
     }
 
     /// @notice Stages discovered prior NUT bundles in front of the current bundle's expected state.
-    /// @dev Reads the current bundle from `Constants.CURRENT_BUNDLE_PATH`, extracts its L2CM,
-    ///      and delegates to `stagePastBundlesAgainst`. Tests that want to exercise the staging
-    ///      loop without touching the real `current-upgrade-bundle.json` should call
-    ///      `stagePastBundlesAgainst` directly.
-    function stagePastBundles(ExecuteNUTBundle _executeScript) internal {
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
-        address currentL2CM = extractL2CM(currentTxns, Constants.CURRENT_BUNDLE_PATH);
-        stagePastBundlesAgainst(currentL2CM, _executeScript);
+    /// @dev Accepts the already-generated current bundle transactions so parallel fork-test setup
+    ///      does not re-read `current-upgrade-bundle.json` while another test is writing it.
+    function stagePastBundles(
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
+        ExecuteNUTBundle _executeScript
+    )
+        internal
+    {
+        address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
+        stagePastBundlesAgainst(_currentTxns, currentL2CM, _executeScript);
     }
 
-    /// @notice Fetches and stages prior NUT bundles, skipping any whose L2CM matches `_currentL2CM`.
+    /// @notice Fetches and stages prior NUT bundles.
+    /// @param _currentTxns Parsed current bundle transactions.
     /// @param _currentL2CM L2ContractsManager address of the bundle being tested.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
-    function stagePastBundlesAgainst(address _currentL2CM, ExecuteNUTBundle _executeScript) internal {
+    function stagePastBundlesAgainst(
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
+        address _currentL2CM,
+        ExecuteNUTBundle _executeScript
+    )
+        internal
+    {
         NUTBundle[] memory entries = fetchPastBundles();
-        stagePastBundlesAgainst(_currentL2CM, _executeScript, entries);
+        stagePastBundlesAgainst(_currentTxns, _currentL2CM, _executeScript, entries);
     }
 
-    /// @notice Stages the given prior NUT bundles, skipping any whose L2CM matches `_currentL2CM`.
+    /// @notice Stages the given prior NUT bundles.
+    /// @param _currentTxns Parsed current bundle transactions.
     /// @param _currentL2CM L2ContractsManager address of the bundle being tested.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
     /// @param _entries Ordered prior bundle entries to stage.
     function stagePastBundlesAgainst(
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
         address _currentL2CM,
         ExecuteNUTBundle _executeScript,
         NUTBundle[] memory _entries
@@ -131,8 +142,42 @@ library PastNUTBundles {
                 continue;
             }
 
+            if (_hasMatchingDeterministicDeployment(priorTxns, _currentTxns)) {
+                console.log(
+                    "PastNUTBundles: skipping fork=%s path=%s (current bundle contains same direct CREATE2 deploy)",
+                    entry.fork,
+                    entry.path
+                );
+                continue;
+            }
+
             console.log("PastNUTBundles: staging fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
             _executeScript.executeAll(priorTxns);
         }
+    }
+
+    /// @notice Returns true when a current bundle already contains a direct deterministic-deployer
+    ///         transaction from the prior bundle.
+    /// @dev These calls go straight to Arachnid's CREATE2 deployer and are not idempotent. If the
+    ///      prior bundle executed one first, the current bundle would later hit a CREATE2 collision.
+    function _hasMatchingDeterministicDeployment(
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        for (uint256 i = 0; i < _priorTxns.length; i++) {
+            if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;
+
+            bytes32 priorTxnHash = keccak256(abi.encode(_priorTxns[i].to, _priorTxns[i].data));
+            for (uint256 j = 0; j < _currentTxns.length; j++) {
+                if (_currentTxns[j].to != Preinstalls.DeterministicDeploymentProxy) continue;
+                if (keccak256(abi.encode(_currentTxns[j].to, _currentTxns[j].data)) == priorTxnHash) return true;
+            }
+        }
+
+        return false;
     }
 }
