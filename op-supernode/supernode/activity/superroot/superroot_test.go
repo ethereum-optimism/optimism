@@ -340,8 +340,12 @@ func TestSuperroot_AtTimestamp_ErrorOnOptimisticAtWhenVerifiedNotFound(t *testin
 	require.Error(t, err)
 }
 
-func TestSuperroot_AtTimestamp_DoesNotReadLiveVerifiedOutputRoot(t *testing.T) {
+func TestSuperroot_AtTimestamp_LiveVerifiedFallbackPropagatesError(t *testing.T) {
 	t.Parallel()
+	// With no verified provider configured (preinterop, or pre-activation),
+	// the response data is rebuilt from live VerifiedAt + OutputRootAtL2BlockNumber.
+	// Errors from those live reads must propagate so callers can distinguish
+	// "no data yet" from "node is broken".
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
 			verL2:     eth.BlockID{Number: 100},
@@ -350,9 +354,28 @@ func TestSuperroot_AtTimestamp_DoesNotReadLiveVerifiedOutputRoot(t *testing.T) {
 	}
 	s := New(gethlog.New(), chains, nil)
 	api := &superrootAPI{s: s}
+	_, err := api.AtTimestamp(context.Background(), 123)
+	require.Error(t, err)
+}
+
+func TestSuperroot_AtTimestamp_LiveVerifiedFallbackPopulatesData(t *testing.T) {
+	t.Parallel()
+	// With no verified provider configured (preinterop), the response data
+	// must be populated from live VerifiedAt + OutputRootAtL2BlockNumber so
+	// fault-proof callers waiting for resp.Data != nil can make progress.
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			verL2:  eth.BlockID{Number: 100},
+			verL1:  eth.BlockID{Number: 1000},
+			output: eth.Bytes32{1},
+		},
+	}
+	s := New(gethlog.New(), chains, nil)
+	api := &superrootAPI{s: s}
 	out, err := api.AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
-	require.Nil(t, out.Data)
+	require.NotNil(t, out.Data)
+	require.Equal(t, uint64(1000), out.Data.VerifiedRequiredL1.Number)
 }
 
 func TestSuperroot_AtTimestamp_ErrorOnOptimisticAt(t *testing.T) {

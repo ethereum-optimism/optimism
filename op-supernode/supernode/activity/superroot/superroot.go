@@ -113,6 +113,18 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
+	// Fall back to live verified state when there is no durable record. This
+	// covers pre-activation timestamps (interop verifier dormant) and any
+	// in-flight window where the verifier has not yet committed. Production
+	// interop timestamps use the durable snapshot above; this path only
+	// reads live data when nothing has been recorded.
+	if verifiedData == nil {
+		verifiedData, err = s.collectLiveVerifiedData(ctx, timestamp)
+		if err != nil {
+			return eth.SuperRootAtTimestampResponse{}, err
+		}
+	}
+
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:                 currentL1,
 		CurrentSafeTimestamp:      aggregate.SafeTimestamp,
@@ -123,6 +135,42 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		Data:                      verifiedData,
 	}
 	return response, nil
+}
+
+// collectLiveVerifiedData rebuilds SuperRootResponseData from each chain's
+// live VerifiedAt. Returns nil when any chain lacks verified data at the
+// timestamp (mirroring the all-or-nothing semantics required by callers
+// who expect Data to be nil unless every chain is covered).
+//
+// Used for timestamps without a durable verified record: pre-activation
+// (interop verifier dormant) and the in-flight pre-commit window.
+func (s *Superroot) collectLiveVerifiedData(ctx context.Context, timestamp uint64) (*eth.SuperRootResponseData, error) {
+	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
+	var verifiedRequiredL1 eth.BlockID
+	for chainID, chain := range s.chains {
+		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
+		if errors.Is(err, ethereum.NotFound) {
+			return nil, nil
+		} else if err != nil {
+			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
+			return nil, fmt.Errorf("failed to get verified block: %w", err)
+		}
+		if verifiedL1.Number > verifiedRequiredL1.Number {
+			verifiedRequiredL1 = verifiedL1
+		}
+		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
+		if err != nil {
+			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
+			return nil, fmt.Errorf("failed to compute output root at L2 block %d for chain ID %v: %w", verifiedL2.Number, chainID, err)
+		}
+		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
+	}
+	super := eth.NewSuperV1(timestamp, chainOutputs...)
+	return &eth.SuperRootResponseData{
+		VerifiedRequiredL1: verifiedRequiredL1,
+		Super:              super,
+		SuperRoot:          eth.SuperRoot(super),
+	}, nil
 }
 
 // collectLiveOptimistic queries each chain for its optimistic head at the
