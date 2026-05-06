@@ -195,11 +195,13 @@ hack partition="" shuffle="false" seed="default":
 
 ########################### Release #################################
 
-# Release crates under a subdirectory plus their transitive workspace deps.
+# Release all workspace crates at the given version, excluding crates under rust/op-reth/.
 # mode: "dry" (default, prints changes without applying) or "execute"
-# Example: just release op-alloy 1.0.0
-# Example: just release op-alloy 1.0.0 execute
-release SUBDIR VERSION MODE="dry":
+# Extra args are forwarded to `cargo release`.
+# Example: just release 1.0.0
+# Example: just release 1.0.0 execute
+# Example: just release 1.0.0 execute --no-confirm --no-publish
+release VERSION MODE="dry" *ARGS="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -214,29 +216,20 @@ release SUBDIR VERSION MODE="dry":
       *) echo "error: mode must be 'dry' or 'execute', got '{{MODE}}'" >&2; exit 1 ;;
     esac
 
-    WS_NAMES=$(cargo metadata --format-version=1 --no-deps \
-      | jq -r '.packages[].name' | sort -u)
+    PKGS=$(cargo metadata --format-version=1 --no-deps \
+      | jq -r '.packages[] | select(.manifest_path | contains("/rust/op-reth/") | not) | .name' \
+      | sort -u | sed 's/^/-p /' | tr '\n' ' ')
 
-    SEED=$(cargo metadata --format-version=1 --no-deps \
-      | jq -r --arg dir "/rust/{{SUBDIR}}/" \
-          '.packages[] | select(.manifest_path | contains($dir)) | .name')
-
-    if [[ -z "$SEED" ]]; then
-      echo "error: no workspace crates found under rust/{{SUBDIR}}/" >&2
+    if [[ -z "$PKGS" ]]; then
+      echo "error: no workspace crates found to release" >&2
       exit 1
     fi
-
-    DEPS=$(for pkg in $SEED; do
-      cargo tree -p "$pkg" -e normal,build --prefix none 2>/dev/null | awk '{print $1}'
-    done | sort -u)
-
-    PKGS=$(comm -12 <(echo "$DEPS") <(echo "$WS_NAMES") | sed 's/^/-p /' | tr '\n' ' ')
 
     echo "Packages to release at version {{VERSION}} (mode: {{MODE}}):"
     echo "$PKGS" | tr ' ' '\n' | sed '/^$/d'
     echo
 
-    exec cargo release {{VERSION}} $PKGS $EXTRA
+    exec cargo release {{VERSION}} $PKGS $EXTRA {{ARGS}}
 
 ######################### Documentation ################################
 
