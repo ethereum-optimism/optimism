@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
@@ -389,16 +390,15 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
 	}
 
-	// Check if the current chain uses this block at this height
+	// Errors here propagate so the caller preserves the pending transition for
+	// retry on restart; the deny list entry above is already durable.
 	if c.engine == nil {
-		c.log.Warn("engine not initialized, cannot check current block")
-		return false, nil
+		return false, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
 	}
 
 	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
 	if err != nil {
-		c.log.Warn("failed to get current block at height", "height", height, "err", err)
-		return false, nil
+		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
 	// Compare the current block hash with the invalidated hash
