@@ -288,7 +288,7 @@ func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint
 
 func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64) (common.Hash, []byte) {
 	switch gameTypes.GameType(gameType) {
-	case gameTypes.SuperCannonGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		extraData := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
 		return crypto.Keccak256Hash(extraData), extraData
 	default:

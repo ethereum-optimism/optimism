@@ -15,7 +15,7 @@ const (
 	PermissionedGameType      GameType = 1
 	AsteriscGameType          GameType = 2 // Not supported by op-challenger
 	AsteriscKonaGameType      GameType = 3 // Not supported by op-challenger
-	SuperCannonGameType       GameType = 4
+	SuperCannonGameType       GameType = 4 // Not supported by op-challenger
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
 	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
@@ -36,7 +36,6 @@ var SupportedGameTypes = []GameType{
 	CannonKonaGameType,
 	PermissionedGameType,
 	FastGameType,
-	SuperCannonGameType,
 	SuperCannonKonaGameType,
 	SuperPermissionedGameType,
 	ZKDisputeGameType,

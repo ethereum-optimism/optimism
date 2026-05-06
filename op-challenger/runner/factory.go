@@ -33,7 +33,7 @@ func createTraceProvider(
 		return nil, err
 	}
 	switch gameType {
-	case gameTypes.CannonGameType, gameTypes.SuperCannonGameType:
+	case gameTypes.CannonGameType:
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
@@ -60,7 +60,7 @@ func createTraceProvider(
 // handles both shapes through one executor.
 func serverExecutorForGameType(logger log.Logger, gameType gameTypes.GameType) (vm.OracleServerExecutor, error) {
 	switch gameType {
-	case gameTypes.CannonGameType, gameTypes.SuperCannonGameType:
+	case gameTypes.CannonGameType:
 		return vm.NewOpProgramServerExecutor(logger), nil
 	case gameTypes.CannonKonaGameType:
 		return vm.NewKonaExecutor(), nil
