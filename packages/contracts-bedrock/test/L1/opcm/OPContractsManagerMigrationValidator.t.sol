@@ -705,6 +705,16 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         );
         assertEq("MIG-CHAIN-0-110", _validateMigration(true));
     }
+
+    /// @notice MIG-CHAIN-1-120: Second chain's SystemConfig delayedWETH doesn't match shared WETH.
+    function test_validate_chain1120DelayedWethMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts2.systemConfig),
+            abi.encodeCall(ISystemConfig.delayedWETH, ()),
+            abi.encode(address(0xbadDE1a4ed))
+        );
+        assertEq("MIG-CHAIN-1-120", _validateMigration(true));
+    }
 }
 
 /// @title OPContractsManagerMigrationValidator_SharedDGF_Test
