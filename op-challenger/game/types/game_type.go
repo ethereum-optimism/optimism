@@ -11,10 +11,11 @@ var ErrUnknownGameType = errors.New("unknown game type")
 type GameType uint32
 
 const (
-	CannonGameType            GameType = 0
-	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2 // Not supported by op-challenger
-	AsteriscKonaGameType      GameType = 3 // Not supported by op-challenger
+	CannonGameType       GameType = 0
+	PermissionedGameType GameType = 1
+	AsteriscGameType     GameType = 2 // Not supported by op-challenger
+	AsteriscKonaGameType GameType = 3 // Not supported by op-challenger
+	// GameType 4 was SuperCannonGameType — removed.
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
 	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
