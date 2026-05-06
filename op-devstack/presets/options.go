@@ -305,7 +305,7 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 	}
 }
 
-// WithoutHonestProposer disables the in-process op-proposer in proofs presets.
+// WithoutHonestProposer skips starting op-proposer.
 func WithoutHonestProposer() Option {
 	return option{
 		kinds: optionKindSkipHonestProposer,
