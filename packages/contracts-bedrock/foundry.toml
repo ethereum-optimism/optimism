@@ -85,6 +85,10 @@ ffi = true
 # you increase the gas limit above this value it must be a string.
 gas_limit = 9223372036854775807
 
+# Experiment (L2CM retro): make Foundry deduct intrinsic gas and run each
+# top-level call as a separate EVM transaction, mirroring real client semantics.
+isolate = true
+
 [fuzz]
 runs = 64
 
