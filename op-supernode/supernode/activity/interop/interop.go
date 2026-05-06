@@ -29,6 +29,8 @@ var (
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
 
+const DefaultLogBackfillDepth = 7 * 24 * time.Hour
+
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
@@ -40,9 +42,9 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 // InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
 	Name:    "interop.log-backfill-depth",
-	Usage:   "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation. Never loads logs before interop.activation-timestamp. Set to 0 to disable.",
 	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
-	Value:   0,
+	Value:   DefaultLogBackfillDepth,
 }
 
 func init() {
