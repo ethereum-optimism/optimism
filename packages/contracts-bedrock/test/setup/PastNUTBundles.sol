@@ -98,33 +98,28 @@ library PastNUTBundles {
     )
         internal
     {
-        address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
-        stagePastBundlesAgainst(_currentTxns, currentL2CM, _executeScript);
+        stagePastBundlesAgainst(_currentTxns, _executeScript);
     }
 
     /// @notice Fetches and stages prior NUT bundles.
     /// @param _currentTxns Parsed current bundle transactions.
-    /// @param _currentL2CM L2ContractsManager address of the bundle being tested.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
     function stagePastBundlesAgainst(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
-        address _currentL2CM,
         ExecuteNUTBundle _executeScript
     )
         internal
     {
         NUTBundle[] memory entries = fetchPastBundles();
-        stagePastBundlesAgainst(_currentTxns, _currentL2CM, _executeScript, entries);
+        stagePastBundlesAgainst(_currentTxns, _executeScript, entries);
     }
 
     /// @notice Stages the given prior NUT bundles.
     /// @param _currentTxns Parsed current bundle transactions.
-    /// @param _currentL2CM L2ContractsManager address of the bundle being tested.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
     /// @param _entries Ordered prior bundle entries to stage.
     function stagePastBundlesAgainst(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
-        address _currentL2CM,
         ExecuteNUTBundle _executeScript,
         NUTBundle[] memory _entries
     )
@@ -135,32 +130,46 @@ library PastNUTBundles {
         for (uint256 i = 0; i < _entries.length; i++) {
             NUTBundle memory entry = _entries[i];
             NetworkUpgradeTxns.NetworkUpgradeTxn[] memory priorTxns = NetworkUpgradeTxns.readArtifact(entry.path);
+
+            (bool skip, string memory reason) = _shouldSkipPriorBundle(entry, priorTxns, _currentTxns);
+            if (skip) {
+                console.log("PastNUTBundles: skipping fork=%s path=%s (%s)", entry.fork, entry.path, reason);
+                continue;
+            }
+
             address priorL2CM = extractL2CM(priorTxns, entry.path);
-
-            if (priorL2CM == _currentL2CM) {
-                console.log("PastNUTBundles: skipping fork=%s path=%s (L2CM matches current)", entry.fork, entry.path);
-                continue;
-            }
-
-            if (_hasMatchingDeterministicDeployment(priorTxns, _currentTxns)) {
-                console.log(
-                    "PastNUTBundles: skipping fork=%s path=%s (current bundle contains same direct CREATE2 deploy)",
-                    entry.fork,
-                    entry.path
-                );
-                continue;
-            }
-
             console.log("PastNUTBundles: staging fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
             _executeScript.executeAll(priorTxns);
         }
     }
 
-    /// @notice Returns true when a current bundle already contains a direct deterministic-deployer
-    ///         transaction from the prior bundle.
-    /// @dev These calls go straight to Arachnid's CREATE2 deployer and are not idempotent. If the
-    ///      prior bundle executed one first, the current bundle would later hit a CREATE2 collision.
-    function _hasMatchingDeterministicDeployment(
+    /// @notice Returns whether a prior bundle should be skipped before staging.
+    /// @dev Future fork-specific staging exceptions should be added here rather than by
+    ///      de-duplicating arbitrary transactions from the prior bundle.
+    function _shouldSkipPriorBundle(
+        NUTBundle memory _entry,
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
+    )
+        internal
+        pure
+        returns (bool skip_, string memory reason_)
+    {
+        address priorL2CM = extractL2CM(_priorTxns, _entry.path);
+        address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
+        if (priorL2CM == currentL2CM) return (true, "L2CM matches current");
+
+        if (_shouldSkipKarstBootstrap(_entry, _priorTxns, _currentTxns)) {
+            return (true, "current bundle contains same Karst direct CREATE2 bootstrap");
+        }
+
+        return (false, "");
+    }
+
+    /// @notice Returns true when Karst staging should be skipped because the current bundle owns
+    ///         the same non-idempotent direct CREATE2 bootstrap transaction.
+    function _shouldSkipKarstBootstrap(
+        NUTBundle memory _entry,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
     )
@@ -168,6 +177,8 @@ library PastNUTBundles {
         pure
         returns (bool)
     {
+        if (keccak256(bytes(_entry.fork)) != keccak256(bytes("karst"))) return false;
+
         for (uint256 i = 0; i < _priorTxns.length; i++) {
             if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;
 
