@@ -18,11 +18,22 @@ import { console2 as console } from "forge-std/console2.sol";
 contract ExecuteNUTBundle is Script {
     /// @notice Executes transactions from the current bundle artifact.
     function execute() public {
-        console.log("ExecuteNUTBundle: Reading bundle from", Constants.CURRENT_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+        executePath(Constants.CURRENT_BUNDLE_PATH);
+    }
+
+    /// @notice Executes transactions from a NUT bundle artifact.
+    /// @param _path The path to the NUT bundle artifact.
+    function executePath(string memory _path) public {
+        console.log("ExecuteNUTBundle: Reading bundle from", _path);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = NetworkUpgradeTxns.readArtifact(_path);
         console.log("ExecuteNUTBundle: Loaded", txns.length, "transactions");
-        _executeAll(txns);
+        executeAll(txns);
+    }
+
+    /// @notice Executes all transactions in a parsed NUT bundle.
+    /// @param _txns Array of Network Upgrade Transactions to execute.
+    function executeAll(NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _txns) public {
+        _executeAll(_txns);
     }
 
     /// @notice Executes a single NUT bundle transaction with deposit-faithful body gas semantics.
