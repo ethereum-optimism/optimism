@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 // MinimalWithKona embeds Minimal and bundles everything needed to run kona-host in --native mode
@@ -62,8 +63,7 @@ func WithKonaKarstAtGenesis() Option {
 			var cfg rollup.Config
 			sys.T.Require().NoError(json.Unmarshal(data, &cfg), "unmarshal kona rollup config")
 
-			t0 := uint64(0)
-			cfg.KarstTime = &t0
+			cfg.KarstTime = ptr.Zero64
 
 			out, err := json.Marshal(&cfg)
 			sys.T.Require().NoError(err, "marshal kona rollup config")
