@@ -34,6 +34,8 @@ type PresetConfig struct {
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
+	// SkipHonestProposer skips starting the in-process op-proposer in proofs presets.
+	SkipHonestProposer bool
 }
 
 func NewPresetConfig() PresetConfig {
