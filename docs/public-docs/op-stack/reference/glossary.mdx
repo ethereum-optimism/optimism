@@ -284,6 +284,30 @@ sequencing window. Epochs can have variable size, subject to some constraints.
 
 The network of OP Stack chains connected by native interoperability. Not yet live. Chains that are part of the OP Stack ecosystem share security and a common development stack (the OP Stack). The interop cluster specifically refers to the subset of chains connected by the OP Stack interoperability layer.
 
+### Dependency set
+
+The set of chains that a given chain accepts initiating messages from. A chain's local block cannot become safe until every initiating message it depends on has also been derived from L1. The *transitive* dependency set extends this to the dependencies of those chains, and so on. The [OP Stack interop cluster](#op-stack-interop-cluster) is configured as a fully-connected dependency set: every chain in the set has every other chain in its dependency set.
+
+### Supernode
+
+A process that runs every chain in a [dependency set](#dependency-set) together as in-memory [virtual nodes](#virtual-node) inside one binary. The supernode shares the L1 client, L1 beacon client, JSON-RPC surface, and metrics across chains, and verifies that every cross-chain message a chain depends on has been reproduced from L1 before promoting blocks past unsafe. Often referred to as `op-supernode` after the binary name. See the [supernode explainer](/op-stack/interop/supernode) for the architecture.
+
+### Chain container
+
+The [supernode](#supernode)'s wrapper around a single chain. A chain container hosts one [virtual node](#virtual-node), drives that chain's execution engine via an engine controller, and exposes a stable interface the rest of the supernode uses to derive blocks, fetch receipts, and answer output-root queries.
+
+### Virtual node
+
+A consensus-layer node hosted in-process inside a [supernode](#supernode), rather than as a separate operating-system process. Today the only virtual node implementation is op-node itself, hosted as a library.
+
+### Super root
+
+A commitment over verified L2 blocks across a [dependency set](#dependency-set) at a given timestamp. Produced by the supernode's `superroot_atTimestamp` RPC and consumed by the fault proof system as the input it needs to generate an interop-aware proof.
+
+### Light CL
+
+A mode of operation for the consensus layer (op-node or kona-node) that turns off local L1-to-L2 derivation and mirrors safe and finalized state from a trusted external source over the `optimism_syncStatus` RPC. A light CL still advances the unsafe chain over P2P. Pairs with a [supernode](#supernode) acting as the safe source for a fleet of light CLs.
+
 ### Shared L1 Bridge
 
 The L1 bridge contracts which govern all OP Chains in the OP Stack ecosystem. This bridge can be upgraded by the Optimism Collective.
