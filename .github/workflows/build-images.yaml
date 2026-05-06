@@ -6,7 +6,6 @@ on:
       - 'develop'
     tags:
       - '*/v*'
-      - 'v*'
   pull_request:
     branches:
       - 'develop'
@@ -23,11 +22,14 @@ on:
       - '.github/workflows/build-images.yaml'
       - '.github/docker-images.json'
       - '.github/actions/docker-build-prep/**'
+  schedule:
+    # Daily build of all images at 02:00 UTC (matches the previous CircleCI schedule).
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: oplabs-ubuntu-x86
     permissions:
       contents: read
     outputs:
@@ -47,6 +49,7 @@ jobs:
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - name: Plan
         id: plan
         uses: ethereum-optimism/factory/actions/plan@d1304a6e3ef93a8fcb0f672707f5f2ae9737a59d
@@ -74,7 +77,7 @@ jobs:
   prep:
     needs: plan
     if: needs.plan.outputs.has_builds == 'true'
-    runs-on: ubuntu-latest
+    runs-on: oplabs-ubuntu-x86
     permissions:
       contents: read
     outputs:
@@ -89,6 +92,7 @@ jobs:
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - uses: ./.github/actions/docker-build-prep
         id: prep
 
@@ -112,7 +116,8 @@ jobs:
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
       set: |
         *.args.GIT_COMMIT=${{ github.sha }}
-        *.args.GIT_DATE=${{ needs.prep.outputs.date }}
+        *.args.GIT_DATE=${{ github.ref_type == 'tag' && github.event.head_commit.timestamp || needs.prep.outputs.date }}
+        op-reth.args.BUILD_PROFILE=${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
     permissions:
       contents: read
       id-token: write
@@ -129,8 +134,8 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.go_check_images_json) }}
         runner:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
+          - oplabs-ubuntu-x86
+          - oplabs-ubuntu-arm
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
@@ -151,8 +156,8 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.rust_check_images_json) }}
         runner:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
+          - oplabs-ubuntu-x86
+          - oplabs-ubuntu-arm
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
@@ -164,7 +169,7 @@ jobs:
   docker-build-result:
     needs: [plan, build, check-cross-platform, check-cross-platform-rust]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: oplabs-ubuntu-x86
     steps:
       - name: Check results
         env:
