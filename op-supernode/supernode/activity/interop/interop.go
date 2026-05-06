@@ -39,9 +39,10 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 
 // InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
-	Name:  "interop.log-backfill-depth",
-	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
-	Value: 0,
+	Name:    "interop.log-backfill-depth",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
+	Value:   0,
 }
 
 func init() {
