@@ -2,11 +2,13 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -54,12 +56,20 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 
 	blockNum, err := s.cfg.TargetBlockNumber(timestamp)
 	if err != nil {
-		// Pre-genesis: empty optimistic, nil Data, sync fields populated.
+		// Pre-genesis. op-supernode equivalent: LocalSafeBlockAtTimestamp returns the same
+		// error → both VerifiedAt and OptimisticAt fail → chain absent from OptimisticAtTimestamp,
+		// Data nil. We return success with the same shape.
 		return resp, nil
 	}
 
-	if blockNum > status.UnsafeL2.Number {
-		// Beyond local head: empty optimistic, nil Data, sync fields populated.
+	// op-supernode bounds the optimistic branch by LocalSafeL2 (LocalSafeBlockAtTimestamp
+	// returns ethereum.NotFound when blockNum > localSafe). Beyond LocalSafeL2 — including
+	// beyond UnsafeL2 — both VerifiedAt and OptimisticAt return NotFound, so the chain is
+	// absent from OptimisticAtTimestamp and Data is nil. Mirror that exactly: do NOT add an
+	// optimistic entry derived from L1Origin; consumers (op-challenger SuperNodeTraceProvider
+	// at step > 0) read OptimisticAtTimestamp[chainID] without checking Data, so any extra
+	// entry here would create a behavioral divergence at non-zero game steps.
+	if blockNum > status.LocalSafeL2.Number {
 		return resp, nil
 	}
 
@@ -73,17 +83,6 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 	}
 	outputRoot := eth.OutputRoot(output)
 
-	// Optimistic-only branch: block exists but is not yet local-safe. RequiredL1 is the
-	// L2 block's L1 origin (the L1 height required to derive this L2 block).
-	if blockNum > status.LocalSafeL2.Number {
-		resp.OptimisticAtTimestamp[chainID] = eth.OutputWithRequiredL1{
-			Output:     output,
-			OutputRoot: outputRoot,
-			RequiredL1: ref.L1Origin,
-		}
-		return resp, nil
-	}
-
 	// Verified branch: ask safeDB for the earliest L1 at which ref became safe.
 	// Mirror op-supernode's genesis special case: L2 genesis is trivially safe at L1
 	// block 0 (not cfg.Genesis.L1, since contracts may pre-date it).
@@ -94,15 +93,17 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 		requiredL1, _, err = s.safeDB.L1AtSafeHead(ctx, ref.Number)
 	}
 	if err != nil {
-		// Mirror op-supernode behavior: when safeDB cannot resolve (transient or permanent),
-		// degrade to optimistic-only with L1Origin as RequiredL1 and Data nil. Consumers
-		// (op-challenger, op-dispute-mon) treat Data nil as "not yet verified."
-		s.log.Debug("L1AtSafeHead unavailable, returning optimistic-only", "err", err, "block", ref)
-		resp.OptimisticAtTimestamp[chainID] = eth.OutputWithRequiredL1{
-			Output:     output,
-			OutputRoot: outputRoot,
-			RequiredL1: ref.L1Origin,
+		// Match op-supernode chain_container.safeDBAtL2 mapping exactly:
+		//   ErrL1AtSafeHeadUnavailable (permanent gap) → ErrHistoryUnavailable → bubbled to RPC
+		//   ErrL1AtSafeHeadNotFound (transient lag)    → ethereum.NotFound → chain omitted from
+		//                                                OptimisticAtTimestamp, Data nil.
+		// Returning a fabricated optimistic entry with RequiredL1 = L1Origin would understate the
+		// requirement and could cause op-challenger to include a chain at step > 0 where
+		// op-supernode would have triggered InvalidTransition.
+		if errors.Is(err, safedb.ErrL1AtSafeHeadUnavailable) {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("L1 at safe head unavailable for L2 %s: %w", ref, err)
 		}
+		s.log.Debug("L1AtSafeHead transient unavailable, returning Data nil", "err", err, "block", ref)
 		return resp, nil
 	}
 

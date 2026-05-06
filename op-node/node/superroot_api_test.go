@@ -165,25 +165,20 @@ func TestSuperrootAPI_BeyondUnsafe(t *testing.T) {
 	require.Nil(t, resp.Data)
 }
 
-func TestSuperrootAPI_OptimisticOnly_BeyondLocalSafe(t *testing.T) {
+func TestSuperrootAPI_BeyondLocalSafe_OmitsChain(t *testing.T) {
+	// op-supernode parity: blocks beyond LocalSafeL2 are treated as absent for both
+	// verified and optimistic, so the chain is omitted from OptimisticAtTimestamp and
+	// Data is nil. (LocalSafeBlockAtTimestamp returns ethereum.NotFound there, which
+	// makes both VerifiedAt and OptimisticAt fail in op-supernode.)
 	f := newFixture(t)
 	f.expectSyncStatus()
 
 	// Block 55: between LocalSafeL2 (50) and UnsafeL2 (60).
 	tsOpt := testGenesisL2Ts + 55*testBlockTime
-	hash := common.Hash{0x55}
-	l1Origin := eth.BlockID{Number: 180, Hash: common.Hash{0x18}}
-	f.expectBlockRef(55, hash, l1Origin)
-	output := f.expectOutputV0(hash)
-
 	resp, err := f.api.AtTimestamp(context.Background(), hexutil.Uint64(tsOpt))
 	require.NoError(t, err)
 	require.Nil(t, resp.Data)
-	require.Len(t, resp.OptimisticAtTimestamp, 1)
-	entry := resp.OptimisticAtTimestamp[f.chainID]
-	require.Equal(t, output, entry.Output)
-	require.Equal(t, eth.OutputRoot(output), entry.OutputRoot)
-	require.Equal(t, l1Origin, entry.RequiredL1)
+	require.Empty(t, resp.OptimisticAtTimestamp)
 }
 
 func TestSuperrootAPI_VerifiedHappyPath(t *testing.T) {
@@ -215,7 +210,12 @@ func TestSuperrootAPI_VerifiedHappyPath(t *testing.T) {
 	require.Equal(t, eth.SuperRoot(expectedSuper), resp.Data.SuperRoot)
 }
 
-func TestSuperrootAPI_VerifiedFallback_SafeDBNotFound(t *testing.T) {
+func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
+	// op-supernode parity: when safeDBAtL2 returns ethereum.NotFound (mapped from
+	// ErrL1AtSafeHeadNotFound), both VerifiedAt and OptimisticAt return NotFound and the
+	// chain is OMITTED from OptimisticAtTimestamp. Returning an entry with L1Origin would
+	// understate the requirement and could let op-challenger include the chain at step > 0
+	// where op-supernode would trigger InvalidTransition.
 	f := newFixture(t)
 	f.expectSyncStatus()
 
@@ -223,18 +223,37 @@ func TestSuperrootAPI_VerifiedFallback_SafeDBNotFound(t *testing.T) {
 	hash := common.Hash{0x40}
 	l1Origin := eth.BlockID{Number: 170, Hash: common.Hash{0x17}}
 	f.expectBlockRef(40, hash, l1Origin)
-	output := f.expectOutputV0(hash)
+	f.expectOutputV0(hash)
 
 	// SafeDB returns ErrL1AtSafeHeadNotFound (transient: empty DB or target above latest);
-	// superrootAPI maps it to optimistic-only with L1Origin as RequiredL1.
+	// op-supernode maps this to ethereum.NotFound and OMITS the chain.
 	f.safeDB.ExpectL1AtSafeHead(uint64(40), eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound)
 
 	resp, err := f.api.AtTimestamp(context.Background(), hexutil.Uint64(tsVerified))
 	require.NoError(t, err)
-	require.Nil(t, resp.Data) // fallback: Data is nil
-	entry := resp.OptimisticAtTimestamp[f.chainID]
-	require.Equal(t, output, entry.Output)
-	require.Equal(t, l1Origin, entry.RequiredL1)
+	require.Nil(t, resp.Data)
+	require.Empty(t, resp.OptimisticAtTimestamp)
+}
+
+func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
+	// op-supernode parity: ErrL1AtSafeHeadUnavailable (permanent history gap) bubbles up
+	// as ErrHistoryUnavailable from the RPC. Operator must intervene; consumers should not
+	// silently degrade.
+	f := newFixture(t)
+	f.expectSyncStatus()
+
+	tsVerified := testGenesisL2Ts + 40*testBlockTime
+	hash := common.Hash{0x40}
+	l1Origin := eth.BlockID{Number: 170, Hash: common.Hash{0x17}}
+	f.expectBlockRef(40, hash, l1Origin)
+	f.expectOutputV0(hash)
+
+	// SafeDB returns ErrL1AtSafeHeadUnavailable: target predates recorded history.
+	f.safeDB.ExpectL1AtSafeHead(uint64(40), eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadUnavailable)
+
+	_, err := f.api.AtTimestamp(context.Background(), hexutil.Uint64(tsVerified))
+	require.Error(t, err)
+	require.ErrorIs(t, err, safedb.ErrL1AtSafeHeadUnavailable)
 }
 
 func TestSuperrootAPI_DriverSyncStatusError(t *testing.T) {
