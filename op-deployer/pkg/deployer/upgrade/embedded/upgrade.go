@@ -152,6 +152,22 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if gameConfig.ZKDisputeGameConfig == nil {
 					return nil, fmt.Errorf("zkDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}
+				zk := gameConfig.ZKDisputeGameConfig
+				if zk.Verifier == (common.Address{}) {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.Verifier must not be zero address for game type %d", gameConfig.GameType)
+				}
+				if zk.AbsolutePrestate == (common.Hash{}) {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.AbsolutePrestate must not be zero for game type %d", gameConfig.GameType)
+				}
+				if zk.MaxChallengeDuration == 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxChallengeDuration must be > 0 for game type %d", gameConfig.GameType)
+				}
+				if zk.MaxProveDuration == 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxProveDuration must be > 0 for game type %d", gameConfig.GameType)
+				}
+				if zk.ChallengerBond == nil || zk.ChallengerBond.Sign() <= 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.ChallengerBond must be set to a positive value for game type %d", gameConfig.GameType)
+				}
 				// Encode the ZK dispute game args
 				gameArgs, err = zkEncoder.EncodeArgs(gameConfig.ZKDisputeGameConfig)
 				if err != nil {
