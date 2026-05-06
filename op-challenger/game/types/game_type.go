@@ -15,7 +15,6 @@ const (
 	PermissionedGameType      GameType = 1
 	AsteriscGameType          GameType = 2 // Not supported by op-challenger
 	AsteriscKonaGameType      GameType = 3 // Not supported by op-challenger
-	SuperCannonGameType       GameType = 4 // Not supported by op-challenger
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
 	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
@@ -79,8 +78,6 @@ func (g GameType) String() string {
 		return "asterisc"
 	case AsteriscKonaGameType:
 		return "asterisc-kona"
-	case SuperCannonGameType:
-		return "super-cannon"
 	case SuperPermissionedGameType:
 		return "super-permissioned"
 	case OPSuccinctGameType:
