@@ -165,30 +165,51 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		// Live chain is on Jovian (no cap). Kona's rollup config is overridden
-		// to claim Karst is at genesis, so kona-with-Karst will reject the
-		// block on EIP-7825 grounds even though op-reth (Jovian) accepts it.
-		sys := presets.NewMinimalWithKona(t,
-			presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-			presets.WithKonaKarstAtGenesis(),
-		)
-		sys.L2EL.WaitForBlockNumber(1)
-		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-		// Tx with gas > 2^24 lands successfully on the live chain (no cap pre-Karst).
-		receipt, err := txplan.NewPlannedTx(
-			eoa.Plan(),
-			txplan.WithTo(&common.Address{}),
-			txplan.WithGasLimit(params.MaxTxGas+1),
-		).Included.Eval(t.Ctx())
-		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+		// Live chain is on Jovian (no cap), so a tx with gas > 2^24 lands
+		// successfully. Run kona two ways to verify it honors its rollup
+		// config: with a matching Jovian config it accepts the block, with
+		// Karst forced at genesis it rejects the block on EIP-7825 grounds.
+		cases := []struct {
+			name        string
+			konaOpts    []presets.Option
+			konaAccepts bool
+		}{
+			{
+				name:        "kona-with-jovian",
+				konaAccepts: true,
+			},
+			{
+				name:        "kona-with-karst",
+				konaOpts:    []presets.Option{presets.WithKonaKarstAtGenesis()},
+				konaAccepts: false,
+			},
+		}
 
-		// Kona, configured with Karst at genesis, rejects that block because
-		// the included tx exceeds the EIP-7825 cap.
-		agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
-		claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-		t.Require().False(sys.RunKonaNative(agreedBlock, claimBlock))
+		for _, tc := range cases {
+			t.Run(tc.name, func(t devtest.T) {
+				t.Parallel()
+				opts := append(
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					tc.konaOpts...,
+				)
+				sys := presets.NewMinimalWithKona(t, opts...)
+				sys.L2EL.WaitForBlockNumber(1)
+				eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+				receipt, err := txplan.NewPlannedTx(
+					eoa.Plan(),
+					txplan.WithTo(&common.Address{}),
+					txplan.WithGasLimit(params.MaxTxGas+1),
+				).Included.Eval(t.Ctx())
+				t.Require().NoError(err)
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
+				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
+			})
+		}
 	})
 
 	t.Run("post-karst", func(t devtest.T) {
