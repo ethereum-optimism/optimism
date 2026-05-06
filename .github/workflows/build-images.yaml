@@ -29,7 +29,7 @@ on:
 
 jobs:
   plan:
-    runs-on: oplabs-ubuntu-x86
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -77,7 +77,7 @@ jobs:
   prep:
     needs: plan
     if: needs.plan.outputs.has_builds == 'true'
-    runs-on: oplabs-ubuntu-x86
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
@@ -136,8 +136,8 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.go_check_images_json) }}
         runner:
-          - oplabs-ubuntu-x86
-          - oplabs-ubuntu-arm
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
@@ -158,8 +158,8 @@ jobs:
       matrix:
         image_name: ${{ fromJson(needs.plan.outputs.rust_check_images_json) }}
         runner:
-          - oplabs-ubuntu-x86
-          - oplabs-ubuntu-arm
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     env:
       IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
