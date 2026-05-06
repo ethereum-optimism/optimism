@@ -448,6 +448,49 @@ func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
 	require.Equal(t, ErrorReorg, ingesterErr.Reason)
 }
 
+func TestLogsDBChainIngester_RewindToFinalized(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	mockClient.AddBlock(parentBlock, nil)
+
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+
+	block101 := createTestBlock(101, 1202, block100.Hash())
+	mockClient.AddBlock(block101, createTestReceipts(101, 1))
+	mockClient.SetLabelBlock(eth.Finalized, block100)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+
+	err := ingester.initLogsDB()
+	require.NoError(t, err)
+	t.Cleanup(func() { ingester.logsDB.Close() })
+
+	require.NoError(t, ingester.sealParentBlock(99))
+	require.NoError(t, ingester.ingestBlock(100))
+	require.NoError(t, ingester.ingestBlock(101))
+
+	target, timestamp, err := ingester.RewindToFinalized(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{Hash: block100.Hash(), Number: 100}, target)
+	require.Equal(t, uint64(1200), timestamp)
+	require.Equal(t, uint64(101), ingester.applyPendingRewind(102))
+	require.Equal(t, uint64(102), ingester.applyPendingRewind(102))
+
+	latest, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, target, latest)
+}
+
 func TestLogsDBChainIngester_QueryMethods(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()

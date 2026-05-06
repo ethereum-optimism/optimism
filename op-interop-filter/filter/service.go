@@ -224,6 +224,8 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		Chains:         chains,
 		CrossValidator: crossValidator,
 		Passthrough:    cfg.Passthrough,
+
+		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))

@@ -35,6 +35,7 @@ type Config struct {
 	Version                     string
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
+	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
 	Passthrough                 bool          // If true, all transactions pass through without filtering
 
 	LogConfig     oplog.CLIConfig
@@ -120,6 +121,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		Version:                     version,
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
+		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),

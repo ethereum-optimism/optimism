@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -64,6 +65,9 @@ type LogsDBChainIngester struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	mu     sync.RWMutex
+
+	pendingRewindResumeFrom    uint64
+	pendingRewindResumeFromSet bool
 }
 
 // NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
@@ -416,6 +420,8 @@ func (c *LogsDBChainIngester) runIngestion() {
 		case <-ticker.C:
 		}
 
+		nextBlock = c.applyPendingRewind(nextBlock)
+
 		// Skip if in error state
 		if c.Error() != nil {
 			continue
@@ -459,6 +465,9 @@ func (c *LogsDBChainIngester) runIngestion() {
 				c.log.Error("Failed to ingest block", "block", nextBlock, "err", err)
 				break // Exit inner loop on error, wait for next tick to retry
 			}
+			if c.Error() != nil {
+				break
+			}
 			nextBlock++
 
 			// Progress logging
@@ -480,6 +489,20 @@ func (c *LogsDBChainIngester) runIngestion() {
 		}
 		// Caught up to head, will wait for next ticker tick
 	}
+}
+
+func (c *LogsDBChainIngester) applyPendingRewind(current uint64) uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.pendingRewindResumeFromSet {
+		return current
+	}
+	nextBlock := c.pendingRewindResumeFrom
+	c.pendingRewindResumeFrom = 0
+	c.pendingRewindResumeFromSet = false
+	c.log.Info("Applied pending rewind", "resume_from", nextBlock)
+	return nextBlock
 }
 
 // initIngestion performs one-time setup and returns the first block to ingest.
@@ -564,6 +587,45 @@ func (c *LogsDBChainIngester) checkReorg(head eth.BlockInfo) error {
 	c.SetError(ErrorReorg, fmt.Sprintf("reorg at height %d: db has %s, chain has %s",
 		headNum, dbHash, head.Hash()))
 	return fmt.Errorf("reorg detected")
+}
+
+// RewindToFinalized rewinds durable logs DB state to the finalized block, then
+// requests that the ingestion loop resume from the following block.
+func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error) {
+	target := eth.BlockLabel(eth.Finalized)
+	targetInfo, err := c.ethClient.InfoByLabel(ctx, target)
+	if err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to get %s block: %w", target, err)
+	}
+	targetID := eth.BlockID{Hash: targetInfo.Hash(), Number: targetInfo.NumberU64()}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.logsDB == nil {
+		return eth.BlockID{}, 0, types.ErrUninitialized
+	}
+
+	// Recovery is intentionally fail-closed: finalized should already be in
+	// logsDB. If it is missing or mismatched, leave failsafe enabled instead of
+	// searching backwards for a common ancestor.
+	storedSeal, err := c.logsDB.FindSealedBlock(targetID.Number)
+	if err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to find finalized block %d in logs DB: %w", targetID.Number, err)
+	}
+	if storedSeal.Hash != targetID.Hash {
+		return eth.BlockID{}, 0, fmt.Errorf("finalized block %d hash mismatch: db has %s, chain has %s: %w",
+			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
+	}
+
+	if err := c.logsDB.Rewind(reads.NoopRegistry{}, targetID); err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
+	}
+
+	c.pendingRewindResumeFrom = targetID.Number + 1
+	c.pendingRewindResumeFromSet = true
+	c.log.Info("Rewound logs DB to finalized", "block", targetID.Number, "hash", targetID.Hash)
+	return targetID, targetInfo.Time(), nil
 }
 
 func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
