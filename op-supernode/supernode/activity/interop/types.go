@@ -1,6 +1,8 @@
 package interop
 
 import (
+	"sort"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -13,28 +15,104 @@ type VerifiedResult struct {
 	L2Heads     map[eth.ChainID]eth.BlockID `json:"l2Heads"`
 }
 
+// ChainObservation captures everything observed for a single chain at a
+// verified timestamp: the L2 head, the L1 block at which that head became safe
+// (the per-chain L1 inclusion), and the OutputV0 preimage fields needed to
+// reconstruct the optimistic output without querying live engine state.
+//
+// BlockHash is intentionally omitted — it is L2Head.Hash. Storing it again
+// would duplicate the canonical block identifier.
+type ChainObservation struct {
+	L2Head                   eth.BlockID `json:"l2Head"`
+	L1Head                   eth.BlockID `json:"l1Head"`
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+}
+
+// OutputV0 reconstructs the full OutputV0 preimage for this chain.
+func (o ChainObservation) OutputV0() eth.OutputV0 {
+	return eth.OutputV0{
+		StateRoot:                o.StateRoot,
+		MessagePasserStorageRoot: o.MessagePasserStorageRoot,
+		BlockHash:                o.L2Head.Hash,
+	}
+}
+
+// OutputRoot returns the per-chain output root hash.
+func (o ChainObservation) OutputRoot() eth.Bytes32 {
+	v0 := o.OutputV0()
+	return eth.OutputRoot(&v0)
+}
+
 // VerifiedRecord is the durable verifier snapshot at a timestamp.
-// It stores only source facts; ResponseData derives the redundant RPC fields.
+// It stores only source facts; aggregates and RPC views are derived on demand.
+//
+// Per-chain observations snapshot the optimistic data that produced this
+// verified record, so superroot_atTimestamp can serve OptimisticAtTimestamp
+// from the durable record without re-reading live SafeDB or engine state.
+// Without this snapshot, a chain rewind between verification and serving
+// could drop derivable optimistic blocks from the response.
 type VerifiedRecord struct {
-	Timestamp    uint64                      `json:"timestamp"`
-	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
-	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
-	ChainOutputs []eth.ChainIDAndOutput      `json:"chainOutputs"`
-	CurrentL1    eth.BlockID                 `json:"currentL1"`
+	Timestamp uint64                            `json:"timestamp"`
+	Chains    map[eth.ChainID]ChainObservation  `json:"chains"`
+	CurrentL1 eth.BlockID                       `json:"currentL1"`
+}
+
+// L2Heads returns the per-chain L2 head map for compatibility with consumers
+// that work with the legacy VerifiedResult shape.
+func (r VerifiedRecord) L2Heads() map[eth.ChainID]eth.BlockID {
+	if r.Chains == nil {
+		return nil
+	}
+	out := make(map[eth.ChainID]eth.BlockID, len(r.Chains))
+	for id, obs := range r.Chains {
+		out[id] = obs.L2Head
+	}
+	return out
+}
+
+// L1Inclusion returns the aggregate L1 block at which this superroot is
+// derivable: the maximum per-chain L1 head. Computed on demand from Chains.
+func (r VerifiedRecord) L1Inclusion() eth.BlockID {
+	var max eth.BlockID
+	for _, obs := range r.Chains {
+		if obs.L1Head.Number > max.Number {
+			max = obs.L1Head
+		}
+	}
+	return max
+}
+
+// SortedChainIDs returns the chain IDs sorted ascending — the canonical order
+// used by SuperV1.
+func (r VerifiedRecord) SortedChainIDs() []eth.ChainID {
+	ids := make([]eth.ChainID, 0, len(r.Chains))
+	for id := range r.Chains {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i].Cmp(ids[j]) < 0 })
+	return ids
 }
 
 func (r VerifiedRecord) ToVerifiedResult() VerifiedResult {
 	return VerifiedResult{
 		Timestamp:   r.Timestamp,
-		L1Inclusion: r.L1Inclusion,
-		L2Heads:     r.L2Heads,
+		L1Inclusion: r.L1Inclusion(),
+		L2Heads:     r.L2Heads(),
 	}
 }
 
 func (r VerifiedRecord) ResponseData() *eth.SuperRootResponseData {
-	super := eth.NewSuperV1(r.Timestamp, r.ChainOutputs...)
+	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(r.Chains))
+	for _, id := range r.SortedChainIDs() {
+		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
+			ChainID: id,
+			Output:  r.Chains[id].OutputRoot(),
+		})
+	}
+	super := eth.NewSuperV1(r.Timestamp, chainOutputs...)
 	return &eth.SuperRootResponseData{
-		VerifiedRequiredL1: r.L1Inclusion,
+		VerifiedRequiredL1: r.L1Inclusion(),
 		Super:              super,
 		SuperRoot:          eth.SuperRoot(super),
 	}
@@ -43,18 +121,29 @@ func (r VerifiedRecord) ResponseData() *eth.SuperRootResponseData {
 // InvalidHead pairs a block identifier with the output preimage fields needed
 // for optimistic root computation in the superroot API. The full OutputV0 can
 // be reconstructed on demand via OutputV0() since BlockHash is already in BlockID.
+//
+// L1Inclusion is the per-chain L1 block at which the invalid optimistic block
+// became safe; persisted alongside the deny record so OptimisticAtTimestamp can
+// be served from durable state.
 type InvalidHead struct {
 	eth.BlockID
 	StateRoot                eth.Bytes32 `json:"stateRoot"`
 	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+	L1Inclusion              eth.BlockID `json:"l1Inclusion"`
 }
 
 // Result represents the result of interop validation at a specific timestamp given current data.
 // it contains all the same information as VerifiedResult, but also contains a list of invalid heads.
+//
+// L1Heads is the per-chain L1 inclusion snapshot captured atomically with
+// L2Heads in observeRound. It is plumbed through verification so that
+// VerifiedRecord and InvalidHead can record the per-chain L1 inclusion at the
+// observation moment.
 type Result struct {
 	Timestamp    uint64                      `json:"timestamp"`
 	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
 	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
+	L1Heads      map[eth.ChainID]eth.BlockID `json:"l1Heads"`
 	InvalidHeads map[eth.ChainID]InvalidHead `json:"invalidHeads"`
 }
 

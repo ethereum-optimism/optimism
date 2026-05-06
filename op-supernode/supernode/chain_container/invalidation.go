@@ -31,11 +31,17 @@ type DenyList struct {
 
 // DenyRecord stores a denied payload hash along with decision provenance
 // and the output preimage fields for optimistic root computation.
+//
+// L1Inclusion is the per-chain L1 block at which the denied optimistic block
+// became safe. It is captured at decision time so the superroot RPC can serve
+// OptimisticAtTimestamp.RequiredL1 from durable state without re-reading
+// SafeDB after a rewind.
 type DenyRecord struct {
 	PayloadHash              common.Hash `json:"payloadHash"`
 	DecisionTimestamp        uint64      `json:"decisionTimestamp"`
 	StateRoot                eth.Bytes32 `json:"stateRoot"`
 	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+	L1Inclusion              eth.BlockID `json:"l1Inclusion"`
 }
 
 func encodeDenyRecords(records []DenyRecord) ([]byte, error) {
@@ -87,8 +93,9 @@ func heightToKey(height uint64) []byte {
 
 // Add adds a payload hash to the deny list at the given block height.
 // stateRoot and messagePasserStorageRoot are the output preimage fields for optimistic root computation.
+// l1Inclusion is the per-chain L1 block at which the denied block became safe.
 // Multiple hashes can be denied at the same height.
-func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, l1Inclusion eth.BlockID) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -114,6 +121,7 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp
 			DecisionTimestamp:        decisionTimestamp,
 			StateRoot:                stateRoot,
 			MessagePasserStorageRoot: messagePasserStorageRoot,
+			L1Inclusion:              l1Inclusion,
 		})
 
 		encoded, err := encodeDenyRecords(records)
@@ -122,6 +130,35 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp
 		}
 		return b.Put(key, encoded)
 	})
+}
+
+// LastDeniedRecord returns the most recently denied record at the given height,
+// or nil if no blocks are denied. Used to recover the original optimistic
+// output (preimage + per-chain L1 inclusion) for a block that was later
+// invalidated and replaced.
+func (d *DenyList) LastDeniedRecord(height uint64) (*DenyRecord, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	key := heightToKey(height)
+	var result *DenyRecord
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		existing := b.Get(key)
+		if existing == nil {
+			return nil
+		}
+		records, err := decodeDenyRecords(existing)
+		if err != nil {
+			return err
+		}
+		if len(records) > 0 {
+			r := records[len(records)-1]
+			result = &r
+		}
+		return nil
+	})
+	return result, err
 }
 
 // LastDeniedOutputV0 returns the OutputV0 for the most recently denied block at the given height.
@@ -366,7 +403,7 @@ func (d *DenyList) Close() error {
 // uses that block at the specified height.
 // Returns true if a rewind was triggered, false otherwise.
 // Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
-func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, l1Inclusion eth.BlockID) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
 	}
@@ -377,7 +414,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	// Add to deny list with the output preimage fields
-	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
+	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot, l1Inclusion); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 

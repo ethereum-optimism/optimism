@@ -62,6 +62,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 	result := Result{
 		Timestamp:    ts,
 		L2Heads:      make(blockPerChain),
+		L1Heads:      l1Heads,
 		InvalidHeads: make(map[eth.ChainID]InvalidHead),
 	}
 
@@ -107,7 +108,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 								"expected", expectedBlock.Hash,
 								"got", firstBlock.Hash,
 							)
-							invalid, err := i.newInvalidHead(chainID, expectedBlock)
+							invalid, err := i.newInvalidHead(chainID, expectedBlock, l1Heads[chainID])
 							if err != nil {
 								return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
 							}
@@ -128,7 +129,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 				"expected", expectedBlock.Hash,
 				"got", blockRef.Hash,
 			)
-			invalid, err := i.newInvalidHead(chainID, expectedBlock)
+			invalid, err := i.newInvalidHead(chainID, expectedBlock, l1Heads[chainID])
 			if err != nil {
 				return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
 			}
@@ -156,7 +157,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 
 		result.L2Heads[chainID] = expectedBlock
 		if !blockValid {
-			invalid, err := i.newInvalidHead(chainID, expectedBlock)
+			invalid, err := i.newInvalidHead(chainID, expectedBlock, l1Heads[chainID])
 			if err != nil {
 				return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
 			}

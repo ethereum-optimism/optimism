@@ -74,6 +74,11 @@ type ChainContainer interface {
 	// GetDeniedOutput returns the reconstructed OutputV0 for a denied block.
 	// Returns nil if the block is not denied at that height.
 	GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error)
+	// LastDeniedAtHeight returns the OutputV0 and per-chain L1 inclusion for
+	// the most recently denied block at the given height. Returns (nil, BlockID{}, nil)
+	// when nothing is denied. Used to recover the original optimistic block
+	// after invalidation+replacement.
+	LastDeniedAtHeight(height uint64) (*eth.OutputV0, eth.BlockID, error)
 	// OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 	OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
@@ -98,7 +103,7 @@ type InteropChain interface {
 	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
 	// chain currently uses that block at the specified height. Returns true if a
 	// rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, l1Inclusion eth.BlockID) (bool, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -563,12 +568,16 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 	}
 
 	if c.denyList != nil {
-		outV0, err := c.denyList.LastDeniedOutputV0(blockNum)
+		rec, err := c.denyList.LastDeniedRecord(blockNum)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query deny list at height %d: %w", blockNum, err)
 		}
-		if outV0 != nil {
-			return outV0, nil
+		if rec != nil {
+			return &eth.OutputV0{
+				StateRoot:                rec.StateRoot,
+				MessagePasserStorageRoot: rec.MessagePasserStorageRoot,
+				BlockHash:                rec.PayloadHash,
+			}, nil
 		}
 	}
 

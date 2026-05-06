@@ -169,10 +169,11 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.Execu
 // using Kahn's topological sort algorithm.
 //
 // Returns a Result with InvalidHeads populated for chains participating in cycles.
-func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error) {
+func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error) {
 	result := Result{
 		Timestamp: ts,
 		L2Heads:   blocksAtTimestamp,
+		L1Heads:   l1Heads,
 	}
 
 	// collect all EMs for the given blocks per chain
@@ -213,7 +214,7 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		if len(cycleChains) > 0 {
 			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
 			for chainID := range cycleChains {
-				invalid, err := i.newInvalidHead(chainID, blocksAtTimestamp[chainID])
+				invalid, err := i.newInvalidHead(chainID, blocksAtTimestamp[chainID], l1Heads[chainID])
 				if err != nil {
 					return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
 				}

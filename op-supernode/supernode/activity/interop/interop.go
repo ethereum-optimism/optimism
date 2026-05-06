@@ -165,7 +165,7 @@ type Interop struct {
 	// cycleVerifyFn handles same-timestamp cycle verification.
 	// It is called after verifyFn in progressInterop, and its results are merged.
 	// Set to verifyCycleMessages by default in New().
-	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
+	cycleVerifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// pauseAtTimestamp is used for integration test control only.
 	// When non-zero, progressInterop will return early without processing
@@ -574,7 +574,7 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID, l1He
 		return Result{}, err
 	}
 
-	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS, view)
+	cycleResult, err := i.cycleVerifyFn(ts, blocksAtTS, l1Heads, view)
 	if err != nil {
 		return Result{}, fmt.Errorf("cycle verification failed: %w", err)
 	}
@@ -595,8 +595,8 @@ func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID, l1He
 // fields already attached. Returns an error if the output cannot be computed —
 // at verification time the engine should always have the block, so failure
 // indicates a transient RPC issue or a serious invariant violation.
-func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (InvalidHead, error) {
-	head := InvalidHead{BlockID: blockID}
+func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID, l1Inclusion eth.BlockID) (InvalidHead, error) {
+	head := InvalidHead{BlockID: blockID, L1Inclusion: l1Inclusion}
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return head, fmt.Errorf("chain %s not found", chainID)
@@ -688,6 +688,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				Timestamp:                pending.Result.Timestamp,
 				StateRoot:                invalidHead.StateRoot,
 				MessagePasserStorageRoot: invalidHead.MessagePasserStorageRoot,
+				L1Inclusion:              invalidHead.L1Inclusion,
 			})
 		}
 		sort.Slice(invalidations, func(i, j int) bool {
@@ -708,7 +709,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		}
 		var failedAny bool
 		for _, p := range invalidations {
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
+			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, p.L1Inclusion); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
@@ -740,7 +741,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, nil
 		}
 		record := *pending.Verified
-		if err := i.persistFrontierLogs(record.Timestamp, record.L2Heads); err != nil {
+		if err := i.persistFrontierLogs(record.Timestamp, record.L2Heads()); err != nil {
 			return false, fmt.Errorf("persist frontier logs: %w", err)
 		}
 
@@ -928,17 +929,8 @@ func (i *Interop) updateCurrentL1(currentL1 eth.BlockID) error {
 }
 
 func (i *Interop) buildVerifiedRecord(result Result, currentL1 eth.BlockID) (VerifiedRecord, error) {
-	chainIDs := make([]eth.ChainID, 0, len(result.L2Heads))
-	for chainID := range result.L2Heads {
-		chainIDs = append(chainIDs, chainID)
-	}
-	sort.Slice(chainIDs, func(i, j int) bool {
-		return chainIDs[i].Cmp(chainIDs[j]) < 0
-	})
-
-	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(chainIDs))
-	for _, chainID := range chainIDs {
-		blockID := result.L2Heads[chainID]
+	chains := make(map[eth.ChainID]ChainObservation, len(result.L2Heads))
+	for chainID, blockID := range result.L2Heads {
 		chain, ok := i.chains[chainID]
 		if !ok {
 			return VerifiedRecord{}, fmt.Errorf("chain %s not found", chainID)
@@ -951,17 +943,26 @@ func (i *Interop) buildVerifiedRecord(result Result, currentL1 eth.BlockID) (Ver
 			return VerifiedRecord{}, fmt.Errorf("chain %s: block %d hash changed (expected %s, got %s): possible reorg",
 				chainID, blockID.Number, blockID.Hash, outputV0.BlockHash)
 		}
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
-			ChainID: chainID,
-			Output:  eth.OutputRoot(outputV0),
-		})
+		// Production callers (verifyInteropMessages) always populate result.L1Heads
+		// per chain. Tolerate a missing entry by falling back to the aggregate
+		// L1Inclusion so test harnesses that synthesise Result without per-chain
+		// L1 heads continue to work; the fallback over-claims (the chain's
+		// per-chain L1 may be earlier than L1Inclusion) but never under-claims.
+		l1Head, ok := result.L1Heads[chainID]
+		if !ok {
+			l1Head = result.L1Inclusion
+		}
+		chains[chainID] = ChainObservation{
+			L2Head:                   blockID,
+			L1Head:                   l1Head,
+			StateRoot:                outputV0.StateRoot,
+			MessagePasserStorageRoot: outputV0.MessagePasserStorageRoot,
+		}
 	}
 	return VerifiedRecord{
-		Timestamp:    result.Timestamp,
-		L1Inclusion:  result.L1Inclusion,
-		L2Heads:      result.L2Heads,
-		ChainOutputs: chainOutputs,
-		CurrentL1:    currentL1,
+		Timestamp: result.Timestamp,
+		Chains:    chains,
+		CurrentL1: currentL1,
 	}, nil
 }
 
@@ -1044,6 +1045,22 @@ func (i *Interop) CurrentL1() eth.BlockID {
 	return i.currentL1
 }
 
+// VerifierCurrentL1 returns the verifier's frontier L1 — the highest L1 block
+// the verifier has fully considered — and whether the value is initialised.
+//
+// Unlike a live SyncStatus aggregate, this value advances on every Wait round
+// (refreshCurrentL1OnWait) without needing a new L2 block, so callers can
+// trust it to keep pace with L1 even between L2 batches. Returns ok=false
+// before the verifier has populated the frontier (pre-activation startup).
+func (i *Interop) VerifierCurrentL1() (eth.BlockID, bool) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if i.currentL1 == (eth.BlockID{}) {
+		return eth.BlockID{}, false
+	}
+	return i.currentL1, true
+}
+
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
 // Timestamps before the first verifiable timestamp are already covered by
 // pre-activation consensus or by the safe-head startup handoff.
@@ -1075,6 +1092,60 @@ func (i *Interop) StoredSuperRootAtTimestamp(ts uint64) (data *eth.SuperRootResp
 	}
 	return nil, false, nil
 }
+
+// StoredOptimisticAtTimestamp returns the per-chain optimistic snapshot taken
+// at the moment of verification. Each entry is the OutputV0 preimage, its
+// hash, and the per-chain L1 block at which the L2 head became safe.
+//
+// Serving from this durable snapshot rather than a live SafeDB read protects
+// against reorg/pipeline-reset races: even if a chain has rewound between the
+// verifier observing it and the RPC being served, callers see the exact
+// observation that the verifier acted on.
+//
+// Denylist overlay: when a chain's L2 block at this timestamp was later
+// invalidated and replaced via cross-safe consolidation, the verified record
+// stores the post-replacement (valid) output. The optimistic view must reflect
+// what the chain ORIGINALLY observed before replacement — that's the denied
+// block. The denylist preserves the original preimage and per-chain L1
+// inclusion captured at decision time, so we override with denylist data
+// whenever a denied record exists at the verified L2 head's height.
+func (i *Interop) StoredOptimisticAtTimestamp(ts uint64) (map[eth.ChainID]eth.OutputWithRequiredL1, bool, error) {
+	if ts < i.activationTimestamp {
+		return nil, false, nil
+	}
+	record, err := i.verifiedDB.GetRecord(ts)
+	if errors.Is(err, ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	out := make(map[eth.ChainID]eth.OutputWithRequiredL1, len(record.Chains))
+	for id, obs := range record.Chains {
+		entry := eth.OutputWithRequiredL1{
+			Output:     ptrOf(obs.OutputV0()),
+			OutputRoot: obs.OutputRoot(),
+			RequiredL1: obs.L1Head,
+		}
+		if chain, ok := i.chains[id]; ok {
+			deniedV0, deniedL1, err := chain.LastDeniedAtHeight(obs.L2Head.Number)
+			if err != nil {
+				return nil, false, fmt.Errorf("chain %s: deny list lookup at height %d: %w", id, obs.L2Head.Number, err)
+			}
+			if deniedV0 != nil {
+				entry = eth.OutputWithRequiredL1{
+					Output:     deniedV0,
+					OutputRoot: eth.OutputRoot(deniedV0),
+					RequiredL1: deniedL1,
+				}
+			}
+		}
+		out[id] = entry
+	}
+	return out, true, nil
+}
+
+func ptrOf[T any](v T) *T { return &v }
 
 // IsActiveAt reports whether the interop verifier is responsible for verifying
 // L2 content at the given timestamp. Returns false for timestamps strictly
@@ -1153,11 +1224,11 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 
 // invalidateBlock notifies the chain container to add the block to the denylist
 // and potentially rewind if the chain is currently using that block.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, l1Inclusion eth.BlockID) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, l1Inclusion)
 	return err
 }

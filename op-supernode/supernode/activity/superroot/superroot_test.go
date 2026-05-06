@@ -32,13 +32,26 @@ type mockCC struct {
 }
 
 type mockVerifiedProvider struct {
-	data  *eth.SuperRootResponseData
-	found bool
-	err   error
+	data            *eth.SuperRootResponseData
+	found           bool
+	err             error
+	optimistic      map[eth.ChainID]eth.OutputWithRequiredL1
+	optFound        bool
+	optErr          error
+	currentL1       eth.BlockID
+	currentL1Known  bool
 }
 
 func (m mockVerifiedProvider) StoredSuperRootAtTimestamp(uint64) (*eth.SuperRootResponseData, bool, error) {
 	return m.data, m.found, m.err
+}
+
+func (m mockVerifiedProvider) StoredOptimisticAtTimestamp(uint64) (map[eth.ChainID]eth.OutputWithRequiredL1, bool, error) {
+	return m.optimistic, m.optFound, m.optErr
+}
+
+func (m mockVerifiedProvider) VerifierCurrentL1() (eth.BlockID, bool) {
+	return m.currentL1, m.currentL1Known
 }
 
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
@@ -112,6 +125,9 @@ func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (
 }
 func (m *mockCC) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
 	return nil, nil
+}
+func (m *mockCC) LastDeniedAtHeight(height uint64) (*eth.OutputV0, eth.BlockID, error) {
+	return nil, eth.BlockID{}, nil
 }
 func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil

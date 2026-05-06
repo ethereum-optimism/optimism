@@ -100,6 +100,10 @@ func (m *mockCC) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.O
 	return nil, nil
 }
 
+func (m *mockCC) LastDeniedAtHeight(height uint64) (*eth.OutputV0, eth.BlockID, error) {
+	return nil, eth.BlockID{}, nil
+}
+
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }

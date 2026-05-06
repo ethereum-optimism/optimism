@@ -152,6 +152,27 @@ func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common
 	return c.denyList.GetOutputV0(height, payloadHash)
 }
 
+// LastDeniedAtHeight returns the OutputV0 and per-chain L1 inclusion for the
+// most recently denied block at the given height, or (nil, BlockID{}, nil) if
+// nothing is denied. The L1 inclusion is the L1 block at which the denied
+// optimistic block became safe — captured at decision time so callers can
+// reconstruct OptimisticAtTimestamp.RequiredL1 for invalidated blocks without
+// touching live SafeDB state.
+func (c *simpleChainContainer) LastDeniedAtHeight(height uint64) (*eth.OutputV0, eth.BlockID, error) {
+	if c.denyList == nil {
+		return nil, eth.BlockID{}, fmt.Errorf("deny list not initialized")
+	}
+	rec, err := c.denyList.LastDeniedRecord(height)
+	if err != nil || rec == nil {
+		return nil, eth.BlockID{}, err
+	}
+	return &eth.OutputV0{
+		StateRoot:                rec.StateRoot,
+		MessagePasserStorageRoot: rec.MessagePasserStorageRoot,
+		BlockHash:                rec.PayloadHash,
+	}, rec.L1Inclusion, nil
+}
+
 // OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	if c.engine == nil {

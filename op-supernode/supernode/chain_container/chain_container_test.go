@@ -1279,7 +1279,7 @@ func TestChainContainer_OptimisticOutputAtTimestamp_ReturnsDeniedOutput(t *testi
 	// Block at height 5: timestamp = 1000 + 5*2 = 1010
 	height := uint64(5)
 	ts := genesisTime + height*blockTime
-	require.NoError(t, dl.Add(height, payloadHash, 0, stateRoot, msgPasserRoot))
+	require.NoError(t, dl.Add(height, payloadHash, 0, stateRoot, msgPasserRoot, eth.BlockID{}))
 
 	container := &simpleChainContainer{
 		vncfg:    vncfg,
@@ -1316,12 +1316,12 @@ func TestChainContainer_OptimisticOutputAtTimestamp_UsesLatestDeniedRecord(t *te
 
 	// Add two denied records at the same height — the latest should win
 	firstHash := common.HexToHash("0x1111")
-	require.NoError(t, dl.Add(height, firstHash, 100, eth.Bytes32{0x01}, eth.Bytes32{0x02}))
+	require.NoError(t, dl.Add(height, firstHash, 100, eth.Bytes32{0x01}, eth.Bytes32{0x02}, eth.BlockID{}))
 
 	latestHash := common.HexToHash("0x2222")
 	latestState := eth.Bytes32(common.HexToHash("0xlatest"))
 	latestMsgPasser := eth.Bytes32(common.HexToHash("0xlatestmp"))
-	require.NoError(t, dl.Add(height, latestHash, 200, latestState, latestMsgPasser))
+	require.NoError(t, dl.Add(height, latestHash, 200, latestState, latestMsgPasser, eth.BlockID{}))
 
 	container := &simpleChainContainer{
 		vncfg:    vncfg,

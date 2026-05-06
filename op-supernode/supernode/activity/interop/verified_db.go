@@ -41,6 +41,7 @@ type PendingInvalidation struct {
 	Timestamp                uint64      `json:"timestamp"` // the interop decision timestamp
 	StateRoot                eth.Bytes32 `json:"stateRoot"`
 	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+	L1Inclusion              eth.BlockID `json:"l1Inclusion"`
 }
 
 // VerifiedDB provides persistence for verified timestamps using bbolt.

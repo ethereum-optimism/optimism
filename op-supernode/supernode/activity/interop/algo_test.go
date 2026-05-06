@@ -1006,7 +1006,7 @@ func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, inva
 	return nil
 }
 func (m *algoMockChain) BlockTime() uint64 { return 1 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, l1Inclusion eth.BlockID) (bool, error) {
 	return false, nil
 }
 func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
@@ -1018,6 +1018,9 @@ func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum ui
 }
 func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
 	return nil, nil
+}
+func (m *algoMockChain) LastDeniedAtHeight(height uint64) (*eth.OutputV0, eth.BlockID, error) {
+	return nil, eth.BlockID{}, nil
 }
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil

@@ -15,24 +15,23 @@ func commitVerifiedResult(v *VerifiedDB, result VerifiedResult) error {
 }
 
 func testVerifiedRecord(result VerifiedResult) VerifiedRecord {
-	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(result.L2Heads))
+	chains := make(map[eth.ChainID]ChainObservation, len(result.L2Heads))
 	for chainID, l2Head := range result.L2Heads {
-		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
-			ChainID: chainID,
-			Output:  eth.Bytes32(l2Head.Hash),
-		})
+		chains[chainID] = ChainObservation{
+			L2Head:                   l2Head,
+			L1Head:                   result.L1Inclusion,
+			StateRoot:                eth.Bytes32(l2Head.Hash),
+			MessagePasserStorageRoot: eth.Bytes32{},
+		}
 	}
-	super := eth.NewSuperV1(result.Timestamp, chainOutputs...)
 	currentL1 := result.L1Inclusion
 	if currentL1.Number > 0 {
 		currentL1.Number--
 	}
 	return VerifiedRecord{
-		Timestamp:    result.Timestamp,
-		L1Inclusion:  result.L1Inclusion,
-		L2Heads:      result.L2Heads,
-		ChainOutputs: super.Chains,
-		CurrentL1:    currentL1,
+		Timestamp: result.Timestamp,
+		Chains:    chains,
+		CurrentL1: currentL1,
 	}
 }
 
