@@ -1,0 +1,34 @@
+package:
+  name: op-reth
+  version: 0.0.1
+  epoch: 0
+  description: OP Stack op-reth execution client
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - rust-1.94
+      - openssl-dev
+      - pkgconf
+      - clang-18
+      - libclang-cpp-18
+      - perl
+      - cmake
+
+pipeline:
+  - runs: |
+      cd /home/build/rust
+
+      RUSTFLAGS="-C target-cpu=generic" cargo build \
+        --locked \
+        --profile dev \
+        --bin op-reth \
+        --manifest-path op-reth/bin/Cargo.toml
+
+      install -Dm755 target/debug/op-reth "${{targets.destdir}}"/usr/bin/op-reth

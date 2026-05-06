@@ -1,0 +1,37 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - wolfi-baselayout
+    - ca-certificates-bundle
+    - libssl3
+    - libgcc
+    - glibc
+    - kona-host
+
+archs:
+  - x86_64
+  - aarch64
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+accounts:
+  groups:
+    - groupname: app
+      gid: 10001
+  users:
+    - username: app
+      uid: 10001
+      gid: 10001
+  run-as: 10001
+
+entrypoint:
+  command: /usr/bin/kona-host
+
+layering:
+  strategy: origin
+  budget: 5

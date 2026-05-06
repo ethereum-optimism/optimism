@@ -1,0 +1,186 @@
+package:
+  name: opstack-go
+  version: 0.0.1
+  epoch: 0
+  description: OP Stack Go services
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - go
+
+pipeline:
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-batcher/cmd
+      output: op-batcher
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-conductor/cmd
+      output: op-conductor
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-dispute-mon/cmd
+      output: op-dispute-mon
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-dripper/cmd
+      output: op-dripper
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-faucet/cmd
+      output: op-faucet
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-interop-filter/cmd
+      output: op-interop-filter
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-interop-mon/cmd
+      output: op-interop-mon
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-node/cmd
+      output: op-node
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-proposer/cmd
+      output: op-proposer
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-supervisor/cmd
+      output: op-supervisor
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-supernode/cmd
+      output: op-supernode
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-test-sequencer/cmd
+      output: op-test-sequencer
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-alt-da/cmd/daserver
+      output: da-server
+      ldflags: -s -w -X main.Version=v0.0.0 -X main.GitCommit=${GIT_COMMIT} -X main.GitDate=${GIT_DATE}
+
+subpackages:
+  - name: op-batcher
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-batcher ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-conductor
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-conductor ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-dispute-mon
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-dispute-mon ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-dripper
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-dripper ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-faucet
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-faucet ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-interop-filter
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-interop-filter ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-interop-mon
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-interop-mon ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-node
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-node ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-proposer
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-proposer ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-supervisor
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-supervisor ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-supernode
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-supernode ${{targets.subpkgdir}}/usr/bin/
+
+  - name: op-test-sequencer
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/op-test-sequencer ${{targets.subpkgdir}}/usr/bin/
+
+  - name: da-server
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/da-server ${{targets.subpkgdir}}/usr/bin/

@@ -52,18 +52,34 @@ lint-go-fix: build-customlint
 check-op-geth-version:
   go run ./ops/scripts/check-op-geth-version
 
-# Builds Docker images for Go components using buildx.
+MELANGE_KEY := env('MELANGE_KEY', 'melange.rsa')
+MELANGE_RUNNER := env('MELANGE_RUNNER', if os() == "linux" { "bubblewrap" } else { "docker" })
+
+# Generates a melange signing key if one does not exist.
 [script('bash')]
-golang-docker:
+melange-keygen:
+  [ -f "{{MELANGE_KEY}}" ] || melange keygen "{{MELANGE_KEY}}"
+
+# Builds Docker images for Go components using melange + apko.
+[script('bash')]
+golang-docker: melange-keygen
   set -euo pipefail
-  GIT_COMMIT=$(git rev-parse HEAD) \
-  GIT_DATE=$(git show -s --format='%ct') \
-  IMAGE_TAGS=$(git rev-parse HEAD),latest \
-  docker buildx bake \
-      --progress plain \
-      --load \
-      -f docker-bake.hcl \
-      op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
+  melange build ops/docker/melange/opstack-go.melange.yaml \
+    --arch $(uname -m) \
+    --signing-key {{MELANGE_KEY}} \
+    --source-dir . \
+    --out-dir packages/ \
+    --runner {{MELANGE_RUNNER}}
+  for svc in op-batcher op-conductor op-dispute-mon op-dripper op-faucet \
+    op-interop-filter op-interop-mon op-node op-proposer op-supervisor \
+    op-supernode op-test-sequencer da-server; do
+    apko build "ops/docker/apko/${svc}.apko.yaml" "${svc}:latest" "${svc}.tar" \
+      --arch $(uname -m) \
+      -k {{MELANGE_KEY}}.pub \
+      -r packages/
+    docker load < "${svc}.tar"
+    rm "${svc}.tar"
+  done
 
 # Removes the Docker buildx builder.
 docker-builder-clean:

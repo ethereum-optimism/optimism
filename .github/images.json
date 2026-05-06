@@ -12,7 +12,8 @@
     "ops/docker/op-stack-go/**",
     "op-service/**",
     "op-core/**",
-    "op-chain-ops/**"
+    "op-chain-ops/**",
+    "ops/docker/melange/opstack-go.melange.yaml"
   ],
   "images": {
     "op-node": {
@@ -21,7 +22,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-node",
-      "paths": ["op-node/**"]
+      "paths": ["op-node/**", "ops/docker/apko/op-node.apko.yaml"]
     },
     "op-batcher": {
       "type": "go",
@@ -29,7 +30,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-batcher",
-      "paths": ["op-batcher/**"]
+      "paths": ["op-batcher/**", "ops/docker/apko/op-batcher.apko.yaml"]
     },
     "op-faucet": {
       "type": "go",
@@ -37,7 +38,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-faucet",
-      "paths": ["op-faucet/**"]
+      "paths": ["op-faucet/**", "ops/docker/apko/op-faucet.apko.yaml"]
     },
     "op-program": {
       "type": "go",
@@ -53,7 +54,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-proposer",
-      "paths": ["op-proposer/**"]
+      "paths": ["op-proposer/**", "ops/docker/apko/op-proposer.apko.yaml"]
     },
     "op-challenger": {
       "type": "go",
@@ -69,7 +70,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-dispute-mon",
-      "paths": ["op-dispute-mon/**"]
+      "paths": ["op-dispute-mon/**", "ops/docker/apko/op-dispute-mon.apko.yaml"]
     },
     "op-conductor": {
       "type": "go",
@@ -77,7 +78,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-conductor",
-      "paths": ["op-conductor/**", "op-node/**"]
+      "paths": ["op-conductor/**", "op-node/**", "ops/docker/apko/op-conductor.apko.yaml"]
     },
     "da-server": {
       "type": "go",
@@ -85,7 +86,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "da-server",
-      "paths": ["op-alt-da/**"]
+      "paths": ["op-alt-da/**", "ops/docker/apko/da-server.apko.yaml"]
     },
     "op-supervisor": {
       "type": "go",
@@ -93,7 +94,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-supervisor",
-      "paths": ["op-supervisor/**"]
+      "paths": ["op-supervisor/**", "ops/docker/apko/op-supervisor.apko.yaml"]
     },
     "op-supernode": {
       "type": "go",
@@ -101,7 +102,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-supernode",
-      "paths": ["op-supernode/**", "op-node/**"]
+      "paths": ["op-supernode/**", "op-node/**", "ops/docker/apko/op-supernode.apko.yaml"]
     },
     "op-test-sequencer": {
       "type": "go",
@@ -109,7 +110,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-test-sequencer",
-      "paths": ["op-test-sequencer/**"]
+      "paths": ["op-test-sequencer/**", "ops/docker/apko/op-test-sequencer.apko.yaml"]
     },
     "cannon": {
       "type": "go",
@@ -133,7 +134,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-dripper",
-      "paths": ["op-dripper/**"]
+      "paths": ["op-dripper/**", "ops/docker/apko/op-dripper.apko.yaml"]
     },
     "op-interop-mon": {
       "type": "go",
@@ -141,7 +142,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-interop-mon",
-      "paths": ["op-interop-mon/**"]
+      "paths": ["op-interop-mon/**", "ops/docker/apko/op-interop-mon.apko.yaml"]
     },
     "op-interop-filter": {
       "type": "go",
@@ -149,7 +150,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-interop-filter",
-      "paths": ["op-interop-filter/**"]
+      "paths": ["op-interop-filter/**", "ops/docker/apko/op-interop-filter.apko.yaml"]
     },
     "kona-node": {
       "type": "rust",
@@ -157,7 +158,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "kona-node",
-      "paths": ["rust/**"]
+      "paths": ["rust/**", "ops/docker/apko/kona-node.apko.yaml", "ops/docker/melange/opstack-kona.melange.yaml"]
     },
     "kona-client": {
       "type": "rust",
@@ -165,7 +166,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "kona-client",
-      "paths": ["rust/**"]
+      "paths": ["rust/**", "ops/docker/apko/kona-client.apko.yaml", "ops/docker/melange/opstack-kona.melange.yaml"]
     },
     "kona-host": {
       "type": "rust",
@@ -173,7 +174,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "kona-host",
-      "paths": ["rust/**"]
+      "paths": ["rust/**", "ops/docker/apko/kona-host.apko.yaml", "ops/docker/melange/opstack-kona.melange.yaml"]
     },
     "op-reth": {
       "type": "rust",
@@ -181,7 +182,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-reth",
-      "paths": ["rust/**"]
+      "paths": ["rust/**", "ops/docker/apko/op-reth.apko.yaml", "ops/docker/melange/opstack-reth.melange.yaml"]
     },
     "cannon-builder": {
       "type": "rust",

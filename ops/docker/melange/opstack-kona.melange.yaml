@@ -1,0 +1,57 @@
+package:
+  name: opstack-kona
+  version: 0.0.1
+  epoch: 0
+  description: OP Stack Kona services
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - rust-1.94
+      - openssl-dev
+      - pkgconf
+      - clang-18
+      - libclang-cpp-18
+      - perl
+      - cmake
+
+pipeline:
+  - runs: |
+      ln -sf /home/build/op-core /home/build/rust/op-core
+      cd /home/build/rust
+
+      RUSTFLAGS="-C target-cpu=generic" cargo build \
+        --locked \
+        --profile release \
+        --bin kona-host \
+        --bin kona-node \
+        --bin kona-client
+
+      install -Dm755 target/release/kona-host "${{targets.destdir}}"/usr/bin/kona-host
+      install -Dm755 target/release/kona-node "${{targets.destdir}}"/usr/bin/kona-node
+      install -Dm755 target/release/kona-client "${{targets.destdir}}"/usr/bin/kona-client
+
+subpackages:
+  - name: kona-host
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/kona-host ${{targets.subpkgdir}}/usr/bin/
+
+  - name: kona-node
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/kona-node ${{targets.subpkgdir}}/usr/bin/
+
+  - name: kona-client
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.subpkgdir}}/usr/bin
+          mv ${{targets.destdir}}/usr/bin/kona-client ${{targets.subpkgdir}}/usr/bin/
