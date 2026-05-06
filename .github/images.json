@@ -2,7 +2,7 @@
   "shared_paths": [
     "docker-bake.hcl",
     ".github/workflows/build-images.yaml",
-    ".github/docker-images.json",
+    ".github/images.json",
     ".github/actions/docker-build-prep/**",
     "ops/scripts/compute-git-versions.sh"
   ],

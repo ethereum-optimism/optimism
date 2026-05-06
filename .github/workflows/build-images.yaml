@@ -20,7 +20,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/build-images.yaml'
-      - '.github/docker-images.json'
+      - '.github/images.json'
       - '.github/actions/docker-build-prep/**'
   schedule:
     # Daily build of all images at 02:00 UTC (matches the previous CircleCI schedule).
@@ -54,7 +54,7 @@ jobs:
         id: plan
         uses: ethereum-optimism/factory/actions/plan@d1304a6e3ef93a8fcb0f672707f5f2ae9737a59d
         with:
-          config: .github/docker-images.json
+          config: .github/images.json
       - name: Compute cross-platform check sub-matrices
         id: checks
         env:
