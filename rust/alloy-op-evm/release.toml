@@ -7,5 +7,5 @@ sign-tag = true
 shared-version = true
 pre-release-commit-message = "chore: release {{version}}"
 tag-prefix = "" # tag only once instead of per every crate
-pre-release-hook = ["sh", "-c", "$WORKSPACE_ROOT/scripts/changelog.sh --tag {{version}}"]
+pre-release-hook = ["sh", "-c", "$WORKSPACE_ROOT/alloy-op-evm/scripts/changelog.sh --tag {{version}}"]
 owners = ["github:alloy-rs:core"]
