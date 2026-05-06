@@ -17,6 +17,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title PastNUTBundles
 /// @notice Test-only library for discovering, validating, skipping, and executing prior NUT
@@ -152,18 +153,38 @@ library PastNUTBundles {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
     )
         internal
-        pure
+        view
         returns (bool skip_, string memory reason_)
     {
-        address priorL2CM = extractL2CM(_priorTxns, _entry.path);
-        address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
-        if (priorL2CM == currentL2CM) return (true, "L2CM matches current");
-
         if (_shouldSkipKarstBootstrap(_entry, _priorTxns, _currentTxns)) {
             return (true, "current bundle contains same Karst direct CREATE2 bootstrap");
         }
 
+        address priorL2CM = extractL2CM(_priorTxns, _entry.path);
+        address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
+
+        if (priorL2CM == currentL2CM) {
+            if (_isKarst(_entry) && !_isConditionalDeployerInitialized()) {
+                return (false, "");
+            }
+            return (true, "L2CM matches current");
+        }
+
         return (false, "");
+    }
+
+    /// @notice Returns true when the entry is the Karst NUT bundle.
+    function _isKarst(NUTBundle memory _entry) internal pure returns (bool) {
+        return keccak256(bytes(_entry.fork)) == keccak256(bytes("karst"));
+    }
+
+    /// @notice Returns true when the live fork has a usable ConditionalDeployer implementation.
+    function _isConditionalDeployerInitialized() internal view returns (bool) {
+        try ISemver(Predeploys.CONDITIONAL_DEPLOYER).version() returns (string memory) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     /// @notice Returns true when Karst staging should be skipped because the current bundle owns
@@ -177,7 +198,7 @@ library PastNUTBundles {
         pure
         returns (bool)
     {
-        if (keccak256(bytes(_entry.fork)) != keccak256(bytes("karst"))) return false;
+        if (!_isKarst(_entry)) return false;
 
         for (uint256 i = 0; i < _priorTxns.length; i++) {
             if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;
