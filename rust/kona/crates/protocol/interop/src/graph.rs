@@ -824,6 +824,68 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_derive_and_resolve_graph_initiating_chain_interop_time_none_rejected() {
+        // The init-chain timestamp gate at `check_single_dependency` uses
+        // `unwrap_or_default()` on `interop_time`. When the init chain's `interop_time`
+        // is `None`, the gate degrades to `init_ts < 0 + block_time`, which is false for
+        // any real timestamp — so arbitrary logs on a chain without interop activation
+        // are accepted as valid initiating messages.
+        //
+        // Spec: a chain with no interop activation cannot produce valid init messages.
+        // Op-supervisor's `IsInterop(ts) = InteropTime != nil && ts >= *InteropTime`
+        // returns false in this case, rejecting the message.
+        let mut superchain = default_superchain();
+
+        // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
+        // (bundled registry stale, oracle-supplied, or genuinely pre-interop but mis-included
+        // in the dep set) has no interop activation.
+        superchain
+            .chain(CHAIN_A_ID)
+            .modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
+        // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
+        assert!(
+            superchain.chain(CHAIN_A_ID).rollup_config.hardforks.interop_time.is_none(),
+            "test precondition: init chain must have interop_time = None"
+        );
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        // Attacker plants an arbitrary log on A and references it from an executing
+        // message on B. With the broken gate, kona accepts. With a spec-correct gate,
+        // kona rejects because A has no interop activation configured.
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages — forged init message must be rejected")
+        };
+
+        assert!(
+            invalid_messages.contains_key(&CHAIN_B_ID),
+            "exec chain B's message referencing a non-interop init chain must be invalidated, got {:?}",
+            invalid_messages
+        );
+    }
+
+    #[tokio::test]
     async fn test_derive_and_resolve_graph_executing_before_interop() {
         let mut superchain = default_superchain();
 
