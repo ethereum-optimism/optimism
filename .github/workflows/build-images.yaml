@@ -52,7 +52,7 @@ jobs:
           ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - name: Plan
         id: plan
-        uses: ethereum-optimism/factory/actions/plan@d1304a6e3ef93a8fcb0f672707f5f2ae9737a59d
+        uses: ethereum-optimism/factory/actions/plan@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
         with:
           config: .github/images.json
       - name: Compute cross-platform check sub-matrices
@@ -103,7 +103,7 @@ jobs:
       fail-fast: true
       matrix:
         include: ${{ fromJson(needs.plan.outputs.matrix_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@d1304a6e3ef93a8fcb0f672707f5f2ae9737a59d
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
     with:
       mode: ${{ matrix.mode }}
       image_name: ${{ matrix.image_name }}
@@ -112,6 +112,8 @@ jobs:
       target: ${{ matrix.target }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
+      runner_amd64: oplabs-ubuntu-x86
+      runner_arm64: oplabs-ubuntu-arm
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
       set: |
