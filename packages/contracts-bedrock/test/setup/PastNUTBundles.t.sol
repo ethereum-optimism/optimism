@@ -17,7 +17,7 @@ import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title PastNUTBundles_TestInit
-/// @notice Reusable harness for `PastNUTBundles` unit tests.
+/// @notice Shared test init for `PastNUTBundles` unit tests.
 abstract contract PastNUTBundles_TestInit is Test {
     /// @notice Path to the committed Karst NUT bundle, relative to `packages/contracts-bedrock`.
     string internal constant KARST_BUNDLE_PATH = "../../op-core/nuts/bundles/karst_nut_bundle.json";
@@ -121,13 +121,13 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
     }
 }
 
-/// @title PastNUTBundles_stagePastBundlesAgainst_Test
-/// @notice Exercises the staging loop using the test-friendly variant that accepts an explicit current transaction
+/// @title PastNUTBundles_stagePastBundles_Test
+/// @notice Exercises the staging loop using the test-friendly overload that accepts an explicit current transaction
 ///         array rather than reading `Constants.CURRENT_BUNDLE_PATH`.
-contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit {
+contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
     /// @notice When the current L2CM matches a non-Karst prior bundle's L2CM, the staging loop
     ///         must not invoke the executor for that bundle.
-    function test_stagePastBundlesAgainst_skipsWhenL2CMMatches_succeeds() public {
+    function test_stagePastBundles_skipsWhenL2CMMatches_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -136,13 +136,13 @@ contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit 
 
         // No call to executeAll should occur when the current L2CM matches the prior bundle's.
         vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
-        PastNUTBundles.stagePastBundlesAgainst(karstTxns, script, entries);
+        PastNUTBundles.stagePastBundles(karstTxns, script, entries);
     }
 
     /// @notice When the current bundle already contains a direct deterministic deployment from a
     ///         prior bundle, staging that prior bundle would make the current bundle collide when
     ///         it later reaches the same CREATE2 deployment.
-    function test_stagePastBundlesAgainst_skipsWhenCurrentContainsDirectCreate2_succeeds() public {
+    function test_stagePastBundles_skipsWhenCurrentContainsDirectCreate2_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -161,12 +161,12 @@ contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit 
         // No call to executeAll should occur even though the current L2CM differs, because the
         // current bundle owns the same non-idempotent direct CREATE2 deployment.
         vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
-        PastNUTBundles.stagePastBundlesAgainst(currentTxns, script, entries);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
     /// @notice The direct CREATE2 overlap skip is a Karst bootstrap exception, not a generic
     ///         "matching transaction means skip the whole prior bundle" rule.
-    function test_stagePastBundlesAgainst_nonKarstDirectCreate2Overlap_executes() public {
+    function test_stagePastBundles_nonKarstDirectCreate2Overlap_executes() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -185,12 +185,12 @@ contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit 
         vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
-        PastNUTBundles.stagePastBundlesAgainst(currentTxns, script, entries);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
     /// @notice When the current L2CM differs from a prior bundle's L2CM, the staging loop must
     ///         invoke the executor with the parsed prior transactions.
-    function test_stagePastBundlesAgainst_executesWhenL2CMDiffers_succeeds() public {
+    function test_stagePastBundles_executesWhenL2CMDiffers_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -210,12 +210,12 @@ contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit 
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
         // address(1) cannot collide with any CREATE2-derived L2CM, so Karst will be staged.
-        PastNUTBundles.stagePastBundlesAgainst(currentTxns, script, entries);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
     /// @notice Karst is still staged on live forks that are missing the ConditionalDeployer
     ///         bootstrap, even when Karst's L2CM matches the current bundle's L2CM.
-    function test_stagePastBundlesAgainst_karstSameL2CMExecutesWhenConditionalDeployerMissing_succeeds() public {
+    function test_stagePastBundles_karstSameL2CMExecutesWhenConditionalDeployerMissing_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -238,6 +238,6 @@ contract PastNUTBundles_stagePastBundlesAgainst_Test is PastNUTBundles_TestInit 
         vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
-        PastNUTBundles.stagePastBundlesAgainst(currentTxns, script, entries);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 }

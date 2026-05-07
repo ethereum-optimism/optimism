@@ -90,36 +90,26 @@ library PastNUTBundles {
         if (l2cm_ == address(0)) revert ZeroL2CM(_path);
     }
 
-    /// @notice Stages discovered prior NUT bundles in front of the current bundle's expected state.
+    /// @notice Fetches committed prior NUT bundles via the Go FFI and stages them in front of the
+    ///         current bundle's expected state.
     /// @dev Accepts the already-generated current bundle transactions so parallel fork-test setup
     ///      does not re-read `current-upgrade-bundle.json` while another test is writing it.
+    /// @param _currentTxns Parsed current bundle transactions.
+    /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
     function stagePastBundles(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
         ExecuteNUTBundle _executeScript
     )
         internal
     {
-        stagePastBundlesAgainst(_currentTxns, _executeScript);
+        stagePastBundles(_currentTxns, _executeScript, fetchPastBundles());
     }
 
-    /// @notice Fetches and stages prior NUT bundles.
-    /// @param _currentTxns Parsed current bundle transactions.
-    /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
-    function stagePastBundlesAgainst(
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
-        ExecuteNUTBundle _executeScript
-    )
-        internal
-    {
-        NUTBundle[] memory entries = fetchPastBundles();
-        stagePastBundlesAgainst(_currentTxns, _executeScript, entries);
-    }
-
-    /// @notice Stages the given prior NUT bundles.
+    /// @notice Stages the given prior NUT bundles in front of the current bundle's expected state.
     /// @param _currentTxns Parsed current bundle transactions.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
     /// @param _entries Ordered prior bundle entries to stage.
-    function stagePastBundlesAgainst(
+    function stagePastBundles(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
         ExecuteNUTBundle _executeScript,
         NUTBundle[] memory _entries
