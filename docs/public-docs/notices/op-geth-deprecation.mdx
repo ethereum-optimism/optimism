@@ -49,9 +49,11 @@ For OP Mainnet snapshots, you can find [snapshots here](https://datadirs.optimis
 As soon as op-reth is fully synced, take a snapshot. Refresh it regularly as Glamsterdam approaches.
 Syncing an op-reth node as soon as possible helps ensure a snapshot is available for other validators on your chain so they do not need to sync from scratch.
 
+Withdrawal proving calls `eth_getProof` against the L2 block where the withdrawal was included on every chain, permissioned or permissionless. Because op-reth does not serve historical `eth_getProof` by default, all chain operators should follow the [historical proofs with op-reth guide](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs) to keep withdrawal finalization working after migrating from op-geth.
+
 ### Permissionless Chain Operators
 
-In parallel, the fault proof program is moving from **op-program** to **kona client**. Current op-program deployments are expected to remain usable until the next hardfork, Karst, when chain operators will need to migrate to **kona-client**. Optimism will handle the onchain prestate updates for managed chains. If you operate a permissionless fault proof chain, checkout our guide on [how to run historical proofs with op-reth](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs).
+In parallel, the fault proof program is moving from **op-program** to **kona client**. Current op-program deployments are expected to remain usable until the next hardfork, Karst, when chain operators will need to migrate to **kona-client**. Optimism will handle the onchain prestate updates for managed chains.
 
 ## Resources
 
