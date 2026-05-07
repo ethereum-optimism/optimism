@@ -1393,6 +1393,180 @@ func TestRewind(t *testing.T) {
 				requireFuture(t, db, 17, 0, tOffset(17), createHash(42))
 			})
 	})
+
+	t.Run("HashConflictLeavesStateUntouched", func(t *testing.T) {
+		t50, t51, t52 := uint64(500), uint64(502), uint64(504)
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				bl50 := eth.BlockID{Hash: createHash(50), Number: 50}
+				require.NoError(t, db.SealBlock(createHash(49), bl50, t50))
+				require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
+				bl51 := eth.BlockID{Hash: createHash(51), Number: 51}
+				require.NoError(t, db.SealBlock(bl50.Hash, bl51, t51))
+				require.NoError(t, db.AddLog(createHash(2), bl51, 0, nil))
+				bl52 := eth.BlockID{Hash: createHash(52), Number: 52}
+				require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
+
+				before, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl52, before)
+
+				// Rewind to block 51 with the wrong hash. Validation must fail
+				// before any mutation, leaving disk and in-memory state untouched.
+				inv := &reads.TestInvalidator{}
+				wrong := eth.BlockID{Hash: createHash(9999), Number: 51}
+				require.ErrorIs(t, db.Rewind(inv, wrong), types.ErrConflict)
+				require.False(t, inv.Invalidated, "validation failure must not invalidate readers")
+
+				after, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl52, after, "head must be unchanged after a failed rewind")
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// All pre-rewind data must still be present.
+				requireContains(t, db, 51, 0, t51, createHash(1))
+				requireContains(t, db, 52, 0, t52, createHash(2))
+				head, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, uint64(52), head.Number)
+				require.Equal(t, createHash(52), head.Hash)
+			})
+	})
+
+	t.Run("HeadIdentityAcrossCheckpoint", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// Build well past a search checkpoint so the rewind target's
+				// preceding checkpoint differs from the pre-rewind tail's checkpoint.
+				bl0 := eth.BlockID{Hash: createHash(0), Number: 0}
+				require.NoError(t, db.SealBlock(createHash(-1), bl0, tOffset(0)))
+				// Logs added on top of bl0 belong to block 1 once bl1 is sealed.
+				for i := uint32(0); m.entryCount < searchCheckpointFrequency*2; i++ {
+					require.NoError(t, db.AddLog(createHash(int(i)), bl0, i, nil))
+				}
+				bl1 := eth.BlockID{Hash: createHash(1), Number: 1}
+				require.NoError(t, db.SealBlock(bl0.Hash, bl1, tOffset(1)))
+				bl2 := eth.BlockID{Hash: createHash(2), Number: 2}
+				require.NoError(t, db.SealBlock(bl1.Hash, bl2, tOffset(2)))
+
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, bl1))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, tOffset(1), inv.InvalidatedDerivedTimestamp)
+
+				head, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl1, head, "head must be exactly the rewind target")
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// All block-1 logs must still be present after a checkpoint-crossing rewind.
+				requireContains(t, db, 1, 0, tOffset(1), createHash(0))
+				requireContains(t, db, 1, 5, tOffset(1), createHash(5))
+				// State after rewind must accept new blocks built directly on bl1.
+				bl2alt := eth.BlockID{Hash: createHash(2222), Number: 2}
+				require.NoError(t, db.SealBlock(createHash(1), bl2alt, tOffset(20)))
+				head, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl2alt, head)
+			})
+	})
+
+	t.Run("RewindToCurrentHeadIsNoop", func(t *testing.T) {
+		t50, t51 := uint64(500), uint64(502)
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				bl50 := eth.BlockID{Hash: createHash(50), Number: 50}
+				require.NoError(t, db.SealBlock(createHash(49), bl50, t50))
+				require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
+				bl51 := eth.BlockID{Hash: createHash(51), Number: 51}
+				require.NoError(t, db.SealBlock(bl50.Hash, bl51, t51))
+
+				countBefore := m.entryCount
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, bl51))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, t51, inv.InvalidatedDerivedTimestamp)
+				require.Equal(t, countBefore, m.entryCount, "no entries should be removed")
+
+				head, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl51, head)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 51, 0, t51, createHash(1))
+				// Subsequent writes must work against the unchanged state.
+				bl51 := eth.BlockID{Hash: createHash(51), Number: 51}
+				require.NoError(t, db.AddLog(createHash(99), bl51, 0, nil))
+				bl52 := eth.BlockID{Hash: createHash(52), Number: 52}
+				require.NoError(t, db.SealBlock(bl51.Hash, bl52, uint64(504)))
+				requireContains(t, db, 52, 0, uint64(504), createHash(99))
+			})
+	})
+
+	t.Run("ChainedRewindsAndWrites", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// Build a chain of blocks 0..10 where each block contains one log.
+				// AddLog(_, parent, _) writes a log into the next block to be sealed,
+				// so the seal-then-add-then-seal pattern places one log inside block i.
+				prev := common.Hash{}
+				prevID := eth.BlockID{}
+				for i := uint32(0); i <= 10; i++ {
+					if i > 0 {
+						require.NoError(t, db.AddLog(createHash(int(100+i)), prevID, 0, nil))
+					}
+					bl := eth.BlockID{Hash: createHash(int(i)), Number: uint64(i)}
+					require.NoError(t, db.SealBlock(prev, bl, tOffset(int(i))))
+					prev = bl.Hash
+					prevID = bl
+				}
+
+				inv1 := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv1, createID(5)))
+				require.True(t, inv1.Invalidated)
+				require.Equal(t, tOffset(5), inv1.InvalidatedDerivedTimestamp)
+				head, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, createID(5), head)
+
+				// Build a divergent fork on top of bl5, again with one log per block.
+				prev = createHash(5)
+				prevID = createID(5)
+				for i := uint32(6); i <= 9; i++ {
+					require.NoError(t, db.AddLog(createHash(int(200+i)), prevID, 0, nil))
+					bl := eth.BlockID{Hash: createHash(int(i) + 1000), Number: uint64(i)}
+					require.NoError(t, db.SealBlock(prev, bl, tOffset(int(i)+1000)))
+					prev = bl.Hash
+					prevID = bl
+				}
+
+				// Rewind into the new fork.
+				inv2 := &reads.TestInvalidator{}
+				forked7 := eth.BlockID{Hash: createHash(1007), Number: 7}
+				require.NoError(t, db.Rewind(inv2, forked7))
+				require.True(t, inv2.Invalidated)
+				require.Equal(t, tOffset(1007), inv2.InvalidatedDerivedTimestamp)
+
+				head, ok = db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, forked7, head)
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				// Block 5's log (from the original chain) survives.
+				requireContains(t, db, 5, 0, tOffset(5), createHash(105))
+				// Block 7's log (from the divergent fork) survives.
+				requireContains(t, db, 7, 0, tOffset(1007), createHash(207))
+				// Block 8's log was truncated by the second rewind.
+				requireFuture(t, db, 8, 0, tOffset(1008), createHash(208))
+
+				// Can keep writing on top of the post-rewind head.
+				forked7 := eth.BlockID{Hash: createHash(1007), Number: 7}
+				require.NoError(t, db.AddLog(createHash(31415), forked7, 0, nil))
+				bl8 := eth.BlockID{Hash: createHash(2008), Number: 8}
+				require.NoError(t, db.SealBlock(forked7.Hash, bl8, tOffset(2008)))
+				requireContains(t, db, 8, 0, tOffset(2008), createHash(31415))
+			})
+	})
 }
 
 type stubMetrics struct {

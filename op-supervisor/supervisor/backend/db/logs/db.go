@@ -645,14 +645,13 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 		return err
 	}
 	defer release()
-	// Truncate to contain idx entries. The Truncate func keeps the given index as last index.
+	// iter has already hydrated the post-rewind logContext by walking up to newHead's seal,
+	// so the only remaining mutation is the truncate itself. If truncate fails the in-memory
+	// state stays consistent with disk; if it succeeds we commit the precomputed context.
 	if err := db.store.Truncate(iter.NextIndex() - 1); err != nil {
 		return fmt.Errorf("failed to truncate to block %s: %w", newHead, err)
 	}
-	// Use db.init() to find the log context for the new latest log entry
-	if err := db.init(true); err != nil {
-		return fmt.Errorf("failed to find new last entry context: %w", err)
-	}
+	db.lastEntryContext = iter.current
 	return nil
 }
 
