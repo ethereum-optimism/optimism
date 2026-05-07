@@ -150,7 +150,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         entries[0] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
 
         // No call to executeAll should occur when the current L2CM matches the prior bundle's.
-        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
         PastNUTBundles.stagePastBundles(karstTxns, script, entries);
     }
 
@@ -175,13 +175,13 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
 
         // No call to executeAll should occur even though the current L2CM differs, because the
         // current bundle owns the same non-idempotent direct CREATE2 deployment.
-        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
     /// @notice The direct CREATE2 overlap skip is a Karst bootstrap exception, not a generic
     ///         "matching transaction means skip the whole prior bundle" rule.
-    function test_stagePastBundles_nonKarstDirectCreate2Overlap_executes() public {
+    function test_stagePastBundles_nonKarstDirectCreate2Overlap_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
@@ -197,7 +197,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
         entries[0] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
 
-        vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
+        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
@@ -221,7 +221,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
 
         // Mock the actual execution so the test does not require a forked L2 environment.
-        vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
+        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
         // address(1) cannot collide with any CREATE2-derived L2CM, so Karst will be staged.
@@ -246,11 +246,9 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
 
         vm.mockCallRevert(
-            Predeploys.CONDITIONAL_DEPLOYER,
-            abi.encodeWithSelector(ISemver.version.selector),
-            abi.encodeWithSignature("Error(string)", "not initialized")
+            Predeploys.CONDITIONAL_DEPLOYER, abi.encodePacked(ISemver.version.selector), bytes("not initialized")
         );
-        vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
+        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
 
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
@@ -274,11 +272,9 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
 
-        vm.mockCall(
-            Predeploys.CONDITIONAL_DEPLOYER, abi.encodeWithSelector(ISemver.version.selector), abi.encode("1.0.0")
-        );
+        vm.mockCall(Predeploys.CONDITIONAL_DEPLOYER, abi.encodePacked(ISemver.version.selector), abi.encode("1.0.0"));
 
-        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
@@ -289,7 +285,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](0);
 
-        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
 
@@ -315,7 +311,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
         entries[1] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
 
-        vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
+        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 1);
 
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);

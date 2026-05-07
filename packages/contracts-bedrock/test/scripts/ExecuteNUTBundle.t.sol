@@ -28,7 +28,7 @@ contract ExecuteNUTBundle_Target {
     }
 
     function revertWithReason() external pure {
-        revert("target failed");
+        revert("Target: failed");
     }
 }
 
@@ -93,7 +93,7 @@ contract ExecuteNUTBundle_Test is Test {
             to: TARGET
         });
 
-        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - target failed");
+        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - Target: failed");
         script.executeAll(txns);
     }
 
@@ -123,7 +123,7 @@ contract ExecuteNUTBundle_Test is Test {
             to: TARGET
         });
 
-        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - target failed");
+        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - Target: failed");
         script.executeAll(txns);
     }
 
