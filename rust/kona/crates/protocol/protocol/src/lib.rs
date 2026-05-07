@@ -21,7 +21,7 @@ pub use batch::{
 };
 
 mod brotli;
-pub use brotli::{BrotliDecompressionError, decompress_brotli};
+pub use brotli::{BrotliDecompressionError, decompress_brotli, decompress_brotli_strict};
 
 mod sync;
 pub use sync::SyncStatus;

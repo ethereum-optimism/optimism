@@ -80,6 +80,78 @@ pub fn decompress_brotli(
     Ok(output)
 }
 
+/// Strict variant: accept only if brotli reaches `ResultSuccess` with all input consumed,
+/// OR the output reaches the size cap exactly. Anything else (truncated, corrupt with partial
+/// output, leftover input bytes after success) is rejected.
+#[allow(clippy::large_stack_frames)]
+pub fn decompress_brotli_strict(
+    data: &[u8],
+    max_rlp_bytes_per_channel: usize,
+) -> Result<Vec<u8>, BrotliDecompressionError> {
+    declare_stack_allocator_struct!(MemPool, 4096, stack);
+
+    let mut u8_buffer = vec![0; 32 * 1024 * 1024].into_boxed_slice();
+    let mut u32_buffer = vec![0; 1024 * 1024].into_boxed_slice();
+    let mut hc_buffer = vec![HuffmanCode::default(); 4 * 1024 * 1024].into_boxed_slice();
+    let u8_allocator = MemPool::<u8>::new_allocator(&mut u8_buffer, bzero);
+    let u32_allocator = MemPool::<u32>::new_allocator(&mut u32_buffer, bzero);
+    let hc_allocator = MemPool::<HuffmanCode>::new_allocator(&mut hc_buffer, bzero);
+    let mut brotli_state = BrotliState::new(u8_allocator, u32_allocator, hc_allocator);
+
+    let mut output = vec![0; core::cmp::min(data.len(), max_rlp_bytes_per_channel)];
+    let mut available_in = data.len();
+    let mut input_offset = 0;
+    let mut available_out = output.len();
+    let mut output_offset = 0;
+    let mut written = 0;
+    let mut hit_cap = false;
+    let mut last_result;
+
+    loop {
+        last_result = brotli::BrotliDecompressStream(
+            &mut available_in,
+            &mut input_offset,
+            data,
+            &mut available_out,
+            &mut output_offset,
+            &mut output,
+            &mut written,
+            &mut brotli_state,
+        );
+        let old_len = output.len();
+
+        match last_result {
+            BrotliResult::NeedsMoreOutput if old_len >= max_rlp_bytes_per_channel => {
+                hit_cap = true;
+                break;
+            }
+            BrotliResult::NeedsMoreOutput => {
+                let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
+                output.resize(new_len, 0);
+                available_out += new_len - old_len;
+            }
+            BrotliResult::ResultSuccess => break,
+            // STRICT: NeedsMoreInput or ResultFailure → reject regardless of bytes written.
+            _ => return Err(BrotliDecompressionError::DecompressionFailed(last_result)),
+        }
+    }
+
+    // Future-fork rule: reject if the output would exceed the size cap. We do NOT
+    // accept the truncated-at-cap variant; the channel must fit in MAX entirely.
+    if hit_cap {
+        return Err(BrotliDecompressionError::DecompressionFailed(last_result));
+    }
+
+    // Must have reached ResultSuccess with all input consumed.
+    debug_assert!(matches!(last_result, BrotliResult::ResultSuccess));
+    if available_in != 0 {
+        return Err(BrotliDecompressionError::DecompressionFailed(last_result));
+    }
+
+    output.truncate(written);
+    Ok(output)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

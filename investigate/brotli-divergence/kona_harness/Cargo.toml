@@ -1,0 +1,14 @@
+[package]
+name = "kona-brotli-harness"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "kona-brotli-harness"
+path = "src/main.rs"
+
+[dependencies]
+kona-protocol = { path = "../../../rust/kona/crates/protocol/protocol", features = ["std"] }
+kona-genesis = { path = "../../../rust/kona/crates/protocol/genesis", features = ["std"] }
+
+[workspace]
