@@ -552,15 +552,16 @@ func (db *DB) debugTip() {
 	}
 }
 
-func (db *DB) flush() error {
-	for i, e := range db.lastEntryContext.out {
+func (db *DB) flush(next *logContext) error {
+	for i, e := range next.out {
 		db.log.Trace("appending entry", "type", e.Type(), "entry", hexutil.Bytes(e[:]),
-			"next", int(db.lastEntryContext.nextEntryIndex)-len(db.lastEntryContext.out)+i)
+			"next", int(next.nextEntryIndex)-len(next.out)+i)
 	}
-	if err := db.store.Append(db.lastEntryContext.out...); err != nil {
+	if err := db.store.Append(next.out...); err != nil {
 		return fmt.Errorf("failed to append entries: %w", err)
 	}
-	db.lastEntryContext.out = db.lastEntryContext.out[:0]
+	next.out = next.out[:0]
+	db.lastEntryContext = *next
 	db.updateEntryCountMetric()
 	return nil
 }
@@ -569,22 +570,24 @@ func (db *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uin
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	if err := db.lastEntryContext.SealBlock(parentHash, block, timestamp); err != nil {
+	next := db.lastEntryContext
+	if err := next.SealBlock(parentHash, block, timestamp); err != nil {
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 	db.log.Trace("Sealed block", "parent", parentHash, "block", block, "timestamp", timestamp)
-	return db.flush()
+	return db.flush(&next)
 }
 
 func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	if err := db.lastEntryContext.ApplyLog(parentBlock, logIdx, logHash, execMsg); err != nil {
+	next := db.lastEntryContext
+	if err := next.ApplyLog(parentBlock, logIdx, logHash, execMsg); err != nil {
 		return fmt.Errorf("failed to apply log: %w", err)
 	}
 	db.log.Trace("Applied log", "parentBlock", parentBlock, "logIndex", logIdx, "logHash", logHash, "executing", execMsg != nil)
-	return db.flush()
+	return db.flush(&next)
 }
 
 // Clear clears the DB such that there is no data left.

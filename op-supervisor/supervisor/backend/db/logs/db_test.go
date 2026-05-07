@@ -2,6 +2,7 @@ package logs
 
 import (
 	"encoding/binary"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1569,6 +1570,58 @@ func TestRewind(t *testing.T) {
 	})
 }
 
+func TestAppendFailureLeavesStateUntouched(t *testing.T) {
+	createDB := func(t *testing.T) (*DB, *failingAppendStore) {
+		t.Helper()
+		store := &failingAppendStore{
+			MemEntryStore: &entrydb.MemEntryStore[EntryType, Entry]{},
+		}
+		db, err := NewFromEntryStore(testlog.Logger(t, log.LvlTrace), &stubMetrics{}, eth.ChainIDFromUInt64(123), store, false)
+		require.NoError(t, err)
+		return db, store
+	}
+
+	t.Run("SealBlock", func(t *testing.T) {
+		db, store := createDB(t)
+		appendErr := errors.New("append failed")
+		store.appendErr = appendErr
+
+		genesis := createID(0)
+		require.ErrorIs(t, db.SealBlock(common.Hash{}, genesis, 100), appendErr)
+		head, ok := db.LatestSealedBlock()
+		require.False(t, ok, "failed seal must not advance in-memory head")
+		require.Equal(t, eth.BlockID{}, head)
+		require.EqualValues(t, 0, store.Size(), "failed seal must not append entries")
+
+		store.appendErr = nil
+		require.NoError(t, db.SealBlock(common.Hash{}, genesis, 100), "same seal should be retryable")
+		head, ok = db.LatestSealedBlock()
+		require.True(t, ok)
+		require.Equal(t, genesis, head)
+	})
+
+	t.Run("AddLog", func(t *testing.T) {
+		db, store := createDB(t)
+		genesis := createID(0)
+		require.NoError(t, db.SealBlock(common.Hash{}, genesis, 100))
+		entryCountBefore := store.Size()
+
+		appendErr := errors.New("append failed")
+		store.appendErr = appendErr
+		require.ErrorIs(t, db.AddLog(createHash(1), genesis, 0, nil), appendErr)
+		require.Equal(t, entryCountBefore, store.Size(), "failed log append must not append entries")
+		head, ok := db.LatestSealedBlock()
+		require.True(t, ok)
+		require.Equal(t, genesis, head, "failed log append must not advance in-memory state")
+
+		store.appendErr = nil
+		require.NoError(t, db.AddLog(createHash(1), genesis, 0, nil), "same log should be retryable")
+		bl1 := createID(1)
+		require.NoError(t, db.SealBlock(genesis.Hash, bl1, 101))
+		requireContains(t, db, 1, 0, 101, createHash(1))
+	})
+}
+
 type stubMetrics struct {
 	entryCount           int64
 	entriesReadForSearch int64
@@ -1585,3 +1638,17 @@ func (s *stubMetrics) RecordDBSearchEntriesRead(count int64) {
 var _ Metrics = (*stubMetrics)(nil)
 
 var _ entrydb.EntryStore[EntryType, Entry] = (*entrydb.MemEntryStore[EntryType, Entry])(nil)
+
+type failingAppendStore struct {
+	*entrydb.MemEntryStore[EntryType, Entry]
+	appendErr error
+}
+
+func (s *failingAppendStore) Append(entries ...Entry) error {
+	if s.appendErr != nil {
+		return s.appendErr
+	}
+	return s.MemEntryStore.Append(entries...)
+}
+
+var _ entrydb.EntryStore[EntryType, Entry] = (*failingAppendStore)(nil)
