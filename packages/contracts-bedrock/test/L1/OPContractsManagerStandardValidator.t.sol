@@ -248,17 +248,19 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             address owner = proxyAdmin.owner();
 
             // Prepare the upgrade input.
+            // note: Init bond is set to a non-zero value and not fetched from the factory
+            // as enabled games with 0 init bond are rejected by the OPCM.
             IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
                 new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
             });
             disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -270,7 +272,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             });
             disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
