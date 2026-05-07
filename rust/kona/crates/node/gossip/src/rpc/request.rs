@@ -107,7 +107,7 @@ pub enum P2pRpcRequest {
 
 impl P2pRpcRequest {
     /// Handles the peer count request.
-    pub fn handle<G: ConnectionGate>(self, gossip: &mut GossipDriver<G>, disc: &Discv5Handler) {
+    pub fn handle<G: ConnectionGate, H: crate::Handler>(self, gossip: &mut GossipDriver<G, H>, disc: &Discv5Handler) {
         match self {
             Self::PeerCount(s) => Self::handle_peer_count(s, gossip, disc),
             Self::DiscoveryTable(s) => Self::handle_discovery_table(s, disc),
@@ -130,59 +130,59 @@ impl P2pRpcRequest {
         }
     }
 
-    fn protect_peer<G: ConnectionGate>(id: PeerId, gossip: &mut GossipDriver<G>) {
+    fn protect_peer<G: ConnectionGate, H: crate::Handler>(id: PeerId, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.protect_peer(id);
     }
 
-    fn unprotect_peer<G: ConnectionGate>(id: PeerId, gossip: &mut GossipDriver<G>) {
+    fn unprotect_peer<G: ConnectionGate, H: crate::Handler>(id: PeerId, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.unprotect_peer(id);
     }
 
-    fn block_addr<G: ConnectionGate>(address: IpAddr, gossip: &mut GossipDriver<G>) {
+    fn block_addr<G: ConnectionGate, H: crate::Handler>(address: IpAddr, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.block_addr(address);
     }
 
-    fn unblock_addr<G: ConnectionGate>(address: IpAddr, gossip: &mut GossipDriver<G>) {
+    fn unblock_addr<G: ConnectionGate, H: crate::Handler>(address: IpAddr, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.unblock_addr(address);
     }
 
-    fn list_blocked_addrs<G: ConnectionGate>(s: Sender<Vec<IpAddr>>, gossip: &GossipDriver<G>) {
+    fn list_blocked_addrs<G: ConnectionGate, H: crate::Handler>(s: Sender<Vec<IpAddr>>, gossip: &GossipDriver<G, H>) {
         let blocked_addrs = gossip.connection_gate.list_blocked_addrs();
         if let Err(e) = s.send(blocked_addrs) {
             warn!(target: "p2p::rpc", "Failed to send blocked addresses through response channel: {:?}", e);
         }
     }
 
-    fn block_peer<G: ConnectionGate>(id: PeerId, gossip: &mut GossipDriver<G>) {
+    fn block_peer<G: ConnectionGate, H: crate::Handler>(id: PeerId, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.block_peer(&id);
         gossip.swarm.behaviour_mut().gossipsub.blacklist_peer(&id);
     }
 
-    fn unblock_peer<G: ConnectionGate>(id: PeerId, gossip: &mut GossipDriver<G>) {
+    fn unblock_peer<G: ConnectionGate, H: crate::Handler>(id: PeerId, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.unblock_peer(&id);
         gossip.swarm.behaviour_mut().gossipsub.remove_blacklisted_peer(&id);
     }
 
-    fn list_blocked_peers<G: ConnectionGate>(s: Sender<Vec<PeerId>>, gossip: &GossipDriver<G>) {
+    fn list_blocked_peers<G: ConnectionGate, H: crate::Handler>(s: Sender<Vec<PeerId>>, gossip: &GossipDriver<G, H>) {
         let blocked_peers = gossip.connection_gate.list_blocked_peers();
         if let Err(e) = s.send(blocked_peers) {
             warn!(target: "p2p::rpc", "Failed to send blocked peers through response channel: {:?}", e);
         }
     }
 
-    fn block_subnet<G: ConnectionGate>(address: IpNet, gossip: &mut GossipDriver<G>) {
+    fn block_subnet<G: ConnectionGate, H: crate::Handler>(address: IpNet, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.block_subnet(address);
     }
 
-    fn unblock_subnet<G: ConnectionGate>(address: IpNet, gossip: &mut GossipDriver<G>) {
+    fn unblock_subnet<G: ConnectionGate, H: crate::Handler>(address: IpNet, gossip: &mut GossipDriver<G, H>) {
         gossip.connection_gate.unblock_subnet(address);
     }
 
-    fn connect_peer<G: ConnectionGate>(address: Multiaddr, gossip: &mut GossipDriver<G>) {
+    fn connect_peer<G: ConnectionGate, H: crate::Handler>(address: Multiaddr, gossip: &mut GossipDriver<G, H>) {
         gossip.dial_multiaddr(address)
     }
 
-    fn disconnect_peer<G: ConnectionGate>(peer_id: PeerId, gossip: &mut GossipDriver<G>) {
+    fn disconnect_peer<G: ConnectionGate, H: crate::Handler>(peer_id: PeerId, gossip: &mut GossipDriver<G, H>) {
         if let Err(e) = gossip.swarm.disconnect_peer_id(peer_id) {
             warn!(target: "p2p::rpc", "Failed to disconnect peer {}: {:?}", peer_id, e);
         } else {
@@ -199,7 +199,7 @@ impl P2pRpcRequest {
         }
     }
 
-    fn list_blocked_subnets<G: ConnectionGate>(s: Sender<Vec<IpNet>>, gossip: &GossipDriver<G>) {
+    fn list_blocked_subnets<G: ConnectionGate, H: crate::Handler>(s: Sender<Vec<IpNet>>, gossip: &GossipDriver<G, H>) {
         let blocked_subnets = gossip.connection_gate.list_blocked_subnets();
         if let Err(e) = s.send(blocked_subnets) {
             warn!(target: "p2p::rpc", "Failed to send blocked subnets through response channel: {:?}", e);
@@ -224,10 +224,10 @@ impl P2pRpcRequest {
         });
     }
 
-    fn handle_peers<G: ConnectionGate>(
+    fn handle_peers<G: ConnectionGate, H: crate::Handler>(
         sender: Sender<PeerDump>,
         connected: bool,
-        gossip: &GossipDriver<G>,
+        gossip: &GossipDriver<G, H>,
         disc: &Discv5Handler,
     ) {
         let Ok(total_connected) = gossip.swarm.network_info().num_peers().try_into() else {
@@ -329,12 +329,11 @@ impl P2pRpcRequest {
             .gossipsub
             .all_peers()
             .filter_map(|(peer_id, topics)| {
-                let supported_topics = HashSet::from([
-                    gossip.handler.blocks_v1_topic.hash(),
-                    gossip.handler.blocks_v2_topic.hash(),
-                    gossip.handler.blocks_v3_topic.hash(),
-                    gossip.handler.blocks_v4_topic.hash(),
-                ]);
+                // Trait method works for any Handler impl — default
+                // BlockHandler returns its 4 `blocks_v*` topics, custom
+                // handlers return whatever they declare.
+                let supported_topics: HashSet<_> =
+                    gossip.handler.topics().into_iter().collect();
 
                 topics.iter().any(|topic| supported_topics.contains(topic)).then_some(*peer_id)
             })
@@ -468,9 +467,9 @@ impl P2pRpcRequest {
     }
 
     /// Handles a peer info request by spawning a task.
-    fn handle_peer_info<G: ConnectionGate>(
+    fn handle_peer_info<G: ConnectionGate, H: crate::Handler>(
         sender: Sender<PeerInfo>,
-        gossip: &GossipDriver<G>,
+        gossip: &GossipDriver<G, H>,
         disc: &Discv5Handler,
     ) {
         let peer_id = *gossip.local_peer_id();
@@ -535,9 +534,9 @@ impl P2pRpcRequest {
         });
     }
 
-    fn handle_peer_stats<G: ConnectionGate>(
+    fn handle_peer_stats<G: ConnectionGate, H: crate::Handler>(
         sender: Sender<PeerStats>,
-        gossip: &GossipDriver<G>,
+        gossip: &GossipDriver<G, H>,
         disc: &Discv5Handler,
     ) {
         let peers_known = gossip.peerstore.len();
@@ -564,10 +563,18 @@ impl P2pRpcRequest {
             })
             .collect::<HashMap<_, _>>();
 
-        let v1_topic_hash = gossip.handler.blocks_v1_topic.hash();
-        let v2_topic_hash = gossip.handler.blocks_v2_topic.hash();
-        let v3_topic_hash = gossip.handler.blocks_v3_topic.hash();
-        let v4_topic_hash = gossip.handler.blocks_v4_topic.hash();
+        // Read all topics through the trait so the RPC works for any
+        // `Handler` impl. Default `BlockHandler` returns them in
+        // v1/v2/v3/v4 order; custom impls that mirror the OP-Stack
+        // 4-topic structure (e.g. PSO Chain's PsoBlockHandler) do the same.
+        // `TopicHash` isn't `Copy`/`Default`; we fall back to a constructed
+        // empty-topic hash if a non-conforming handler returns fewer than 4.
+        let block_topics = gossip.handler.topics();
+        let empty_hash = || libp2p::gossipsub::IdentTopic::new("").hash();
+        let v1_topic_hash = block_topics.first().cloned().unwrap_or_else(empty_hash);
+        let v2_topic_hash = block_topics.get(1).cloned().unwrap_or_else(empty_hash);
+        let v3_topic_hash = block_topics.get(2).cloned().unwrap_or_else(empty_hash);
+        let v4_topic_hash = block_topics.get(3).cloned().unwrap_or_else(empty_hash);
 
         tokio::spawn(async move {
             let Ok(table) = table_info.await else {
@@ -635,9 +642,9 @@ impl P2pRpcRequest {
     }
 
     /// Handles a peer count request by spawning a task.
-    fn handle_peer_count<G: ConnectionGate>(
+    fn handle_peer_count<G: ConnectionGate, H: crate::Handler>(
         sender: Sender<(Option<usize>, usize)>,
-        gossip: &GossipDriver<G>,
+        gossip: &GossipDriver<G, H>,
         disc: &Discv5Handler,
     ) {
         let pc_req = disc.peer_count();

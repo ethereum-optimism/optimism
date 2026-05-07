@@ -20,6 +20,22 @@ pub trait Handler: Send {
 
     /// Specifies which topics the handler is interested in
     fn topics(&self) -> Vec<TopicHash>;
+
+    /// Returns the L2 chain id this handler validates against. Used by the
+    /// gossip driver to validate ENRs of newly-discovered peers.
+    fn l2_chain_id(&self) -> u64;
+
+    /// Returns the gossipsub topic appropriate for the given timestamp,
+    /// selecting v1/v2/v3/v4 based on hardfork activation.
+    fn topic(&self, timestamp: u64) -> IdentTopic;
+
+    /// Encodes an outbound payload envelope onto the given topic for
+    /// publication via the gossip driver.
+    fn encode(
+        &self,
+        topic: IdentTopic,
+        envelope: OpNetworkPayloadEnvelope,
+    ) -> Result<Vec<u8>, HandlerEncodeError>;
 }
 
 /// Responsible for managing blocks received via p2p gossip
@@ -83,6 +99,26 @@ impl Handler for BlockHandler {
             self.blocks_v4_topic.hash(),
         ]
     }
+
+    fn l2_chain_id(&self) -> u64 {
+        self.rollup_config.l2_chain_id.id()
+    }
+
+    /// Trait-method shim — delegates to the inherent `BlockHandler::topic`.
+    /// Inherent-method UFCS to disambiguate from this trait method.
+    fn topic(&self, timestamp: u64) -> IdentTopic {
+        Self::topic(self, timestamp)
+    }
+
+    /// Trait-method shim — delegates to the inherent `BlockHandler::encode`.
+    /// Inherent-method UFCS to disambiguate from this trait method.
+    fn encode(
+        &self,
+        topic: IdentTopic,
+        envelope: OpNetworkPayloadEnvelope,
+    ) -> Result<Vec<u8>, HandlerEncodeError> {
+        Self::encode(self, topic, envelope)
+    }
 }
 
 impl BlockHandler {
@@ -145,6 +181,29 @@ mod tests {
 
     use super::*;
     use alloy_primitives::{B256, Signature};
+
+    #[test]
+    fn test_handler_trait_shims_match_inherent_methods() {
+        let (_signer_tx, signer_rx) = tokio::sync::watch::channel(Address::ZERO);
+        let handler = BlockHandler::new(
+            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
+            signer_rx,
+        );
+
+        let trait_obj: &dyn Handler = &handler;
+
+        assert_eq!(trait_obj.l2_chain_id(), Chain::optimism_mainnet().id());
+        assert_eq!(trait_obj.topic(0).hash(), handler.blocks_v1_topic.hash());
+        assert_eq!(
+            trait_obj.topics(),
+            vec![
+                handler.blocks_v1_topic.hash(),
+                handler.blocks_v2_topic.hash(),
+                handler.blocks_v3_topic.hash(),
+                handler.blocks_v4_topic.hash(),
+            ]
+        );
+    }
 
     #[test]
     fn test_valid_decode() {

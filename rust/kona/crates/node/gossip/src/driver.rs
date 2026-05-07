@@ -28,17 +28,21 @@ use crate::{
 
 /// A driver for a [`Swarm`] instance.
 ///
-/// Connects the swarm to the given [`Multiaddr`]
-/// and handles events using the [`BlockHandler`].
+/// Connects the swarm to the given [`Multiaddr`] and handles events using
+/// `H: Handler` (defaults to [`BlockHandler`]). The default keeps existing
+/// callers — including kona-node-service's network actor — compiling
+/// unchanged; downstream binaries that need a custom validation rule (e.g.
+/// SRA-set membership instead of the static `unsafeBlockSigner`) plug in
+/// their own `Handler` impl via [`GossipDriverBuilder::with_block_handler`].
 #[derive(Debug)]
-pub struct GossipDriver<G: ConnectionGate> {
+pub struct GossipDriver<G: ConnectionGate, H: Handler = BlockHandler> {
     /// The [`Swarm`] instance.
     #[debug(skip)]
     pub swarm: Swarm<Behaviour>,
     /// A [`Multiaddr`] to listen on.
     pub addr: Multiaddr,
-    /// The [`BlockHandler`].
-    pub handler: BlockHandler,
+    /// The block-validation handler.
+    pub handler: H,
     /// A [`libp2p_stream::Control`] instance. Can be used to control the sync request/response
     #[debug(skip)]
     pub sync_handler: libp2p_stream::Control,
@@ -64,11 +68,13 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
 }
 
-impl<G> GossipDriver<G>
+impl<G> GossipDriver<G, BlockHandler>
 where
     G: ConnectionGate,
 {
-    /// Returns the [`GossipDriverBuilder`] that can be used to construct the [`GossipDriver`].
+    /// Returns the [`GossipDriverBuilder`] that can be used to construct the
+    /// default-handler [`GossipDriver<G, BlockHandler>`]. To swap the handler
+    /// type, call [`GossipDriverBuilder::with_block_handler`] on the result.
     pub const fn builder(
         rollup_config: RollupConfig,
         signer: Address,
@@ -77,12 +83,18 @@ where
     ) -> GossipDriverBuilder {
         GossipDriverBuilder::new(rollup_config, signer, gossip_addr, keypair)
     }
+}
 
+impl<G, H> GossipDriver<G, H>
+where
+    G: ConnectionGate,
+    H: Handler,
+{
     /// Creates a new [`GossipDriver`] instance.
     pub fn new(
         swarm: Swarm<Behaviour>,
         addr: Multiaddr,
-        handler: BlockHandler,
+        handler: H,
         sync_handler: libp2p_stream::Control,
         sync_protocol: IncomingStreams,
         gate: G,
@@ -106,7 +118,7 @@ where
     /// ## Arguments
     ///
     /// * `topic_selector` - A function that selects the topic for the block. This is expected to be
-    ///   a closure that takes the [`BlockHandler`] and returns the [`IdentTopic`] for the block.
+    ///   a closure that takes the handler reference and returns the [`IdentTopic`] for the block.
     /// * `payload` - The payload to be published.
     ///
     /// ## Returns
@@ -115,7 +127,7 @@ where
     /// if the message could not be published.
     pub fn publish(
         &mut self,
-        selector: impl FnOnce(&BlockHandler) -> IdentTopic,
+        selector: impl FnOnce(&H) -> IdentTopic,
         payload: Option<OpNetworkPayloadEnvelope>,
     ) -> Result<Option<MessageId>, PublishError> {
         let Some(payload) = payload else {
@@ -232,9 +244,10 @@ where
 
     /// Dials the given [`Enr`].
     pub fn dial(&mut self, enr: Enr) {
-        let validation = EnrValidation::validate(&enr, self.handler.rollup_config.l2_chain_id.id());
+        let chain_id = self.handler.l2_chain_id();
+        let validation = EnrValidation::validate(&enr, chain_id);
         if validation.is_invalid() {
-            trace!(target: "gossip", "Invalid OP Stack ENR for chain id {}: {}", self.handler.rollup_config.l2_chain_id.id(), validation);
+            trace!(target: "gossip", "Invalid OP Stack ENR for chain id {chain_id}: {validation}");
             return;
         }
         let Some(multiaddr) = enr_to_multiaddr(&enr) else {

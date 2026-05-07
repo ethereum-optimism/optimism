@@ -3,15 +3,15 @@ use std::collections::HashSet;
 use alloy_primitives::Address;
 use discv5::Enr;
 use kona_disc::{Discv5Handler, HandlerRequest};
-use kona_gossip::{ConnectionGater, GossipDriver};
+use kona_gossip::{BlockHandler, ConnectionGater, GossipDriver, Handler};
 use kona_sources::BlockSignerHandler;
 use tokio::sync::{mpsc, watch};
 
 /// A network handler used to communicate with the network once it is started.
 #[derive(Debug)]
-pub struct NetworkHandler {
+pub struct NetworkHandler<H: Handler = BlockHandler> {
     /// The gossip driver.
-    pub gossip: GossipDriver<ConnectionGater>,
+    pub gossip: GossipDriver<ConnectionGater, H>,
     /// The discovery handler.
     pub discovery: Discv5Handler,
     /// The receiver for the ENRs.
@@ -24,7 +24,7 @@ pub struct NetworkHandler {
     pub signer: Option<BlockSignerHandler>,
 }
 
-impl NetworkHandler {
+impl<H: Handler> NetworkHandler<H> {
     pub(super) async fn handle_peer_monitoring(&mut self) {
         // Inspect peer scores and ban peers that are below the threshold.
         let Some(ban_peers) = self.gossip.peer_monitoring.as_ref() else {

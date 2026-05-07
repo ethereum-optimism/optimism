@@ -10,7 +10,7 @@ use libp2p::{
 use std::time::Duration;
 use tokio::sync::watch;
 
-use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError};
+use crate::{Behaviour, BlockHandler, GaterConfig, GossipDriver, GossipDriverBuilderError, Handler};
 
 /// A builder for the [`GossipDriver`].
 #[derive(Debug)]
@@ -116,35 +116,84 @@ impl GossipDriverBuilder {
         self
     }
 
+    /// Returns the rollup config — accessor for downstream callers that need
+    /// to construct a default [`BlockHandler`] without consuming the builder.
+    pub const fn rollup_config(&self) -> &RollupConfig {
+        &self.rollup_config
+    }
+
+    /// Returns the configured unsafe-block-signer address.
+    pub const fn signer(&self) -> Address {
+        self.signer
+    }
+
     /// Sets the [`Config`] for the [`Behaviour`].
     pub fn with_config(mut self, config: Config) -> Self {
         self.config = Some(config);
         self
     }
 
-    /// Builds the [`GossipDriver`].
+    /// Builds the [`GossipDriver`] with the default `BlockHandler`.
+    ///
+    /// Returns the driver plus a `watch::Sender<Address>` for hot-swapping
+    /// the unsafe-block-signer address (driven by `SystemConfig` updates).
+    /// To plug in a custom `Handler` impl instead — e.g. for SRA-based
+    /// rotation where the valid-set varies per epoch — use
+    /// [`Self::build_with_handler`].
     pub fn build(
         mut self,
     ) -> Result<
-        (GossipDriver<crate::ConnectionGater>, watch::Sender<Address>),
+        (GossipDriver<crate::ConnectionGater, BlockHandler>, watch::Sender<Address>),
         GossipDriverBuilderError,
     > {
-        // Extract builder arguments
-        let timeout = self.timeout.take().unwrap_or(Duration::from_secs(60));
-        let keypair = self.keypair;
-        let addr = self.gossip_addr;
         let signer_recv = self.signer;
-        let rollup_config = self.rollup_config;
-        let l2_chain_id = rollup_config.l2_chain_id;
+        let rollup_config = self.rollup_config.clone();
         let block_time = rollup_config.block_time;
-
         let (signer_tx, signer_rx) = watch::channel(signer_recv);
-
-        // Block Handler setup
         let handler = BlockHandler::new(rollup_config, signer_rx);
+        let driver = self.build_with_handler_inner(handler, Some(block_time))?;
+        Ok((driver, signer_tx))
+    }
+
+    /// Builds the [`GossipDriver`] with a caller-supplied `Handler` impl.
+    ///
+    /// This is the override seam used by binaries that need a non-default
+    /// validation rule (e.g. PSO Chain's SRA-set membership check). The
+    /// returned driver does NOT come with a `watch::Sender<Address>` — the
+    /// caller's handler is expected to source its valid-set itself.
+    ///
+    /// Caveat: peer scoring uses `block_time` from the rollup config to size
+    /// the scoring params. If you want peer scoring with a custom handler,
+    /// the same `RollupConfig` set on the builder is used for the timing.
+    pub fn build_with_handler<H>(
+        mut self,
+        handler: H,
+    ) -> Result<GossipDriver<crate::ConnectionGater, H>, GossipDriverBuilderError>
+    where
+        H: Handler + Clone + 'static,
+    {
+        let block_time = self.rollup_config.block_time;
+        self.build_with_handler_inner(handler, Some(block_time))
+    }
+
+    /// Shared assembly path used by both [`Self::build`] and
+    /// [`Self::build_with_handler`]. `block_time` is only consumed when
+    /// peer-scoring is enabled.
+    fn build_with_handler_inner<H>(
+        &mut self,
+        handler: H,
+        block_time: Option<u64>,
+    ) -> Result<GossipDriver<crate::ConnectionGater, H>, GossipDriverBuilderError>
+    where
+        H: Handler + Clone + 'static,
+    {
+        let timeout = self.timeout.take().unwrap_or(Duration::from_secs(60));
+        let keypair = self.keypair.clone();
+        let addr = self.gossip_addr.clone();
+        let l2_chain_id = self.rollup_config.l2_chain_id;
 
         // Construct the gossip behaviour
-        let config = self.config.unwrap_or_else(crate::default_config);
+        let config = self.config.take().unwrap_or_else(crate::default_config);
         info!(
             target: "gossip",
             "CONFIG: [Mesh D: {}] [Mesh L: {}] [Mesh H: {}] [Gossip Lazy: {}] [Flood Publish: {}]",
@@ -171,9 +220,8 @@ impl GossipDriverBuilder {
                 info!(target: "scoring", level = ?PeerScoreLevel::Off, "Peer scoring explicitly disabled")
             }
             Some(level) => {
-                use crate::handler::Handler;
                 let params = level
-                    .to_params(handler.topics(), self.topic_scoring, block_time)
+                    .to_params(handler.topics(), self.topic_scoring, block_time.unwrap_or(2))
                     .unwrap_or_default();
                 match behaviour.gossipsub.with_peer_score(params, PeerScoreLevel::thresholds()) {
                     Ok(_) => debug!(target: "scoring", "Peer scoring enabled successfully"),
@@ -193,7 +241,6 @@ impl GossipDriverBuilder {
             .map_err(|_| GossipDriverBuilderError::SyncReqRespAlreadyAccepted)?;
 
         // Build the swarm with DNS+TCP transport.
-        // Note: with_dns() must be called after with_tcp() to wrap TCP with DNS resolution.
         debug!(target: "gossip", "Building Swarm with Peer ID: {}", keypair.public().to_peer_id());
         let swarm = SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -216,6 +263,6 @@ impl GossipDriverBuilder {
         let gater_config = self.gater_config.take().unwrap_or_default();
         let gate = crate::ConnectionGater::new(gater_config);
 
-        Ok((GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate), signer_tx))
+        Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
     }
 }

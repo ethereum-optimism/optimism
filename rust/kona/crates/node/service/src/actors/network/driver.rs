@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use discv5::multiaddr::Protocol;
 use futures::future::OptionFuture;
 use kona_disc::Discv5Driver;
-use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
+use kona_gossip::{BlockHandler, ConnectionGater, GossipDriver, Handler, PEER_SCORE_INSPECT_FREQUENCY};
 use kona_sources::{BlockSigner, BlockSignerStartError};
 use libp2p::{Multiaddr, TransportError};
 use tokio::sync::watch;
@@ -12,10 +12,16 @@ use tokio::sync::watch;
 use crate::actors::network::handler::NetworkHandler;
 
 /// A network driver. This is the driver that is used to start the network.
+///
+/// Generic over `H: Handler` (defaults to [`BlockHandler`]) so binaries that
+/// need a custom validation rule for incoming gossip can plug their own
+/// handler in via [`NetworkActorBuilder::with_block_handler`].
+///
+/// [`NetworkActorBuilder::with_block_handler`]: super::builder::NetworkActorBuilder::with_block_handler
 #[derive(Debug)]
-pub struct NetworkDriver {
+pub struct NetworkDriver<H: Handler = BlockHandler> {
     /// The gossip driver.
-    pub gossip: GossipDriver<ConnectionGater>,
+    pub gossip: GossipDriver<ConnectionGater, H>,
     /// The discovery driver.
     pub discovery: Discv5Driver,
     /// Whether to update the ENR socket after the libp2p Swarm is started.
@@ -24,6 +30,10 @@ pub struct NetworkDriver {
     /// used with a nat for example).
     pub enr_update: bool,
     /// The unsafe block signer sender.
+    ///
+    /// Always present so existing SystemConfig-driven updates still flow,
+    /// even when the handler is a custom impl that ignores them (e.g.
+    /// SRA-based rotation that sources the valid set elsewhere).
     pub unsafe_block_signer_sender: watch::Sender<Address>,
     /// A block signer. This is optional and should be set if the node is configured to sign blocks
     pub signer: Option<BlockSigner>,
@@ -43,9 +53,9 @@ pub enum NetworkDriverError {
     InvalidGossipListenAddr(Multiaddr),
 }
 
-impl NetworkDriver {
+impl<H: Handler> NetworkDriver<H> {
     /// Starts the network.
-    pub async fn start(mut self) -> Result<NetworkHandler, NetworkDriverError> {
+    pub async fn start(mut self) -> Result<NetworkHandler<H>, NetworkDriverError> {
         // Start the libp2p Swarm
         let gossip_listen_addr = self.gossip.start().await?;
 

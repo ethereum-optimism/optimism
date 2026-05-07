@@ -1,12 +1,15 @@
 use alloy_primitives::Address;
 use async_trait::async_trait;
-use kona_gossip::P2pRpcRequest;
+use kona_gossip::{BlockHandler, Handler, P2pRpcRequest};
 use kona_rpc::NetworkAdminQuery;
 use kona_sources::BlockSignerError;
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpNetworkPayloadEnvelope};
 use thiserror::Error;
-use tokio::{self, select, sync::mpsc};
+use tokio::{
+    self, select,
+    sync::{mpsc, watch},
+};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use crate::{
@@ -44,9 +47,18 @@ use crate::{
 /// // let actor = NetworkActor::new(driver);
 /// ```
 #[derive(Debug)]
-pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
+pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient, H: Handler = BlockHandler> {
     /// Network driver
     pub(super) builder: NetworkBuilder,
+    /// The block-validation handler that gets installed in the gossip
+    /// driver at startup. Defaults to a freshly-constructed [`BlockHandler`]
+    /// when [`Self::new`] is used; can be a custom impl when
+    /// [`Self::with_handler`] is used.
+    pub(super) handler: H,
+    /// Sender side of the unsafe-block-signer watch channel — paired with
+    /// the receiver embedded in `handler` (default `BlockHandler` only;
+    /// custom handlers may ignore the channel).
+    pub(super) signer_tx: watch::Sender<Address>,
     /// The cancellation token, shared between all tasks.
     pub(super) cancellation_token: CancellationToken,
     /// A channel to receive the unsafe block signer address.
@@ -76,28 +88,64 @@ pub struct NetworkInboundData {
     pub gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
 }
 
-impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_> {
-    /// Constructs a new [`NetworkActor`] given the [`NetworkBuilder`]
+impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_, BlockHandler> {
+    /// Constructs a new [`NetworkActor`] with the default [`BlockHandler`]
+    /// validation rule. The handler is built from the supplied
+    /// [`NetworkBuilder`]'s rollup config and unsafe-block-signer address;
+    /// the paired `watch::Sender<Address>` is retained so `SystemConfig`
+    /// updates flow through.
     pub fn new(
         engine_client: NetworkEngineClient_,
         cancellation_token: CancellationToken,
-        driver: NetworkBuilder,
+        builder: NetworkBuilder,
     ) -> (NetworkInboundData, Self) {
-        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (handler, signer_tx) = builder.default_handler();
+        Self::assemble(engine_client, cancellation_token, builder, handler, signer_tx)
+    }
+}
+
+impl<NetworkEngineClient_: NetworkEngineClient, H: Handler> NetworkActor<NetworkEngineClient_, H> {
+    /// Constructs a new [`NetworkActor`] with a caller-supplied [`Handler`].
+    ///
+    /// This is the override seam used by binaries that need a non-default
+    /// validation rule (e.g. PSO Chain's SRA-set membership check). The
+    /// `signer_tx` should be the sender end of whatever watch channel the
+    /// handler subscribes to; for handlers that don't care, an unconnected
+    /// channel is fine — `tokio::sync::watch::channel(Address::ZERO).0`.
+    pub fn with_handler(
+        engine_client: NetworkEngineClient_,
+        cancellation_token: CancellationToken,
+        builder: NetworkBuilder,
+        handler: H,
+        signer_tx: watch::Sender<Address>,
+    ) -> (NetworkInboundData, Self) {
+        Self::assemble(engine_client, cancellation_token, builder, handler, signer_tx)
+    }
+
+    fn assemble(
+        engine_client: NetworkEngineClient_,
+        cancellation_token: CancellationToken,
+        builder: NetworkBuilder,
+        handler: H,
+        signer_tx: watch::Sender<Address>,
+    ) -> (NetworkInboundData, Self) {
+        let (sig_in_tx, sig_in_rx) = mpsc::channel(16);
         let (rpc_tx, rpc_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (publish_tx, publish_rx) = tokio::sync::mpsc::channel(256);
         let actor = Self {
-            builder: driver,
+            builder,
+            handler,
+            signer_tx,
             cancellation_token,
-            signer: signer_rx,
+            signer: sig_in_rx,
             p2p_rpc: rpc_rx,
             admin_rpc: admin_rpc_rx,
             publish_rx,
             engine_client,
         };
         let outbound_data = NetworkInboundData {
-            signer: signer_tx,
+            signer: sig_in_tx,
             p2p_rpc: rpc_tx,
             admin_rpc: admin_rpc_tx,
             gossip_payload_tx: publish_tx,
@@ -106,7 +154,7 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     }
 }
 
-impl<E: NetworkEngineClient> CancellableContext for NetworkActor<E> {
+impl<E: NetworkEngineClient, H: Handler> CancellableContext for NetworkActor<E, H> {
     fn cancelled(&self) -> WaitForCancellationFuture<'_> {
         self.cancellation_token.cancelled()
     }
@@ -139,14 +187,17 @@ pub enum NetworkActorError {
 }
 
 #[async_trait]
-impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
-    for NetworkActor<NetworkEngineClient_>
+impl<NetworkEngineClient_, H> NodeActor for NetworkActor<NetworkEngineClient_, H>
+where
+    NetworkEngineClient_: NetworkEngineClient + 'static,
+    H: Handler + Clone + Send + 'static,
 {
     type Error = NetworkActorError;
     type StartData = ();
 
     async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        let mut handler = self.builder.build()?.start().await?;
+        let mut handler =
+            self.builder.build_with_handler(self.handler, self.signer_tx)?.start().await?;
 
         // New unsafe block channel.
         let (unsafe_block_tx, mut unsafe_block_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -188,7 +239,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
                     let timestamp = block.execution_payload.timestamp();
-                    let selector = |handler: &kona_gossip::BlockHandler| {
+                    let selector = |handler: &H| {
                         handler.topic(timestamp)
                     };
                     let Some(signer) = handler.signer.as_ref() else {

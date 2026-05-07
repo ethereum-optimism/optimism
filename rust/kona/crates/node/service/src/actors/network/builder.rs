@@ -4,7 +4,8 @@ use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
 use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, GossipDriverBuilder};
+use kona_gossip::{BlockHandler, GaterConfig, GossipDriverBuilder, Handler};
+use tokio::sync::watch;
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
@@ -158,7 +159,7 @@ impl NetworkBuilder {
         Self { gossip: self.gossip.with_timeout(timeout), ..self }
     }
 
-    /// Builds the [`NetworkDriver`].
+    /// Builds the [`NetworkDriver`] with the default `BlockHandler`.
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
         let (gossip, unsafe_block_signer_sender) = self.gossip.build()?;
         let discovery = self.discovery.build()?;
@@ -170,6 +171,44 @@ impl NetworkBuilder {
             signer: self.signer,
             enr_update: self.enr_update,
         })
+    }
+
+    /// Builds the [`NetworkDriver`] with a caller-supplied `Handler` impl.
+    ///
+    /// `signer_tx` is retained on the driver so existing
+    /// SystemConfig-driven unsafe-block-signer updates continue to flow,
+    /// even when the custom handler ignores them (e.g. SRA-based rotation).
+    pub fn build_with_handler<H>(
+        self,
+        handler: H,
+        signer_tx: watch::Sender<Address>,
+    ) -> Result<NetworkDriver<H>, NetworkBuilderError>
+    where
+        H: Handler + Clone + 'static,
+    {
+        let gossip = self.gossip.build_with_handler(handler)?;
+        let discovery = self.discovery.build()?;
+
+        Ok(NetworkDriver {
+            gossip,
+            discovery,
+            unsafe_block_signer_sender: signer_tx,
+            signer: self.signer,
+            enr_update: self.enr_update,
+        })
+    }
+
+    /// Constructs the default [`BlockHandler`] from this builder's
+    /// `RollupConfig` and unsafe-block-signer address, returning the
+    /// handler plus a paired `watch::Sender<Address>` so callers can
+    /// later push signer updates from the SystemConfig-watch path.
+    /// Used by [`super::NetworkActor::new`] to share the same handler-
+    /// construction code path with the override-aware
+    /// [`super::NetworkActor::with_handler`] constructor.
+    pub fn default_handler(&self) -> (BlockHandler, watch::Sender<Address>) {
+        let (signer_tx, signer_rx) = watch::channel(self.gossip.signer());
+        let handler = BlockHandler::new(self.gossip.rollup_config().clone(), signer_rx);
+        (handler, signer_tx)
     }
 }
 
@@ -264,6 +303,75 @@ mod tests {
         assert_eq!(driver.gossip.handler.blocks_v3_topic.hash(), v3.hash());
         let v4 = IdentTopic::new(format!("/optimism/{id}/3/blocks"));
         assert_eq!(driver.gossip.handler.blocks_v4_topic.hash(), v4.hash());
+    }
+
+    #[test]
+    fn test_default_handler_matches_build_handler() {
+        let signer = Address::random();
+        let builder = network_builder(NetworkBuilderParams {
+            rollup_config: RollupConfig {
+                l2_chain_id: Chain::optimism_mainnet(),
+                ..Default::default()
+            },
+            signer,
+        });
+
+        let (default_handler, _signer_tx) = builder.default_handler();
+        assert_eq!(default_handler.l2_chain_id(), Chain::optimism_mainnet().id());
+        assert_eq!(default_handler.rollup_config.l2_chain_id, Chain::optimism_mainnet());
+    }
+
+    #[test]
+    fn test_build_with_handler_installs_caller_handler() {
+        use kona_gossip::HandlerEncodeError;
+        use libp2p::gossipsub::{Message, MessageAcceptance, TopicHash};
+        use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
+
+        #[derive(Clone, Debug)]
+        struct StubHandler {
+            chain_id: u64,
+        }
+
+        impl Handler for StubHandler {
+            fn handle(
+                &mut self,
+                _msg: Message,
+            ) -> (MessageAcceptance, Option<OpNetworkPayloadEnvelope>) {
+                (MessageAcceptance::Reject, None)
+            }
+            fn topics(&self) -> Vec<TopicHash> {
+                Vec::new()
+            }
+            fn l2_chain_id(&self) -> u64 {
+                self.chain_id
+            }
+            fn topic(&self, _ts: u64) -> IdentTopic {
+                IdentTopic::new("stub")
+            }
+            fn encode(
+                &self,
+                _t: IdentTopic,
+                _e: OpNetworkPayloadEnvelope,
+            ) -> Result<Vec<u8>, HandlerEncodeError> {
+                Ok(Vec::new())
+            }
+        }
+
+        let builder = network_builder(NetworkBuilderParams {
+            rollup_config: RollupConfig {
+                l2_chain_id: Chain::optimism_mainnet(),
+                ..Default::default()
+            },
+            signer: Address::random(),
+        });
+
+        let (signer_tx, _signer_rx) = watch::channel(Address::ZERO);
+        let driver =
+            builder.build_with_handler(StubHandler { chain_id: 42 }, signer_tx).unwrap();
+
+        // Custom handler is installed on the gossip driver and bypasses the
+        // default `BlockHandler` chain-id wiring.
+        assert_eq!(driver.gossip.handler.l2_chain_id(), 42);
     }
 
     #[test]
