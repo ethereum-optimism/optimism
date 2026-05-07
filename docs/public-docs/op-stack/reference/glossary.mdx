@@ -290,7 +290,7 @@ The set of chains that a given chain accepts initiating messages from. A chain's
 
 ### Supernode
 
-A process that runs every chain in a [dependency set](#dependency-set) together as in-memory [virtual nodes](#virtual-node) inside one binary. The supernode shares the L1 client, L1 beacon client, JSON-RPC surface, and metrics across chains, and verifies that every cross-chain message a chain depends on has been reproduced from L1 before promoting blocks past unsafe. Often referred to as `op-supernode` after the binary name. See the [supernode explainer](/op-stack/interop/supernode) for the architecture.
+A component that runs the consensus layer of every chain in a [dependency set](#dependency-set) together as in-memory [virtual nodes](#virtual-node) inside one binary. The supernode shares the L1 client, L1 beacon client, JSON-RPC surface, and metrics across chains, and verifies that every cross-chain message a chain depends on has been reproduced from L1 before promoting blocks to "safe". It connects to an execution client for each chain using the engine API. Often referred to as `op-supernode` after the binary name. See the [supernode explainer](/op-stack/interop/supernode) for the architecture.
 
 ### Chain container
 
