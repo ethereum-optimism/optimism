@@ -1805,7 +1805,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         // Super types (enabled).
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0.08 ether,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -1817,7 +1817,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0.08 ether,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
         });
@@ -2163,13 +2163,13 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 new IOPContractsManagerUtils.DisputeGameConfig[](6);
             configs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
             });
             configs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -2181,7 +2181,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             });
             configs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
@@ -2201,7 +2201,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             });
             configs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
