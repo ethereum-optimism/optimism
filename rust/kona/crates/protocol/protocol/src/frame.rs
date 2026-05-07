@@ -58,6 +58,7 @@ pub const MAX_FRAME_LEN: usize = 1_000_000;
 
 /// Base frame length of a frame without its data.
 ///
+/// ```
 /// frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 ///
 /// channel_id        = bytes16
@@ -65,6 +66,7 @@ pub const MAX_FRAME_LEN: usize = 1_000_000;
 /// frame_data_length = uint32
 /// frame_data        = bytes
 /// is_last           = bool
+/// ```
 pub const BASE_FRAME_LEN: usize = 16 + 2 + 4 + 1;
 
 /// A frame decoding error.
