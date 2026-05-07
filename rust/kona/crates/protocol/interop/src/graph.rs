@@ -390,8 +390,8 @@ where
                 max: message.executing_timestamp,
                 actual: initiating_timestamp,
             });
-        } else if initiating_timestamp <
-            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+        } else if !rollup_config.is_interop_active(initiating_timestamp) ||
+            rollup_config.is_first_interop_block(initiating_timestamp)
         {
             return Err(MessageGraphError::InitiatedTooEarly {
                 activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
