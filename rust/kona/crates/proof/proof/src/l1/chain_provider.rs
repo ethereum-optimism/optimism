@@ -54,28 +54,29 @@ impl<T: CommsClient + Sync + Send> ChainProvider for OracleL1ChainProvider<T> {
 
         // Start from the closest cached ancestor whose number is greater than the target,
         // falling back to the L1 head when no usable cache entry exists.
-        let mut current =
-            match self.block_info_by_number.range(block_number + 1..).next().map(|(_, info)| *info)
-            {
-                Some(info) => info,
-                None => {
-                    let header = self.header_by_hash(self.l1_head).await?;
-                    if block_number > header.number {
-                        return Err(OracleProviderError::BlockNumberPastHead(
-                            block_number,
-                            header.number,
-                        ));
-                    }
-                    let info = BlockInfo {
-                        hash: self.l1_head,
-                        number: header.number,
-                        parent_hash: header.parent_hash,
-                        timestamp: header.timestamp,
-                    };
-                    self.block_info_by_number.insert(info.number, info);
-                    info
+        let cached_ancestor = block_number
+            .checked_add(1)
+            .and_then(|n| self.block_info_by_number.range(n..).next().map(|(_, info)| *info));
+        let mut current = match cached_ancestor {
+            Some(info) => info,
+            None => {
+                let header = self.header_by_hash(self.l1_head).await?;
+                if block_number > header.number {
+                    return Err(OracleProviderError::BlockNumberPastHead(
+                        block_number,
+                        header.number,
+                    ));
                 }
-            };
+                let info = BlockInfo {
+                    hash: self.l1_head,
+                    number: header.number,
+                    parent_hash: header.parent_hash,
+                    timestamp: header.timestamp,
+                };
+                self.block_info_by_number.insert(info.number, info);
+                info
+            }
+        };
 
         // Walk back the block headers to the desired block number, caching each visited block.
         while current.number > block_number {
@@ -147,6 +148,26 @@ impl<T: CommsClient + Sync + Send> ChainProvider for OracleL1ChainProvider<T> {
             .map_err(OracleProviderError::Rlp)?;
 
         Ok((block_info, transactions))
+    }
+}
+
+impl<T: CommsClient> TrieProvider for OracleL1ChainProvider<T> {
+    type Error = OracleProviderError;
+
+    fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
+        // On L1, trie node preimages are stored as keccak preimage types in the oracle. We assume
+        // that a hint for these preimages has already been sent, prior to this call.
+        crate::block_on(async move {
+            TrieNode::decode(
+                &mut self
+                    .oracle
+                    .get(PreimageKey::new(*key, PreimageKeyType::Keccak256))
+                    .await
+                    .map_err(OracleProviderError::Preimage)?
+                    .as_ref(),
+            )
+            .map_err(OracleProviderError::Rlp)
+        })
     }
 }
 
@@ -272,25 +293,5 @@ mod tests {
 
         let err = p.block_info_by_number(99).await.unwrap_err();
         assert!(matches!(err, OracleProviderError::BlockNumberPastHead(99, 4)));
-    }
-}
-
-impl<T: CommsClient> TrieProvider for OracleL1ChainProvider<T> {
-    type Error = OracleProviderError;
-
-    fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error> {
-        // On L1, trie node preimages are stored as keccak preimage types in the oracle. We assume
-        // that a hint for these preimages has already been sent, prior to this call.
-        crate::block_on(async move {
-            TrieNode::decode(
-                &mut self
-                    .oracle
-                    .get(PreimageKey::new(*key, PreimageKeyType::Keccak256))
-                    .await
-                    .map_err(OracleProviderError::Preimage)?
-                    .as_ref(),
-            )
-            .map_err(OracleProviderError::Rlp)
-        })
     }
 }
