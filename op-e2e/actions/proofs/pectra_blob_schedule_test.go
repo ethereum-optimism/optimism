@@ -22,10 +22,8 @@ type pectraBlobScheduleTestCfg struct {
 	expectCancunBBF bool
 }
 
-func Test_ProgramAction_PectraBlobSchedule(gt *testing.T) {
+func TestPectraBlobSchedule(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddDefaultTestCases(
 		// aligned with an L1 timestamp
 		pectraBlobScheduleTestCfg{ptr(uint64(24)), true},
@@ -41,6 +39,7 @@ func Test_ProgramAction_PectraBlobSchedule(gt *testing.T) {
 		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
 		testPectraBlobSchedule,
 	)
+	matrix.Run(gt)
 }
 
 func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {

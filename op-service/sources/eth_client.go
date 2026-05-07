@@ -136,8 +136,8 @@ type EthClient struct {
 	transactionsCache *caching.LRUCache[common.Hash, types.Transactions]
 
 	// cache block headers of blocks by hash
-	// common.Hash -> *HeaderInfo
-	headersCache *caching.LRUCache[common.Hash, eth.BlockInfo]
+	// common.Hash -> *types.Header
+	headersCache *caching.LRUCache[common.Hash, *types.Header]
 
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
@@ -169,7 +169,7 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		mustBePostMerge:   config.MustBePostMerge,
 		log:               log,
 		transactionsCache: caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
-		headersCache:      caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", config.HeadersCacheSize),
+		headersCache:      caching.NewLRUCache[common.Hash, *types.Header](metrics, "headers", config.HeadersCacheSize),
 		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", config.PayloadsCacheSize),
 		blockRefsCache:    caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.BlockRefsCacheSize),
 	}, nil
@@ -212,27 +212,34 @@ func (n numberID) CheckID(id eth.BlockID) error {
 	return nil
 }
 
-func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
-	var header *RPCHeader
-	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
+// headerCall fetches a header (eth_getBlockBy* with fullTx=false), verifies it,
+// caches it, and returns it. It is the single source of truth for both
+// HeaderBy* and InfoBy*.
+func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (*types.Header, error) {
+	var rpcHdr *RPCHeader
+	err := s.client.CallContext(ctx, &rpcHdr, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
 		return nil, eth.MaybeAsNotFoundErr(err)
 	}
-	if header == nil {
+	if rpcHdr == nil {
 		return nil, ethereum.NotFound
 	}
-	info, err := header.Info(s.trustRPC, s.mustBePostMerge)
+	header, err := rpcHdr.Header(s.trustRPC, s.mustBePostMerge)
 	if err != nil {
 		return nil, err
 	}
-	if err := id.CheckID(eth.ToBlockID(info)); err != nil {
+	if err := id.CheckID(rpcHdr.BlockID()); err != nil {
 		return nil, fmt.Errorf("fetched block header does not match requested ID: %w", err)
 	}
-	s.headersCache.Add(info.Hash(), info)
-	return info, nil
+	s.headersCache.Add(rpcHdr.Hash, header)
+	return header, nil
 }
 
-func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
+// blockCall fetches a header + transactions (eth_getBlockBy* with fullTx=true),
+// verifies the header and block-level data (txs root, withdrawals), caches
+// both, and returns them. Source of truth for both HeaderAndTxsBy* and
+// InfoAndTxsBy*.
+func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (*types.Header, types.Transactions, error) {
 	var block *RPCBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
@@ -241,16 +248,21 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 	if block == nil {
 		return nil, nil, ethereum.NotFound
 	}
-	info, txs, err := block.Info(s.trustRPC, s.mustBePostMerge)
-	if err != nil {
-		return nil, nil, err
+	if !s.trustRPC {
+		if err := block.Verify(); err != nil {
+			return nil, nil, err
+		}
 	}
-	if err := id.CheckID(eth.ToBlockID(info)); err != nil {
+	header, err := block.RPCHeader.Header(s.trustRPC, s.mustBePostMerge)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to verify block from RPC: %w", err)
+	}
+	if err := id.CheckID(block.BlockID()); err != nil {
 		return nil, nil, fmt.Errorf("fetched block data does not match requested ID: %w", err)
 	}
-	s.headersCache.Add(info.Hash(), info)
-	s.transactionsCache.Add(info.Hash(), txs)
-	return info, txs, nil
+	s.headersCache.Add(block.Hash, header)
+	s.transactionsCache.Add(block.Hash, block.Transactions)
+	return header, block.Transactions, nil
 }
 
 func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockID) (*eth.ExecutionPayloadEnvelope, error) {
@@ -283,24 +295,32 @@ func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
 	return (*big.Int)(&id), nil
 }
 
-func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
+// HeaderByHash returns the *types.Header for the given block hash. It is the
+// source of truth for header fetching: HeaderBy* and InfoBy* both flow
+// through the same headersCache + headerCall path.
+func (s *EthClient) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		return header, nil
 	}
 	return s.headerCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
 
-func (s *EthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+// HeaderByNumber returns the *types.Header for the given block number.
+func (s *EthClient) HeaderByNumber(ctx context.Context, number uint64) (*types.Header, error) {
 	// can't hit the cache when querying by number due to reorgs.
 	return s.headerCall(ctx, "eth_getBlockByNumber", numberID(number))
 }
 
-func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+// HeaderByLabel returns the *types.Header for the given block label.
+func (s *EthClient) HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
 	return s.headerCall(ctx, "eth_getBlockByNumber", label)
 }
 
-func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+// HeaderAndTxsByHash returns the *types.Header and transactions for the given
+// block hash. Source of truth for block fetching: HeaderAndTxs* and
+// InfoAndTxs* both flow through this and blockCall.
+func (s *EthClient) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		if txs, ok := s.transactionsCache.Get(hash); ok {
 			return header, txs, nil
@@ -309,14 +329,54 @@ func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth
 	return s.blockCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
 
+func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
+	header, err := s.HeaderByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hash, header), nil
+}
+
+func (s *EthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	header, err := s.HeaderByNumber(ctx, number)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfo(header), nil
+}
+
+func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+	header, err := s.HeaderByLabel(ctx, label)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfo(header), nil
+}
+
+func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+	header, txs, err := s.HeaderAndTxsByHash(ctx, hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hash, header), txs, nil
+}
+
 func (s *EthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
 	// can't hit the cache when querying by number due to reorgs.
-	return s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
+	header, txs, err := s.blockCall(ctx, "eth_getBlockByNumber", numberID(number))
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfo(header), txs, nil
 }
 
 func (s *EthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
-	return s.blockCall(ctx, "eth_getBlockByNumber", label)
+	header, txs, err := s.blockCall(ctx, "eth_getBlockByNumber", label)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.HeaderBlockInfo(header), txs, nil
 }
 
 func (s *EthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {

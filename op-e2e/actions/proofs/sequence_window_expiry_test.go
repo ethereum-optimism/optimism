@@ -247,10 +247,8 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number)/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
+func TestSequenceWindowExpired(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
 	matrix.AddTestCase(
 		"HonestClaim",
@@ -282,4 +280,5 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
+	matrix.Run(gt)
 }

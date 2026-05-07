@@ -56,6 +56,23 @@ alloy-rpc-client = { workspace = true, optional = true }
 alloy-transport = { workspace = true, optional = true }
 alloy-transport-http = { workspace = true, optional = true }
 
+# Mirrors the optional `test-utils` feature deps so `cargo test -p kona-executor`
+# compiles the `test_utils` module (and the post-exec unit tests in `core`) without
+# requiring `--features test-utils`.
+[dev-dependencies]
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-rpc-client.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-transport.workspace = true
+alloy-transport-http.workspace = true
+kona-registry.workspace = true
+rocksdb = { workspace = true, features = ["snappy"] }
+rstest.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
 [features]
 test-utils = [
 	"dep:alloy-provider",

@@ -28,7 +28,6 @@ contract OPContractsManagerContainer_TestInit is Test {
 
         implementations = OPContractsManagerContainer.Implementations({
             superchainConfigImpl: makeAddr("superchainConfigImpl"),
-            protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
             l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
             optimismPortalImpl: makeAddr("optimismPortalImpl"),
             ethLockboxImpl: makeAddr("ethLockboxImpl"),

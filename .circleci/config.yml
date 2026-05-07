@@ -113,7 +113,6 @@ workflows:
             .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
             rust/.* c-rust_files_changed true .circleci/continue/main.yml
-            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/main.yml
             (packages/contracts-bedrock|\.circleci|\.github|ops/check-changed)/.* c-contracts_changed true .circleci/continue/main.yml
             ^(package\.json|mise\.toml)$ c-contracts_changed true .circleci/continue/main.yml
 
@@ -128,7 +127,6 @@ workflows:
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
             .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
             (rust|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-ci.yml
-            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/rust-ci.yml
 
             # Rust E2E — always include config, gate jobs via c-rust_changes_detected
             .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
@@ -136,7 +134,6 @@ workflows:
             .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
             .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
             (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
-            ^(?!docs/public-docs/).+ c-non_docs_changes true .circleci/continue/rust-e2e.yml
 
   setup-tag:
     when:

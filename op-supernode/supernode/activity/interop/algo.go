@@ -29,19 +29,18 @@ var (
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
 
-// l1Inclusion returns the earliest L1 block such that all L2 blocks at the supplied timestamp were derived
-// from a source at or before that L1 block.
-func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.BlockID, error) {
+// l1Inclusion returns the latest L1 block from the l1Heads snapshot. l1Heads must be the
+// per-chain snapshot captured atomically with blocksAtTimestamp in observeRound; re-reading
+// it here would race with L2 reorgs between observation and verification.
+func (i *Interop) l1Inclusion(blocksAtTimestamp blockPerChain, l1Heads blockPerChain) (eth.BlockID, error) {
 	l1Inclusion := eth.BlockID{}
 	for chainID := range blocksAtTimestamp {
-		chain, ok := i.chains[chainID]
-		if !ok {
+		if _, ok := i.chains[chainID]; !ok {
 			continue
 		}
-		_, l1Block, err := chain.OptimisticAt(i.ctx, ts)
-		if err != nil {
-			i.log.Error("failed to get L1 inclusion for L2 block", "chainID", chainID, "timestamp", ts, "err", err)
-			return eth.BlockID{}, fmt.Errorf("chain %s: failed to get L1 inclusion: %w", chainID, err)
+		l1Block, ok := l1Heads[chainID]
+		if !ok {
+			return eth.BlockID{}, fmt.Errorf("chain %s: missing L1 inclusion in observation snapshot", chainID)
 		}
 		if l1Block.Number >= l1Inclusion.Number {
 			l1Inclusion = l1Block
@@ -59,14 +58,14 @@ func (i *Interop) l1Inclusion(ts uint64, blocksAtTimestamp blockPerChain) (eth.B
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp <= executing message timestamp
 //   - Verify the initiating message hasn't expired (within message expiry window)
-func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain, view *frontierVerificationView) (Result, error) {
+func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerChain, l1Heads blockPerChain, view *frontierVerificationView) (Result, error) {
 	result := Result{
 		Timestamp:    ts,
 		L2Heads:      make(blockPerChain),
 		InvalidHeads: make(map[eth.ChainID]InvalidHead),
 	}
 
-	if l1Inclusion, err := i.l1Inclusion(ts, blocksAtTimestamp); err != nil {
+	if l1Inclusion, err := i.l1Inclusion(blocksAtTimestamp, l1Heads); err != nil {
 		return Result{}, err
 	} else {
 		result.L1Inclusion = l1Inclusion

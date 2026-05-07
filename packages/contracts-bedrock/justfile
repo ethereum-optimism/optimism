@@ -241,11 +241,6 @@ genesis:
 generate-nut-bundle: build-no-tests
   @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
 
-# Deploys the contracts.
-deploy:
-  ./scripts/deploy/deploy.sh
-
-
 ########################################################
 #                       SNAPSHOTS                      #
 ########################################################
@@ -444,15 +439,6 @@ lint-fix-no-fail:
 
 # Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check
-
-
-########################################################
-#                         DOCS                         #
-########################################################
-
-# Generates a table of contents for the POLICY.md file.
-toc:
-  md_toc -p github meta/POLICY.md
 
 
 ########################################################

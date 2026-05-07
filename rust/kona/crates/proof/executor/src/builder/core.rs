@@ -99,6 +99,9 @@ where
     /// understand OP-specific transaction types, system calls, and state
     /// management required for proper L2 block execution.
     pub(crate) factory: OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>,
+    /// Test-only override for SDM activation while the fork is not yet scheduled.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub(crate) sdm_active_override: Option<bool>,
 }
 
 impl<'a, P, H, Evm> StatelessL2Builder<'a, P, H, Evm>
@@ -153,7 +156,29 @@ where
             config.clone(),
             evm_factory,
         );
-        Self { config, trie_db, factory }
+        Self {
+            config,
+            trie_db,
+            factory,
+            #[cfg(any(test, feature = "test-utils"))]
+            sdm_active_override: None,
+        }
+    }
+
+    /// Overrides SDM activation for tests and fixture tooling.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub const fn set_sdm_active_override(&mut self, sdm_active_override: Option<bool>) {
+        self.sdm_active_override = sdm_active_override;
+    }
+
+    /// Returns whether SDM is active at the given timestamp.
+    const fn is_sdm_active(&self, timestamp: u64) -> bool {
+        #[cfg(any(test, feature = "test-utils"))]
+        if let Some(active) = self.sdm_active_override {
+            return active;
+        }
+
+        self.config.is_sdm_active(timestamp)
     }
 
     /// Builds and executes a new L2 block using the provided payload attributes.
@@ -255,6 +280,9 @@ where
             "Beginning block building."
         );
 
+        // Compute SDM activation before borrowing `self.trie_db` mutably below.
+        let sdm_active = self.is_sdm_active(block_env.timestamp.saturating_to());
+
         // Step 2. Create the executor, using the trie database.
         let mut state =
             State::builder().with_database(&mut self.trie_db).with_bundle_update().build();
@@ -267,7 +295,7 @@ where
         let post_exec_mode = parse_post_exec_payload_from_transactions(
             transactions.iter().map(RecoveredTx::tx),
             block_env.number.saturating_to(),
-            self.config.is_sdm_active(block_env.timestamp.saturating_to()),
+            sdm_active,
         )
         .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?
         .map(|parsed| PostExecMode::Verify(parsed.payload))
@@ -331,18 +359,4 @@ impl From<(Sealed<Header>, BlockExecutionResult<OpReceiptEnvelope>)> for BlockBu
 }
 
 #[cfg(test)]
-mod test {
-    use crate::test_utils::run_test_fixture;
-    use rstest::rstest;
-    use std::path::PathBuf;
-
-    #[rstest]
-    #[tokio::test]
-    async fn test_statelessly_execute_block(
-        #[base_dir = "./testdata"]
-        #[files("*.tar.gz")]
-        path: PathBuf,
-    ) {
-        run_test_fixture(path).await;
-    }
-}
+mod tests;

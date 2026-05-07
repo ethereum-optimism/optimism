@@ -382,7 +382,7 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	defer cancel()
 
 	verifiedTS := make(chan uint64, 1)
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		verifiedTS <- ts
 		cancel()
 		return Result{}, nil
@@ -399,6 +399,50 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	}
 
 	require.ErrorIs(t, <-done, context.Canceled)
+}
+
+func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
+	const activation = uint64(100)
+	const safe = uint64(125)
+
+	h := newInteropTestHarness(t).
+		WithActivation(activation).
+		WithLogBackfillDepth(5*time.Second).
+		WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+			m.syncStatusFull = &eth.SyncStatus{
+				SafeL2:      eth.L2BlockRef{Number: safe, Time: safe},
+				LocalSafeL2: eth.L2BlockRef{Number: safe, Time: safe},
+			}
+			m.optimisticAtErr = cc.ErrHistoryUnavailable
+		}).
+		Build()
+
+	done := make(chan error, 1)
+	go func() { done <- h.interop.Start(context.Background()) }()
+
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("interop did not halt after post-backfill SafeDB readiness failure")
+	}
+	require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+	require.Equal(t, int32(1), h.interop.BackfillAttempts())
+	require.Equal(t, safe, h.interop.BackfillEndTimestamp())
+
+	first, err := h.interop.FirstSealedBlock(eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	// The first real backfilled block is 120, and the logs DB records its
+	// virtual parent as the first sealed block.
+	require.Equal(t, uint64(119), first.Number)
+	require.Equal(t, uint64(120), first.Timestamp)
+
+	latest, ok, err := h.interop.LatestSealedBlock(eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, safe, latest.Number)
+	require.Equal(t, safe, latest.Timestamp)
 }
 
 // =============================================================================
@@ -710,14 +754,14 @@ func TestProgressInterop(t *testing.T) {
 	t.Parallel()
 
 	// Default verifyFn that passes through
-	passThroughVerifyFn := func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+	passThroughVerifyFn := func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 
 	tests := []struct {
 		name     string
 		setup    func(h *interopTestHarness) *interopTestHarness
-		verifyFn func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error)
+		verifyFn func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error)
 		assert   func(t *testing.T, result Result, err error)
 		run      func(t *testing.T, h *interopTestHarness) // override for complex cases
 	}{
@@ -791,7 +835,7 @@ func TestProgressInterop(t *testing.T) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
 				}).Build()
 			},
-			verifyFn: func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			verifyFn: func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 				return Result{}, errors.New("verification failed")
 			},
 			assert: func(t *testing.T, result Result, err error) {
@@ -840,7 +884,7 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				// Set verifyFn to return a valid result
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L2Heads: blocks}, nil
 				}
 				// cycleVerifyFn is overridden with this stub implementation.
@@ -867,7 +911,7 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 				chain8453 := eth.ChainIDFromUInt64(8453)
 
 				// verifyFn returns valid result
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					verifyFnCalled = true
 					return Result{Timestamp: ts, L2Heads: blocks}, nil
 				}
@@ -902,7 +946,7 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L2Heads: blocks}, nil
 				}
 				h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
@@ -929,7 +973,7 @@ func TestProgressInteropWithCycleVerify(t *testing.T) {
 				chain8453 := eth.ChainIDFromUInt64(8453)
 
 				// verifyFn marks chain 10 as invalid
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{
 						Timestamp: ts,
 						L2Heads:   blocks,
@@ -1041,7 +1085,7 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 				}
 
@@ -1382,7 +1426,7 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				expectedL1Inclusion := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L1Inclusion: expectedL1Inclusion, L2Heads: blocks}, nil
 				}
 
@@ -1408,7 +1452,7 @@ func TestProgressAndRecord(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				// L1Inclusion is 1000 (from the leading chain) but chain 8453 is only at 990.
 				// interop.currentL1 must be capped at 990 so it never exceeds any node's CurrentL1.
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{
 						Timestamp:   ts,
 						L1Inclusion: eth.BlockID{Number: 1000, Hash: common.HexToHash("0xleading")},
@@ -1437,7 +1481,7 @@ func TestProgressAndRecord(t *testing.T) {
 				initialL1 := eth.BlockID{Number: 50, Hash: common.HexToHash("0x50")}
 				h.interop.currentL1 = initialL1
 
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{
 						Timestamp:    ts,
 						L1Inclusion:  eth.BlockID{Number: 999, Hash: common.HexToHash("0xShouldNotBeUsed")},
@@ -1506,7 +1550,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	require.False(t, hasBlocks)
 
 	// Stub verifyFn
-	interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+	interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 
@@ -1560,7 +1604,7 @@ func TestInterop_ProgressAndRecord_MultiAdvance(t *testing.T) {
 		Build()
 
 	mock := h.Mock(10)
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
@@ -1600,8 +1644,8 @@ func TestInterop_ProgressAndRecord_MultiAdvance(t *testing.T) {
 
 // TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind advances twice
 // through progressAndRecord, flips the l1Checker so observeRound sees an
-// inconsistency, and asserts the next progressAndRecord drives a full rewind
-// end to end: verifiedDB trimmed, engines reset, WAL cleared.
+// inconsistency, and asserts the next progressAndRecord drives a Supernode state
+// rewind end to end: verifiedDB trimmed and WAL cleared without rewinding engines.
 func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithActivation(100).
@@ -1612,7 +1656,7 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 		Build()
 
 	mock := h.Mock(10)
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
 	}
 	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
@@ -1644,8 +1688,7 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, pending, "WAL cleared after successful rewind")
 
-	require.Len(t, mock.rewindEngineCalls, 1, "engine rewound exactly once on the recovering chain")
-	require.Equal(t, uint64(101), mock.rewindEngineCalls[0])
+	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
 // =============================================================================
@@ -1701,8 +1744,7 @@ func (m *mockBlockInfo) GasLimit() uint64                                     { 
 func (m *mockBlockInfo) BlobGasUsed() *uint64                                 { return nil }
 func (m *mockBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
 func (m *mockBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *mockBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
-func (m *mockBlockInfo) Header() *types.Header                                { return nil }
+func (m *mockBlockInfo) Extra() []byte                                        { return nil }
 func (m *mockBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*mockBlockInfo)(nil)
@@ -1999,6 +2041,15 @@ func (m *mockChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (ma
 	}
 	return nil, nil
 }
+func (m *mockChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	for decisionTimestamp, hashes := range m.pruneDeniedResult {
+		if decisionTimestamp < timestamp || len(hashes) == 0 {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
 func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil
 }
@@ -2108,6 +2159,7 @@ func TestPendingTransition_RecoverInvalidatePreservedOnFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed")
 		}).
 		Build()
@@ -2134,7 +2186,7 @@ func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
 	_, err = h.interop.applyPendingTransition(pending)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "reset chain engine on rewind")
+	require.Contains(t, err.Error(), "reset chain engine after pruning deny-list entries")
 
 	storedPending, err := h.interop.verifiedDB.GetPendingTransition()
 	require.NoError(t, err)
@@ -2154,6 +2206,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, nil).
 					WithChain(8453, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("chain B rewind failed")
 		}).
 		Build()
@@ -2188,7 +2241,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 
 	// First attempt: chain B's RewindEngine errors, WAL preserved.
 	_, err = h.interop.applyPendingTransition(pending)
-	require.EqualError(t, err, "apply rewind plan: chain 8453: reset chain engine on rewind: chain B rewind failed")
+	require.EqualError(t, err, "apply rewind plan: chain 8453: reset chain engine after pruning deny-list entries: chain B rewind failed")
 
 	stored, err := h.interop.verifiedDB.GetPendingTransition()
 	require.NoError(t, err)
@@ -2217,6 +2270,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
+			m.pruneDeniedResult = map[uint64][]common.Hash{1001: {common.HexToHash("0xdenied")}}
 			m.rewindEngineErr = errors.New("rewind failed a")
 		}).
 		WithChain(8453, func(m *mockChainContainer) {
@@ -2253,8 +2307,8 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
 	_, err = h.interop.applyPendingTransition(pending)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "chain 10: reset chain engine on rewind")
-	require.Contains(t, err.Error(), "chain 8453: reset chain engine on rewind")
+	require.Contains(t, err.Error(), "chain 10: reset chain engine after pruning deny-list entries")
+	require.Contains(t, err.Error(), "chain 8453: reset chain engine after pruning deny-list entries")
 }
 
 func TestPendingTransition_RecoverAdvanceAfterCommitClearsPendingTransition(t *testing.T) {
@@ -2336,7 +2390,7 @@ func TestRewindAccepted(t *testing.T) {
 		chainID := mock.id
 
 		// Stub verifyFn
-		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: ts}, L2Heads: blocks}, nil
 		}
 
@@ -2380,6 +2434,74 @@ func TestRewindAccepted(t *testing.T) {
 		// logsDB should have been rewound (not cleared)
 		require.True(t, trackingDB.rewindCalled, "logsDB should be rewound to previous frontier")
 		require.Equal(t, 0, trackingDB.clearCalled, "logsDB should not be cleared")
+		require.Empty(t, mock.rewindEngineCalls, "DecisionRewind should not rewind chain engines")
+	})
+
+	t.Run("rewinds all engines when deny-list entries are pruned", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1001: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mockA := h.Mock(10)
+		mockB := h.Mock(8453)
+
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mockA.id: {Number: 100, Hash: common.HexToHash("0xa1")},
+				mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
+			},
+		}))
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1001,
+			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				mockA.id: {Number: 101, Hash: common.HexToHash("0xa2")},
+				mockB.id: {Number: 201, Hash: common.HexToHash("0xb2")},
+			},
+		}))
+
+		plan, err := h.interop.buildRewindPlan(1001)
+		require.NoError(t, err)
+		require.NotNil(t, plan.ResetAllChainsTo)
+		require.Equal(t, uint64(1000), *plan.ResetAllChainsTo)
+
+		err = h.interop.applyRewindPlan(plan)
+		require.NoError(t, err)
+		require.Equal(t, []uint64{1000}, mockA.rewindEngineCalls)
+		require.Equal(t, []uint64{1000}, mockB.rewindEngineCalls)
+	})
+
+	t.Run("does not rewind engines for deny-list entries before rewind timestamp", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1000: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0xa1")}},
+		}))
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   1001,
+			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0xa2")}},
+		}))
+
+		plan, err := h.interop.buildRewindPlan(1001)
+		require.NoError(t, err)
+		require.Nil(t, plan.ResetAllChainsTo)
 	})
 
 	t.Run("clears logsDB when rewinding to empty", func(t *testing.T) {
@@ -2479,7 +2601,7 @@ func progressInteropCompat(i *Interop) (Result, error) {
 	if obs.Paused || !obs.ChainsReady {
 		return Result{}, nil
 	}
-	return i.verify(obs.NextTimestamp, obs.BlocksAtTS)
+	return i.verify(obs.NextTimestamp, obs.BlocksAtTS, obs.L1Heads)
 }
 
 // applyResultCompat replicates the old result-application behavior for test compatibility.
@@ -2578,7 +2700,7 @@ func TestVerify_DoesNotPersistFrontierLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, obs.ChainsReady)
 
-	result, err := h.interop.verify(obs.NextTimestamp, obs.BlocksAtTS)
+	result, err := h.interop.verify(obs.NextTimestamp, obs.BlocksAtTS, obs.L1Heads)
 	require.NoError(t, err)
 	require.False(t, result.IsEmpty())
 	require.Zero(t, trackingDB.addLogCalls, "verify must not write logs into logsDB")

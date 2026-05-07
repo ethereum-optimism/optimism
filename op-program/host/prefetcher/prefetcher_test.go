@@ -78,7 +78,7 @@ func TestFetchL1BlockHeader(t *testing.T) {
 
 	t.Run("Unknown", func(t *testing.T) {
 		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
-		l1Cl.ExpectInfoByHash(hash, eth.HeaderBlockInfo(block.Header()), nil)
+		l1Cl.ExpectHeaderByHash(hash, block.Header(), nil)
 		defer l1Cl.AssertExpectations(t)
 
 		require.NoError(t, prefetcher.Hint(l1.BlockHeaderHint(hash).Hint()))
@@ -107,7 +107,7 @@ func TestFetchL1Transactions(t *testing.T) {
 
 	t.Run("Unknown", func(t *testing.T) {
 		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
-		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
+		l1Cl.ExpectHeaderByHash(hash, block.Header(), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		defer l1Cl.AssertExpectations(t)
 
@@ -136,7 +136,7 @@ func TestFetchL1Receipts(t *testing.T) {
 
 	t.Run("Unknown", func(t *testing.T) {
 		prefetcher, l1Cl, _, _, _ := createPrefetcher(t)
-		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
+		l1Cl.ExpectHeaderByHash(hash, block.Header(), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
 		defer l1Cl.AssertExpectations(t)
@@ -151,7 +151,7 @@ func TestFetchL1Receipts(t *testing.T) {
 	// Check that the node already existing is handled
 	t.Run("CommonTrieNodes", func(t *testing.T) {
 		prefetcher, l1Cl, _, _, kv := createPrefetcher(t)
-		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
+		l1Cl.ExpectHeaderByHash(hash, block.Header(), nil)
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
 		defer l1Cl.AssertExpectations(t)
@@ -434,7 +434,7 @@ func TestFetchL2Block(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
 		prefetcher, _, _, l2Cls, _ := createPrefetcher(t)
 		l2Cl := l2Cls.sources[defaultChainID]
-		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		l2Cl.ExpectHeaderAndTxsByHash(hash, block.Header(), block.Transactions(), nil)
 		defer l2Cl.MockL2Client.AssertExpectations(t)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher), false)
@@ -446,7 +446,7 @@ func TestFetchL2Block(t *testing.T) {
 	t.Run("WithChainID", func(t *testing.T) {
 		prefetcher, _, _, l2Cls, _ := createPrefetcher(t, eth.ChainIDFromUInt64(5), eth.ChainIDFromUInt64(7), eth.ChainIDFromUInt64(10))
 		l2Cl := l2Cls.sources[eth.ChainIDFromUInt64(7)]
-		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		l2Cl.ExpectHeaderAndTxsByHash(hash, block.Header(), block.Transactions(), nil)
 		defer assertAllClientExpectations(t, l2Cls)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher), true)
@@ -474,7 +474,7 @@ func TestFetchL2Transactions(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
 		prefetcher, _, _, l2Cls, _ := createPrefetcher(t)
 		l2Cl := l2Cls.sources[defaultChainID]
-		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		l2Cl.ExpectHeaderAndTxsByHash(hash, block.Header(), block.Transactions(), nil)
 		defer l2Cl.MockL2Client.AssertExpectations(t)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher), false)
@@ -485,7 +485,7 @@ func TestFetchL2Transactions(t *testing.T) {
 	t.Run("WithChainID", func(t *testing.T) {
 		prefetcher, _, _, l2Cls, _ := createPrefetcher(t, eth.ChainIDFromUInt64(5), eth.ChainIDFromUInt64(7), eth.ChainIDFromUInt64(10))
 		l2Cl := l2Cls.sources[eth.ChainIDFromUInt64(7)]
-		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		l2Cl.ExpectHeaderAndTxsByHash(hash, block.Header(), block.Transactions(), nil)
 		defer assertAllClientExpectations(t, l2Cls)
 
 		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher), true)
@@ -636,10 +636,10 @@ func TestFetchL2BlockData(t *testing.T) {
 		isCanonical := clientErrs[len(clientErrs)-1] == nil
 
 		for _, clientErr := range clientErrs {
-			l2Client.ExpectInfoAndTxsByHash(disputedBlock.Hash(), eth.BlockToInfo(nil), nil, clientErr)
+			l2Client.ExpectHeaderAndTxsByHash(disputedBlock.Hash(), nil, nil, clientErr)
 		}
 		if !isCanonical {
-			l2Client.ExpectInfoAndTxsByHash(block.Hash(), eth.BlockToInfo(block), block.Transactions(), nil)
+			l2Client.ExpectHeaderAndTxsByHash(block.Hash(), block.Header(), block.Transactions(), nil)
 			output := &eth.OutputV0{
 				BlockHash:                block.Hash(),
 				StateRoot:                eth.Bytes32(block.Root()),

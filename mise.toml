@@ -23,6 +23,8 @@ make = "4.4.1"
 svm-rs = "0.5.19"
 
 # Rust tooling
+"github:crate-ci/cargo-release" = { version = "1.1.2" }
+
 "github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
 "github:EmbarkStudios/cargo-deny" = "0.19.4"
 "github:ggwpez/zepter" = { version = "1.88.0", version_prefix = "v" }
@@ -34,7 +36,7 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4"    # Osaka testnet release.
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"

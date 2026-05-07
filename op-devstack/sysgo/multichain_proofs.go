@@ -84,17 +84,19 @@ func attachSupervisorSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pr
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
-	_ = startSuperProposer(
-		t,
-		runtime.Keys,
-		"main",
-		proofChain.Network.ChainID(),
-		runtime.L1EL,
-		proofChain.Network,
-		runtime.PrimarySupervisor.UserRPC(),
-		"",
-		cfg.ProposerOptions...,
-	)
+	if !cfg.SkipHonestProposer {
+		_ = startSuperProposer(
+			t,
+			runtime.Keys,
+			"main",
+			proofChain.Network.ChainID(),
+			runtime.L1EL,
+			proofChain.Network,
+			runtime.PrimarySupervisor.UserRPC(),
+			"",
+			cfg.ProposerOptions...,
+		)
+	}
 
 	return runtime
 }
@@ -117,7 +119,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 		migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
 	}
 
-	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
+	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
 	return runtime
 }
 
@@ -139,7 +141,7 @@ func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntim
 	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
 	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
 
-	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonGameType)
+	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
 	return runtime
 }
 
@@ -178,23 +180,25 @@ func attachSuperChallengerAndProposer(
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
-	proposerOpts := append([]ProposerOption{
-		func(_ ComponentTarget, c *ps.CLIConfig) {
-			c.DisputeGameType = uint32(proposerGameType)
-		},
-	}, cfg.ProposerOptions...)
+	if !cfg.SkipHonestProposer {
+		proposerOpts := append([]ProposerOption{
+			func(_ ComponentTarget, c *ps.CLIConfig) {
+				c.DisputeGameType = uint32(proposerGameType)
+			},
+		}, cfg.ProposerOptions...)
 
-	_ = startSuperProposer(
-		t,
-		runtime.Keys,
-		"main",
-		proofChain.Network.ChainID(),
-		runtime.L1EL,
-		proofChain.Network,
-		"",
-		runtime.Supernode.UserRPC(),
-		proposerOpts...,
-	)
+		_ = startSuperProposer(
+			t,
+			runtime.Keys,
+			"main",
+			proofChain.Network.ChainID(),
+			runtime.L1EL,
+			proofChain.Network,
+			"",
+			runtime.Supernode.UserRPC(),
+			proposerOpts...,
+		)
+	}
 }
 
 func NewSimpleInteropSuperProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
@@ -239,18 +243,17 @@ func startSuperProposer(
 	logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 	proposerCLIConfig := &ps.CLIConfig{
-		L1EthRpc:          l1EL.UserRPC(),
-		PollInterval:      500 * time.Millisecond,
-		AllowNonFinalized: true,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
-		RPCConfig:         oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
-		LogConfig:         oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
-		MetricsConfig:     opmetrics.CLIConfig{},
-		PprofConfig:       oppprof.CLIConfig{},
-		DGFAddress:        l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
-		ProposalInterval:  6 * time.Second,
-		// TODO(#20030): Switch to superCannonKonaGameType once SUPER_CANNON is disabled in migrator
-		DisputeGameType:              superCannonGameType,
+		L1EthRpc:                     l1EL.UserRPC(),
+		PollInterval:                 500 * time.Millisecond,
+		AllowNonFinalized:            true,
+		TxMgrConfig:                  setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
+		RPCConfig:                    oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
+		LogConfig:                    oplog.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
+		MetricsConfig:                opmetrics.CLIConfig{},
+		PprofConfig:                  oppprof.CLIConfig{},
+		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
+		ProposalInterval:             6 * time.Second,
+		DisputeGameType:              superCannonKonaGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
 	}
@@ -328,11 +331,9 @@ func startInteropChallenger(
 		sharedchallenger.WithPrivKey(challengerSecret),
 		sharedchallenger.WithDepset(staticDepSet),
 		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.InteropVariant),
-		sharedchallenger.WithSuperCannonGameType(),
 		sharedchallenger.WithSuperPermissionedGameType(),
 		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 		sharedchallenger.WithSuperCannonKonaGameType(),
-		sharedchallenger.WithExperimentalWitnessEndpoint(),
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),

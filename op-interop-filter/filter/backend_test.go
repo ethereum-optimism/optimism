@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -171,6 +172,56 @@ func TestBackend_Failsafe_AllClear(t *testing.T) {
 	// Even after some operations, failsafe stays off
 	mock.SetLatestTimestamp(300)
 	require.False(t, backend.FailsafeEnabled())
+}
+
+func TestBackend_ReorgRecovery_ResolvesReorgError(t *testing.T) {
+	mock := newMockChainIngester()
+	mock.AddBlock(eth.BlockID{Hash: common.Hash{0x01}, Number: 10})
+	mock.SetLatestTimestamp(120)
+	mock.SetError(ErrorReorg, "reorg detected")
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := &mockCrossValidator{}
+	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: cv})
+
+	require.True(t, backend.FailsafeEnabled())
+	backend.tryResolveReorgs(context.Background())
+	require.Equal(t, 1, mock.rewindToFinalizedCount)
+	require.True(t, cv.resetOK)
+	require.Equal(t, uint64(120), cv.resetTs)
+	require.Nil(t, mock.Error())
+	require.False(t, backend.FailsafeEnabled())
+}
+
+func TestBackend_ReorgRecovery_NoErrorIsNotResolvable(t *testing.T) {
+	mock := newMockChainIngester()
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: &mockCrossValidator{}})
+
+	_, _, err := backend.recoverChainReorg(context.Background(), eth.ChainIDFromUInt64(testChainA), mock)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no ingester error")
+	require.Equal(t, 0, mock.rewindToFinalizedCount)
+}
+
+func TestBackend_ReorgRecovery_IgnoresNonReorgError(t *testing.T) {
+	mock := newMockChainIngester()
+	mock.SetError(ErrorConflict, "conflict")
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := &mockCrossValidator{}
+	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: cv})
+
+	backend.tryResolveReorgs(context.Background())
+	require.NotNil(t, mock.Error())
+	require.Equal(t, 0, mock.rewindToFinalizedCount)
+	require.False(t, cv.resetOK)
 }
 
 // =============================================================================

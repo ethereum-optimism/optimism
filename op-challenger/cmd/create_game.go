@@ -26,13 +26,18 @@ var (
 	}
 	OutputRootFlag = &cli.StringFlag{
 		Name:    "output-root",
-		Usage:   "The output root for the fault dispute game.",
+		Usage:   "The output root for the fault dispute game. For super games this is encoded into a single-chain super root proof.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "OUTPUT_ROOT"),
 	}
 	L2BlockNumFlag = &cli.StringFlag{
 		Name:    "l2-block-num",
-		Usage:   "The l2 block number for the game.",
+		Usage:   "The L2 block number for the game. For super games this is the super root timestamp/sequence number.",
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "L2_BLOCK_NUM"),
+	}
+	L2ChainIDFlag = &cli.StringFlag{
+		Name:    "l2-chain-id",
+		Usage:   "The L2 chain ID to include in the super root proof.",
+		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "L2_CHAIN_ID"),
 	}
 )
 
@@ -40,6 +45,7 @@ func CreateGame(ctx *cli.Context) error {
 	outputRoot := common.HexToHash(ctx.String(OutputRootFlag.Name))
 	gameType := ctx.Uint64(GameTypeFlag.Name)
 	l2BlockNum := ctx.Uint64(L2BlockNumFlag.Name)
+	l2ChainID := ctx.Uint64(L2ChainIDFlag.Name)
 
 	contract, txMgr, err := NewContractWithTxMgr[*contracts.DisputeGameFactoryContract](ctx, flags.FactoryAddress,
 		func(ctx context.Context, metricer contractMetrics.ContractMetricer, address common.Address, caller *batching.MultiCaller) (*contracts.DisputeGameFactoryContract, error) {
@@ -50,7 +56,7 @@ func CreateGame(ctx *cli.Context) error {
 	}
 
 	creator := tools.NewGameCreator(contract, txMgr)
-	gameAddr, err := creator.CreateGame(ctx.Context, outputRoot, gameType, l2BlockNum)
+	gameAddr, err := creator.CreateGame(ctx.Context, outputRoot, gameType, l2BlockNum, l2ChainID)
 	if err != nil {
 		return fmt.Errorf("failed to create game: %w", err)
 	}
@@ -66,6 +72,7 @@ func createGameFlags() []cli.Flag {
 		GameTypeFlag,
 		OutputRootFlag,
 		L2BlockNumFlag,
+		L2ChainIDFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
 	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)

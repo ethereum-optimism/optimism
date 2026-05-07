@@ -35,12 +35,12 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		{name: "B", source: sys.L2BCL, follower: sys.L2BFollowCL},
 	}
 
-	// Initial sanity: followers are aligned with upstream on both local-safe and cross-safe.
+	// Initial sanity: each follower is in sync with its upstream on local-safe and cross-safe.
 	initialChecks := make([]dsl.CheckFunc, 0, len(chains)*2)
 	for _, chain := range chains {
 		initialChecks = append(initialChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, initialChecks...)
@@ -103,13 +103,13 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		return true
 	}, 2*time.Minute, 2*time.Second, "expected unsafe > local-safe > cross-safe with unsafe advancing on source and follower")
 
-	// Core follow-source checks: follower must match source unsafe, local-safe, and cross-safe independently.
+	// Core follow-source checks: follower must converge with source on unsafe, local-safe, and cross-safe independently.
 	divergenceChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		divergenceChecks = append(divergenceChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, divergenceChecks...)
@@ -134,13 +134,13 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		return true
 	}, 3*time.Minute, 2*time.Second, "expected local-safe and cross-safe to converge on followers")
 
-	// Final sanity: follower and source converge to the same unsafe, local-safe, and cross-safe heads.
+	// Final sanity: follower and source converge on the same canonical chain at unsafe, local-safe, and cross-safe.
 	finalChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		finalChecks = append(finalChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, types.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, types.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, finalChecks...)

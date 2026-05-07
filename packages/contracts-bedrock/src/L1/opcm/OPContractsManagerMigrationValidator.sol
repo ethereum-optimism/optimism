@@ -204,8 +204,8 @@ contract OPContractsManagerMigrationValidator {
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
     ///         Post-migration interop requires SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA
-    ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA)
-    ///         unregistered. SUPER_CANNON status pending #20030.
+    ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA,
+    ///         SUPER_CANNON) unregistered.
     function assertValidSharedDGFShape(
         string memory _errors,
         IDisputeGameFactory _dgf
@@ -223,9 +223,7 @@ contract OPContractsManagerMigrationValidator {
         _errors =
             internalRequire(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "MIG-DGF-50", _errors);
-        // TODO(#20030): Once SUPER_CANNON is disabled in migrator, re-add check that SUPER_CANNON == address(0).
-        // _errors =
-        //     internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "MIG-DGF-60", _errors);
+        _errors = internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "MIG-DGF-60", _errors);
         return _errors;
     }
 
@@ -417,6 +415,7 @@ contract OPContractsManagerMigrationValidator {
         address sharedASR = address(firstPortal.anchorStateRegistry());
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
         IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
+        address sharedWETH = _chainSystemConfigs[0].delayedWETH();
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -483,6 +482,10 @@ contract OPContractsManagerMigrationValidator {
                 _chainSystemConfigs[i].isFeatureEnabled(Features.ETH_LOCKBOX),
                 string.concat("MIG-CHAIN-", idx, "-110"),
                 _errors
+            );
+
+            _errors = internalRequire(
+                _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
             );
         }
 

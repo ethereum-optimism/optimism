@@ -2,12 +2,14 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -294,6 +296,7 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 // mockEngineForInvalidation implements engine_controller.EngineController for invalidation tests
 type mockEngineForInvalidation struct {
 	blockRef        eth.L2BlockRef
+	blockRefErr     error
 	rewindCalled    bool
 	rewindTimestamp uint64
 }
@@ -317,7 +320,7 @@ func (m *mockEngineForInvalidation) Close() error {
 }
 
 func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	return m.blockRef, nil
+	return m.blockRef, m.blockRefErr
 }
 
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
@@ -354,7 +357,6 @@ func TestInvalidateBlock(t *testing.T) {
 		height           uint64
 		payloadHash      common.Hash
 		currentBlockHash common.Hash
-		engineAvailable  bool
 		expectRewind     bool
 		expectRewindTs   uint64
 	}{
@@ -364,7 +366,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xdead"), // Same hash
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (4 * blockTime), // height-1 timestamp
 		},
@@ -374,16 +375,7 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xbeef"), // Different hash
-			engineAvailable:  true,
 			expectRewind:     false,
-		},
-		{
-			name:            "engine unavailable adds to denylist only",
-			genesisBlock:    0,
-			height:          5,
-			payloadHash:     common.HexToHash("0xdead"),
-			engineAvailable: false,
-			expectRewind:    false,
 		},
 		{
 			name:             "rewind to height-1 timestamp calculated correctly",
@@ -391,7 +383,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           10,
 			payloadHash:      common.HexToHash("0xabcd"),
 			currentBlockHash: common.HexToHash("0xabcd"),
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (9 * blockTime), // height 9
 		},
@@ -401,7 +392,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           105,
 			payloadHash:      common.HexToHash("0xcafe"),
 			currentBlockHash: common.HexToHash("0xcafe"),
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (4 * blockTime), // block 104 relative to genesis block 100
 		},
@@ -432,6 +422,63 @@ func TestInvalidateBlock(t *testing.T) {
 		found, err := dl.Contains(0, common.HexToHash("0xgenesis"))
 		require.NoError(t, err)
 		require.False(t, found, "genesis block should not be added to denylist")
+	})
+
+	t.Run("missing engine returns error and persists denylist entry", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+		require.False(t, rewound)
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found, "denylist entry must persist so rewind can retry on restart")
+	})
+
+	t.Run("L2BlockRefByNumber failure returns error and persists denylist entry", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		fetchErr := errors.New("transient RPC failure")
+		mockEng := &mockEngineForInvalidation{blockRefErr: fetchErr}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, fetchErr)
+		require.False(t, rewound)
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted when current block lookup fails")
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found, "hash should be in denylist even when current block lookup fails")
 	})
 
 	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
@@ -488,9 +535,7 @@ func TestInvalidateBlock(t *testing.T) {
 			c.vncfg.Rollup.Genesis.L2.Number = tt.genesisBlock
 			c.vncfg.Rollup.BlockTime = blockTime
 
-			if tt.engineAvailable {
-				c.engine = mockEng
-			}
+			c.engine = mockEng
 
 			testStateRoot := eth.Bytes32(common.HexToHash("0xstate"))
 			testMsgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
@@ -507,7 +552,7 @@ func TestInvalidateBlock(t *testing.T) {
 			// Verify rewind behavior
 			require.Equal(t, tt.expectRewind, rewound, "rewind triggered mismatch")
 
-			if tt.expectRewind && tt.engineAvailable {
+			if tt.expectRewind {
 				require.True(t, mockEng.rewindCalled, "RewindToTimestamp should have been called")
 				require.Equal(t, tt.expectRewindTs, mockEng.rewindTimestamp, "rewind timestamp mismatch")
 			}
@@ -738,6 +783,26 @@ func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
 	records200, err := dl.GetDeniedRecords(200)
 	require.NoError(t, err)
 	require.Empty(t, records200)
+}
+
+func TestDenyList_HasDeniedAtOrAfterTimestamp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(50, common.HexToHash("0xbbbb"), 12, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(25, common.HexToHash("0xcccc"), 9, eth.Bytes32{}, eth.Bytes32{}))
+
+	ok, err := dl.HasDeniedAtOrAfterTimestamp(11)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = dl.HasDeniedAtOrAfterTimestamp(13)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestDenyList_GetOutputV0(t *testing.T) {

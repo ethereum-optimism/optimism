@@ -323,11 +323,6 @@
           },
           {
             "internalType": "address",
-            "name": "protocolVersionsImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "l1ERC721BridgeImpl",
             "type": "address"
           },
@@ -813,6 +808,11 @@
       }
     ],
     "name": "OPContractsManagerV2_DuplicateUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InvalidEthLockbox",
     "type": "error"
   },
   {

@@ -30,7 +30,7 @@ const (
 
 func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, superNodeClient *sources.SuperNodeClient, l1Client *ethclient.Client, typeName string, gameType gameTypes.GameType, ageGameInputs bool) (utils.LocalGameInputs, error) {
 	switch gameType {
-	case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
+	case gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
 		if superNodeClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supernode rpc to be set", gameType)
 		}

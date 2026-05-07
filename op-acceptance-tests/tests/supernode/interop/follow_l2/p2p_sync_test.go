@@ -43,6 +43,6 @@ func TestFollowSource_P2PSync(gt *testing.T) {
 		sys.L2AFollowCL.AdvancedFn(types.LocalUnsafe, 10, 30),
 	)
 
-	logger.Info("Check sequencer and follower holds identical chain")
-	sys.L2AFollowCL.Matched(sys.L2ACL, types.LocalUnsafe, 30)
+	logger.Info("Check sequencer and follower converged on the same canonical chain")
+	sys.L2AFollowCL.InSync(sys.L2ACL, types.LocalUnsafe, 30)
 }

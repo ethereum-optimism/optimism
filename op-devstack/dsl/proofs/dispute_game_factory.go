@@ -172,8 +172,7 @@ func (f *DisputeGameFactory) SuperGameAtIndex(idx int64) *SuperFaultDisputeGame 
 	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
 	gameType := gameTypes.GameType(gameInfo.GameType)
 	f.require.Truef(
-		gameType == gameTypes.SuperCannonGameType ||
-			gameType == gameTypes.SuperPermissionedGameType ||
+		gameType == gameTypes.SuperPermissionedGameType ||
 			gameType == gameTypes.SuperCannonKonaGameType,
 		"game at index %d is not a supported super game: %v",
 		idx,
@@ -586,9 +585,5 @@ type ethClientHeaderProvider struct {
 }
 
 func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
-	info, err := p.client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
-	if err != nil {
-		return nil, err
-	}
-	return info.Header(), nil
+	return p.client.HeaderByNumber(ctx, bigs.Uint64Strict(blockNum))
 }

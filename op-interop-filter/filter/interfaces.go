@@ -1,6 +1,8 @@
 package filter
 
 import (
+	"context"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -53,6 +55,9 @@ type ChainIngester interface {
 
 	// ClearError clears the error state.
 	ClearError()
+
+	// RewindToFinalized rewinds durable log state to finalized.
+	RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error)
 }
 
 // CrossValidator validates cross-chain messages.
@@ -74,4 +79,8 @@ type CrossValidator interface {
 	// Error returns the current error state, if any.
 	// Validation errors (invalid executing messages) are tracked here.
 	Error() *ValidatorError
+
+	// ResetCrossValidatedTimestamp rewinds in-memory validation progress after
+	// the underlying log DB has been rewound.
+	ResetCrossValidatedTimestamp(timestamp uint64)
 }

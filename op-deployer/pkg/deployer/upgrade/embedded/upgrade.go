@@ -18,7 +18,6 @@ type GameType uint32
 const (
 	GameTypeCannon             GameType = 0
 	GameTypePermissionedCannon GameType = 1
-	GameTypeSuperCannon        GameType = 4
 	GameTypeSuperPermCannon    GameType = 5
 	GameTypeCannonKona         GameType = 8
 	GameTypeSuperCannonKona    GameType = 9
@@ -131,7 +130,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 
 		if gameConfig.Enabled {
 			switch gameConfig.GameType {
-			case GameTypeCannon, GameTypeCannonKona, GameTypeSuperCannon, GameTypeSuperCannonKona:
+			case GameTypeCannon, GameTypeCannonKona, GameTypeSuperCannonKona:
 				if gameConfig.FaultDisputeGameConfig == nil {
 					return nil, fmt.Errorf("faultDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}

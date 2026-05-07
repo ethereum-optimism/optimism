@@ -268,12 +268,6 @@ func migrateSuperRootsWithProposal(
 			{
 				Enabled:  true,
 				InitBond: big.NewInt(0),
-				GameType: superCannonGameType,
-				GameArgs: absoluteCannonPrestate[:],
-			},
-			{
-				Enabled:  true,
-				InitBond: big.NewInt(0),
 				GameType: superPermissionedCannonGameType,
 				GameArgs: permGameArgs,
 			},
@@ -285,7 +279,7 @@ func migrateSuperRootsWithProposal(
 			},
 		},
 		StartingAnchorRoot:        startingAnchorRoot,
-		StartingRespectedGameType: superCannonGameType,
+		StartingRespectedGameType: superCannonKonaGameType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)
 	migrateCallData, err := migrateCall.Pack()
@@ -339,7 +333,6 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superCannonGameType             = 4
 	superPermissionedCannonGameType = 5
 	superCannonKonaGameType         = 9
 )
@@ -366,7 +359,7 @@ func getDisputeGameFactory(t devtest.CommonT, client *w3.Client, portal common.A
 
 func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) common.Address {
 	var addr common.Address
-	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonGameType)).Returns(&addr))
+	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonKonaGameType)).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
 }

@@ -298,16 +298,16 @@ reth-optimism-trie = { path = "op-reth/crates/trie/" }
 reth-optimism-txpool = { path = "op-reth/crates/txpool/" }
 
 # ==================== OP-ALLOY INTERNAL CRATES ====================
-op-alloy-consensus = { version = "0.24.0", path = "op-alloy/crates/consensus", default-features = false }
-op-alloy-network = { version = "0.24.0", path = "op-alloy/crates/network", default-features = false }
-op-alloy-provider = { version = "0.24.0", path = "op-alloy/crates/provider", default-features = false }
-op-alloy-rpc-types = { version = "0.24.0", path = "op-alloy/crates/rpc-types", default-features = false }
-op-alloy-rpc-types-engine = { version = "0.24.0", path = "op-alloy/crates/rpc-types-engine", default-features = false }
-op-alloy-rpc-jsonrpsee = { version = "0.24.0", path = "op-alloy/crates/rpc-jsonrpsee", default-features = false }
+op-alloy-consensus = { version = "2.0.0", path = "op-alloy/crates/consensus", default-features = false }
+op-alloy-network = { version = "2.0.0", path = "op-alloy/crates/network", default-features = false }
+op-alloy-provider = { version = "2.0.0", path = "op-alloy/crates/provider", default-features = false }
+op-alloy-rpc-types = { version = "2.0.0", path = "op-alloy/crates/rpc-types", default-features = false }
+op-alloy-rpc-types-engine = { version = "2.0.0", path = "op-alloy/crates/rpc-types-engine", default-features = false }
+op-alloy-rpc-jsonrpsee = { version = "2.0.0", path = "op-alloy/crates/rpc-jsonrpsee", default-features = false }
 
 # ==================== ALLOY-OP-EVM / ALLOY-OP-HARDFORKS ====================
-alloy-op-evm = { version = "0.31.0", path = "alloy-op-evm/", default-features = false }
-alloy-op-hardforks = { version = "0.4.7", path = "alloy-op-hardforks/", default-features = false }
+alloy-op-evm = { version = "0.32.0", path = "alloy-op-evm/", default-features = false }
+alloy-op-hardforks = { version = "0.5.0", path = "alloy-op-hardforks/", default-features = false }
 
 # ==================== RETH CRATES (crates.io) ====================
 reth-codecs = { version = "0.3.1", default-features = false, features = [
@@ -398,7 +398,7 @@ revm-state = { version = "11.0.0", default-features = false }
 revm-primitives = { version = "23.0.0", default-features = false }
 revm-interpreter = { version = "35.0.0", default-features = false }
 revm-database-interface = { version = "11.0.0", default-features = false }
-op-revm = { version = "19.0.0", path = "op-revm/", default-features = false }
+op-revm = { version = "20.0.0", path = "op-revm/", default-features = false }
 revm-inspectors = "0.39.0"
 
 # ==================== ALLOY ====================
@@ -456,7 +456,7 @@ alloy-transport-ipc = { version = "2.0.4", default-features = false }
 alloy-transport-ws = { version = "2.0.4", default-features = false }
 
 # ==================== OP-ALLOY (from crates.io) ====================
-op-alloy = { version = "0.24.0", path = "op-alloy/crates/op-alloy", default-features = false }
+op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-features = false }
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== ASYNC ====================

@@ -71,11 +71,6 @@ parameters:
   c-rust_files_changed:
     type: boolean
     default: false
-  # Set to true by path-filtering when files outside docs/public-docs/ change.
-  # When false, the main workflow is skipped entirely (docs-only PR).
-  c-non_docs_changes:
-    type: boolean
-    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -2470,7 +2465,6 @@ workflows:
         - or:
             - and:
                 - equal: ["webhook", << pipeline.trigger_source >>]
-                - << pipeline.parameters.c-non_docs_changes >>
             - and:
                 - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
                 - equal: ["api", << pipeline.trigger_source >>]
@@ -2760,18 +2754,6 @@ workflows:
           name: generate-flaky-tests-report
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
-  main-skip:
-    when:
-      and:
-        - equal: ["", << pipeline.git.tag >>]
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-non_docs_changes >>
-    jobs:
-      - ci-gate:
-          always-succeed: true
-          context:
             - circleci-api-token
 
   go-release-op-deployer:
@@ -3084,12 +3066,10 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-contracts_changed >>
-            - << pipeline.parameters.c-non_docs_changes >>
         # Always run on develop (mirrors previous check-changed whitelist behavior)
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - equal: ["develop", << pipeline.git.branch >>]
-            - << pipeline.parameters.c-non_docs_changes >>
         # Merge queue (merge gate). Match checkout branch.
         - matches:
             pattern: "^gh-readonly-queue/.*"
@@ -3273,19 +3253,17 @@ workflows:
           - and:
               - equal: ["webhook", << pipeline.trigger_source >>]
               - << pipeline.parameters.c-contracts_changed >>
-              - << pipeline.parameters.c-non_docs_changes >>
           # Always run on develop (mirrors previous check-changed whitelist behavior)
           - and:
               - equal: ["webhook", << pipeline.trigger_source >>]
               - equal: ["develop", << pipeline.git.branch >>]
-              - << pipeline.parameters.c-non_docs_changes >>
           # Merge queue (merge gate). Match checkout branch.
           - matches:
               pattern: "^gh-readonly-queue/.*"
               value: << pipeline.git.branch >>
           - and:
-            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+              - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+              - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
           always-succeed: true
