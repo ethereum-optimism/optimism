@@ -1,6 +1,6 @@
-// Probes whether andybalholm/brotli reports clean EOF on truncated streams.
-// If argv[1] is provided, it's a hex-encoded compressed brotli stream to use;
-// otherwise the program compresses a default plaintext with andybalholm.
+// Probes whether google/brotli (cgo to reference C) reports clean EOF on
+// truncated streams. If argv[1] is provided, it's a hex-encoded compressed
+// brotli stream; otherwise the program compresses a default plaintext.
 package main
 
 import (
@@ -11,7 +11,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/andybalholm/brotli"
+	"github.com/google/brotli/go/cbrotli"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
 	} else {
 		plaintext := []byte("the quick brown fox jumps over the lazy dog twice for redundancy and length")
 		var buf bytes.Buffer
-		w := brotli.NewWriter(&buf)
+		w := cbrotli.NewWriter(&buf, cbrotli.WriterOptions{Quality: 5})
 		_, _ = w.Write(plaintext)
 		_ = w.Close()
 		compressed = buf.Bytes()
@@ -37,9 +37,10 @@ func main() {
 	for i := len(compressed) - 1; i >= 1; i-- {
 		truncated := compressed[:i]
 		src := bytes.NewReader(truncated)
-		br := brotli.NewReader(src)
+		br := cbrotli.NewReader(src)
 
 		output, err := io.ReadAll(br)
+		_ = br.Close()
 		errStr := "Ok"
 		if err != nil {
 			if errors.Is(err, io.ErrUnexpectedEOF) {

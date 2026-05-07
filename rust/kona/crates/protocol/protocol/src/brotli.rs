@@ -56,22 +56,31 @@ pub fn decompress_brotli(
         );
         let old_len = output.len();
 
+        // When both `available_in` and `available_out` reach 0 in the same iteration,
+        // `BrotliDecompressStream` returns `NeedsMoreInput` (priority over
+        // `NeedsMoreOutput`), but there may still be buffered output it could flush
+        // given more output space. Treat this case as `NeedsMoreOutput` and grow the
+        // buffer; brotli will signal `NeedsMoreInput` again with non-zero `available_out`
+        // when it has truly run out of input. Without this, kona's wrapper under-produces
+        // output bytes vs Go's brotli.NewReader on truncated streams.
+        let needs_more_input_with_full_buf =
+            matches!(result, BrotliResult::NeedsMoreInput) && available_out == 0;
+
         match result {
-            // Buffer was already grown to the limit on a previous iteration, but the decompressor
-            // filled it and still has more to produce: stop per spec.
             BrotliResult::NeedsMoreOutput if old_len >= max_rlp_bytes_per_channel => break,
-            // Enlarge output buffer to continue decompression.
             BrotliResult::NeedsMoreOutput => {
                 let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
                 output.resize(new_len, 0);
                 available_out += new_len - old_len;
             }
-            // No output: error.
+            _ if needs_more_input_with_full_buf && old_len < max_rlp_bytes_per_channel => {
+                let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
+                output.resize(new_len, 0);
+                available_out += new_len - old_len;
+            }
             _ if written == 0 => {
                 return Err(BrotliDecompressionError::DecompressionFailed(result));
             }
-            // Success, NeedsMoreInput or ResultFailure with some output written: return partial
-            // data.
             _ => break,
         }
     }
@@ -120,6 +129,9 @@ pub fn decompress_brotli_strict(
         );
         let old_len = output.len();
 
+        let needs_more_input_with_full_buf =
+            matches!(last_result, BrotliResult::NeedsMoreInput) && available_out == 0;
+
         match last_result {
             BrotliResult::NeedsMoreOutput if old_len >= max_rlp_bytes_per_channel => {
                 hit_cap = true;
@@ -130,8 +142,14 @@ pub fn decompress_brotli_strict(
                 output.resize(new_len, 0);
                 available_out += new_len - old_len;
             }
+            // Same buffer-exhaustion case as the loose variant: grow and retry.
+            _ if needs_more_input_with_full_buf && old_len < max_rlp_bytes_per_channel => {
+                let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
+                output.resize(new_len, 0);
+                available_out += new_len - old_len;
+            }
             BrotliResult::ResultSuccess => break,
-            // STRICT: NeedsMoreInput or ResultFailure → reject regardless of bytes written.
+            // STRICT: NeedsMoreInput (with output space) or ResultFailure → reject.
             _ => return Err(BrotliDecompressionError::DecompressionFailed(last_result)),
         }
     }
