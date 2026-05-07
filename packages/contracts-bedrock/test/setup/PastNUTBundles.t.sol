@@ -78,7 +78,11 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
         bytes memory data = abi.encodePacked(wrongSelector, bytes32(uint256(uint160(address(0xCAFE)))));
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: data, from: address(0), gasLimit: 0, intent: "test", to: Predeploys.PROXY_ADMIN
+            data: data,
+            from: address(0),
+            gasLimit: 0,
+            intent: "test",
+            to: Predeploys.PROXY_ADMIN
         });
 
         vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongSelector.selector, "test-path", wrongSelector));
@@ -90,7 +94,11 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
         bytes memory shortData = abi.encodePacked(IL2ProxyAdmin.upgradePredeploys.selector, bytes31(0));
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: shortData, from: address(0), gasLimit: 0, intent: "test", to: Predeploys.PROXY_ADMIN
+            data: shortData,
+            from: address(0),
+            gasLimit: 0,
+            intent: "test",
+            to: Predeploys.PROXY_ADMIN
         });
 
         vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongDataLength.selector, "test-path", uint256(35)));
