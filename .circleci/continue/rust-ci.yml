@@ -898,11 +898,11 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
       - run:
           name: Generate prestate artifacts
-          working_directory: rust/kona
+          working_directory: rust
           no_output_timeout: 60m
           command: |
-            cd docker/fpvm-prestates
-            just "<<parameters.kind>>" "<<parameters.version>>" "../../prestate-artifacts-<<parameters.kind>>"
+            just build-kona-reproducible-prestate-variant "<<parameters.version>>" "prestate-artifacts-<<parameters.kind>>"
+
       - run:
           name: Upload prestates to GCS
           working_directory: rust/kona
@@ -924,10 +924,15 @@ jobs:
 
   required-rust-ci:
     docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: small
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate)
+        type: boolean
+        default: false
     steps:
-      - run: echo "Required Rust CI checks passed"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
 # ============================================================================
 # WORKFLOWS
@@ -943,7 +948,6 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-rust_changes_detected >>
-            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -1079,9 +1083,30 @@ workflows:
       # -----------------------------------------------------------------------
       - required-rust-ci:
           requires:
-            - rust-tests
-            - rust-clippy
-            - rust-docs
+            - rust-fmt: terminal
+            - rust-clippy: terminal
+            - rust-deny: terminal
+            - rust-typos: terminal
+            - rust-zepter: terminal
+            - rust-tests: terminal
+            - rust-doctest: terminal
+            - rust-docs: terminal
+            - rust-udeps: terminal
+            - rust-cargo-hack: terminal
+            - rust-build: terminal
+            - rust-build-release: terminal
+            - rust-check-no-std: terminal
+            - rust-wasm-unknown: terminal
+            - rust-wasm-wasi: terminal
+            - op-reth-compact-codec: terminal
+            - op-reth-integration-tests: terminal
+            - kona-lint-cannon: terminal
+            - kona-build-fpvm-cannon-client: terminal
+            - kona-coverage: terminal
+            - kona-host-client-offline-cannon: terminal
+          context:
+            - circleci-api-token
+  # =====================================
 
   # ==========================================================================
   # Required Rust CI gate (skip) — runs when no rust changes and no dispatch
@@ -1092,7 +1117,6 @@ workflows:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
-        - << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - rust-ci-cargo-tests:
           name: rust-tests
@@ -1113,9 +1137,11 @@ workflows:
 
       - required-rust-ci:
           requires:
-            - rust-tests
-            - op-reth-integration-tests
-            - kona-build-fpvm-cannon-client
+            - rust-tests: terminal
+            - op-reth-integration-tests: terminal
+            - kona-build-fpvm-cannon-client: terminal
+          context:
+            - circleci-api-token
 
   # ==========================================================================
   # Kona scheduled workflows

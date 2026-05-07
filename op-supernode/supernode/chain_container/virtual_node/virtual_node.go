@@ -285,10 +285,18 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
 			// Probed below the earliest SafeDB entry: snap/CL-sync bootstrap
-			// gap. Permanent on this node; retrying won't backfill history.
+			// gap. If the earliest entry is the exact target, it is still a
+			// valid lower bound because SafeDB recorded that L2 at cursor L1.
+			// Otherwise the target predates available history.
 			// cursor is the earliest entry in the DB (nothing exists at
 			// or below cursor.Number - 1, which is what we just probed).
 			if errors.Is(err, safedb.ErrNotFound) {
+				if cursorL2 == target {
+					v.log.Debug("L1AtSafeHead: target matches earliest SafeDB entry",
+						"target_l2_num", target.Number, "target_l2_hash", target.Hash,
+						"earliest_l1", cursor.Number)
+					return cursor, nil
+				}
 				v.log.Warn("L1AtSafeHead: walkback ran past earliest SafeDB entry",
 					"target_l2_num", target.Number, "target_l2_hash", target.Hash,
 					"earliest_l1", cursor.Number, "earliest_l2", cursorL2.Number,

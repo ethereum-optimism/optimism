@@ -8,6 +8,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// superCannonGameType is GameTypes.SUPER_CANNON. OPCMv2 has retired this type from its
+// deploy/upgrade allow-list, so `op-deployer manage migrate` rejects it for both
+// --dispute-game-type and --starting-respected-game-type.
+const superCannonGameType uint32 = 4
+
+// migrateStartingRespectedGameTypeDefault is the default value for --starting-respected-game-type
+// in `op-deployer manage migrate`. SUPER_CANNON_KONA (9) replaces the retired SUPER_CANNON (4).
+const migrateStartingRespectedGameTypeDefault uint32 = 9
+
 var (
 	L1ProxyAdminOwnerFlag = &cli.StringFlag{
 		Name:    "l1-proxy-admin-owner-address",
@@ -86,9 +95,9 @@ var (
 	}
 	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
 		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for migration. Defaults to 4 (Super Cannon).",
+		Usage:   "Starting respected game type for migration. Defaults to 9 (SUPER_CANNON_KONA). 4 (SUPER_CANNON) is rejected.",
 		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   4,
+		Value:   uint64(migrateStartingRespectedGameTypeDefault),
 	}
 	MigrateDisputeGameEnabledFlag = &cli.BoolFlag{
 		Name:    "dispute-game-enabled",

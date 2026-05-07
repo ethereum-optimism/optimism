@@ -193,7 +193,6 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		},
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.Address{'S'},
-			ProtocolVersionsOwner:     common.Address{'P'},
 			SuperchainGuardian:        common.Address{'G'},
 			Challenger:                common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
 		},

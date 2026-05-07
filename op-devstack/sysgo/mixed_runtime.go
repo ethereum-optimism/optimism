@@ -44,8 +44,9 @@ import (
 type MixedL2ELKind string
 
 const (
-	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
-	MixedL2ELOpReth MixedL2ELKind = "op-reth"
+	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
+	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
+	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
 )
 
 type MixedL2CLKind string
@@ -116,6 +117,8 @@ type MixedSingleChainPresetConfig struct {
 	TestSequencerName          string
 	LocalContractArtifactsPath string
 	DeployerOptions            []DeployerOption
+	BatcherOptions             []BatcherOption
+	OpRethOptions              []OpRethOption
 }
 
 type mixedSingleChainNode struct {
@@ -168,7 +171,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", cfg.OpRethOptions...)
+		case MixedL2ELOpRethV2:
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", cfg.OpRethOptions...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -224,7 +229,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	}
 	require.NotNil(sequencerNode, "mixed runtime requires at least one sequencer node")
 
-	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, sequencerNode.cl, sequencerNode.el)
+	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, sequencerNode.cl, sequencerNode.el, cfg.BatcherOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), sequencerNode.el.UserRPC())
 
 	var testSequencer *testSequencer
@@ -273,7 +278,6 @@ func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
 }
 
 // buildMixedOpRethNode constructs an OpReth node without starting it.
-// Use this when you need to customize args (e.g. --rollup.supervisor-http) before starting.
 func buildMixedOpRethNode(
 	t devtest.T,
 	l2Net *L2Network,
@@ -281,6 +285,8 @@ func buildMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
+	storageVersion string,
+	opts ...OpRethOption,
 ) *OpReth {
 	tempDir := t.TempDir()
 
@@ -356,6 +362,7 @@ func buildMixedOpRethNode(
 		"--datadir=" + dataDirPath,
 		"--chain=" + chainConfigPath,
 		"--proofs-history.storage-path=" + proofHistoryDir,
+		"--proofs-history.storage-version=" + storageVersion,
 	}
 	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
@@ -366,7 +373,12 @@ func buildMixedOpRethNode(
 		"--proofs-history.window=10000",
 		"--proofs-history.prune-interval=1m",
 		"--proofs-history.storage-path="+proofHistoryDir,
+		"--proofs-history.storage-version="+storageVersion,
 	)
+
+	opRethCfg := DefaultOpRethConfig()
+	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
+	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{
 		name:               key,
@@ -390,8 +402,10 @@ func startMixedOpRethNode(
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
+	storageVersion string,
+	opts ...OpRethOption,
 ) *OpReth {
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
 	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
 	node.Start()
 	t.Cleanup(node.Stop)
@@ -409,11 +423,11 @@ func startMixedOpRethNodeWithSupervisorURL(
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
 	supervisorURL string,
+	storageVersion string,
+	opts ...OpRethOption,
 ) *OpReth {
-	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar)
-	if supervisorURL != "" {
-		node.args = append(node.args, "--rollup.supervisor-http="+supervisorURL)
-	}
+	opts = append(opts, OpRethWithSupervisorURL(supervisorURL))
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
 	t.Logger().Info("Starting op-reth with supervisor URL",
 		"name", key, "chain", l2Net.ChainID(), "supervisorURL", supervisorURL)
 	node.Start()

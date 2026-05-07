@@ -512,9 +512,12 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		return err
 	}
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      e.unsafeHead.Hash,
-		SafeBlockHash:      e.SafeL2Head().Hash,
-		FinalizedBlockHash: e.FinalizedHead().Hash,
+		HeadBlockHash: e.unsafeHead.Hash,
+		SafeBlockHash: e.SafeL2Head().Hash,
+	}
+	// only set finalized after initial EL sync
+	if !e.isEngineInitialELSyncing() {
+		fc.FinalizedBlockHash = e.FinalizedHead().Hash
 	}
 	if fc == e.lastForkchoice {
 		return nil
@@ -620,9 +623,12 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 
 	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
-		SafeBlockHash:      e.SafeL2Head().Hash,
-		FinalizedBlockHash: e.FinalizedHead().Hash,
+		HeadBlockHash: envelope.ExecutionPayload.BlockHash,
+		SafeBlockHash: e.SafeL2Head().Hash,
+	}
+	// only set finalized after initial EL sync
+	if !e.isEngineInitialELSyncing() {
+		fc.FinalizedBlockHash = e.FinalizedHead().Hash
 	}
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		offsetRef := ref
@@ -893,7 +899,7 @@ func (e *EngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Blo
 
 // tryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
 func (e *EngineController) tryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-	if concluding && ref.Number > e.localSafeHead.Number {
+	if concluding && eth.L2BlockRefAdvances(e.localSafeHead, ref) {
 		// Promote to local safe
 		e.log.Debug("Updating local safe", "local_safe", ref, "safe", e.SafeL2Head(), "unsafe", e.unsafeHead)
 		e.SetLocalSafeHead(ref)
@@ -1239,7 +1245,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
 		// Inject external cross-safe. Must happen before promoteFinalized
 		// (which rejects finalized > SafeL2Head).
-		if eSafeBlockRef.Number > e.deprecatedSafeHead.Number {
+		if eth.L2BlockRefAdvances(e.deprecatedSafeHead, eSafeBlockRef) {
 			e.PromoteSafe(e.ctx, eSafeBlockRef, eth.L1BlockRef{})
 		}
 		// Directly update the Engine Controller state, bypassing finalizer

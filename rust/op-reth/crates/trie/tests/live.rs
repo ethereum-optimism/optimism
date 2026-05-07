@@ -12,20 +12,32 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofsStorage, OpProofsStorageError, initialize::InitializationJob,
-    live::LiveTrieCollector,
+    MdbxProofsStorage, MdbxProofsStorageV2, OpProofsStorage, OpProofsStorageError, OpProofsStore,
+    RethTrieStorageLayout, initialize::InitializationJob, live::LiveTrieCollector,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider,
+    ProviderFactory, StateRootProvider, StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, rand::rng};
+use serial_test::serial;
 use std::sync::Arc;
 use tempfile::TempDir;
+use test_case::test_case;
+
+fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
+    let path = TempDir::new().unwrap();
+    Arc::new(MdbxProofsStorage::new(path.path()).unwrap())
+}
+
+fn create_mdbx_proofs_storage_v2() -> Arc<MdbxProofsStorageV2> {
+    let path = TempDir::new().unwrap();
+    Arc::new(MdbxProofsStorageV2::new(path.path()).unwrap())
+}
 
 /// Converts a secp256k1 public key to an Ethereum address.
 fn public_key_to_address(pubkey: secp256k1::PublicKey) -> Address {
@@ -214,18 +226,20 @@ where
 }
 
 /// Runs a test scenario with the given configuration
-fn run_test_scenario<N>(
+fn run_test_scenario<N, S>(
     scenario: TestScenario,
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
     key_pair: Keypair,
-    storage: OpProofsStorage<Arc<MdbxProofsStorage>>,
+    raw_storage: S,
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
             Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
         > + NodeTypesWithDB,
+    S: OpProofsStore + Send + Sync + Clone + std::fmt::Debug + 'static,
 {
+    let storage: OpProofsStorage<S> = raw_storage.into();
     let genesis_hash = chain_spec.genesis_hash();
     let mut nonce_counter = 0u64;
     let mut last_block_hash = genesis_hash;
@@ -251,9 +265,14 @@ where
     }
 
     {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
         let provider = provider_factory.db_ref();
         let tx = provider.tx()?;
-        let initialization_job = InitializationJob::new(storage.clone(), tx);
+        let initialization_job = InitializationJob::new(storage.clone(), tx, trie_layout);
         initialization_job.run(last_block_number, last_block_hash)?;
     }
 
@@ -295,11 +314,13 @@ where
 /// (1) Creates a chain with some state
 /// (2) Stores the genesis state into storage via initialization
 /// (3) Executes a block and calculates the state root using the stored state
-#[test]
-fn test_execute_and_store_block_updates() {
-    let dir = TempDir::new().unwrap();
-    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
-
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_execute_and_store_block_updates<S>(storage: S) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Clone + Send + Sync + std::fmt::Debug + 'static,
+{
     // Create a keypair for signing transactions
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
@@ -324,15 +345,18 @@ fn test_execute_and_store_block_updates() {
         vec![BlockSpec::new(vec![TxSpec::transfer(recipient, U256::from(1))])],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
 }
 
-#[test]
-fn test_execute_and_store_block_updates_missing_parent_block() {
-    let dir = TempDir::new().unwrap();
-    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
-        Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
-
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_execute_and_store_block_updates_missing_parent_block<S>(
+    storage: S,
+) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Clone + Send + Sync + std::fmt::Debug + 'static,
+{
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
@@ -351,8 +375,7 @@ fn test_execute_and_store_block_updates_missing_parent_block() {
         chain_spec.clone(),
         key_pair,
         storage.clone(),
-    )
-    .unwrap();
+    )?;
 
     // Create a block whose parent block number is missing.
     let incorrect_block_number = 2;
@@ -369,21 +392,29 @@ fn test_execute_and_store_block_updates_missing_parent_block() {
     );
 
     let blockchain_db = BlockchainProvider::new(provider_factory).unwrap();
-    let collector =
-        LiveTrieCollector::new(EthEvmConfig::ethereum(chain_spec.clone()), blockchain_db, &storage);
+    let storage_wrapped: OpProofsStorage<S> = storage.into();
+    let collector = LiveTrieCollector::new(
+        EthEvmConfig::ethereum(chain_spec.clone()),
+        blockchain_db,
+        &storage_wrapped,
+    );
 
     // EXPECT: MissingParentBlock
     let err = collector.execute_and_store_block_updates(&incorrect_block).unwrap_err();
 
     assert!(matches!(err, OpProofsStorageError::MissingParentBlock { .. }));
+    Ok(())
 }
 
-#[test]
-fn test_execute_and_store_block_updates_state_root_mismatch() {
-    let dir = TempDir::new().unwrap();
-    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> =
-        Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
-
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_execute_and_store_block_updates_state_root_mismatch<S>(
+    storage: Arc<S>,
+) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
@@ -405,13 +436,16 @@ fn test_execute_and_store_block_updates_state_root_mismatch() {
         chain_spec.clone(),
         key_pair,
         storage.clone(),
-    )
-    .unwrap();
+    )?;
 
     // Generate a second block normally
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let collector =
-        LiveTrieCollector::new(EthEvmConfig::ethereum(chain_spec.clone()), blockchain_db, &storage);
+    let storage_wrapped: OpProofsStorage<Arc<S>> = storage.into();
+    let collector = LiveTrieCollector::new(
+        EthEvmConfig::ethereum(chain_spec.clone()),
+        blockchain_db,
+        &storage_wrapped,
+    );
 
     // Create the next block
     let mut nonce_counter = 0;
@@ -437,14 +471,19 @@ fn test_execute_and_store_block_updates_state_root_mismatch() {
     let err = collector.execute_and_store_block_updates(&block).unwrap_err();
 
     assert!(matches!(err, OpProofsStorageError::StateRootMismatch { .. }));
+    Ok(())
 }
 
 /// Test with multiple blocks before and after initialization
-#[test]
-fn test_multiple_blocks_before_and_after_initialization() {
-    let dir = TempDir::new().unwrap();
-    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
-
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_multiple_blocks_before_and_after_initialization<S>(
+    storage: Arc<S>,
+) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
@@ -473,15 +512,17 @@ fn test_multiple_blocks_before_and_after_initialization() {
         ],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
 }
 
 /// Test with blocks containing multiple transactions
-#[test]
-fn test_blocks_with_multiple_transactions() {
-    let dir = TempDir::new().unwrap();
-    let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")).into();
-
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_blocks_with_multiple_transactions<S>(storage: Arc<S>) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
@@ -504,5 +545,5 @@ fn test_blocks_with_multiple_transactions() {
         ])],
     );
 
-    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage).unwrap();
+    run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
 }

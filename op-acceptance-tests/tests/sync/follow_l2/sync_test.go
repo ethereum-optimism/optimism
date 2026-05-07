@@ -46,8 +46,8 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 			sys.L2CLC.ReachedFn(lvl, target, attempts),
 		)
 		dsl.CheckAll(t,
-			sys.L2CLB.MatchedFn(sys.L2CL, lvl, attempts),
-			sys.L2CLB.MatchedFn(sys.L2CLC, lvl, attempts),
+			sys.L2CLB.InSyncFn(sys.L2CL, lvl, attempts),
+			sys.L2CLB.InSyncFn(sys.L2CLC, lvl, attempts),
 		)
 	}
 
@@ -150,10 +150,10 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 	attempts := 30
 	dsl.CheckAll(t,
-		sys.L2CL.MatchedFn(sys.L2CLB, types.LocalUnsafe, attempts),
-		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalUnsafe, attempts),
-		sys.L2CL.MatchedFn(sys.L2CLB, types.LocalSafe, attempts),
-		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalSafe, attempts),
+		sys.L2CL.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
+		sys.L2CL.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
 	)
 }
 
@@ -225,12 +225,12 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 
 	// Sequencer unsafe payload will arrive to the verifier, triggering EL sync and filling in the unsafe gap
 	dsl.CheckAll(t,
-		// Match with sequencer with derivation disabled
-		sys.L2CLC.MatchedFn(sys.L2CL, types.LocalSafe, attempts),
-		sys.L2CLC.MatchedFn(sys.L2CL, types.LocalUnsafe, attempts),
-		// Match with other verifier with derivation enabled
-		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalSafe, attempts),
-		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalUnsafe, attempts),
+		// In sync with sequencer, with derivation disabled
+		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalUnsafe, attempts),
+		// In sync with other verifier, with derivation enabled
+		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
 	)
 
 	t.Cleanup(func() {

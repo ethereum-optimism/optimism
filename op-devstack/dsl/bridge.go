@@ -136,8 +136,7 @@ func (b *StandardBridge) PortalVersion() string {
 
 func (b *StandardBridge) UsesSuperRoots() bool {
 	gameType := gameTypes.GameType(b.RespectedGameType())
-	return gameType == gameTypes.SuperCannonGameType ||
-		gameType == gameTypes.SuperPermissionedGameType ||
+	return gameType == gameTypes.SuperPermissionedGameType ||
 		gameType == gameTypes.SuperAsteriscKonaGameType ||
 		gameType == gameTypes.SuperCannonKonaGameType
 }

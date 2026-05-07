@@ -38,7 +38,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
@@ -53,7 +53,7 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2CLB.Start()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
 
 	// Safe head db should not have been reset

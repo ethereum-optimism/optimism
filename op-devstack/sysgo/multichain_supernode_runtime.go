@@ -134,7 +134,7 @@ func startSupernodeELWithSupervisorURL(
 		return l2EL
 	default: // op-reth
 		return startMixedOpRethNodeWithSupervisorURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL)
+			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1")
 	}
 }
 

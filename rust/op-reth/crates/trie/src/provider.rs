@@ -242,8 +242,7 @@ mod tests {
     #[test]
     fn test_op_proofs_state_provider_ref_debug() {
         let latest: Box<dyn StateProvider + Send> = Box::new(NoopProvider::default());
-        let storage: crate::OpProofsStorage<InMemoryProofsStorage> =
-            InMemoryProofsStorage::new().into();
+        let storage: crate::OpProofsStorage<InMemoryProofsStorage> = InMemoryProofsStorage::new();
         // Create a provider from the store (in memory storage implements OpProofsStore)
         let provider_ro = storage.provider_ro().unwrap();
         let block_number = 42u64;

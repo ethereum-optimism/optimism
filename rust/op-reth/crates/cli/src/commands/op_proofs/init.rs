@@ -6,11 +6,13 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    InitializationJob, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
+    InitializationJob, OpProofsProviderRO, OpProofsStore, RethTrieStorageLayout,
+    db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
-use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
+use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
 
@@ -33,6 +35,14 @@ pub struct InitCommand<C: ChainSpecParser> {
         required = true
     )]
     pub storage_path: PathBuf,
+
+    /// Storage schema version. Must match the version used when starting the node.
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        default_value = "v1"
+    )]
+    pub storage_version: ProofsStorageVersion,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
@@ -51,11 +61,34 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         // During initialization we write billions of entries; the metrics layer's
         // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
         // would accumulate ~19 bytes per observation, causing OOM on large chains.
-        let storage: Arc<MdbxProofsStorage> = Arc::new(
-            MdbxProofsStorage::new(&self.storage_path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-        );
+        match self.storage_version {
+            ProofsStorageVersion::V1 => {
+                let storage: Arc<MdbxProofsStorage> = Arc::new(
+                    MdbxProofsStorage::new(&self.storage_path)
+                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+                );
+                Self::run_init(&provider_factory, storage)?;
+            }
+            ProofsStorageVersion::V2 => {
+                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
+                    MdbxProofsStorageV2::new(&self.storage_path)
+                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+                );
+                Self::run_init(&provider_factory, storage)?;
+            }
+        }
 
+        Ok(())
+    }
+
+    /// Run the initialization against the given proofs storage.
+    ///
+    /// If the storage is already initialized this is a no-op.
+    fn run_init<F>(provider_factory: &F, storage: impl OpProofsStore) -> eyre::Result<()>
+    where
+        F: DatabaseProviderFactory + BlockNumReader + StorageSettingsCache,
+        F::Provider: DBProvider,
+    {
         // Check if already initialized
         if let Some((block_number, block_hash)) =
             storage.provider_ro()?.get_earliest_block_number()?
@@ -79,13 +112,17 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
             "Starting backfill job for current chain state"
         );
 
-        // Run the backfill job
         {
+            let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+                RethTrieStorageLayout::Packed
+            } else {
+                RethTrieStorageLayout::Legacy
+            };
             let db_provider =
                 provider_factory.database_provider_ro()?.disable_long_read_transaction_safety();
             let db_tx = db_provider.into_tx();
 
-            InitializationJob::new(storage, db_tx).run(best_number, best_hash)?;
+            InitializationJob::new(storage, db_tx, trie_layout).run(best_number, best_hash)?;
         }
 
         info!(

@@ -33,6 +33,16 @@ type EthBlockInfo interface {
 	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 }
 
+type EthHeader interface {
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+
+	HeaderByNumber(ctx context.Context, number uint64) (*types.Header, error)
+
+	HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error)
+
+	HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error)
+}
+
 type EthPayload interface {
 	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 
@@ -137,6 +147,7 @@ type RPCCaller interface {
 type EthClient interface {
 	ChainID
 	EthBlockInfo
+	EthHeader
 	ReceiptFetcher
 	ExecutionWitness
 	EthProof

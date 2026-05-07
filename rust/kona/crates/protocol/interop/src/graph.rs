@@ -9,7 +9,7 @@ use crate::{
 use alloc::{collections::BTreeMap, string::ToString, vec, vec::Vec};
 use alloy_consensus::{Header, Sealed};
 use alloy_primitives::keccak256;
-use kona_genesis::RollupConfig;
+use kona_genesis::{DependencySet, RollupConfig};
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
 use tracing::{info, warn};
 
@@ -189,6 +189,8 @@ pub struct MessageGraph<'a, P> {
     provider: &'a P,
     /// Backup rollup configs for each chain.
     rollup_configs: &'a HashMap<u64, RollupConfig>,
+    /// The dependency set for the cluster being validated.
+    dependency_set: &'a DependencySet,
     /// The message expiry window (in seconds) for validating initiating message timestamps.
     message_expiry_window: u64,
 }
@@ -205,6 +207,7 @@ where
         blocks: &HashMap<u64, Sealed<Header>>,
         provider: &'a P,
         rollup_configs: &'a HashMap<u64, RollupConfig>,
+        dependency_set: &'a DependencySet,
         message_expiry_window: u64,
     ) -> MessageGraphResult<Self, P> {
         info!(
@@ -241,7 +244,7 @@ where
             num_messages = messages.len(),
             "Derived message graph successfully",
         );
-        Ok(Self { messages, provider, rollup_configs, message_expiry_window })
+        Ok(Self { messages, provider, rollup_configs, dependency_set, message_expiry_window })
     }
 
     /// Checks the validity of all messages within the graph.
@@ -344,11 +347,33 @@ where
         &self,
         message: &EnrichedExecutingMessage,
     ) -> MessageGraphResult<(), P> {
-        // ChainID Invariant: The chain id of the initiating message MUST be in the dependency set
-        // This is enforced implicitly by the graph constructor and the provider.
-
         let initiating_chain_id = message.inner.identifier.chainId.saturating_to();
         let initiating_timestamp = message.inner.identifier.timestamp.saturating_to::<u64>();
+
+        if !self.dependency_set.dependencies.contains_key(&message.executing_chain_id) {
+            return Err(MessageGraphError::ChainNotInDependencySet(message.executing_chain_id));
+        }
+        if !self.dependency_set.dependencies.contains_key(&initiating_chain_id) {
+            return Err(MessageGraphError::ChainNotInDependencySet(initiating_chain_id));
+        }
+
+        // Attempt to fetch the rollup config for the executing chain from the registry. If the
+        // rollup config is not found, fall back to the local rollup configs.
+        let exec_rollup_config = ROLLUP_CONFIGS
+            .get(&message.executing_chain_id)
+            .or_else(|| self.rollup_configs.get(&message.executing_chain_id))
+            .ok_or(MessageGraphError::MissingRollupConfig(message.executing_chain_id))?;
+
+        // Activation invariant: Interop must be active on the executing chain AND the executing
+        // block must not be the activation block.
+        if !exec_rollup_config.is_interop_active(message.executing_timestamp) ||
+            exec_rollup_config.is_first_interop_block(message.executing_timestamp)
+        {
+            return Err(MessageGraphError::ExecutedTooEarly {
+                activation_time: exec_rollup_config.hardforks.interop_time.unwrap_or_default(),
+                executing_message_time: message.executing_timestamp,
+            });
+        }
 
         // Attempt to fetch the rollup config for the initiating chain from the registry. If the
         // rollup config is not found, fall back to the local rollup configs.
@@ -445,6 +470,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::zero_sized_map_values)]
 mod test {
     use super::{MessageGraph, detect_cycles};
     use crate::{
@@ -452,11 +478,26 @@ mod test {
         message::EnrichedExecutingMessage,
         test_util::{ExecutingMessageBuilder, SuperchainBuilder},
     };
+    use alloc::collections::BTreeMap;
     use alloy_primitives::{Address, B256, U256, hex, keccak256};
+    use kona_genesis::{ChainDependency, DependencySet};
+    use std::sync::OnceLock;
 
     const MOCK_MESSAGE: [u8; 4] = hex!("deadbeef");
     const CHAIN_A_ID: u64 = 1;
     const CHAIN_B_ID: u64 = 2;
+    const CHAIN_C_ID: u64 = 3;
+
+    fn default_dep_set() -> &'static DependencySet {
+        static DEP_SET: OnceLock<DependencySet> = OnceLock::new();
+        DEP_SET.get_or_init(|| {
+            let mut dependencies = BTreeMap::new();
+            dependencies.insert(CHAIN_A_ID, ChainDependency {});
+            dependencies.insert(CHAIN_B_ID, ChainDependency {});
+            dependencies.insert(CHAIN_C_ID, ChainDependency {});
+            DependencySet { dependencies, override_message_expiry_window: None }
+        })
+    }
 
     /// Returns a [`SuperchainBuilder`] with two chains (ids: `CHAIN_A_ID` and `CHAIN_B_ID`),
     /// configured with interop activating at timestamp `0`, the current block at timestamp `2`,
@@ -493,9 +534,80 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         graph.resolve().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_executing_chain_not_in_dep_set_rejected() {
+        let mut superchain = default_superchain();
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let mut deps = BTreeMap::new();
+        deps.insert(CHAIN_A_ID, ChainDependency {});
+        let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
+
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
+                .await
+                .unwrap();
+        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
+            panic!("Expected InvalidMessages")
+        };
+        assert_eq!(
+            *invalid.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ChainNotInDependencySet(CHAIN_B_ID)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_initiating_chain_not_in_dep_set_rejected() {
+        let mut superchain = default_superchain();
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let mut deps = BTreeMap::new();
+        deps.insert(CHAIN_B_ID, ChainDependency {});
+        let dep_set = DependencySet { dependencies: deps, override_message_expiry_window: None };
+
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, &dep_set, MESSAGE_EXPIRY_WINDOW)
+                .await
+                .unwrap();
+        let MessageGraphError::InvalidMessages(invalid) = graph.resolve().await.unwrap_err() else {
+            panic!("Expected InvalidMessages")
+        };
+        assert_eq!(
+            *invalid.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ChainNotInDependencySet(CHAIN_A_ID)
+        );
     }
 
     #[tokio::test]
@@ -523,8 +635,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -551,8 +670,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -585,8 +711,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -624,8 +757,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -661,8 +801,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -673,6 +820,144 @@ mod test {
         assert_eq!(
             *invalid_messages.get(&CHAIN_B_ID).unwrap(),
             MessageGraphError::InitiatedTooEarly { activation_time: 2, initiating_message_time: 2 }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_before_interop() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // Move CHAIN_B (the executing chain) activation to t=50, so its block at t=2 is
+        // pre-interop. CHAIN_A (initiating) stays at the default (interop_time=0, well
+        // past activation). The executing-chain guard must reject via `!is_interop_active`.
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(50);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: 50,
+                executing_message_time: chain_b_time,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_before_interop_unaligned_activation() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // CHAIN_B activates @ `1s`, unaligned with the block time of `2s`. The first
+        // CHAIN_B block at t=2 IS its activation block (`is_first_interop_block` is
+        // true under unaligned activation: `is_interop_active(2) && !is_interop_active(0)`).
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(1);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: 1,
+                executing_message_time: chain_b_time,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_at_interop_activation() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // CHAIN_B activates @ `chain_b_time`, exactly aligned with block_time. The block
+        // at `chain_b_time` IS the activation block. Mirrors the existing init-side test
+        // which uses `with_interop_activation_time(chain_a_time)`.
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(chain_b_time);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: chain_b_time,
+                executing_message_time: chain_b_time,
+            }
         );
     }
 
@@ -695,8 +980,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -728,8 +1020,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -764,8 +1063,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -799,8 +1105,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -833,8 +1146,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -871,7 +1191,10 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(&headers, &provider, &cfgs, CUSTOM_EXPIRY).await.unwrap();
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+                .await
+                .unwrap();
         let MessageGraphError::InvalidMessages(invalid_messages) =
             graph.resolve().await.unwrap_err()
         else {
@@ -908,7 +1231,10 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph = MessageGraph::derive(&headers, &provider, &cfgs, CUSTOM_EXPIRY).await.unwrap();
+        let graph =
+            MessageGraph::derive(&headers, &provider, &cfgs, default_dep_set(), CUSTOM_EXPIRY)
+                .await
+                .unwrap();
         graph.resolve().await.unwrap();
     }
 
@@ -938,10 +1264,15 @@ mod test {
         let filtered_headers =
             headers.into_iter().filter(|(chain_id, _)| *chain_id != CHAIN_A_ID).collect();
 
-        let graph =
-            MessageGraph::derive(&filtered_headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW)
-                .await
-                .unwrap();
+        let graph = MessageGraph::derive(
+            &filtered_headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         graph.resolve().await.unwrap();
     }
 
@@ -989,8 +1320,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1048,8 +1386,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
         let MessageGraphError::CyclicDependency { mut chain_ids } =
             graph.resolve().await.unwrap_err()
         else {
@@ -1232,8 +1577,15 @@ mod test {
 
         let (headers, cfgs, provider) = superchain.build();
 
-        let graph =
-            MessageGraph::derive(&headers, &provider, &cfgs, MESSAGE_EXPIRY_WINDOW).await.unwrap();
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
 
         // Cycle detection must not flag these messages as cyclic. Per-message validation
         // may still reject them (the test provider has no historical blocks), but that is

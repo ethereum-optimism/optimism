@@ -134,6 +134,9 @@ pub enum ExecutorError {
     /// - Gas accounting bugs in execution
     #[error("Block gas limit exceeded")]
     BlockGasLimitExceeded,
+    /// Invalid post-exec payload or transaction placement.
+    #[error("Invalid post-exec payload: {0}")]
+    InvalidPostExecPayload(String),
     /// Unsupported transaction type encountered during execution.
     ///
     /// This error occurs when the executor encounters a transaction type that

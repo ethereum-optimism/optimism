@@ -42,7 +42,7 @@ pub enum OpReceiptEnvelope<T = Log> {
     /// [EIP-7702]: https://eips.ethereum.org/EIPS/eip-7702
     #[cfg_attr(feature = "serde", serde(rename = "0x4", alias = "0x04"))]
     Eip7702(ReceiptWithBloom<Receipt<T>>),
-    /// Receipt envelope with type flag 125, containing a synthetic post-exec receipt.
+    /// Receipt envelope with type flag 125, containing a post-execution receipt.
     #[cfg_attr(feature = "serde", serde(rename = "0x7d", alias = "0x7D"))]
     PostExec(ReceiptWithBloom<Receipt<T>>),
     /// Receipt envelope with type flag 126, containing a [deposit] receipt.

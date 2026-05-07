@@ -1,6 +1,9 @@
 //! Post-execution transaction types.
 
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 #[cfg(feature = "serde")]
 use alloy_consensus::Sealed;
 use alloy_consensus::{Sealable, Transaction, Typed2718, transaction::RlpEcdsaEncodableTx};
@@ -10,6 +13,8 @@ use alloy_eips::{
 };
 use alloy_primitives::{Address, B256, Bytes, ChainId, TxHash, TxKind, U256, keccak256};
 use alloy_rlp::{BufMut, Decodable, Encodable, Header, RlpDecodable, RlpEncodable};
+
+use crate::OpTransaction;
 
 /// Type byte for the post-execution transaction.
 pub const POST_EXEC_TX_TYPE_ID: u8 = 0x7D;
@@ -39,7 +44,10 @@ pub struct SDMGasEntry {
 pub struct PostExecPayload {
     /// Format version.
     pub version: u8,
-    /// L2 block number this synthetic payload is anchored to.
+    /// L2 block number this post-execution payload is anchored to.
+    ///
+    /// This is included in the encoded post-exec transaction so otherwise identical
+    /// payloads in different blocks produce distinct transaction hashes.
     pub block_number: u64,
     /// Initial SDM gas refund entries keyed by transaction index.
     pub gas_refund_entries: Vec<SDMGasEntry>,
@@ -57,6 +65,128 @@ impl<'a> arbitrary::Arbitrary<'a> for PostExecPayload {
             gas_refund_entries: <Vec<SDMGasEntry>>::arbitrary(u)?,
         })
     }
+}
+
+/// Parsed post-exec transaction metadata for a block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedPostExecPayload {
+    /// Transaction index of the post-exec transaction within the block.
+    pub tx_index: u64,
+    /// Decoded post-exec payload.
+    pub payload: PostExecPayload,
+}
+
+/// Errors returned while validating a block's post-exec transaction structure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum PostExecPayloadValidationError {
+    /// The block contains a post-exec transaction before SDM is active.
+    #[error("unexpected post-exec transaction at index {tx_index}: SDM not active for this block")]
+    UnexpectedPostExecTx {
+        /// Transaction index.
+        tx_index: u64,
+    },
+    /// The block contains more than one post-exec transaction.
+    #[error(
+        "multiple post-exec transactions: first at index {first_index}, duplicate at index {duplicate_index}"
+    )]
+    MultiplePostExecTxs {
+        /// First post-exec tx index.
+        first_index: u64,
+        /// Duplicate post-exec tx index.
+        duplicate_index: u64,
+    },
+    /// The post-exec transaction is not the final transaction in the block.
+    #[error(
+        "post-exec transaction at index {tx_index} must be the final transaction; final index is {last_index}"
+    )]
+    PostExecTxNotLast {
+        /// Post-exec tx index.
+        tx_index: u64,
+        /// Final transaction index.
+        last_index: u64,
+    },
+    /// The payload block number does not match the containing block.
+    #[error(
+        "payload block number {payload_block_number} does not match block number {block_number}"
+    )]
+    BlockNumberMismatch {
+        /// Block number encoded in the payload.
+        payload_block_number: u64,
+        /// Containing block number.
+        block_number: u64,
+    },
+}
+
+impl PostExecPayloadValidationError {
+    /// Returns this error as an owned string.
+    #[must_use]
+    pub fn into_string(self) -> String {
+        self.to_string()
+    }
+}
+
+/// Parse and validate the block-level post-exec transaction, if present.
+///
+/// This enforces the shared consensus structure rules: post-exec transactions are only valid after
+/// activation, at most one may be present, and when present it must be the final transaction and be
+/// anchored to the containing block number.
+///
+/// # Errors
+///
+/// Returns [`PostExecPayloadValidationError`] if the post-exec transaction is not valid for the
+/// block or SDM activation state.
+pub fn parse_post_exec_payload_from_transactions<'a, I, T>(
+    transactions: I,
+    block_number: u64,
+    sdm_active: bool,
+) -> Result<Option<ParsedPostExecPayload>, PostExecPayloadValidationError>
+where
+    I: IntoIterator<Item = &'a T>,
+    T: OpTransaction + 'a,
+{
+    let mut parsed = None::<ParsedPostExecPayload>;
+    let mut last_index = None::<u64>;
+
+    for (idx, tx) in transactions.into_iter().enumerate() {
+        let tx_index = idx as u64;
+        last_index = Some(tx_index);
+
+        let Some(post_exec) = tx.as_post_exec() else {
+            continue;
+        };
+
+        if !sdm_active {
+            return Err(PostExecPayloadValidationError::UnexpectedPostExecTx { tx_index });
+        }
+
+        if let Some(first) = &parsed {
+            return Err(PostExecPayloadValidationError::MultiplePostExecTxs {
+                first_index: first.tx_index,
+                duplicate_index: tx_index,
+            });
+        }
+
+        let payload = post_exec.inner().payload.clone();
+        if payload.block_number != block_number {
+            return Err(PostExecPayloadValidationError::BlockNumberMismatch {
+                payload_block_number: payload.block_number,
+                block_number,
+            });
+        }
+
+        parsed = Some(ParsedPostExecPayload { tx_index, payload });
+    }
+
+    if let (Some(parsed), Some(last_index)) = (&parsed, last_index) &&
+        parsed.tx_index != last_index
+    {
+        return Err(PostExecPayloadValidationError::PostExecTxNotLast {
+            tx_index: parsed.tx_index,
+            last_index,
+        });
+    }
+
+    Ok(parsed)
 }
 
 impl PostExecPayload {
@@ -245,7 +375,7 @@ impl Transaction for TxPostExec {
     }
     fn kind(&self) -> TxKind {
         // Post-exec transactions do not carry a destination like deposits do, so expose them as a
-        // synthetic zero-address call placeholder.
+        // zero-address call placeholder.
         TxKind::Call(Default::default())
     }
     fn is_create(&self) -> bool {

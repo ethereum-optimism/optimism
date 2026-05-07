@@ -54,15 +54,9 @@ abstract contract SuperGameTestInit is CommonTest {
             gameType: GameTypes.CANNON_KONA,
             gameArgs: hex""
         });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: hex""
-        });
 
         // Super types (enabled).
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -74,11 +68,17 @@ abstract contract SuperGameTestInit is CommonTest {
                 })
             )
         });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =

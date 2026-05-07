@@ -68,7 +68,7 @@ library UpgradeUtils {
     function gasLimits() internal pure returns (GasLimits memory) {
         return GasLimits({
             // Fixed
-            l2cmDeployment: 4_942_996,
+            l2cmDeployment: 4_944_000,
             upgradeExecution: 2_115_000,
             // Karst
             conditionalDeployerDeployment: 580_000,

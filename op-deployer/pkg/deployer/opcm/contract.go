@@ -24,10 +24,6 @@ func (c *Contract) SuperchainConfig(ctx context.Context) (common.Address, error)
 	return c.getAddress(ctx, "superchainConfig")
 }
 
-func (c *Contract) ProtocolVersions(ctx context.Context) (common.Address, error) {
-	return c.getAddress(ctx, "protocolVersions")
-}
-
 func (c *Contract) OPCMStandardValidator(ctx context.Context) (common.Address, error) {
 	return c.getAddress(ctx, "opcmStandardValidator")
 }

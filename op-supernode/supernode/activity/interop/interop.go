@@ -39,9 +39,10 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 
 // InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
-	Name:  "interop.log-backfill-depth",
-	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
-	Value: 0,
+	Name:    "interop.log-backfill-depth",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
+	Value:   0,
 }
 
 func init() {
@@ -137,9 +138,11 @@ type Interop struct {
 
 	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
 	// this is used for loop handoff from log backfill to main processing.
-	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1,
-	// or activationTimestamp if backfill was not used.
+	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
+	// after backfill, or the safe-head-derived startup timestamp when backfill was not used.
 	backfillEndTimestamp uint64
+	firstVerifiableSet   bool
+	firstVerifiable      uint64
 
 	dataDir string
 
@@ -155,7 +158,9 @@ type Interop struct {
 
 	currentL1 eth.BlockID
 
-	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
+	// l1Heads is the snapshot captured with blocksAtTimestamp in observeRound; passing
+	// it through avoids a TOCTOU race against L2 reorgs.
+	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
 	// cycleVerifyFn handles same-timestamp cycle verification.
 	// It is called after verifyFn in progressInterop, and its results are merged.
@@ -186,19 +191,27 @@ func (i *Interop) Name() string {
 	return "interop"
 }
 
-// firstVerifiableTimestamp is the earliest timestamp the main loop will
-// attempt to verify. It is activationTimestamp when backfill did not run,
-// or backfillEndTimestamp+1 when it did (clamped so it never falls below
-// activation, though by construction backfillEndTimestamp >= activation).
-func (i *Interop) firstVerifiableTimestamp() uint64 {
-	if i.backfillEndTimestamp == 0 {
-		return i.activationTimestamp
+// firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
+// to verify. If verification has already committed results, the first committed
+// timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
+// after log backfill, or the safe-head-derived startup timestamp.
+func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	if i.verifiedDB != nil {
+		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
+			return first, nil
+		}
 	}
-	next := i.backfillEndTimestamp + 1
-	if next < i.activationTimestamp {
-		return i.activationTimestamp
+	if i.backfillEndTimestamp != 0 {
+		next := i.backfillEndTimestamp + 1
+		if next < i.activationTimestamp {
+			return i.activationTimestamp, nil
+		}
+		return next, nil
 	}
-	return next
+	if i.firstVerifiableSet {
+		return i.firstVerifiable, nil
+	}
+	return i.resolveFirstVerifiableTimestamp(ctx)
 }
 
 // New constructs a new Interop activity.
@@ -281,6 +294,9 @@ func (i *Interop) Start(ctx context.Context) error {
 				break
 			}
 			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
+			for cid := range i.chains {
+				i.metrics.LogBackfillRetries.WithLabelValues(cid.String()).Inc()
+			}
 			select {
 			case <-i.ctx.Done():
 				return fmt.Errorf("log backfill interrupted: %w", i.ctx.Err())
@@ -291,6 +307,42 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 
+	firstVerifiableLog := uint64(0)
+	if i.backfillEndTimestamp != 0 {
+		firstVerifiableLog = i.backfillEndTimestamp + 1
+		if firstVerifiableLog < i.activationTimestamp {
+			firstVerifiableLog = i.activationTimestamp
+		}
+	} else if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		firstVerifiableLog = lastTS + 1
+	} else {
+		for {
+			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				firstVerifiableLog = first
+				break
+			}
+			// Permanent SafeDB gap must halt normal startup cleanly. Backfill-enabled
+			// startup reaches this path only if backfill had no range to seal.
+			if errors.Is(err, cc.ErrHistoryUnavailable) {
+				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				return fmt.Errorf("interop halted due to unavailable history: %w", err)
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.log.Info("interop first verifiable timestamp resolved",
+		"activationTimestamp", i.activationTimestamp,
+		"firstVerifiableTimestamp", firstVerifiableLog)
+
 	for {
 		select {
 		case <-i.ctx.Done():
@@ -300,10 +352,12 @@ func (i *Interop) Start(ctx context.Context) error {
 			if err != nil {
 				// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
 				if errors.Is(err, cc.ErrHistoryUnavailable) {
+					i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
 					i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
 						"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 					return fmt.Errorf("interop halted due to unavailable history: %w", err)
 				}
+				i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 				i.log.Error("failed to progress and record interop", "err", err)
 				time.Sleep(errorBackoffPeriod)
 				continue
@@ -315,6 +369,20 @@ func (i *Interop) Start(ctx context.Context) error {
 			// Otherwise: immediately ready for next iteration (aggressive catch-up)
 		}
 	}
+}
+
+// readyFirstVerifiableTimestamp resolves the first timestamp that still needs
+// interop verification and proves every chain can serve the optimistic L2/L1
+// data needed to verify it.
+func (i *Interop) readyFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+	first, err := i.resolveFirstVerifiableTimestamp(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := i.checkChainsReady(first); err != nil {
+		return 0, err
+	}
+	return first, nil
 }
 
 // Stop stops the Interop activity.
@@ -379,6 +447,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		return i.applyPendingTransition(*pending)
 	}
 
+	verifyStart := time.Now()
 	output, obs, err := i.progressInterop()
 	if err != nil {
 		return false, err
@@ -398,7 +467,10 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	if err := i.verifiedDB.SetPendingTransition(pendingTx); err != nil {
 		return false, fmt.Errorf("persist pending transition: %w", err)
 	}
-	return i.applyPendingTransition(pendingTx)
+	progress, applyErr := i.applyPendingTransition(pendingTx)
+	// Record verification latency for the full round including apply.
+	i.metrics.InteropVerificationDuration.Observe(time.Since(verifyStart).Seconds())
+	return progress, applyErr
 }
 
 func (i *Interop) refreshCurrentL1OnWait() (bool, error) {
@@ -427,7 +499,7 @@ func (i *Interop) progressInterop() (StepOutput, RoundObservation, error) {
 		return *early, obs, nil
 	}
 
-	result, err := i.verify(obs.NextTimestamp, obs.BlocksAtTS)
+	result, err := i.verify(obs.NextTimestamp, obs.BlocksAtTS, obs.L1Heads)
 	if err != nil {
 		return StepOutput{}, obs, err
 	}
@@ -451,7 +523,11 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		obs.NextTimestamp = i.firstVerifiableTimestamp()
+		next, err := i.firstVerifiableTimestamp(i.ctx)
+		if err != nil {
+			return obs, err
+		}
+		obs.NextTimestamp = next
 	}
 
 	if pauseTS := i.pauseAtTimestamp.Load(); pauseTS != 0 && obs.NextTimestamp >= pauseTS {
@@ -489,13 +565,14 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 }
 
 // verify runs the heavy I/O: log loading, message verification, and cycle detection.
-func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) (Result, error) {
+// l1Heads must be the snapshot from observeRound — see verifyFn doc comment.
+func (i *Interop) verify(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID, l1Heads map[eth.ChainID]eth.BlockID) (Result, error) {
 	view, err := i.resolveFrontierVerificationView(blocksAtTS)
 	if err != nil {
 		return Result{}, fmt.Errorf("resolve frontier verification view: %w", err)
 	}
 
-	result, err := i.verifyFn(ts, blocksAtTS, view)
+	result, err := i.verifyFn(ts, blocksAtTS, l1Heads, view)
 	if err != nil {
 		return Result{}, err
 	}
@@ -685,7 +762,23 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		RewindAtOrAfter: lastTS,
 	}
 
-	if lastTS <= i.firstVerifiableTimestamp() {
+	resetEngines, err := i.shouldResetEnginesOnRewind(lastTS)
+	if err != nil {
+		return RewindPlan{}, err
+	}
+	if resetEngines {
+		if lastTS == 0 {
+			return RewindPlan{}, fmt.Errorf("cannot reset engines before timestamp 0")
+		}
+		resetTo := lastTS - 1
+		plan.ResetAllChainsTo = &resetTo
+	}
+
+	first, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return RewindPlan{}, err
+	}
+	if lastTS <= first {
 		return plan, nil
 	}
 
@@ -694,9 +787,21 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	if err != nil {
 		return RewindPlan{}, fmt.Errorf("read previous verified result at %d: %w", rewindTargetTS, err)
 	}
-	plan.ResetAllChainsTo = &rewindTargetTS
 	plan.TargetHeads = prevResult.L2Heads
 	return plan, nil
+}
+
+func (i *Interop) shouldResetEnginesOnRewind(timestamp uint64) (bool, error) {
+	for chainID, chain := range i.chains {
+		hasDenied, err := chain.HasDeniedAtOrAfterTimestamp(timestamp)
+		if err != nil {
+			return false, fmt.Errorf("chain %s: inspect deny list for rewind: %w", chainID, err)
+		}
+		if hasDenied {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (i *Interop) applyRewindPlan(plan RewindPlan) error {
@@ -727,12 +832,6 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 			i.log.Error("failed to prune deny list on rewind", "chain", chainID, "err", err)
 			recordErr(fmt.Errorf("chain %s: prune deny list on rewind: %w", chainID, err))
 		}
-		if plan.ResetAllChainsTo != nil {
-			if err := chain.RewindEngine(i.ctx, *plan.ResetAllChainsTo, eth.BlockRef{}); err != nil {
-				i.log.Error("failed to reset chain engine on rewind", "chain", chainID, "err", err)
-				recordErr(fmt.Errorf("chain %s: reset chain engine on rewind: %w", chainID, err))
-			}
-		}
 	}
 
 	if plan.TargetHeads == nil {
@@ -741,6 +840,9 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 				i.log.Error("failed to clear logsDB on full rewind", "chain", chainID, "err", err)
 				recordErr(fmt.Errorf("chain %s: clear logsDB on full rewind: %w", chainID, err))
 			}
+		}
+		if len(allErrs) == 0 {
+			i.resetChainEnginesIfNeeded(plan, sortedChainIDs, recordErr)
 		}
 		return errors.Join(allErrs...)
 	}
@@ -763,7 +865,24 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 		}
 	}
 
+	if len(allErrs) == 0 {
+		i.resetChainEnginesIfNeeded(plan, sortedChainIDs, recordErr)
+	}
 	return errors.Join(allErrs...)
+}
+
+func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []eth.ChainID, recordErr func(error)) {
+	if plan.ResetAllChainsTo == nil {
+		return
+	}
+	for _, chainID := range sortedChainIDs {
+		i.log.Warn("rewinding chain engine after pruning deny-list entries",
+			"chain", chainID, "rewindToTimestamp", *plan.ResetAllChainsTo)
+		if err := i.chains[chainID].RewindEngine(i.ctx, *plan.ResetAllChainsTo, eth.BlockRef{}); err != nil {
+			i.log.Error("failed to reset chain engine after pruning deny-list entries", "chain", chainID, "err", err)
+			recordErr(fmt.Errorf("chain %s: reset chain engine after pruning deny-list entries: %w", chainID, err))
+		}
+	}
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,
@@ -850,13 +969,17 @@ func (i *Interop) CurrentL1() eth.BlockID {
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
-// For timestamps before the activation timestamp, this returns true since interop
-// wasn't active yet and verification proceeds automatically.
-// For timestamps at or after the activation timestamp, this checks the verifiedDB.
+// Timestamps before the first verifiable timestamp are already covered by
+// pre-activation consensus or by the safe-head startup handoff.
 func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
-	// Timestamps before the activation timestamp are considered verified
-	// because interop wasn't active yet
 	if ts < i.activationTimestamp {
+		return true, nil
+	}
+	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return false, err
+	}
+	if ts < firstVerifiable {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)

@@ -14,6 +14,12 @@ ignore = [
   "RUSTSEC-2024-0436",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # hickory-proto <0.26.1 NSEC3 closest-encloser DNSSEC validation unbounded loop;
+  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
+  "RUSTSEC-2026-0118",
+  # hickory-proto <0.26.1 O(n^2) name-compression CPU exhaustion in BinEncoder;
+  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
+  "RUSTSEC-2026-0119",
 ]
 
 # This section is considered when running `cargo deny check bans`.
@@ -62,8 +68,9 @@ exceptions = [
   # aws-lc-sys includes OpenSSL in its composite license expression
   { allow = ["OpenSSL"], name = "aws-lc-sys" },
   # gmp feature (optional, LGPL-licensed)
+  # gmp-mpfr-sys uses deprecated "LGPL-3.0+" identifier; equivalent to "LGPL-3.0-or-later"
   { allow = ["LGPL-3.0-or-later"], crate = "rug" },
-  { allow = ["LGPL-3.0-or-later"], crate = "gmp-mpfr-sys" },
+  { allow = ["LGPL-3.0-or-later", "LGPL-3.0"], crate = "gmp-mpfr-sys" },
   # Grandfathered MPL-2.0 exceptions from op-reth
   { allow = ["MPL-2.0"], name = "option-ext" },
   { allow = ["MPL-2.0"], name = "webpki-root-certs" },
@@ -100,6 +107,7 @@ allow-git = [
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
   "https://github.com/flashbots/rollup-boost",
+  "https://github.com/sigp/discv5",
 ]
 unknown-registry = "warn"
 unknown-git = "deny"

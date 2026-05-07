@@ -200,6 +200,8 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			cfg.BackfillDuration,
 			cfg.PollInterval,
 			rollupCfg,
+			cfg.RPCConcurrency,
+			cfg.FetchConcurrency,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
@@ -224,6 +226,8 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		Chains:         chains,
 		CrossValidator: crossValidator,
 		Passthrough:    cfg.Passthrough,
+
+		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))

@@ -122,6 +122,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade input is provided.
     error OPContractsManagerV2_InvalidUpgradeInput();
 
+    /// @notice Thrown when ETHLockbox feature state is inconsistent with loaded contracts.
+    error OPContractsManagerV2_InvalidEthLockbox();
+
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
 
@@ -152,9 +155,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.17
+    /// @custom:semver 7.1.20
     function version() public pure returns (string memory) {
-        return "7.1.17";
+        return "7.1.20";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -224,6 +227,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     }
 
     /// @notice Upgrades a chain based on the upgrade input.
+    /// @dev This function only performs standard contract upgrades. Interop activation is a
+    ///      one-off migration step handled by OPContractsManagerMigrator.migrate().
     /// @param _inp The chain upgrade input.
     /// @return The upgraded chain contracts.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory) {
@@ -688,14 +693,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
         // All valid game types. StandardValidator is responsible for rejecting game types that
         // should not be used in a given mode (e.g., legacy types in super root mode).
-        GameType[] memory validGameTypes = new GameType[](7);
+        GameType[] memory validGameTypes = new GameType[](6);
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
-        validGameTypes[3] = GameTypes.SUPER_CANNON;
-        validGameTypes[4] = GameTypes.SUPER_PERMISSIONED_CANNON;
-        validGameTypes[5] = GameTypes.SUPER_CANNON_KONA;
-        validGameTypes[6] = GameTypes.ZK_DISPUTE_GAME;
+        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[4] = GameTypes.SUPER_CANNON_KONA;
+        validGameTypes[5] = GameTypes.ZK_DISPUTE_GAME;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -790,33 +794,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
         );
 
-        // Update the OptimismPortal.
-        // When interop is enabled, the ETH_LOCKBOX feature must be set on SystemConfig before
-        // upgrading the portal. OptimismPortal2.initialize() calls _assertValidLockboxState()
-        // which requires the ETH_LOCKBOX feature flag and ethLockbox address to be consistent.
-        // Otherwise we end up in a state where we have a lockbox and the feature flag is off.
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            }
-            _upgrade(
-                _cts.proxyAdmin,
-                address(_cts.optimismPortal),
-                impls.optimismPortalImpl,
-                abi.encodeCall(
-                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
-                )
-            );
-        } else {
-            _upgrade(
-                _cts.proxyAdmin,
-                address(_cts.optimismPortal),
-                impls.optimismPortalImpl,
-                abi.encodeCall(
-                    IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, IETHLockbox(address(0)))
-                )
-            );
+        // Update the OptimismPortal. If a chain already uses ETHLockbox, preserve that lockbox
+        // during standard upgrades. New interop lockbox activation is performed by migrate().
+        bool isEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        if (isEthLockboxEnabled && address(_cts.ethLockbox) == address(0)) {
+            revert OPContractsManagerV2_InvalidEthLockbox();
         }
+        IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
+        _upgrade(
+            _cts.proxyAdmin,
+            address(_cts.optimismPortal),
+            impls.optimismPortalImpl,
+            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, portalLockbox))
+        );
 
         // NOTE: Same general pattern, we call _upgrade for each contract rather than
         // iterating over some sort of array because it's easier to implement and understand.
@@ -832,25 +822,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 impls.ethLockboxImpl,
                 abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
             );
-        }
-
-        // If interop was requested, also set the ETHLockbox feature and migrate liquidity into the
-        // ETHLockbox contract.
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            // If we haven't already enabled the ETHLockbox, enable it.
-            // NOTE: setFeature will revert if the system is currently paused because toggling the
-            // lockbox changes the pause identifier. This means a guardian pause will block upgrades
-            // that enable interop. This is acceptable for now since interop is a dev feature and is
-            // not yet production-ready.
-            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            }
-            if (!_cts.systemConfig.isFeatureEnabled(Features.INTEROP)) {
-                _cts.systemConfig.setFeature(Features.INTEROP, true);
-            }
-
-            // Migrate any ETH into the ETHLockbox.
-            IOptimismPortal(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.
@@ -940,6 +911,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
         }
+
+        // SUPER_CANNON has been retired from OPCMv2's deploy/upgrade allow-list. Some chains may
+        // still have a non-zero gameImpls(SUPER_CANNON) registered from a prior OPCM. Clear it
+        // unconditionally so the post-upgrade state matches the StandardValidator's expectation
+        // (SCDG-SHAPE / SCDG-NOSHAPE both require gameImpls(SUPER_CANNON) == address(0)). On
+        // initial deployment the DisputeGameFactory was just initialized and the slot is already
+        // zero, so this is a no-op state-wise (only emits a redundant event).
+        _cts.disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
+        _cts.disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 0);
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.
         // If the cgt is enabled, we skip this step.

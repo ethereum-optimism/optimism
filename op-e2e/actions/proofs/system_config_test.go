@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// Test_ProgramAction_SystemConfigEarlyIsthmusUpgrade tests that setting the operator
+// TestSystemConfigEarlyIsthmusUpgrade tests that setting the operator
 // fee parameters pre-Isthmus is ignored and doesn't cause problems during derivation.
-func Test_ProgramAction_SystemConfigEarlyIsthmusUpgrade(gt *testing.T) {
+func TestSystemConfigEarlyIsthmusUpgrade(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,

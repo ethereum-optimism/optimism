@@ -546,6 +546,28 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})
 
+	t.Run("walkback to exact earliest SafeDB entry succeeds", func(t *testing.T) {
+		cfg := createConfigWithGenesis()
+		log := createTestLogger()
+		vn := NewVirtualNode(cfg, log, nil, "test")
+
+		mockDB := newMockSafeDBReader()
+		mockDB.addEntry(500, [32]byte{0x10}, [32]byte{0x11}, 100)
+		mockDB.addEntry(501, [32]byte{0x12}, [32]byte{0x13}, 110)
+		mockDB.addEntry(502, [32]byte{0x14}, [32]byte{0x15}, 120)
+
+		mock := newMockInnerNode()
+		mock.db = mockDB
+		vn.inner = mock
+		vn.state = VNStateRunning
+
+		// The first recorded SafeDB entry is still usable for that exact L2.
+		target := eth.BlockID{Number: 100, Hash: [32]byte{0x11}}
+		l1, err := vn.L1AtSafeHead(context.Background(), target)
+		require.NoError(t, err)
+		require.Equal(t, uint64(500), l1.Number)
+	})
+
 	// CL/snap-sync bootstrap: SafeDB starts above genesisL1, so the walkback
 	// runs off the end of recorded history. That is permanent on this node.
 	t.Run("walkback past earliest SafeDB entry returns Unavailable", func(t *testing.T) {
@@ -563,10 +585,10 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		vn.inner = mock
 		vn.state = VNStateRunning
 
-		// target within latest L2 (100 <= 120) so we enter walkback; prev=499
+		// target within latest L2 (90 <= 120) so we enter walkback; prev=499
 		// is below the earliest entry (500) but above genesisL1 (100), so the
 		// safedb.ErrNotFound from that probe is what triggers the sentinel.
-		target := eth.BlockID{Number: 100, Hash: [32]byte{0x11}}
+		target := eth.BlockID{Number: 90, Hash: [32]byte{0x09}}
 		_, err := vn.L1AtSafeHead(context.Background(), target)
 		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
 	})

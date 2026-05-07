@@ -127,7 +127,6 @@ func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, b
 	_, superCfg := builder.WithSuperchain()
 	intentbuilder.WithDevkeySuperRoles(t, keys, l1ChainID, superCfg)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
 	l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 }
@@ -156,8 +155,10 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
-	default: // op-reth
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil)
+	case MixedL2ELOpRethV2:
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2")
+	default: // op-reth v1
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1")
 	}
 }
 

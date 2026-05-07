@@ -109,12 +109,12 @@ func (l *L2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, er
 	return l.canonicalDebugClient.NodeByHash(ctx, hash)
 }
 
-// InfoAndTxsByHash implements prefetcher.L2Source.
-func (l *L2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
+// HeaderAndTxsByHash implements prefetcher.L2Source.
+func (l *L2Source) HeaderAndTxsByHash(ctx context.Context, blockHash common.Hash) (*types.Header, types.Transactions, error) {
 	if l.ExperimentalEnabled() {
-		return l.experimentalClient.InfoAndTxsByHash(ctx, blockHash)
+		return l.experimentalClient.HeaderAndTxsByHash(ctx, blockHash)
 	}
-	return l.canonicalEthClient.InfoAndTxsByHash(ctx, blockHash)
+	return l.canonicalEthClient.HeaderAndTxsByHash(ctx, blockHash)
 }
 
 // OutputByRoot implements prefetcher.L2Source.

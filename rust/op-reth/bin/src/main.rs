@@ -25,7 +25,7 @@ fn main() {
     if let Err(err) =
         Cli::<OpChainSpecParser, RollupArgs>::parse().run(async move |builder, args| {
             info!(target: "reth::cli", "Launching node");
-            proof_history::launch_node_with_proof_history(builder, args).await
+            proof_history::launch_node(builder, args).await
         })
     {
         eprintln!("Error: {err:?}");

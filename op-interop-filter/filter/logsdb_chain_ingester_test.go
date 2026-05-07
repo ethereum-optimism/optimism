@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -51,6 +53,7 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 		backfillDuration: 0,     // No backfill by default in tests
 		pollInterval:     100 * time.Millisecond,
 		rollupCfg:        cfg.rollupCfg,
+		fetchConcurrency: 4,
 		ctx:              ctx,
 		cancel:           cancel,
 	}
@@ -113,6 +116,54 @@ func createTestReceipts(blockNum uint64, logCount int) gethTypes.Receipts {
 	})
 
 	return receipts
+}
+
+type delayedFetchEthClient struct {
+	*MockEthClient
+
+	mu        sync.Mutex
+	delays    map[uint64]time.Duration
+	completed []uint64
+}
+
+func (m *delayedFetchEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	if delay := m.delays[number]; delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	blockInfo, err := m.MockEthClient.InfoByNumber(ctx, number)
+	m.mu.Lock()
+	m.completed = append(m.completed, number)
+	m.mu.Unlock()
+	return blockInfo, err
+}
+
+func (m *delayedFetchEthClient) Completed() []uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]uint64(nil), m.completed...)
+}
+
+func (m *delayedFetchEthClient) ResetCompleted() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.completed = nil
+}
+
+type backfillProgressMetrics struct {
+	metrics.Metricer
+
+	chainID  uint64
+	progress float64
+}
+
+func (m *backfillProgressMetrics) RecordBackfillProgress(chainID uint64, progress float64) {
+	m.chainID = chainID
+	m.progress = progress
 }
 
 // =============================================================================
@@ -284,6 +335,107 @@ func TestLogsDBChainIngester_IngestMultipleBlocks(t *testing.T) {
 	require.Equal(t, uint64(1206), ts) // 1000 + 103*2
 }
 
+func TestLogsDBChainIngester_IngestBlockRange_WritesInOrder(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := &delayedFetchEthClient{
+		MockEthClient: NewMockEthClient(),
+		delays:        map[uint64]time.Duration{100: 50 * time.Millisecond},
+	}
+
+	parentHash := common.Hash{}
+	for i := uint64(99); i <= 101; i++ {
+		block := createTestBlock(i, 1000+i*2, parentHash)
+		parentHash = block.Hash()
+
+		var receipts gethTypes.Receipts
+		if i >= 100 {
+			receipts = createTestReceipts(i, 1)
+		}
+		mockClient.AddBlock(block, receipts)
+	}
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.fetchConcurrency = 2
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+	require.NoError(t, ingester.sealParentBlock(99))
+	mockClient.ResetCompleted()
+
+	nextBlock, _, err := ingester.ingestBlockRange(100, 101, clock.SystemClock.Now())
+	require.NoError(t, err)
+	require.Equal(t, uint64(102), nextBlock)
+	require.Equal(t, []uint64{101, 100}, mockClient.Completed())
+
+	latestBlock, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), latestBlock.Number)
+}
+
+func TestLogsDBChainIngester_IngestBlockRange_FetchFailureReturnsFailingBlock(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	block101 := createTestBlock(101, 1202, block100.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.AddBlock(block101, createTestReceipts(101, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.fetchConcurrency = 2
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+	require.NoError(t, ingester.sealParentBlock(99))
+
+	nextBlock, _, err := ingester.ingestBlockRange(100, 102, clock.SystemClock.Now())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "block 102 not found")
+	require.Equal(t, uint64(102), nextBlock)
+
+	latestBlock, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), latestBlock.Number)
+}
+
+func TestLogsDBChainIngester_RecordIngestionProgressCountsCompletedBlock(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	recorder := &backfillProgressMetrics{Metricer: metrics.NoopMetrics}
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   t.TempDir(),
+		ethClient: NewMockEthClient(),
+		rollupCfg: testRollupConfig(901, 0, 0),
+	})
+	ingester.metrics = recorder
+	ingester.startTimestamp = 400
+	ingester.backfillDuration = 0
+	ingester.earliestIngestedBlock.Store(100)
+	ingester.earliestIngestedBlockSet.Store(true)
+
+	ingester.recordIngestionProgress(200, 200)
+
+	require.Equal(t, uint64(901), recorder.chainID)
+	require.Equal(t, 1.0, recorder.progress)
+}
+
 func TestLogsDBChainIngester_Ready(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
@@ -446,6 +598,49 @@ func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
 	ingesterErr := ingester.Error()
 	require.NotNil(t, ingesterErr)
 	require.Equal(t, ErrorReorg, ingesterErr.Reason)
+}
+
+func TestLogsDBChainIngester_RewindToFinalized(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	mockClient.AddBlock(parentBlock, nil)
+
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+
+	block101 := createTestBlock(101, 1202, block100.Hash())
+	mockClient.AddBlock(block101, createTestReceipts(101, 1))
+	mockClient.SetLabelBlock(eth.Finalized, block100)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+
+	err := ingester.initLogsDB()
+	require.NoError(t, err)
+	t.Cleanup(func() { ingester.logsDB.Close() })
+
+	require.NoError(t, ingester.sealParentBlock(99))
+	require.NoError(t, ingester.ingestBlock(100))
+	require.NoError(t, ingester.ingestBlock(101))
+
+	target, timestamp, err := ingester.RewindToFinalized(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{Hash: block100.Hash(), Number: 100}, target)
+	require.Equal(t, uint64(1200), timestamp)
+	require.Equal(t, uint64(101), ingester.applyPendingRewind(102))
+	require.Equal(t, uint64(102), ingester.applyPendingRewind(102))
+
+	latest, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, target, latest)
 }
 
 func TestLogsDBChainIngester_QueryMethods(t *testing.T) {
@@ -820,7 +1015,8 @@ func TestLogsDBChainIngester_IngestBlock_RPCError(t *testing.T) {
 	// Set RPC error - block 100 is not in mock, will fail
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get block info")
+	require.Contains(t, err.Error(), "failed to fetch block 100")
+	require.Contains(t, err.Error(), "fetch block info")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
@@ -854,7 +1050,8 @@ func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
 
 	err = ingester.ingestBlock(100)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get receipts")
+	require.Contains(t, err.Error(), "failed to fetch block 100")
+	require.Contains(t, err.Error(), "fetch block receipts")
 }
 
 func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) {

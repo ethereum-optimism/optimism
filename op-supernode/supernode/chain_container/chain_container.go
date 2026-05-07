@@ -88,6 +88,9 @@ type ChainContainer interface {
 // ChainContainer above so the misuse is caught at compile time.
 type InteropChain interface {
 	ChainContainer
+	// HasDeniedAtOrAfterTimestamp returns true if any deny-list entry has
+	// DecisionTimestamp >= timestamp, without mutating the deny list.
+	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than
 	// or equal to the given timestamp. invalidatedBlock is the block that triggered
 	// the rewind and is passed to reset callbacks.
@@ -106,6 +109,12 @@ type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOver
 type ResetCallback func(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
 
 type simpleChainContainer struct {
+	// vnMu protects vn. The chain container restart loop writes vn concurrently
+	// with activity goroutines (e.g. Interop.checkChainsReady) reading it, so an
+	// unsynchronized access produces a torn interface read: non-nil type with
+	// nil data pointer, which slips past a plain `vn == nil` check and panics
+	// on the next method dispatch.
+	vnMu               sync.RWMutex
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
@@ -243,6 +252,22 @@ func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOv
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
 
+// getVN returns a consistent snapshot of c.vn. Always read c.vn through this
+// helper; a bare read races with the restart loop's assignment.
+func (c *simpleChainContainer) getVN() virtual_node.VirtualNode {
+	c.vnMu.RLock()
+	defer c.vnMu.RUnlock()
+	return c.vn
+}
+
+// setVN writes c.vn under the lock. Used by the restart loop when it installs
+// a new virtual node on each iteration.
+func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
+	c.vnMu.Lock()
+	defer c.vnMu.Unlock()
+	c.vn = vn
+}
+
 func (c *simpleChainContainer) subPath(path string) string {
 	return filepath.Join(c.cfg.DataDir, c.chainID.String(), path)
 }
@@ -277,7 +302,11 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			c.initOverload.SuperAuthority = c
 		}
 		// Pass in the chain container as a SuperAuthority
-		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
+		vn := c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
+		if vn == nil {
+			return virtual_node.ErrVirtualNodeNotRunning
+		}
+		c.setVN(vn)
 		if c.pause.Load() {
 			// Check for stop/cancellation even while paused, so teardown doesn't hang.
 			// Without this, a stuck pause (e.g. from RewindEngine exiting before Resume)
@@ -295,19 +324,19 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 
 		// start the virtual node
-		err := c.vn.Start(ctx)
+		err := vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited with error", "vn_id", c.vn, "error", err)
+			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
 		} else {
-			c.log.Info("virtual node exited", "vn_id", c.vn)
+			c.log.Info("virtual node exited", "vn_id", vn)
 		}
 
 		// always stop the virtual node after it exits
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if stopErr := c.vn.Stop(stopCtx); stopErr != nil {
+		if stopErr := vn.Stop(stopCtx); stopErr != nil {
 			c.log.Error("error stopping virtual node", "error", stopErr)
 		} else {
-			c.log.Info("virtual node stopped", "vn_id", c.vn)
+			c.log.Info("virtual node stopped", "vn_id", vn)
 		}
 
 		cancel()
@@ -338,8 +367,8 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 		c.rollupClient.Close()
 	}
 
-	if c.vn != nil {
-		if err := c.vn.Stop(stopCtx); err != nil {
+	if vn := c.getVN(); vn != nil {
+		if err := vn.Stop(stopCtx); err != nil {
 			c.log.Error("error stopping virtual node", "error", err)
 		}
 	}
@@ -419,13 +448,14 @@ func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 
 // SyncStatus returns the in-process op-node sync status for this chain.
 func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		if c.log != nil {
 			c.log.Warn("SyncStatus: virtual node not initialized")
 		}
 		return nil, virtual_node.ErrVirtualNodeNotRunning
 	}
-	st, err := c.vn.SyncStatus(ctx)
+	st, err := vn.SyncStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +476,8 @@ func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2
 
 // safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
 func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
 	status, err := c.SyncStatus(ctx)
@@ -455,7 +486,7 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	}
 	currentL1 := status.CurrentL1
 	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
-	l1, err := c.vn.L1AtSafeHead(ctx, l2)
+	l1, err := vn.L1AtSafeHead(ctx, l2)
 	if err != nil {
 		// Permanent history gap -> ErrHistoryUnavailable (interop halts).
 		// Transient lag -> ethereum.NotFound (callers back off and retry).
@@ -596,7 +627,8 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	}
 	defer c.resetting.Store(false)
 
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
 	if c.engine == nil {
@@ -615,7 +647,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	c.log.Info("chain_container/RewindEngine: paused container")
 
 	// stop the vn
-	err = c.vn.Stop(ctx)
+	err = vn.Stop(ctx)
 	if err != nil {
 		return err
 	}
@@ -667,10 +699,11 @@ func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
 	if err := c.Pause(ctx); err != nil {
 		return err
 	}
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return nil
 	}
-	return c.vn.Stop(ctx)
+	return vn.Stop(ctx)
 }
 
 // SetResetCallback sets a callback that is invoked when the chain resets.

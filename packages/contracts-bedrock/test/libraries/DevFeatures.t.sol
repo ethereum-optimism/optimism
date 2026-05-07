@@ -93,7 +93,11 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
 
     /// @notice Tests that ALL_FEATURES against empty bitmap returns false.
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
-        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES));
+        // Strip L2CM and CannonKona because they are hardcoded enabled regardless of bitmap.
+        // TODO(#20084): remove with the broader L2CMFlag/CannonKonaFlag cleanup.
+        assertFalse(
+            DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.L2CM & ~DevFeatures.CANNON_KONA)
+        );
     }
 
     /// @notice Fuzz test: any non-zero feature should match itself exactly.
@@ -117,7 +121,27 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     /// @notice Fuzz test: feature not found when bitmap has none of the feature's bits.
     function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
         vm.assume(_feature != bytes32(0));
+        // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        // CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+        vm.assume((_feature & DevFeatures.CANNON_KONA) != DevFeatures.CANNON_KONA);
         bytes32 disjointBitmap = ~_feature;
         assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
+    }
+
+    /// @notice Tests that L2CM is hardcoded enabled regardless of the bitmap.
+    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
+    function test_isDevFeatureEnabled_l2cmAlwaysEnabled_succeeds() public pure {
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, DevFeatures.L2CM));
+        assertTrue(DevFeatures.isDevFeatureEnabled(~DevFeatures.L2CM, DevFeatures.L2CM));
+        assertTrue(DevFeatures.isDevFeatureEnabled(DevFeatures.L2CM, DevFeatures.L2CM));
+    }
+
+    /// @notice Tests that CannonKona is hardcoded enabled regardless of the bitmap.
+    /// @dev TODO(#20084): remove with the broader CannonKonaFlag cleanup.
+    function test_isDevFeatureEnabled_cannonKonaAlwaysEnabled_succeeds() public pure {
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, DevFeatures.CANNON_KONA));
+        assertTrue(DevFeatures.isDevFeatureEnabled(~DevFeatures.CANNON_KONA, DevFeatures.CANNON_KONA));
+        assertTrue(DevFeatures.isDevFeatureEnabled(DevFeatures.CANNON_KONA, DevFeatures.CANNON_KONA));
     }
 }

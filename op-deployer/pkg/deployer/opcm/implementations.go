@@ -9,6 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// DeployImplementationsInput must mirror the Solidity
+// DeployImplementations.s.sol input struct exactly — script ABI matching is
+// checked at load time.
 type DeployImplementationsInput struct {
 	WithdrawalDelaySeconds          *big.Int
 	MinProposalSizeBytes            *big.Int
@@ -22,12 +25,13 @@ type DeployImplementationsInput struct {
 	FaultGameV2ClockExtension       *big.Int
 	FaultGameV2MaxClockDuration     *big.Int
 	SuperchainConfigProxy           common.Address
-	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address
 	L1ProxyAdminOwner               common.Address
 	Challenger                      common.Address
 }
 
+// DeployImplementationsOutput must mirror DeployImplementations.s.sol's
+// output struct.
 type DeployImplementationsOutput struct {
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
 	OpcmUtils                        common.Address `json:"opcmUtilsAddress"`
@@ -47,7 +51,6 @@ type DeployImplementationsOutput struct {
 	DisputeGameFactoryImpl           common.Address `json:"disputeGameFactoryImplAddress"`
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
-	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
 	FaultDisputeGameImpl             common.Address `json:"faultDisputeGameImplAddress"`
 	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`

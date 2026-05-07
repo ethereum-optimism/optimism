@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
@@ -41,6 +42,17 @@ type nutBundle struct {
 	Transactions []networkUpgradeTransaction `json:"transactions"`
 }
 
+// capitalizeForkName returns the fork name with its first character upper-cased.
+// Mirrors rust/kona/crates/protocol/hardforks/build_helpers.rs::capitalize so the
+// qualified intent strings (and therefore source hashes) agree across implementations.
+func capitalizeForkName(f forks.Name) string {
+	s := string(f)
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 // readNUTBundle reads and parses a NUT bundle from an io.Reader. The fork name
 // is used to namespace each transaction's intent when deriving source hashes.
 func readNUTBundle(fork forks.Name, r io.Reader) (*nutBundle, error) {
@@ -72,7 +84,10 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 			return nil, fmt.Errorf("tx %d: missing intent", i)
 		}
 
-		qualifiedIntent := fmt.Sprintf("%s %d: %s", b.ForkName, i, nutTx.Intent)
+		// The fork name is capitalized to match kona's NUT bundle codegen
+		// (rust/kona/crates/protocol/hardforks/build_helpers.rs::capitalize),
+		// so both implementations derive the same UpgradeDepositSource hashes.
+		qualifiedIntent := fmt.Sprintf("%s %d: %s", capitalizeForkName(b.ForkName), i, nutTx.Intent)
 		source := UpgradeDepositSource{Intent: qualifiedIntent}
 		depTx := &types.DepositTx{
 			SourceHash:          source.SourceHash(),

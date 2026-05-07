@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -373,6 +375,15 @@ func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) 
 	return cl.HeadBlockRef(lvl).ID()
 }
 
+func (cl *L2CLNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockID, error) {
+	cl.require.Equal(chainID, cl.inner.ChainID(), "chain ID mismatch")
+	ref, err := cl.inner.ELClient().BlockRefByNumber(cl.ctx, number)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return ref.ID(), nil
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 	resp, err := cl.inner.RollupAPI().SafeHeadAtL1Block(cl.ctx, l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
@@ -394,12 +405,20 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
+func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
+}
+
 func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) {
 	cl.require.NoError(cl.LaggedFn(refNode, lvl, attempts, allowMatch)())
 }
 
 func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.InSyncFn(other, lvl, attempts)())
 }
 
 func (cl *L2CLNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
@@ -582,5 +601,28 @@ func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFun
 				cl.log.Info("Chain sync status", "currentL1", currentL1.Number, "ref", ref)
 				return fmt.Errorf("expected currentL1 to match")
 			})
+	}
+}
+
+func (cl *L2CLNode) LocalGameInputs(agreedBlock, claimBlock uint64) *utils.LocalGameInputs {
+	cl.Reached(types.LocalSafe, claimBlock, 60)
+
+	rollupAPI := cl.Escape().RollupAPI()
+
+	agreedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, agreedBlock)
+	cl.require.NoError(err, "fetch output at agreed block %d", agreedBlock)
+
+	claimedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, claimBlock)
+	cl.require.NoError(err, "fetch output at claim block %d", claimBlock)
+
+	syncStatus, err := rollupAPI.SyncStatus(cl.ctx)
+	cl.require.NoError(err, "fetch L2 sync status")
+
+	return &utils.LocalGameInputs{
+		L1Head:           syncStatus.CurrentL1.Hash,
+		L2Head:           agreedOutput.BlockRef.Hash,
+		L2OutputRoot:     common.Hash(agreedOutput.OutputRoot),
+		L2Claim:          common.Hash(claimedOutput.OutputRoot),
+		L2SequenceNumber: new(big.Int).SetUint64(claimBlock),
 	}
 }

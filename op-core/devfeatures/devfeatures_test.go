@@ -79,9 +79,32 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(ALL_FEATURES, EMPTY_FEATURES))
 	})
 
+	// Hardcoded-on flags share identical override semantics. TODO(#20084): remove with the broader DevFeatures cleanup.
+	hardcoded := []struct {
+		name string
+		flag common.Hash
+	}{
+		{"L2CM", L2CMFlag},
+		{"CannonKona", CannonKonaFlag},
+	}
+
 	t.Run("all against empty", func(t *testing.T) {
-		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES))
+		// Strip hardcoded-enabled flags.
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(or(L2CMFlag, CannonKonaFlag)))))
 	})
+
+	for _, c := range hardcoded {
+		t.Run(c.name+" always enabled regardless of bitmap", func(t *testing.T) {
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, c.flag))
+			require.True(t, IsDevFeatureEnabled(FEATURE_A, c.flag))
+			require.True(t, IsDevFeatureEnabled(c.flag, c.flag))
+		})
+
+		t.Run(c.name+" always enabled when combined with other flags", func(t *testing.T) {
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, c.flag)))
+			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, c.flag)))
+		})
+	}
 }
 
 func TestEnableDevFeature(t *testing.T) {
@@ -103,6 +126,14 @@ func not(a [32]byte) [32]byte {
 	var out [32]byte
 	for i := 0; i < 32; i++ {
 		out[i] = ^a[i]
+	}
+	return out
+}
+
+func and(a, b [32]byte) [32]byte {
+	var out [32]byte
+	for i := 0; i < 32; i++ {
+		out[i] = a[i] & b[i]
 	}
 	return out
 }

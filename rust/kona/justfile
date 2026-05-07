@@ -89,16 +89,34 @@ fmt-native-check:
 lint-native: fmt-native-check lint-docs
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# Lint the workspace (mips arch). Currently, only the `kona-std-fpvm` crate is linted for the `cannon` target, as it is the only crate with architecture-specific code.
-# The `-v .../mips64-unknown-none.json` bind mount overrides the broken target
-# spec baked into cannon-builder:v1.0.0 (target-c-int-width: 64 → corrected to 32).
-lint-cannon:
-  docker run \
-    --rm \
-    -v {{KONA_ROOT}}/../:/workdir \
-    -v {{KONA_ROOT}}/docker/cannon/mips64-unknown-none.json:/mips64-unknown-none.json:ro \
-    -w="/workdir" \
-    us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -Zjson-target-spec -- -D warnings
+# Build the kona reproducible build environment as a local Docker image.
+# Reused by lint-cannon and build-cannon-client.
+build-kona-env:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  MONOREPO_ROOT="{{KONA_ROOT}}/../.."
+  # The Dockerfile unconditionally COPYs from the `kona-custom-configs`
+  # named context. Lint and build-cannon-client never bake custom configs,
+  # so point it at an empty temp dir.
+  EMPTY_CONFIGS_DIR=$(mktemp -d)
+  trap 'rm -rf "${EMPTY_CONFIGS_DIR}"' EXIT
+  docker build \
+    --platform linux/amd64 \
+    --target kona-build-env \
+    --build-context kona-custom-configs="${EMPTY_CONFIGS_DIR}" \
+    -t kona-cannon-env:local \
+    -f "{{KONA_ROOT}}/docker/fpvm-prestates/cannon-repro.dockerfile" \
+    "$MONOREPO_ROOT"
+
+# Lint the workspace (mips arch) inside the reproducible build environment.
+# Uses the same Docker environment as the prestate build to validate against the release toolchain.
+# Runs `just lint-kona-cannon` inside the container, which sets up the MIPS64 cross-compilation env.
+lint-cannon: build-kona-env
+  docker run --rm \
+    -v {{KONA_ROOT}}/../..:/workdir \
+    -w /workdir/rust \
+    kona-cannon-env:local \
+    just lint-kona-cannon
 
 
 # Lint the Rust documentation
@@ -114,21 +132,17 @@ build-native *args='':
   #!/usr/bin/env bash
   cargo build --workspace $@
 
-# Build `kona-client` for the `cannon` target.
-# The `-v .../mips64-unknown-none.json` bind mount overrides the broken target
-# spec baked into cannon-builder:v1.0.0 (target-c-int-width: 64 → corrected to 32).
-# See commit 04ab310dc6: the baked spec miscompiles str equality, so the client
-# crashes under cannon when run via the kona-host-client-offline-cannon job.
-# The -v op-core/nuts/bundles` bind mount exposes op-core/nuts/bundles at /workdir/op-core/nuts/bundles
-# so the kona-hardforks build script's ancestor walk for op-core/ succeeds.
-build-cannon-client:
-  docker run \
-    --rm \
-    -v {{KONA_ROOT}}/../:/workdir \
-    -v {{KONA_ROOT}}/docker/cannon/mips64-unknown-none.json:/mips64-unknown-none.json:ro \
-    -v {{KONA_ROOT}}/../../op-core/nuts/bundles:/workdir/op-core/nuts/bundles:ro \
-    -w="/workdir" \
-    us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v1.0.0 cargo build -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client --profile release-client-lto
+# Build `kona-client` for the `cannon` target using the reproducible build environment.
+# The bind mount of {{KONA_ROOT}}/../.. exposes the monorepo at /workdir, so the
+# kona-hardforks build script's ancestor walk for op-core/nuts/bundles succeeds.
+build-cannon-client: build-kona-env
+  #!/usr/bin/env bash
+  set -euo pipefail
+  docker run --rm \
+    -v {{KONA_ROOT}}/../..:/workdir \
+    -w /workdir/rust \
+    kona-cannon-env:local \
+    just build-kona-client-elf kona-client
 
 
 # Check for unused dependencies in the crate graph.

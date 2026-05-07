@@ -232,11 +232,6 @@
           },
           {
             "internalType": "address",
-            "name": "protocolVersionsImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "l1ERC721BridgeImpl",
             "type": "address"
           },

@@ -2,7 +2,10 @@
 
 use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
-use alloy_op_evm::{OpEvm, OpEvmContext, OpTx, OpTxError};
+use alloy_op_evm::{
+    OpEvm, OpEvmContext, OpTx, OpTxError,
+    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext},
+};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
@@ -38,6 +41,28 @@ where
     /// Returns a reference to the inner [`PreimageOracleClient`].
     pub fn oracle_reader(&self) -> &O {
         &self.oracle_reader
+    }
+}
+
+impl<H, O> PostExecEvmFactoryHooks for FpvmOpEvmFactory<H, O>
+where
+    H: HintWriterClient + Clone + Send + Sync + 'static,
+    O: PreimageOracleClient + Clone + Send + Sync + 'static,
+{
+    fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.begin_post_exec_tx(ctx);
+    }
+
+    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.take_last_post_exec_tx_result()
     }
 }
 

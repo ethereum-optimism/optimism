@@ -173,8 +173,13 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
 
-# Run action tests for the single-chain client program on the native target
-action-tests-single test_name='Test_ProgramAction' *args='': action-tests-build (action-tests-single-run test_name args)
+# Run action tests for the single-chain client program on the native target.
+#
+# Runs every Test* in op-e2e/actions/proofs/. Tests that exercise op-program-only
+# behavior (and aren't expected to pass under kona-host) opt themselves out by
+# calling helpers.SkipIfKona(t) at the top — the runner sets KONA_HOST_PATH,
+# which the helper detects.
+action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
 
 # Build action tests for host program
 action-tests-build:
@@ -184,7 +189,7 @@ action-tests-build:
   just build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
+action-tests-single-run test_name='.*' parallel="0" *args='':
   #!/bin/bash
   set -euo pipefail
 
@@ -223,12 +228,13 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
     # List matching test names, filtering out the "ok" summary line from go test -list.
-    # Note: go test -list uses full-match regex, so we need .* suffix to match prefixes.
-    go test -list '{{test_name}}.*' . | grep -E '^{{test_name}}' > /tmp/tests.txt
+    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
+    # so no name-based exclusion is needed here.
+    go test -list '{{test_name}}' . | grep -E '^Test' > /tmp/tests.txt
 
     TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
     if [ "$TOTAL_TESTS" -eq 0 ]; then
-      echo "Error: no tests matched pattern '^{{test_name}}'" >&2
+      echo "Error: no tests matched '{{test_name}}'" >&2
       exit 1
     fi
     echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"

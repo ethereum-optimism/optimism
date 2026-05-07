@@ -20,16 +20,12 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x55775112dfd25c0470fc267496c603cb27fece0a3f79d900ddc6b619c657f73f",
+    "initCodeHash": "0xa5a3dbbdb876c2023f152f0fe6e9feaad53e24f522565935b1cb921a04a10d44",
     "sourceCodeHash": "0xd631818bab3c638423c3111f85b29840ab109deb7762186cb1141a8d4d14178b"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0xf09c4037bec1e0fbf679f1250e8d21d4a208829be24e16a83711e94c9b4b1004",
     "sourceCodeHash": "0x58224f9b9403ca597a9aa649757c667396838eee89db2e7553aab755dd5fba26"
-  },
-  "src/L1/ProtocolVersions.sol:ProtocolVersions": {
-    "initCodeHash": "0x7b1797bcc9b34c752d36493b69bd749750d72566bc34f2c85d950132c7cfc882",
-    "sourceCodeHash": "0x47442848625cbccb16de0ce3220c640f46fdca5ee0a304ddb077659d679b78d4"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0xd747690ea1ee01828050e55ad358d443535452a7050dba9d67e419a86798802e",
@@ -40,8 +36,8 @@
     "sourceCodeHash": "0x2650f2af1df017387e1f1aa6273decc4c46dd4f3ac7f0910c6f0edc92aef4747"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x4525052e6781fcdfa5f59551fefe0d6b1b9a9573f592a202d0f74708922eb549",
-    "sourceCodeHash": "0xf4031a2c5fe9ef6032d06860da7eba3f68774041bd4c572a4a8c74b8ce91ee19"
+    "initCodeHash": "0x6deb928e693dbbe0ffeda11a17037201d86bdd5487ca01df7ac42f8ecf5eac47",
+    "sourceCodeHash": "0x6dac26964e4f0421c6b47bcab147c230cc49daf3384d8eeb3a33acba8b7579f2"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0xf1fb169c6dd4eceb5cec6ed6dfa3affc45970e5a01e00827d06af1f9e8df026d",
@@ -84,7 +80,7 @@
     "sourceCodeHash": "0x3cfbb6e64a29ecc84d7a35cf4b5786fed354a4f474bbf8be719948a50a64f883"
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
-    "initCodeHash": "0x3670e04d782e5f829a6a55174fa30bc40951333f9a71c35c7c0d6978a01de639",
+    "initCodeHash": "0xe51d76d7d8700664f372a155525e86498f1639c290a1fbc8ad04f9a1acd3fd94",
     "sourceCodeHash": "0x4eaf830a1ccfc0e7426fbf21c4c284a81f49b16aa392b213c9894479d51a4a24"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {

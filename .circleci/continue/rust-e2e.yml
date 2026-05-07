@@ -4,6 +4,8 @@ version: 2.1
 # This file contains E2E tests that depend on both kona and op-reth.
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
+orbs:
+  utils: ethereum-optimism/circleci-utils@1.0.27
 
 parameters:
   # Required parameters (also in main.yml, merged during continuation)
@@ -20,9 +22,6 @@ parameters:
     type: string
     default: "v0.0"
   c-rust_changes_detected:
-    type: boolean
-    default: false
-  c-non_docs_changes:
     type: boolean
     default: false
   # Passthrough declarations for setup config parameters.
@@ -288,10 +287,15 @@ jobs:
 
   required-rust-e2e:
     docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: small
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate)
+        type: boolean
+        default: false
     steps:
-      - run: echo "Required Rust E2E checks passed"
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
 
 # ============================================================================
 # RUST E2E WORKFLOWS
@@ -304,7 +308,6 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-rust_changes_detected >>
-            - << pipeline.parameters.c-non_docs_changes >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -340,7 +343,8 @@ workflows:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
             parameters:
-              devnet_config: ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
+              devnet_config:
+                ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -376,20 +380,18 @@ workflows:
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
-            - rust-e2e-simple-kona
-            - rust-e2e-simple-kona-geth
-            - rust-e2e-simple-kona-sequencer
-            - rust-e2e-restart
-            - kona-proof-action-single
-
-  # Required Rust E2E gate (skip) — runs when no rust changes and no dispatch
-  # Just runs action tests
+            - rust-e2e-simple-kona: terminal
+            - rust-e2e-simple-kona-geth: terminal
+            - rust-e2e-simple-kona-sequencer: terminal
+            - rust-e2e-restart: terminal
+            - kona-proof-action-single: terminal
+          context:
+            - circleci-api-token
   rust-e2e-gate-skip:
     when:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
         - not: << pipeline.parameters.c-rust_changes_detected >>
-        - << pipeline.parameters.c-non_docs_changes >>
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
@@ -413,5 +415,6 @@ workflows:
 
       - required-rust-e2e:
           requires:
-            - kona-proof-action-single
-
+            - kona-proof-action-single: terminal
+          context:
+            - circleci-api-token

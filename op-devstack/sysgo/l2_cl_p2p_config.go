@@ -3,6 +3,7 @@ package sysgo
 import (
 	"encoding/hex"
 	"flag"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -69,6 +70,11 @@ func newDevstackP2PConfig(
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = noDiscovery
 	p2pConfig.EnableReqRespSync = enableReqRespSync
+	// Devstack chain timestamps are synthetic and can lag many minutes behind
+	// wallclock during long tests (e.g. waiting for dispute games), so the
+	// production-default 60s gossip "too old" check rejects otherwise-valid
+	// TestSequencer-produced blocks. Loosen it for devstack.
+	p2pConfig.GossipTimestampThreshold = time.Hour
 
 	return p2pConfig, p2pSignerSetup
 }

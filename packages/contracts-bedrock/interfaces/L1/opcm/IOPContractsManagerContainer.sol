@@ -12,7 +12,6 @@ interface IOPContractsManagerContainer {
 
     struct Implementations {
         address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address ethLockboxImpl;
