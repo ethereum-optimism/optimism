@@ -590,6 +590,13 @@ func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32
 // Clear clears the DB such that there is no data left.
 // An invalidator is required as argument, to force users to invalidate any current open reads.
 func (db *DB) Clear(inv reads.Invalidator) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	return db.clear(inv)
+}
+
+// clear is the unlocked implementation of Clear, for use by callers that already hold rwLock.
+func (db *DB) clear(inv reads.Invalidator) error {
 	release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
 		reads.DerivedInvalidation{Timestamp: 0},
 	})
@@ -617,7 +624,7 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	iter, err := db.newIteratorAt(newHead.Number, 0)
 	if err != nil {
 		if errors.Is(err, types.ErrPreviousToFirst) || errors.Is(err, types.ErrSkipped) {
-			if err := db.Clear(inv); err != nil {
+			if err := db.clear(inv); err != nil {
 				return fmt.Errorf("failed to clear logs DB, upon rewinding to log block %s before first block: %w", newHead, err)
 			}
 			return nil
