@@ -10,21 +10,48 @@ use crate::{
     actors::{BlockStream, NetworkInboundData, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::Address;
 use alloy_provider::RootProvider;
-use kona_derive::StatefulAttributesBuilder;
+use core::fmt::Debug;
+use kona_derive::{DataAvailabilityProvider, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_gossip::{BlockHandler, Handler};
 use kona_interop::DependencySet;
 use kona_protocol::L2BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
-    OnlinePipeline,
+    OnlineDataProvider, OnlinePipeline,
 };
 use kona_rpc::RpcBuilder;
 use op_alloy_network::Optimism;
 use std::{ops::Not as _, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
+
+/// Factory closure that builds the `DataAvailabilityProvider` once the L1
+/// chain provider and blob provider have been constructed inside
+/// [`RollupNode::start`]. Always installed by [`RollupNodeBuilder::build`]
+/// — the default factory builds an [`OnlineDataProvider`]; the custom
+/// factory is supplied via
+/// [`RollupNodeBuilder::with_data_availability_provider`].
+pub(super) type DapFactory<DAP> = Box<
+    dyn FnOnce(
+            Arc<RollupConfig>,
+            AlloyChainProvider,
+            OnlineBlobProvider<OnlineBeaconClient>,
+        ) -> DAP
+        + Send,
+>;
+
+/// Factory closure that builds the gossip [`Handler`] paired with its
+/// `watch::Sender<Address>`. The default factory delegates to
+/// [`NetworkBuilder::default_handler`] which produces a stock
+/// [`BlockHandler`]; the custom factory is supplied via
+/// [`RollupNodeBuilder::with_block_handler`] and just returns the
+/// caller-supplied `(H, sender)` pair.
+pub(super) type HandlerFactory<H> =
+    Box<dyn FnOnce(&NetworkBuilder) -> (H, watch::Sender<Address>) + Send>;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
@@ -43,10 +70,18 @@ pub struct L1Config {
     pub engine_provider: RootProvider,
 }
 
-/// The standard implementation of the [`RollupNode`] service, using the governance approved OP
-/// Stack configuration of components.
-#[derive(Debug)]
-pub struct RollupNode {
+/// The standard implementation of the [`RollupNode`] service, using the
+/// governance-approved OP Stack configuration of components.
+///
+/// Generic over the data-availability provider (`DAP`) and gossip handler
+/// (`H`) so downstream binaries can plug in custom implementations — e.g.
+/// PSO Chain's SRA-aware DA filter and unsafe-block-signer verifier.
+/// Defaults keep every existing caller compiling unchanged.
+pub struct RollupNode<DAP = OnlineDataProvider, H = BlockHandler>
+where
+    DAP: DataAvailabilityProvider + Debug + Send + Sync + 'static,
+    H: Handler + Clone + Send + 'static,
+{
     /// The rollup configuration.
     pub(crate) config: Arc<RollupConfig>,
     /// The L1 configuration.
@@ -71,26 +106,66 @@ pub struct RollupNode {
     /// Mirrors op-node's `--interop.dependency-set`.
     /// [`StatefulAttributesBuilder`] constructor panics otherwise.
     pub(crate) dependency_set: Option<Arc<DependencySet>>,
+    /// DAP factory installed by [`RollupNodeBuilder::build`]. Always
+    /// `Some` at construction; consumed (taken via `Option::take`) on the
+    /// first call to [`Self::start`].
+    pub(crate) dap_factory: Option<DapFactory<DAP>>,
+    /// Handler factory installed by [`RollupNodeBuilder::build`]. Always
+    /// `Some` at construction; consumed on the first call to
+    /// [`Self::start`]. The factory receives the [`NetworkBuilder`] so
+    /// the default-handler variant can construct a [`BlockHandler`] from
+    /// the same rollup config / signer address as upstream.
+    pub(crate) handler_factory: Option<HandlerFactory<H>>,
+}
+
+// `RollupNode` cannot derive `Debug` because `DapFactory<DAP>` is a
+// `Box<dyn FnOnce ...>` which is not `Debug`. Provide a manual impl that
+// skips the closure.
+impl<DAP, H> Debug for RollupNode<DAP, H>
+where
+    DAP: DataAvailabilityProvider + Debug + Send + Sync + 'static,
+    H: Handler + Clone + Send + 'static + Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RollupNode")
+            .field("config", &self.config)
+            .field("l1_config", &self.l1_config)
+            .field("interop_mode", &self.interop_mode)
+            .field("l2_trust_rpc", &self.l2_trust_rpc)
+            .field("engine_config", &self.engine_config)
+            .field("p2p_config", &self.p2p_config)
+            .field("sequencer_config", &self.sequencer_config)
+            .field("dependency_set", &self.dependency_set)
+            .field("dap_factory_set", &self.dap_factory.is_some())
+            .field("handler_factory_set", &self.handler_factory.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 /// A RollupNode-level derivation actor wrapper.
 ///
 /// This type selects the concrete derivation actor implementation
-/// based on `RollupNode` configuration.
+/// based on `RollupNode` configuration. Generic over `DAP` so the
+/// `Normal` variant can carry an `OnlinePipeline<DAP>` with the
+/// caller-supplied data-availability provider.
 ///
 /// It is not intended to be generic or reusable outside the
 /// `RollupNode` wiring logic.
-enum ConfiguredDerivationActor {
+enum ConfiguredDerivationActor<DAP = OnlineDataProvider>
+where
+    DAP: DataAvailabilityProvider + Debug + Send + Sync + 'static,
+{
     Delegate(Box<DelegateDerivationActor<QueuedDerivationEngineClient>>),
-    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline<DAP>>>),
 }
 
 #[async_trait::async_trait]
-impl NodeActor for ConfiguredDerivationActor
+impl<DAP> NodeActor for ConfiguredDerivationActor<DAP>
 where
+    DAP: DataAvailabilityProvider + Debug + Send + Sync + 'static,
     DelegateDerivationActor<QueuedDerivationEngineClient>:
         NodeActor<StartData = (), Error = DerivationError>,
-    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline<DAP>>:
         NodeActor<StartData = (), Error = DerivationError>,
 {
     type StartData = ();
@@ -104,7 +179,11 @@ where
     }
 }
 
-impl RollupNode {
+impl<DAP, H> RollupNode<DAP, H>
+where
+    DAP: DataAvailabilityProvider + Debug + Send + Sync + Clone + 'static,
+    H: Handler + Clone + Send + 'static,
+{
     /// The mode of operation for the node.
     const fn mode(&self) -> NodeMode {
         self.engine_config.mode
@@ -150,7 +229,12 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> OnlinePipeline {
+    /// Builds the derivation pipeline. The DAP is always constructed via
+    /// `self.dap_factory` — for the default `RollupNode<OnlineDataProvider>`
+    /// the factory was installed automatically by [`RollupNodeBuilder::build`];
+    /// for the override path it was installed by
+    /// [`RollupNodeBuilder::with_data_availability_provider`].
+    async fn create_pipeline(&mut self) -> OnlinePipeline<DAP> {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -163,22 +247,29 @@ impl RollupNode {
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l2_trust_rpc,
         );
+        let blob_provider = OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await;
+
+        let factory = self.dap_factory.take().expect(
+            "RollupNode constructed without a DAP factory — this is a kona builder bug; \
+             RollupNodeBuilder::build always installs a default OnlineDataProvider factory.",
+        );
+        let dap = factory(self.config.clone(), l1_derivation_provider.clone(), blob_provider);
 
         match self.interop_mode {
-            InteropMode::Polled => OnlinePipeline::new_polled(
+            InteropMode::Polled => OnlinePipeline::<DAP>::new_polled_with_dap(
                 self.config.clone(),
                 self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
                 l1_derivation_provider,
                 l2_derivation_provider,
+                dap,
                 self.dependency_set.clone(),
             ),
-            InteropMode::Indexed => OnlinePipeline::new_indexed(
+            InteropMode::Indexed => OnlinePipeline::<DAP>::new_indexed_with_dap(
                 self.config.clone(),
                 self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
                 l1_derivation_provider,
                 l2_derivation_provider,
+                dap,
                 self.dependency_set.clone(),
             ),
         }
@@ -254,7 +345,7 @@ impl RollupNode {
     /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
     /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
     /// received.
-    pub async fn start(&self) -> Result<(), String> {
+    pub async fn start(&mut self) -> Result<(), String> {
         // Create a global cancellation token for graceful shutdown of tasks.
         let cancellation = CancellationToken::new();
 
@@ -272,7 +363,7 @@ impl RollupNode {
 
         // Select the concrete derivation actor implementation based on
         // RollupNode configuration.
-        let derivation: ConfiguredDerivationActor = if let Some(provider) =
+        let derivation: ConfiguredDerivationActor<DAP> = if let Some(provider) =
             self.derivation_delegate_provider.clone()
         {
             // L1 Provider for sanity checking Derivation Delegation
@@ -290,17 +381,33 @@ impl RollupNode {
                 l1_provider,
             )))
         } else {
-            ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
-                QueuedDerivationEngineClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
-                cancellation.clone(),
-                derivation_actor_request_rx,
-                self.create_pipeline().await,
-            )))
+            ConfiguredDerivationActor::Normal(Box::new(
+                DerivationActor::<_, OnlinePipeline<DAP>>::new(
+                    QueuedDerivationEngineClient {
+                        engine_actor_request_tx: engine_actor_request_tx.clone(),
+                    },
+                    cancellation.clone(),
+                    derivation_actor_request_rx,
+                    self.create_pipeline().await,
+                ),
+            ))
         };
 
-        // Create the p2p actor.
+        // Create the p2p actor. The handler factory always produces an
+        // `(H, watch::Sender<Address>)` pair — for the default-H path it
+        // delegates to `NetworkBuilder::default_handler()` which mirrors
+        // upstream's behaviour exactly; for the custom-H path it just
+        // returns the caller-supplied pair installed via
+        // `RollupNodeBuilder::with_block_handler`.
+        let net_engine_client = QueuedNetworkEngineClient {
+            engine_actor_request_tx: engine_actor_request_tx.clone(),
+        };
+        let net_builder = self.network_builder();
+        let handler_factory = self.handler_factory.take().expect(
+            "RollupNode constructed without a handler factory — this is a kona builder bug; \
+             RollupNodeBuilder::build always installs a default BlockHandler factory.",
+        );
+        let (handler, signer_tx) = handler_factory(&net_builder);
         let (
             NetworkInboundData {
                 signer,
@@ -309,10 +416,12 @@ impl RollupNode {
                 admin_rpc: net_admin_rpc,
             },
             network,
-        ) = NetworkActor::new(
-            QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
+        ) = NetworkActor::<_, H>::with_handler(
+            net_engine_client,
             cancellation.clone(),
-            self.network_builder(),
+            net_builder,
+            handler,
+            signer_tx,
         );
 
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel(None);
