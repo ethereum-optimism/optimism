@@ -57,35 +57,35 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
     }
 
     /// @notice Reverts when the final tx targets something other than `Predeploys.PROXY_ADMIN`.
-    function test_extractL2CM_wrongTarget_reverts() public {
-        address wrongTarget = address(0xBEEF);
+    function testFuzz_extractL2CM_wrongTarget_reverts(address _wrongTarget) public {
+        vm.assume(_wrongTarget != Predeploys.PROXY_ADMIN);
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(0xCAFE))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
-            to: wrongTarget
+            intent: "Invalid Final Upgrade Transaction",
+            to: _wrongTarget
         });
 
-        vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongTarget.selector, "test-path", wrongTarget));
+        vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongTarget.selector, "test-path", _wrongTarget));
         this._callExtractL2CM(txns, "test-path");
     }
 
     /// @notice Reverts when the final tx selector is not `upgradePredeploys(address)`.
-    function test_extractL2CM_wrongSelector_reverts() public {
-        bytes4 wrongSelector = 0xdeadbeef;
-        bytes memory data = abi.encodePacked(wrongSelector, bytes32(uint256(uint160(address(0xCAFE)))));
+    function testFuzz_extractL2CM_wrongSelector_reverts(bytes4 _wrongSelector) public {
+        vm.assume(_wrongSelector != IL2ProxyAdmin.upgradePredeploys.selector);
+        bytes memory data = abi.encodePacked(_wrongSelector, bytes32(uint256(uint160(address(0xCAFE)))));
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: data,
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "Invalid Final Upgrade Transaction",
             to: Predeploys.PROXY_ADMIN
         });
 
-        vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongSelector.selector, "test-path", wrongSelector));
+        vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.WrongSelector.selector, "test-path", _wrongSelector));
         this._callExtractL2CM(txns, "test-path");
     }
 
@@ -97,7 +97,7 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
             data: shortData,
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "Invalid Final Upgrade Transaction",
             to: Predeploys.PROXY_ADMIN
         });
 
@@ -112,12 +112,27 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(0))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "Invalid Final Upgrade Transaction",
             to: Predeploys.PROXY_ADMIN
         });
 
         vm.expectRevert(abi.encodeWithSelector(PastNUTBundles.ZeroL2CM.selector, "test-path"));
         this._callExtractL2CM(txns, "test-path");
+    }
+
+    /// @notice Decodes the L2CM for any non-zero address when the final tx is well-formed.
+    function testFuzz_extractL2CM_validFinalTxn_succeeds(address _l2cm) public view {
+        vm.assume(_l2cm != address(0));
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
+        txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (_l2cm)),
+            from: address(0),
+            gasLimit: 0,
+            intent: "L2ProxyAdmin Upgrade Predeploys",
+            to: Predeploys.PROXY_ADMIN
+        });
+
+        assertEq(PastNUTBundles.extractL2CM(txns, "test-path"), _l2cm);
     }
 }
 
@@ -152,7 +167,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(1))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
@@ -176,7 +191,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(1))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
@@ -199,7 +214,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(1))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
@@ -224,7 +239,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (KARST_L2CM)),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
@@ -253,7 +268,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (KARST_L2CM)),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
@@ -292,7 +307,7 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
             data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(1))),
             from: address(0),
             gasLimit: 0,
-            intent: "test",
+            intent: "L2ProxyAdmin Upgrade Predeploys",
             to: Predeploys.PROXY_ADMIN
         });
 
