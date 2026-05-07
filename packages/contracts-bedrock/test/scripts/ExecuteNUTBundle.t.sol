@@ -9,6 +9,7 @@ import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 /// @title ExecuteNUTBundle_Target
 /// @notice Minimal target contract used to observe ExecuteNUTBundle dispatch behavior.
@@ -124,6 +125,23 @@ contract ExecuteNUTBundle_Test is Test {
 
         vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - target failed");
         script.executeAll(txns);
+    }
+
+    /// @notice Tests that executeSingle reverts with the txn intent when gasLimit is below the
+    ///         intrinsic gas for the provided calldata.
+    function test_executeSingle_gasLimitBelowIntrinsic_reverts() public {
+        bytes memory data = abi.encodeCall(ExecuteNUTBundle_Target.record, (1));
+        uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(data);
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: data,
+            from: alice,
+            gasLimit: intrinsicGas - 1,
+            intent: "Deploy StorageSetter Implementation",
+            to: TARGET
+        });
+
+        vm.expectRevert("ExecuteNUTBundle: gasLimit < intrinsicGas for Deploy StorageSetter Implementation");
+        script.executeSingle(txn);
     }
 
     /// @notice Tests that executePath reads an artifact and dispatches the decoded transactions.
