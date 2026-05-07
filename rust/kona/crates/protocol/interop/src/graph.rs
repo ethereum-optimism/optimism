@@ -839,9 +839,7 @@ mod test {
         // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
         // (bundled registry stale, oracle-supplied, or genuinely pre-interop but mis-included
         // in the dep set) has no interop activation.
-        superchain
-            .chain(CHAIN_A_ID)
-            .modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
+        superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
         // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
         assert!(
             superchain.chain(CHAIN_A_ID).rollup_config.hardforks.interop_time.is_none(),
