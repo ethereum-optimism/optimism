@@ -294,4 +294,13 @@ mod tests {
         let err = p.block_info_by_number(99).await.unwrap_err();
         assert!(matches!(err, OracleProviderError::BlockNumberPastHead(99, 4)));
     }
+
+    #[tokio::test]
+    async fn block_info_by_number_handles_u64_max_without_overflow() {
+        let (headers, preimages) = build_chain(5);
+        let (mut p, _) = provider(&headers, preimages);
+
+        let err = p.block_info_by_number(u64::MAX).await.unwrap_err();
+        assert!(matches!(err, OracleProviderError::BlockNumberPastHead(n, 4) if n == u64::MAX));
+    }
 }
