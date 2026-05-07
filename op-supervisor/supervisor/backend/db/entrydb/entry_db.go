@@ -15,6 +15,7 @@ type EntryStore[T EntryType, E Entry[T]] interface {
 	Read(idx EntryIdx) (E, error)
 	Append(entries ...E) error
 	Truncate(idx EntryIdx) error
+	Sync() error
 	Close() error
 }
 
@@ -46,6 +47,7 @@ type dataAccess interface {
 	io.Writer
 	io.Closer
 	Truncate(size int64) error
+	Sync() error
 }
 
 type EntryDB[T EntryType, E Entry[T], B Binary[T, E]] struct {
@@ -145,9 +147,14 @@ func (e *EntryDB[T, E, B]) Append(entries ...E) error {
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
+// The truncate is always synced to durable storage before returning, so a successful Truncate
+// survives a crash.
 func (e *EntryDB[T, E, B]) Truncate(idx EntryIdx) error {
 	if err := e.data.Truncate((int64(idx) + 1) * int64(e.b.EntrySize())); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
+	}
+	if err := e.data.Sync(); err != nil {
+		return fmt.Errorf("failed to sync truncate to entry %v: %w", idx, err)
 	}
 	// Update the lastEntryIdx cache
 	e.lastEntryIdx = idx
@@ -159,6 +166,15 @@ func (e *EntryDB[T, E, B]) Truncate(idx EntryIdx) error {
 func (e *EntryDB[T, E, B]) recover() error {
 	if err := e.data.Truncate(e.Size() * int64(e.b.EntrySize())); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
+	}
+	return nil
+}
+
+// Sync flushes any buffered data and metadata to durable storage so that
+// preceding successful Append and Truncate calls survive a crash.
+func (e *EntryDB[T, E, B]) Sync() error {
+	if err := e.data.Sync(); err != nil {
+		return fmt.Errorf("failed to sync entry db: %w", err)
 	}
 	return nil
 }

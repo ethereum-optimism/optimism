@@ -270,4 +270,8 @@ func (s *stubDataAccess) Truncate(size int64) error {
 	return nil
 }
 
+func (s *stubDataAccess) Sync() error {
+	return nil
+}
+
 var _ dataAccess = (*stubDataAccess)(nil)

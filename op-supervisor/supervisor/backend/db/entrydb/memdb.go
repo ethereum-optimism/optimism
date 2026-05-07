@@ -34,6 +34,10 @@ func (s *MemEntryStore[T, E]) Truncate(idx EntryIdx) error {
 	return nil
 }
 
+func (s *MemEntryStore[T, E]) Sync() error {
+	return nil
+}
+
 func (s *MemEntryStore[T, E]) Close() error {
 	return nil
 }

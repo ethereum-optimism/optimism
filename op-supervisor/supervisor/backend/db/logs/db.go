@@ -552,7 +552,11 @@ func (db *DB) debugTip() {
 	}
 }
 
-func (db *DB) flush() error {
+// flush appends any buffered entries to the store. If sync is true the caller is asking for a
+// durability boundary (e.g. a seal): the appended entries are fsynced before flush returns, so
+// a crash after this point cannot lose them. Logs added between seals (sync=false) are
+// re-derivable from chain receipts on restart, so syncing per-log is unnecessary.
+func (db *DB) flush(sync bool) error {
 	for i, e := range db.lastEntryContext.out {
 		db.log.Trace("appending entry", "type", e.Type(), "entry", hexutil.Bytes(e[:]),
 			"next", int(db.lastEntryContext.nextEntryIndex)-len(db.lastEntryContext.out)+i)
@@ -562,6 +566,11 @@ func (db *DB) flush() error {
 	}
 	db.lastEntryContext.out = db.lastEntryContext.out[:0]
 	db.updateEntryCountMetric()
+	if sync {
+		if err := db.store.Sync(); err != nil {
+			return fmt.Errorf("failed to sync entries: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -573,7 +582,7 @@ func (db *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uin
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 	db.log.Trace("Sealed block", "parent", parentHash, "block", block, "timestamp", timestamp)
-	return db.flush()
+	return db.flush(true)
 }
 
 func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
@@ -584,7 +593,7 @@ func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32
 		return fmt.Errorf("failed to apply log: %w", err)
 	}
 	db.log.Trace("Applied log", "parentBlock", parentBlock, "logIndex", logIdx, "logHash", logHash, "executing", execMsg != nil)
-	return db.flush()
+	return db.flush(false)
 }
 
 // Clear clears the DB such that there is no data left.
