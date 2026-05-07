@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
@@ -68,7 +69,33 @@ func TestOrderedNUTBundlesFromLocksRejectsMissingBundleFile(t *testing.T) {
 	require.ErrorContains(t, err, "checking bundle file")
 }
 
-func TestNUTBundleABIEncoding(t *testing.T) {
+func TestOrderedNUTBundlesFromLocksRejectsDirectoryBundlePath(t *testing.T) {
+	root := mockMonorepo(t)
+
+	_, err := orderedNUTBundlesFromLocks(nuts.ForkLock{
+		"karst": {Bundle: "op-core/nuts/bundles"},
+	}, root)
+
+	require.ErrorContains(t, err, "is a directory")
+}
+
+func TestOrderedNUTBundlesFromLocksDropsPreKarstForks(t *testing.T) {
+	root := mockMonorepo(t)
+	writeBundle(t, root, "op-core/nuts/bundles/bedrock_nut_bundle.json")
+	writeBundle(t, root, "op-core/nuts/bundles/karst_nut_bundle.json")
+
+	bundles, err := orderedNUTBundlesFromLocks(nuts.ForkLock{
+		"bedrock": {Bundle: "op-core/nuts/bundles/bedrock_nut_bundle.json"},
+		"karst":   {Bundle: "op-core/nuts/bundles/karst_nut_bundle.json"},
+	}, root)
+
+	require.NoError(t, err)
+	require.Equal(t, []NUTBundleEncoded{
+		{Fork: "karst", Path: "../../op-core/nuts/bundles/karst_nut_bundle.json"},
+	}, bundles)
+}
+
+func TestNUTBundleABIRoundTrip(t *testing.T) {
 	nutBundleType, err := abi.NewType("tuple[]", "", []abi.ArgumentMarshaling{
 		{Name: "fork", Type: "string"},
 		{Name: "path", Type: "string"},
@@ -76,11 +103,27 @@ func TestNUTBundleABIEncoding(t *testing.T) {
 	require.NoError(t, err)
 
 	args := abi.Arguments{{Type: nutBundleType}}
-	encoded, err := args.Pack([]NUTBundleEncoded{
+	original := []NUTBundleEncoded{
 		{Fork: "karst", Path: "../../op-core/nuts/bundles/karst_nut_bundle.json"},
-	})
+		{Fork: "interop", Path: "../../op-core/nuts/bundles/interop_nut_bundle.json"},
+	}
+
+	encoded, err := args.Pack(original)
 	require.NoError(t, err)
 	require.NotEmpty(t, encoded)
+
+	unpacked, err := args.Unpack(encoded)
+	require.NoError(t, err)
+	require.Len(t, unpacked, 1)
+
+	decoded := reflect.ValueOf(unpacked[0])
+	require.Equal(t, reflect.Slice, decoded.Kind())
+	require.Equal(t, len(original), decoded.Len())
+	for i, want := range original {
+		got := decoded.Index(i)
+		require.Equal(t, want.Fork, got.FieldByName("Fork").String())
+		require.Equal(t, want.Path, got.FieldByName("Path").String())
+	}
 }
 
 func mockMonorepo(t *testing.T) string {

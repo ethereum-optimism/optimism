@@ -68,22 +68,15 @@ func orderedNUTBundlesFromLocks(locks nuts.ForkLock, root string) ([]NUTBundleEn
 		return nil, fmt.Errorf("resolving monorepo root: %w", err)
 	}
 
-	forkIndex := make(map[forks.Name]int, len(forks.All))
-	for i, fork := range forks.All {
-		forkIndex[fork] = i
-	}
-	karstIndex := forkIndex[forks.Karst]
-
 	for forkName := range locks {
-		index, ok := forkIndex[forks.Name(forkName)]
-		if !ok {
+		if !forks.IsValid(forks.Name(forkName)) {
 			return nil, fmt.Errorf("locked fork %q is not in forks.All", forkName)
 		}
-		if index < karstIndex {
-			continue
-		}
 	}
 
+	// Output order is driven by [forks.From](Karst), not TOML or Go map
+	// iteration order. Pre-Karst lock entries are validated above but not
+	// emitted because this NUT-bundle staging path starts at Karst.
 	bundles := make([]NUTBundleEncoded, 0, len(locks))
 	for _, fork := range forks.From(forks.Karst) {
 		entry, ok := locks[string(fork)]
