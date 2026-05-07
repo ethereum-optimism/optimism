@@ -44,8 +44,13 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 			runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
 		}
 	}
-	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
 	ageGameInputs := ctx.Bool(AgeGameInputsFlag.Name)
+	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
+	if !ctx.IsSet(VMTimeoutFlag.Name) && ageGameInputs {
+		// Aged inputs force kona to walk a much deeper L1 history, which roughly doubles
+		// runtime. Bump the default so an unconfigured deployment doesn't hit timeouts.
+		vmTimeout = DefaultVMTimeoutAgedInputs
+	}
 	return runner.NewRunner(logger, cfg, runConfigs, vmTimeout, ageGameInputs), nil
 }
 
@@ -61,7 +66,10 @@ var RunTraceCommand = &cli.Command{
 	Flags:       runTraceFlags(),
 }
 
-const DefaultVMTimeout = 3 * time.Hour
+const (
+	DefaultVMTimeout           = 3 * time.Hour
+	DefaultVMTimeoutAgedInputs = 6 * time.Hour
+)
 
 var (
 	RunTraceRunFlag = &cli.StringSliceFlag{
@@ -76,7 +84,7 @@ var (
 	}
 	VMTimeoutFlag = &cli.DurationFlag{
 		Name:    "vm-timeout",
-		Usage:   fmt.Sprintf("Maximum duration for VM execution per run. Default is %s. Set to 0 to disable timeout.", DefaultVMTimeout),
+		Usage:   fmt.Sprintf("Maximum duration for VM execution per run. Default is %s, or %s when --age-game-inputs is set. Set to 0 to disable timeout.", DefaultVMTimeout, DefaultVMTimeoutAgedInputs),
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "VM_TIMEOUT"),
 		Value:   DefaultVMTimeout,
 	}
