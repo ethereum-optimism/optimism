@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func withdrawalOpts(gameType gameTypes.GameType) []presets.Option {
+func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []presets.Option {
 	opts := []presets.Option{
 		presets.WithTimeTravelEnabled(),
 		presets.WithDeployerOptions(
@@ -27,16 +27,16 @@ func withdrawalOpts(gameType gameTypes.GameType) []presets.Option {
 			cfg.DisputeGameType = uint32(gameType)
 		}),
 	}
-	return opts
+	return append(opts, extra...)
 }
 
-func newSystem(t devtest.T, gameType gameTypes.GameType) *presets.Minimal {
-	return presets.NewMinimal(t, withdrawalOpts(gameType)...)
+func newSystem(t devtest.T, gameType gameTypes.GameType, extra ...presets.Option) *presets.Minimal {
+	return presets.NewMinimal(t, withdrawalOpts(gameType, extra...)...)
 }
 
-func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType) {
+func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
-	sys := newSystem(t, gameType)
+	sys := newSystem(t, gameType, extra...)
 
 	bridge := sys.StandardBridge()
 	bridge.VerifyRespectedGameType(gameType)
