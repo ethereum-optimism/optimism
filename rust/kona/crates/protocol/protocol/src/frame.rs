@@ -74,6 +74,9 @@ pub enum FrameDecodingError {
     /// Error decoding the frame data length.
     #[error("Invalid frame data length")]
     InvalidDataLength,
+    /// The `is_last` byte was neither 0 nor 1.
+    #[error("Invalid is_last byte: {0}")]
+    InvalidIsLast(u8),
 }
 
 /// Frame parsing error.
@@ -208,7 +211,11 @@ impl Frame {
         }
 
         let data = encoded[22..22 + data_len].to_vec();
-        let is_last = encoded[22 + data_len] == 1;
+        let is_last = match encoded[22 + data_len] {
+            0 => false,
+            1 => true,
+            b => return Err(FrameDecodingError::InvalidIsLast(b)),
+        };
         Ok((BASE_FRAME_LEN + data_len, Self { id, number, data, is_last }))
     }
 
@@ -309,6 +316,25 @@ mod test {
         encoded[18..22].copy_from_slice(&valid_data_len.to_be_bytes());
         let (_, frame_decoded) = Frame::decode(&encoded).unwrap();
         assert_eq!(frame, frame_decoded);
+    }
+
+    #[test]
+    fn test_decode_invalid_is_last() {
+        // Mirrors op-node's TestFrameUnmarshalInvalidIsLast: any byte other than 0 or 1
+        // for `is_last` must be rejected, per the derivation spec.
+        let frame = Frame { id: [0xFF; 16], number: 0xEE, data: vec![0xDD; 16], is_last: true };
+        let mut encoded = frame.encode();
+        let last = encoded.len() - 1;
+        encoded[last] = 2;
+
+        let err = Frame::decode(&encoded).unwrap_err();
+        assert_eq!(err, FrameDecodingError::InvalidIsLast(2));
+
+        // is_last = 0 and 1 must still decode correctly.
+        encoded[last] = 0;
+        assert!(!Frame::decode(&encoded).unwrap().1.is_last);
+        encoded[last] = 1;
+        assert!(Frame::decode(&encoded).unwrap().1.is_last);
     }
 
     #[test]
