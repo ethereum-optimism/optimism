@@ -825,15 +825,17 @@ mod test {
 
     #[tokio::test]
     async fn test_derive_and_resolve_graph_initiating_chain_interop_time_none_rejected() {
-        // The init-chain timestamp gate at `check_single_dependency` uses
-        // `unwrap_or_default()` on `interop_time`. When the init chain's `interop_time`
-        // is `None`, the gate degrades to `init_ts < 0 + block_time`, which is false for
-        // any real timestamp — so arbitrary logs on a chain without interop activation
-        // are accepted as valid initiating messages.
-        //
-        // Spec: a chain with no interop activation cannot produce valid init messages.
+        // A chain with no interop activation cannot produce valid init messages.
         // Op-supervisor's `IsInterop(ts) = InteropTime != nil && ts >= *InteropTime`
-        // returns false in this case, rejecting the message.
+        // rejects in this case, and `check_single_dependency` must do the same via
+        // `is_interop_active`.
+        //
+        // Attack: an attacker plants an arbitrary log on a chain whose kona-visible
+        // rollup config has `interop_time = None` (stale registry, oracle-supplied
+        // config, or a misconfigured dep set), then references it from an executing
+        // message on another chain. Without a `None`-rejecting gate, kona accepts the
+        // forged init message and downstream consumers (e.g. `L2toL2CrossDomainMessenger`)
+        // deliver the call.
         let mut superchain = default_superchain();
 
         // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
