@@ -122,21 +122,26 @@ library PastNUTBundles {
             NUTBundle memory entry = _entries[i];
             NetworkUpgradeTxns.NetworkUpgradeTxn[] memory priorTxns = NetworkUpgradeTxns.readArtifact(entry.path);
 
-            (bool skip, string memory reason) = _shouldSkipPriorBundle(entry, priorTxns, _currentTxns);
+            (bool skip, string memory reason, address priorL2CM) =
+                _shouldSkipPriorBundle(entry, priorTxns, _currentTxns);
             if (skip) {
                 console.log("PastNUTBundles: skipping fork=%s path=%s (%s)", entry.fork, entry.path, reason);
                 continue;
             }
 
-            address priorL2CM = extractL2CM(priorTxns, entry.path);
             console.log("PastNUTBundles: staging fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
             _executeScript.executeAll(priorTxns);
         }
     }
 
-    /// @notice Returns whether a prior bundle should be skipped before staging.
+    /// @notice Returns whether a prior bundle should be skipped before staging, along with the
+    ///         prior bundle's L2CM when extraction was performed.
     /// @dev Future fork-specific staging exceptions should be added here rather than by
     ///      de-duplicating arbitrary transactions from the prior bundle.
+    /// @return skip_ Whether the prior bundle should be skipped.
+    /// @return reason_ Human-readable reason logged when `skip_` is true.
+    /// @return priorL2CM_ The prior bundle's L2CM when not skipped via the Karst bootstrap rule;
+    ///                    `address(0)` when bootstrap-skipped, since the caller does not need it.
     function _shouldSkipPriorBundle(
         NUTBundle memory _entry,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
@@ -144,23 +149,23 @@ library PastNUTBundles {
     )
         internal
         view
-        returns (bool skip_, string memory reason_)
+        returns (bool skip_, string memory reason_, address priorL2CM_)
     {
         if (_shouldSkipKarstBootstrap(_entry, _priorTxns, _currentTxns)) {
-            return (true, "current bundle contains same Karst direct CREATE2 bootstrap");
+            return (true, "current bundle contains same Karst direct CREATE2 bootstrap", address(0));
         }
 
-        address priorL2CM = extractL2CM(_priorTxns, _entry.path);
+        priorL2CM_ = extractL2CM(_priorTxns, _entry.path);
         address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
 
-        if (priorL2CM == currentL2CM) {
+        if (priorL2CM_ == currentL2CM) {
             if (_isKarst(_entry) && !_isConditionalDeployerInitialized()) {
-                return (false, "");
+                return (false, "", priorL2CM_);
             }
-            return (true, "L2CM matches current");
+            return (true, "L2CM matches current", priorL2CM_);
         }
 
-        return (false, "");
+        return (false, "", priorL2CM_);
     }
 
     /// @notice Returns true when the entry is the Karst NUT bundle.
@@ -193,10 +198,10 @@ library PastNUTBundles {
         for (uint256 i = 0; i < _priorTxns.length; i++) {
             if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;
 
-            bytes32 priorTxnHash = keccak256(abi.encode(_priorTxns[i].to, _priorTxns[i].data));
+            bytes32 priorDataHash = keccak256(_priorTxns[i].data);
             for (uint256 j = 0; j < _currentTxns.length; j++) {
                 if (_currentTxns[j].to != Preinstalls.DeterministicDeploymentProxy) continue;
-                if (keccak256(abi.encode(_currentTxns[j].to, _currentTxns[j].data)) == priorTxnHash) return true;
+                if (keccak256(_currentTxns[j].data) == priorDataHash) return true;
             }
         }
 

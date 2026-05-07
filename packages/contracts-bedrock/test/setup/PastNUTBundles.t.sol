@@ -240,4 +240,69 @@ contract PastNUTBundles_stagePastBundles_Test is PastNUTBundles_TestInit {
 
         PastNUTBundles.stagePastBundles(currentTxns, script, entries);
     }
+
+    /// @notice Karst staging is skipped when the current L2CM matches Karst's L2CM and the live
+    ///         fork already has a usable ConditionalDeployer implementation. The current txns must
+    ///         not include the Karst direct CREATE2 bootstrap or the bootstrap-overlap rule would
+    ///         mask the same-L2CM rule under test.
+    function test_stagePastBundles_karstSameL2CMSkipsWhenConditionalDeployerInitialized_succeeds() public {
+        ExecuteNUTBundle script = new ExecuteNUTBundle();
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
+        currentTxns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (KARST_L2CM)),
+            from: address(0),
+            gasLimit: 0,
+            intent: "test",
+            to: Predeploys.PROXY_ADMIN
+        });
+        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
+        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
+
+        vm.mockCall(
+            Predeploys.CONDITIONAL_DEPLOYER, abi.encodeWithSelector(ISemver.version.selector), abi.encode("1.0.0")
+        );
+
+        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
+    }
+
+    /// @notice An empty entries array is a no-op: the loop must not invoke the executor.
+    function test_stagePastBundles_emptyEntries_succeeds() public {
+        ExecuteNUTBundle script = new ExecuteNUTBundle();
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
+        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](0);
+
+        vm.expectCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), 0);
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
+    }
+
+    /// @notice Multiple entries are evaluated independently: Karst is bootstrap-skipped because the
+    ///         current bundle owns the same direct CREATE2 deployment, while a non-Karst entry
+    ///         pointing at the same artifact stages because the bootstrap rule is Karst-only and
+    ///         the current L2CM differs from the bundle's L2CM.
+    function test_stagePastBundles_multipleEntriesSkipOneStageOther_succeeds() public {
+        ExecuteNUTBundle script = new ExecuteNUTBundle();
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](2);
+        currentTxns[0] = karstTxns[0];
+        currentTxns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (address(1))),
+            from: address(0),
+            gasLimit: 0,
+            intent: "test",
+            to: Predeploys.PROXY_ADMIN
+        });
+
+        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](2);
+        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
+        entries[1] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
+
+        vm.mockCall(address(script), abi.encodeWithSelector(ExecuteNUTBundle.executeAll.selector), "");
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 1);
+
+        PastNUTBundles.stagePastBundles(currentTxns, script, entries);
+    }
 }
