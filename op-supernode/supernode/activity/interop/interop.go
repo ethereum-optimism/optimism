@@ -156,6 +156,9 @@ type Interop struct {
 	started bool
 
 	currentL1 eth.BlockID
+	// currentL1ParentOf is set when currentL1 is the unresolved parent number
+	// of a verified L1Inclusion block. CurrentL1 resolves and caches the hash.
+	currentL1ParentOf eth.BlockID
 
 	verifyFn func(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error)
 
@@ -476,6 +479,7 @@ func (i *Interop) refreshCurrentL1OnWait() (bool, error) {
 	}
 	i.mu.Lock()
 	i.currentL1 = localL1
+	i.currentL1ParentOf = eth.BlockID{}
 	i.mu.Unlock()
 	return false, nil
 }
@@ -640,6 +644,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		}
 		i.mu.Lock()
 		i.currentL1 = eth.BlockID{}
+		i.currentL1ParentOf = eth.BlockID{}
 		i.mu.Unlock()
 		if err := i.applyRewindPlan(*pending.Rewind); err != nil {
 			return false, fmt.Errorf("apply rewind plan: %w", err)
@@ -729,18 +734,14 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		// branch lifts i.currentL1 back to localL1 between Advances, so progress
 		// isn't gated on the next batch.
 		//
-		// Resolved before ClearPendingTransition so an L1 error retries the
-		// whole transition instead of committing with a stale i.currentL1.
-		currentL1, err := i.previousL1ID(pending.Result.L1Inclusion)
-		if err != nil {
-			return false, fmt.Errorf("resolve under-claimed currentL1: %w", err)
-		}
+		currentL1, currentL1ParentOf := previousL1Number(pending.Result.L1Inclusion)
 		// Cap at min per-chain CurrentL1 so this field is safe individually,
 		// not just when aggregated via syncstatus.Aggregate.
 		if localL1, err := i.collectCurrentL1(); err != nil {
 			i.log.Warn("failed to collect node CurrentL1 on advance", "err", err)
 		} else if localL1.Number < currentL1.Number {
 			currentL1 = localL1
+			currentL1ParentOf = eth.BlockID{}
 		}
 
 		if err := i.commitVerifiedResult(pending.Result.Timestamp, pending.Result.ToVerifiedResult()); err != nil {
@@ -755,6 +756,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 
 		i.mu.Lock()
 		i.currentL1 = currentL1
+		i.currentL1ParentOf = currentL1ParentOf
 		i.mu.Unlock()
 		return true, nil
 	}
@@ -890,18 +892,36 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 	}
 }
 
-// previousL1ID returns the L1 BlockID one block before target. Looks up by
-// hash so the L1 client's header cache hits on the common-case repeated query.
-// At Number==0, target is returned unchanged.
-func (i *Interop) previousL1ID(target eth.BlockID) (eth.BlockID, error) {
+// previousL1Number returns the L1 BlockID one block before target, without
+// resolving the parent hash. At Number==0, target is returned unchanged.
+func previousL1Number(target eth.BlockID) (eth.BlockID, eth.BlockID) {
 	if target.Number == 0 {
-		return target, nil
+		return target, eth.BlockID{}
 	}
-	info, err := i.l1Source.InfoByHash(i.ctx, target.Hash)
+	return eth.BlockID{Number: target.Number - 1}, target
+}
+
+func (i *Interop) resolveCurrentL1Parent(currentL1 eth.BlockID, parentOf eth.BlockID) eth.BlockID {
+	if i.l1Source == nil || parentOf.Hash == (eth.BlockID{}).Hash {
+		return currentL1
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	info, err := i.l1Source.InfoByHash(ctx, parentOf.Hash)
 	if err != nil {
-		return eth.BlockID{}, fmt.Errorf("fetch L1 header at %s: %w", target, err)
+		i.log.Warn("failed to resolve under-claimed CurrentL1 hash", "parentOf", parentOf, "err", err)
+		return currentL1
 	}
-	return eth.BlockID{Number: target.Number - 1, Hash: info.ParentHash()}, nil
+	resolved := eth.BlockID{Number: currentL1.Number, Hash: info.ParentHash()}
+
+	i.mu.Lock()
+	if i.currentL1 == currentL1 && i.currentL1ParentOf == parentOf {
+		i.currentL1 = resolved
+		i.currentL1ParentOf = eth.BlockID{}
+	}
+	i.mu.Unlock()
+	return resolved
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,
@@ -983,8 +1003,14 @@ func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult Verified
 // whether or not it advanced the verified timestamp.
 func (i *Interop) CurrentL1() eth.BlockID {
 	i.mu.RLock()
-	defer i.mu.RUnlock()
-	return i.currentL1
+	currentL1 := i.currentL1
+	parentOf := i.currentL1ParentOf
+	i.mu.RUnlock()
+
+	if parentOf == (eth.BlockID{}) {
+		return currentL1
+	}
+	return i.resolveCurrentL1Parent(currentL1, parentOf)
 }
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.

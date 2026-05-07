@@ -1393,7 +1393,7 @@ func TestProgressAndRecord(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				expectedL1Inclusion := eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}
+				expectedL1Inclusion := eth.BlockID{Number: 150, Hash: common.HexToHash("0x150")}
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L1Inclusion: expectedL1Inclusion, L2Heads: blocks}, nil
 				}
@@ -1403,13 +1403,19 @@ func TestProgressAndRecord(t *testing.T) {
 				require.True(t, madeProgress)
 
 				require.Equal(t, uint64(149), h.interop.currentL1.Number)
-				require.Equal(t, stubL1SourceParentHash, h.interop.currentL1.Hash)
+				require.Equal(t, common.Hash{}, h.interop.currentL1.Hash)
+
+				currentL1 := h.interop.CurrentL1()
+				require.Equal(t, uint64(149), currentL1.Number)
+				require.Equal(t, stubL1SourceParentHash, currentL1.Hash)
+				require.Equal(t, currentL1, h.interop.currentL1)
 			},
 		},
 		{
-			// L1 lookup errors retry the whole transition: no commit, no
-			// ClearPendingTransition, no i.currentL1 update.
-			name: "l1Source error retries the transition",
+			// L1 lookup errors do not block committing the transition. The
+			// under-claimed number is still available; the hash resolves later
+			// when L1 lookup recovers.
+			name: "l1Source error does not block the transition",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithL1Source(&errorL1Source{err: errors.New("l1 unreachable")}).
 					WithChain(10, func(m *mockChainContainer) {
@@ -1419,17 +1425,26 @@ func TestProgressAndRecord(t *testing.T) {
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
-					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}, L2Heads: blocks}, nil
+					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0x150")}, L2Heads: blocks}, nil
 				}
 
 				madeProgress, err := h.interop.progressAndRecord()
-				require.ErrorContains(t, err, "l1 unreachable")
-				require.False(t, madeProgress)
-				require.Equal(t, eth.BlockID{}, h.interop.currentL1)
+				require.NoError(t, err)
+				require.True(t, madeProgress)
+				require.Equal(t, eth.BlockID{Number: 149}, h.interop.currentL1)
+				require.Equal(t, eth.BlockID{Number: 150, Hash: common.HexToHash("0x150")}, h.interop.currentL1ParentOf)
+				require.Equal(t, eth.BlockID{Number: 149}, h.interop.CurrentL1())
 
 				pending, err := h.interop.verifiedDB.GetPendingTransition()
 				require.NoError(t, err)
-				require.NotNil(t, pending, "transition must be preserved for retry")
+				require.Nil(t, pending)
+
+				h.Mock(10).currentL1 = eth.BlockRef{Number: 160, Hash: common.HexToHash("0x160")}
+				madeProgress, err = h.interop.refreshCurrentL1OnWait()
+				require.NoError(t, err)
+				require.False(t, madeProgress)
+				require.Equal(t, eth.BlockID{Number: 160, Hash: common.HexToHash("0x160")}, h.interop.currentL1)
+				require.Equal(t, eth.BlockID{}, h.interop.currentL1ParentOf)
 			},
 		},
 		{
