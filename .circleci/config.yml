@@ -1,7 +1,8 @@
 version: 2.1
 
 # Setup Configuration for CircleCI Dynamic Configuration
-# Uses path-filtering to detect changes and continuation orb to merge configs.
+# Uses a custom compute-changes job to detect changed paths with full shell
+# flexibility, then merges continuation configs and continues the pipeline.
 # See: https://circleci.com/docs/using-dynamic-configuration/
 
 setup: true
@@ -81,67 +82,64 @@ parameters:
     type: string
     default: "v0.0"
 
-orbs:
-  path-filtering: circleci/path-filtering@3.0.0
+jobs:
+  compute-changes:
+    docker:
+      - image: << pipeline.parameters.default_docker_image >>
+    steps:
+      - checkout
+      - run:
+          name: Compute changed paths and build parameters
+          # All pipeline parameter values are forwarded as env vars so that
+          # compute-changes.sh can be run and tested locally without CircleCI.
+          command: .circleci/scripts/compute-changes.sh
+          environment:
+            BASE_REVISION: develop
+            DEFAULT_DOCKER_IMAGE: << pipeline.parameters.default_docker_image >>
+            RUST_BASE_IMAGE: << pipeline.parameters.rust_base_image >>
+            BASE_IMAGE: << pipeline.parameters.base_image >>
+            MAIN_DISPATCH: << pipeline.parameters.main_dispatch >>
+            FAULT_PROOFS_DISPATCH: << pipeline.parameters.fault_proofs_dispatch >>
+            REPRODUCIBILITY_DISPATCH: << pipeline.parameters.reproducibility_dispatch >>
+            KONTROL_DISPATCH: << pipeline.parameters.kontrol_dispatch >>
+            CANNON_FULL_TEST_DISPATCH: << pipeline.parameters.cannon_full_test_dispatch >>
+            SDK_DISPATCH: << pipeline.parameters.sdk_dispatch >>
+            PUBLISH_CONTRACT_ARTIFACTS_DISPATCH: << pipeline.parameters.publish_contract_artifacts_dispatch >>
+            STALE_CHECK_DISPATCH: << pipeline.parameters.stale_check_dispatch >>
+            CONTRACTS_COVERAGE_DISPATCH: << pipeline.parameters.contracts_coverage_dispatch >>
+            HEAVY_FUZZ_DISPATCH: << pipeline.parameters.heavy_fuzz_dispatch >>
+            AI_CONTRACTS_TEST_DISPATCH: << pipeline.parameters.ai_contracts_test_dispatch >>
+            RUST_CI_DISPATCH: << pipeline.parameters.rust_ci_dispatch >>
+            RUST_E2E_DISPATCH: << pipeline.parameters.rust_e2e_dispatch >>
+            L2_FORK_TEST_DISPATCH: << pipeline.parameters.l2_fork_test_dispatch >>
+            GITHUB_EVENT_TYPE: << pipeline.parameters.github-event-type >>
+            GITHUB_EVENT_ACTION: << pipeline.parameters.github-event-action >>
+            GITHUB_EVENT_BASE64: << pipeline.parameters.github-event-base64 >>
+            GO_CACHE_VERSION: << pipeline.parameters.go-cache-version >>
+      - run:
+          name: Merge continuation configs
+          command: .circleci/scripts/merge-configs.sh
+      - run:
+          name: Continue pipeline
+          command: |
+            circleci-agent step continue \
+              --continuation-token "${CIRCLE_CONTINUATION_KEY}" \
+              --configuration "$(cat /tmp/merged-config.yml)" \
+              --parameters "$(cat /tmp/pipeline-parameters.json)"
 
 workflows:
   setup:
     when:
       equal: ["", << pipeline.git.tag >>]
     jobs:
-      - path-filtering/filter: &path_filter
-          base-revision: develop
-          config-path: .circleci/continue/main.yml
-          mapping: |
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/main.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/main.yml
-            .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/main.yml
-            .* c-main_dispatch << pipeline.parameters.main_dispatch >> .circleci/continue/main.yml
-            .* c-fault_proofs_dispatch << pipeline.parameters.fault_proofs_dispatch >> .circleci/continue/main.yml
-            .* c-reproducibility_dispatch << pipeline.parameters.reproducibility_dispatch >> .circleci/continue/main.yml
-            .* c-kontrol_dispatch << pipeline.parameters.kontrol_dispatch >> .circleci/continue/main.yml
-            .* c-cannon_full_test_dispatch << pipeline.parameters.cannon_full_test_dispatch >> .circleci/continue/main.yml
-            .* c-sdk_dispatch << pipeline.parameters.sdk_dispatch >> .circleci/continue/main.yml
-            .* c-publish_contract_artifacts_dispatch << pipeline.parameters.publish_contract_artifacts_dispatch >> .circleci/continue/main.yml
-            .* c-stale_check_dispatch << pipeline.parameters.stale_check_dispatch >> .circleci/continue/main.yml
-            .* c-contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
-            .* c-heavy_fuzz_dispatch << pipeline.parameters.heavy_fuzz_dispatch >> .circleci/continue/main.yml
-            .* c-ai_contracts_test_dispatch << pipeline.parameters.ai_contracts_test_dispatch >> .circleci/continue/main.yml
-            .* c-l2_fork_test_dispatch << pipeline.parameters.l2_fork_test_dispatch >> .circleci/continue/main.yml
-            .* c-github-event-type << pipeline.parameters.github-event-type >> .circleci/continue/main.yml
-            .* c-github-event-action << pipeline.parameters.github-event-action >> .circleci/continue/main.yml
-            .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
-            rust/.* c-rust_files_changed true .circleci/continue/main.yml
-            (packages/contracts-bedrock|\.circleci|\.github|ops/check-changed)/.* c-contracts_changed true .circleci/continue/main.yml
-            ^(package\.json|mise\.toml)$ c-contracts_changed true .circleci/continue/main.yml
-
-            # Docs CI — trigger on docs/public-docs/ changes
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/docs-ci.yml
-            docs/public-docs/.* c-docs_changes_detected true .circleci/continue/docs-ci.yml
-
-            # Rust CI — always include config, gate jobs via c-rust_changes_detected
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-ci.yml
-            .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
-            .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
-            (rust|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-ci.yml
-
-            # Rust E2E — always include config, gate jobs via c-rust_changes_detected
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-e2e.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
-            .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
-            (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
+      - compute-changes
 
   setup-tag:
     when:
       not:
         equal: ["", << pipeline.git.tag >>]
     jobs:
-      - path-filtering/filter:
-          <<: *path_filter
+      - compute-changes:
           filters:
             tags:
               only: /.*/
