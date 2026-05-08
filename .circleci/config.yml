@@ -82,6 +82,9 @@ parameters:
     type: string
     default: "v0.0"
 
+orbs:
+  continuation: circleci/continuation@1.0.0
+
 jobs:
   compute-changes:
     docker:
@@ -119,13 +122,9 @@ jobs:
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
-      - run:
-          name: Continue pipeline
-          command: |
-            circleci-agent step continue \
-              --continuation-token "${CIRCLE_CONTINUATION_KEY}" \
-              --configuration "$(cat /tmp/merged-config.yml)" \
-              --parameters "$(cat /tmp/pipeline-parameters.json)"
+      - continuation/continue:
+          configuration_path: /tmp/merged-config.yml
+          parameters: /tmp/pipeline-parameters.json
 
 workflows:
   setup:
