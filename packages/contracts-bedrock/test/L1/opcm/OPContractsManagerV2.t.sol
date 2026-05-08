@@ -240,6 +240,10 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
+        // Etch code to the dummy ZK verifier address 
+        // so that the code length check passes in the StandardValidator.
+        vm.etch(address(0xBEEF), hex"01");
+
         // Set the chain PAO.
         chainPAO = proxyAdmin.owner();
         vm.label(chainPAO, "ProxyAdmin Owner");
