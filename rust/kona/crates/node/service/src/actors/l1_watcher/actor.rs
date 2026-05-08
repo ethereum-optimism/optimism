@@ -130,8 +130,40 @@ where
                         // Build the [`SystemConfigUpdate`] from the log.
                         // If the update is an Unsafe block signer update, send the address
                         // to the block signer sender.
+                        //
+                        // The poll-then-fetch pattern is racy on chains with rapid head
+                        // reorgs or load-balanced RPC endpoints with propagation lag: the
+                        // hash from `head_stream.next()` can disappear from the responding
+                        // node before this `eth_getLogs(blockHash=...)` call lands, in
+                        // which case the upstream returns -32001 "block not found".
+                        //
+                        // Treat that as transient. SystemConfig log scans are idempotent
+                        // across head ticks (an `UnsafeBlockSigner` update is observable
+                        // on any subsequent canonical block whose log set still includes
+                        // the event), so skipping a tick is safe and the next head update
+                        // will retry. Bubbling the error out here also drops
+                        // `block_signer_sender`, which closes the network actor's
+                        // `signer.recv()` and triggers a "Found no unsafe block signer on
+                        // receive" cascade — strictly worse than skipping.
                         let filter_address =  self.rollup_config.l1_system_config_address;
-                        let logs = self.l1_provider .get_logs(&alloy_rpc_types_eth::Filter::new().address(filter_address).select(head_block_info.hash)).await?;
+                        let logs = match self
+                            .l1_provider
+                            .get_logs(&alloy_rpc_types_eth::Filter::new().address(filter_address).select(head_block_info.hash))
+                            .await
+                        {
+                            Ok(logs) => logs,
+                            Err(e) => {
+                                warn!(
+                                    target: "l1_watcher",
+                                    error = ?e,
+                                    hash = %head_block_info.hash,
+                                    number = head_block_info.number,
+                                    "failed to fetch L1 logs at head (likely reorged out / LB lag) — \
+                                     skipping SystemConfig log scan for this tick"
+                                );
+                                continue;
+                            }
+                        };
                         let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
                         for log in logs {
                             let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
