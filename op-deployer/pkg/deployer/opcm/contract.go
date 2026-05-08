@@ -20,10 +20,6 @@ func NewContract(addr common.Address, client *ethclient.Client) *Contract {
 	return &Contract{addr: addr, client: client}
 }
 
-func (c *Contract) SuperchainConfig(ctx context.Context) (common.Address, error) {
-	return c.getAddress(ctx, "superchainConfig")
-}
-
 func (c *Contract) OPCMStandardValidator(ctx context.Context) (common.Address, error) {
 	return c.getAddress(ctx, "opcmStandardValidator")
 }
