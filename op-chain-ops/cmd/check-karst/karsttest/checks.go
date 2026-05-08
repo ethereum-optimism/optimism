@@ -147,6 +147,47 @@ func CheckEIP7883(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
 }
 
+// CheckEIP7951 verifies the post-Karst P256VERIFY gas-cost increase: an
+// empty-input call landing exactly on the pre-Karst gas budget (21,000
+// intrinsic + 3,500 execution gas) reverts under EIP-7951's 6,900-gas cost
+// where it would have succeeded against RIP-7212's 3,450-gas cost, and a
+// within-cost call (21,000 + 7,000) succeeds. The precompile returns empty
+// for non-160-byte input but charges its full cost regardless. Empty calldata
+// avoids EIP-7623 calldata cost inflation, so intrinsic gas is exactly 21,000
+// and tx gas limit minus 21,000 is the execution budget. It returns the block
+// numbers where its two transactions landed (smaller number first).
+func CheckEIP7951(ctx context.Context, logger log.Logger, basePlan txplan.Option) (uint64, uint64, error) {
+	logger.Info("EIP-7951: under-gas P256VERIFY call must OOG-revert against the 6,900-gas cost")
+	underGasReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&P256VerifyPrecompile),
+		txplan.WithGasLimit(24_500),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("under-gas P256VERIFY submission: %w", err)
+	}
+	if underGasReceipt.Status != types.ReceiptStatusFailed {
+		return 0, 0, fmt.Errorf("under-gas P256VERIFY: expected revert, got success (block=%v, tx=%s)",
+			underGasReceipt.BlockNumber, underGasReceipt.TxHash)
+	}
+	logger.Info("EIP-7951: under-gas P256VERIFY reverted as expected", "block", underGasReceipt.BlockNumber, "tx", underGasReceipt.TxHash)
+
+	logger.Info("EIP-7951: within-cost P256VERIFY call must succeed")
+	sufficientReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&P256VerifyPrecompile),
+		txplan.WithGasLimit(28_000),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("within-cost P256VERIFY submission: %w", err)
+	}
+	if sufficientReceipt.Status != types.ReceiptStatusSuccessful {
+		return 0, 0, fmt.Errorf("within-cost P256VERIFY: expected success, got revert (block=%v, tx=%s)",
+			sufficientReceipt.BlockNumber, sufficientReceipt.TxHash)
+	}
+	logger.Info("EIP-7951: within-cost P256VERIFY succeeded", "block", sufficientReceipt.BlockNumber, "tx", sufficientReceipt.TxHash)
+
+	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
+}
+
 // CheckEIP7825 verifies the post-Karst transaction-gas-limit cap of 2^24:
 // op-reth's RPC must reject a tx whose gas limit exceeds the cap at submission
 // time, so the tx never lands on chain. Returns no block range because no tx
@@ -175,6 +216,9 @@ func CheckAll(ctx context.Context, logger log.Logger, basePlan txplan.Option) er
 	}
 	if _, _, err := CheckEIP7883(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7883: %w", err)
+	}
+	if _, _, err := CheckEIP7951(ctx, logger, basePlan); err != nil {
+		return fmt.Errorf("EIP-7951: %w", err)
 	}
 	if err := CheckEIP7825(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7825: %w", err)

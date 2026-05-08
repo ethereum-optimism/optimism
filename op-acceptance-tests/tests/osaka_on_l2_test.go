@@ -24,8 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var p256VerifyPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
-
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
@@ -176,26 +174,22 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	// Call P256VERIFY with empty calldata. The precompile charges its full gas
-	// cost regardless of input length, then returns empty (input != 160 bytes).
-	// Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic gas
-	// is just 21,000 and we can precisely control execution gas via gas limit.
-	//   RIP-7212 (pre-Karst):  P256VERIFY costs 3,450 gas
-	//   EIP-7951 (post-Karst): P256VERIFY costs 6,900 gas
-	planUnderGas := txplan.Combine(
-		txplan.WithTo(&p256VerifyPrecompile),
-		txplan.WithGasLimit(24_500),
-	)
-
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
 
-		// Live chain is on Jovian (RIP-7212, P256VERIFY costs 3,450 gas), so
-		// 21,000 + 3,500 execution gas is enough for the call to succeed. Run
-		// kona two ways to verify it honors its rollup config: with a matching
-		// Jovian config it accepts the block, with Karst forced at genesis it
-		// disagrees because under EIP-7951 the call costs 6,900 gas and would
-		// OOG instead.
+		// Empty P256VERIFY calldata: the precompile charges its full gas cost
+		// regardless of input length and returns empty (input != 160 bytes).
+		// Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic
+		// gas is exactly 21,000 and tx gas limit minus 21,000 is the execution
+		// budget.
+		//   RIP-7212 (pre-Karst):  P256VERIFY costs 3,450 gas
+		//   EIP-7951 (post-Karst): P256VERIFY costs 6,900 gas
+		//
+		// Live chain is on Jovian, so 21,000 + 3,500 execution gas is enough
+		// for the call to succeed. Run kona two ways to verify it honors its
+		// rollup config: with a matching Jovian config it accepts the block;
+		// with Karst forced at genesis it disagrees because under EIP-7951
+		// the call costs 6,900 gas and would OOG.
 		cases := []struct {
 			name        string
 			konaOpts    []presets.Option
@@ -223,8 +217,10 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 				sys.L2EL.WaitForBlockNumber(1)
 				eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-				// Pre-Karst: 21,000 + 3,500 execution gas is enough for 3,450-gas precompile.
-				receipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+				receipt, err := txplan.NewPlannedTx(eoa.Plan(),
+					txplan.WithTo(&karsttest.P256VerifyPrecompile),
+					txplan.WithGasLimit(24_500),
+				).Included.Eval(t.Ctx())
 				t.Require().NoError(err)
 				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 
@@ -245,25 +241,9 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 		// served by OutputAtBlock).
 		sys.L2EL.WaitForBlockNumber(1)
 
-		// Post-Karst: 21,000 + 3,500 execution gas is NOT enough for 6,900-gas precompile.
-		underGasReceipt, err := txplan.NewPlannedTx(eoa.Plan(), planUnderGas).Included.Eval(t.Ctx())
+		agreedBlockChild, claimBlock, err := karsttest.CheckEIP7951(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusFailed, underGasReceipt.Status)
-
-		// Post-Karst: 21,000 + 7,000 execution gas is enough for 6,900-gas precompile.
-		sufficientReceipt, err := txplan.NewPlannedTx(
-			eoa.Plan(),
-			txplan.WithTo(&p256VerifyPrecompile),
-			txplan.WithGasLimit(28_000),
-		).Included.Eval(t.Ctx())
-		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, sufficientReceipt.Status)
-
-		// Cross-check kona-host agrees with the live chain over a range that
-		// covers both the OOG case and the within-cost success.
-		agreedBlock := bigs.Uint64Strict(underGasReceipt.BlockNumber) - 1
-		claimBlock := bigs.Uint64Strict(sufficientReceipt.BlockNumber)
-		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
