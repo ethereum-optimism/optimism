@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Detects which paths changed relative to the base revision and emits a
-# pipeline-parameters.json file consumed by the continuation step.
+# Generic change-detection engine for CircleCI dynamic configuration.
 #
-# All pipeline parameter values are injected as environment variables by the
-# calling CircleCI job so this script is testable locally:
+# Path-detection rules are defined as DETECT_* environment variables in
+# config.yml. This script loops over them, checks git diff output against
+# each regex, and emits the results as pipeline parameters JSON.
 #
+# Testable locally:
 #   BASE_REVISION=develop \
 #   DEFAULT_DOCKER_IMAGE=cimg/base:2026.03 \
+#   DETECT_rust_files_changed='^rust/' \
 #   ... \
 #   bash .circleci/scripts/compute-changes.sh
 set -euo pipefail
@@ -21,13 +23,7 @@ echo "=== Changed files ==="
 echo "${CHANGED:-<none>}"
 echo "====================="
 
-# Returns "true" if any changed file matches the ERE pattern, "false" otherwise.
-changed() {
-  [ -n "${CHANGED}" ] && echo "${CHANGED}" | grep -qE "$1" && echo "true" || echo "false"
-}
-
-# Normalizes a boolean env var (CircleCI renders booleans as 0/1 in env blocks)
-# to a JSON-safe string "true" or "false" for use with jq --argjson.
+# Normalizes CircleCI boolean env vars (rendered as 0/1) to JSON true/false.
 to_bool() {
   case "${1}" in
     1|true|True|TRUE) echo "true" ;;
@@ -36,31 +32,9 @@ to_bool() {
 }
 
 # ---------------------------------------------------------------------------
-# Compute path-based boolean flags
+# Build base JSON with passthrough parameters
 # ---------------------------------------------------------------------------
-
-# rust/ directory changed (used to gate rust-ci workflows)
-RUST_FILES_CHANGED=$(changed '^rust/')
-
-# Contracts, circleci config, GitHub Actions, or root tooling files changed
-CONTRACTS_CHANGED=$(changed \
-  '^(packages/contracts-bedrock|\.circleci|\.github|ops/check-changed)/|^(package\.json|mise\.toml)$')
-
-# Public docs changed (gates docs-ci workflow)
-DOCS_CHANGES_DETECTED=$(changed '^docs/public-docs/')
-
-# Rust CI: triggered by rust/ or .circleci/ changes only
-RUST_CHANGES_DETECTED=$(changed '^(rust|\.circleci)/')
-
-# Rust E2E: broader scope — also triggered by op-e2e/ changes.
-# Previously this shared c-rust_changes_detected with rust-ci, which caused
-# op-e2e/ changes to also trigger the full rust-ci suite. Now explicit.
-RUST_E2E_CHANGES_DETECTED=$(changed '^(rust|op-e2e|\.circleci)/')
-
-# ---------------------------------------------------------------------------
-# Emit parameters JSON — use jq for correct escaping of string values
-# ---------------------------------------------------------------------------
-jq -n \
+json=$(jq -n \
   --arg  c_default_docker_image                "${DEFAULT_DOCKER_IMAGE}" \
   --arg  c_rust_base_image                     "${RUST_BASE_IMAGE}" \
   --arg  c_base_image                          "${BASE_IMAGE}" \
@@ -82,11 +56,6 @@ jq -n \
   --arg  c_github_event_action                 "${GITHUB_EVENT_ACTION}" \
   --arg  c_github_event_base64                 "${GITHUB_EVENT_BASE64}" \
   --arg  c_go_cache_version                    "${GO_CACHE_VERSION}" \
-  --argjson c_rust_files_changed               "${RUST_FILES_CHANGED}" \
-  --argjson c_contracts_changed                "${CONTRACTS_CHANGED}" \
-  --argjson c_docs_changes_detected            "${DOCS_CHANGES_DETECTED}" \
-  --argjson c_rust_changes_detected            "${RUST_CHANGES_DETECTED}" \
-  --argjson c_rust_e2e_changes_detected        "${RUST_E2E_CHANGES_DETECTED}" \
   '{
     "c-default_docker_image":                  $c_default_docker_image,
     "c-rust_base_image":                       $c_rust_base_image,
@@ -108,14 +77,27 @@ jq -n \
     "c-github-event-type":                     $c_github_event_type,
     "c-github-event-action":                   $c_github_event_action,
     "c-github-event-base64":                   $c_github_event_base64,
-    "c-go-cache-version":                      $c_go_cache_version,
-    "c-rust_files_changed":                    $c_rust_files_changed,
-    "c-contracts_changed":                     $c_contracts_changed,
-    "c-docs_changes_detected":                 $c_docs_changes_detected,
-    "c-rust_changes_detected":                 $c_rust_changes_detected,
-    "c-rust_e2e_changes_detected":             $c_rust_e2e_changes_detected
-  }' \
-  > /tmp/pipeline-parameters.json
+    "c-go-cache-version":                      $c_go_cache_version
+  }')
+
+# ---------------------------------------------------------------------------
+# Auto-detect: iterate over all DETECT_* env vars defined in config.yml
+# ---------------------------------------------------------------------------
+for var in $(compgen -A variable DETECT_); do
+  param_name="${var#DETECT_}"
+  pattern="${!var}"
+
+  if [ -n "${CHANGED}" ] && echo "${CHANGED}" | grep -qE "${pattern}"; then
+    value=true
+  else
+    value=false
+  fi
+
+  echo "  ${param_name} = ${value}  (pattern: ${pattern})"
+  json=$(echo "${json}" | jq --argjson v "${value}" '. + {"c-'"${param_name}"'": $v}')
+done
+
+echo "${json}" > /tmp/pipeline-parameters.json
 
 echo "=== Pipeline parameters ==="
 cat /tmp/pipeline-parameters.json

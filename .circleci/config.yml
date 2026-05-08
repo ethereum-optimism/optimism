@@ -119,6 +119,15 @@ jobs:
             GITHUB_EVENT_ACTION: << pipeline.parameters.github-event-action >>
             GITHUB_EVENT_BASE64: << pipeline.parameters.github-event-base64 >>
             GO_CACHE_VERSION: << pipeline.parameters.go-cache-version >>
+            # --- path-detection rules (visible here, easy to edit) ---
+            # Format: DETECT_<param_name>=<ERE regex>
+            # The script loops over all DETECT_* vars, runs git diff | grep,
+            # and emits the corresponding c-<param_name> boolean.
+            DETECT_rust_files_changed: "^rust/"
+            DETECT_contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+            DETECT_docs_changes_detected: "^docs/public-docs/"
+            DETECT_rust_changes_detected: "^(rust|\\.circleci)/"
+            DETECT_rust_e2e_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
