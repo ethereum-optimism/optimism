@@ -17,10 +17,16 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 contract ExecuteNUTBundle_Target {
     uint256[] public records;
     address public lastSender;
+    uint256 public lastValue;
 
     function record(uint256 _value) external {
         records.push(_value);
         lastSender = msg.sender;
+    }
+
+    function observePayable() external payable {
+        lastSender = msg.sender;
+        lastValue = msg.value;
     }
 
     function recordsLength() external view returns (uint256) {
@@ -44,7 +50,11 @@ contract ExecuteNUTBundle_Test is Test {
     /// @dev Address derived from `keccak256("ExecuteNUTBundle.fixture.target")` as a private key.
     address internal constant TARGET = 0xe6190d5229f8bC6C82cb42136ae182a941519E65;
     string internal constant FIXTURE_PATH = "test/fixtures/execute-nut-bundle.json";
-    uint64 internal constant TXN_GAS_LIMIT = 100_000;
+
+    /// @dev Deliberately generous fixture gas. These tests exercise dispatch behavior, not gas
+    ///      calibration. The executor still needs a gasLimit because deposit execution forwards
+    ///      `gasLimit - intrinsicGas`; this value is not a production recommendation.
+    uint64 internal constant FIXTURE_GAS_LIMIT = 1_000_000;
 
     function setUp() public {
         alice = makeAddr("alice");
@@ -61,14 +71,14 @@ contract ExecuteNUTBundle_Test is Test {
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.record, (1)),
             from: alice,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Record Value 1",
             to: TARGET
         });
         txns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.record, (2)),
             from: bob,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Record Value 2",
             to: TARGET
         });
@@ -88,7 +98,7 @@ contract ExecuteNUTBundle_Test is Test {
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.revertWithReason, ()),
             from: alice,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Revert",
             to: TARGET
         });
@@ -104,21 +114,21 @@ contract ExecuteNUTBundle_Test is Test {
         txns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.record, (1)),
             from: alice,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Record Value 1",
             to: TARGET
         });
         txns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.revertWithReason, ()),
             from: bob,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Revert",
             to: TARGET
         });
         txns[2] = NetworkUpgradeTxns.NetworkUpgradeTxn({
             data: abi.encodeCall(ExecuteNUTBundle_Target.record, (99)),
             from: alice,
-            gasLimit: TXN_GAS_LIMIT,
+            gasLimit: FIXTURE_GAS_LIMIT,
             intent: "Record Value 99",
             to: TARGET
         });
@@ -142,6 +152,74 @@ contract ExecuteNUTBundle_Test is Test {
 
         vm.expectRevert("ExecuteNUTBundle: gasLimit < intrinsicGas for Deploy StorageSetter Implementation");
         script.executeSingle(txn);
+    }
+
+    /// @notice Tests that executeWrapper can mint to the sender and forward value from that sender.
+    function testFuzz_executeWrapper_valueAndMint_succeeds(
+        uint128 _startingBalance,
+        uint128 _mint,
+        uint128 _value
+    )
+        public
+    {
+        _startingBalance = uint128(bound(_startingBalance, 1, type(uint128).max));
+        uint256 available = uint256(_startingBalance) + uint256(_mint);
+        uint256 maxValue = available > type(uint128).max ? type(uint128).max : available;
+        _value = uint128(bound(_value, 0, maxValue));
+
+        vm.deal(alice, _startingBalance);
+
+        ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
+            from: alice,
+            to: TARGET,
+            data: abi.encodeCall(ExecuteNUTBundle_Target.observePayable, ()),
+            gasLimit: FIXTURE_GAS_LIMIT,
+            mint: _mint,
+            value: _value,
+            intent: "Wrapper Value"
+        });
+
+        script.executeWrapper(wrapper);
+
+        assertEq(target.lastSender(), alice, "lastSender");
+        assertEq(target.lastValue(), uint256(_value), "lastValue");
+        assertEq(address(target).balance, uint256(_value), "target balance");
+        assertEq(alice.balance, available - uint256(_value), "sender balance");
+    }
+
+    /// @notice Tests that executeWrapper reverts with the wrapper intent when gasLimit is below
+    ///         intrinsic gas for the provided calldata.
+    function test_executeWrapper_gasLimitBelowIntrinsic_reverts() public {
+        bytes memory data = abi.encodeCall(ExecuteNUTBundle_Target.record, (1));
+        uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(data);
+        ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
+            from: alice,
+            to: TARGET,
+            data: data,
+            gasLimit: intrinsicGas - 1,
+            mint: 0,
+            value: 0,
+            intent: "Wrapper Gas"
+        });
+
+        vm.expectRevert("ExecuteNUTBundle: wrapper gasLimit < intrinsicGas for Wrapper Gas");
+        script.executeWrapper(wrapper);
+    }
+
+    /// @notice Tests that executeWrapper reverts including the wrapper intent and decoded reason.
+    function test_executeWrapper_revertIncludesIntent_reverts() public {
+        ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
+            from: alice,
+            to: TARGET,
+            data: abi.encodeCall(ExecuteNUTBundle_Target.revertWithReason, ()),
+            gasLimit: FIXTURE_GAS_LIMIT,
+            mint: 0,
+            value: 0,
+            intent: "Wrapper Revert"
+        });
+
+        vm.expectRevert("ExecuteNUTBundle: wrapper failed - Wrapper Revert - Target: failed");
+        script.executeWrapper(wrapper);
     }
 
     /// @notice Tests that executePath reads an artifact and dispatches the decoded transactions.

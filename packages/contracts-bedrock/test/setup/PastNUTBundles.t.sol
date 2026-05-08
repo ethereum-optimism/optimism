@@ -26,6 +26,22 @@ abstract contract PastNUTBundles_TestInit is Test {
     address internal constant KARST_L2CM = 0x5398A70Eb0929dd7bfc73c59E7137d8C7CDF6669;
 }
 
+/// @title PastNUTBundles_OrderTarget
+/// @notice Minimal target contract used to observe wrapper dispatcher execution order.
+contract PastNUTBundles_OrderTarget {
+    uint256[] public records;
+    address[] public senders;
+
+    function record(uint256 _value) external {
+        records.push(_value);
+        senders.push(msg.sender);
+    }
+
+    function recordsLength() external view returns (uint256) {
+        return records.length;
+    }
+}
+
 /// @title PastNUTBundles_extractL2CM_Test
 /// @notice Exercises the `extractL2CM` validation rules.
 contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
@@ -133,6 +149,106 @@ contract PastNUTBundles_extractL2CM_Test is PastNUTBundles_TestInit {
         });
 
         assertEq(PastNUTBundles.extractL2CM(txns, "test-path"), _l2cm);
+    }
+}
+
+/// @title PastNUTBundles_wrappersForFork_Test
+/// @notice Exercises the empty default wrapper lookup.
+contract PastNUTBundles_wrappersForFork_Test is PastNUTBundles_TestInit {
+    /// @notice The default wrapper hook returns no pre or post wrappers for arbitrary fork names.
+    function testFuzz_wrappersForFork_empty_succeeds(string memory _fork) public view {
+        PastNUTBundles.ForkWrappers memory wrappers = PastNUTBundles.wrappersForFork(_fork);
+
+        assertEq(wrappers.pre.length, 0, "pre length");
+        assertEq(wrappers.post.length, 0, "post length");
+    }
+}
+
+/// @title PastNUTBundles_executeWithWrappers_Test
+/// @notice Exercises the wrapper dispatcher.
+contract PastNUTBundles_executeWithWrappers_Test is PastNUTBundles_TestInit {
+    /// @dev Deliberately generous fixture gas. These tests exercise wrapper dispatch ordering, not
+    ///      gas calibration. The executor still needs a gasLimit because it forwards
+    ///      `gasLimit - intrinsicGas`; this value is not a production recommendation.
+    uint64 internal constant FIXTURE_GAS_LIMIT = 1_000_000;
+
+    ExecuteNUTBundle internal script;
+    PastNUTBundles_OrderTarget internal target;
+    address internal alice;
+    address internal bob;
+    address internal carol;
+    address internal dave;
+
+    function setUp() public {
+        script = new ExecuteNUTBundle();
+        target = new PastNUTBundles_OrderTarget();
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        carol = makeAddr("carol");
+        dave = makeAddr("dave");
+    }
+
+    /// @notice Non-empty pre and post wrappers execute around the bundle in order.
+    function test_executeWithWrappers_preBundlePostOrder_succeeds() public {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory pre = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
+        pre[0] = _txn(alice, 1, "pre");
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundle = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
+        bundle[0] = _txn(bob, 2, "bundle");
+
+        ExecuteNUTBundle.PostWrapperTxn[] memory post = new ExecuteNUTBundle.PostWrapperTxn[](2);
+        post[0] = _wrapper(carol, 3, "post 1");
+        post[1] = _wrapper(dave, 4, "post 2");
+
+        PastNUTBundles.executeWithWrappers(script, pre, bundle, post);
+
+        assertEq(target.recordsLength(), 4, "records length");
+        assertEq(target.records(0), 1, "records[0]");
+        assertEq(target.records(1), 2, "records[1]");
+        assertEq(target.records(2), 3, "records[2]");
+        assertEq(target.records(3), 4, "records[3]");
+        assertEq(target.senders(0), alice, "senders[0]");
+        assertEq(target.senders(1), bob, "senders[1]");
+        assertEq(target.senders(2), carol, "senders[2]");
+        assertEq(target.senders(3), dave, "senders[3]");
+    }
+
+    function _txn(
+        address _from,
+        uint256 _value,
+        string memory _intent
+    )
+        internal
+        view
+        returns (NetworkUpgradeTxns.NetworkUpgradeTxn memory txn_)
+    {
+        txn_ = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: abi.encodeCall(PastNUTBundles_OrderTarget.record, (_value)),
+            from: _from,
+            gasLimit: FIXTURE_GAS_LIMIT,
+            intent: _intent,
+            to: address(target)
+        });
+    }
+
+    function _wrapper(
+        address _from,
+        uint256 _value,
+        string memory _intent
+    )
+        internal
+        view
+        returns (ExecuteNUTBundle.PostWrapperTxn memory wrapper_)
+    {
+        wrapper_ = ExecuteNUTBundle.PostWrapperTxn({
+            from: _from,
+            to: address(target),
+            data: abi.encodeCall(PastNUTBundles_OrderTarget.record, (_value)),
+            gasLimit: FIXTURE_GAS_LIMIT,
+            mint: 0,
+            value: 0,
+            intent: _intent
+        });
     }
 }
 

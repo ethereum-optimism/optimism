@@ -34,6 +34,14 @@ library PastNUTBundles {
         string path;
     }
 
+    /// @notice Wrapper transactions to execute around a NUT bundle.
+    /// @param pre Standard NUT transactions to execute before the bundle.
+    /// @param post Wrapper transactions to execute after the bundle.
+    struct ForkWrappers {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] pre;
+        ExecuteNUTBundle.PostWrapperTxn[] post;
+    }
+
     /// @notice Thrown when a bundle has no transactions and an L2CM cannot be extracted.
     error EmptyBundle(string path);
 
@@ -60,6 +68,33 @@ library PastNUTBundles {
 
         bytes memory result = Process.run(command, true);
         bundles_ = abi.decode(result, (NUTBundle[]));
+    }
+
+    /// @notice Returns activation wrappers for a fork. Empty for every fork in this PR.
+    ///         PRs that introduce wrapped NUT activations should populate the matching
+    ///         fork branch and document the production trigger predicate.
+    function wrappersForFork(string memory) internal view returns (ForkWrappers memory w_) {
+        return w_;
+    }
+
+    /// @notice Executes a NUT bundle with optional pre-bundle transactions and post-bundle wrappers.
+    /// @param _executeScript Live `ExecuteNUTBundle` script used to apply the bundle.
+    /// @param _pre Standard NUT transactions to run before the bundle.
+    /// @param _bundle Standard NUT transactions in the bundle.
+    /// @param _post Wrapper transactions to run after the bundle.
+    function executeWithWrappers(
+        ExecuteNUTBundle _executeScript,
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _pre,
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _bundle,
+        ExecuteNUTBundle.PostWrapperTxn[] memory _post
+    )
+        internal
+    {
+        if (_pre.length > 0) _executeScript.executeAll(_pre);
+        _executeScript.executeAll(_bundle);
+        for (uint256 i = 0; i < _post.length; i++) {
+            _executeScript.executeWrapper(_post[i]);
+        }
     }
 
     /// @notice Extracts the L2ContractsManager address from a parsed NUT bundle.
@@ -130,7 +165,8 @@ library PastNUTBundles {
             }
 
             console.log("PastNUTBundles: staging fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
-            _executeScript.executeAll(priorTxns);
+            ForkWrappers memory w = wrappersForFork(entry.fork);
+            executeWithWrappers(_executeScript, w.pre, priorTxns, w.post);
         }
     }
 
