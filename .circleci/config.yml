@@ -129,8 +129,7 @@ jobs:
             c-rust_files_changed: "^rust/"
             c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
-            c-rust_changes_detected: "^(rust|\\.circleci)/"
-            c-rust_e2e_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+            c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh

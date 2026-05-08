@@ -21,9 +21,7 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
-  # Dedicated flag for E2E: broader than c-rust_changes_detected — also triggers
-  # on op-e2e/ changes without pulling in the full rust-ci suite.
-  c-rust_e2e_changes_detected:
+  c-rust_changes_detected:
     type: boolean
     default: false
   # Passthrough declarations for setup config parameters.
@@ -309,7 +307,7 @@ workflows:
       or:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
-            - << pipeline.parameters.c-rust_e2e_changes_detected >>
+            - << pipeline.parameters.c-rust_changes_detected >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -393,7 +391,7 @@ workflows:
     when:
       and:
         - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-rust_e2e_changes_detected >>
+        - not: << pipeline.parameters.c-rust_changes_detected >>
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
