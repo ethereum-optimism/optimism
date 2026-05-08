@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -117,8 +117,6 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	var balancesMu sync.Mutex
 
 	collectorCtx, cancelCollector := context.WithCancel(t.Ctx())
-	defer cancelCollector()
-
 	var collectorWG sync.WaitGroup
 	collectorWG.Add(1)
 	go func() {
@@ -149,7 +147,18 @@ func TestFlashblocksTransfer(gt *testing.T) {
 			}
 		}
 	}()
-	defer collectorWG.Wait()
+	// Single defer that cancels first, then waits — must be in this order. The
+	// collector goroutine parks in `<-fbClient.Next()` until either a new flashblock
+	// arrives or its context is cancelled. fbClient's channel is closed by
+	// startClient's t.Cleanup, but Go runs t.Cleanup callbacks AFTER the test
+	// function's defers, so we cannot rely on the channel close to unpark the
+	// collector. We must cancel collectorCtx ourselves to let it return, then
+	// wait for it. Two separate defers (cancel + wait) would deadlock because LIFO
+	// ordering would run Wait before cancel.
+	defer func() {
+		cancelCollector()
+		collectorWG.Wait()
+	}()
 
 	// Phase 1: wait for the tx to land on-chain.
 	//
@@ -194,7 +203,7 @@ func TestFlashblocksTransfer(gt *testing.T) {
 				}
 			}
 			balancesMu.Unlock()
-			sort.Slice(obs, func(i, j int) bool { return obs[i] < obs[j] })
+			slices.Sort(obs)
 			if len(obs) == 0 {
 				t.Require().FailNowf(
 					"no flashblocks observed",
