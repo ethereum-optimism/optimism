@@ -26,6 +26,15 @@ changed() {
   [ -n "${CHANGED}" ] && echo "${CHANGED}" | grep -qE "$1" && echo "true" || echo "false"
 }
 
+# Normalizes a boolean env var (CircleCI renders booleans as 0/1 in env blocks)
+# to a JSON-safe string "true" or "false" for use with jq --argjson.
+to_bool() {
+  case "${1}" in
+    1|true|True|TRUE) echo "true" ;;
+    *) echo "false" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Compute path-based boolean flags
 # ---------------------------------------------------------------------------
@@ -55,20 +64,20 @@ jq -n \
   --arg  c_default_docker_image                "${DEFAULT_DOCKER_IMAGE}" \
   --arg  c_rust_base_image                     "${RUST_BASE_IMAGE}" \
   --arg  c_base_image                          "${BASE_IMAGE}" \
-  --argjson c_main_dispatch                    "${MAIN_DISPATCH}" \
-  --argjson c_fault_proofs_dispatch            "${FAULT_PROOFS_DISPATCH}" \
-  --argjson c_reproducibility_dispatch         "${REPRODUCIBILITY_DISPATCH}" \
-  --argjson c_kontrol_dispatch                 "${KONTROL_DISPATCH}" \
-  --argjson c_cannon_full_test_dispatch        "${CANNON_FULL_TEST_DISPATCH}" \
-  --argjson c_sdk_dispatch                     "${SDK_DISPATCH}" \
-  --argjson c_publish_contract_artifacts_dispatch "${PUBLISH_CONTRACT_ARTIFACTS_DISPATCH}" \
-  --argjson c_stale_check_dispatch             "${STALE_CHECK_DISPATCH}" \
-  --argjson c_contracts_coverage_dispatch      "${CONTRACTS_COVERAGE_DISPATCH}" \
-  --argjson c_heavy_fuzz_dispatch              "${HEAVY_FUZZ_DISPATCH}" \
-  --argjson c_ai_contracts_test_dispatch       "${AI_CONTRACTS_TEST_DISPATCH}" \
-  --argjson c_rust_ci_dispatch                 "${RUST_CI_DISPATCH}" \
-  --argjson c_rust_e2e_dispatch                "${RUST_E2E_DISPATCH}" \
-  --argjson c_l2_fork_test_dispatch            "${L2_FORK_TEST_DISPATCH}" \
+  --argjson c_main_dispatch                    "$(to_bool "${MAIN_DISPATCH}")" \
+  --argjson c_fault_proofs_dispatch            "$(to_bool "${FAULT_PROOFS_DISPATCH}")" \
+  --argjson c_reproducibility_dispatch         "$(to_bool "${REPRODUCIBILITY_DISPATCH}")" \
+  --argjson c_kontrol_dispatch                 "$(to_bool "${KONTROL_DISPATCH}")" \
+  --argjson c_cannon_full_test_dispatch        "$(to_bool "${CANNON_FULL_TEST_DISPATCH}")" \
+  --argjson c_sdk_dispatch                     "$(to_bool "${SDK_DISPATCH}")" \
+  --argjson c_publish_contract_artifacts_dispatch "$(to_bool "${PUBLISH_CONTRACT_ARTIFACTS_DISPATCH}")" \
+  --argjson c_stale_check_dispatch             "$(to_bool "${STALE_CHECK_DISPATCH}")" \
+  --argjson c_contracts_coverage_dispatch      "$(to_bool "${CONTRACTS_COVERAGE_DISPATCH}")" \
+  --argjson c_heavy_fuzz_dispatch              "$(to_bool "${HEAVY_FUZZ_DISPATCH}")" \
+  --argjson c_ai_contracts_test_dispatch       "$(to_bool "${AI_CONTRACTS_TEST_DISPATCH}")" \
+  --argjson c_rust_ci_dispatch                 "$(to_bool "${RUST_CI_DISPATCH}")" \
+  --argjson c_rust_e2e_dispatch                "$(to_bool "${RUST_E2E_DISPATCH}")" \
+  --argjson c_l2_fork_test_dispatch            "$(to_bool "${L2_FORK_TEST_DISPATCH}")" \
   --arg  c_github_event_type                   "${GITHUB_EVENT_TYPE}" \
   --arg  c_github_event_action                 "${GITHUB_EVENT_ACTION}" \
   --arg  c_github_event_base64                 "${GITHUB_EVENT_BASE64}" \
