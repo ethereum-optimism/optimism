@@ -45,6 +45,9 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Script used for bundle generation.
     GenerateNUTBundle generateScript;
 
+    /// @notice Fork name for the current generated NUT bundle.
+    string internal currentFork;
+
     /// @notice Common state
     CommonState commonState;
 
@@ -69,6 +72,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 
         // Generate bundle
         GenerateNUTBundle.Output memory output = generateScript.run();
+        currentFork = output.fork;
 
         // Stage prior committed NUT bundles so chains missing earlier upgrades match the
         // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
@@ -77,6 +81,15 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
+    }
+
+    /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
+    function _executeCurrentBundle() internal virtual {
+        PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
+            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+
+        PastNUTBundles.executeWithWrappers(executeScript, w.pre, txns, w.post);
     }
 
     /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
@@ -152,7 +165,7 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -257,7 +270,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -612,7 +625,7 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         skipIfUnoptimized();
 
         // Execute upgrade
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
@@ -670,7 +683,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         vm.recordLogs();
 
         // Execute upgrade bundle
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
