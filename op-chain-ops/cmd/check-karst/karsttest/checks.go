@@ -106,6 +106,46 @@ func CheckEIP7823(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	return bigs.Uint64Strict(overReceipt.BlockNumber), bigs.Uint64Strict(okReceipt.BlockNumber), nil
 }
 
+// CheckEIP7883 verifies the post-Karst MODEXP gas-cost increase: an empty-input
+// MODEXP call landing exactly on the gas floor (21,000 intrinsic + 300 execution
+// gas) reverts under EIP-7883's 500-gas floor where it would have succeeded
+// against EIP-2565's 200-gas floor, and a within-floor call (21,000 + 600)
+// succeeds. Empty calldata avoids EIP-7623 calldata cost inflation, so intrinsic
+// gas is exactly 21,000 and tx gas limit minus 21,000 is the execution budget.
+// It returns the block numbers where its two transactions landed (smaller
+// number first).
+func CheckEIP7883(ctx context.Context, logger log.Logger, basePlan txplan.Option) (uint64, uint64, error) {
+	logger.Info("EIP-7883: under-gas MODEXP call must OOG-revert against the 500-gas floor")
+	underGasReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&ModExpPrecompile),
+		txplan.WithGasLimit(21_300),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("under-gas MODEXP submission: %w", err)
+	}
+	if underGasReceipt.Status != types.ReceiptStatusFailed {
+		return 0, 0, fmt.Errorf("under-gas MODEXP: expected revert, got success (block=%v, tx=%s)",
+			underGasReceipt.BlockNumber, underGasReceipt.TxHash)
+	}
+	logger.Info("EIP-7883: under-gas MODEXP reverted as expected", "block", underGasReceipt.BlockNumber, "tx", underGasReceipt.TxHash)
+
+	logger.Info("EIP-7883: within-floor MODEXP call must succeed")
+	sufficientReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&ModExpPrecompile),
+		txplan.WithGasLimit(21_600),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("within-floor MODEXP submission: %w", err)
+	}
+	if sufficientReceipt.Status != types.ReceiptStatusSuccessful {
+		return 0, 0, fmt.Errorf("within-floor MODEXP: expected success, got revert (block=%v, tx=%s)",
+			sufficientReceipt.BlockNumber, sufficientReceipt.TxHash)
+	}
+	logger.Info("EIP-7883: within-floor MODEXP succeeded", "block", sufficientReceipt.BlockNumber, "tx", sufficientReceipt.TxHash)
+
+	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
+}
+
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
@@ -113,6 +153,9 @@ func CheckAll(ctx context.Context, logger log.Logger, basePlan txplan.Option) er
 	logger.Info("starting Karst checks")
 	if _, _, err := CheckEIP7823(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7823: %w", err)
+	}
+	if _, _, err := CheckEIP7883(ctx, logger, basePlan); err != nil {
+		return fmt.Errorf("EIP-7883: %w", err)
 	}
 	logger.Info("completed all Karst checks successfully")
 	return nil
