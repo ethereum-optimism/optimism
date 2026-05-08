@@ -83,3 +83,60 @@ consensus-critical derivation across Go and Rust implementations) is
 exposed to divergence here. A malicious encoder could craft a stream
 that is well-formed RFC-wise except for a flipped padding bit; Rust
 nodes accept and decompress, Go nodes reject.
+
+## Root cause and fix
+
+The bug is in `src/decode.rs` of the
+[`brotli-decompressor`](https://github.com/dropbox/rust-brotli-decompressor)
+crate (which `brotli` depends on for decoding), in the
+`BROTLI_STATE_METABLOCK_DONE` arm of `BrotliDecompressStream`:
+
+```rust
+if (!bit_reader::BrotliJumpToByteBoundary(&mut s.br)) {
+    result = BrotliDecoderErrorCode::BROTLI_DECODER_ERROR_FORMAT_PADDING_2;
+}                                  // <-- missing `break;`
+// ... falls through to BROTLI_STATE_DONE which calls WriteRingBuffer
+// and unconditionally overwrites `result`, silently dropping the error.
+```
+
+The parallel padding-2 site earlier in the same function (line 2871 of
+5.0.0, also `BrotliJumpToByteBoundary` after metablock-length decode)
+correctly has `break;`. Only this one was missing.
+
+`padding_2_fix.patch` in this directory is the two-line fix. To reproduce
+locally:
+
+```bash
+cd forks
+git clone -b 5.0.0 https://github.com/dropbox/rust-brotli-decompressor.git
+( cd rust-brotli-decompressor && git apply ../../padding_2_fix.patch )
+( cd ../rust_decompress && cargo build --release )  # picks up the fork via [patch.crates-io]
+mise exec -- python3 ../hunt.py
+```
+
+## Validation
+
+After applying the patch and rebuilding `rust_decompress` against the
+fork (via `[patch.crates-io]` in its `Cargo.toml`):
+
+| Run | Total mismatches | PADDING_2 | Excessive input |
+|---|---|---|---|
+| Stock `brotli` 8.0.2 | 204 | 203 | 1 |
+| **Patched** | **1** | **0** | 1 |
+
+All 203 PADDING_2 mismatches are eliminated. The fork's own test suite
+(75 tests) still passes.
+
+## Remaining 1 mismatch: excessive input (API design, not RFC violation)
+
+The single residual mismatch is an `excessive input` case at fixture
+"ascending" / offset 124. The C reference library returns SUCCESS even
+when there are leftover input bytes after the brotli stream ends; both
+Go libraries' high-level Reader wrappers (cbrotli's `Reader.Read` and
+andybalholm's equivalent) explicitly check for leftover input and return
+"excessive input". The Rust crate's `BrotliDecompress` does not.
+
+This is a wrapper-level API design choice rather than an RFC violation
+of the decoder itself. We did not include this in the fix patch — it
+should be a separate discussion with upstream about whether
+`BrotliDecompress` should be strict about trailing input.

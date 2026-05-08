@@ -1,3 +1,4 @@
 rust_decompress/target/
+forks/
 __pycache__/
 *.pyc

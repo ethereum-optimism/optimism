@@ -1,0 +1,18 @@
+diff --git a/src/decode.rs b/src/decode.rs
+index 2f9afa1..853acc9 100755
+--- a/src/decode.rs
++++ b/src/decode.rs
+@@ -3228,7 +3228,13 @@ pub fn BrotliDecompressStream<AllocU8: alloc::Allocator<u8>,
+             break;
+           }
+           if (!bit_reader::BrotliJumpToByteBoundary(&mut s.br)) {
++            // RFC 7932 §9.2: padding bits at the end of the final metablock
++            // must be zero. Without `break`, control falls through to
++            // BROTLI_STATE_DONE which calls WriteRingBuffer and unconditionally
++            // overwrites `result` with that call's return value, silently
++            // dropping the padding error.
+             result = BrotliDecoderErrorCode::BROTLI_DECODER_ERROR_FORMAT_PADDING_2;
++            break;
+           }
+           if (s.buffer_length == 0) {
+             bit_reader::BrotliBitReaderUnload(&mut s.br);

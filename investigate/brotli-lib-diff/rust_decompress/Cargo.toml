@@ -11,4 +11,7 @@ path = "src/main.rs"
 brotli = "8"
 hex = "0.4"
 
+[patch.crates-io]
+brotli-decompressor = { path = "../forks/rust-brotli-decompressor" }
+
 [workspace]
