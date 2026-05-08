@@ -1,0 +1,148 @@
+package main
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+)
+
+var (
+	prefix     = "CHECK_KARST"
+	EndpointL2 = &cli.StringFlag{
+		Name:    "l2",
+		Usage:   "L2 execution RPC endpoint",
+		EnvVars: op_service.PrefixEnvVar(prefix, "L2"),
+		Value:   "http://localhost:9545",
+	}
+	AccountKey = &cli.StringFlag{
+		Name:     "account",
+		Usage:    "Hex-encoded private key of a funded test account used to send check txs",
+		EnvVars:  op_service.PrefixEnvVar(prefix, "ACCOUNT"),
+		Required: true,
+	}
+)
+
+func makeFlags() []cli.Flag {
+	flags := []cli.Flag{EndpointL2, AccountKey}
+	return append(flags, oplog.CLIFlags(prefix)...)
+}
+
+// checkEnv bundles the resolved per-invocation inputs that every subcommand
+// needs.
+type checkEnv struct {
+	ctx      context.Context
+	logger   log.Logger
+	l2       *ethclient.Client
+	key      *ecdsa.PrivateKey
+	basePlan txplan.Option
+}
+
+func (e *checkEnv) close() {
+	if e.l2 != nil {
+		e.l2.Close()
+	}
+}
+
+func resolveEnv(c *cli.Context) (*checkEnv, error) {
+	logCfg := oplog.ReadCLIConfig(c)
+	logger := oplog.NewLogger(c.App.Writer, logCfg)
+
+	c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
+	l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial L2 RPC: %w", err)
+	}
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(c.String(AccountKey.Name), "0x"))
+	if err != nil {
+		l2Cl.Close()
+		return nil, fmt.Errorf("failed to parse account private key: %w", err)
+	}
+	return &checkEnv{
+		ctx:      c.Context,
+		logger:   logger,
+		l2:       l2Cl,
+		key:      key,
+		basePlan: karsttest.NewBasePlan(l2Cl, key),
+	}, nil
+}
+
+// CheckAction is the shared signature for every karsttest check function the
+// CLI exposes. CheckResult is discarded by the CLI; its block range is only
+// useful to the acceptance test (for kona-host cross-checks).
+type CheckAction func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error
+
+func makeCommand(name string, fn CheckAction) *cli.Command {
+	return &cli.Command{
+		Name:  name,
+		Flags: cliapp.ProtectFlags(makeFlags()),
+		Action: func(c *cli.Context) error {
+			env, err := resolveEnv(c)
+			if err != nil {
+				return err
+			}
+			defer env.close()
+			if err := fn(env.ctx, env.logger, env.basePlan); err != nil {
+				return fmt.Errorf("command error: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
+func makeAllCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "all",
+		Flags: cliapp.ProtectFlags(makeFlags()),
+		Action: func(c *cli.Context) error {
+			env, err := resolveEnv(c)
+			if err != nil {
+				return err
+			}
+			defer env.close()
+			if err := karsttest.CheckAll(env.ctx, env.logger, env.basePlan); err != nil {
+				return fmt.Errorf("command error: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "check-karst"
+	app.Usage = "Check Karst upgrade results against an external network."
+	app.Description = "Run post-Karst conformance checks against an external L2 RPC endpoint."
+	app.Action = func(c *cli.Context) error {
+		return errors.New("see sub-commands")
+	}
+	app.Writer = os.Stdout
+	app.ErrWriter = os.Stderr
+	app.Commands = []*cli.Command{
+		makeAllCommand(),
+		makeCommand("eip-7823", func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+			_, _, err := karsttest.CheckEIP7823(ctx, logger, basePlan)
+			return err
+		}),
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v\n", err)
+		os.Exit(1)
+	}
+}

@@ -2,12 +2,12 @@ package tests
 
 import (
 	"context"
-	"math/big"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
@@ -24,42 +24,26 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var modexpPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000005")
 var p256VerifyPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
-
-// buildModExpInput constructs input data for the MODEXP precompile (address 0x05).
-// Format: <Bsize (32 bytes)> <Esize (32 bytes)> <Msize (32 bytes)> <B> <E> <M>
-func buildModExpInput(base, exp, mod []byte) []byte {
-	input := make([]byte, 0, 96+len(base)+len(exp)+len(mod))
-	input = append(input, common.LeftPadBytes(new(big.Int).SetInt64(int64(len(base))).Bytes(), 32)...)
-	input = append(input, common.LeftPadBytes(new(big.Int).SetInt64(int64(len(exp))).Bytes(), 32)...)
-	input = append(input, common.LeftPadBytes(new(big.Int).SetInt64(int64(len(mod))).Bytes(), 32)...)
-	input = append(input, base...)
-	input = append(input, exp...)
-	input = append(input, mod...)
-	return input
-}
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
-
-	// Modexp input exceeding EIP-7823 limits: modulus length is 1025 bytes (limit is 1024)
-	oversizeMod := make([]byte, 1025)
-	oversizeMod[1024] = 5
-	planOversized := txplan.Combine(
-		txplan.WithTo(&modexpPrecompile),
-		txplan.WithData(buildModExpInput([]byte{2}, []byte{3}, oversizeMod)),
-		txplan.WithGasLimit(2_000_000),
-	)
-	withinLimitInput := buildModExpInput([]byte{2}, []byte{3}, []byte{5})
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
-		receipt, err := txplan.NewPlannedTx(eoa.Plan(), planOversized).Included.Eval(t.Ctx())
+		// Pre-Karst: the oversized modulus is accepted by the modexp precompile
+		// and the call succeeds.
+		oversizeMod := make([]byte, 1025)
+		oversizeMod[1024] = 5
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(),
+			txplan.WithTo(&karsttest.ModExpPrecompile),
+			txplan.WithData(karsttest.BuildModExpInput([]byte{2}, []byte{3}, oversizeMod)),
+			txplan.WithGasLimit(2_000_000),
+		).Included.Eval(t.Ctx())
 		t.Require().NoError(err)
 		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
 	})
@@ -74,26 +58,9 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 		// served by OutputAtBlock).
 		sys.L2EL.WaitForBlockNumber(1)
 
-		// Post-Karst: oversized modulus is rejected, so the tx is included but reverts.
-		oversizedReceipt, err := txplan.NewPlannedTx(eoa.Plan(), planOversized).Included.Eval(t.Ctx())
+		agreedBlockChild, claimBlock, err := karsttest.CheckEIP7823(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusFailed, oversizedReceipt.Status)
-
-		// Post-Karst: within-limit modulus still works.
-		withinLimitReceipt, err := txplan.NewPlannedTx(
-			eoa.Plan(),
-			txplan.WithTo(&modexpPrecompile),
-			txplan.WithData(withinLimitInput),
-			txplan.WithGasLimit(200_000),
-		).Included.Eval(t.Ctx())
-		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, withinLimitReceipt.Status)
-
-		// Cross-check kona-host agrees with the live chain over a range that
-		// covers both the rejected oversized call and the within-limit success.
-		agreedBlock := bigs.Uint64Strict(oversizedReceipt.BlockNumber) - 1
-		claimBlock := bigs.Uint64Strict(withinLimitReceipt.BlockNumber)
-		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
@@ -108,7 +75,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 	// Empty calldata also avoids EIP-7623 calldata cost inflation, so intrinsic
 	// gas is exactly 21,000 and we can precisely control execution gas via the tx gas limit.
 	planUnderGas := txplan.Combine(
-		txplan.WithTo(&modexpPrecompile),
+		txplan.WithTo(&karsttest.ModExpPrecompile),
 		txplan.WithGasLimit(21_300),
 	)
 
@@ -141,7 +108,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 		// Post-Karst: 21,000 + 600 execution gas is enough for 500-gas floor.
 		sufficientReceipt, err := txplan.NewPlannedTx(
 			eoa.Plan(),
-			txplan.WithTo(&modexpPrecompile),
+			txplan.WithTo(&karsttest.ModExpPrecompile),
 			txplan.WithGasLimit(21_600),
 		).Included.Eval(t.Ctx())
 		t.Require().NoError(err)
