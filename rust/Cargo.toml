@@ -589,6 +589,7 @@ cfg-if = "1.0.4"
 chrono = "0.4.43"
 clap = "4.5.58"
 color-eyre = "0.6.5"
+crossbeam-channel = "0.5.13"
 crossterm = "0.29.0"
 dashmap = "6.1"
 derive_more = { version = "2.1.1", default-features = false, features = [

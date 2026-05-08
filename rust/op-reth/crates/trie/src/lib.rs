@@ -52,6 +52,8 @@ pub mod provider;
 
 pub mod live;
 
+pub mod engine;
+
 pub mod cursor;
 #[cfg(not(feature = "metrics"))]
 pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor};

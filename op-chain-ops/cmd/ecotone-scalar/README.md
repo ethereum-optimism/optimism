@@ -11,8 +11,8 @@ Build and run using the `ecotone-scalar` target. Inside of `/op-chain-ops`, run:
 ```sh
 just ecotone-scalar
 ```
-to create a binary in [../../bin/ecotone-scalar](../../bin/ecotone-scalar) that can
-be executed, providing the `--scalar` and `--blob-scalar` flags to specify the base bee scalar and
+to create a binary in `./bin/ecotone-scalar` that can
+be executed, providing the `--scalar` and `--blob-scalar` flags to specify the base fee scalar and
 blob base fee parameters respectively, for example:
 
 ```sh
