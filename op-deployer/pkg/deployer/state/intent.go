@@ -350,13 +350,20 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
 	}
 
+	superchainCfg, err := standard.SuperchainFor(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting Superchain for L1 chain %d: %w", l1ChainId, err)
+	}
+	superchainConfigProxy := superchainCfg.SuperchainConfigAddr
+
 	intent := Intent{
-		ConfigType:         IntentTypeStandard,
-		OpDeployerVersion:  version.VersionWithMeta,
-		L1ChainID:          l1ChainId,
-		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
-		OPCMAddress:        &opcmAddr,
+		ConfigType:            IntentTypeStandard,
+		OpDeployerVersion:     version.VersionWithMeta,
+		L1ChainID:             l1ChainId,
+		L1ContractsLocator:    artifacts.DefaultL1ContractsLocator,
+		L2ContractsLocator:    artifacts.DefaultL2ContractsLocator,
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfigProxy,
 	}
 
 	challenger, err := standard.ChallengerAddressFor(l1ChainId)
