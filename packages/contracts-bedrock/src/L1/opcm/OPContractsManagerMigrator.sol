@@ -223,6 +223,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+                _updateSystemConfigDelayedWETH(_input.chainSystemConfigs[i], delayedWETH, impls.systemConfigImpl);
                 _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
             }
         }
@@ -244,6 +245,61 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             );
             disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
         }
+    }
+
+    /// @notice Updates a chain's SystemConfig to point at the shared DelayedWETH while preserving
+    ///         all other per-chain configuration values.
+    /// @param _systemConfig The system config for the chain being migrated.
+    /// @param _delayedWETH The shared DelayedWETH to store in the SystemConfig.
+    /// @param _systemConfigImpl The SystemConfig implementation to reinitialize with.
+    function _updateSystemConfigDelayedWETH(
+        ISystemConfig _systemConfig,
+        IDelayedWETH _delayedWETH,
+        address _systemConfigImpl
+    )
+        internal
+    {
+        ISystemConfig.Addresses memory addrs = _systemConfig.getAddresses();
+        addrs.delayedWETH = address(_delayedWETH);
+        addrs.opcm = _systemConfig.lastUsedOPCM();
+
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            address(_systemConfig),
+            _systemConfigImpl,
+            _makeSystemConfigInitArgs(_systemConfig, addrs)
+        );
+    }
+
+    /// @notice Builds SystemConfig initialize calldata from the chain's current values.
+    /// @dev Kept separate from _updateSystemConfigDelayedWETH to avoid stack-too-deep errors.
+    /// @param _systemConfig The system config to read existing values from.
+    /// @param _addrs The L1 contract address set to write.
+    /// @return Calldata for SystemConfig.initialize.
+    function _makeSystemConfigInitArgs(
+        ISystemConfig _systemConfig,
+        ISystemConfig.Addresses memory _addrs
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                _systemConfig.owner(),
+                _systemConfig.basefeeScalar(),
+                _systemConfig.blobbasefeeScalar(),
+                _systemConfig.batcherHash(),
+                _systemConfig.gasLimit(),
+                _systemConfig.unsafeBlockSigner(),
+                _systemConfig.resourceConfig(),
+                _systemConfig.batchInbox(),
+                _addrs,
+                _systemConfig.l2ChainId(),
+                _systemConfig.superchainConfig()
+            )
+        );
     }
 
     /// @notice Migrates a single portal to the new ETHLockbox and AnchorStateRegistry.

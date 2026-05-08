@@ -443,7 +443,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
-            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs)?.is_some() {
+            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None)?.is_some() {
                 return Ok(BuildOutcomeKind::Cancelled);
             }
 
@@ -767,7 +767,11 @@ where
 
     /// Executes the given best transactions and updates the execution info.
     ///
-    /// Returns `Ok(Some(())` if the job was cancelled.
+    /// `gas_limit_cap` is an optional upper bound on the per-call gas budget.
+    ///   - `None`: effective limit is `min(block_gas_limit, gas_limit_config)`.
+    ///   - `Some(g)`: effective limit is `min(g, block_gas_limit, gas_limit_config)`
+    ///
+    /// Returns `Ok(Some(()))` if the job was cancelled.
     pub fn execute_best_transactions<Builder>(
         &self,
         info: &mut ExecutionInfo,
@@ -775,6 +779,7 @@ where
         mut best_txs: impl PayloadTransactions<
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
+        gas_limit_cap: Option<u64>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
@@ -786,6 +791,11 @@ where
             // the block's actual gas limit.
             block_gas_limit = gas_limit_config.min(block_gas_limit);
         };
+        if let Some(gas_limit_cap) = gas_limit_cap {
+            // If a gas limit cap is provided, use that limit as target if it's smaller, otherwise
+            // use the block's actual gas limit.
+            block_gas_limit = gas_limit_cap.min(block_gas_limit);
+        }
         let block_da_limit = self.builder_config.da_config.max_da_block_size();
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
         let base_fee = builder.evm_mut().block().basefee();
