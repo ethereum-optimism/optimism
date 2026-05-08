@@ -168,13 +168,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 		// validate.
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
-
-		_, err := txplan.NewPlannedTx(
-			eoa.Plan(),
-			txplan.WithTo(&common.Address{}),
-			txplan.WithGasLimit(params.MaxTxGas+1),
-		).Included.Eval(t.Ctx())
-		t.Require().Error(err)
+		t.Require().NoError(karsttest.CheckEIP7825(t.Ctx(), t.Logger(), eoa.Plan()))
 	})
 }
 

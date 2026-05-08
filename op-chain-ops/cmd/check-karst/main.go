@@ -143,6 +143,7 @@ func main() {
 			_, _, err := karsttest.CheckEIP7883(ctx, logger, basePlan)
 			return err
 		}),
+		makeCommand("eip-7825", karsttest.CheckEIP7825),
 	}
 
 	if err := app.Run(os.Args); err != nil {

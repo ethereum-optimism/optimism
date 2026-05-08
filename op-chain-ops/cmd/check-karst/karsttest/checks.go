@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -146,6 +147,24 @@ func CheckEIP7883(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
 }
 
+// CheckEIP7825 verifies the post-Karst transaction-gas-limit cap of 2^24:
+// op-reth's RPC must reject a tx whose gas limit exceeds the cap at submission
+// time, so the tx never lands on chain. Returns no block range because no tx
+// is included — the cap is a tx-validity rule, not an EVM rule, so there is
+// nothing for kona-host to cross-check.
+func CheckEIP7825(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+	logger.Info("EIP-7825: tx with gas > 2^24 must be rejected at submission")
+	_, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&common.Address{}),
+		txplan.WithGasLimit(params.MaxTxGas+1),
+	).Included.Eval(ctx)
+	if err == nil {
+		return fmt.Errorf("expected rejection for gas > 2^24, got success")
+	}
+	logger.Info("EIP-7825: high-gas tx rejected as expected", "err", err)
+	return nil
+}
+
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
@@ -156,6 +175,9 @@ func CheckAll(ctx context.Context, logger log.Logger, basePlan txplan.Option) er
 	}
 	if _, _, err := CheckEIP7883(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7883: %w", err)
+	}
+	if err := CheckEIP7825(ctx, logger, basePlan); err != nil {
+		return fmt.Errorf("EIP-7825: %w", err)
 	}
 	logger.Info("completed all Karst checks successfully")
 	return nil
