@@ -12564,6 +12564,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "revm-ee-tests"
+version = "0.2.0"
+dependencies = [
+ "op-revm",
+ "revm",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "revm-handler"
 version = "18.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
