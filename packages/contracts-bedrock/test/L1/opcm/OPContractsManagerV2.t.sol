@@ -234,6 +234,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
+        skipIfCoverage();
+
         super.disableUpgradedFork();
         super.setUp();
 

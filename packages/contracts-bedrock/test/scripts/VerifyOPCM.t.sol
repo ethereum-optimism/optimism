@@ -173,6 +173,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the runSingle script succeeds when run against production contracts.
     function test_runSingle_succeeds() public {
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
+
         VerifyOPCM.OpcmContractRef[][2] memory refsByType;
         refsByType[0] = harness.getOpcmContractRefs(opcm, "implementations", false);
         refsByType[1] = harness.getOpcmContractRefs(opcm, "blueprints", true);
