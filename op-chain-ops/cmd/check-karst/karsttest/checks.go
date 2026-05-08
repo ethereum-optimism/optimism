@@ -12,6 +12,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,9 +21,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -255,6 +260,93 @@ func CheckEIP7825(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	}
 	logger.Info("EIP-7825: high-gas tx rejected as expected", "err", err)
 	return nil
+}
+
+// CheckEIP7825DepositBypass verifies that deposit transactions bypass the
+// post-Karst EIP-7825 2^24 gas cap. It submits an L1 deposit with a gas limit
+// above the cap, finds the resulting `TransactionDeposited` event, waits for
+// the L2 deposit receipt, and asserts the L2 inclusion succeeded with the
+// requested gas. Deposits are forced onto L2 by the derivation pipeline rather
+// than passing through the txpool; if the cap (a tx-validity rule) applied to
+// them, an attacker could trivially brick the rollup. Returns the L2 block
+// where the deposit landed.
+func CheckEIP7825DepositBypass(
+	ctx context.Context,
+	logger log.Logger,
+	l2 apis.ReceiptFetcher,
+	portalAddr, l1Sender common.Address,
+	l1Plan txplan.Option,
+	depositAmount eth.ETH,
+) (uint64, error) {
+	depositGasLimit := params.MaxTxGas + 1
+
+	portal := bindings.NewBindings[bindings.OptimismPortal2](
+		bindings.WithTo(portalAddr),
+	)
+	callPlan, err := contractio.Plan(
+		portal.DepositTransaction(l1Sender, depositAmount, depositGasLimit, false, []byte{}),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("plan deposit call: %w", err)
+	}
+
+	logger.Info("EIP-7825-deposit: submitting high-gas deposit on L1",
+		"gas", depositGasLimit, "amount", depositAmount, "portal", portalAddr)
+	// Skip eth_estimateGas: the estimator caps its binary search at MaxTxGas,
+	// but ResourceMetering's Burn.gas inside depositTransaction needs to burn
+	// ~depositGasLimit gas on L1. WithGasLimit overrides the estimator.
+	l1Receipt, err := txplan.NewPlannedTx(l1Plan, callPlan,
+		txplan.WithValue(depositAmount),
+		txplan.WithGasLimit(depositGasLimit+1_000_000),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("L1 deposit submission: %w", err)
+	}
+	if l1Receipt.Status != types.ReceiptStatusSuccessful {
+		return 0, fmt.Errorf("L1 deposit failed: status=%d, tx=%s", l1Receipt.Status, l1Receipt.TxHash)
+	}
+	logger.Info("EIP-7825-deposit: L1 deposit included", "block", l1Receipt.BlockNumber, "tx", l1Receipt.TxHash)
+
+	var l2DepositTx *types.DepositTx
+	for _, log := range l1Receipt.Logs {
+		var unmarshalErr error
+		if l2DepositTx, unmarshalErr = derive.UnmarshalDepositLogEvent(log); unmarshalErr == nil {
+			break
+		}
+	}
+	if l2DepositTx == nil {
+		return 0, fmt.Errorf("no TransactionDeposited event in L1 receipt: tx=%s", l1Receipt.TxHash)
+	}
+	if l2DepositTx.Gas != depositGasLimit {
+		return 0, fmt.Errorf("L2 deposit tx gas: got %d, want %d", l2DepositTx.Gas, depositGasLimit)
+	}
+
+	l2DepositHash := types.NewTx(l2DepositTx).Hash()
+	logger.Info("EIP-7825-deposit: waiting for L2 deposit receipt", "tx", l2DepositHash)
+	deadline := time.Now().Add(2 * time.Minute)
+	var l2Receipt *types.Receipt
+	var lastErr error
+	for time.Now().Before(deadline) {
+		l2Receipt, lastErr = l2.TransactionReceipt(ctx, l2DepositHash)
+		if lastErr == nil && l2Receipt != nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	if l2Receipt == nil {
+		return 0, fmt.Errorf("timed out waiting for L2 deposit receipt: tx=%s, lastErr=%w", l2DepositHash, lastErr)
+	}
+	if l2Receipt.Status != types.ReceiptStatusSuccessful {
+		return 0, fmt.Errorf("L2 deposit reverted: tx=%s, block=%v", l2DepositHash, l2Receipt.BlockNumber)
+	}
+	logger.Info("EIP-7825-deposit: L2 deposit included successfully",
+		"block", l2Receipt.BlockNumber, "tx", l2DepositHash)
+
+	return bigs.Uint64Strict(l2Receipt.BlockNumber), nil
 }
 
 // CheckAll runs every implemented post-Karst check in sequence. It is intended

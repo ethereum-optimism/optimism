@@ -10,6 +10,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -35,6 +37,24 @@ var (
 		Name:     "account",
 		Usage:    "Hex-encoded private key of a funded test account used to send check txs",
 		EnvVars:  op_service.PrefixEnvVar(prefix, "ACCOUNT"),
+		Required: true,
+	}
+	EndpointL1 = &cli.StringFlag{
+		Name:     "l1",
+		Usage:    "L1 execution RPC endpoint",
+		EnvVars:  op_service.PrefixEnvVar(prefix, "L1"),
+		Required: true,
+	}
+	L1AccountKey = &cli.StringFlag{
+		Name:     "l1-account",
+		Usage:    "Hex-encoded private key of a funded L1 test account used to submit the deposit",
+		EnvVars:  op_service.PrefixEnvVar(prefix, "L1_ACCOUNT"),
+		Required: true,
+	}
+	PortalAddress = &cli.StringFlag{
+		Name:     "portal",
+		Usage:    "L1 OptimismPortal contract address",
+		EnvVars:  op_service.PrefixEnvVar(prefix, "PORTAL"),
 		Required: true,
 	}
 )
@@ -124,6 +144,53 @@ func makeAllCommand() *cli.Command {
 	}
 }
 
+// makeDepositCommand wires up the deposit-bypass check, which (unlike the
+// EVM-level checks) needs an L1 endpoint, an L1 funded account, and the L1
+// portal address. These extra inputs are not part of the shared CheckAction
+// signature, so the deposit command builds its own flag list and resolves L1
+// state inline.
+func makeDepositCommand() *cli.Command {
+	flags := append(makeFlags(), EndpointL1, L1AccountKey, PortalAddress)
+	return &cli.Command{
+		Name:  "eip-7825-deposit",
+		Flags: cliapp.ProtectFlags(flags),
+		Action: func(c *cli.Context) error {
+			env, err := resolveEnv(c)
+			if err != nil {
+				return err
+			}
+			defer env.close()
+
+			l1Cl, err := ethclient.DialContext(env.ctx, c.String(EndpointL1.Name))
+			if err != nil {
+				return fmt.Errorf("dial L1: %w", err)
+			}
+			defer l1Cl.Close()
+
+			l1Key, err := crypto.HexToECDSA(strings.TrimPrefix(c.String(L1AccountKey.Name), "0x"))
+			if err != nil {
+				return fmt.Errorf("parse L1 account: %w", err)
+			}
+
+			portalHex := c.String(PortalAddress.Name)
+			if !common.IsHexAddress(portalHex) {
+				return fmt.Errorf("--portal must be a hex address, got %q", portalHex)
+			}
+
+			if _, err := karsttest.CheckEIP7825DepositBypass(
+				env.ctx, env.logger, env.l2,
+				common.HexToAddress(portalHex),
+				crypto.PubkeyToAddress(l1Key.PublicKey),
+				karsttest.NewBasePlan(l1Cl, l1Key),
+				eth.OneHundredthEther,
+			); err != nil {
+				return fmt.Errorf("command error: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "check-karst"
@@ -155,6 +222,7 @@ func main() {
 		makeCommand("eip-7825", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
 			return karsttest.CheckEIP7825(ctx, logger, basePlan)
 		}),
+		makeDepositCommand(),
 	}
 
 	if err := app.Run(os.Args); err != nil {
