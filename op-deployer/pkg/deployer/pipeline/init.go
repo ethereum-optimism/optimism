@@ -33,26 +33,16 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		if intent.SuperchainRoles != nil {
 			return fmt.Errorf("cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
 		}
+		if !hasSuperchainConfigProxy {
+			return fmt.Errorf("superchainConfigProxy must be set in the intent when using a predeployed OPCM")
+		}
 
 		opcmAddr := common.Address{}
 		if hasPredeployedOPCM {
 			opcmAddr = *intent.OPCMAddress
 		}
+		superchainConfigAddr := *intent.SuperchainConfigProxy
 
-		superchainConfigAddr := common.Address{}
-		if hasSuperchainConfigProxy {
-			superchainConfigAddr = *intent.SuperchainConfigProxy
-		}
-
-		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
-		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
-			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
-			resolved, err := opcmContract.SuperchainConfig(ctx)
-			if err != nil {
-				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
-			}
-			superchainConfigAddr = resolved
-		}
 		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
