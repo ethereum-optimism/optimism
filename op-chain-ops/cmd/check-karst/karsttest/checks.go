@@ -7,6 +7,7 @@
 package karsttest
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"fmt"
@@ -14,14 +15,31 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
+
+// CLZBytecode is EVM init code that computes CLZ(1) and returns the 32-byte
+// result. CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256. Used
+// by both CheckEIP7939 (post-Karst, where deployment must succeed) and the
+// pre-Karst acceptance sub-test (where deployment must fail because the CLZ
+// opcode is invalid).
+var CLZBytecode = []byte{
+	byte(vm.PUSH1), 1, // stack: [1]
+	byte(vm.CLZ),      // stack: [255] (1 has 255 leading zeros)
+	byte(vm.PUSH1), 0, // stack: [0, 255]
+	byte(vm.MSTORE),    // mem[0:32] = 255
+	byte(vm.PUSH1), 32, // stack: [32]
+	byte(vm.PUSH1), 0, // stack: [0, 32]
+	byte(vm.RETURN), // return mem[0:32]
+}
 
 // CheckResult is the L2 block range that a Check function exercised. Callers
 // that want to run a kona-host cross-check pass these into RunKonaNative; the
@@ -188,6 +206,39 @@ func CheckEIP7951(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
 }
 
+// CheckEIP7939 verifies the post-Karst CLZ opcode (0x1e). It deploys a contract
+// whose init code computes CLZ(1) = 255 and returns the 32-byte result. Pre-Karst
+// the opcode is invalid and the init code aborts; post-Karst it executes and
+// the deployed code is the 32-byte left-padded CLZ(1) value. Returns the block
+// number where the deployment landed.
+func CheckEIP7939(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) (uint64, error) {
+	logger.Info("EIP-7939: CLZ contract deployment must succeed")
+	receipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithData(CLZBytecode),
+		txplan.WithGasLimit(100_000),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("CLZ deploy submission: %w", err)
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return 0, fmt.Errorf("CLZ deploy: expected success, got revert (block=%v, tx=%s)",
+			receipt.BlockNumber, receipt.TxHash)
+	}
+	logger.Info("EIP-7939: CLZ deployment succeeded", "block", receipt.BlockNumber, "tx", receipt.TxHash, "addr", receipt.ContractAddress)
+
+	// The deployed code IS the 32-byte CLZ(1) result.
+	deployedCode, err := l2.CodeAtHash(ctx, receipt.ContractAddress, receipt.BlockHash)
+	if err != nil {
+		return 0, fmt.Errorf("CLZ deployed code lookup: %w", err)
+	}
+	expected := common.LeftPadBytes([]byte{0xff}, 32)
+	if !bytes.Equal(deployedCode, expected) {
+		return 0, fmt.Errorf("CLZ(1) deployed code mismatch: expected %x, got %x", expected, deployedCode)
+	}
+	logger.Info("EIP-7939: CLZ(1) = 255 verified via deployed code")
+	return bigs.Uint64Strict(receipt.BlockNumber), nil
+}
+
 // CheckEIP7825 verifies the post-Karst transaction-gas-limit cap of 2^24:
 // op-reth's RPC must reject a tx whose gas limit exceeds the cap at submission
 // time, so the tx never lands on chain. Returns no block range because no tx
@@ -209,7 +260,7 @@ func CheckEIP7825(ctx context.Context, logger log.Logger, basePlan txplan.Option
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
-func CheckAll(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+func CheckAll(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error {
 	logger.Info("starting Karst checks")
 	if _, _, err := CheckEIP7823(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7823: %w", err)
@@ -219,6 +270,9 @@ func CheckAll(ctx context.Context, logger log.Logger, basePlan txplan.Option) er
 	}
 	if _, _, err := CheckEIP7951(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7951: %w", err)
+	}
+	if _, err := CheckEIP7939(ctx, logger, l2, basePlan); err != nil {
+		return fmt.Errorf("EIP-7939: %w", err)
 	}
 	if err := CheckEIP7825(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7825: %w", err)

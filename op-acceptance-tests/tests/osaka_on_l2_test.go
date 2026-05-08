@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -251,22 +250,6 @@ func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	// EVM init code that computes CLZ(1) and returns the 32-byte result.
-	// CLZ(1) = 255 because 1 has 255 leading zero bits in a uint256.
-	clzCode := []byte{
-		byte(vm.PUSH1), 1, // stack: [1]
-		byte(vm.CLZ),      // stack: [255] (1 has 255 leading zeros)
-		byte(vm.PUSH1), 0, // stack: [0, 255]
-		byte(vm.MSTORE),    // mem[0:32] = 255
-		byte(vm.PUSH1), 32, // stack: [32]
-		byte(vm.PUSH1), 0, // stack: [0, 32]
-		byte(vm.RETURN), // return mem[0:32]
-	}
-	deployPlan := txplan.Combine(
-		txplan.WithData(clzCode),
-		txplan.WithGasLimit(100_000),
-	)
-
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
 		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
@@ -274,7 +257,10 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 		// Pre-Karst: CLZ opcode (0x1e) is invalid; the init code aborts and
 		// deployment fails.
-		receipt, err := txplan.NewPlannedTx(eoa.Plan(), deployPlan).Included.Eval(t.Ctx())
+		receipt, err := txplan.NewPlannedTx(eoa.Plan(),
+			txplan.WithData(karsttest.CLZBytecode),
+			txplan.WithGasLimit(100_000),
+		).Included.Eval(t.Ctx())
 		t.Require().NoError(err)
 		t.Require().Equal(ethtypes.ReceiptStatusFailed, receipt.Status)
 	})
@@ -289,21 +275,9 @@ func TestEIP7939CLZ(gt *testing.T) {
 		// served by OutputAtBlock).
 		sys.L2EL.WaitForBlockNumber(1)
 
-		// Post-Karst: CLZ executes; init code returns 32 bytes; deployment succeeds.
-		receipt, err := txplan.NewPlannedTx(eoa.Plan(), deployPlan).Included.Eval(t.Ctx())
+		claimBlock, err := karsttest.CheckEIP7939(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), eoa.Plan())
 		t.Require().NoError(err)
-		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
-
-		// The deployed code IS the 32-byte CLZ(1) result.
-		deployedCode, err := sys.L2EL.EthClient().CodeAtHash(t.Ctx(), receipt.ContractAddress, receipt.BlockHash)
-		t.Require().NoError(err)
-		t.Require().Equal(common.LeftPadBytes([]byte{0xff}, 32), deployedCode, "CLZ(1) should equal 255")
-
-		// Cross-check kona-host agrees with the live chain over the block where
-		// CLZ was executed.
-		agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
-		claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-		t.Require().True(sys.RunKonaNative(agreedBlock, claimBlock))
+		t.Require().True(sys.RunKonaNative(claimBlock-1, claimBlock))
 	})
 }
 

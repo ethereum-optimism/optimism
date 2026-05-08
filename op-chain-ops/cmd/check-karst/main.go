@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -85,7 +86,7 @@ func resolveEnv(c *cli.Context) (*checkEnv, error) {
 // CheckAction is the shared signature for every karsttest check function the
 // CLI exposes. CheckResult is discarded by the CLI; its block range is only
 // useful to the acceptance test (for kona-host cross-checks).
-type CheckAction func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error
+type CheckAction func(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error
 
 func makeCommand(name string, fn CheckAction) *cli.Command {
 	return &cli.Command{
@@ -97,7 +98,7 @@ func makeCommand(name string, fn CheckAction) *cli.Command {
 				return err
 			}
 			defer env.close()
-			if err := fn(env.ctx, env.logger, env.basePlan); err != nil {
+			if err := fn(env.ctx, env.logger, env.l2, env.basePlan); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
 			return nil
@@ -115,7 +116,7 @@ func makeAllCommand() *cli.Command {
 				return err
 			}
 			defer env.close()
-			if err := karsttest.CheckAll(env.ctx, env.logger, env.basePlan); err != nil {
+			if err := karsttest.CheckAll(env.ctx, env.logger, env.l2, env.basePlan); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
 			return nil
@@ -135,19 +136,25 @@ func main() {
 	app.ErrWriter = os.Stderr
 	app.Commands = []*cli.Command{
 		makeAllCommand(),
-		makeCommand("eip-7823", func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+		makeCommand("eip-7823", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
 			_, _, err := karsttest.CheckEIP7823(ctx, logger, basePlan)
 			return err
 		}),
-		makeCommand("eip-7883", func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+		makeCommand("eip-7883", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
 			_, _, err := karsttest.CheckEIP7883(ctx, logger, basePlan)
 			return err
 		}),
-		makeCommand("eip-7951", func(ctx context.Context, logger log.Logger, basePlan txplan.Option) error {
+		makeCommand("eip-7951", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
 			_, _, err := karsttest.CheckEIP7951(ctx, logger, basePlan)
 			return err
 		}),
-		makeCommand("eip-7825", karsttest.CheckEIP7825),
+		makeCommand("eip-7939", func(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error {
+			_, err := karsttest.CheckEIP7939(ctx, logger, l2, basePlan)
+			return err
+		}),
+		makeCommand("eip-7825", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
+			return karsttest.CheckEIP7825(ctx, logger, basePlan)
+		}),
 	}
 
 	if err := app.Run(os.Args); err != nil {
