@@ -130,13 +130,40 @@ All 203 PADDING_2 mismatches are eliminated. The fork's own test suite
 ## Remaining 1 mismatch: excessive input (API design, not RFC violation)
 
 The single residual mismatch is an `excessive input` case at fixture
-"ascending" / offset 124. The C reference library returns SUCCESS even
-when there are leftover input bytes after the brotli stream ends; both
-Go libraries' high-level Reader wrappers (cbrotli's `Reader.Read` and
-andybalholm's equivalent) explicitly check for leftover input and return
-"excessive input". The Rust crate's `BrotliDecompress` does not.
+"ascending" / offset 124. RFC 7932 defines the brotli stream as ending
+at the ISLAST=1 metablock plus byte-alignment padding (§9.3) and is
+silent on trailing input bytes. The reference C library
+(`libbrotlidec`) returns `BROTLI_DECODER_RESULT_SUCCESS` and leaves
+leftover input for the caller; both Go libraries' high-level Reader
+wrappers (`cbrotli.Reader.Read` and andybalholm's equivalent) add an
+explicit "no leftover input" check on top and return "excessive input"
+otherwise. The Rust `brotli` crate's `BrotliDecompress` does not add
+this check.
 
-This is a wrapper-level API design choice rather than an RFC violation
-of the decoder itself. We did not include this in the fix patch — it
-should be a separate discussion with upstream about whether
-`BrotliDecompress` should be strict about trailing input.
+This is a wrapper-level API design choice rather than an RFC violation,
+so it is **not** included in the fix patch. It is a separate
+conversation with upstream about whether `BrotliDecompress` should be
+strict about trailing input — and one that risks breaking existing
+callers who deliberately stream multiple things through the same
+Reader.
+
+## Effect on the OP Stack consensus divergence
+
+With the patch applied to the underlying `brotli-decompressor` crate,
+the OP-Stack-context differential sweep (kona's `decompress_brotli` +
+`BatchReader` vs op-node's `BatchReader` on the 20-batch fixture)
+converges to **0 divergences** in loose mode:
+
+| Sweep | Pre-patch | **Post-patch** |
+|---|---|---|
+| Truncate (234) — agree | 234 | **234** |
+| Corrupt (235) — agree | 224 | **235** |
+| Corrupt — kona_more_lenient | 8 | **0** |
+| Corrupt — bytes_differ_only | 3 | **0** |
+
+This holds even though kona's existing `decompress_brotli` doesn't
+explicitly require all input to be consumed: brotli's PADDING_2 check
+fires *before* the final metablock's bytes are flushed from its
+internal ringbuffer to the caller's output buffer, so `written == 0`
+at the error point and kona's existing `_ if written == 0 => Err` arm
+correctly rejects. No changes needed in kona itself.

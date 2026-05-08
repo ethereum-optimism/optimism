@@ -11,4 +11,7 @@ path = "src/main.rs"
 kona-protocol = { path = "../../../rust/kona/crates/protocol/protocol", features = ["std"] }
 kona-genesis = { path = "../../../rust/kona/crates/protocol/genesis", features = ["std"] }
 
+[patch.crates-io]
+brotli-decompressor = { path = "../../brotli-lib-diff/forks/rust-brotli-decompressor" }
+
 [workspace]
