@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -599,5 +601,28 @@ func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFun
 				cl.log.Info("Chain sync status", "currentL1", currentL1.Number, "ref", ref)
 				return fmt.Errorf("expected currentL1 to match")
 			})
+	}
+}
+
+func (cl *L2CLNode) LocalGameInputs(agreedBlock, claimBlock uint64) *utils.LocalGameInputs {
+	cl.Reached(types.LocalSafe, claimBlock, 60)
+
+	rollupAPI := cl.Escape().RollupAPI()
+
+	agreedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, agreedBlock)
+	cl.require.NoError(err, "fetch output at agreed block %d", agreedBlock)
+
+	claimedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, claimBlock)
+	cl.require.NoError(err, "fetch output at claim block %d", claimBlock)
+
+	syncStatus, err := rollupAPI.SyncStatus(cl.ctx)
+	cl.require.NoError(err, "fetch L2 sync status")
+
+	return &utils.LocalGameInputs{
+		L1Head:           syncStatus.CurrentL1.Hash,
+		L2Head:           agreedOutput.BlockRef.Hash,
+		L2OutputRoot:     common.Hash(agreedOutput.OutputRoot),
+		L2Claim:          common.Hash(claimedOutput.OutputRoot),
+		L2SequenceNumber: new(big.Int).SetUint64(claimBlock),
 	}
 }

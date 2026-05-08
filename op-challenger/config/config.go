@@ -243,18 +243,6 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) {
-		if c.SuperRPC == "" {
-			return ErrMissingSuperRpc
-		}
-
-		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
-			return ErrMissingDepsetConfig
-		}
-		if err := c.validateBaseCannonOptions(); err != nil {
-			return err
-		}
-	}
 	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc

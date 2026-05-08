@@ -401,6 +401,50 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
+func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
+	const activation = uint64(100)
+	const safe = uint64(125)
+
+	h := newInteropTestHarness(t).
+		WithActivation(activation).
+		WithLogBackfillDepth(5*time.Second).
+		WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+			m.syncStatusFull = &eth.SyncStatus{
+				SafeL2:      eth.L2BlockRef{Number: safe, Time: safe},
+				LocalSafeL2: eth.L2BlockRef{Number: safe, Time: safe},
+			}
+			m.optimisticAtErr = cc.ErrHistoryUnavailable
+		}).
+		Build()
+
+	done := make(chan error, 1)
+	go func() { done <- h.interop.Start(context.Background()) }()
+
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("interop did not halt after post-backfill SafeDB readiness failure")
+	}
+	require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+	require.Equal(t, int32(1), h.interop.BackfillAttempts())
+	require.Equal(t, safe, h.interop.BackfillEndTimestamp())
+
+	first, err := h.interop.FirstSealedBlock(eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	// The first real backfilled block is 120, and the logs DB records its
+	// virtual parent as the first sealed block.
+	require.Equal(t, uint64(119), first.Number)
+	require.Equal(t, uint64(120), first.Timestamp)
+
+	latest, ok, err := h.interop.LatestSealedBlock(eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, safe, latest.Number)
+	require.Equal(t, safe, latest.Timestamp)
+}
+
 // =============================================================================
 // TestStartStop
 // =============================================================================

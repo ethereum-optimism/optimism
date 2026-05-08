@@ -39,9 +39,10 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 
 // InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
-	Name:  "interop.log-backfill-depth",
-	Usage: "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
-	Value: 0,
+	Name:    "interop.log-backfill-depth",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
+	Value:   0,
 }
 
 func init() {
@@ -283,36 +284,6 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.started = true
 	i.mu.Unlock()
 
-	firstVerifiableLog := uint64(0)
-	if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
-		firstVerifiableLog = lastTS + 1
-	} else {
-		for {
-			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
-			if err == nil {
-				i.firstVerifiable = first
-				i.firstVerifiableSet = true
-				firstVerifiableLog = first
-				break
-			}
-			// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
-			if errors.Is(err, cc.ErrHistoryUnavailable) {
-				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-				return fmt.Errorf("interop halted due to unavailable history: %w", err)
-			}
-			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
-			select {
-			case <-i.ctx.Done():
-				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
-			case <-time.After(errorBackoffPeriod):
-			}
-		}
-	}
-	i.log.Info("interop first verifiable timestamp resolved",
-		"activationTimestamp", i.activationTimestamp,
-		"firstVerifiableTimestamp", firstVerifiableLog)
-
 	if i.logBackfillDepth > 0 {
 		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
 		for {
@@ -335,6 +306,42 @@ func (i *Interop) Start(ctx context.Context) error {
 	}
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
+
+	firstVerifiableLog := uint64(0)
+	if i.backfillEndTimestamp != 0 {
+		firstVerifiableLog = i.backfillEndTimestamp + 1
+		if firstVerifiableLog < i.activationTimestamp {
+			firstVerifiableLog = i.activationTimestamp
+		}
+	} else if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		firstVerifiableLog = lastTS + 1
+	} else {
+		for {
+			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				firstVerifiableLog = first
+				break
+			}
+			// Permanent SafeDB gap must halt normal startup cleanly. Backfill-enabled
+			// startup reaches this path only if backfill had no range to seal.
+			if errors.Is(err, cc.ErrHistoryUnavailable) {
+				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				return fmt.Errorf("interop halted due to unavailable history: %w", err)
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
+		}
+	}
+	i.log.Info("interop first verifiable timestamp resolved",
+		"activationTimestamp", i.activationTimestamp,
+		"firstVerifiableTimestamp", firstVerifiableLog)
 
 	for {
 		select {

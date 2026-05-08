@@ -52,6 +52,7 @@ auto_impl.workspace = true
 eyre = { workspace = true, optional = true }
 strum.workspace = true
 tracing.workspace = true
+crossbeam-channel.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]

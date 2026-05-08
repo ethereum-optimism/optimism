@@ -119,6 +119,21 @@ func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 	return v.crossValidatedTs.Load(), true
 }
 
+// ResetCrossValidatedTimestamp rewinds validation progress after a logs DB rewind.
+func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) {
+	for {
+		current := v.crossValidatedTs.Load()
+		if v.crossValidatedOK.Load() && current <= timestamp {
+			return
+		}
+		if v.crossValidatedTs.CompareAndSwap(current, timestamp) {
+			v.crossValidatedOK.Store(true)
+			v.log.Info("Reset cross-validated timestamp", "timestamp", timestamp)
+			return
+		}
+	}
+}
+
 // validateMessageTiming is a pure function that validates temporal constraints for cross-chain messages.
 // Parameters:
 //   - initTimestamp: when the initiating message was created

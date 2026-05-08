@@ -6,15 +6,16 @@ import (
 	"io/fs"
 	"math/big"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -85,32 +86,13 @@ func RunKonaNative(
 		L2Head:           fixtureInputs.L2Head,
 		L2Claim:          fixtureInputs.L2Claim,
 		L2SequenceNumber: big.NewInt(int64(fixtureInputs.L2BlockNumber)),
+		L2OutputRoot:     fixtureInputs.L2OutputRoot,
 	}
 
-	var hostCmd []string
-	var err error
-	if fixtureInputs.InteropEnabled {
-		inputs.AgreedPreState = fixtureInputs.AgreedPrestate
-		hostCmd, err = vm.NewNativeKonaSuperExecutor().OracleCommand(vmCfg, workDir, inputs)
-	} else {
-		inputs.L2OutputRoot = fixtureInputs.L2OutputRoot
-		hostCmd, err = vm.NewNativeKonaExecutor().OracleCommand(vmCfg, workDir, inputs)
-	}
-	require.NoError(t, err)
+	logger := log.NewLogger(os.Stdout, log.DefaultCLIConfig())
 
-	cmd := exec.Command(hostCmd[0], hostCmd[1:]...)
-	cmd.Dir = workDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
-
-	status := cmd.Run()
-	switch status := status.(type) {
-	case *exec.ExitError:
-		if status.ExitCode() == 1 {
-			return claim.ErrClaimNotValid
-		}
-		return fmt.Errorf("kona exited with status %d", status.ExitCode())
-	default:
-		return status
+	if !rustbin.RunKonaNative(t, logger, &vmCfg, workDir, &inputs) {
+		return claim.ErrClaimNotValid
 	}
+	return nil
 }

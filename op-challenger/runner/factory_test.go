@@ -22,7 +22,6 @@ func TestServerExecutorForGameType(t *testing.T) {
 		want     vm.OracleServerExecutor
 	}{
 		{gameTypes.CannonGameType, &vm.OpProgramServerExecutor{}},
-		{gameTypes.SuperCannonGameType, &vm.OpProgramServerExecutor{}},
 		{gameTypes.CannonKonaGameType, &vm.KonaExecutor{}},
 		{gameTypes.SuperCannonKonaGameType, &vm.KonaSuperExecutor{}},
 	}
