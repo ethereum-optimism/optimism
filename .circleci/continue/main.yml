@@ -3094,8 +3094,6 @@ workflows:
                 - ZK_DISPUTE_GAME
                 - SUPER_ROOT_GAMES_MIGRATION
                 - OPTIMISM_PORTAL_INTEROP,SUPER_ROOT_GAMES_MIGRATION
-                - ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
-                - OPTIMISM_PORTAL_INTEROP,ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
                  # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
                 #   L2CM and CANNON_KONA are now enabled by default, so we do not need to
                 #   explicitly enable them and run these additional jobs. However they are kept here for now so that they
