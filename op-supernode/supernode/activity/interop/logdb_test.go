@@ -483,6 +483,63 @@ func TestProcessBlockLogs(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "seal failed")
 	})
+
+	t.Run("AlreadySealedBlockSyncsBeforeReturning", func(t *testing.T) {
+		h := newInteropTestHarness(t).WithChain(10, nil).Build()
+		chainID := eth.ChainIDFromUInt64(10)
+		blockID := eth.BlockID{Hash: common.Hash{0x02}, Number: 100}
+		db := &mockLogsDB{
+			latestBlock: blockID,
+			hasBlocks:   true,
+			seal: suptypes.BlockSeal{
+				Hash:      blockID.Hash,
+				Number:    blockID.Number,
+				Timestamp: 1000,
+			},
+		}
+		h.interop.logsDBs[chainID] = db
+
+		blockInfo := &testBlockInfo{
+			hash:       blockID.Hash,
+			parentHash: common.Hash{0x01},
+			number:     blockID.Number,
+			timestamp:  1000,
+		}
+		require.NoError(t, h.interop.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, nil, 1000, false))
+		require.Equal(t, 1, db.syncCalls)
+		require.Zero(t, db.addLogCalls)
+		require.Empty(t, db.sealBlockCalls)
+	})
+
+	t.Run("AlreadySealedBlockSyncErrorPropagates", func(t *testing.T) {
+		h := newInteropTestHarness(t).WithChain(10, nil).Build()
+		chainID := eth.ChainIDFromUInt64(10)
+		blockID := eth.BlockID{Hash: common.Hash{0x02}, Number: 100}
+		expectedErr := errors.New("sync failed")
+		db := &mockLogsDB{
+			latestBlock: blockID,
+			hasBlocks:   true,
+			syncErr:     expectedErr,
+			seal: suptypes.BlockSeal{
+				Hash:      blockID.Hash,
+				Number:    blockID.Number,
+				Timestamp: 1000,
+			},
+		}
+		h.interop.logsDBs[chainID] = db
+
+		blockInfo := &testBlockInfo{
+			hash:       blockID.Hash,
+			parentHash: common.Hash{0x01},
+			number:     blockID.Number,
+			timestamp:  1000,
+		}
+		err := h.interop.sealBlockDataIntoLogsDB(chainID, blockID, blockInfo, nil, 1000, false)
+		require.ErrorIs(t, err, expectedErr)
+		require.Equal(t, 1, db.syncCalls)
+		require.Zero(t, db.addLogCalls)
+		require.Empty(t, db.sealBlockCalls)
+	})
 }
 
 // =============================================================================
@@ -496,6 +553,8 @@ type mockLogsDB struct {
 	findSealErr    error
 	addLogErr      error
 	sealBlockErr   error
+	syncErr        error
+	syncCalls      int
 	addLogCalls    int
 	sealBlockCalls []*sealBlockCall // Track all SealBlock calls
 
@@ -561,6 +620,11 @@ func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timest
 		timestamp:  timestamp,
 	})
 	return m.sealBlockErr
+}
+
+func (m *mockLogsDB) Sync() error {
+	m.syncCalls++
+	return m.syncErr
 }
 
 func (m *mockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }

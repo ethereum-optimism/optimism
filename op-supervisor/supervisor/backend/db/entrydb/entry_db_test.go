@@ -212,6 +212,54 @@ func TestWriteErrors(t *testing.T) {
 	})
 }
 
+func TestSyncErrors(t *testing.T) {
+	expectedErr := errors.New("sync failed")
+
+	t.Run("TruncateSyncFailureUpdatesLocalIndexAndBlocksAppend", func(t *testing.T) {
+		db, stubData := createEntryDBWithStubData()
+		require.NoError(t, db.Append(createEntry(1), createEntry(2)))
+
+		stubData.syncErr = expectedErr
+		err := db.Truncate(0)
+		require.ErrorIs(t, err, expectedErr)
+		require.ErrorIs(t, err, ErrNotDurable)
+		require.EqualValues(t, 1, db.Size(), "local index should match successful truncate")
+		require.Len(t, stubData.data, TestEntrySize, "local data should be truncated")
+		_, err = db.Read(1)
+		require.ErrorIs(t, err, io.EOF)
+
+		err = db.Append(createEntry(3))
+		require.ErrorIs(t, err, expectedErr, "append should not proceed while prior truncate is not durable")
+		require.EqualValues(t, 1, db.Size())
+		require.Len(t, stubData.data, TestEntrySize)
+
+		stubData.syncErr = nil
+		require.NoError(t, db.Append(createEntry(3)))
+		require.EqualValues(t, 2, db.Size())
+		requireRead(t, db, 1, createEntry(3))
+	})
+
+	t.Run("SyncFailureBlocksAppendUntilRetried", func(t *testing.T) {
+		db, stubData := createEntryDBWithStubData()
+		require.NoError(t, db.Append(createEntry(1)))
+
+		stubData.syncErr = expectedErr
+		err := db.Sync()
+		require.ErrorIs(t, err, expectedErr)
+		require.ErrorIs(t, err, ErrNotDurable)
+
+		err = db.Append(createEntry(2))
+		require.ErrorIs(t, err, expectedErr, "append should first retry the failed sync")
+		require.EqualValues(t, 1, db.Size())
+		require.Len(t, stubData.data, TestEntrySize)
+
+		stubData.syncErr = nil
+		require.NoError(t, db.Append(createEntry(2)))
+		require.EqualValues(t, 2, db.Size())
+		requireRead(t, db, 1, createEntry(2))
+	})
+}
+
 func requireRead(t *testing.T, db *TestEntryDB, idx EntryIdx, expected TestEntry) {
 	actual, err := db.Read(idx)
 	require.NoError(t, err)
@@ -243,6 +291,7 @@ type stubDataAccess struct {
 	writeErr           error
 	writeErrAfterBytes int
 	truncateErr        error
+	syncErr            error
 }
 
 func (s *stubDataAccess) ReadAt(p []byte, off int64) (n int, err error) {
@@ -271,6 +320,9 @@ func (s *stubDataAccess) Truncate(size int64) error {
 }
 
 func (s *stubDataAccess) Sync() error {
+	if s.syncErr != nil {
+		return s.syncErr
+	}
 	return nil
 }
 

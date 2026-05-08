@@ -913,6 +913,7 @@ func (m *algoMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, lo
 func (m *algoMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
+func (m *algoMockLogsDB) Sync() error                                             { return nil }
 func (m *algoMockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
 func (m *algoMockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
 func (m *algoMockLogsDB) Close() error                                            { return nil }

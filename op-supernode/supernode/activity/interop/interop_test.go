@@ -2569,6 +2569,7 @@ func (m *mockLogsDBWithState) AddLog(logHash common.Hash, parentBlock eth.BlockI
 func (m *mockLogsDBWithState) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
+func (m *mockLogsDBWithState) Sync() error { return nil }
 func (m *mockLogsDBWithState) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	m.rewindCalled = true
 	return nil
@@ -2673,6 +2674,7 @@ func (m *mockLogsDBForInterop) SealBlock(parentHash common.Hash, block eth.Block
 	m.sealCalls++
 	return nil
 }
+func (m *mockLogsDBForInterop) Sync() error { return nil }
 func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	m.rewindCalls = append(m.rewindCalls, newHead)
 	return nil

@@ -9,6 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// ErrNotDurable indicates that a local file mutation succeeded, but syncing it
+// to durable storage failed. The mutation is visible to the current process, but
+// future appends should not proceed until Sync succeeds.
+var ErrNotDurable = errors.New("entry db mutation is not durable")
+
 type EntryStore[T EntryType, E Entry[T]] interface {
 	Size() int64
 	LastEntryIdx() EntryIdx
@@ -57,6 +62,7 @@ type EntryDB[T EntryType, E Entry[T], B Binary[T, E]] struct {
 	b B
 
 	cleanupFailedWrite bool
+	pendingSync        bool
 }
 
 // NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
@@ -124,19 +130,29 @@ func (e *EntryDB[T, E, B]) Append(entries ...E) error {
 			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
 		}
 	}
+	if err := e.ensureSynced(); err != nil {
+		return fmt.Errorf("failed to sync previous mutation before append: %w", err)
+	}
 	data := make([]byte, 0, len(entries)*e.b.EntrySize())
 	for i := range entries {
 		data = e.b.Append(data, &entries[i])
 	}
-	if n, err := e.data.Write(data); err != nil {
+	if n, err := e.data.Write(data); err != nil || n != len(data) {
+		if err == nil {
+			err = io.ErrShortWrite
+		}
 		if n == 0 {
 			// Didn't write any data, so no recovery required
 			return err
 		}
 		// Try to rollback the partially written data
 		if truncateErr := e.Truncate(e.lastEntryIdx); truncateErr != nil {
-			// Failed to rollback, set a flag to attempt the clean up on the next write
-			e.cleanupFailedWrite = true
+			// Failed to roll back the local file mutation, so retry clean up on the next write.
+			// If only the rollback sync failed, the local file length is already restored and
+			// pendingSync will block future appends until the rollback is durable.
+			if !errors.Is(truncateErr, ErrNotDurable) {
+				e.cleanupFailedWrite = true
+			}
 			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", truncateErr))
 		}
 		// Successfully rolled back the changes, still report the failed write
@@ -147,18 +163,19 @@ func (e *EntryDB[T, E, B]) Append(entries ...E) error {
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
-// The truncate is always synced to durable storage before returning, so a successful Truncate
-// survives a crash.
+// The local file size and cached last entry index are updated as soon as the truncate syscall succeeds.
+// If the following sync fails, ErrNotDurable is returned and future appends are blocked until Sync succeeds.
 func (e *EntryDB[T, E, B]) Truncate(idx EntryIdx) error {
 	if err := e.data.Truncate((int64(idx) + 1) * int64(e.b.EntrySize())); err != nil {
 		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
 	}
-	if err := e.data.Sync(); err != nil {
-		return fmt.Errorf("failed to sync truncate to entry %v: %w", idx, err)
-	}
-	// Update the lastEntryIdx cache
+	// Update the cache as soon as the local truncate succeeds. Even if Sync below
+	// fails, later reads and writes in this process observe the truncated file.
 	e.lastEntryIdx = idx
 	e.cleanupFailedWrite = false
+	if err := e.Sync(); err != nil {
+		return fmt.Errorf("failed to sync truncate to entry %v: %w", idx, err)
+	}
 	return nil
 }
 
@@ -167,16 +184,25 @@ func (e *EntryDB[T, E, B]) recover() error {
 	if err := e.data.Truncate(e.Size() * int64(e.b.EntrySize())); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
 	}
-	return nil
+	return e.Sync()
 }
 
 // Sync flushes any buffered data and metadata to durable storage so that
 // preceding successful Append and Truncate calls survive a crash.
 func (e *EntryDB[T, E, B]) Sync() error {
 	if err := e.data.Sync(); err != nil {
-		return fmt.Errorf("failed to sync entry db: %w", err)
+		e.pendingSync = true
+		return errors.Join(ErrNotDurable, fmt.Errorf("failed to sync entry db: %w", err))
 	}
+	e.pendingSync = false
 	return nil
+}
+
+func (e *EntryDB[T, E, B]) ensureSynced() error {
+	if !e.pendingSync {
+		return nil
+	}
+	return e.Sync()
 }
 
 func (e *EntryDB[T, E, B]) Close() error {

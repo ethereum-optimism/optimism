@@ -615,6 +615,9 @@ func (db *DB) clear(inv reads.Invalidator) error {
 	defer release()
 	defer db.updateEntryCountMetric()
 	if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+		if errors.Is(truncateErr, entrydb.ErrNotDurable) {
+			db.lastEntryContext = logContext{}
+		}
 		return fmt.Errorf("failed to empty DB: %w", truncateErr)
 	}
 	db.lastEntryContext = logContext{}
@@ -654,10 +657,13 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 		return err
 	}
 	defer release()
-	// iter has already hydrated the post-rewind logContext by walking up to newHead's seal,
-	// so the only remaining mutation is the truncate itself. If truncate fails the in-memory
-	// state stays consistent with disk; if it succeeds we commit the precomputed context.
+	// iter has already hydrated the post-rewind logContext by walking up to newHead's seal.
+	// If the local truncate succeeds but the sync fails, commit the precomputed context so
+	// in-memory state still matches the locally visible file length.
 	if err := db.store.Truncate(iter.NextIndex() - 1); err != nil {
+		if errors.Is(err, entrydb.ErrNotDurable) {
+			db.lastEntryContext = iter.current
+		}
 		return fmt.Errorf("failed to truncate to block %s: %w", newHead, err)
 	}
 	db.lastEntryContext = iter.current
@@ -674,4 +680,13 @@ func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint,
 
 func (db *DB) Close() error {
 	return db.store.Close()
+}
+
+func (db *DB) Sync() error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	if err := db.store.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logs DB: %w", err)
+	}
+	return nil
 }

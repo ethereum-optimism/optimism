@@ -35,6 +35,8 @@ type LogsDB interface {
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 	// SealBlock seals a block in the database.
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
+	// Sync flushes pending writes to durable storage.
+	Sync() error
 	// Rewind removes all blocks after newHead from the database.
 	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
 	// Clear removes all data from the database.
@@ -140,14 +142,14 @@ func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.Block
 		if latestBlock.Number > blockID.Number {
 			seal, err := db.FindSealedBlock(blockID.Number)
 			if err == nil && seal.Hash == blockID.Hash {
-				return nil
+				return db.Sync()
 			}
 			return fmt.Errorf("chain %s: logsDB has stale data at height %d: %w",
 				chainID, blockID.Number, ErrStaleLogsDB)
 		}
 		if latestBlock.Number == blockID.Number {
 			if latestBlock.Hash == blockID.Hash {
-				return nil
+				return db.Sync()
 			}
 			return fmt.Errorf("chain %s: logsDB has block %s at height %d, expected %s: %w",
 				chainID, latestBlock.Hash, latestBlock.Number, blockID.Hash, ErrStaleLogsDB)
