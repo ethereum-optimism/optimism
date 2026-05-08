@@ -1,0 +1,1838 @@
+[
+  {
+    "fixture": "ascii-text",
+    "offset": 13,
+    "xor": 1,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b552ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 23,
+    "xor": 1,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c141761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 33,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e863f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 49,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b5848b7f01f483342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 51,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48e2f01f483342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 54,
+    "xor": 255,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01fb73342a59c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 57,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342f09c312697a9c6be67855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 65,
+    "xor": 255,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be98855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 65,
+    "xor": 1,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be66855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 65,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be32855202",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 68,
+    "xor": 255,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be678552fd",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascii-text",
+    "offset": 68,
+    "xor": 85,
+    "corrupted_hex": "1b4a0000c4f4a469bd79252d22b452ea830d387068b271c041761e36c6ce1384e836f22a0ce789687a04492faaf731a19b0d48b7f01f483342a59c312697a9c6be67855257",
+    "rust_output_len": 75,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 61,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0041216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 61,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e5441216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 62,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0140216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 62,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0114216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 63,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141206111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 63,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141746111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 64,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216011513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 64,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141213411513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 65,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216110513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 65,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216144513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 66,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111503171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 66,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111043171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 67,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513071094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 67,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111516471094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 68,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513170094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 68,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513124094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 69,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171084929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 69,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131715c4929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 70,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094829691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 70,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171091c29691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 71,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094928691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 71,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109497c691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 72,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929681959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 72,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131710949293c1959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 73,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691859397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 73,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929694c59397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 74,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691958397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 74,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969190c397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 75,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959387905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 75,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131710949296919596c7905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 76,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397805452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 76,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959392c05452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 77,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131710949296919593979fa452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 77,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397904452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 77,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397950452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 78,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905ba2565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 78,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905442565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 78,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905102565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 79,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969195939790545da65155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 79,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452465155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 79,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905457065155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 80,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969195939790545259a155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 80,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452564155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 80,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452530155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 81,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565ea5535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 81,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565145535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 81,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565405535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 82,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969195939790545256515aa35750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 82,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155435750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 82,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565150035750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 83,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131710949296919593979054525651555ca750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 83,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155534750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 83,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155560750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 84,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e01412161115131710949296919593979054525651555358a0d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 84,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535740d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 84,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535200d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 85,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969195939790545256515553575f24d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 85,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750c4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 85,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e014121611151317109492969195939790545256515553575584d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 86,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750db22d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 86,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4c2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 86,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d182d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 87,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4dd26d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 87,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2c6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 87,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d786d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 88,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d921d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 88,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6c1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 88,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d381d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 89,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6de25d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 89,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1c5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 89,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d485d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 90,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1da23d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 90,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5c3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 90,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d083d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 91,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5dc27d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 91,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3c7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 91,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d687d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 92,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d8203432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 92,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7c03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 92,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d2803432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 93,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7dfc432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 93,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d02432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 94,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03bc2363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 94,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03422363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 95,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d0343dc63135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 95,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432263135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 96,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d0343239c135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 96,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432362135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 97,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363ec5333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 97,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363125333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 98,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d0343236313ac33730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 98,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135233730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 99,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d034323631353cc730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 99,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135332730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 100,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d034323631353338c0b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 100,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333720b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 101,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d0343236313533373f44b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 101,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730a4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 102,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730bb42b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 102,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4a2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 103,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4bd46b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 103,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2a6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 104,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b941b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 104,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6a1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 105,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6be45b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 105,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1a5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 106,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1ba43b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 106,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5a3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 107,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5bc47b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 107,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3a7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 108,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b8407472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 108,
+    "xor": 1,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7a07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 109,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7bf8472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 109,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b52472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 110,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07b82767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 110,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07122767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 111,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b0747d867175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 111,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07477267175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 112,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472798175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 112,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472732175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 113,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767e85737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 113,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767425737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 114,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b0747276717a837770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 114,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767170237770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 115,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b074727671757c8770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 115,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175762770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 116,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737880f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 116,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737220f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 117,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b0747276717573777f04f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 117,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737775a4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 118,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770fb02f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 118,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f1a2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 119,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4fd06f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 119,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f7a6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 120,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f901f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 120,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f3a1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 121,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6fe05f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 121,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f4a5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 122,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1fa03fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 122,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f0a3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 123,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5fc0ff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 123,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f6aff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 124,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3f0080c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: excessive input",
+    "cbrotli_err": "cbrotli: excessive input"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 124,
+    "xor": 85,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3faa80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 125,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff7fc0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 126,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff803fa0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 127,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c05fe090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 128,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a01f90d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 129,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e06fd0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 130,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e0902fb0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 131,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d04ff088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 132,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b00f88c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 133,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f077c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 134,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f08837a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 135,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c857e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 136,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a81798d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 137,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e867d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 138,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e89827b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 139,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d847f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 140,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b80784c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 141,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f87bc4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 142,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f8843ba4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 143,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c45be494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 144,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a41b94d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 145,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e46bd4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 146,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e4942bb4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 147,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d44bf48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 148,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b40b8cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 149,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f473ccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 150,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48c33acec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 151,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48ccc53ec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 152,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccac139cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 153,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec63dcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 154,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9c23bcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 155,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdc43fc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 156,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbc0382c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 157,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc7dc2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 158,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc823da2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 159,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c25de292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 160,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a21d92d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 161,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e26dd2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 162,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e2922db2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 163,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d24df28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 164,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b20d8acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 165,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f275caaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 166,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28a35aaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 167,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28aca55ea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 168,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaa159adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 169,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea65dabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 170,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9a25bafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 171,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9ada45fa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf7f",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  },
+  {
+    "fixture": "ascending",
+    "offset": 252,
+    "xor": 255,
+    "corrupted_hex": "1bff000064406e969f979a4ca421be28571f1800100486406170fc1a10c21e041285c6607178029144a650697406462666165636760e4e2e6e1e5e3e7e0141216111513171094929691959397905452565155535750d4d2d6d1d5d3d7d03432363135333730b4b2b6b1b5b3b7b07472767175737770f4f2f6f1f5f3fff80c0a0e090d0b0f088c8a8e898d8b8f884c4a4e494d4b4f48cccacec9cdcbcfc82c2a2e292d2b2f28acaaaea9adabafa86c6a6e696d6b6f68eceaeee9edebefe81c1a1e191d1b1f189c9a9e999d9b9f985c5a5e595d5b5f58dcdaded9dddbdfd83c3a3e393d3b3f38bcbabeb9bdbbbfb87c7a7e797d7b7f78fcfafef9fdfbf80",
+    "rust_output_len": 256,
+    "andy_err": "brotli: PADDING_2",
+    "cbrotli_err": "cbrotli: _ERROR_FORMAT_PADDING_2"
+  }
+]

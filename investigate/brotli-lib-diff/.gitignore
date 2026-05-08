@@ -1,0 +1,3 @@
+rust_decompress/target/
+__pycache__/
+*.pyc

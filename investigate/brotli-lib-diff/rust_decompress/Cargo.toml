@@ -1,0 +1,14 @@
+[package]
+name = "rust-brotli-decompress"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "rust-brotli-decompress"
+path = "src/main.rs"
+
+[dependencies]
+brotli = "8"
+hex = "0.4"
+
+[workspace]
