@@ -15,32 +15,34 @@ version: '3.4'
 #      ETH2_HTTP=<L1 beacon URL>
 #      OP_NODE_VERSION=<op-node image tag>
 #
-# The upstream ghcr.io/paradigmxyz/op-reth:latest image includes boba
-# as a built-in chain, so no custom build is required.
+# Boba is no longer built into upstream op-reth (since v1.11.0 when ownership
+# moved to OP Labs), so the chain spec is supplied at runtime via a mounted
+# JSON file. See chainspecs/README.md for details.
 
 services:
   # One-time initialization: import state dump into op-reth.
   # Place your reth-state.jsonl and header.rlp in the reth-data directory first.
   # Run: docker compose -f docker-compose-boba-mainnet-reth.yml run --rm init
   init:
-    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    image: ${RETH_IMAGE:-us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth}:${RETH_VERSION:-v2.2.1}
     command: >
       init-state
-      --chain=boba
+      --chain=/config/boba.json
       --datadir=/db
       --without-ovm
       --header=/db/header.rlp
       /db/reth-state.jsonl
     volumes:
+      - ./chainspecs/boba.json:/config/boba.json:ro
       - ${DATA_DIR:-./reth-data}:/db
     profiles:
       - init
 
   l2:
-    image: ${RETH_IMAGE:-ghcr.io/paradigmxyz/op-reth}:${RETH_VERSION:-latest}
+    image: ${RETH_IMAGE:-us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth}:${RETH_VERSION:-v2.2.1}
     command: >
       node
-      --chain=boba
+      --chain=/config/boba.json
       --datadir=/db
       --http
       --http.addr=0.0.0.0
@@ -57,12 +59,13 @@ services:
       - "8551:8551"
     volumes:
       - ./jwt-secret.txt:/config/jwt-secret.txt
+      - ./chainspecs/boba.json:/config/boba.json:ro
       - ${DATA_DIR:-./reth-data}:/db
 
   op-node:
     depends_on:
       - l2
-    image: ${OP_NODE_IMAGE:-us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node}:${OP_NODE_VERSION:-v1.16.2}
+    image: ${OP_NODE_IMAGE:-us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node}:${OP_NODE_VERSION:-v1.16.5}
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://mainnet.gateway.tenderly.co}

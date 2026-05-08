@@ -107,13 +107,15 @@ If `debug_getRawHeader` is not available, you can use `debug_getRawBlock` and st
 
 ## Step 4: Initialize op-reth
 
+The chain spec is supplied via the JSON files in [`../../chainspecs/`](../../chainspecs/) (Boba is no longer built into upstream op-reth — see that directory's README for context).
+
 ```bash
 # Generate a JWT secret for Engine API authentication
 openssl rand -hex 32 > jwt.hex
 
 # For Boba Sepolia:
 op-reth init-state \
-  --chain=boba-sepolia \
+  --chain=../../chainspecs/boba-sepolia.json \
   --datadir=./reth-data \
   --without-ovm \
   --header=header-511.rlp \
@@ -121,7 +123,7 @@ op-reth init-state \
 
 # For Boba Mainnet:
 op-reth init-state \
-  --chain=boba \
+  --chain=../../chainspecs/boba.json \
   --datadir=./reth-data \
   --without-ovm \
   --header=header-1149019.rlp \
@@ -139,7 +141,7 @@ The `--without-ovm` flag tells op-reth to:
 
 ```bash
 op-reth node \
-  --chain=boba-sepolia \
+  --chain=../../chainspecs/boba-sepolia.json \
   --datadir=./reth-data \
   --http --http.port=8545 \
   --authrpc.port=8551 \

@@ -10,10 +10,10 @@ These are the minimal required versions for node software by network. **op-reth 
 
 | Network          | op-node                                                      | op-reth | op-geth (deprecated)                                         |
 | ---------------- | ------------------------------------------------------------ | ------- | ------------------------------------------------------------ |
-| Boba Mainnet | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [latest](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Boba Sepolia | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [latest](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) | [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1) |
+| Boba Mainnet | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [v2.2.1](https://github.com/ethereum-optimism/op-reth/releases) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
+| Boba Sepolia | [v1.16.5](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.16.5) | [v2.2.1](https://github.com/ethereum-optimism/op-reth/releases) | [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1) |
 
-> **Note:** op-reth uses the upstream [ghcr.io/paradigmxyz/op-reth](https://github.com/paradigmxyz/reth/pkgs/container/op-reth) image which includes `boba-sepolia` and `boba` as built-in chains. No custom build is required.
+> **Note:** op-reth is published by OP Labs at `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth`. The image does not include Boba as a built-in chain (Boba was built into the older `ghcr.io/paradigmxyz/op-reth` image up to v1.10.2; ownership of op-reth moved to OP Labs in v1.11.0 and the superchain-registry integration was dropped). The Boba chain spec is supplied at runtime via a mounted JSON file — see [`boba-community/chainspecs/`](https://github.com/bobanetwork/boba/tree/develop/boba-community/chainspecs) in the repo for the chain spec files and their regeneration procedure.
 
 ## [op-node v1.14.1](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.14.1)
 

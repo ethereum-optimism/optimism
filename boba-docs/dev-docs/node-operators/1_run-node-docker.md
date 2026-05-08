@@ -11,7 +11,7 @@ Boba supports multiple execution clients. Pick the one that suits your needs:
 | `docker-compose-boba-{network}-reth.yml` | **op-reth** | **op-node** | Recommended |
 | `docker-compose-boba-{network}-geth.yml` | op-geth | op-node | Deprecated (removal 2026-05-31) |
 
-> **op-reth** is the recommended execution client for new deployments. It uses the upstream [op-reth](https://github.com/paradigmxyz/reth) image with Boba chains built-in — no custom build is required.
+> **op-reth** is the recommended execution client for new deployments. It uses the upstream [OP Labs op-reth](https://github.com/ethereum-optimism/op-reth) image. The Boba chain spec is supplied at runtime via a JSON file mounted from `boba-community/chainspecs/` — no custom op-reth build is required. See [`boba-community/chainspecs/README.md`](https://github.com/bobanetwork/boba/blob/develop/boba-community/chainspecs/README.md) for background on why this is required and how to regenerate the chain spec files.
 
 ## Prerequisites
 
