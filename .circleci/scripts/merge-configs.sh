@@ -25,8 +25,10 @@ echo "yq version: $($YQ --version)"
 
 # ---------------------------------------------------------------------------
 # Deep-merge all continuation configs
+# explode(.) resolves YAML anchors/aliases before merging so that the output
+# never contains undefined alias references (e.g. *rust-cache-version).
 # ---------------------------------------------------------------------------
-$YQ eval-all '. as $item ireduce ({}; . * $item)' \
+$YQ eval-all 'explode(.) | . as $item ireduce ({}; . * $item)' \
   .circleci/continue/main.yml \
   .circleci/continue/docs-ci.yml \
   .circleci/continue/rust-ci.yml \
