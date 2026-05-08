@@ -8,7 +8,7 @@ Pull requests:
 
 User docs:
 
-- [How to run a node](https://docs.optimism.io/builders/node-operators/rollup-node)
+- [How to run a node](https://docs.optimism.io/node-operators/tutorials/run-node-from-source)
 
 Specs:
 

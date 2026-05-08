@@ -112,8 +112,6 @@ jobs:
       target: ${{ matrix.target }}
       gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
-      runner_amd64: oplabs-ubuntu-x86
-      runner_arm64: oplabs-ubuntu-arm
       env: |
         GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
       set: |
