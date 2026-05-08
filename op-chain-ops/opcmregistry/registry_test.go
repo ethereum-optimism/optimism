@@ -417,7 +417,7 @@ func TestFilterByLastUsedOPCMVersion(t *testing.T) {
 
 func TestGetResolvedOPCMs(t *testing.T) {
 	// This test uses a mock version querier to avoid network calls
-	t.Run("filters out versions below 6.x.x", func(t *testing.T) {
+	t.Run("filters out versions below 7.x.x", func(t *testing.T) {
 		// Create a mock registry with in-memory data
 		mockVersions := Versions{
 			"old-release": {
@@ -426,9 +426,9 @@ func TestGetResolvedOPCMs(t *testing.T) {
 					Address: addrPtr("0x1111111111111111111111111111111111111111"),
 				},
 			},
-			"v6-release": {
+			"v7-release": {
 				OPContractsManager: &ContractData{
-					Version: "1.6.0",
+					Version: "1.7.0",
 					Address: addrPtr("0x2222222222222222222222222222222222222222"),
 				},
 			},
@@ -438,9 +438,9 @@ func TestGetResolvedOPCMs(t *testing.T) {
 		mockQuerier := func(addr common.Address) (string, error) {
 			switch addr.Hex() {
 			case "0x1111111111111111111111111111111111111111":
-				return "5.0.0", nil // Should be filtered out (< 6.x.x)
+				return "6.0.0", nil // Should be filtered out (< 7.x.x)
 			case "0x2222222222222222222222222222222222222222":
-				return "6.0.0", nil // Should be included
+				return "7.0.0", nil // Should be included
 			default:
 				return "", nil
 			}
@@ -468,7 +468,7 @@ func TestGetResolvedOPCMs(t *testing.T) {
 				continue
 			}
 			sv, err := ParseSemver(opcmVersion)
-			if err != nil || sv.IsPrerelease() || sv.Major < 6 {
+			if err != nil || sv.IsPrerelease() || sv.Major < 7 {
 				continue
 			}
 			resolved = append(resolved, ResolvedOPCM{

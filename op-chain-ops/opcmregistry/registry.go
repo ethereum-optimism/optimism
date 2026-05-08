@@ -427,7 +427,7 @@ type ResolvedOPCM struct {
 }
 
 // GetResolvedOPCMs fetches OPCM addresses from the registry, queries their OPCM versions
-// on-chain using the provided querier, filters to only include stable versions >= 6.x.x,
+// on-chain using the provided querier, filters to only include stable versions >= 7.x.x,
 // and returns them sorted by OPCM version ascending.
 // Prerelease versions (e.g., rc, beta) are excluded.
 func GetResolvedOPCMs(chainID uint64, queryOPCMVersion OPCMVersionQuerier) ([]ResolvedOPCM, error) {
@@ -455,8 +455,9 @@ func GetResolvedOPCMs(chainID uint64, queryOPCMVersion OPCMVersionQuerier) ([]Re
 			continue
 		}
 
-		// Only include versions >= 6.x.x (V1 OPCMs start at 6.x.x)
-		if sv.Major < 6 {
+		// Only include versions >= 7.x.x. V1 OPCMs (6.x.x) are no longer supported by
+		// UpgradeOPChain.s.sol — passing them through the upgrade script reverts.
+		if sv.Major < 7 {
 			continue
 		}
 

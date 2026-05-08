@@ -325,7 +325,7 @@ func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank comm
 		return getOPCMVersion(caller, addr)
 	}
 
-	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 6.x.x)
+	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 7.x.x)
 	resolved, err := opcmregistry.GetResolvedOPCMs(chainID, queryVersion)
 	if err != nil {
 		t.Logf("Failed to get resolved OPCMs: %v", err)
@@ -333,7 +333,7 @@ func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank comm
 	}
 
 	if len(resolved) == 0 {
-		t.Logf("No OPCMs >= 6.x.x found for chain %d", chainID)
+		t.Logf("No OPCMs >= 7.x.x found for chain %d", chainID)
 		return
 	}
 
@@ -343,7 +343,7 @@ func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank comm
 		t.Fatalf("Failed to query lastUsedOPCMVersion: %v", err)
 	}
 	if !hasLastVersion {
-		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 6.x.x")
+		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 7.x.x")
 		lastVersion = ""
 	} else {
 		t.Logf("SystemConfig.lastUsedOPCMVersion() = %s", lastVersion)
@@ -393,7 +393,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 		return getOPCMVersion(caller, addr)
 	}
 
-	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 6.x.x)
+	// Get resolved OPCMs (fetches from registry, queries versions on-chain, filters >= 7.x.x)
 	resolved, err := opcmregistry.GetResolvedOPCMs(chainID, queryVersion)
 	if err != nil {
 		t.Logf("Failed to get resolved OPCMs: %v", err)
@@ -401,7 +401,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 	}
 
 	if len(resolved) == 0 {
-		t.Logf("No OPCMs >= 6.x.x found for chain %d", chainID)
+		t.Logf("No OPCMs >= 7.x.x found for chain %d", chainID)
 		return
 	}
 
@@ -411,7 +411,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 		t.Fatalf("Failed to query lastUsedOPCMVersion: %v", err)
 	}
 	if !hasLastVersion {
-		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 6.x.x")
+		t.Logf("SystemConfig.lastUsedOPCMVersion() reverted - chain is pre-6.x.x, will apply all upgrades from 7.x.x")
 		lastVersion = ""
 	} else {
 		t.Logf("SystemConfig.lastUsedOPCMVersion() = %s", lastVersion)
