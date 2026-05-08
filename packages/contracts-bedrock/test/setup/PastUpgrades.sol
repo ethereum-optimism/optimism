@@ -292,6 +292,12 @@ library PastUpgrades {
         // First pass: count valid OPCMs
         uint256 count = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
+            // Skip addresses with no deployed code (e.g. an OPCM registered in the superchain-registry
+            // that hasn't been deployed at the current fork block height yet).
+            if (_opcms[i].addr.code.length == 0) {
+                console.log("PastUpgrades: skipping OPCM %s (no code at fork block)", _opcms[i].addr);
+                continue;
+            }
             string memory opcmVersion = ISemver(_opcms[i].addr).version();
             SemverComp.Semver memory sv = SemverComp.parse(opcmVersion);
             if (sv.major >= 7) {
@@ -303,6 +309,7 @@ library PastUpgrades {
         resolved_ = new ResolvedOPCM[](count);
         uint256 idx = 0;
         for (uint256 i = 0; i < _opcms.length; i++) {
+            if (_opcms[i].addr.code.length == 0) continue;
             string memory opcmVersion = ISemver(_opcms[i].addr).version();
             SemverComp.Semver memory sv = SemverComp.parse(opcmVersion);
             if (sv.major >= 7) {
