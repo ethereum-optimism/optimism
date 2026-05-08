@@ -320,33 +320,8 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 
 	spamTxs(sys)
 
-	// Find a block whose total transaction data exceeds 10 MiB.
-	l2Client := sys.L2EL.EthClient()
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	for {
-		select {
-		case <-time.After(l2BlockTime):
-			info, blockTxs, err := l2Client.InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
-			t.Require().NoError(err)
-
-			var totalTxSize int
-			for _, tx := range blockTxs {
-				bin, err := tx.MarshalBinary()
-				t.Require().NoError(err)
-				totalTxSize += len(bin)
-			}
-
-			t.Logger().Info("Checking L2 block...", "number", info.NumberU64(), "size", totalTxSize, "gasUsed", info.GasUsed())
-
-			// We use tx data size instead of the total block size since we don't have a client
-			// capable of deserializing block responses.
-			if totalTxSize > params.MaxBlockSize {
-				return
-			}
-		case <-t.Ctx().Done():
-			t.Require().NoError(t.Ctx().Err())
-		}
-	}
+	t.Require().NoError(karsttest.CheckEIP7934BlockSizeDisabled(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), l2BlockTime))
 }
 
 func spamTxs(sys *presets.Minimal) {

@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -144,6 +146,55 @@ func makeAllCommand() *cli.Command {
 	}
 }
 
+// ethclientLatestBlockAdapter satisfies karsttest.LatestBlockFetcher by
+// translating InfoAndTxsByLabel(Unsafe) → BlockByNumber(nil). Other labels
+// aren't needed by the EIP-7934 check.
+type ethclientLatestBlockAdapter struct{ *ethclient.Client }
+
+func (a *ethclientLatestBlockAdapter) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
+	if label != eth.Unsafe {
+		return nil, nil, fmt.Errorf("unsupported block label %q (only %q is supported)", label, eth.Unsafe)
+	}
+	block, err := a.Client.BlockByNumber(ctx, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eth.BlockToInfo(block), block.Transactions(), nil
+}
+
+// makeBlockSizeCommand wires up the EIP-7934 block-size-disabled check.
+// Unlike the EVM-level checks, it polls latest blocks for one whose tx data
+// exceeds MaxBlockSize, so it gets a configurable poll interval. Callers
+// control the deadline via Ctrl+C (which cancels the interrupt-aware ctx).
+func makeBlockSizeCommand() *cli.Command {
+	pollInterval := &cli.DurationFlag{
+		Name:    "poll-interval",
+		Usage:   "How often to fetch the latest L2 block",
+		EnvVars: op_service.PrefixEnvVar(prefix, "POLL_INTERVAL"),
+		Value:   2 * time.Second,
+	}
+	flags := append(makeFlags(), pollInterval)
+	return &cli.Command{
+		Name:  "eip-7934",
+		Flags: cliapp.ProtectFlags(flags),
+		Action: func(c *cli.Context) error {
+			env, err := resolveEnv(c)
+			if err != nil {
+				return err
+			}
+			defer env.close()
+			if err := karsttest.CheckEIP7934BlockSizeDisabled(
+				env.ctx, env.logger,
+				&ethclientLatestBlockAdapter{env.l2},
+				c.Duration(pollInterval.Name),
+			); err != nil {
+				return fmt.Errorf("command error: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
 // makeDepositCommand wires up the deposit-bypass check, which (unlike the
 // EVM-level checks) needs an L1 endpoint, an L1 funded account, and the L1
 // portal address. These extra inputs are not part of the shared CheckAction
@@ -222,6 +273,7 @@ func main() {
 		makeCommand("eip-7825", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
 			return karsttest.CheckEIP7825(ctx, logger, basePlan)
 		}),
+		makeBlockSizeCommand(),
 		makeDepositCommand(),
 	}
 

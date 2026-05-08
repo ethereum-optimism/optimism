@@ -349,6 +349,57 @@ func CheckEIP7825DepositBypass(
 	return bigs.Uint64Strict(l2Receipt.BlockNumber), nil
 }
 
+// LatestBlockFetcher fetches the latest block's info and transactions. It is
+// the minimum-surface interface satisfied by `apis.EthClient` (the acceptance
+// test passes one directly) and by a thin adapter the CLI builds around
+// `*ethclient.Client`.
+type LatestBlockFetcher interface {
+	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
+}
+
+// CheckEIP7934BlockSizeDisabled verifies that the OP Stack disables the
+// EIP-7934 max-block-size limit (8 MiB) by polling the unsafe head until it
+// finds a block whose total transaction-data size exceeds `params.MaxBlockSize`.
+// Tx data size is a strict lower bound on RLP-encoded block size, so observing
+// txData > MaxBlockSize proves the block exceeds the limit. The check is
+// contingent on chain traffic — on a quiet chain it will block forever, so
+// it is not wired into `CheckAll`; callers control the deadline via `ctx`.
+// Returns the L2 block number where the oversized block was observed.
+func CheckEIP7934BlockSizeDisabled(
+	ctx context.Context,
+	logger log.Logger,
+	l2 LatestBlockFetcher,
+	pollInterval time.Duration,
+) error {
+	for {
+		info, txs, err := l2.InfoAndTxsByLabel(ctx, eth.Unsafe)
+		if err != nil {
+			logger.Warn("EIP-7934: failed to fetch unsafe head, retrying", "err", err)
+		} else {
+			var totalTxSize int
+			for _, tx := range txs {
+				bin, marshalErr := tx.MarshalBinary()
+				if marshalErr != nil {
+					return fmt.Errorf("marshal tx %s: %w", tx.Hash(), marshalErr)
+				}
+				totalTxSize += len(bin)
+			}
+			logger.Info("EIP-7934: checking L2 block",
+				"number", info.NumberU64(), "txDataSize", totalTxSize, "gasUsed", info.GasUsed())
+			if totalTxSize > params.MaxBlockSize {
+				logger.Info("EIP-7934: observed oversized block — block-size limit is disabled",
+					"number", info.NumberU64(), "txDataSize", totalTxSize, "limit", params.MaxBlockSize)
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
+}
+
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
