@@ -11,7 +11,7 @@ Use historical proofs storage format v2 by setting `--proofs-history.storage-ver
 
 ## Problem
 
-Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. For blocks older than ~7 days, this causes unbounded memory growth and out-of-memory (OOM) crashes — a critical issue for infrastructure serving rollup fault proofs and indexers that query historical state.
+Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. The `--rpc.eth-proof-window <num_blocks>` flag (default 0) allows queries against older blocks via this reconstruction, but performance and memory cost grow the further back the query reaches — making it impractical for any meaningful historical window. This is a critical issue for infrastructure serving rollup fault proofs, withdrawal proving, and indexers that query historical state.
 
 ## Solution
 
@@ -130,6 +130,10 @@ Once initialized, you can start the execution client with the `--proofs-history`
 
 <Info>
 Make sure to include all other standard flags required for your network (e.g., specific bootnodes). See the configuration reference for details.
+</Info>
+
+<Info>
+The default `--proofs-history.window` is **1,296,000 blocks**, corresponding to ~30 days at 2s block times. For chains with a different block time, set `--proofs-history.window=<num_blocks>` explicitly using `target_retention_seconds / block_time_seconds`.
 </Info>
 
 ## Running Consensus Node
