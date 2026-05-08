@@ -2113,6 +2113,10 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
+        // ZKDG-80 requires verifier.code.length > 0. Etch a dummy byte so the dummy
+        // verifier address used in both fork and non-fork paths satisfies this check.
+        vm.etch(address(0xBEEF), hex"01");
+
         if (isL1ForkTest()) {
             // In fork mode read the actual values from the deployed contracts so _validate()
             // is consistent with the real on-chain state.
