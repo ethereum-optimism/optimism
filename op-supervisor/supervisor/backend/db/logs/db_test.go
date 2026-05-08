@@ -1079,6 +1079,35 @@ func TestRecoverOnCreate(t *testing.T) {
 		require.EqualValues(t, int64(2), m.entryCount)
 	})
 
+	t.Run("TruncateWhenLastEntryIsUnsealedPeriodicCanonicalHash", func(t *testing.T) {
+		// Periodic search checkpoints also write a canonical hash, but they are not
+		// safe restart points when they include logs from an unsealed block.
+		store := storeWithEvents(
+			newSearchCheckpoint(0, 0, 100).encode(),
+			newCanonicalHash(createHash(344)).encode(),
+			newInitiatingEvent(createHash(0), false).encode(),
+			newSearchCheckpoint(0, 1, 100).encode(),
+			newCanonicalHash(createHash(344)).encode(),
+		)
+		_, m, err := createDb(t, store)
+		require.NoError(t, err)
+		require.EqualValues(t, int64(2), m.entryCount)
+	})
+
+	t.Run("NoTruncateWhenLastEntryIsBoundarySearchCheckpointCanonicalHash", func(t *testing.T) {
+		// A periodic checkpoint exactly at a block boundary repeats the sealed
+		// state and remains a safe restart point.
+		store := storeWithEvents(
+			newSearchCheckpoint(0, 0, 100).encode(),
+			newCanonicalHash(createHash(344)).encode(),
+			newSearchCheckpoint(0, 0, 100).encode(),
+			newCanonicalHash(createHash(344)).encode(),
+		)
+		_, m, err := createDb(t, store)
+		require.NoError(t, err)
+		require.EqualValues(t, int64(4), m.entryCount)
+	})
+
 	t.Run("TruncateWhenLastEntryInitEventWithExecMsg", func(t *testing.T) {
 		// An initiating event that claims an executing message,
 		// without said executing message, is dropped.

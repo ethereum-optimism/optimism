@@ -117,8 +117,26 @@ func (db *DB) trimToLastSealed() error {
 		if err != nil {
 			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
 		}
-		if entry.Type() == TypeCanonicalHash {
-			// only an executing hash, indicating a sealed block, is a valid point for restart
+		if entry.Type() != TypeCanonicalHash {
+			continue
+		}
+		if i == 0 {
+			continue
+		}
+		checkpointEntry, err := db.store.Read(i - 1)
+		if err != nil {
+			return fmt.Errorf("failed to read checkpoint before canonical hash %v: %w", i, err)
+		}
+		if checkpointEntry.Type() != TypeSearchCheckpoint {
+			continue
+		}
+		checkpoint, err := newSearchCheckpointFromEntry(checkpointEntry)
+		if err != nil {
+			return fmt.Errorf("failed to decode checkpoint before canonical hash %v: %w", i, err)
+		}
+		if checkpoint.logsSince == 0 {
+			// Only a canonical hash after a zero-log checkpoint is a sealed block boundary.
+			// Periodic checkpoints inside an unsealed block also have canonical hashes.
 			break
 		}
 	}
