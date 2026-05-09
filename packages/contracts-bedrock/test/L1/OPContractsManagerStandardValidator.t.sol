@@ -1819,22 +1819,11 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
         });
-        bool zkDisputeGameEnabled = Config.devFeatureZkDisputeGame();
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: zkDisputeGameEnabled,
-            initBond: zkDisputeGameEnabled ? 0.08 ether : 0,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: zkDisputeGameEnabled
-                ? abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0xBEEF)),
-                        maxChallengeDuration: Duration.wrap(uint64(7 days)),
-                        maxProveDuration: Duration.wrap(uint64(3 days)),
-                        challengerBond: 0.08 ether
-                    })
-                )
-                : bytes("")
+            gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
