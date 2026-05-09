@@ -111,7 +111,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	}
 
 	cacheDir := flags.DefaultCacheDir()
-	artifactsFS, err := artifacts.Download(ctx, locator, nil, cacheDir)
+	resolvedArtifacts, err := artifacts.Resolve(ctx, locator, nil, cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to get artifacts: %w", err)
 	}
@@ -140,7 +140,10 @@ func VerifyCLI(cliCtx *cli.Context) error {
 			VerifierUrl:  verifierUrl,
 			ApiKey:       verifierAPIKey,
 			ChainID:      l1ChainId,
-			ArtifactsFS:  artifactsFS,
+			ArtifactsFS:  resolvedArtifacts.FS,
+			ProjectDir:   resolvedArtifacts.ProjectDir,
+			CacheDir:     cacheDir,
+			ArtifactKey:  resolvedArtifacts.CacheKey,
 			Logger:       l,
 		})
 		if err != nil {

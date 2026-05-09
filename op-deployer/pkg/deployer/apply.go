@@ -305,23 +305,24 @@ func ApplyPipeline(
 	}
 	st := opts.State
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+	l1Artifacts, err := artifacts.Resolve(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
 
 	var l2ArtifactsFS foundry.StatDirFs
 	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
-		l2ArtifactsFS = l1ArtifactsFS
+		l2ArtifactsFS = l1Artifacts.FS
 	} else {
-		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+		l2Artifacts, err := artifacts.Resolve(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to download L2 artifacts: %w", err)
 		}
+		l2ArtifactsFS = l2Artifacts.FS
 	}
 
 	bundle := pipeline.ArtifactsBundle{
-		L1: l1ArtifactsFS,
+		L1: l1Artifacts.FS,
 		L2: l2ArtifactsFS,
 	}
 
@@ -438,13 +439,15 @@ func ApplyPipeline(
 	// Initialize Forge client if UseForge flag is enabled
 	var forgeClient *forge.Client
 	if opts.UseForge {
-		// Forge needs to run from the artifacts directory where foundry.toml is located
-		// The workdir is for storing state, not for running forge commands
-		artifactsPath := fmt.Sprintf("%v", bundle.L1)
-		forgeClient, err = forge.NewStandardClient(artifactsPath)
+		forgeClient, err = forge.NewStandardClient(l1Artifacts.ProjectDir)
 		if err != nil {
 			return fmt.Errorf("failed to create Forge client: %w", err)
 		}
+		buildKey, err := forge.BuildCacheKey(l1Artifacts.CacheKey, l1Artifacts.ProjectDir)
+		if err != nil {
+			return fmt.Errorf("failed to create Forge cache key: %w", err)
+		}
+		forgeClient.ProjectOpts = forge.ProjectOptions(l1Artifacts.ProjectDir, opts.CacheDir, buildKey)
 	}
 
 	pEnv := &pipeline.Env{

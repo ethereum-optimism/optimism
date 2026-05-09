@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -112,6 +113,125 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 		_, err = downloadHTTP(ctx, u, nil, correctIntegrity, testCacheDir)
 		require.ErrorContains(t, err, "integrity check failed")
 	})
+}
+
+func TestResolveArtifactsPersistentCache(t *testing.T) {
+	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
+	var callCount int32
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := os.Open(testTarGzPath)
+		require.NoError(t, err)
+		defer f.Close()
+		w.WriteHeader(http.StatusOK)
+		_, err = io.Copy(w, f)
+		require.NoError(t, err)
+		atomic.AddInt32(&callCount, 1)
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	loc := MustNewLocatorFromURL(ts.URL + "/artifacts.tar.gz")
+	first, err := Resolve(ctx, loc, nil, cacheDir)
+	require.NoError(t, err)
+	second, err := Resolve(ctx, loc, nil, cacheDir)
+	require.NoError(t, err)
+
+	require.Equal(t, first.ProjectDir, second.ProjectDir)
+	require.Equal(t, first.ArtifactsDir, second.ArtifactsDir)
+	require.Equal(t, first.CacheKey, second.CacheKey)
+	require.Equal(t, int32(1), atomic.LoadInt32(&callCount))
+	require.FileExists(t, filepath.Join(first.ProjectDir, cacheMetadataFile))
+
+	sameBytesLoc := MustNewLocatorFromURL(ts.URL + "/same-bytes.tar.gz")
+	third, err := Resolve(ctx, sameBytesLoc, nil, cacheDir)
+	require.NoError(t, err)
+	require.Equal(t, first.ProjectDir, third.ProjectDir)
+	require.Equal(t, int32(2), atomic.LoadInt32(&callCount))
+}
+
+func TestResolveEmbeddedArtifactsPersistentCache(t *testing.T) {
+	if _, err := embeddedArtifactBytes(); err != nil {
+		t.Skipf("embedded artifact bundle not populated: %v", err)
+	}
+
+	ctx := context.Background()
+	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	first, err := Resolve(ctx, EmbeddedLocator, nil, cacheDir)
+	require.NoError(t, err)
+	second, err := Resolve(ctx, EmbeddedLocator, nil, cacheDir)
+	require.NoError(t, err)
+
+	require.Equal(t, first.ProjectDir, second.ProjectDir)
+	require.Equal(t, first.ArtifactsDir, second.ArtifactsDir)
+	require.True(t, first.CacheOwned)
+	require.FileExists(t, filepath.Join(first.ProjectDir, cacheMetadataFile))
+}
+
+func TestResolveFileLocatorUsesDirectoryDirectly(t *testing.T) {
+	projectDir := t.TempDir()
+	artifactsDir := filepath.Join(projectDir, "forge-artifacts")
+	require.NoError(t, os.MkdirAll(artifactsDir, 0o755))
+
+	resolved, err := Resolve(context.Background(), MustNewFileLocator(projectDir), nil, t.TempDir())
+	require.NoError(t, err)
+
+	require.Equal(t, projectDir, resolved.ProjectDir)
+	require.Equal(t, artifactsDir, resolved.ArtifactsDir)
+	require.False(t, resolved.CacheOwned)
+	require.NoFileExists(t, filepath.Join(projectDir, cacheMetadataFile))
+}
+
+func TestResolveArtifactsConcurrent(t *testing.T) {
+	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, err := os.Open(testTarGzPath)
+		require.NoError(t, err)
+		defer f.Close()
+		w.WriteHeader(http.StatusOK)
+		_, err = io.Copy(w, f)
+		require.NoError(t, err)
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	loc := MustNewLocatorFromURL(ts.URL + "/artifacts.tar.gz")
+
+	const workers = 4
+	results := make(chan *ResolvedArtifacts, workers)
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resolved, err := Resolve(ctx, loc, nil, cacheDir)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- resolved
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	var projectDir string
+	for resolved := range results {
+		if projectDir == "" {
+			projectDir = resolved.ProjectDir
+		}
+		require.Equal(t, projectDir, resolved.ProjectDir)
+		require.DirExists(t, resolved.ArtifactsDir)
+	}
 }
 
 func TestTarballExtractor_Extract(t *testing.T) {

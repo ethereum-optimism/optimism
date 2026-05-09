@@ -164,10 +164,11 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 
 	lgr := cfg.Logger
 	cacheDir := cfg.CacheDir
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cacheDir)
+	resolvedArtifacts, err := artifacts.Resolve(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cacheDir)
 	if err != nil {
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+	artifactsFS := resolvedArtifacts.FS
 
 	input := opcm.DeploySuperchainInput{
 		SuperchainProxyAdminOwner: cfg.SuperchainProxyAdminOwner,
@@ -177,10 +178,15 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 
 	if cfg.UseForge {
 		lgr.Info("using Forge for DeploySuperchain")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := forge.NewStandardClient(resolvedArtifacts.ProjectDir)
 		if err != nil {
 			return dso, fmt.Errorf("failed to create forge client: %w", err)
 		}
+		buildKey, err := forge.BuildCacheKey(resolvedArtifacts.CacheKey, resolvedArtifacts.ProjectDir)
+		if err != nil {
+			return dso, fmt.Errorf("failed to create forge cache key: %w", err)
+		}
+		forgeClient.ProjectOpts = forge.ProjectOptions(resolvedArtifacts.ProjectDir, cacheDir, buildKey)
 
 		forgeEnv := &opcm.ForgeEnv{
 			Client:     forgeClient,

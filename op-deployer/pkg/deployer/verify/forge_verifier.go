@@ -33,6 +33,9 @@ type ForgeVerifierOpts struct {
 	ApiKey       string
 	ChainID      uint64
 	ArtifactsFS  foundry.StatDirFs
+	ProjectDir   string
+	CacheDir     string
+	ArtifactKey  string
 	Logger       log.Logger
 }
 
@@ -41,17 +44,30 @@ func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
 		return nil, fmt.Errorf("unsupported verifier type: %s (must be 'etherscan', 'blockscout', or 'custom')", opts.VerifierType)
 	}
 
-	forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
-	if _, err := os.Stat(forgeTomlPath); err != nil {
-		opts.Logger.Warn("foundry.toml not found, checking parent directory", "path", forgeTomlPath)
-		forgeTomlPath = filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "..", "foundry.toml")
+	projectDir := opts.ProjectDir
+	if projectDir == "" {
+		forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
 		if _, err := os.Stat(forgeTomlPath); err != nil {
-			return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
+			opts.Logger.Warn("foundry.toml not found, checking parent directory", "path", forgeTomlPath)
+			forgeTomlPath = filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "..", "foundry.toml")
+			if _, err := os.Stat(forgeTomlPath); err != nil {
+				return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
+			}
 		}
+		projectDir = filepath.Dir(forgeTomlPath)
+	} else if _, err := os.Stat(filepath.Join(projectDir, "foundry.toml")); err != nil {
+		return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
 	}
-	forgeClient, err := forge.NewStandardClient(forgeTomlPath)
+	forgeClient, err := forge.NewStandardClient(projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create forge client: %w", err)
+	}
+	if opts.CacheDir != "" && opts.ArtifactKey != "" {
+		buildKey, err := forge.BuildCacheKey(opts.ArtifactKey, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create forge cache key: %w", err)
+		}
+		forgeClient.ProjectOpts = forge.ProjectOptions(projectDir, opts.CacheDir, buildKey)
 	}
 
 	var apiChecker APIChecker

@@ -88,6 +88,33 @@ func TestClient_OutputRedirection(t *testing.T) {
 	require.True(t, strings.HasPrefix(cl.Stdout.(*bytes.Buffer).String(), "forge Version"))
 }
 
+func TestClient_WithProjectOpts(t *testing.T) {
+	cl := NewClient(StaticBinary("forge"))
+	cl.ProjectOpts = []string{"--root", "/project", "--cache-path", "/cache", "--out", "/out"}
+
+	opts := cl.withProjectOpts("--broadcast")
+	require.Equal(t, []string{"--root", "/project", "--cache-path", "/cache", "--out", "/out", "--broadcast"}, opts)
+
+	verifyOpts := cl.withVerifyProjectOpts("--watch")
+	require.Equal(t, []string{"--root", "/project", "--watch"}, verifyOpts)
+}
+
+func TestBuildCacheKey(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "foundry.toml"), []byte("[profile.default]\n"), 0o644))
+
+	first, err := BuildCacheKey("artifact-key", projectDir)
+	require.NoError(t, err)
+	second, err := BuildCacheKey("artifact-key", projectDir)
+	require.NoError(t, err)
+	require.Equal(t, first, second)
+
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "foundry.toml"), []byte("[profile.changed]\n"), 0o644))
+	changed, err := BuildCacheKey("artifact-key", projectDir)
+	require.NoError(t, err)
+	require.NotEqual(t, first, changed)
+}
+
 func TestScriptCaller(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -20,6 +20,7 @@ func main() {
 	app.ErrWriter = os.Stderr
 	err := app.Run(os.Args)
 	if err != nil {
+		_ = artifacts.CleanupAll()
 		_, _ = fmt.Fprintf(os.Stderr, "Application failed: %v\n", err)
 		os.Exit(1)
 	}

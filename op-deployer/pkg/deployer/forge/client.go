@@ -24,10 +24,11 @@ type VersionInfo struct {
 }
 
 type Client struct {
-	Binary Binary
-	Stdout io.Writer
-	Stderr io.Writer
-	Wd     string
+	Binary      Binary
+	Stdout      io.Writer
+	Stderr      io.Writer
+	Wd          string
+	ProjectOpts []string
 }
 
 func NewStandardClient(workdir string) (*Client, error) {
@@ -106,17 +107,17 @@ func (c *Client) Version(ctx context.Context) (VersionInfo, error) {
 }
 
 func (c *Client) Build(ctx context.Context, opts ...string) error {
-	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"build"}, opts...)...)
+	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"build"}, c.withProjectOpts(opts...)...)...)
 }
 
 func (c *Client) Clean(ctx context.Context, opts ...string) error {
-	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"clean"}, opts...)...)
+	return c.execCmd(ctx, io.Discard, io.Discard, append([]string{"clean"}, c.withRootProjectOpts(opts...)...)...)
 }
 
 func (c *Client) RunScript(ctx context.Context, script string, sig string, args []byte, opts ...string) (string, error) {
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script"}
-	cliOpts = append(cliOpts, opts...)
+	cliOpts = append(cliOpts, c.withProjectOpts(opts...)...)
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)
@@ -127,11 +128,42 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, error) {
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"verify-contract"}
-	cliOpts = append(cliOpts, opts...)
+	cliOpts = append(cliOpts, c.withVerifyProjectOpts(opts...)...)
 	if err := c.execCmd(ctx, buf, buf, cliOpts...); err != nil {
 		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
 	}
 	return buf.String(), nil
+}
+
+func (c *Client) withProjectOpts(opts ...string) []string {
+	if len(c.ProjectOpts) == 0 {
+		return opts
+	}
+	out := make([]string, 0, len(c.ProjectOpts)+len(opts))
+	out = append(out, c.ProjectOpts...)
+	out = append(out, opts...)
+	return out
+}
+
+func (c *Client) withVerifyProjectOpts(opts ...string) []string {
+	return c.withRootProjectOpts(opts...)
+}
+
+func (c *Client) withRootProjectOpts(opts ...string) []string {
+	projectOpts := make([]string, 0, 2)
+	for i := 0; i < len(c.ProjectOpts); i++ {
+		if c.ProjectOpts[i] == "--root" && i+1 < len(c.ProjectOpts) {
+			projectOpts = append(projectOpts, c.ProjectOpts[i], c.ProjectOpts[i+1])
+			i++
+		}
+	}
+	if len(projectOpts) == 0 {
+		return opts
+	}
+	out := make([]string, 0, len(projectOpts)+len(opts))
+	out = append(out, projectOpts...)
+	out = append(out, opts...)
+	return out
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {

@@ -32,7 +32,7 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 	logger.Info("Starting automatic contract verification", "verifiers", verifierTypes)
 
 	cacheDir := flags.DefaultCacheDir()
-	artifactsFS, err := artifacts.Download(ctx, artifactsLocator, nil, cacheDir)
+	resolvedArtifacts, err := artifacts.Resolve(ctx, artifactsLocator, nil, cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
@@ -58,7 +58,10 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 			VerifierUrl:  verifierUrl,
 			ApiKey:       apiKey,
 			ChainID:      chainID,
-			ArtifactsFS:  artifactsFS,
+			ArtifactsFS:  resolvedArtifacts.FS,
+			ProjectDir:   resolvedArtifacts.ProjectDir,
+			CacheDir:     cacheDir,
+			ArtifactKey:  resolvedArtifacts.CacheKey,
 			Logger:       logger,
 		})
 		if err != nil {

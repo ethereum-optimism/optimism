@@ -54,6 +54,11 @@ func TestNewForgeVerifier_HTTPLocator(t *testing.T) {
 }
 
 func TestNewForgeVerifier_EmbeddedLocator(t *testing.T) {
+	_, err := artifacts.Resolve(context.Background(), artifacts.EmbeddedLocator, nil, t.TempDir())
+	if err != nil {
+		t.Skipf("embedded artifact bundle not populated: %v", err)
+	}
+
 	ctx := context.Background()
 	loc := artifacts.EmbeddedLocator
 

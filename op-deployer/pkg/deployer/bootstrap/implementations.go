@@ -198,10 +198,11 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	lgr := cfg.Logger
 
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	resolvedArtifacts, err := artifacts.Resolve(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
+	artifactsFS := resolvedArtifacts.FS
 
 	input := opcm.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
@@ -223,10 +224,15 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	if cfg.UseForge {
 		lgr.Info("using Forge for DeployImplementations")
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", artifactsFS))
+		forgeClient, err := forge.NewStandardClient(resolvedArtifacts.ProjectDir)
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}
+		buildKey, err := forge.BuildCacheKey(resolvedArtifacts.CacheKey, resolvedArtifacts.ProjectDir)
+		if err != nil {
+			return dio, fmt.Errorf("failed to create forge cache key: %w", err)
+		}
+		forgeClient.ProjectOpts = forge.ProjectOptions(resolvedArtifacts.ProjectDir, cfg.CacheDir, buildKey)
 
 		forgeEnv := &opcm.ForgeEnv{
 			Client:     forgeClient,

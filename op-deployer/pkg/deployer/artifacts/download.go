@@ -35,39 +35,11 @@ type Extractor interface {
 }
 
 func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, targetDir string) (foundry.StatDirFs, error) {
-	if progressor == nil {
-		progressor = ioutil.NoopProgressor()
+	resolved, err := Resolve(ctx, loc, progressor, targetDir)
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	u := loc.URL
-	checker := new(noopIntegrityChecker)
-
-	var artifactsFS fs.FS
-	switch u.Scheme {
-	case "http", "https":
-		artifactsFS, err = downloadHTTP(ctx, u, progressor, checker, targetDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download artifacts: %w", err)
-		}
-	case "file":
-		// Check the path has forge-artifacts directory
-		forgeArtifactsDir := path.Join(u.Path, "forge-artifacts")
-		if _, err := os.Stat(forgeArtifactsDir); err != nil {
-			// TODO(#18346): Accept this for now but in the future we should error
-			artifactsFS = os.DirFS(u.Path)
-		} else {
-			artifactsFS = os.DirFS(forgeArtifactsDir)
-		}
-	case "embedded":
-		artifactsFS, err = ExtractEmbedded(targetDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract embedded artifacts: %w", err)
-		}
-	default:
-		return nil, ErrUnsupportedArtifactsScheme
-	}
-	return artifactsFS.(foundry.StatDirFs), nil
+	return resolved.FS, nil
 }
 
 func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor, checker integrityChecker, targetDir string) (fs.FS, error) {
@@ -147,6 +119,10 @@ func (d *CachingDownloader) Download(ctx context.Context, url string, progress i
 		return "", fmt.Errorf("failed to download: %w", err)
 	}
 	if err := os.Rename(tmpPath, cachePath); err != nil {
+		if _, statErr := os.Stat(cachePath); statErr == nil {
+			_ = os.Remove(tmpPath)
+			return cachePath, nil
+		}
 		return "", fmt.Errorf("failed to move downloaded file to cache: %w", err)
 	}
 	return cachePath, nil
