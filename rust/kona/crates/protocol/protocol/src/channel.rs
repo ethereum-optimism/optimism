@@ -128,8 +128,11 @@ impl Channel {
             // closing frame.
             if self.last_frame_number < self.highest_frame_number {
                 self.inputs.retain(|id, frame| {
-                    self.estimated_size -= frame.size();
-                    *id < self.last_frame_number
+                    let keep = *id < self.last_frame_number;
+                    if !keep {
+                        self.estimated_size -= frame.size();
+                    }
+                    keep
                 });
                 self.highest_frame_number = self.last_frame_number;
             }
