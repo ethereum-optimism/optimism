@@ -28,7 +28,7 @@ func main() {
 	app.Flags = []cli.Flag{wheel.GlobalGethLogLvlFlag}
 	app.Before = func(c *cli.Context) error {
 		lvl := c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LevelFlagValue).Level()
-		oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, lvl, true))
+		oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stderr, lvl, true))
 		return nil
 	}
 	app.Action = func(c *cli.Context) error {
