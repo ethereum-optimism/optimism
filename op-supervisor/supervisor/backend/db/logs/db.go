@@ -1,3 +1,31 @@
+// Package logs implements an append-only entry database with two crash-safety
+// invariants:
+//
+//  1. fsync at the end of every successful commit (SealBlock, Rewind,
+//     Clear). After a commit returns nil, all bytes written by that commit
+//     are durable. This is the only barrier that establishes prefix
+//     durability: the Linux page cache and device write cache may otherwise
+//     reorder writes freely across non-FLUSH boundaries, and ext4 delayed
+//     allocation may advance i_size before data blocks are durable.
+//
+//  2. On startup, any block whose fsync return value we cannot prove is
+//     discarded. Concretely: after entry-aligned recover() and trim to the
+//     last closing-block boundary, if the file ends exactly at that boundary
+//     (nothing post-boundary), the last block is dropped. Post-boundary
+//     entries are proof that the prior SealBlock returned, and therefore
+//     its fsync returned. The cost is one re-fetched block per startup; the
+//     gain is that no edge case in the recovery path can mistake a
+//     half-written commit for a complete one.
+//
+// File-system assumptions:
+//
+//   - ftruncate(2) atomicity: the file size is updated atomically with
+//     respect to crash recovery. True on ext4 and xfs.
+//   - fsync(2) actually flushes the device write cache. True on modern
+//     Linux block layers with default FUA/FLUSH support; true on AWS EBS gp3
+//     and GCP pd-ssd. macOS *os.File.Sync() does NOT flush the device cache
+//     (it would need F_FULLFSYNC); developers running on macOS get weaker
+//     durability than production Linux. Not addressed by this package.
 package logs
 
 import (
@@ -38,6 +66,12 @@ type Metrics interface {
 // Use a fixed 24 bytes per entry.
 //
 // Data is an append-only log, that can be binary searched for any necessary event data.
+//
+// Commit model: mutating operations follow a working-clone pattern. AddLog
+// accumulates entries into a separate logContext clone with no I/O; SealBlock
+// does one Write + Sync + atomic swap. On any failure the working clone is
+// discarded and the committed lastEntryContext is unchanged. Reads observe
+// only lastEntryContext, never the working clone.
 type DB struct {
 	log    log.Logger
 	m      Metrics
@@ -46,7 +80,14 @@ type DB struct {
 
 	chainID eth.ChainID
 
+	// lastEntryContext is the committed state. After every successful
+	// commit, lastEntryContext.out is nil.
 	lastEntryContext logContext
+
+	// working holds an in-progress clone accumulating uncommitted AddLog
+	// entries between SealBlock commits. Nil when no buffered mutations
+	// exist. Never observed by reads.
+	working *logContext
 }
 
 func NewFromFile(logger log.Logger, m Metrics, chainID eth.ChainID, path string, trimToLastSealed bool) (*DB, error) {
@@ -77,8 +118,23 @@ func (db *DB) lastEntryIdx() entrydb.EntryIdx {
 func (db *DB) init(trimToLastSealed bool) error {
 	defer db.updateEntryCountMetric() // Always update the entry count metric after init completes
 	if trimToLastSealed {
+		preIdx := db.lastEntryIdx()
 		if err := db.trimToLastSealed(); err != nil {
 			return fmt.Errorf("failed to trim invalid trailing entries: %w", err)
+		}
+		// Drop-last-block rule: if the file ends exactly at a closing boundary
+		// (no entries were trimmed past it), we cannot prove that the prior
+		// SealBlock's Sync return value was observed. Walk back one more
+		// closing boundary and truncate. Post-boundary entries elsewhere serve
+		// as proof that the prior commit returned; without them, drop. The
+		// cost is one re-fetched block per startup.
+		if preIdx == db.lastEntryIdx() && db.lastEntryIdx() >= 0 {
+			if err := db.dropLastClosingBlock(); err != nil {
+				return fmt.Errorf("failed to drop last block on recovery: %w", err)
+			}
+		}
+		if err := db.store.Sync(); err != nil {
+			return fmt.Errorf("failed to sync after recovery truncate: %w", err)
 		}
 	}
 	if db.lastEntryIdx() < 0 {
@@ -110,24 +166,76 @@ func (db *DB) init(trimToLastSealed bool) error {
 	return nil
 }
 
+// trimToLastSealed walks back to the last closing-block boundary — a
+// SearchCheckpoint with logsSince==0 immediately followed by a CanonicalHash —
+// and truncates anything past it. A periodic SearchCheckpoint emitted every
+// 256 entries also has a CanonicalHash following it, but its logsSince is
+// non-zero; we must skip those.
 func (db *DB) trimToLastSealed() error {
-	i := db.lastEntryIdx()
-	for ; i >= 0; i-- {
-		entry, err := db.store.Read(i)
-		if err != nil {
-			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
-		}
-		if entry.Type() == TypeCanonicalHash {
-			// only an executing hash, indicating a sealed block, is a valid point for restart
-			break
-		}
+	i, err := db.findLastClosingBoundary(db.lastEntryIdx())
+	if err != nil {
+		return err
 	}
 	if i < db.lastEntryIdx() {
 		db.log.Warn("Truncating unexpected trailing entries", "prev", db.lastEntryIdx(), "new", i)
-		// trim such that the last entry is the canonical-hash we identified
 		return db.store.Truncate(i)
 	}
 	return nil
+}
+
+// dropLastClosingBlock walks past the current closing boundary and truncates
+// to the previous one. Used to enforce the "drop last block on recovery" rule
+// when nothing exists past the current tail boundary.
+func (db *DB) dropLastClosingBlock() error {
+	// Skip the current closing pair (CanonicalHash + preceding SearchCheckpoint)
+	// and find the previous closing boundary.
+	start := db.lastEntryIdx() - 2
+	if start < 0 {
+		db.log.Info("Dropping last block on recovery (only block in DB)", "prev", db.lastEntryIdx())
+		return db.store.Truncate(-1)
+	}
+	prev, err := db.findLastClosingBoundary(start)
+	if err != nil {
+		return err
+	}
+	db.log.Info("Dropping last block on recovery (cannot prove durability)", "prev", db.lastEntryIdx(), "new", prev)
+	return db.store.Truncate(prev)
+}
+
+// findLastClosingBoundary walks down from start looking for a
+// CanonicalHash entry whose preceding SearchCheckpoint has logsSince==0
+// (the closing seal of a block). Returns the index of the CanonicalHash;
+// returns -1 if no closing boundary exists.
+func (db *DB) findLastClosingBoundary(start entrydb.EntryIdx) (entrydb.EntryIdx, error) {
+	for i := start; i >= 0; i-- {
+		entry, err := db.store.Read(i)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
+		}
+		if entry.Type() != TypeCanonicalHash {
+			continue
+		}
+		if i == 0 {
+			// CanonicalHash at idx 0 cannot have a preceding SearchCheckpoint;
+			// not a valid closing boundary and no further entries available.
+			return -1, nil
+		}
+		prev, err := db.store.Read(i - 1)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read %v to check checkpoint: %w", i-1, err)
+		}
+		if prev.Type() != TypeSearchCheckpoint {
+			continue
+		}
+		cp, err := newSearchCheckpointFromEntry(prev)
+		if err != nil {
+			return 0, fmt.Errorf("failed to decode search checkpoint at %v: %w", i-1, err)
+		}
+		if cp.logsSince == 0 {
+			return i, nil
+		}
+	}
+	return -1, nil
 }
 
 func (db *DB) updateEntryCountMetric() {
@@ -552,44 +660,147 @@ func (db *DB) debugTip() {
 	}
 }
 
-func (db *DB) flush() error {
-	for i, e := range db.lastEntryContext.out {
-		db.log.Trace("appending entry", "type", e.Type(), "entry", hexutil.Bytes(e[:]),
-			"next", int(db.lastEntryContext.nextEntryIndex)-len(db.lastEntryContext.out)+i)
+// pendingNextIndex returns the next entry index the DB will write to,
+// including any uncommitted entries in the working clone. Test-only.
+func (db *DB) pendingNextIndex() entrydb.EntryIdx {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	if db.working != nil {
+		return db.working.nextEntryIndex
 	}
-	if err := db.store.Append(db.lastEntryContext.out...); err != nil {
-		return fmt.Errorf("failed to append entries: %w", err)
+	return db.lastEntryContext.nextEntryIndex
+}
+
+// forceBlock seeds the DB with a starting sealed block, committing the
+// resulting entries to disk in a single Write + Sync just like SealBlock.
+// Test-only: production code uses SealBlock. The underlying
+// logContext.forceBlock requires nextEntryIndex == 0, so this method is only
+// valid on a fresh DB.
+func (db *DB) forceBlock(upd eth.BlockID, timestamp uint64) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+
+	if err := db.store.PrepareForMutation(); err != nil {
+		return fmt.Errorf("store not ready for mutation: %w", err)
 	}
-	db.lastEntryContext.out = db.lastEntryContext.out[:0]
+
+	db.working = nil
+	w := db.lastEntryContext.cloneForWrite()
+	db.working = &w
+	if err := w.forceBlock(upd, timestamp); err != nil {
+		db.working = nil
+		return fmt.Errorf("failed to force block: %w", err)
+	}
+	if err := db.store.Append(w.out...); err != nil {
+		db.working = nil
+		return fmt.Errorf("failed to append force-block entries: %w", err)
+	}
+	if err := db.store.Sync(); err != nil {
+		if truncErr := db.store.Truncate(db.lastEntryContext.nextEntryIndex - 1); truncErr != nil {
+			// Safe to continue: entrydb.Truncate records the target in
+			// pendingCleanup before attempting the file truncate, so reads are
+			// already bounded by the rolled-back size and the next mutation
+			// will retry the truncate.
+			db.log.Warn("rollback truncate after sync failure deferred; will retry on next mutation", "err", truncErr)
+		}
+		db.working = nil
+		return fmt.Errorf("failed to sync after forcing block: %w", err)
+	}
+	db.lastEntryContext = *db.working
+	db.lastEntryContext.out = nil
+	db.working = nil
 	db.updateEntryCountMetric()
 	return nil
 }
 
+// ensureWorking returns the working clone, lazily creating it from
+// lastEntryContext on first use.
+func (db *DB) ensureWorking() *logContext {
+	if db.working == nil {
+		w := db.lastEntryContext.cloneForWrite()
+		db.working = &w
+	}
+	return db.working
+}
+
+// SealBlock commits all pending AddLog entries (if any) plus the block-closing
+// seal in a single Write + Sync. On any failure the working clone is discarded
+// and the committed state is unchanged.
 func (db *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	if err := db.lastEntryContext.SealBlock(parentHash, block, timestamp); err != nil {
+	w := db.ensureWorking()
+	if err := w.SealBlock(parentHash, block, timestamp); err != nil {
+		// Apply failed on the clone; discard.
+		db.working = nil
 		return fmt.Errorf("failed to seal block: %w", err)
 	}
 	db.log.Trace("Sealed block", "parent", parentHash, "block", block, "timestamp", timestamp)
-	return db.flush()
+	out := w.out
+	for i, e := range out {
+		db.log.Trace("appending entry", "type", e.Type(), "entry", hexutil.Bytes(e[:]),
+			"next", int(w.nextEntryIndex)-len(out)+i)
+	}
+	if err := db.store.Append(out...); err != nil {
+		db.working = nil
+		return fmt.Errorf("failed to append entries: %w", err)
+	}
+	if err := db.store.Sync(); err != nil {
+		// Bytes are on disk but we cannot confirm durability. Roll back
+		// rather than commit unflushed state.
+		if truncErr := db.store.Truncate(db.lastEntryContext.nextEntryIndex - 1); truncErr != nil {
+			// Safe to continue: entrydb.Truncate records the target in
+			// pendingCleanup before attempting the file truncate, so reads are
+			// already bounded by the rolled-back size and the next mutation
+			// will retry the truncate.
+			db.log.Warn("rollback truncate after sync failure deferred; will retry on next mutation", "err", truncErr)
+		}
+		db.working = nil
+		return fmt.Errorf("failed to sync after sealing block: %w", err)
+	}
+	// Atomic swap: working clone becomes the new committed state.
+	db.lastEntryContext = *db.working
+	db.lastEntryContext.out = nil
+	db.working = nil
+	db.updateEntryCountMetric()
+	return nil
 }
 
+// AddLog accumulates a log into the working clone with no I/O. Bytes hit disk
+// only when the enclosing SealBlock commits.
 func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	if err := db.lastEntryContext.ApplyLog(parentBlock, logIdx, logHash, execMsg); err != nil {
+	// Drain any pending cleanup before mutating in-memory state — if the
+	// store is in a bad state we want to surface that here, not when the
+	// caller eventually calls SealBlock.
+	if err := db.store.PrepareForMutation(); err != nil {
+		return fmt.Errorf("store not ready for mutation: %w", err)
+	}
+
+	w := db.ensureWorking()
+	if err := w.ApplyLog(parentBlock, logIdx, logHash, execMsg); err != nil {
+		db.working = nil
 		return fmt.Errorf("failed to apply log: %w", err)
 	}
 	db.log.Trace("Applied log", "parentBlock", parentBlock, "logIndex", logIdx, "logHash", logHash, "executing", execMsg != nil)
-	return db.flush()
+	return nil
 }
 
 // Clear clears the DB such that there is no data left.
 // An invalidator is required as argument, to force users to invalidate any current open reads.
 func (db *DB) Clear(inv reads.Invalidator) error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	return db.clearLocked(inv)
+}
+
+// clearLocked is Clear without acquiring the write lock; caller must hold it.
+// Used by Rewind when the rewind target is before the start of the DB.
+func (db *DB) clearLocked(inv reads.Invalidator) error {
+	defer db.updateEntryCountMetric()
 	release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
 		reads.DerivedInvalidation{Timestamp: 0},
 	})
@@ -597,11 +808,17 @@ func (db *DB) Clear(inv reads.Invalidator) error {
 		return invalidateErr
 	}
 	defer release()
-	defer db.updateEntryCountMetric()
+	// Discard any working clone and swap committed state first, so readers
+	// under the held lock observe the empty DB even if the truncate fails.
+	db.working = nil
+	db.lastEntryContext = logContext{}
 	if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+		// pendingCleanup picks up; return the error.
 		return fmt.Errorf("failed to empty DB: %w", truncateErr)
 	}
-	db.lastEntryContext = logContext{}
+	if syncErr := db.store.Sync(); syncErr != nil {
+		return fmt.Errorf("failed to sync after clear: %w", syncErr)
+	}
 	return nil
 }
 
@@ -612,12 +829,16 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	defer db.updateEntryCountMetric()
+
+	// Discard any working clone — Rewind invalidates pending block-in-progress.
+	db.working = nil
+
 	// Even if the last fully-processed block matches headBlockNum,
 	// we might still have trailing log events to get rid of.
 	iter, err := db.newIteratorAt(newHead.Number, 0)
 	if err != nil {
 		if errors.Is(err, types.ErrPreviousToFirst) || errors.Is(err, types.ErrSkipped) {
-			if err := db.Clear(inv); err != nil {
+			if err := db.clearLocked(inv); err != nil {
 				return fmt.Errorf("failed to clear logs DB, upon rewinding to log block %s before first block: %w", newHead, err)
 			}
 			return nil
@@ -638,13 +859,22 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 		return err
 	}
 	defer release()
-	// Truncate to contain idx entries. The Truncate func keeps the given index as last index.
-	if err := db.store.Truncate(iter.NextIndex() - 1); err != nil {
+
+	// Save the iterator's hydrated logContext as the target committed state.
+	target := iter.current
+
+	// Swap in-memory committed state to the rewound view first. The entrydb
+	// Truncate that follows physically removes the trailing bytes; if it
+	// fails, pendingCleanup pins the logical upper bound so reads cannot
+	// observe data past the new logical end.
+	db.lastEntryContext = target
+	db.lastEntryContext.out = nil
+
+	if err := db.store.Truncate(target.NextIndex() - 1); err != nil {
 		return fmt.Errorf("failed to truncate to block %s: %w", newHead, err)
 	}
-	// Use db.init() to find the log context for the new latest log entry
-	if err := db.init(true); err != nil {
-		return fmt.Errorf("failed to find new last entry context: %w", err)
+	if err := db.store.Sync(); err != nil {
+		return fmt.Errorf("failed to sync after rewind: %w", err)
 	}
 	return nil
 }

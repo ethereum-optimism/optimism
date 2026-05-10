@@ -912,10 +912,12 @@ func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { ingester2.logsDB.Close() })
 
-	// Call initIngestion - should resume from block 102
+	// Call initIngestion - logs.DB drops the last sealed block on reopen
+	// (it cannot prove the prior Sync return value was observed), so the
+	// recovered tail is block 100 and ingestion resumes from block 101.
 	nextBlock, err := ingester2.initIngestion()
 	require.NoError(t, err)
-	require.Equal(t, uint64(102), nextBlock) // Should resume after block 101
+	require.Equal(t, uint64(101), nextBlock)
 
 	// Verify earliest block was found
 	require.True(t, ingester2.earliestIngestedBlockSet.Load())

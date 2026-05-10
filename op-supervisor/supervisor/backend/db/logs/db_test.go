@@ -344,7 +344,7 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenBeforeCurrentBlockButAfterLastCheckpoint", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				err := db.lastEntryContext.forceBlock(eth.BlockID{Hash: createHash(13), Number: 13}, 5000)
+				err := db.forceBlock(eth.BlockID{Hash: createHash(13), Number: 13}, 5000)
 				require.NoError(t, err)
 				err = db.SealBlock(createHash(13), eth.BlockID{Hash: createHash(14), Number: 14}, 5001)
 				require.NoError(t, err)
@@ -360,16 +360,19 @@ func TestAddLog(t *testing.T) {
 	})
 
 	t.Run("ErrorWhenBeforeCurrentLogEvent", func(t *testing.T) {
+		// Under deferred-I/O semantics, AddLog buffers do not survive Close
+		// without an enclosing SealBlock. The buffered-log setup is moved
+		// into the assertion phase so both "New" and "Existing" runDBTest
+		// variants reach the same logical pre-assertion state.
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
-				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
 				err := db.AddLog(createHash(1), bl15, 0, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
 				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
@@ -380,12 +383,12 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
-				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
+				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
 				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(16), Number: 16}, 0, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
@@ -396,13 +399,12 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
-				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
 				err := db.AddLog(createHash(1), bl15, 1, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
 				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
@@ -413,14 +415,14 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
-				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				bl15 := eth.BlockID{Hash: createHash(16), Number: 16}
-				err := db.AddLog(createHash(1), bl15, 2, nil)
+				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
+				wrong := eth.BlockID{Hash: createHash(16), Number: 16}
+				err := db.AddLog(createHash(1), wrong, 2, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 			})
@@ -430,12 +432,11 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
 				err := db.AddLog(createHash(1), bl15, 2, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
@@ -445,7 +446,7 @@ func TestAddLog(t *testing.T) {
 	t.Run("ErrorWhenFirstLogIsNotLogIdxZero", func(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {
 			bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-			err := db.lastEntryContext.forceBlock(bl15, 5000)
+			err := db.forceBlock(bl15, 5000)
 			require.NoError(t, err)
 		},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -460,19 +461,15 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.lastEntryContext.forceBlock(bl15, 5000)
-				require.NoError(t, err)
-				err = db.AddLog(createHash(1), bl15, 0, nil)
-				require.NoError(t, err)
+				require.NoError(t, db.forceBlock(bl15, 5000))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				err := db.AddLog(createHash(1), bl15, 1, nil)
-				require.NoError(t, err)
+				require.NoError(t, db.AddLog(createHash(1), bl15, 0, nil))
+				require.NoError(t, db.AddLog(createHash(1), bl15, 1, nil))
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
-				err = db.SealBlock(bl15.Hash, bl16, 5001)
-				require.NoError(t, err)
-				err = db.AddLog(createHash(1), bl16, 1, nil)
+				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
+				err := db.AddLog(createHash(1), bl16, 1, nil)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 				require.ErrorIs(t, err, types.ErrOutOfOrder)
 			})
@@ -497,7 +494,7 @@ func TestAddLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				// force in block 0
-				require.NoError(t, db.lastEntryContext.forceBlock(block0, t0))
+				require.NoError(t, db.forceBlock(block0, t0))
 				expectedIndex := entrydb.EntryIdx(2)
 				t.Logf("block 0 complete, at entry %d", db.lastEntryContext.NextIndex())
 				require.Equal(t, expectedIndex, db.lastEntryContext.NextIndex())
@@ -591,7 +588,7 @@ func TestAddDependentLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 				err := db.AddLog(createHash(1), bl15, 0, &execMsg)
 				require.NoError(t, err)
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
@@ -606,8 +603,8 @@ func TestAddDependentLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
-				for i := uint32(0); m.entryCount < searchCheckpointFrequency-1; i++ {
+				require.NoError(t, db.forceBlock(bl15, 5000))
+				for i := uint32(0); db.pendingNextIndex() < searchCheckpointFrequency-1; i++ {
 					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
 				}
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
@@ -629,7 +626,7 @@ func TestAddDependentLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 				// we add 256 - 2 (start) - 3 (init msg, execChainID, execPosition) = 251 entries
 				for i := uint32(0); i < 251; i++ {
 					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
@@ -648,7 +645,7 @@ func TestAddDependentLog(t *testing.T) {
 				// 259 = executing message chainID
 				// 260 = executing message position
 				// 261 = executing message checksum
-				require.Equal(t, int64(262), m.entryCount)
+				require.Equal(t, entrydb.EntryIdx(262), db.pendingNextIndex())
 				db.debugTip()
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
@@ -663,7 +660,7 @@ func TestAddDependentLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 				// we add 256 - 2 (start) - 2 (init msg, execPosition) = 252 entries
 				for i := uint32(0); i < 252; i++ {
 					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
@@ -682,7 +679,7 @@ func TestAddDependentLog(t *testing.T) {
 				// 260 = executing message position
 				// 261 = executing message checksum
 				db.debugTip()
-				require.Equal(t, int64(262), m.entryCount)
+				require.Equal(t, entrydb.EntryIdx(262), db.pendingNextIndex())
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
 			},
@@ -696,7 +693,7 @@ func TestAddDependentLog(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
+				require.NoError(t, db.forceBlock(bl15, 5000))
 				// we add 256 - 2 (start) - 1 (init msg) = 253 entries
 				for i := uint32(0); i < 253; i++ {
 					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
@@ -714,7 +711,7 @@ func TestAddDependentLog(t *testing.T) {
 				// 260 = executing message position
 				// 261 = executing message checksum
 				db.debugTip()
-				require.Equal(t, int64(262), m.entryCount)
+				require.Equal(t, entrydb.EntryIdx(262), db.pendingNextIndex())
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
 			},
@@ -731,7 +728,7 @@ func TestContains(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			bl50 := eth.BlockID{Hash: createHash(50), Number: 50}
-			require.NoError(t, db.lastEntryContext.forceBlock(bl50, t50))
+			require.NoError(t, db.forceBlock(bl50, t50))
 			require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
 			require.NoError(t, db.AddLog(createHash(3), bl50, 1, nil))
 			require.NoError(t, db.AddLog(createHash(2), bl50, 2, nil))
@@ -776,7 +773,7 @@ func TestContainsOutOfRangeLogIndex(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			bl10 := eth.BlockID{Hash: createHash(10), Number: 10}
-			require.NoError(t, db.lastEntryContext.forceBlock(bl10, 5000))
+			require.NoError(t, db.forceBlock(bl10, 5000))
 
 			// Create a block with 2 logs
 			require.NoError(t, db.AddLog(createHash(1), bl10, 0, nil))
@@ -834,7 +831,7 @@ func TestExecutes(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			bl50 := eth.BlockID{Hash: createHash(50), Number: 50}
-			require.NoError(t, db.lastEntryContext.forceBlock(bl50, t50))
+			require.NoError(t, db.forceBlock(bl50, t50))
 			require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
 			require.NoError(t, db.AddLog(createHash(3), bl50, 1, &execMsg1))
 			require.NoError(t, db.AddLog(createHash(2), bl50, 2, nil))
@@ -844,6 +841,11 @@ func TestExecutes(t *testing.T) {
 			require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
 			require.NoError(t, db.AddLog(createHash(1), bl52, 0, &execMsg2))
 			require.NoError(t, db.AddLog(createHash(3), bl52, 1, &execMsg3))
+			// Under deferred-I/O semantics, AddLog buffers do not become
+			// queryable until the enclosing SealBlock commits. Seal block 53
+			// so the executing-message assertions below observe disk state.
+			bl53 := eth.BlockID{Hash: createHash(53), Number: 53}
+			require.NoError(t, db.SealBlock(bl52.Hash, bl53, t53))
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			// Should find added logs
@@ -856,8 +858,8 @@ func TestExecutes(t *testing.T) {
 			// 52 was sealed without logs
 			requireConflicts(t, db, 52, 0, t52, createHash(1))
 
-			// 53 only contained 2 logs, not 3, and is not sealed yet
-			requireFuture(t, db, 53, 2, t53, createHash(3))
+			// 53 only contained 2 logs, not 3 — the third index is a conflict.
+			requireConflicts(t, db, 53, 2, t53, createHash(3))
 			// 54 doesn't exist yet
 			requireFuture(t, db, 54, 0, t54, createHash(3))
 
@@ -890,7 +892,7 @@ func TestGetBlockInfo(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl11 := eth.BlockID{Hash: createHash(11), Number: 11}
-				require.NoError(t, db.lastEntryContext.forceBlock(bl11, 500))
+				require.NoError(t, db.forceBlock(bl11, 500))
 				err := db.AddLog(createHash(1), bl11, 0, nil)
 				require.NoError(t, err)
 			},
@@ -1005,7 +1007,12 @@ func TestRecoverOnCreate(t *testing.T) {
 		_ = store.Append(evts...)
 		return store
 	}
-	t.Run("NoTruncateWhenLastEntryIsLogWithNoExecMessageSealed", func(t *testing.T) {
+	// Note: these subtests assert the drop-last-block recovery rule. When the
+	// file ends exactly at a closing-block boundary, we cannot prove the prior
+	// Sync return value was observed, and the last block is discarded on
+	// recovery (one re-fetched block per startup). When post-boundary entries
+	// exist they prove durability and the last block survives.
+	t.Run("DropsLastBlock_WhenLogWithoutExecMessageJustSealed", func(t *testing.T) {
 		store := storeWithEvents(
 			// seal 0, 1, 2, 3
 			newSearchCheckpoint(0, 0, 100).encode(),
@@ -1021,13 +1028,15 @@ func TestRecoverOnCreate(t *testing.T) {
 			newSearchCheckpoint(4, 0, 104).encode(),
 			newCanonicalHash(createHash(304)).encode(),
 		)
-		db, m, err := createDb(t, store)
+		// File ends exactly at block 4's closing boundary. Drop block 4
+		// (and its preceding init event). Tail boundary moves to block 3's
+		// closing pair at idx 6-7; truncate-to-7 → 8 entries remain.
+		_, m, err := createDb(t, store)
 		require.NoError(t, err)
-		require.EqualValues(t, int64(4*2+3), m.entryCount)
-		requireContains(t, db, 4, 0, 104, createHash(1))
+		require.EqualValues(t, int64(8), m.entryCount)
 	})
 
-	t.Run("NoTruncateWhenLastEntryIsExecChecksumSealed", func(t *testing.T) {
+	t.Run("DropsLastBlock_WhenExecChecksumJustSealed", func(t *testing.T) {
 		execMsg := types.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
@@ -1053,10 +1062,11 @@ func TestRecoverOnCreate(t *testing.T) {
 			newSearchCheckpoint(3, 0, 103).encode(),
 			newCanonicalHash(createHash(303)).encode(),
 		)
-		db, m, err := createDb(t, store)
+		// File ends at block 3's closing boundary. Drop block 3 (entries
+		// idx 6-11). Previous boundary is block 2 at idx 4-5; truncate-to-5.
+		_, m, err := createDb(t, store)
 		require.NoError(t, err)
-		require.EqualValues(t, int64(3*2+6), m.entryCount)
-		requireContains(t, db, 3, 0, 103, createHash(1111), execMsg)
+		require.EqualValues(t, int64(6), m.entryCount)
 	})
 
 	t.Run("TruncateWhenLastEntrySearchCheckpoint", func(t *testing.T) {
@@ -1068,20 +1078,21 @@ func TestRecoverOnCreate(t *testing.T) {
 		require.EqualValues(t, int64(0), m.entryCount)
 	})
 
-	t.Run("NoTruncateWhenLastEntryCanonicalHash", func(t *testing.T) {
-		// A completed seal is fine to have as last entry.
+	t.Run("DropsLoneBlock", func(t *testing.T) {
+		// A single closing pair: file ends exactly at the boundary, drop it.
 		store := storeWithEvents(
 			newSearchCheckpoint(0, 0, 100).encode(),
 			newCanonicalHash(createHash(344)).encode(),
 		)
 		_, m, err := createDb(t, store)
 		require.NoError(t, err)
-		require.EqualValues(t, int64(2), m.entryCount)
+		require.EqualValues(t, int64(0), m.entryCount)
 	})
 
 	t.Run("TruncateWhenLastEntryInitEventWithExecMsg", func(t *testing.T) {
-		// An initiating event that claims an executing message,
-		// without said executing message, is dropped.
+		// Init events past block 0's seal are dropped by trimToLastSealed.
+		// Since trimming actually removes entries (post-boundary data
+		// existed), the block 0 closing pair survives.
 		store := storeWithEvents(
 			newSearchCheckpoint(0, 0, 100).encode(),
 			newCanonicalHash(createHash(344)).encode(),
@@ -1094,20 +1105,21 @@ func TestRecoverOnCreate(t *testing.T) {
 		require.EqualValues(t, int64(2), m.entryCount)
 	})
 
-	t.Run("NoTruncateWhenLastEntrySealed", func(t *testing.T) {
-		// An initiating event that claims an executing message,
-		// without said executing message, is dropped.
+	t.Run("DropsLastBlock_WhenPartialInitEventThenClosingSeal", func(t *testing.T) {
+		// Partial init event between blocks 0 and 1, then block 1's seal.
+		// trimToLastSealed walks back to block 1's closing pair at idx 3-4.
+		// File ends exactly there → drop block 1. Previous boundary is
+		// block 0 at idx 0-1; truncate-to-1.
 		store := storeWithEvents(
 			newSearchCheckpoint(0, 0, 100).encode(),
 			newCanonicalHash(createHash(300)).encode(),
-			// pruned because we go back to a seal
 			newInitiatingEvent(createHash(0), false).encode(),
 			newSearchCheckpoint(1, 0, 100).encode(),
 			newCanonicalHash(createHash(301)).encode(),
 		)
 		_, m, err := createDb(t, store)
 		require.NoError(t, err)
-		require.EqualValues(t, int64(5), m.entryCount)
+		require.EqualValues(t, int64(2), m.entryCount)
 	})
 
 	t.Run("TruncateWhenLastEntryInitEventWithExecChainID", func(t *testing.T) {
@@ -1271,17 +1283,19 @@ func TestRewind(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl50 := eth.BlockID{Hash: createHash(50), Number: 50}
 				require.NoError(t, db.SealBlock(createHash(49), bl50, t50))
-				for i := uint32(0); m.entryCount < searchCheckpointFrequency; i++ {
+				for i := uint32(0); db.pendingNextIndex() < searchCheckpointFrequency; i++ {
 					require.NoError(t, db.AddLog(createHash(1), bl50, i, nil))
 				}
 				// The checkpoint is added automatically,
 				// it will be there as soon as it reaches 255 with log events.
-				// Thus add 2 for the checkpoint.
-				require.EqualValues(t, searchCheckpointFrequency+2, m.entryCount)
+				// Thus add 2 for the checkpoint. Under deferred-I/O semantics
+				// the entry count only updates on commit, so check pending
+				// index (in-memory) instead of on-disk entryCount.
+				require.EqualValues(t, searchCheckpointFrequency+2, db.pendingNextIndex())
 				bl51 := eth.BlockID{Hash: createHash(51), Number: 51}
 				require.NoError(t, db.SealBlock(bl50.Hash, bl51, t51))
 				require.NoError(t, db.AddLog(createHash(1), bl51, 0, nil))
-				require.EqualValues(t, searchCheckpointFrequency+2+3, m.entryCount, "Should have inserted new checkpoint and extra log")
+				require.EqualValues(t, searchCheckpointFrequency+2+3, db.pendingNextIndex(), "Should have inserted new checkpoint and extra log")
 				require.NoError(t, db.AddLog(createHash(2), bl51, 1, nil))
 				bl52 := eth.BlockID{Hash: createHash(52), Number: 52}
 				require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
