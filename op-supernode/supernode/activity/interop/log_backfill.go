@@ -112,6 +112,9 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
 	db := i.logsDBs[cid]
+	if err := i.reconcileLogsDBTail(ctx, cid, chain, db); err != nil {
+		return err
+	}
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
@@ -137,4 +140,44 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 		}
 	}
 	return nil
+}
+
+// reconcileLogsDBTail trims tail blocks whose hash no longer matches canonical,
+// so backfill resumes from a block that is still in force. Without this, an L2
+// reorg that occurs while supernode is offline leaves the tail diverged and the
+// first seal on resume loops forever on ErrParentHashMismatch (see #20627).
+func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, db LogsDB) error {
+	for {
+		latest, has := db.LatestSealedBlock()
+		if !has {
+			return nil
+		}
+		out, err := chain.OutputV0AtBlockNumber(ctx, latest.Number)
+		if err != nil {
+			return fmt.Errorf("chain %s: output at block %d during logsDB reconcile: %w", cid, latest.Number, err)
+		}
+		if out.BlockHash == latest.Hash {
+			return nil
+		}
+		i.log.Warn("trimming stale logsDB tail block",
+			"chain", cid, "blockNumber", latest.Number,
+			"storedHash", latest.Hash, "canonicalHash", out.BlockHash)
+
+		first, err := db.FirstSealedBlock()
+		if err != nil || latest.Number <= first.Number {
+			i.log.Warn("reorg reaches first sealed block; clearing logsDB",
+				"chain", cid, "firstSealed", first.Number)
+			if err := db.Clear(&noopInvalidator{}); err != nil {
+				return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
+			}
+			return nil
+		}
+		prev, err := db.FindSealedBlock(latest.Number - 1)
+		if err != nil {
+			return fmt.Errorf("chain %s: find sealed block %d during reconcile: %w", cid, latest.Number-1, err)
+		}
+		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: prev.Number, Hash: prev.Hash}); err != nil {
+			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
+		}
+	}
 }

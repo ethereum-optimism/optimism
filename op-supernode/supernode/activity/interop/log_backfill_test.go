@@ -92,8 +92,8 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	require.True(t, has)
 	require.Equal(t, uint64(110), latest.Number)
 
-	// Should have fetched only blocks 106..110 (5 blocks), not 100..110 (11 blocks).
-	require.Equal(t, int32(5), fetchCount.Load())
+	// 5 fetches for blocks 106..110 + 1 reconcile probe at block 105.
+	require.Equal(t, int32(6), fetchCount.Load())
 }
 
 func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
@@ -158,17 +158,9 @@ func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
 	<-done
 }
 
-// TestLogBackfill_RecoversFromOfflineReorg asserts the desired behaviour for
-// https://github.com/ethereum-optimism/optimism/issues/20627: if an L2 reorg
-// invalidates a sealed block in the logsDB while supernode is stopped, on
-// restart Start must complete backfill and leave the logsDB reflecting the
-// canonical chain — not get stuck in an infinite ErrParentHashMismatch retry
-// loop requiring the operator to delete logs.db.
-//
-// Today this test FAILS: backfill resumes from latest.Number+1 and trips
-// ErrParentHashMismatch on the first seal, retrying forever. The fix needs to
-// trim the logsDB back to the highest block whose hash still matches canonical
-// (or Clear() if none does) before retrying.
+// TestLogBackfill_RecoversFromOfflineReorg covers #20627: an L2 reorg that
+// invalidates a sealed block while supernode is offline must self-heal on
+// restart, not loop forever on ErrParentHashMismatch.
 func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
 	const act = uint64(100)
 	depth := 20 * time.Second
@@ -190,13 +182,8 @@ func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
 	chain10 := h.Mock(10)
 	db := h.interop.logsDBs[chain10.id]
 
-	// Simulate a pre-shutdown logsDB whose tail is on a stale "v1" fork that no
-	// longer matches the canonical chain returned by the mock (which represents
-	// the post-reorg "v2" canonical view, where block N has hash BigToHash(N)).
-	//
-	// Pre-seed blocks 100..105 directly via SealBlock so we can choose hashes.
-	// The first seal on an empty DB skips parent validation, so each subsequent
-	// seal just needs to link to the previous v1 hash.
+	// Pre-seed blocks 100..105 with a stale "v1" fork hash; the mock's canonical
+	// view ("v2") returns BigToHash(n).
 	v1Hash := func(n uint64) common.Hash {
 		return common.BigToHash(new(big.Int).SetUint64(n | 0xdead0000))
 	}
@@ -209,12 +196,8 @@ func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
 	before, has := db.LatestSealedBlock()
 	require.True(t, has)
 	require.Equal(t, uint64(105), before.Number)
-	require.Equal(t, v1Hash(105), before.Hash,
-		"pre-seed should have placed the v1 (pre-reorg) chain into the logsDB")
+	require.Equal(t, v1Hash(105), before.Hash)
 
-	// Shorten the retry backoff so a buggy implementation doesn't drag the test
-	// out — we still rely on the require.Eventually timeout to detect the stuck
-	// loop. Match TestLogBackfill_RetriesWhenVirtualNodesNotReady.
 	origBackoff := errorBackoffPeriod
 	errorBackoffPeriod = 10 * time.Millisecond
 	t.Cleanup(func() { errorBackoffPeriod = origBackoff })
@@ -225,31 +208,30 @@ func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- h.interop.Start(ctx) }()
 
-	// Start must complete backfill: the canonical chain has block 110 at the
-	// cross-safe tip and supernode must catch up to it after self-healing the
-	// stale logsDB tail.
 	require.Eventually(t, func() bool {
 		return h.interop.backfillCompleted.Load()
 	}, 15*time.Second, 20*time.Millisecond,
 		"Start must recover from an offline reorg, not loop forever on ErrParentHashMismatch")
 
-	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp,
-		"backfill must seal up to the cross-safe tip")
+	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp)
 
-	// The logsDB tail must now reflect the canonical (post-reorg) chain, not
-	// the stale v1 fork it was pre-seeded with.
-	latest, has := db.LatestSealedBlock()
-	require.True(t, has)
-	require.Equal(t, uint64(110), latest.Number, "logsDB tail must advance to the canonical tip")
-	require.Equal(t, common.BigToHash(new(big.Int).SetUint64(110)), latest.Hash,
-		"logsDB tail must be the canonical v2 hash, not the stale v1 hash")
-
-	// Spot-check an interior reorged height: block 103 must hold the canonical
-	// hash, not v1Hash(103).
+	// Assert specific heights, not LatestSealedBlock: once backfill completes
+	// the main loop may seal further blocks before we read state.
+	canonicalHash := func(n uint64) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(n))
+	}
+	seal110, err := db.FindSealedBlock(110)
+	require.NoError(t, err, "backfill tip must be sealed")
+	require.Equal(t, canonicalHash(110), seal110.Hash,
+		"backfill tip must hold the canonical hash, not a stale v1 hash")
 	seal103, err := db.FindSealedBlock(103)
 	require.NoError(t, err)
-	require.Equal(t, common.BigToHash(new(big.Int).SetUint64(103)), seal103.Hash,
+	require.Equal(t, canonicalHash(103), seal103.Hash,
 		"reorged interior block must be replaced with the canonical hash")
+	seal100, err := db.FindSealedBlock(100)
+	require.NoError(t, err)
+	require.Equal(t, canonicalHash(100), seal100.Hash,
+		"activation block must be replaced with the canonical hash")
 
 	cancel()
 	<-done
