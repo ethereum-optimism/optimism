@@ -15,6 +15,17 @@ type EntryStore[T EntryType, E Entry[T]] interface {
 	Read(idx EntryIdx) (E, error)
 	Append(entries ...E) error
 	Truncate(idx EntryIdx) error
+	// Sync forces any buffered data and metadata to disk. On Linux this calls
+	// fsync(2). On macOS it does NOT issue F_FULLFSYNC, so the device write
+	// cache is not flushed; developers running locally on macOS get weaker
+	// durability than production Linux.
+	Sync() error
+	// PrepareForMutation drains any outstanding deferred cleanup so that the
+	// store is in a known-good state before the caller mutates its own
+	// in-memory invariants. If the drain itself fails, the cleanup remains
+	// outstanding and the returned error must be propagated; the caller MUST
+	// NOT proceed with the mutation.
+	PrepareForMutation() error
 	Close() error
 }
 
@@ -39,22 +50,35 @@ type Binary[T EntryType, E Entry[T]] interface {
 	EntrySize() int
 }
 
-// dataAccess defines a minimal API required to manipulate the actual stored data.
-// It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
-type dataAccess interface {
+// DataAccess defines a minimal API required to manipulate the actual stored
+// data. It is a subset of the os.File API but could (theoretically) be
+// satisfied by an in-memory implementation for testing.
+type DataAccess interface {
 	io.ReaderAt
 	io.Writer
 	io.Closer
 	Truncate(size int64) error
+	// Sync forces any buffered data and metadata to disk. Mirrors *os.File.Sync.
+	Sync() error
+}
+
+// pendingCleanup tracks an outstanding logical upper bound enforced because a
+// prior Truncate (either a rollback after a partial Write or an explicit
+// caller-issued Truncate) failed and left the on-disk file longer than the
+// logical end of the database. While active, reads must be bounded by
+// truncateTo and the next mutation drains by retrying the Truncate.
+type pendingCleanup struct {
+	active     bool
+	truncateTo EntryIdx
 }
 
 type EntryDB[T EntryType, E Entry[T], B Binary[T, E]] struct {
-	data         dataAccess
+	data         DataAccess
 	lastEntryIdx EntryIdx
 
 	b B
 
-	cleanupFailedWrite bool
+	pendingCleanup pendingCleanup
 }
 
 // NewEntryDB creates an EntryDB. A new file will be created if the specified path does not exist,
@@ -87,20 +111,41 @@ func NewEntryDB[T EntryType, E Entry[T], B Binary[T, E]](logger log.Logger, path
 	return db, nil
 }
 
+// NewEntryDBFromDataAccess constructs an EntryDB around an existing
+// DataAccess implementation. Intended for tests that wrap *os.File with
+// fault-injection shims. lastEntryIdx must already reflect the current size
+// of the underlying data, in entries.
+func NewEntryDBFromDataAccess[T EntryType, E Entry[T], B Binary[T, E]](data DataAccess, lastEntryIdx EntryIdx) *EntryDB[T, E, B] {
+	return &EntryDB[T, E, B]{
+		data:         data,
+		lastEntryIdx: lastEntryIdx,
+	}
+}
+
+// effectiveLastEntryIdx returns the logical upper bound for reads. When
+// pendingCleanup is active, the on-disk file is longer than the logical end of
+// the database; readers must observe the smaller of the two.
+func (e *EntryDB[T, E, B]) effectiveLastEntryIdx() EntryIdx {
+	if e.pendingCleanup.active && e.pendingCleanup.truncateTo < e.lastEntryIdx {
+		return e.pendingCleanup.truncateTo
+	}
+	return e.lastEntryIdx
+}
+
 func (e *EntryDB[T, E, B]) Size() int64 {
-	return int64(e.lastEntryIdx) + 1
+	return int64(e.effectiveLastEntryIdx()) + 1
 }
 
 // LastEntryIdx returns the index of the last entry in the DB.
 // This returns -1 if the DB is empty.
 func (e *EntryDB[T, E, B]) LastEntryIdx() EntryIdx {
-	return e.lastEntryIdx
+	return e.effectiveLastEntryIdx()
 }
 
 // Read an entry from the database by index. Returns io.EOF iff idx is after the last entry.
 func (e *EntryDB[T, E, B]) Read(idx EntryIdx) (E, error) {
 	var out E
-	if idx > e.lastEntryIdx {
+	if idx > e.effectiveLastEntryIdx() {
 		return out, io.EOF
 	}
 	read, err := e.b.ReadAt(&out, e.data, int64(idx)*int64(e.b.EntrySize()))
@@ -111,15 +156,38 @@ func (e *EntryDB[T, E, B]) Read(idx EntryIdx) (E, error) {
 	return out, nil
 }
 
+// drainCleanup retries the pending Truncate. On success, pendingCleanup is
+// cleared and lastEntryIdx is updated.
+func (e *EntryDB[T, E, B]) drainCleanup() error {
+	if !e.pendingCleanup.active {
+		return nil
+	}
+	target := e.pendingCleanup.truncateTo
+	if err := e.data.Truncate((int64(target) + 1) * int64(e.b.EntrySize())); err != nil {
+		return fmt.Errorf("failed to drain pending cleanup truncate to %v: %w", target, err)
+	}
+	e.lastEntryIdx = target
+	e.pendingCleanup = pendingCleanup{}
+	return nil
+}
+
+// PrepareForMutation drains any deferred cleanup. Callers invoke this before
+// mutating in-memory state they want kept consistent with disk: if the drain
+// fails the store stays in its current (cleanup-active) state, the caller
+// receives the error, and no in-memory state has been advanced.
+func (e *EntryDB[T, E, B]) PrepareForMutation() error {
+	return e.drainCleanup()
+}
+
 // Append entries to the database.
 // The entries are combined in memory and passed to a single Write invocation.
 // If the write fails, it will attempt to truncate any partially written data.
-// Subsequent writes to this instance will fail until partially written data is truncated.
+// If pending cleanup from a prior failure exists, it is drained first; on
+// drain failure the same typed error is returned without touching state.
 func (e *EntryDB[T, E, B]) Append(entries ...E) error {
-	if e.cleanupFailedWrite {
-		// Try to rollback partially written data from a previous Append
-		if truncateErr := e.Truncate(e.lastEntryIdx); truncateErr != nil {
-			return fmt.Errorf("failed to recover from previous write error: %w", truncateErr)
+	if e.pendingCleanup.active {
+		if err := e.drainCleanup(); err != nil {
+			return err
 		}
 	}
 	data := make([]byte, 0, len(entries)*e.b.EntrySize())
@@ -131,13 +199,12 @@ func (e *EntryDB[T, E, B]) Append(entries ...E) error {
 			// Didn't write any data, so no recovery required
 			return err
 		}
-		// Try to rollback the partially written data
-		if truncateErr := e.Truncate(e.lastEntryIdx); truncateErr != nil {
-			// Failed to rollback, set a flag to attempt the clean up on the next write
-			e.cleanupFailedWrite = true
-			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", truncateErr))
+		// Stage a rollback of the partial write and let drainCleanup execute it.
+		// On drain failure, pendingCleanup stays active and the next mutation retries.
+		e.pendingCleanup = pendingCleanup{active: true, truncateTo: e.lastEntryIdx}
+		if drainErr := e.drainCleanup(); drainErr != nil {
+			return errors.Join(err, fmt.Errorf("failed to remove partially written data: %w", drainErr))
 		}
-		// Successfully rolled back the changes, still report the failed write
 		return err
 	}
 	e.lastEntryIdx += EntryIdx(len(entries))
@@ -145,20 +212,34 @@ func (e *EntryDB[T, E, B]) Append(entries ...E) error {
 }
 
 // Truncate the database so that the last retained entry is idx. Any entries after idx are deleted.
+// On failure, pendingCleanup is left active so that the next mutation will retry the truncate while
+// reads continue to observe the smaller logical bound.
 func (e *EntryDB[T, E, B]) Truncate(idx EntryIdx) error {
-	if err := e.data.Truncate((int64(idx) + 1) * int64(e.b.EntrySize())); err != nil {
-		return fmt.Errorf("failed to truncate to entry %v: %w", idx, err)
+	// If pendingCleanup is active, its truncateTo is the strictest known target;
+	// Truncate can only shrink further, never relax it. Take the stricter of the
+	// two, install it as the pending target, and let drainCleanup do the work
+	// (file truncate + lastEntryIdx update + clear-on-success).
+	if e.pendingCleanup.active && idx > e.pendingCleanup.truncateTo {
+		idx = e.pendingCleanup.truncateTo
 	}
-	// Update the lastEntryIdx cache
-	e.lastEntryIdx = idx
-	e.cleanupFailedWrite = false
-	return nil
+	e.pendingCleanup = pendingCleanup{active: true, truncateTo: idx}
+	return e.drainCleanup()
 }
 
-// recover an invalid database by truncating back to the last complete event.
+// Sync forces any buffered data and metadata to disk. On Linux this is fsync(2).
+// On macOS this does NOT issue F_FULLFSYNC; the device write cache is not flushed.
+func (e *EntryDB[T, E, B]) Sync() error {
+	return e.data.Sync()
+}
+
+// recover an invalid database by truncating back to the last complete event,
+// then fsyncs so the recovery truncate is durable.
 func (e *EntryDB[T, E, B]) recover() error {
 	if err := e.data.Truncate(e.Size() * int64(e.b.EntrySize())); err != nil {
 		return fmt.Errorf("failed to truncate trailing partial entries: %w", err)
+	}
+	if err := e.data.Sync(); err != nil {
+		return fmt.Errorf("failed to sync after recovery truncate: %w", err)
 	}
 	return nil
 }

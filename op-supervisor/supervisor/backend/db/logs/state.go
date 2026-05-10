@@ -94,7 +94,38 @@ type logContext struct {
 	// E.g. you can build multiple hypothetical blocks with log events on top of the state,
 	// before flushing the entries to a DB.
 	// However, no entries can be read from the DB while objects are being applied.
+	//
+	// Note: this field is only meaningful on a working clone produced by cloneForWrite.
+	// After a successful commit, db.lastEntryContext.out is always nil.
 	out []Entry
+}
+
+// cloneForWrite returns an independent copy of l suitable for accumulating
+// uncommitted mutations (AddLog, SealBlock) without affecting the committed state.
+//
+// The returned value is decoupled from the receiver: appending to clone.out
+// allocates a fresh backing array, and clone.execMsg points to a freshly allocated
+// copy when l.execMsg is non-nil.
+//
+// MAINTAIN: if you add a field to logContext, update this method. The
+// TestLogContextCloneForWrite_Isolation test will fail if a new field shares state
+// between original and clone.
+func (l logContext) cloneForWrite() logContext {
+	c := logContext{
+		nextEntryIndex: l.nextEntryIndex,
+		blockHash:      l.blockHash,
+		blockNum:       l.blockNum,
+		timestamp:      l.timestamp,
+		logsSince:      l.logsSince,
+		logHash:        l.logHash,
+		need:           l.need,
+		out:            nil,
+	}
+	if l.execMsg != nil {
+		em := *l.execMsg
+		c.execMsg = &em
+	}
+	return c
 }
 
 func (l *logContext) NextIndex() entrydb.EntryIdx {

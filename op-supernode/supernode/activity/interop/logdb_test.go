@@ -50,7 +50,11 @@ func TestLogsDB_Persistence(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Reopen and verify persistence
+		// Reopen and verify persistence. Under the logs.DB drop-last-block
+		// recovery rule, the most recently sealed block is discarded on
+		// reopen (we cannot prove its Sync return value was observed). The
+		// parent block (sealed earlier with post-boundary entries proving
+		// durability) survives.
 		{
 			db, err := openLogsDB(gethlog.New(), chainID, dataDir)
 			require.NoError(t, err)
@@ -58,8 +62,8 @@ func TestLogsDB_Persistence(t *testing.T) {
 
 			latestBlock, ok := db.LatestSealedBlock()
 			require.True(t, ok)
-			require.Equal(t, uint64(100), latestBlock.Number)
-			require.Equal(t, common.Hash{0x03}, latestBlock.Hash)
+			require.Equal(t, uint64(99), latestBlock.Number)
+			require.Equal(t, common.Hash{0x01}, latestBlock.Hash)
 		}
 	})
 

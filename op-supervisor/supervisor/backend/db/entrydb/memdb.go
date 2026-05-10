@@ -34,6 +34,17 @@ func (s *MemEntryStore[T, E]) Truncate(idx EntryIdx) error {
 	return nil
 }
 
+// Sync is a no-op for the in-memory store. Durability is not exercised here;
+// MemEntryStore is used by unit tests that don't crash-test.
+func (s *MemEntryStore[T, E]) Sync() error {
+	return nil
+}
+
+// PrepareForMutation is a no-op: the in-memory store never has deferred cleanup.
+func (s *MemEntryStore[T, E]) PrepareForMutation() error {
+	return nil
+}
+
 func (s *MemEntryStore[T, E]) Close() error {
 	return nil
 }

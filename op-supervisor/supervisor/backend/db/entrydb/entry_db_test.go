@@ -243,6 +243,8 @@ type stubDataAccess struct {
 	writeErr           error
 	writeErrAfterBytes int
 	truncateErr        error
+	syncErr            error
+	syncCalls          int
 }
 
 func (s *stubDataAccess) ReadAt(p []byte, off int64) (n int, err error) {
@@ -270,4 +272,9 @@ func (s *stubDataAccess) Truncate(size int64) error {
 	return nil
 }
 
-var _ dataAccess = (*stubDataAccess)(nil)
+func (s *stubDataAccess) Sync() error {
+	s.syncCalls++
+	return s.syncErr
+}
+
+var _ DataAccess = (*stubDataAccess)(nil)
