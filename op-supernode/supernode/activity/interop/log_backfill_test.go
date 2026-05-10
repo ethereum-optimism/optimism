@@ -158,8 +158,8 @@ func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
 	<-done
 }
 
-// TestLogBackfill_RecoversFromOfflineReorg covers #20627: an L2 reorg that
-// invalidates a sealed block while supernode is offline must self-heal on
+// TestLogBackfill_RecoversFromOfflineReorg tests an L2 reorg that
+// invalidates a sealed block while supernode is offline self-heals on
 // restart, not loop forever on ErrParentHashMismatch.
 func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
 	const act = uint64(100)

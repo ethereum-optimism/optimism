@@ -145,39 +145,53 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 // reconcileLogsDBTail trims tail blocks whose hash no longer matches canonical,
 // so backfill resumes from a block that is still in force. Without this, an L2
 // reorg that occurs while supernode is offline leaves the tail diverged and the
-// first seal on resume loops forever on ErrParentHashMismatch (see #20627).
+// first seal on resume loops forever on ErrParentHashMismatch.
 func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, db LogsDB) error {
-	for {
-		latest, has := db.LatestSealedBlock()
-		if !has {
-			return nil
-		}
-		out, err := chain.OutputV0AtBlockNumber(ctx, latest.Number)
-		if err != nil {
-			return fmt.Errorf("chain %s: output at block %d during logsDB reconcile: %w", cid, latest.Number, err)
-		}
-		if out.BlockHash == latest.Hash {
-			return nil
-		}
-		i.log.Warn("trimming stale logsDB tail block",
-			"chain", cid, "blockNumber", latest.Number,
-			"storedHash", latest.Hash, "canonicalHash", out.BlockHash)
+	latest, has := db.LatestSealedBlock()
+	if !has {
+		return nil
+	}
+	latestOut, err := chain.OutputV0AtBlockNumber(ctx, latest.Number)
+	if err != nil {
+		return fmt.Errorf("chain %s: output at block %d during logsDB reconcile: %w", cid, latest.Number, err)
+	}
+	if latestOut.BlockHash == latest.Hash {
+		return nil
+	}
 
-		first, err := db.FirstSealedBlock()
-		if err != nil || latest.Number <= first.Number {
-			i.log.Warn("reorg reaches first sealed block; clearing logsDB",
-				"chain", cid, "firstSealed", first.Number)
-			if err := db.Clear(&noopInvalidator{}); err != nil {
-				return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
-			}
-			return nil
-		}
-		prev, err := db.FindSealedBlock(latest.Number - 1)
+	first, err := db.FirstSealedBlock()
+	if err != nil {
+		return fmt.Errorf("chain %s: first sealed block during reconcile: %w", cid, err)
+	}
+
+	// Walk back from latest.Number-1 looking for the deepest sealed block whose
+	// hash still matches canonical. latest itself is already known to diverge.
+	for n := latest.Number; n > first.Number; {
+		n--
+		seal, err := db.FindSealedBlock(n)
 		if err != nil {
-			return fmt.Errorf("chain %s: find sealed block %d during reconcile: %w", cid, latest.Number-1, err)
+			return fmt.Errorf("chain %s: find sealed block %d during reconcile: %w", cid, n, err)
 		}
-		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: prev.Number, Hash: prev.Hash}); err != nil {
+		out, err := chain.OutputV0AtBlockNumber(ctx, n)
+		if err != nil {
+			return fmt.Errorf("chain %s: output at block %d during reconcile: %w", cid, n, err)
+		}
+		if seal.Hash != out.BlockHash {
+			continue
+		}
+		i.log.Warn("rewinding logsDB to last canonical block",
+			"chain", cid, "rewindTo", n, "trimmedTipNumber", latest.Number,
+			"trimmedTipStored", latest.Hash, "trimmedTipCanonical", latestOut.BlockHash)
+		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
 			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
 		}
+		return nil
 	}
+
+	i.log.Warn("entire logsDB diverges from canonical; clearing",
+		"chain", cid, "firstSealed", first.Number, "latestSealed", latest.Number)
+	if err := db.Clear(&noopInvalidator{}); err != nil {
+		return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
+	}
+	return nil
 }
