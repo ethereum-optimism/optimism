@@ -106,10 +106,6 @@ type logContext struct {
 // The returned value is decoupled from the receiver: appending to clone.out
 // allocates a fresh backing array, and clone.execMsg points to a freshly allocated
 // copy when l.execMsg is non-nil.
-//
-// MAINTAIN: if you add a field to logContext, update this method. The
-// TestLogContextCloneForWrite_Isolation test will fail if a new field shares state
-// between original and clone.
 func (l logContext) cloneForWrite() logContext {
 	c := logContext{
 		nextEntryIndex: l.nextEntryIndex,
