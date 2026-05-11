@@ -16,11 +16,28 @@ pub(crate) struct ChainMetadata {
     pub chain_id: ChainId,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
+    pub genesis: GenesisMetadata,
+}
+
+/// The genesis section of a superchain config. For chains born under Bedrock, `l2.number` is 0;
+/// for chains migrated from a pre-Bedrock VM (e.g. OP Mainnet, Celo), `l2.number` is the L2
+/// block at which the chain switched to Bedrock — i.e. the bedrock activation block.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct GenesisMetadata {
+    pub l2: GenesisAnchor,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct GenesisAnchor {
+    pub number: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) struct HardforkConfig {
+    pub regolith_time: Option<u64>,
     pub canyon_time: Option<u64>,
     pub delta_time: Option<u64>,
     pub ecotone_time: Option<u64>,
@@ -155,14 +172,18 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         res.merge_netsplit_block = Some(105235063);
     }
 
-    // Add extra fields for ChainConfig from Genesis
+    // Add extra fields for ChainConfig from Genesis.
+    //
+    // `bedrock_block` is the L2 block at which the chain activated Bedrock. For chains born
+    // under Bedrock (e.g. Base, OP Sepolia), this is 0. For chains migrated from a pre-Bedrock VM
+    // (e.g. OP Mainnet, Celo), this is the migration block. The superchain-registry already
+    // tracks this value at `genesis.l2.number`, so we read it from there.
+    //
+    // `regolith_time` is config-driven, defaulting to 0 to match the prior hardcoded value (and
+    // the convention used by the bundled non-superchain-registry chain specs).
     let extra_fields = ChainConfigExtraFields {
-        bedrock_block: if chain_config.chain_id == NamedChain::Optimism as ChainId {
-            Some(105235063)
-        } else {
-            Some(0)
-        },
-        regolith_time: Some(0),
+        bedrock_block: Some(chain_config.genesis.l2.number),
+        regolith_time: Some(chain_config.hardforks.regolith_time.unwrap_or(0)),
         canyon_time: chain_config.hardforks.canyon_time,
         delta_time: chain_config.hardforks.delta_time,
         ecotone_time: chain_config.hardforks.ecotone_time,
@@ -202,6 +223,9 @@ mod tests {
         "eip1559_elasticity": 6,
         "eip1559_denominator": 50,
         "eip1559_denominator_canyon": 250
+      },
+      "genesis": {
+        "l2": {"number": 0}
       }
     }
     "#;
@@ -325,6 +349,9 @@ mod tests {
             "eip1559_elasticity": 6,
             "eip1559_denominator": 50,
             "eip1559_denominator_canyon": 250
+          },
+          "genesis": {
+            "l2": {"number": 105235063}
           }
         }
         "#;
@@ -355,5 +382,66 @@ mod tests {
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
         assert_eq!(optimism.get("eip1559DenominatorCanyon").unwrap(), 250);
+    }
+
+    /// Regression test: a migrated chain that is not OP Mainnet should also get a non-zero
+    /// `bedrockBlock` reflecting its actual migration block. Previously this was hardcoded to 0
+    /// for any non-OP-Mainnet chain, which silently disabled `--rollup.historicalrpc` forwarding.
+    ///
+    /// The metadata below mirrors the values from the bundled superchain-registry config for
+    /// Celo mainnet (`superchain/configs/mainnet/celo.toml`). Celo's registry config does not
+    /// set `regolith_time`, so the resulting `regolithTime` defaults to 0; the
+    /// `regolith_time`-from-config code path is exercised separately in
+    /// `test_convert_to_genesis_chain_config_regolith_time_honored`.
+    #[test]
+    fn test_convert_to_genesis_chain_config_migrated_non_op_mainnet() {
+        const CELO_CHAIN_METADATA: &str = r#"
+        {
+          "chain_id": 42220,
+          "hardforks": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 1752073200,
+            "isthmus_time": 1752073200
+          },
+          "optimism": {
+            "eip1559_elasticity": 5,
+            "eip1559_denominator": 400,
+            "eip1559_denominator_canyon": 400
+          },
+          "genesis": {
+            "l2": {"number": 31056500}
+          }
+        }
+        "#;
+        let config: ChainMetadata = serde_json::from_str(CELO_CHAIN_METADATA).unwrap();
+        let chain_config = to_genesis_chain_config(&config);
+        assert_eq!(chain_config.chain_id, 42220);
+        assert_eq!(chain_config.extra_fields.get("bedrockBlock").unwrap(), 31056500);
+        assert_eq!(chain_config.extra_fields.get("regolithTime").unwrap(), 0);
+    }
+
+    /// Verifies that a non-zero `regolith_time` set in the chain config is honored, instead of
+    /// the previously hardcoded 0. No chain in the bundled superchain registry currently sets a
+    /// non-zero `regolith_time`, so the metadata here is synthetic.
+    #[test]
+    fn test_convert_to_genesis_chain_config_regolith_time_honored() {
+        const METADATA: &str = r#"
+        {
+          "chain_id": 999999,
+          "hardforks": {
+            "regolith_time": 1700000000
+          },
+          "genesis": {
+            "l2": {"number": 0}
+          }
+        }
+        "#;
+        let config: ChainMetadata = serde_json::from_str(METADATA).unwrap();
+        let chain_config = to_genesis_chain_config(&config);
+        assert_eq!(chain_config.extra_fields.get("regolithTime").unwrap(), 1700000000);
     }
 }
