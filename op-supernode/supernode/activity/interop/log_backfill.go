@@ -112,6 +112,12 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
 	db := i.logsDBs[cid]
+	// This is a startup best-effort repair for pre-existing logsDB reorg drift,
+	// separate from the normal interop observation/apply loop. It does not close
+	// the window where an L2 reorg lands after reconciliation/backfill and before
+	// normal interop persists its first frontier block. In that case the write path
+	// fails with ErrParentHashMismatch or ErrStaleLogsDB instead of appending
+	// inconsistent logs.
 	if err := i.reconcileLogsDBTail(ctx, cid, chain, db); err != nil {
 		return err
 	}
