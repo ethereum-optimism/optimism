@@ -17,7 +17,10 @@ use tempfile::TempDir;
 
 use crate::{
     BlockStateDiff, OpProofsStorageError,
-    api::{OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw},
+    api::{
+        OpProofsBackfillProvider, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
+        WriteCounts,
+    },
     db::{
         ProofWindowKey, V2ProofWindow,
         models::{
@@ -1962,4 +1965,172 @@ fn storage_trie_history_cursor_walk_returns_lex_by_nibble_order() {
     }
 
     assert_eq!(walked, vec![long, short], "within an address, [0x01, 0x05] must precede [0x05]",);
+}
+
+// ========================== Backfill (prepend_block) tests ==========================
+
+#[test]
+fn prepend_block_basic_advances_earliest_and_writes_changeset() {
+    let db = setup_db();
+
+    let addr = B256::from([0xDD; 32]);
+    let block5_hash = B256::repeat_byte(0x05);
+    let block4_hash = B256::repeat_byte(0x04);
+    let before_account = Account { nonce: 10, ..Default::default() };
+
+    // earliest = (5, block5_hash) — backfill window currently empty at block 5
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider.set_earliest_block_number(5, block5_hash).expect("set earliest");
+        OpProofsProviderRw::commit(provider).expect("commit");
+    }
+
+    // Prepend block 5 with addr's before-account = state at end of block 4.
+    let counts = {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut post_state = HashedPostState::default();
+        post_state.accounts.insert(addr, Some(before_account));
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state: post_state.into_sorted(),
+        };
+        let block_ref = make_block_ref(5, block5_hash, block4_hash);
+        let counts = provider.prepend_block(block_ref, diff).expect("prepend");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+        counts
+    };
+    assert_eq!(counts.hashed_accounts_written_total, 1);
+    assert_eq!(counts.hashed_storages_written_total, 0);
+    assert_eq!(counts.account_trie_updates_written_total, 0);
+    assert_eq!(counts.storage_trie_updates_written_total, 0);
+
+    // earliest advanced to (4, block4_hash).
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((4, block4_hash)));
+    }
+
+    // Changeset entry for block 5 carries the supplied before-value.
+    {
+        let tx = db.tx().expect("ro");
+        let mut cur = tx.cursor_dup_read::<V2HashedAccountChangeSets>().expect("cursor");
+        let entry = cur.seek_by_key_subkey(5u64, addr).expect("seek").expect("exists");
+        assert_eq!(entry.hashed_address, addr);
+        assert_eq!(entry.info.unwrap().nonce, 10);
+    }
+
+    // History bitmap created with sentinel shard holding [5].
+    {
+        let tx = db.tx().expect("ro");
+        let mut cur = tx.cursor_read::<V2HashedAccountsHistory>().expect("cursor");
+        let shard_key = HashedAccountShardedKey::new(addr, u64::MAX);
+        let (_, bitmap) = cur.seek_exact(shard_key).expect("seek").expect("exists");
+        assert_eq!(bitmap.iter().collect::<Vec<_>>(), vec![5]);
+    }
+}
+
+#[test]
+fn prepend_block_hash_mismatch_rejects() {
+    let db = setup_db();
+
+    let block5_hash = B256::repeat_byte(0x05);
+    let wrong_hash = B256::repeat_byte(0xFF);
+
+    // earliest = (5, block5_hash)
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider.set_earliest_block_number(5, block5_hash).expect("set earliest");
+        OpProofsProviderRw::commit(provider).expect("commit");
+    }
+
+    // Attempt to prepend with a non-matching hash → PrependOutOfOrder.
+    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let block_ref = make_block_ref(5, wrong_hash, B256::repeat_byte(0x04));
+    let res = provider.prepend_block(block_ref, BlockStateDiff::default());
+    assert!(
+        matches!(res, Err(OpProofsStorageError::PrependOutOfOrder { .. })),
+        "expected PrependOutOfOrder, got {res:?}"
+    );
+}
+
+fn prepend_block_idempotent_when_changeset_exists() {
+    let db = setup_db();
+
+    let addr = B256::from([0xEE; 32]);
+    let block1_hash = B256::repeat_byte(0x01);
+
+    // init at block 0, forward-store block 1 (creates changesets + history for addr).
+    init_state(&db, vec![(addr, Some(Account::default()))]);
+    store_block(&db, make_block_ref(1, block1_hash, B256::ZERO), make_nonce_diff(addr, 1));
+
+    // Simulate a retry scenario: rewind earliest back to (1, block1_hash) and
+    // attempt to prepend block 1 again. The changeset-exists guard should short-circuit.
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider.set_earliest_block_number(1, block1_hash).expect("rewind earliest");
+        OpProofsProviderRw::commit(provider).expect("commit");
+    }
+
+    let counts = {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let block_ref = make_block_ref(1, block1_hash, B256::ZERO);
+        let counts = provider.prepend_block(block_ref, make_nonce_diff(addr, 42)).expect("prepend");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+        counts
+    };
+
+    // Idempotency: zero write counts AND earliest unchanged.
+    assert_eq!(counts, WriteCounts::default());
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((1, block1_hash)));
+    }
+
+    // Changeset retains the ORIGINAL forward-write value (nonce: 0), not the
+    // would-be-prepended value (nonce: 42).
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_dup_read::<V2HashedAccountChangeSets>().expect("cursor");
+    let entry = cur.seek_by_key_subkey(1u64, addr).expect("seek").expect("exists");
+    assert_eq!(entry.info.unwrap_or_default().nonce, 0);
+}
+
+#[test]
+fn prepend_block_descending_chain_accumulates_history() {
+    let db = setup_db();
+
+    let addr = B256::from([0xCD; 32]);
+    let hashes = [
+        B256::repeat_byte(0x00),
+        B256::repeat_byte(0x01),
+        B256::repeat_byte(0x02),
+        B256::repeat_byte(0x03),
+    ];
+
+    // earliest = (3, hash_3). Backfill blocks 3, 2, 1 in descending order.
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider.set_earliest_block_number(3, hashes[3]).expect("set earliest");
+        OpProofsProviderRw::commit(provider).expect("commit");
+    }
+
+    for block_num in (1u64..=3).rev() {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let block_ref =
+            make_block_ref(block_num, hashes[block_num as usize], hashes[(block_num - 1) as usize]);
+        provider.prepend_block(block_ref, make_nonce_diff(addr, block_num)).expect("prepend");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    // earliest now at (0, hash_0).
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((0, hashes[0])));
+    }
+
+    // History bitmap accumulated all three prepended blocks in ascending order.
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_read::<V2HashedAccountsHistory>().expect("cursor");
+    let shard_key = HashedAccountShardedKey::new(addr, u64::MAX);
+    let (_, bitmap) = cur.seek_exact(shard_key).expect("seek").expect("exists");
+    assert_eq!(bitmap.iter().collect::<Vec<_>>(), vec![1, 2, 3]);
 }

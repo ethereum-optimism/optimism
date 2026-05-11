@@ -336,6 +336,11 @@ where
     where
         Self: 'a;
 
+    type BackfillProvider<'a>
+        = S::BackfillProvider<'a>
+    where
+        Self: 'a;
+
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(OpProofsProviderROWithMetrics::new(self.storage.provider_ro()?, self.metrics.clone()))
     }
@@ -349,6 +354,10 @@ where
             self.storage.initialization_provider()?,
             self.metrics.clone(),
         ))
+    }
+
+    fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
+        self.storage.backfill_provider()
     }
 }
 

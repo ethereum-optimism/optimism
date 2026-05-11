@@ -99,6 +99,21 @@ pub enum OpProofsStorageError {
         /// The latest stored block number
         latest_block_number: u64,
     },
+    /// Attempted to prepend a block whose hash does not match the current earliest
+    #[error(
+        "Cannot prepend block {block_number} (hash {block_hash}): \
+         expected earliest block {earliest_block_number} (hash {earliest_block_hash})"
+    )]
+    PrependOutOfOrder {
+        /// The block number being prepended
+        block_number: u64,
+        /// The hash of the block being prepended
+        block_hash: B256,
+        /// The current earliest block number
+        earliest_block_number: u64,
+        /// The current earliest block hash
+        earliest_block_hash: B256,
+    },
     /// Attempted to prune to a block at or before the earliest stored block
     #[error(
         "Attempted to prune to block {target_block_number} but earliest stored block is already {earliest_block_number}"

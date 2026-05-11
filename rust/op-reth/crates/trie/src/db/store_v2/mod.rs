@@ -9,6 +9,7 @@
 //! | Account Trie | `V2AccountsTrie` | `V2AccountTrieChangeSets` | `V2AccountsTrieHistory` |
 //! | Storage Trie | `V2StoragesTrie` | `V2StorageTrieChangeSets` | `V2StoragesTrieHistory` |
 
+mod backfill;
 pub(crate) mod cursor;
 mod init;
 #[cfg(feature = "metrics")]
@@ -57,6 +58,7 @@ impl OpProofsStore for MdbxProofsStorageV2 {
     type ProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
     type ProviderRw<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
     type Initializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+    type BackfillProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(Arc::new(MdbxProofsProviderV2::new(self.env.tx()?)))
@@ -67,6 +69,10 @@ impl OpProofsStore for MdbxProofsStorageV2 {
     }
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
+        Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
+    }
+
+    fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
 }

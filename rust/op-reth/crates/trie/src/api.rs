@@ -176,6 +176,130 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
     fn commit(self) -> OpProofsStorageResult<()>;
 }
 
+/// Provider for writing historical records for blocks older than the current window boundary.
+///
+/// Unlike [`OpProofsProviderRw::store_trie_updates`], which is strictly append-only (validates
+/// parent hash against `latest` and advances `latest`), this provider is designed for
+/// **prepend-style** writes that extend the window backward.  It does not touch the `latest`
+/// marker, and it does not enforce parent-hash ordering against `latest`.
+///
+/// The typical call sequence for one backfill step is:
+/// ```ignore
+/// let bp = storage.backfill_provider()?;
+/// bp.prepend_block(block_ref, diff)?;
+/// bp.commit()?;
+/// ```
+pub trait OpProofsBackfillProvider: OpProofsProviderRO {
+    /// Write historical changeset and history-bitmap entries for `block_ref`, and move the
+    /// `earliest` marker to `block_ref.parent`.
+    ///
+    /// `diff` contains:
+    /// - `sorted_trie_updates`: trie node **before-values** for `block_ref.block.number` (i.e. what
+    ///   each changed node looked like *before* the block executed).
+    /// - `sorted_post_state`: account / storage **before-values** for the same block.
+    ///
+    /// The implementation must **not** update the `latest` marker and must **not**
+    /// validate `diff` against the current `latest` block.
+    fn prepend_block(
+        &self,
+        block_ref: BlockWithParent,
+        diff: BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts>;
+
+    /// Commit the transaction. Consumes the provider.
+    fn commit(self) -> OpProofsStorageResult<()>;
+}
+
+/// Blanket impl of [`OpProofsProviderRO`] for shared references.
+///
+/// This allows passing `&bp` (where `bp: OpProofsBackfillProvider + OpProofsProviderRO`)
+/// to APIs that require `P: OpProofsProviderRO + Clone`. Since `&T: Copy`, cloning a
+/// reference is free, enabling `StateRoot::overlay_root(&bp, ...)` to work without
+/// requiring the underlying provider to implement `Clone`.
+impl<'a, T: OpProofsProviderRO + 'a> OpProofsProviderRO for &'a T {
+    type StorageTrieCursor<'tx>
+        = T::StorageTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type AccountTrieCursor<'tx>
+        = T::AccountTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type StorageCursor<'tx>
+        = T::StorageCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type AccountHashedCursor<'tx>
+        = T::AccountHashedCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+
+    fn get_earliest_block(&self) -> crate::OpProofsStorageResult<NumHash> {
+        T::get_earliest_block(self)
+    }
+
+    fn get_latest_block(&self) -> crate::OpProofsStorageResult<NumHash> {
+        T::get_latest_block(self)
+    }
+
+    fn get_proof_window(&self) -> crate::OpProofsStorageResult<ProofWindowRange> {
+        T::get_proof_window(self)
+    }
+
+    fn storage_trie_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> crate::OpProofsStorageResult<Self::StorageTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::storage_trie_cursor(self, hashed_address, max_block_number)
+    }
+
+    fn account_trie_cursor<'tx>(
+        &self,
+        max_block_number: u64,
+    ) -> crate::OpProofsStorageResult<Self::AccountTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::account_trie_cursor(self, max_block_number)
+    }
+
+    fn storage_hashed_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> crate::OpProofsStorageResult<Self::StorageCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::storage_hashed_cursor(self, hashed_address, max_block_number)
+    }
+
+    fn account_hashed_cursor<'tx>(
+        &self,
+        max_block_number: u64,
+    ) -> crate::OpProofsStorageResult<Self::AccountHashedCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::account_hashed_cursor(self, max_block_number)
+    }
+
+    fn fetch_trie_updates(
+        &self,
+        block_number: u64,
+    ) -> crate::OpProofsStorageResult<BlockStateDiff> {
+        T::fetch_trie_updates(self, block_number)
+    }
+}
+
 /// Factory trait for creating providers to interact with the proofs storage.
 #[auto_impl(Arc)]
 pub trait OpProofsStore: Send + Sync + Debug {
@@ -194,6 +318,11 @@ pub trait OpProofsStore: Send + Sync + Debug {
     where
         Self: 'a;
 
+    /// The backfill provider type created by the factory.
+    type BackfillProvider<'a>: OpProofsBackfillProvider + 'a
+    where
+        Self: 'a;
+
     /// Create a read-only provider for interacting with the proofs storage.
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>>;
 
@@ -202,6 +331,9 @@ pub trait OpProofsStore: Send + Sync + Debug {
 
     /// Create an initialization provider for interacting with the proofs storage.
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
+
+    /// Create a backfill provider for prepend-style writes that extend the window backward.
+    fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>>;
 }
 
 /// Status of the initial state anchor.
