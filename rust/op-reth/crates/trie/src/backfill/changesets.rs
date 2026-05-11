@@ -9,50 +9,38 @@
 //!
 //! # Algorithm
 //!
-//! The trie-changeset computation mirrors the algorithm in
-//! `reth_trie_db::changesets::compute_block_trie_changesets_inner` but reads
+//! Conceptually equivalent to
+//! `reth_trie_db::changesets::compute_block_trie_changesets_inner`, but reads
 //! the trie from the **op-reth proofs storage** at `max_block_number = N`
 //! instead of from reth's current-state tables. That swap is what makes the
-//! per-block cost scale with `k_N` (this one block's diff) rather than
-//! `K_tail` (every changeset entry between N and the DB tip).
+//! per-block cost scale with `k_N` (this block's diff) rather than `K_tail`
+//! (every changeset entry between N and the DB tip).
 //!
-//! Three passes against `OpProofsTrieCursorFactory` / `OpProofsHashedAccountCursorFactory`
-//! at `max = block_number`:
+//! A single call to `overlay_root_from_nodes_with_updates` does the work:
+//! - **Cursor**: `OpProofsHashedAccountCursorFactory` / `OpProofsTrieCursorFactory`
+//!   at `max=N` — serves state@N.
+//! - **State overlay**: the per-block leaf revert (`individual_state_revert`).
+//!   Walked together with the cursor, this yields state@N-1 for every leaf
+//!   block N touched.
+//! - **Prefix sets**: only the paths block N's leaf revert covers.
 //!
-//! 1. **Reconstruct trie@N-1.** `overlay_root_from_nodes_with_updates` with the
-//!    per-block leaf revert as the *state* overlay, no node overlay, and
-//!    prefix sets covering block N's affected paths. The proofs cursor serves
-//!    state@N; the overlay walks it back to state@N-1 only for the paths block
-//!    N changed. Output: `cumulative_trie_updates_prev` — the branch nodes as
-//!    they existed at the end of N-1, expressed as a delta from the proofs
-//!    cursor's view at max=N.
-//!
-//! 2. **Discover which branch paths block N touched.** The same call with no
-//!    overlays — just prefix sets + the proofs cursor at max=N. The returned
-//!    `TrieUpdates` is the set of (path, node@N) pairs for branch nodes that
-//!    the Merkle walk had to compute. We don't care about the node *values*
-//!    in this output; we only use the path list to drive the diff in step 3.
-//!
-//! 3. **Look up before-values.** For each path from step 2, seek into the
-//!    trie@N-1 view: `InMemoryTrieCursorFactory` layering the step-1 delta
-//!    over `OpProofsTrieCursorFactory` at max=N. The result is the (path,
-//!    before-value) tuples that `prepend_block` writes to the changeset
-//!    tables.
+//! The returned `TrieUpdates` is the difference between trie@N (cursor view)
+//! and trie@N-1 (after applying the overlay) for those paths — which is
+//! exactly the trie changeset we want:
+//! - branch modified at N → `(path, Some(value_at_N-1))`
+//! - branch destroyed at N (existed at N-1, gone at N) → `(path, Some(value_at_N-1))`
+//! - branch created at N (existed at N, gone at N-1) → `(path, None)` via `removed_nodes`
 
 use crate::{
-    OpProofsProviderRO, backfill::error::BackfillError,
-    cursor_factory::OpProofsTrieCursorFactory, proof::DatabaseStateRoot,
+    OpProofsProviderRO, backfill::error::BackfillError, proof::DatabaseStateRoot,
 };
 use alloy_primitives::BlockNumber;
 use reth_provider::{
     BlockNumReader, ChangeSetReader, DBProvider, ProviderError, StorageChangeSetReader,
     StorageSettingsCache,
 };
-use reth_trie::{
-    StateRoot, TrieInput, changesets::compute_trie_changesets,
-    trie_cursor::InMemoryTrieCursorFactory,
-};
-use reth_trie_common::{HashedPostState, HashedPostStateSorted, updates::TrieUpdatesSorted};
+use reth_trie::{StateRoot, TrieInput};
+use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use reth_trie_db::from_reverts_auto;
 
 /// Compute the backfill diff for `block_number`: the trie-node before-values
@@ -95,46 +83,23 @@ fn compute_trie_changesets_against_proofs<R>(
 where
     R: OpProofsProviderRO + Clone,
 {
-    let prefix_sets = individual_state_revert.construct_prefix_sets();
-    let state_overlay: HashedPostState = individual_state_revert.clone().into();
-
-    // Pass 1 — reconstruct trie@N-1.
-    // Apply the per-block leaf revert on top of the proofs cursor at max=N;
-    // walk only the paths block N touched. Output is the branch-node deltas
-    // needed to land at state@N-1.
-    let input_prev = TrieInput {
+    // Apply block N's leaf revert as a state overlay on top of the proofs
+    // cursor at max=N, then walk just the paths block N touched. The returned
+    // `TrieUpdates` describes how trie@N-1 differs from the cursor's view at
+    // max=N — which is exactly the changeset:
+    //   - modified branch  → (path, Some(value_at_N-1))
+    //   - destroyed at N   → (path, Some(value_at_N-1))
+    //   - created at N     → (path, None)   (via `removed_nodes`)
+    let input = TrieInput {
         nodes: Default::default(),
-        state: state_overlay,
-        prefix_sets: prefix_sets.clone(),
+        state: individual_state_revert.clone().into(),
+        prefix_sets: individual_state_revert.construct_prefix_sets(),
     };
-    let (_, trie_at_block_minus_one) = StateRoot::overlay_root_from_nodes_with_updates(
-        proofs_provider.clone(),
-        block_number,
-        input_prev,
-    )
-    .map_err(ProviderError::other)?;
-    let trie_at_block_minus_one = trie_at_block_minus_one.into_sorted();
-
-    // Pass 2 — discover the branch paths block N touched.
-    // Same prefix sets, no overlays — the walk against the proofs cursor at
-    // max=N returns the (path, node@N) pairs for branches the Merkle
-    // computation reached. We use the path list, not the node values.
-    let input = TrieInput { nodes: Default::default(), state: Default::default(), prefix_sets };
-    let (_, trie_updates_at_block) = StateRoot::overlay_root_from_nodes_with_updates(
-        proofs_provider.clone(),
+    let (_, trie_updates) = StateRoot::overlay_root_from_nodes_with_updates(
+        proofs_provider,
         block_number,
         input,
     )
     .map_err(ProviderError::other)?;
-    let trie_updates_at_block = trie_updates_at_block.into_sorted();
-
-    // Pass 3 — look up each path's value at N-1.
-    // Layer pass-1's delta over the proofs cursor at max=N to get a cursor
-    // that returns trie state at N-1. Seek each path from pass 2 and record
-    // (path, before-value).
-    let proofs_factory = OpProofsTrieCursorFactory::new(proofs_provider, block_number);
-    let overlay_factory = InMemoryTrieCursorFactory::new(proofs_factory, &trie_at_block_minus_one);
-    compute_trie_changesets(&overlay_factory, &trie_updates_at_block)
-        .map_err(ProviderError::other)
-        .map_err(BackfillError::Provider)
+    Ok(trie_updates.into_sorted())
 }
