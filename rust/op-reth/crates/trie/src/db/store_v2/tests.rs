@@ -1978,11 +1978,12 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
     let block4_hash = B256::repeat_byte(0x04);
     let before_account = Account { nonce: 10, ..Default::default() };
 
-    // earliest = (5, block5_hash) — backfill window currently empty at block 5
+    // Init the proof window at (5, block5_hash) — earliest == latest == 5.
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(5, block5_hash).expect("set earliest");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider.set_initial_state_anchor(BlockNumHash::new(5, block5_hash)).expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
     // Prepend block 5 with addr's before-account = state at end of block 4.
@@ -2007,7 +2008,7 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
     // earliest advanced to (4, block4_hash).
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((4, block4_hash)));
+        assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(4, block4_hash));
     }
 
     // Changeset entry for block 5 carries the supplied before-value.
@@ -2036,11 +2037,12 @@ fn prepend_block_hash_mismatch_rejects() {
     let block5_hash = B256::repeat_byte(0x05);
     let wrong_hash = B256::repeat_byte(0xFF);
 
-    // earliest = (5, block5_hash)
+    // Init the proof window at (5, block5_hash).
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(5, block5_hash).expect("set earliest");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider.set_initial_state_anchor(BlockNumHash::new(5, block5_hash)).expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
     // Attempt to prepend with a non-matching hash → PrependOutOfOrder.
@@ -2067,7 +2069,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
     // attempt to prepend block 1 again. The changeset-exists guard should short-circuit.
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(1, block1_hash).expect("rewind earliest");
+        provider.set_earliest_block_number_inner(1, block1_hash).expect("rewind earliest");
         OpProofsProviderRw::commit(provider).expect("commit");
     }
 
@@ -2083,7 +2085,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
     assert_eq!(counts, WriteCounts::default());
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((1, block1_hash)));
+        assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(1, block1_hash));
     }
 
     // Changeset retains the ORIGINAL forward-write value (nonce: 0), not the
@@ -2106,11 +2108,12 @@ fn prepend_block_descending_chain_accumulates_history() {
         B256::repeat_byte(0x03),
     ];
 
-    // earliest = (3, hash_3). Backfill blocks 3, 2, 1 in descending order.
+    // Init the proof window at (3, hash_3). Backfill blocks 3, 2, 1 descending.
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(3, hashes[3]).expect("set earliest");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider.set_initial_state_anchor(BlockNumHash::new(3, hashes[3])).expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
     for block_num in (1u64..=3).rev() {
@@ -2124,7 +2127,7 @@ fn prepend_block_descending_chain_accumulates_history() {
     // earliest now at (0, hash_0).
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        assert_eq!(provider.get_earliest_block_number().expect("get"), Some((0, hashes[0])));
+        assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(0, hashes[0]));
     }
 
     // History bitmap accumulated all three prepended blocks in ascending order.

@@ -10,6 +10,7 @@ use crate::{
     api::OpProofsProviderRO, initialize::InitializationJob,
 };
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
+use alloy_eips::NumHash;
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
@@ -342,7 +343,7 @@ fn run_is_noop_when_target_at_or_above_earliest() {
         let provider = provider_factory.database_provider_ro().unwrap();
         BackfillJob::new(provider, storage.clone()).run(latest_num).unwrap();
         let ro = storage.provider_ro().unwrap();
-        assert_eq!(ro.get_earliest_block_number().unwrap(), Some((latest_num, latest_hash)));
+        assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
     }
 
     // target > earliest: also no-op.
@@ -350,7 +351,7 @@ fn run_is_noop_when_target_at_or_above_earliest() {
         let provider = provider_factory.database_provider_ro().unwrap();
         BackfillJob::new(provider, storage.clone()).run(latest_num + 100).unwrap();
         let ro = storage.provider_ro().unwrap();
-        assert_eq!(ro.get_earliest_block_number().unwrap(), Some((latest_num, latest_hash)));
+        assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
     }
 }
 
@@ -383,7 +384,7 @@ fn run_extends_window_backward_multi_block() {
 
     {
         let ro = storage.provider_ro().unwrap();
-        assert_eq!(ro.get_earliest_block_number().unwrap(), Some((latest_num, latest_hash)));
+        assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
     }
 
     {
@@ -394,7 +395,7 @@ fn run_extends_window_backward_multi_block() {
     let provider = provider_factory.database_provider_ro().unwrap();
     let genesis_hash = reth_provider::BlockHashReader::block_hash(&provider, 0).unwrap().unwrap();
     let ro = storage.provider_ro().unwrap();
-    assert_eq!(ro.get_earliest_block_number().unwrap(), Some((0, genesis_hash)));
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
 }
 
 #[test]
@@ -407,7 +408,7 @@ fn run_extends_window_backward() {
     // Sanity: earliest starts at the latest block.
     {
         let ro = storage.provider_ro().unwrap();
-        assert_eq!(ro.get_earliest_block_number().unwrap(), Some((latest_num, latest_hash)));
+        assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
     }
 
     // Backfill all the way down to block 0 (genesis).
@@ -420,7 +421,7 @@ fn run_extends_window_backward() {
     let provider = provider_factory.database_provider_ro().unwrap();
     let genesis_hash = reth_provider::BlockHashReader::block_hash(&provider, 0).unwrap().unwrap();
     let ro = storage.provider_ro().unwrap();
-    assert_eq!(ro.get_earliest_block_number().unwrap(), Some((0, genesis_hash)));
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
 }
 
 #[test]
@@ -438,7 +439,7 @@ fn run_extends_window_backward_with_storage_writes() {
 
     {
         let ro = storage.provider_ro().unwrap();
-        assert_eq!(ro.get_earliest_block_number().unwrap(), Some((latest_num, latest_hash)));
+        assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
     }
 
     {
@@ -449,5 +450,5 @@ fn run_extends_window_backward_with_storage_writes() {
     let provider = provider_factory.database_provider_ro().unwrap();
     let genesis_hash = reth_provider::BlockHashReader::block_hash(&provider, 0).unwrap().unwrap();
     let ro = storage.provider_ro().unwrap();
-    assert_eq!(ro.get_earliest_block_number().unwrap(), Some((0, genesis_hash)));
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
 }

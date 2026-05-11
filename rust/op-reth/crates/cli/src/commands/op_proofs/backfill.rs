@@ -94,21 +94,19 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             + Send,
         S: OpProofsStore + Send,
     {
-        let ro = storage.provider_ro()?;
-        let earliest = ro.get_earliest_block_number()?;
-        let latest = ro.get_latest_block_number()?;
-        drop(ro);
+       let window = storage.provider_ro()?.get_proof_window()?;
         info!(
             target: "reth::cli",
-            ?earliest,
-            ?latest,
+            earliest = ?window.earliest,
+            latest = ?window.latest,
             target_earliest_block,
             "Starting backfill job"
         );
 
         let provider = provider_factory
             .database_provider_ro()
-            .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?;
+            .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
+            .disable_long_read_transaction_safety();
 
         BackfillJob::new(provider, storage).run(target_earliest_block)?;
         Ok(())
