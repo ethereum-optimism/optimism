@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"sync"
 	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -165,6 +167,39 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// CustomNUTActivation is a test-only hook for injecting custom NUT deposit transactions at a
+	// specific L2 timestamp, simulating a future post-Karst upgrade. Not serialized; must not be
+	// used in production.
+	CustomNUTActivation *CustomNUTActivation `json:"-"`
+}
+
+// CustomNUTActivation holds the activation timestamp and NUT deposit transactions for a test-only
+// post-Karst upgrade simulation. Transactions may be set after construction (before the activation
+// block is sequenced) via SetTransactions.
+type CustomNUTActivation struct {
+	// Time is the L2 block timestamp at which to inject the NUT transactions.
+	Time uint64
+
+	mu       sync.Mutex
+	txs      []hexutil.Bytes
+	totalGas uint64
+}
+
+// SetTransactions sets the serialized deposit transactions and their combined gas limit.
+// Must be called before the activation block is sequenced.
+func (a *CustomNUTActivation) SetTransactions(txs []hexutil.Bytes, totalGas uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.txs = txs
+	a.totalGas = totalGas
+}
+
+// Transactions returns the serialized deposit transactions and their combined gas limit.
+func (a *CustomNUTActivation) Transactions() ([]hexutil.Bytes, uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.txs, a.totalGas
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -568,6 +603,19 @@ func (c *Config) IsKarstActivationBlock(l2BlockTime uint64) bool {
 	return c.IsKarst(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
 		!c.IsKarst(l2BlockTime-c.BlockTime)
+}
+
+// IsCustomNUTActivationBlock returns true for the first L2 block at or after the custom NUT
+// activation timestamp. Used to inject test-only NUT transactions; never true in production
+// (CustomNUTActivation is nil when loaded from JSON).
+func (c *Config) IsCustomNUTActivationBlock(l2BlockTime uint64) bool {
+	if c.CustomNUTActivation == nil {
+		return false
+	}
+	t := c.CustomNUTActivation.Time
+	return l2BlockTime >= t &&
+		l2BlockTime >= c.BlockTime &&
+		l2BlockTime-c.BlockTime < t
 }
 
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {

@@ -80,6 +80,19 @@ func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Buil
 	}
 }
 
+// WithCustomNUTAtOffset returns a *rollup.CustomNUTActivation handle and an L2CLOption that
+// schedules custom NUT deposit transactions to be injected at genesis-time + offsetSeconds.
+// The caller must call SetTransactions on the returned handle before the activation block is
+// sequenced. Intended for tests only; never use in production.
+func WithCustomNUTAtOffset(offsetSeconds uint64) (*rollup.CustomNUTActivation, L2CLOption) {
+	activation := &rollup.CustomNUTActivation{}
+	opt := L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.customNUTActivationOffset = offsetSeconds
+		cfg.customNUTActivation = activation
+	})
+	return activation, opt
+}
+
 func WithL2GasLimit(gasLimit uint64) DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
