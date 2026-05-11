@@ -14,11 +14,28 @@ pub(crate) struct ChainMetadata {
     pub chain_id: ChainId,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
+    pub genesis: GenesisMetadata,
+}
+
+/// The genesis section of a superchain config. For chains born under Bedrock, `l2.number` is 0;
+/// for chains migrated from a pre-Bedrock VM (e.g. OP Mainnet, Celo), `l2.number` is the L2
+/// block at which the chain switched to Bedrock — i.e. the bedrock activation block.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct GenesisMetadata {
+    pub l2: L2GenesisAnchor,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) struct L2GenesisAnchor {
+    pub number: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) struct HardforkConfig {
+    pub regolith_time: Option<u64>,
     pub canyon_time: Option<u64>,
     pub delta_time: Option<u64>,
     pub ecotone_time: Option<u64>,
@@ -128,14 +145,18 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         res.merge_netsplit_block = Some(105235063);
     }
 
-    // Add extra fields for ChainConfig from Genesis
+    // Add extra fields for ChainConfig from Genesis.
+    //
+    // `bedrock_block` is the L2 block at which the chain activated Bedrock. For chains born
+    // under Bedrock (e.g. Base, OP Sepolia), this is 0. For chains migrated from a pre-Bedrock VM
+    // (e.g. OP Mainnet, Celo), this is the migration block. The superchain-registry already
+    // tracks this value at `genesis.l2.number`, so we read it from there.
+    //
+    // `regolith_time` is config-driven, defaulting to 0 to match the prior hardcoded value (and
+    // the convention used by the bundled non-superchain-registry chain specs).
     let extra_fields = ChainConfigExtraFields {
-        bedrock_block: if chain_config.chain_id == NamedChain::Optimism as ChainId {
-            Some(105235063)
-        } else {
-            Some(0)
-        },
-        regolith_time: Some(0),
+        bedrock_block: Some(chain_config.genesis.l2.number),
+        regolith_time: Some(chain_config.hardforks.regolith_time.unwrap_or(0)),
         canyon_time: chain_config.hardforks.canyon_time,
         delta_time: chain_config.hardforks.delta_time,
         ecotone_time: chain_config.hardforks.ecotone_time,
@@ -173,6 +194,9 @@ mod tests {
         "eip1559_elasticity": 6,
         "eip1559_denominator": 50,
         "eip1559_denominator_canyon": 250
+      },
+      "genesis": {
+        "l2": {"number": 0}
       }
     }
     "#;
@@ -296,6 +320,9 @@ mod tests {
             "eip1559_elasticity": 6,
             "eip1559_denominator": 50,
             "eip1559_denominator_canyon": 250
+          },
+          "genesis": {
+            "l2": {"number": 105235063}
           }
         }
         "#;
@@ -326,5 +353,42 @@ mod tests {
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
         assert_eq!(optimism.get("eip1559DenominatorCanyon").unwrap(), 250);
+    }
+
+    /// Regression test: a migrated chain that is not OP Mainnet should also get a non-zero
+    /// `bedrockBlock` reflecting its actual migration block. Previously this was hardcoded to 0
+    /// for any non-OP-Mainnet chain, which silently disabled `--rollup.historicalrpc` forwarding.
+    /// Also verifies that an explicit `regolith_time` in the config is honored (instead of the
+    /// previously hardcoded 0).
+    #[test]
+    fn test_convert_to_genesis_chain_config_migrated_non_op_mainnet() {
+        const CELO_CHAIN_METADATA: &str = r#"
+        {
+          "chain_id": 42220,
+          "hardforks": {
+            "regolith_time": 1742957258,
+            "canyon_time": 1742957258,
+            "delta_time": 1742957258,
+            "ecotone_time": 1742957258,
+            "fjord_time": 1742957258,
+            "granite_time": 1742957258,
+            "holocene_time": 1742957258,
+            "isthmus_time": 1746806401
+          },
+          "optimism": {
+            "eip1559_elasticity": 6,
+            "eip1559_denominator": 250,
+            "eip1559_denominator_canyon": 250
+          },
+          "genesis": {
+            "l2": {"number": 31056500}
+          }
+        }
+        "#;
+        let config: ChainMetadata = serde_json::from_str(CELO_CHAIN_METADATA).unwrap();
+        let chain_config = to_genesis_chain_config(&config);
+        assert_eq!(chain_config.chain_id, 42220);
+        assert_eq!(chain_config.extra_fields.get("bedrockBlock").unwrap(), 31056500);
+        assert_eq!(chain_config.extra_fields.get("regolithTime").unwrap(), 1742957258);
     }
 }
