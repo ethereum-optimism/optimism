@@ -79,11 +79,11 @@ contract CrossDomainOwnable3_TransferOwnership_Test is CrossDomainOwnable3_TestI
     }
 
     /// @notice Tests that `transferOwnership` reverts for ownership transfers to the zero address
-    ///         when set locally.
-    function test_transferOwnership_zeroAddress_reverts() public {
+    ///         regardless of the locality flag.
+    function testFuzz_transferOwnership_zeroAddress_reverts(bool _isLocal) public {
         vm.prank(setter.owner());
         vm.expectRevert("CrossDomainOwnable3: new owner is the zero address");
-        setter.transferOwnership({ _owner: address(0), _isLocal: true });
+        setter.transferOwnership({ _owner: address(0), _isLocal: _isLocal });
     }
 
     /// @notice Tests that `transferOwnership` reverts for ownership transfers to the zero address.
@@ -114,39 +114,49 @@ contract CrossDomainOwnable3_TransferOwnership_Test is CrossDomainOwnable3_TestI
     }
 
     /// @notice The existing transferOwnership(address) method still exists on the contract.
-    function test_transferOwnershipNoLocal_succeeds() public {
+    function testFuzz_transferOwnershipNoLocal_succeeds(address _newOwner) public {
+        vm.assume(_newOwner != address(0));
         bool isLocal = setter.isLocal();
 
         vm.expectEmit(true, true, true, true, address(setter));
-        emit OwnershipTransferred(alice, bob);
+        emit OwnershipTransferred(alice, _newOwner);
 
         vm.prank(setter.owner());
-        setter.transferOwnership(bob);
+        setter.transferOwnership(_newOwner);
 
+        assertEq(setter.owner(), _newOwner);
         // isLocal has not changed
         assertEq(setter.isLocal(), isLocal);
 
-        vm.prank(bob);
+        vm.prank(_newOwner);
         setter.set(2);
         assertEq(setter.value(), 2);
     }
 
     /// @notice Tests that `transferOwnership` succeeds when the caller is the owner and the
     ///         ownership is transferred non-locally.
-    function test_crossDomainTransferOwnership_succeeds() public {
+    function testFuzz_crossDomainTransferOwnership_succeeds(address _newOwner) public {
+        vm.assume(_newOwner != address(0));
+
         vm.expectEmit(true, true, true, true, address(setter));
-        emit OwnershipTransferred(alice, bob);
-        emit OwnershipTransferred(alice, bob, false);
+        emit OwnershipTransferred(alice, _newOwner);
+        emit OwnershipTransferred(alice, _newOwner, false);
 
         vm.prank(setter.owner());
-        setter.transferOwnership({ _owner: bob, _isLocal: false });
+        setter.transferOwnership({ _owner: _newOwner, _isLocal: false });
 
+        assertEq(setter.owner(), _newOwner);
         assertEq(setter.isLocal(), false);
 
         // Simulate the L2 execution where the call is coming from the L1CrossDomainMessenger
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce(1, 1), bob, address(setter), 0, 0, abi.encodeCall(XDomainSetter3.set, (2))
+            Encoding.encodeVersionedNonce(1, 1),
+            _newOwner,
+            address(setter),
+            0,
+            0,
+            abi.encodeCall(XDomainSetter3.set, (2))
         );
 
         assertEq(setter.value(), 2);
