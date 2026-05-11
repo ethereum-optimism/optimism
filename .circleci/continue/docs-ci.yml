@@ -10,20 +10,7 @@ parameters:
   c-docs_changes_detected:
     type: boolean
     default: false
-  # Pre-computed pipeline conditions (set by compute-changes.sh conditions step)
-  c-is_merge_queue:
-    type: boolean
-    default: false
-  c-is_develop:
-    type: boolean
-    default: false
-  c-is_webhook:
-    type: boolean
-    default: false
-  c-is_api_trigger:
-    type: boolean
-    default: false
-  # Pre-computed workflow conditions (set by compute-changes.sh workflows step)
+  # Workflow activation flags (set by the decision tree in config.yml)
   c-run_docs_ci:
     type: boolean
     default: false
