@@ -2,10 +2,6 @@
 
 End-to-end test to verify `op-wheel engine rewind-reth offline` properly rewinds a reth node.
 
-For the online variant (`rewind-reth online`), the node stays running and the rewind
-is driven through the Engine API via a synthetic-payload + forkchoice-update sequence —
-see the subcommand's `--help` for the flag set.
-
 ## Prerequisites
 
 - Rust toolchain (for building reth)
