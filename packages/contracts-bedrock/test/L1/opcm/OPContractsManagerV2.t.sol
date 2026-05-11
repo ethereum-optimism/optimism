@@ -1091,6 +1091,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
+        // Etch code to the dummy ZK verifier address
+        // so that the code length check passes in the StandardValidator.
+        vm.etch(address(0xDEAD), hex"01");
+
         // Rotate to new prestate and verifier.
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
