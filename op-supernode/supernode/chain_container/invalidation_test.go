@@ -305,6 +305,10 @@ func (m *mockEngineForInvalidation) OutputV0AtBlockNumber(ctx context.Context, n
 	return nil, nil
 }
 
+func (m *mockEngineForInvalidation) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
+}
+
 func (m *mockEngineForInvalidation) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 	m.rewindCalled = true
 	m.rewindTimestamp = timestamp

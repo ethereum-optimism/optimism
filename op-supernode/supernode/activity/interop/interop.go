@@ -1001,6 +1001,37 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
+// VerifiedResultAtTimestamp returns the committed VerifiedResult for ts.
+// Mirrors the regime gating of VerifiedAtTimestamp:
+//   - ts < activationTimestamp                → ErrNotActive
+//   - ts < firstVerifiableTimestamp           → ErrNotActive
+//   - verifiedDB.Get returns ErrNotFound      → ethereum.NotFound
+//   - else                                    → the stored VerifiedResult
+//
+// The local ErrNotFound is translated to the standard ethereum.NotFound at the
+// public boundary so consumers can errors.Is against the standard sentinel
+// without taking a dependency on this package's private error.
+func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, error) {
+	if ts < i.activationTimestamp {
+		return VerifiedResult{}, ErrNotActive
+	}
+	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return VerifiedResult{}, fmt.Errorf("resolve first verifiable: %w", err)
+	}
+	if ts < firstVerifiable {
+		return VerifiedResult{}, ErrNotActive
+	}
+	result, err := i.verifiedDB.Get(ts)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return VerifiedResult{}, ethereum.NotFound
+		}
+		return VerifiedResult{}, err
+	}
+	return result, nil
+}
+
 // IsActiveAt reports whether the interop verifier is responsible for verifying
 // L2 content at the given timestamp. Returns false for timestamps strictly
 // before the configured activation timestamp.

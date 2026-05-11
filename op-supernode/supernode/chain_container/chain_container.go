@@ -49,9 +49,14 @@ type ChainContainer interface {
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	// OutputRootAtL2BlockHash returns the L2 output root for the canonical block
+	// at the given hash. Reading by hash binds the answer to a consensus-determined
+	// block payload; the same hash always yields the same OutputV0 (post-Isthmus
+	// from header alone; pre-Isthmus via eth_getProof on state at that block).
+	// If the EL does not have that hash on its canonical chain, returns
+	// ethereum.NotFound or a transport-level error.
+	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
@@ -462,12 +467,15 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 	return st, nil
 }
 
-// OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
-func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+// OutputRootAtL2BlockHash computes the L2 output root for the specified L2 block hash.
+// Reading by hash pins the answer to a consensus-determined block payload — the same
+// hash always yields the same OutputV0 — eliminating the per-call drift the by-number
+// variant could exhibit when the EL reorgs at the requested height.
+func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if c.engine == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
 	}
-	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	out, err := c.engine.OutputV0ByBlockHash(ctx, blockHash)
 	if err != nil {
 		return eth.Bytes32{}, err
 	}
@@ -499,38 +507,6 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 		return eth.BlockID{}, err
 	}
 	return l1, nil
-}
-
-// VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
-// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
-	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
-	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-
-	c.verifiersMu.RLock()
-	verifiers := append([]activity.VerificationActivity(nil), c.verifiers...)
-	c.verifiersMu.RUnlock()
-	for _, verifier := range verifiers {
-		verified, err := verifier.VerifiedAtTimestamp(ts)
-		if err != nil {
-			c.log.Error("error checking if data could be verified at this L1", "error", err)
-			return eth.BlockID{}, eth.BlockID{}, err
-		}
-		if !verified {
-			c.log.Error("verifier does not have data at this timestamp. cannot supply block at this timestamp as verified", "verifier", verifier.Name())
-			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
-		}
-	}
-
-	return l2Block.ID(), l1Block, nil
 }
 
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.

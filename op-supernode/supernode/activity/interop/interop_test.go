@@ -1111,6 +1111,87 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 	}
 }
 
+func TestVerifiedResultAtTimestamp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("before activation returns ErrNotActive", func(t *testing.T) {
+		h := newInteropTestHarness(t).Build()
+		_, err := h.interop.VerifiedResultAtTimestamp(999)
+		require.ErrorIs(t, err, ErrNotActive)
+	})
+
+	t.Run("interop active but not yet verified returns ethereum.NotFound", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(100).
+			WithChain(10, func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 100, Time: 100},
+					LocalSafeL2: eth.L2BlockRef{Number: 100, Time: 100},
+				}
+			}).
+			Build()
+		// 125 > activation; firstVerifiableTimestamp resolves via safe-head
+		// handoff to <= 125, so this should NOT be ErrNotActive — it should
+		// be ethereum.NotFound (active but no entry yet).
+		_, err := h.interop.VerifiedResultAtTimestamp(126)
+		require.ErrorIs(t, err, ethereum.NotFound)
+		require.NotErrorIs(t, err, ErrNotActive)
+	})
+
+	t.Run("returns committed VerifiedResult", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
+			}).
+			Build()
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		result, err := progressInteropCompat(h.interop)
+		require.NoError(t, err)
+		require.NoError(t, applyResultCompat(h.interop, result))
+
+		got, err := h.interop.VerifiedResultAtTimestamp(1001)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1001), got.Timestamp)
+		require.NotEmpty(t, got.L2Heads)
+	})
+
+	t.Run("returns ethereum.NotFound after Rewind", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
+			}).
+			Build()
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		result, err := progressInteropCompat(h.interop)
+		require.NoError(t, err)
+		require.NoError(t, applyResultCompat(h.interop, result))
+
+		// Pre-rewind: present.
+		_, err = h.interop.VerifiedResultAtTimestamp(1001)
+		require.NoError(t, err)
+
+		// Rewind erases the entry.
+		_, err = h.interop.verifiedDB.Rewind(1001)
+		require.NoError(t, err)
+
+		_, err = h.interop.VerifiedResultAtTimestamp(1001)
+		require.ErrorIs(t, err, ethereum.NotFound)
+	})
+}
+
+func TestNoopVerifiedResultReader(t *testing.T) {
+	t.Parallel()
+	var r VerifiedResultReader = NoopVerifiedResultReader{}
+	for _, ts := range []uint64{0, 1, 1000, 1 << 60} {
+		_, err := r.VerifiedResultAtTimestamp(ts)
+		require.ErrorIs(t, err, ErrNotActive)
+	}
+}
+
 func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.T) {
 	t.Parallel()
 
@@ -1951,9 +2032,6 @@ func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts u
 	ref.Hash = common.BigToHash(big.NewInt(int64(ts)))
 	return ref, nil
 }
-func (m *mockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
 func (m *mockChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -1986,7 +2064,7 @@ func (m *mockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.B
 	ref.Hash = common.BigToHash(big.NewInt(int64(ts)))
 	return ref.ID(), eth.BlockID{}, nil
 }
-func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
