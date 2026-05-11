@@ -9,6 +9,7 @@ import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -43,20 +44,20 @@ library PastNUTBundles {
     }
 
     /// @notice Thrown when a bundle has no transactions and an L2CM cannot be extracted.
-    error EmptyBundle(string path);
+    error PastNUTBundles_EmptyBundle(string path);
 
     /// @notice Thrown when the final transaction does not target `Predeploys.PROXY_ADMIN`.
-    error WrongTarget(string path, address to);
+    error PastNUTBundles_WrongTarget(string path, address to);
 
     /// @notice Thrown when the final transaction calldata is not `upgradePredeploys(address)`.
-    error WrongSelector(string path, bytes4 selector);
+    error PastNUTBundles_WrongSelector(string path, bytes4 selector);
 
     /// @notice Thrown when the final transaction calldata is not the expected 36 bytes
     ///         (4-byte selector + 32-byte ABI-encoded address).
-    error WrongDataLength(string path, uint256 length);
+    error PastNUTBundles_WrongDataLength(string path, uint256 length);
 
     /// @notice Thrown when the decoded L2CM address is the zero address.
-    error ZeroL2CM(string path);
+    error PastNUTBundles_ZeroL2CM(string path);
 
     /// @notice Fetches committed NUT bundles in chronological fork order via the Go FFI.
     /// @return bundles_ Ordered list of (fork, path) entries with `path` relative to
@@ -73,7 +74,7 @@ library PastNUTBundles {
     /// @notice Returns activation wrappers for a fork. Empty for every fork in this PR.
     ///         PRs that introduce wrapped NUT activations should populate the matching
     ///         fork branch and document the production trigger predicate.
-    function wrappersForFork(string memory) internal view returns (ForkWrappers memory w_) {
+    function wrappersForFork(string memory) internal pure returns (ForkWrappers memory w_) {
         return w_;
     }
 
@@ -111,40 +112,42 @@ library PastNUTBundles {
         pure
         returns (address l2cm_)
     {
-        if (_txns.length == 0) revert EmptyBundle(_path);
+        if (_txns.length == 0) revert PastNUTBundles_EmptyBundle(_path);
 
         NetworkUpgradeTxns.NetworkUpgradeTxn memory finalTxn = _txns[_txns.length - 1];
 
-        if (finalTxn.to != Predeploys.PROXY_ADMIN) revert WrongTarget(_path, finalTxn.to);
-        if (finalTxn.data.length != 36) revert WrongDataLength(_path, finalTxn.data.length);
+        if (finalTxn.to != Predeploys.PROXY_ADMIN) revert PastNUTBundles_WrongTarget(_path, finalTxn.to);
+        if (finalTxn.data.length != 36) revert PastNUTBundles_WrongDataLength(_path, finalTxn.data.length);
 
         bytes4 selector = bytes4(finalTxn.data);
-        if (selector != IL2ProxyAdmin.upgradePredeploys.selector) revert WrongSelector(_path, selector);
+        if (selector != IL2ProxyAdmin.upgradePredeploys.selector) {
+            revert PastNUTBundles_WrongSelector(_path, selector);
+        }
 
         l2cm_ = abi.decode(Bytes.slice(finalTxn.data, 4, 32), (address));
-        if (l2cm_ == address(0)) revert ZeroL2CM(_path);
+        if (l2cm_ == address(0)) revert PastNUTBundles_ZeroL2CM(_path);
     }
 
-    /// @notice Fetches committed prior NUT bundles via the Go FFI and stages them in front of the
+    /// @notice Fetches committed prior NUT bundles via the Go FFI and applies them in front of the
     ///         current bundle's expected state.
     /// @dev Accepts the already-generated current bundle transactions so parallel fork-test setup
     ///      does not re-read `current-upgrade-bundle.json` while another test is writing it.
     /// @param _currentTxns Parsed current bundle transactions.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
-    function stagePastBundles(
+    function applyPastBundles(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
         ExecuteNUTBundle _executeScript
     )
         internal
     {
-        stagePastBundles(_currentTxns, _executeScript, fetchPastBundles());
+        applyPastBundles(_currentTxns, _executeScript, fetchPastBundles());
     }
 
-    /// @notice Stages the given prior NUT bundles in front of the current bundle's expected state.
+    /// @notice Applies the given prior NUT bundles in front of the current bundle's expected state.
     /// @param _currentTxns Parsed current bundle transactions.
     /// @param _executeScript Live `ExecuteNUTBundle` script used to apply prior bundles.
-    /// @param _entries Ordered prior bundle entries to stage.
-    function stagePastBundles(
+    /// @param _entries Ordered prior bundle entries to apply.
+    function applyPastBundles(
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns,
         ExecuteNUTBundle _executeScript,
         NUTBundle[] memory _entries
@@ -164,16 +167,16 @@ library PastNUTBundles {
                 continue;
             }
 
-            console.log("PastNUTBundles: staging fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
+            console.log("PastNUTBundles: applying fork=%s path=%s L2CM=%s", entry.fork, entry.path, priorL2CM);
             ForkWrappers memory w = wrappersForFork(entry.fork);
             executeWithWrappers(_executeScript, w.pre, priorTxns, w.post);
         }
     }
 
-    /// @notice Returns whether a prior bundle should be skipped before staging, along with the
+    /// @notice Returns whether a prior bundle should be skipped before applying, along with the
     ///         prior bundle's L2CM when extraction was performed.
-    /// @dev Future fork-specific staging exceptions should be added here rather than by
-    ///      de-duplicating arbitrary transactions from the prior bundle.
+    /// @dev Future fork-specific exceptions should be added here rather than by de-duplicating
+    ///      arbitrary transactions from the prior bundle.
     /// @return skip_ Whether the prior bundle should be skipped.
     /// @return reason_ Human-readable reason logged when `skip_` is true.
     /// @return priorL2CM_ The prior bundle's L2CM when not skipped via the Karst bootstrap rule;
@@ -195,18 +198,16 @@ library PastNUTBundles {
         address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
 
         if (priorL2CM_ == currentL2CM) {
-            if (_isKarst(_entry) && !_isConditionalDeployerInitialized()) {
+            // TODO(#19369): Remove this Karst exception once Karst is deployed on all chains.
+            // Pre-Karst chains lack ConditionalDeployer. Matching L2CM does not prove the
+            // bootstrap predeploy state exists, so they still need the Karst bundle.
+            if (LibString.eq(_entry.fork, "karst") && !_isConditionalDeployerInitialized()) {
                 return (false, "", priorL2CM_);
             }
             return (true, "L2CM matches current", priorL2CM_);
         }
 
         return (false, "", priorL2CM_);
-    }
-
-    /// @notice Returns true when the entry is the Karst NUT bundle.
-    function _isKarst(NUTBundle memory _entry) internal pure returns (bool) {
-        return keccak256(bytes(_entry.fork)) == keccak256(bytes("karst"));
     }
 
     /// @notice Returns true when the live fork has a usable ConditionalDeployer implementation.
@@ -218,8 +219,9 @@ library PastNUTBundles {
         }
     }
 
-    /// @notice Returns true when Karst staging should be skipped because the current bundle owns
-    ///         the same non-idempotent direct CREATE2 bootstrap transaction.
+    /// @notice Returns true when the Karst bundle should be skipped because the current bundle
+    ///         owns the same non-idempotent direct CREATE2 bootstrap transaction.
+    /// @dev TODO(#19369): Remove this exception once Karst upgrade is deployed in all chains.
     function _shouldSkipKarstBootstrap(
         NUTBundle memory _entry,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
@@ -229,7 +231,7 @@ library PastNUTBundles {
         pure
         returns (bool)
     {
-        if (!_isKarst(_entry)) return false;
+        if (!LibString.eq(_entry.fork, "karst")) return false;
 
         for (uint256 i = 0; i < _priorTxns.length; i++) {
             if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;

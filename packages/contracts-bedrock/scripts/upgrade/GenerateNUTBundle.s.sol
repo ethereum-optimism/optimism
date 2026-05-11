@@ -35,7 +35,7 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
-    /// @param fork Name of the fork this bundle activates.
+    /// @param fork Fork name; L2 fork tests use it as the `PastNUTBundles.wrappersForFork` dispatch key.
     struct Output {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] txns;
         string fork;

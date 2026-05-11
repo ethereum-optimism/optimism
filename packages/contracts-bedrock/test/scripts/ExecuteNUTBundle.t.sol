@@ -51,9 +51,10 @@ contract ExecuteNUTBundle_Test is Test {
     address internal constant TARGET = 0xe6190d5229f8bC6C82cb42136ae182a941519E65;
     string internal constant FIXTURE_PATH = "test/fixtures/execute-nut-bundle.json";
 
-    /// @dev Deliberately generous fixture gas. These tests exercise dispatch behavior, not gas
-    ///      calibration. The executor still needs a gasLimit because deposit execution forwards
-    ///      `gasLimit - intrinsicGas`; this value is not a production recommendation.
+    /// @dev Mirrors the literal in `ExecuteNUTBundle_Target.revertWithReason` for reverts.
+    string internal constant TARGET_REVERT_REASON = "Target: failed";
+
+    /// @dev High fixture gas for dispatch tests; executor subtracts intrinsic gas before forwarding.
     uint64 internal constant FIXTURE_GAS_LIMIT = 1_000_000;
 
     function setUp() public {
@@ -103,7 +104,7 @@ contract ExecuteNUTBundle_Test is Test {
             to: TARGET
         });
 
-        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - Target: failed");
+        vm.expectRevert(bytes(string.concat("ExecuteNUTBundle: Transaction failed - Revert - ", TARGET_REVERT_REASON)));
         script.executeAll(txns);
     }
 
@@ -133,7 +134,7 @@ contract ExecuteNUTBundle_Test is Test {
             to: TARGET
         });
 
-        vm.expectRevert("ExecuteNUTBundle: Transaction failed - Revert - Target: failed");
+        vm.expectRevert(bytes(string.concat("ExecuteNUTBundle: Transaction failed - Revert - ", TARGET_REVERT_REASON)));
         script.executeAll(txns);
     }
 
@@ -218,7 +219,9 @@ contract ExecuteNUTBundle_Test is Test {
             intent: "Wrapper Revert"
         });
 
-        vm.expectRevert("ExecuteNUTBundle: wrapper failed - Wrapper Revert - Target: failed");
+        vm.expectRevert(
+            bytes(string.concat("ExecuteNUTBundle: wrapper failed - Wrapper Revert - ", TARGET_REVERT_REASON))
+        );
         script.executeWrapper(wrapper);
     }
 
