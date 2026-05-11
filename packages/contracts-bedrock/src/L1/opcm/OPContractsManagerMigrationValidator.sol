@@ -415,6 +415,7 @@ contract OPContractsManagerMigrationValidator {
         address sharedASR = address(firstPortal.anchorStateRegistry());
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
         IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
+        address sharedWETH = _chainSystemConfigs[0].delayedWETH();
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -481,6 +482,10 @@ contract OPContractsManagerMigrationValidator {
                 _chainSystemConfigs[i].isFeatureEnabled(Features.ETH_LOCKBOX),
                 string.concat("MIG-CHAIN-", idx, "-110"),
                 _errors
+            );
+
+            _errors = internalRequire(
+                _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
             );
         }
 

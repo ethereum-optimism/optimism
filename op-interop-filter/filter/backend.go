@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,7 +36,11 @@ type Backend struct {
 	// Passthrough mode: all transactions pass without filtering
 	passthrough bool
 
+	ctx    context.Context
 	cancel context.CancelFunc
+
+	reorgRecoveryEnabled bool
+	reorgRecoveryWg      sync.WaitGroup
 }
 
 // BackendParams contains parameters for creating a Backend.
@@ -45,19 +50,23 @@ type BackendParams struct {
 	Chains         map[eth.ChainID]ChainIngester
 	CrossValidator CrossValidator
 	Passthrough    bool
+
+	ReorgRecoveryEnabled bool
 }
 
 // NewBackend creates a new Backend instance with the provided components.
 func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
-	_, cancel := context.WithCancel(parentCtx)
+	ctx, cancel := context.WithCancel(parentCtx)
 
 	return &Backend{
-		log:            params.Logger,
-		metrics:        params.Metrics,
-		chains:         params.Chains,
-		crossValidator: params.CrossValidator,
-		passthrough:    params.Passthrough,
-		cancel:         cancel,
+		log:                  params.Logger,
+		metrics:              params.Metrics,
+		chains:               params.Chains,
+		crossValidator:       params.CrossValidator,
+		passthrough:          params.Passthrough,
+		ctx:                  ctx,
+		cancel:               cancel,
+		reorgRecoveryEnabled: params.ReorgRecoveryEnabled,
 	}
 }
 
@@ -75,6 +84,11 @@ func (b *Backend) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start cross-validator: %w", err)
 	}
 
+	if b.reorgRecoveryEnabled {
+		b.reorgRecoveryWg.Add(1)
+		go b.runReorgRecovery(b.ctx)
+	}
+
 	return nil
 }
 
@@ -84,6 +98,8 @@ func (b *Backend) Stop(ctx context.Context) error {
 	b.cancel()
 
 	var result error
+
+	b.reorgRecoveryWg.Wait()
 
 	if err := b.crossValidator.Stop(); err != nil {
 		result = errors.Join(result, fmt.Errorf("failed to stop cross-validator: %w", err))

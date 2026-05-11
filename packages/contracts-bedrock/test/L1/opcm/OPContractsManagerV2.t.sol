@@ -14,6 +14,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Claim, Duration, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -2320,6 +2321,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             0.08 ether,
             "SUPER_PERMISSIONED_CANNON init bond mismatch"
         );
+        {
+            IDisputeGameFactory sharedDGF = IDisputeGameFactory(asr.disputeGameFactory());
+            address sharedWETH = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON)).weth;
+            assertEq(chainContracts1.systemConfig.delayedWETH(), sharedWETH, "Chain 1 delayedWETH mismatch");
+            assertEq(chainContracts2.systemConfig.delayedWETH(), sharedWETH, "Chain 2 delayedWETH mismatch");
+        }
 
         // Check that portal liquidity was migrated directly to the new shared lockbox.
         assertEq(address(portal1).balance, 0, "Portal 1 should have 0 balance after migration");

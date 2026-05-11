@@ -305,6 +305,16 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 	}
 }
 
+// WithoutHonestProposer skips starting op-proposer.
+func WithoutHonestProposer() Option {
+	return option{
+		kinds: optionKindSkipHonestProposer,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestProposer = true
+		},
+	}
+}
+
 // WithPreGenesisSuperGame seeds one invalid super dispute game before the
 // rollup start block so tests can exercise supernode/challenger behaviour
 // when a game's L1 head predates rollup genesis. The claimed outputs follow
