@@ -76,9 +76,6 @@ parameters:
   sync_test_op_node_dispatch:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
   rust_ci_dispatch:
     type: boolean
     default: false

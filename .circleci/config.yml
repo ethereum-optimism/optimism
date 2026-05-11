@@ -55,9 +55,6 @@ parameters:
   heavy_fuzz_dispatch:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
   rust_ci_dispatch:
     type: boolean
     default: false
@@ -106,7 +103,6 @@ workflows:
             .* c-stale_check_dispatch << pipeline.parameters.stale_check_dispatch >> .circleci/continue/main.yml
             .* c-contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
             .* c-heavy_fuzz_dispatch << pipeline.parameters.heavy_fuzz_dispatch >> .circleci/continue/main.yml
-            .* c-ai_contracts_test_dispatch << pipeline.parameters.ai_contracts_test_dispatch >> .circleci/continue/main.yml
             .* c-l2_fork_test_dispatch << pipeline.parameters.l2_fork_test_dispatch >> .circleci/continue/main.yml
             .* c-github-event-type << pipeline.parameters.github-event-type >> .circleci/continue/main.yml
             .* c-github-event-action << pipeline.parameters.github-event-action >> .circleci/continue/main.yml
