@@ -87,7 +87,7 @@ func TestValidateStandardValues(t *testing.T) {
 				addr := common.HexToAddress("0x9999")
 				intent.SuperchainConfigProxy = &addr
 			},
-			ErrIncompatibleValue,
+			ErrNonStandardValue,
 		},
 		{
 			"OPCMAddress",

@@ -88,12 +88,16 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
 			require.NoError(t, err)
 
+			superchain, err := standard.SuperchainFor(l1ChainID)
+			require.NoError(t, err)
+
 			intent := &state.Intent{
-				ConfigType:         configType,
-				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.EmbeddedLocator,
-				L2ContractsLocator: artifacts.EmbeddedLocator,
-				OPCMAddress:        &opcmAddr,
+				ConfigType:            configType,
+				L1ChainID:             l1ChainID,
+				L1ContractsLocator:    artifacts.EmbeddedLocator,
+				L2ContractsLocator:    artifacts.EmbeddedLocator,
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 			}
 			st := &state.State{
 				Version: 1,
@@ -632,75 +636,6 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
-}
-
-// Validates that the correct flow is chosen when
-// hasPredeployedOPCM && !opcmV2Enabled, and that PopulateSuperchainState is called with correct parameters.
-func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
-	t.Parallel()
-
-	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
-	require.NotEmpty(t, rpcURL, "SEPOLIA_RPC_URL must be set")
-
-	lgr := testlog.Logger(t, slog.LevelInfo)
-	retryProxy := devnet.NewRetryProxy(lgr, rpcURL)
-	require.NoError(t, retryProxy.Start())
-	t.Cleanup(func() {
-		require.NoError(t, retryProxy.Stop())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-	client := ethclient.NewClient(rpcClient)
-
-	l1ChainID := uint64(11155111)
-	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
-	require.NoError(t, err)
-
-	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
-
-	// Don't set opcmV2Enabled flag (defaults to false)
-	intent := &state.Intent{
-		ConfigType:         state.IntentTypeStandard,
-		L1ChainID:          l1ChainID,
-		L1ContractsLocator: artifacts.EmbeddedLocator,
-		L2ContractsLocator: artifacts.EmbeddedLocator,
-		OPCMAddress:        &opcmAddr,
-	}
-
-	st := &state.State{
-		Version: 1,
-	}
-
-	err = InitLiveStrategy(
-		ctx,
-		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
-		},
-		intent,
-		st,
-	)
-	require.NoError(t, err)
-
-	require.NotNil(t, st.SuperchainDeployment)
-
-	// Verify ImplementationsDeployment was set
-	require.NotNil(t, st.ImplementationsDeployment)
-	require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmV2Impl)
 }
 
 // Validates that the correct flow is chosen when

@@ -154,10 +154,6 @@ func (c *Intent) validateStandardValues() error {
 		return err
 	}
 
-	if c.SuperchainConfigProxy != nil {
-		return ErrIncompatibleValue
-	}
-
 	if c.SuperchainRoles != nil {
 		return ErrIncompatibleValue
 	}
@@ -168,6 +164,14 @@ func (c *Intent) validateStandardValues() error {
 	}
 	if c.OPCMAddress == nil || *c.OPCMAddress != standardOPCM {
 		return fmt.Errorf("%w: opcmAddress=%s", ErrNonStandardValue, standardOPCM)
+	}
+
+	standardSuperchain, err := standard.SuperchainFor(c.L1ChainID)
+	if err != nil {
+		return fmt.Errorf("error getting Superchain: %w", err)
+	}
+	if c.SuperchainConfigProxy == nil || *c.SuperchainConfigProxy != standardSuperchain.SuperchainConfigAddr {
+		return fmt.Errorf("%w: superchainConfigProxy=%s", ErrNonStandardValue, standardSuperchain.SuperchainConfigAddr)
 	}
 
 	for _, chain := range c.Chains {
