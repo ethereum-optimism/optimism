@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -147,27 +148,36 @@ func run(cliCtx *cli.Context) error {
 
 // runRawFlow uses EventLogger init + CrossL2Inbox exec.
 func runRawFlow(ctx context.Context, logger log.Logger, sourceUser, destUser *user, eventLoggerAddr string, relay bool, loopCount uint) error {
-	var eventLogger common.Address
+	eventLoggers := make(map[eth.ChainID]common.Address)
 	if eventLoggerAddr != "" {
-		eventLogger = common.HexToAddress(eventLoggerAddr)
-		logger.Info("Using existing EventLogger", "address", eventLogger)
-	} else {
-		logger.Info("Deploying EventLogger on source chain...")
-		var err error
-		eventLogger, err = sourceUser.deployEventLogger(ctx)
+		eventLogger, err := opservice.ParseAddress(eventLoggerAddr)
 		if err != nil {
-			return fmt.Errorf("deploy EventLogger: %w", err)
+			return fmt.Errorf("parse EventLogger address: %w", err)
 		}
-		logger.Info("EventLogger deployed", "address", eventLogger)
+		eventLoggers[sourceUser.chain.chainID] = eventLogger
+		eventLoggers[destUser.chain.chainID] = eventLogger
+		logger.Info("Using existing EventLogger", "address", eventLogger)
 	}
 
-	trips := max(loopCount, 1)
+	trips := messageCount(loopCount)
 	sender, receiver := sourceUser, destUser
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for i := range trips {
 		direction := fmt.Sprintf("%s->%s", sender.chain.chainID, receiver.chain.chainID)
 		logger.Info("Sending init message", "trip", i+1, "of", trips, "direction", direction)
+
+		eventLogger, ok := eventLoggers[sender.chain.chainID]
+		if !ok {
+			logger.Info("Deploying EventLogger", "chain", sender.chain.chainID)
+			var err error
+			eventLogger, err = sender.deployEventLogger(ctx)
+			if err != nil {
+				return fmt.Errorf("trip %d: deploy EventLogger on %s: %w", i+1, sender.chain.name, err)
+			}
+			eventLoggers[sender.chain.chainID] = eventLogger
+			logger.Info("EventLogger deployed", "chain", sender.chain.chainID, "address", eventLogger)
+		}
 
 		initMsg, err := sender.sendInitMessage(ctx, rng, eventLogger)
 		if err != nil {
@@ -238,7 +248,7 @@ func runCDMFlow(ctx context.Context, logger log.Logger, sourceUser, destUser *us
 	recipient := crypto.PubkeyToAddress(recipientKey.PublicKey)
 	logger.Info("Using recipient for balance verification", "address", recipient)
 
-	trips := max(loopCount, 1)
+	trips := messageCount(loopCount)
 	sender, receiver := sourceUser, destUser
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -358,6 +368,13 @@ func relayWithRetry(ctx context.Context, logger log.Logger, receiver *user, send
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+func messageCount(loopCount uint) uint {
+	if loopCount == 0 {
+		return 1
+	}
+	return loopCount * 2
 }
 
 func waitForBalance(ctx context.Context, c *chain, addr common.Address, want *big.Int) error {
@@ -493,7 +510,7 @@ func (u *user) sendExecMessage(ctx context.Context, init *initResult) (*types.Re
 
 func resolvePrivateKey(cliCtx *cli.Context) (*ecdsa.PrivateKey, error) {
 	if pkHex := cliCtx.String(PrivateKeyFlag.Name); pkHex != "" {
-		return crypto.HexToECDSA(pkHex)
+		return crypto.HexToECDSA(strings.TrimPrefix(pkHex, "0x"))
 	}
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
