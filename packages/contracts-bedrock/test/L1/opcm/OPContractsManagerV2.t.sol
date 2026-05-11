@@ -2032,13 +2032,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Set up dispute game configs first since they're needed for the struct literal.
-        GameType activePermissionedGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
-            : GameTypes.PERMISSIONED_CANNON;
-        LibGameArgs.GameArgs memory initialGameArgs =
-            LibGameArgs.decode(disputeGameFactory.gameArgs(activePermissionedGameType));
-        address initialChallenger = initialGameArgs.challenger;
-        address initialProposer = initialGameArgs.proposer;
+        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
