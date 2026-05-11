@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/runner"
@@ -43,6 +44,9 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 		for _, gameType := range cfg.GameTypes {
 			runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
 		}
+	}
+	if err := validateRunPrestateUrls(runConfigs, cfg); err != nil {
+		return nil, err
 	}
 	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
 	ageGameInputs := ctx.Bool(AgeGameInputsFlag.Name)
@@ -126,4 +130,30 @@ func parseRunArg(arg string) (runner.RunConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+func validateRunPrestateUrls(runConfigs []runner.RunConfig, cfg *config.Config) error {
+	for _, runConfig := range runConfigs {
+		if runConfig.PrestateFilename == "" || strings.HasPrefix(runConfig.PrestateFilename, "file:") {
+			continue
+		}
+		flagName, configured := runPrestateURLConfig(cfg, runConfig.GameType)
+		if configured {
+			continue
+		}
+		return fmt.Errorf("%w for named prestate %q in run %q; set --%s or use file:<path>",
+			config.ErrMissingPrestateBaseURL, runConfig.PrestateFilename, runConfig.Name, flagName)
+	}
+	return nil
+}
+
+func runPrestateURLConfig(cfg *config.Config, gameType gameTypes.GameType) (string, bool) {
+	switch gameType {
+	case gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+		return flags.PreStatesURLFlag.EitherFlagName(gameTypes.CannonGameType), cfg.CannonAbsolutePreStateBaseURL != nil
+	case gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		return flags.PreStatesURLFlag.EitherFlagName(gameTypes.CannonKonaGameType), cfg.CannonKonaAbsolutePreStateBaseURL != nil
+	default:
+		return "", true
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
@@ -75,6 +76,9 @@ type NamedPrestateFetcher struct {
 }
 
 func (f *NamedPrestateFetcher) getPrestate(ctx context.Context, logger log.Logger, prestateBaseUrl *url.URL, _ string, dataDir string, stateConverter vm.StateConverter) (string, error) {
+	if prestateBaseUrl == nil {
+		return "", config.ErrMissingPrestateBaseURL
+	}
 	targetDir := filepath.Join(dataDir, "prestates")
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", fmt.Errorf("error creating prestate dir: %w", err)
@@ -119,6 +123,9 @@ func (f *NamedPrestateFetcher) getPrestate(ctx context.Context, logger log.Logge
 }
 
 func (f *NamedPrestateFetcher) getPrestateMetadata(ctx context.Context, prestateBaseUrl *url.URL) (string, error) {
+	if prestateBaseUrl == nil {
+		return "", config.ErrMissingPrestateBaseURL
+	}
 	gitInfoUrl := prestateBaseUrl.JoinPath(f.filename + ".txt")
 	req, err := http.NewRequestWithContext(ctx, "GET", gitInfoUrl.String(), nil)
 	if err != nil {

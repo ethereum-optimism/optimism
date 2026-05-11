@@ -33,6 +33,7 @@ var (
 	ErrMissingCannonKonaSnapshotFreq     = errors.New("missing cannon kona snapshot freq")
 	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
 	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
+	ErrMissingPrestateBaseURL            = errors.New("missing prestate base url")
 
 	ErrMissingRollupRpc = errors.New("missing rollup rpc url")
 	ErrMissingSuperRpc  = errors.New("missing super rpc url")
