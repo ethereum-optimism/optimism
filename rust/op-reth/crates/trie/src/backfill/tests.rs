@@ -376,8 +376,8 @@ fn run_errors_when_storage_uninitialized() {
 #[test]
 #[serial]
 fn run_extends_window_backward_multi_block() {
-    // 5-block chain — exercises descending iteration and incremental
-    // `cumulative_state_revert` extension across multiple `BackfillContext::step` calls.
+    // 5-block chain — exercises descending iteration across multiple
+    // `BackfillContext::step` calls.
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_and_initialize_storage(5);
 

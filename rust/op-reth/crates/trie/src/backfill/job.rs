@@ -1,6 +1,6 @@
 //! [`BackfillJob`] implementation.
 
-use super::{context::BackfillContext, error::BackfillError};
+use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
     BlockStateDiff, OpProofsBackfillProvider, OpProofsProviderRO,
     OpProofsStore, proof::DatabaseStateRoot,
@@ -50,25 +50,15 @@ where
             return Ok(());
         }
 
-        let mut context = BackfillContext::initialize(&self.provider, current_earliest.number)?;
         for block_number in (target_earliest_block + 1..=current_earliest.number).rev() {
-            debug_assert_eq!(
-                context.current_block(),
-                block_number,
-                "backfill iteration desynced from rolling context"
-            );
-            self.backfill_block(block_number, &mut context)?;
+            self.backfill_block(block_number)?;
         }
 
         Ok(())
     }
 
     /// Backfill a single block `E`: write its historical records and advance `earliest` to `E-1`.
-    fn backfill_block(
-        &self,
-        block_number: BlockNumber,
-        context: &mut BackfillContext,
-    ) -> Result<(), BackfillError> {
+    fn backfill_block(&self, block_number: BlockNumber) -> Result<(), BackfillError> {
         let block_hash = self
             .provider
             .block_hash(block_number)?
@@ -78,9 +68,17 @@ where
             .block_hash(block_number - 1)?
             .ok_or_else(|| ProviderError::HeaderNotFound((block_number - 1).into()))?;
 
-        // Trie node before-values + per-block leaf revert; the rolling context
-        // amortizes the cumulative-revert scan across all backfill steps.
-        let (trie_updates, post_state) = context.step(&self.provider)?;
+        // Open a fresh RO proofs provider for this iteration: it sees writes
+        // committed by the previous `prepend_block`, so its cursor at max=N
+        // already reflects state@N. Dropped before opening the RW backfill
+        // provider below to avoid holding two transactions on the same env.
+        let trie_updates;
+        let post_state;
+        {
+            let proofs_ro = self.storage.provider_ro()?;
+            (trie_updates, post_state) =
+                compute_block_backfill_diff(&self.provider, &proofs_ro, block_number)?;
+        }
 
         let block_ref = BlockWithParent {
             block: BlockNumHash::new(block_number, block_hash),

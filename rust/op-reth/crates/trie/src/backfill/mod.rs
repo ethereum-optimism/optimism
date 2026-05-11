@@ -46,7 +46,7 @@
 //! - `earliest` decreases by exactly one per successful step.
 //! - Historical reads at new boundary succeed, while reads below boundary fail as expected.
 
-mod context;
+mod changesets;
 mod error;
 mod job;
 
