@@ -29,6 +29,19 @@ parameters:
   c-non_docs_changes:
     type: boolean
     default: false
+  # Pre-computed pipeline conditions (set by compute-changes.sh conditions step)
+  c-is_merge_queue:
+    type: boolean
+    default: false
+  c-is_develop:
+    type: boolean
+    default: false
+  c-is_webhook:
+    type: boolean
+    default: false
+  c-is_api_trigger:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -919,11 +932,11 @@ workflows:
     when:
       or:
         - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_webhook >>
             - << pipeline.parameters.c-rust_changes_detected >>
         - and:
             - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       # -----------------------------------------------------------------------
       # Workspace-level jobs (replacing per-crate duplicates)
@@ -1082,7 +1095,7 @@ workflows:
   rust-ci-gate-short:
     when:
       and:
-        - equal: ["webhook", << pipeline.trigger_source >>]
+        - << pipeline.parameters.c-is_webhook >>
         - not: << pipeline.parameters.c-rust_changes_detected >>
     jobs:
       - rust-ci-cargo-tests:
@@ -1125,8 +1138,8 @@ workflows:
   kona-publish-prestates:
     when:
       and:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
+        - << pipeline.parameters.c-is_develop >>
+        - << pipeline.parameters.c-is_webhook >>
         - << pipeline.parameters.c-rust_changes_detected >> # Only publish when rust paths changed
     jobs:
       - kona-publish-prestate-artifacts:

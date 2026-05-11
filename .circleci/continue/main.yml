@@ -80,6 +80,19 @@ parameters:
   c-contracts_changed:
     type: boolean
     default: false
+  # Pre-computed pipeline conditions (set by compute-changes.sh conditions step)
+  c-is_merge_queue:
+    type: boolean
+    default: false
+  c-is_develop:
+    type: boolean
+    default: false
+  c-is_webhook:
+    type: boolean
+    default: false
+  c-is_api_trigger:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -2463,11 +2476,10 @@ workflows:
       and:
         - equal: ["", << pipeline.git.tag >>]
         - or:
-            - and:
-                - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_webhook >>
             - and:
                 - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-                - equal: ["api", << pipeline.trigger_source >>]
+                - << pipeline.parameters.c-is_api_trigger >>
                 - equal: [
                       << pipeline.parameters.c-github-event-type >>,
                       "__not_set__",
@@ -2867,11 +2879,11 @@ workflows:
     when:
       or:
         - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_develop >>
+            - << pipeline.parameters.c-is_webhook >>
         - and:
             - equal: [true, <<pipeline.parameters.c-fault_proofs_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       - cannon-prestate:
           context:
@@ -2922,11 +2934,11 @@ workflows:
     when:
       or:
         - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_develop >>
+            - << pipeline.parameters.c-is_webhook >>
         - and:
             - equal: [true, <<pipeline.parameters.c-kontrol_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       - kontrol-tests:
           context:
@@ -2990,7 +3002,7 @@ workflows:
   close-issue-workflow:
     when:
       and:
-        - equal: [<< pipeline.trigger_source >>, "api"]
+        - << pipeline.parameters.c-is_api_trigger >>
         - equal: [<< pipeline.parameters.c-github-event-type >>, "pull_request"]
         - equal: [<< pipeline.parameters.c-github-event-action >>, "labeled"]
     jobs:
@@ -3020,7 +3032,7 @@ workflows:
     when:
       and:
         - equal: [true, << pipeline.parameters.c-l2_fork_test_dispatch >>]
-        - equal: ["api", << pipeline.trigger_source >>]
+        - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
@@ -3064,19 +3076,15 @@ workflows:
     when:
       or:
         - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_webhook >>
             - << pipeline.parameters.c-contracts_changed >>
-        # Always run on develop (mirrors previous check-changed whitelist behavior)
         - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - equal: ["develop", << pipeline.git.branch >>]
-        # Merge queue (merge gate). Match checkout branch.
-        - matches:
-            pattern: "^gh-readonly-queue/.*"
-            value: << pipeline.git.branch >>
+            - << pipeline.parameters.c-is_webhook >>
+            - << pipeline.parameters.c-is_develop >>
+        - << pipeline.parameters.c-is_merge_queue >>
         - and:
             - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+            - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
@@ -3251,19 +3259,15 @@ workflows:
       not: # these conditions should be kept in sync with the ones in contracts-feature-tests
         or:
           - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
+              - << pipeline.parameters.c-is_webhook >>
               - << pipeline.parameters.c-contracts_changed >>
-          # Always run on develop (mirrors previous check-changed whitelist behavior)
           - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
-              - equal: ["develop", << pipeline.git.branch >>]
-          # Merge queue (merge gate). Match checkout branch.
-          - matches:
-              pattern: "^gh-readonly-queue/.*"
-              value: << pipeline.git.branch >>
+              - << pipeline.parameters.c-is_webhook >>
+              - << pipeline.parameters.c-is_develop >>
+          - << pipeline.parameters.c-is_merge_queue >>
           - and:
               - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-              - equal: ["api", << pipeline.trigger_source >>]
+              - << pipeline.parameters.c-is_api_trigger >>
     jobs:
       - required-contracts-ci:
           always-succeed: true

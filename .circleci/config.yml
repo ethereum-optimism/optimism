@@ -123,6 +123,12 @@ jobs:
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       - run:
+          name: Compute pipeline conditions
+          command: .circleci/scripts/compute-changes.sh conditions
+          environment:
+            BRANCH: << pipeline.git.branch >>
+            TRIGGER_SOURCE: << pipeline.trigger_source >>
+      - run:
           name: Detect path changes
           command: .circleci/scripts/compute-changes.sh detect
           environment:

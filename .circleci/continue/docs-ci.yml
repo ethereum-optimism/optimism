@@ -10,6 +10,19 @@ parameters:
   c-docs_changes_detected:
     type: boolean
     default: false
+  # Pre-computed pipeline conditions (set by compute-changes.sh conditions step)
+  c-is_merge_queue:
+    type: boolean
+    default: false
+  c-is_develop:
+    type: boolean
+    default: false
+  c-is_webhook:
+    type: boolean
+    default: false
+  c-is_api_trigger:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
