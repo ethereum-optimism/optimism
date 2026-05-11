@@ -8,6 +8,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub mod cross_unsafe;
 pub mod debug;
 pub mod engine;
 pub mod error;

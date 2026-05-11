@@ -66,6 +66,7 @@ op-alloy-consensus.workspace = true
 alloy-op-evm.workspace = true
 revm.workspace = true
 op-revm.workspace = true
+kona-interop.workspace = true
 
 # async
 serde.workspace = true

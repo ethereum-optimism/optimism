@@ -11607,6 +11607,7 @@ dependencies = [
  "jsonrpsee",
  "jsonrpsee-core",
  "jsonrpsee-types",
+ "kona-interop",
  "metrics",
  "op-alloy-consensus",
  "op-alloy-network",
