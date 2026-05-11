@@ -360,9 +360,9 @@ func TestAddLog(t *testing.T) {
 	})
 
 	t.Run("ErrorWhenBeforeCurrentLogEvent", func(t *testing.T) {
-		// Under deferred-I/O semantics, AddLog buffers do not survive Close
-		// without an enclosing SealBlock. The buffered-log setup is moved
-		// into the assertion phase so both "New" and "Existing" runDBTest
+		// Note: Under deferred-I/O semantics, AddLog buffers do not survive Close
+		// without an enclosing SealBlock. The buffered-log setup must be in
+		// the assertion phase so both "New" and "Existing" runDBTest
 		// variants reach the same logical pre-assertion state.
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
