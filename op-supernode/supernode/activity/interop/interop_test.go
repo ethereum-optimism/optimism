@@ -1462,7 +1462,7 @@ func TestProgressAndRecord(t *testing.T) {
 					}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 150, Hash: common.HexToHash("0xL1Result")}, L2Heads: blocks}, nil
 				}
 
@@ -1485,7 +1485,7 @@ func TestProgressAndRecord(t *testing.T) {
 				}).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+				h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
 					return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 0, Hash: common.HexToHash("0xGenesis")}, L2Heads: blocks}, nil
 				}
 
