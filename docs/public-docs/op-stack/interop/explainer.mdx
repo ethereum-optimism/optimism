@@ -1,6 +1,12 @@
 ---
 title: OP Stack interoperability explainer
 description: Learn the basics of OP Stack interoperability.
+audit-source:
+  - packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
+  - op-supernode/README.md
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/chain_container/chain_container.go
+  - op-supernode/supernode/activity/interop/interop.go
 ---
 
 <Info>OP Stack interop is in active development. Some features may be experimental.</Info>
@@ -23,37 +29,44 @@ OP Stack interoperability provides the following benefits:
 
 A pre-interop OP Stack node consists of two pieces of software: a consensus client (e.g. op-node) that drives derivation, and an execution client that processes user transactions and constructs blocks (e.g. op-geth).
 
-OP Stack interop adds a cross-chain message verification layer to the rollup node. Before a node accepts a block that contains an executing message, it verifies that the matching initiating message really exists on the source chain. Nodes track every chain in their dependency set and will not advance the local chain past any block whose dependencies they cannot prove.
+OP Stack interop adds cross-chain message verification on top of that pipeline. Before any chain advances past a block that contains an executing message, the matching initiating message has to be reproduced from the source chain. Tracking every chain in the dependency set is on the critical path: a local block whose dependencies cannot be proved stays unsafe.
+
+That verification work is performed by [op-supernode](/op-stack/interop/supernode), a component that hosts the consensus layer of every chain in a dependency set together and runs the cross-chain checks above the per-chain layer. Each chain's CL stays the single source of truth for safety on its own chain; the supernode signals "advance" or "invalidate" through a narrow authority interface that the CL defers to.
 
 ```mermaid
 
-graph LR
+graph TB
+  classDef supernode fill:#FFE,stroke:#aa8
+  classDef execution fill:#EFE
+  classDef l1 fill:#FEE,stroke:#a88
 
-  classDef chain fill:#FFE
-  classDef transparent fill:none, stroke:none
+  l1[L1 consensus layer]
 
-  subgraph chain1[OP Stack chain #1]
-    node1[OP Node]
-    geth1[Execution Engine]
-    node1<-->geth1
+  subgraph SN["op-supernode"]
+    direction LR
+    cla["Chain A CL"]
+    clb["Chain B CL"]
+    clc["Chain C CL"]
+    iv["Cross-chain<br/>verification"]
   end
-  subgraph X[ ]
-    chain2[OP Stack chain #2]
-    chain3[OP Stack chain #3]
-    l1node[L1 Consensus Layer]
-  end
 
-  chain2-->|log events|node1
-  chain3-->|log events|node1
-  l1node-->|block status|node1
+  ela["Chain A<br/>execution client"]
+  elb["Chain B<br/>execution client"]
+  elc["Chain C<br/>execution client"]
 
-  class chain1,chain2,chain3 chain
-  class X transparent
+  l1-->|block data + status|SN
+  cla<-->ela
+  clb<-->elb
+  clc<-->elc
+
+  class SN supernode
+  class ela,elb,elc execution
+  class l1 l1
 ```
 
-A node participating in interop indexes the log events of every chain in its dependency set, because any of those events can serve as an initiating message. The node also reads from L1's consensus layer to determine the safety of L2 blocks.
+A participant in interop indexes the log events of every chain in its dependency set, because any of those events can serve as an initiating message. It also reads from L1's consensus layer to determine the safety of L2 blocks.
 
-The cross-chain verification work is built into the rollup node itself. Verifying initiating messages on other chains does mean the node operator needs a way to follow each chain in the dependency set — typically by running rollup nodes for those chains as well.
+Following every chain in a dependency set is expensive: each one needs derivation, an execution engine, and the cross-chain bookkeeping that interop introduces. op-supernode collapses that cost by running every chain together in a single process, with a shared L1 client and beacon client serving all of them. For a fully-connected cluster like the [Superchain interop cluster](#superchain-interop-cluster), this is the topology the cross-chain verification is designed to run on. See the [op-supernode explainer](/op-stack/interop/supernode) for the architecture.
 
 ## How messages get from one chain to the other
 
@@ -103,7 +116,6 @@ OP Stack interop preserves the same three safety levels app developers and node 
 ```mermaid
 
 flowchart LR
-    classDef finalized fill:#CCC
     classDef safe fill:#8F8
     classDef unsafe fill:#F89
 
@@ -176,6 +188,8 @@ flowchart LR
 ```
 
 Every chain in the Superchain interop cluster shares the same security model to mitigate the weakest-link risk of cross-chain messaging. As outlined in the [Standard Rollup Charter](/op-stack/protocol/blockspace-charter), these chains share the same L1 `ProxyAdmin` Owner, and any change to the cluster goes through the standard Protocol Upgrade vote — the established governance process for OP Stack modifications.
+
+Operationally, the fully-connected cluster is the workload [op-supernode](/op-stack/interop/supernode) is built to run: one supernode (or a small high-availability pool) derives every chain in the cluster and verifies cross-chain messages, while the rest of an operator's fleet follows along in a lighter mode.
 
 The Superchain interop cluster is being rolled out iteratively. To see which chains are eligible to join, visit the [Superchain Index](https://www.superchain.eco/superchain-index) and look for chains with a `Standard` charter.
 
