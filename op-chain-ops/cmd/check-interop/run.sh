@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run check-interop against a devnet with two L2 chains.
+# Run the op-up interop smoke bridge test against a devnet with two L2 chains.
 #
 # Usage:
 #   ./run.sh <devnet-dir> <private-key> [loops]
@@ -35,15 +35,36 @@ DEST_RPC="https://an-${CHAINS[1]}-opn-reth-a-rpc-0-op-reth.${RPC_BASE}"
 echo "Devnet:     $(basename "$DEVNET_DIR")"
 echo "Chain A:    ${CHAINS[0]} -> $SOURCE_RPC"
 echo "Chain B:    ${CHAINS[1]} -> $DEST_RPC"
-echo "Loops:      $LOOPS"
+if ! [[ "$LOOPS" =~ ^[0-9]+$ ]]; then
+  echo "Error: loops must be a non-negative integer, got $LOOPS" >&2
+  exit 1
+fi
+
+TRIPS=$(( LOOPS == 0 ? 1 : LOOPS * 2 ))
+
+echo "Loops:      $LOOPS ($TRIPS bridge trips)"
 echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-exec go run "$REPO_ROOT/op-chain-ops/cmd/check-interop" \
-  --source-rpc "$SOURCE_RPC" \
-  --dest-rpc "$DEST_RPC" \
-  --relay \
-  --loop "$LOOPS" \
-  --private-key "$PRIVATE_KEY"
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+
+go build -o "$BUILD_DIR/op-up" "$REPO_ROOT/op-up"
+
+for ((trip = 1; trip <= TRIPS; trip++)); do
+  if (( trip % 2 == 1 )); then
+    L2A_RPC="$SOURCE_RPC"
+    L2B_RPC="$DEST_RPC"
+  else
+    L2A_RPC="$DEST_RPC"
+    L2B_RPC="$SOURCE_RPC"
+  fi
+
+  echo "Bridge trip $trip/$TRIPS"
+  "$BUILD_DIR/op-up" smoke-interop bridge \
+    --l2a-rpc "$L2A_RPC" \
+    --l2b-rpc "$L2B_RPC" \
+    --private-key "$PRIVATE_KEY"
+done
