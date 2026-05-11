@@ -1,34 +1,19 @@
 #!/usr/bin/env bash
 # Merges the four continuation YAML configs into a single file using yq v4.
+# yq is installed via mise (see mise.toml).
 # The merged file is written to /tmp/merged-config.yml for the continuation step.
 #
 # Merge order: main → docs-ci → rust-ci → rust-e2e
 # Later files win on key conflicts (same as path-filtering orb behaviour).
 set -euo pipefail
 
-YQ_VERSION="4.44.5"  # Keep in sync with mise.toml
-
-# ---------------------------------------------------------------------------
-# Ensure yq v4 is available
-# ---------------------------------------------------------------------------
-if ! command -v yq &>/dev/null || [[ "$(yq --version 2>&1)" != *"v${YQ_VERSION}"* ]]; then
-  echo "Installing yq ${YQ_VERSION}..."
-  wget -qO /tmp/yq \
-    "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-  chmod +x /tmp/yq
-  YQ=/tmp/yq
-else
-  YQ=yq
-fi
-
-echo "yq version: $($YQ --version)"
-
-# ---------------------------------------------------------------------------
-# Deep-merge all continuation configs
+# Deep-merge all continuation configs.
 # explode(.) resolves YAML anchors/aliases before merging so that the output
 # never contains undefined alias references (e.g. *rust-cache-version).
-# ---------------------------------------------------------------------------
-$YQ eval-all 'explode(.) | . as $item ireduce ({}; . * $item)' \
+# $item is a yq expression variable, not a shell variable.
+# Single quotes are intentional to prevent shell expansion.
+# shellcheck disable=SC2016
+yq eval-all 'explode(.) | . as $item ireduce ({}; . * $item)' \
   .circleci/continue/main.yml \
   .circleci/continue/docs-ci.yml \
   .circleci/continue/rust-ci.yml \
