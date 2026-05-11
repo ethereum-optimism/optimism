@@ -37,6 +37,13 @@ parameters:
   c-is_api_trigger:
     type: boolean
     default: false
+  # Pre-computed workflow conditions (set by compute-changes.sh workflows step)
+  c-run_rust_e2e_ci:
+    type: boolean
+    default: false
+  c-run_rust_e2e_gate_skip:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -316,14 +323,7 @@ jobs:
 workflows:
   # Rust E2E CI — runs on rust path changes or manual dispatch
   rust-e2e-ci:
-    when:
-      or:
-        - and:
-            - << pipeline.parameters.c-is_webhook >>
-            - << pipeline.parameters.c-rust_changes_detected >>
-        - and:
-            - equal: [true, <<pipeline.parameters.c-rust_e2e_dispatch>>]
-            - << pipeline.parameters.c-is_api_trigger >>
+    when: << pipeline.parameters.c-run_rust_e2e_ci >>
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test
@@ -401,10 +401,7 @@ workflows:
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
-    when:
-      and:
-        - << pipeline.parameters.c-is_webhook >>
-        - not: << pipeline.parameters.c-rust_changes_detected >>
+    when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
       - contracts-bedrock-build:
           build_args: --skip test

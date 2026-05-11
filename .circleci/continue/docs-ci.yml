@@ -23,6 +23,10 @@ parameters:
   c-is_api_trigger:
     type: boolean
     default: false
+  # Pre-computed workflow conditions (set by compute-changes.sh workflows step)
+  c-run_docs_ci:
+    type: boolean
+    default: false
   # Passthrough declarations for setup config parameters.
   # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
   # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
@@ -128,10 +132,6 @@ jobs:
 # ============================================================================
 workflows:
   docs-ci:
-    when:
-      and:
-        - equal: ["", << pipeline.git.tag >>]
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - << pipeline.parameters.c-docs_changes_detected >>
+    when: << pipeline.parameters.c-run_docs_ci >>
     jobs:
       - mintlify-docs-build

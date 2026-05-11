@@ -137,6 +137,64 @@ jobs:
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       - run:
+          name: Compute workflow conditions
+          environment:
+            BRANCH: << pipeline.git.branch >>
+            TRIGGER_SOURCE: << pipeline.trigger_source >>
+            TAG: << pipeline.git.tag >>
+            SCHEDULE_NAME: << pipeline.schedule.name >>
+          command: |
+            source .circleci/scripts/workflow-helpers.sh
+
+            if is_scheduled; then
+              case "${SCHEDULE_NAME}" in
+                build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
+                build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
+                build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
+                build_mon_thu)    run ai_contracts_test ;;
+              esac
+
+            elif has_tag; then
+              run release
+
+            elif is_webhook; then
+              run main release
+              if is_merge_queue; then
+                run contracts_feature_tests
+                if rust_changed;      then run rust_ci rust_e2e_ci
+                else                       run rust_ci_gate_short rust_e2e_gate_skip; fi
+                if docs_changed;      then run docs_ci; fi
+              elif is_develop; then
+                run develop_fault_proofs develop_kontrol_tests contracts_feature_tests
+                if rust_changed;      then run rust_ci rust_e2e_ci kona_publish_prestates
+                else                       run rust_ci_gate_short rust_e2e_gate_skip; fi
+                if docs_changed;      then run docs_ci; fi
+              else
+                if contracts_changed; then run contracts_feature_tests
+                else                       run contracts_feature_tests_short; fi
+                if rust_changed;      then run rust_ci rust_e2e_ci
+                else                       run rust_ci_gate_short rust_e2e_gate_skip; fi
+                if docs_changed;      then run docs_ci; fi
+              fi
+
+            elif is_api; then
+              run release
+              if main_dispatch && event_not_set;  then run main contracts_feature_tests; fi
+              if fault_proofs_dispatch;            then run develop_fault_proofs; fi
+              if kontrol_dispatch;                 then run develop_kontrol_tests; fi
+              if cannon_full_test_dispatch;        then run scheduled_cannon_full_tests; fi
+              if reproducibility_dispatch;         then run scheduled_preimage_reproducibility; fi
+              if stale_check_dispatch;             then run scheduled_stale_check; fi
+              if heavy_fuzz_dispatch;              then run scheduled_heavy_fuzz_tests; fi
+              if ai_contracts_test_dispatch;       then run ai_contracts_test; fi
+              if l2_fork_test_dispatch;            then run l2_fork_test; fi
+              if rust_ci_dispatch;                 then run rust_ci; fi
+              if rust_e2e_dispatch;                then run rust_e2e_ci; fi
+              if is_close_issue_event;             then run close_issue; fi
+            fi
+
+            flush
+      - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
       - continuation/continue:

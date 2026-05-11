@@ -6,12 +6,13 @@
 #   compute-changes.sh bool       — emit all c-* env vars as JSON booleans (normalizes 0/1)
 #   compute-changes.sh conditions — compute pipeline conditions from BRANCH and TRIGGER_SOURCE
 #   compute-changes.sh detect     — treat c-* env var values as ERE patterns, match against git diff
+#   compute-changes.sh workflows  — evaluate c-run_* env vars as jq expressions against collected params
 #
 # Each invocation appends to /tmp/pipeline-parameters.json.
 # Env vars whose name starts with c- are processed; all others are ignored.
 set -euo pipefail
 
-MODE="${1:?Usage: compute-changes.sh <str|bool|conditions|detect>}"
+MODE="${1:?Usage: compute-changes.sh <str|bool|conditions|detect|workflows>}"
 OUTPUT="/tmp/pipeline-parameters.json"
 
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
@@ -74,8 +75,24 @@ case "${MODE}" in
     done < <(env | sort)
     ;;
 
+  workflows)
+    context=$(echo "${json}" | jq \
+      --arg tag "$(printenv TAG || echo "")" \
+      --arg schedule "$(printenv SCHEDULE_NAME || echo "")" \
+      --arg trigger "$(printenv TRIGGER_SOURCE || echo "")" \
+      'with_entries(.key |= (ltrimstr("c-") | gsub("-"; "_")))
+       + {tag: $tag, schedule_name: $schedule, trigger_source: $trigger}')
+
+    while IFS='=' read -r key expr; do
+      [[ "${key}" == c-run_* ]] || continue
+      result=$(echo "${context}" | jq "${expr}")
+      json=$(echo "${json}" | jq --argjson v "${result}" '. + {"'"${key}"'": $v}')
+      echo "  [workflow] ${key} = ${result}"
+    done < <(env | sort)
+    ;;
+
   *)
-    echo "ERROR: Unknown mode '${MODE}'. Use: str, bool, conditions, or detect." >&2
+    echo "ERROR: Unknown mode '${MODE}'. Use: str, bool, conditions, detect, or workflows." >&2
     exit 1
     ;;
 esac
