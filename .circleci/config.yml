@@ -199,6 +199,13 @@ jobs:
               fi
             fi
 
+            # --- strip intermediate params (only needed by this decision tree, not by continuation configs) ---
+            _json=$(echo "${_json}" | jq 'with_entries(select(
+              .key | startswith("c-run_") or
+              IN("c-default_docker_image","c-rust_base_image","c-base_image",
+                 "c-github-event-base64","c-go-cache-version","c-rust_files_changed")
+            ))')
+
             # --- write results ---
             echo "${_json}" > "${OUTPUT}"
             echo "=== Enabled workflows ==="
