@@ -9,12 +9,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +20,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -334,11 +331,11 @@ func (s Semver) Compare(other Semver) int {
 	return 0
 }
 
-// GetOPCMsForChain returns OPCMs for a given chain ID by fetching from the superchain-registry GitHub.
+// GetOPCMsForChain returns all OPCMs for a given chain ID by fetching from the superchain-registry GitHub.
 // Returns unique OPCMs sorted by release version ascending, deduplicated by address.
 // Note: ReleaseVersion (e.g., "1.6.0") is NOT the OPCM contract's semver (e.g., "6.0.0").
 // The actual OPCM version must be queried on-chain via opcm.version().
-// In CI fork tests, prerelease versions are excluded only when they do not exist at the pinned fork block.
+// Prerelease versions (e.g., rc, beta) are excluded - only stable releases are returned.
 func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 	versions, err := getVersionsForChain(chainID)
 	if err != nil {
@@ -349,14 +346,6 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 }
 
 func opcmsFromVersions(chainID uint64, versions Versions) []OPCMInfo {
-	return opcmsFromVersionsWithPrereleaseFilter(chainID, versions, shouldSkipCIPrereleaseOPCM)
-}
-
-func opcmsFromVersionsWithPrereleaseFilter(
-	chainID uint64,
-	versions Versions,
-	shouldSkipPrerelease func(common.Address) bool,
-) []OPCMInfo {
 	var opcms []OPCMInfo
 
 	for releaseTag, versionConfig := range versions {
@@ -377,14 +366,13 @@ func opcmsFromVersionsWithPrereleaseFilter(
 		if err != nil {
 			continue
 		}
-		addr := common.Address(*versionConfig.OPContractsManager.Address)
-		if sv.IsPrerelease() && shouldSkipPrerelease != nil && shouldSkipPrerelease(addr) {
+		if sv.IsPrerelease() {
 			continue
 		}
 
 		opcms = append(opcms, OPCMInfo{
 			ReleaseVersion: releaseVersion,
-			Address:        addr,
+			Address:        common.Address(*versionConfig.OPContractsManager.Address),
 			ChainID:        chainID,
 		})
 	}
@@ -407,57 +395,6 @@ func opcmsFromVersionsWithPrereleaseFilter(
 	}
 
 	return result
-}
-
-func shouldSkipCIPrereleaseOPCM(addr common.Address) bool {
-	if !isCI() {
-		return false
-	}
-
-	forkBlock, ok := forkBlockNumberFromEnv()
-	if !ok {
-		return false
-	}
-
-	rpcURL := os.Getenv("FORK_RPC_URL")
-	if rpcURL == "" {
-		rpcURL = os.Getenv("ETH_RPC_URL")
-	}
-	if rpcURL == "" {
-		return false
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
-	defer cancel()
-
-	client, err := ethclient.DialContext(ctx, rpcURL)
-	if err != nil {
-		return false
-	}
-	defer client.Close()
-
-	code, err := client.CodeAt(ctx, addr, forkBlock)
-	if err != nil {
-		return false
-	}
-	return len(code) == 0
-}
-
-func isCI() bool {
-	return os.Getenv("CI") != "" || os.Getenv("CIRCLECI") != "" || os.Getenv("GITHUB_ACTIONS") != ""
-}
-
-func forkBlockNumberFromEnv() (*big.Int, bool) {
-	raw := os.Getenv("FORK_BLOCK_NUMBER")
-	if raw == "" {
-		return nil, false
-	}
-
-	block, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil {
-		return nil, false
-	}
-	return new(big.Int).SetUint64(block), true
 }
 
 func releaseVersionFromTag(releaseTag string) (string, error) {
