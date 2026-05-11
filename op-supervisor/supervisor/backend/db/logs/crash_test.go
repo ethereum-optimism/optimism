@@ -163,4 +163,3 @@ func TestCrashInjection_PeriodicCheckpointBoundary(t *testing.T) {
 		require.NoError(t, db.Close())
 	}
 }
-
