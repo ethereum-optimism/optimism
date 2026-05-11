@@ -146,8 +146,10 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
         // Capture pre-upgrade version state
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
-        // Execute bundle on forked L2
-        executeScript.execute();
+        // Execute upgrade (skipped when the network already has the upgrade applied)
+        if (!isKarstForkActivated()) {
+            executeScript.execute();
+        }
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -251,8 +253,10 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         // Capture pre-upgrade initialization state
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
-        // Execute bundle on forked L2
-        executeScript.execute();
+        // Execute upgrade (skipped when the network already has the upgrade applied)
+        if (!isKarstForkActivated()) {
+            executeScript.execute();
+        }
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -606,8 +610,10 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Execute upgrade
-        executeScript.execute();
+        // Execute upgrade (skipped when the network already has the upgrade applied)
+        if (!isKarstForkActivated()) {
+            executeScript.execute();
+        }
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
@@ -657,6 +663,12 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
+
+        // Events were emitted in the past and cannot be replayed on an already-upgraded network
+        if (isKarstForkActivated()) {
+            vm.skip(true);
+            return;
+        }
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");

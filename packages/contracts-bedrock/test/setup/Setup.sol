@@ -173,6 +173,11 @@ abstract contract Setup is FeatureFlags {
         return Config.l2ForkTest();
     }
 
+    /// @notice Indicates whether a test is running against a Karst betanet L2 fork test.
+    function isKarstBetanetL2ForkTest() public view returns (bool) {
+        return Config.karstBetanetL2ForkTest();
+    }
+
     /// @dev Deploys either the Deploy.s.sol or Fork.s.sol contract, by fetching the bytecode dynamically using
     ///      `vm.getDeployedCode()` and etching it into the state.
     ///      This enables us to avoid including the bytecode of those contracts in the bytecode of this contract.
@@ -184,12 +189,20 @@ abstract contract Setup is FeatureFlags {
         console.log("Setup: L1 setup start!");
 
         // Handle L2 fork test (takes precedence over L1 fork)
-        if (isL2ForkTest()) {
+        if (isL2ForkTest() || isKarstBetanetL2ForkTest()) {
             uint256 l2ForkBlock = Config.l2ForkBlockNumber();
-            if (l2ForkBlock == 0) {
-                vm.createSelectFork(Config.l2ForkRpcUrl());
+            if (isKarstBetanetL2ForkTest()) {
+                if (l2ForkBlock == 0) {
+                    vm.createSelectFork(Config.karstBetanetL2ForkRpcUrl());
+                } else {
+                    vm.createSelectFork(Config.karstBetanetL2ForkRpcUrl(), l2ForkBlock);
+                }
             } else {
-                vm.createSelectFork(Config.l2ForkRpcUrl(), l2ForkBlock);
+                if (l2ForkBlock == 0) {
+                    vm.createSelectFork(Config.l2ForkRpcUrl());
+                } else {
+                    vm.createSelectFork(Config.l2ForkRpcUrl(), l2ForkBlock);
+                }
             }
             console.log("Setup: L2 fork selected!");
         } else if (isL1ForkTest()) {
@@ -351,6 +364,12 @@ abstract contract Setup is FeatureFlags {
             vm.skip(true);
             console.log(string.concat("Skipping non-L2 fork test: ", message));
         }
+    }
+
+    /// @dev Returns true if the forked L2 network has the Karst upgrade applied, by checking if the ConditionalDeployer predeploy exists.
+    ///      When true, fork upgrade tests skip bundle execution but still run verification.
+    function isKarstForkActivated() public view returns (bool) {
+        return Predeploys.CONDITIONAL_DEPLOYER.code.length > 0;
     }
 
     /// @dev Sets up the L1 contracts.
