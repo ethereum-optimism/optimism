@@ -370,7 +370,7 @@ func TestFilterOPCMsByReleaseVersion(t *testing.T) {
 	})
 }
 
-func TestOPCMsFromVersionsSkipsPrereleaseReleaseTags(t *testing.T) {
+func TestOPCMsFromVersionsIncludesPrereleaseReleaseTagsOutsideCI(t *testing.T) {
 	versions := Versions{
 		"op-contracts/v7.0.0-rc.2": {
 			OPContractsManager: &ContractData{
@@ -387,6 +387,33 @@ func TestOPCMsFromVersionsSkipsPrereleaseReleaseTags(t *testing.T) {
 	}
 
 	opcms := opcmsFromVersions(MainnetChainID, versions)
+	require.Len(t, opcms, 2)
+	require.Equal(t, common.HexToAddress("0x6666666666666666666666666666666666666666"), opcms[0].Address)
+	require.Equal(t, "6.0.0", opcms[0].ReleaseVersion)
+	require.Equal(t, common.HexToAddress("0x9999999999999999999999999999999999999999"), opcms[1].Address)
+	require.Equal(t, "7.0.0-rc.2", opcms[1].ReleaseVersion)
+}
+
+func TestOPCMsFromVersionsSkipsPrereleaseReleaseTagsWhenMissingAtForkBlock(t *testing.T) {
+	tooNewAddr := common.HexToAddress("0x9999999999999999999999999999999999999999")
+	versions := Versions{
+		"op-contracts/v7.0.0-rc.2": {
+			OPContractsManager: &ContractData{
+				Version: "7.1.17",
+				Address: addrPtr(tooNewAddr.Hex()),
+			},
+		},
+		"op-contracts/v6.0.0": {
+			OPContractsManager: &ContractData{
+				Version: "6.0.0",
+				Address: addrPtr("0x6666666666666666666666666666666666666666"),
+			},
+		},
+	}
+
+	opcms := opcmsFromVersionsWithPrereleaseFilter(MainnetChainID, versions, func(addr common.Address) bool {
+		return addr == tooNewAddr
+	})
 	require.Len(t, opcms, 1)
 	require.Equal(t, common.HexToAddress("0x6666666666666666666666666666666666666666"), opcms[0].Address)
 	require.Equal(t, "6.0.0", opcms[0].ReleaseVersion)
