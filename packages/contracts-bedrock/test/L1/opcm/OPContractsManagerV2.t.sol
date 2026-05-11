@@ -1238,7 +1238,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -1769,7 +1769,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: superRoot,
-                initBond: superRoot ? DEFAULT_DISPUTE_GAME_INIT_BOND : 0,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: superRoot ? abi.encode(pdgConfig) : bytes("")
             })
@@ -2057,8 +2057,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Set up dispute game configs first since they're needed for the struct literal.
-        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        address initialChallenger = _initialPermissionedGameChallenger(superRoot);
+        address initialProposer = _initialPermissionedGameProposer(superRoot);
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -2068,16 +2069,18 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: !superRoot,
+            initBond: superRoot ? 0 : 0.08 ether,
             gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: initialProposer,
-                    challenger: initialChallenger
-                })
-            )
+            gameArgs: superRoot
+                ? bytes("")
+                : abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: initialProposer,
+                        challenger: initialChallenger
+                    })
+                )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -2086,10 +2089,18 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
+            enabled: superRoot,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            gameArgs: superRoot
+                ? abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: initialProposer,
+                        challenger: initialChallenger
+                    })
+                )
+                : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -2121,7 +2132,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
             batcher: makeAddr("migrateBatcher"),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
-            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: 1368,
             blobBasefeeScalar: 801949,
             gasLimit: 60_000_000,
@@ -2142,6 +2153,22 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
+    function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
+        if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        challenger_ = gameArgs.challenger;
+    }
+
+    function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
+        if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        proposer_ = gameArgs.proposer;
+    }
+
     /// @notice Helper function to create the default migration input.
     /// @return input_ The default migration input.
     function _getDefaultMigrateInput() internal returns (IOPContractsManagerMigrator.MigrateInput memory input_) {
@@ -2158,7 +2185,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0.08 ether,
+            initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -2343,14 +2370,16 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Check that the init bonds are set correctly on the new DisputeGameFactory.
         assertEq(
             IDisputeGameFactory(asr.disputeGameFactory()).initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
-            0.08 ether,
+            0,
             "SUPER_PERMISSIONED_CANNON init bond mismatch"
         );
         {
             IDisputeGameFactory sharedDGF = IDisputeGameFactory(asr.disputeGameFactory());
-            address sharedWETH = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON)).weth;
-            assertEq(chainContracts1.systemConfig.delayedWETH(), sharedWETH, "Chain 1 delayedWETH mismatch");
-            assertEq(chainContracts2.systemConfig.delayedWETH(), sharedWETH, "Chain 2 delayedWETH mismatch");
+            if (address(sharedDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0)) {
+                address sharedWETH = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_CANNON_KONA)).weth;
+                assertEq(chainContracts1.systemConfig.delayedWETH(), sharedWETH, "Chain 1 delayedWETH mismatch");
+                assertEq(chainContracts2.systemConfig.delayedWETH(), sharedWETH, "Chain 2 delayedWETH mismatch");
+            }
         }
 
         // Check that portal liquidity was migrated directly to the new shared lockbox.

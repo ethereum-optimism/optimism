@@ -28,6 +28,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -591,9 +592,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (DisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
     {
         errors_ = _initialErrors;
-        bool isPermissioned = _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-            || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
-        bool isZK = _gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw();
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
 
@@ -607,7 +605,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         bytes memory _gameArgs = _factory.gameArgs(_gameType);
         bool lenCheckFailed;
-        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, isPermissioned, isZK, _errorPrefix);
+        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, _gameType, _errorPrefix);
         if (lenCheckFailed) {
             // Return early to avoid decoding invalid game args
             failed_ = true;
@@ -921,8 +919,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertGameArgsLength(
         string memory _errors,
         bytes memory _gameArgsBytes,
-        bool _isPermissioned,
-        bool _isZK,
+        GameType _gameType,
         string memory _errorPrefix
     )
         internal
@@ -930,11 +927,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory errors_, bool failed_)
     {
         _errorPrefix = string.concat(_errorPrefix, "-GARGS");
-        if (_isZK) {
+        uint32 rawGameType = _gameType.raw();
+        if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
             bool ok = LibGameArgs.isValidZKArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
-        } else if (_isPermissioned) {
+        } else if (rawGameType == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            bool ok = LibGameArgs.isValidSuperPermissionedArgs(_gameArgsBytes);
+            _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+            return (_errors, !ok);
+        } else if (rawGameType == GameTypes.PERMISSIONED_CANNON.raw()) {
             bool ok = LibGameArgs.isValidPermissionedArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
@@ -1039,6 +1041,29 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
             gameImpl_.gameAddress = address(_game);
             gameImpl_.gameType = _gameType;
+            return gameImpl_;
+        }
+
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            LibGameArgs.SuperPermissionedGameArgs memory superPermissionedGameArgs =
+                LibGameArgs.decodeSuperPermissioned(_gameArgsBytes);
+            ISuperPermissionedDisputeGame superGame = ISuperPermissionedDisputeGame(address(_game));
+            gameImpl_ = DisputeGameImplementation({
+                gameAddress: address(_game),
+                maxGameDepth: superGame.maxGameDepth(),
+                splitDepth: superGame.splitDepth(),
+                maxClockDuration: superGame.maxClockDuration(),
+                clockExtension: superGame.clockExtension(),
+                gameType: _gameType,
+                l2SequenceNumber: 0,
+                absolutePrestate: Claim.wrap(bytes32(0)),
+                vm: IBigStepper(address(0)),
+                asr: IAnchorStateRegistry(superPermissionedGameArgs.anchorStateRegistry),
+                weth: IDelayedWETH(payable(address(0))),
+                l2ChainId: 0,
+                challenger: superPermissionedGameArgs.challenger,
+                proposer: superPermissionedGameArgs.proposer
+            });
             return gameImpl_;
         }
 

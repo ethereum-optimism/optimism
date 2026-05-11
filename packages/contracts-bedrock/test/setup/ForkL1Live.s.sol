@@ -284,7 +284,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -445,8 +445,11 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry =
-            IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
+        IAnchorStateRegistry newAnchorStateRegistry = Config.devFeatureSuperRootGamesMigration()
+            ? IAnchorStateRegistry(
+                LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry
+            )
+            : IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -455,8 +458,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
+        GameType wethGameType = Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_CANNON_KONA : permGameType;
         IDelayedWETH newDelayedWeth =
-            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).weth));
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(wethGameType)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

@@ -371,6 +371,13 @@ func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
 	return nil
 }
 
+func CheckSuperPermissionedFlags(ctx *cli.Context) error {
+	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
+	}
+	return nil
+}
+
 func CheckCannonFlags(ctx *cli.Context) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
@@ -438,8 +445,12 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			if err := CheckCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		case gameTypes.SuperCannonKonaGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
+				return err
+			}
+		case gameTypes.SuperPermissionedGameType:
+			if err := CheckSuperPermissionedFlags(ctx); err != nil {
 				return err
 			}
 		case gameTypes.ZKDisputeGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:

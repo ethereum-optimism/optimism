@@ -40,7 +40,7 @@ var (
 )
 
 var singleCannonGameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
-var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType}
+var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
 
 func ensureExists(path string) error {
 	_, err := os.Stat(path)
@@ -95,6 +95,10 @@ func applyValidConfigForZKDisputeGame(cfg *Config) {
 	cfg.RollupRpc = validRollupRpc
 }
 
+func applyValidConfigForSuperPermissioned(cfg *Config) {
+	cfg.SuperRPC = validSuperRpc
+}
+
 func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, gameType)
 	if gameType == gameTypes.CannonGameType || gameType == gameTypes.PermissionedGameType {
@@ -103,8 +107,11 @@ func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	if gameType == gameTypes.CannonKonaGameType {
 		applyValidConfigForCannonKona(t, &cfg)
 	}
-	if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
+	if gameType == gameTypes.SuperCannonKonaGameType {
 		applyValidConfigForSuperCannonKona(t, &cfg)
+	}
+	if gameType == gameTypes.SuperPermissionedGameType {
+		applyValidConfigForSuperPermissioned(&cfg)
 	}
 	if gameType == gameTypes.ZKDisputeGameType {
 		applyValidConfigForZKDisputeGame(&cfg)
@@ -435,7 +442,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType} {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
@@ -518,7 +525,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 func TestSuperRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SuperRPC = ""

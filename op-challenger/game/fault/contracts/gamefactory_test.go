@@ -340,6 +340,17 @@ func TestGetGameVM(t *testing.T) {
 	}
 }
 
+func TestGetGameVMSuperPermissionedHasNoVM(t *testing.T) {
+	rpc, factory := setupDisputeGameFactoryTest(t, factoryVersions[1])
+	gameType := gameTypes.SuperPermissionedGameType
+	gameArgs := gameargs.SuperPermissionedGameArgs{AnchorStateRegistry: common.Address{0xaa}}.Pack()
+	rpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{gameType}, []interface{}{gameArgs})
+
+	vm, err := factory.GetGameVm(context.Background(), gameType)
+	require.ErrorIs(t, err, ErrUnsupportedGameType)
+	require.Nil(t, vm)
+}
+
 func TestGetGamePrestate(t *testing.T) {
 	for _, usesGameArgs := range []bool{true, false} {
 		t.Run(fmt.Sprintf("GameArgs-%v", usesGameArgs), func(t *testing.T) {
@@ -378,6 +389,17 @@ func TestGetGamePrestate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetGamePrestateSuperPermissionedHasNoPrestate(t *testing.T) {
+	rpc, factory := setupDisputeGameFactoryTest(t, factoryVersions[1])
+	gameType := gameTypes.SuperPermissionedGameType
+	gameArgs := gameargs.SuperPermissionedGameArgs{AnchorStateRegistry: common.Address{0xaa}}.Pack()
+	rpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{gameType}, []interface{}{gameArgs})
+
+	prestate, err := factory.GetGamePrestate(context.Background(), gameType)
+	require.ErrorIs(t, err, ErrUnsupportedGameType)
+	require.Equal(t, common.Hash{}, prestate)
 }
 
 func TestDecodeDisputeGameCreatedLog(t *testing.T) {

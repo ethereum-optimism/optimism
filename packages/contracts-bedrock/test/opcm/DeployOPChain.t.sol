@@ -288,8 +288,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
-        // Permissioned game must always be enabled with DEFAULT_INIT_BOND init bond
-        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), deployOPChain.DEFAULT_INIT_BOND());
+        // The legacy permissioned game keeps the default bond. The super permissioned game
+        // has no bonded participation path, so its init bond must be zero.
+        uint256 expectedInitBond = isSuperRoot ? 0 : deployOPChain.DEFAULT_INIT_BOND();
+        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), expectedInitBond);
         assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
         // CANNON must be disabled for initial deployment (not deployed for super root path)

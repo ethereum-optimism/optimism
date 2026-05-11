@@ -174,8 +174,24 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{
+			Enabled:  enabled[gameTypes.SuperPermissionedGameType],
+			InitBond: new(big.Int),
+			GameType: embedded.GameTypeSuperPermCannon,
+			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+				AbsolutePrestate: cannonPrestate,
+				Proposer:         proposer,
+				Challenger:       challenger,
+			},
+		},
+		{
+			Enabled:  enabled[gameTypes.SuperCannonKonaGameType],
+			InitBond: initBond,
+			GameType: embedded.GameTypeSuperCannonKona,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: cannonKonaPrestate,
+			},
+		},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
