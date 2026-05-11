@@ -429,7 +429,7 @@ contract OPContractsManagerUtils {
                 address(_delayedWETH),
                 chainId
             );
-        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -441,6 +441,10 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
+        } else if (rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
+            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer, parsedInputArgs.challenger);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));

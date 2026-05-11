@@ -1805,7 +1805,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         // Super types (enabled).
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -1970,13 +1970,6 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         );
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
         assertEq("SPDG-20", _validate(true));
-    }
-
-    /// @notice Tests SPDG-40 when SUPER_PERMISSIONED_CANNON absolute prestate is invalid.
-    function test_validate_superPermissionedDisputeGameInvalidPrestate_succeeds() public {
-        bytes32 badPrestate = bytes32(uint256(0xbadbad));
-        DisputeGames.mockGameImplPrestate(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, badPrestate);
-        assertEq("SPDG-40", _validate(true));
     }
 
     /// @notice Tests SPDG-130 when SUPER_PERMISSIONED_CANNON challenger is invalid.
@@ -2384,8 +2377,8 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
             .ValidationOverrides({ l1PAOMultisig: wrongMultisig, challenger: address(0) });
         string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
         // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and surfaces the shared
-        // DelayedWETH proxyAdminOwner mismatch under both super-game drill-downs.
-        assertEq("MIG-SDGF-30,MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", errors);
+        // DelayedWETH proxyAdminOwner mismatch through the bonded super-game drill-down.
+        assertEq("MIG-SDGF-30,MIG-SCKDG-DWETH-30", errors);
     }
 
     /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override when

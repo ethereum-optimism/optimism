@@ -202,8 +202,32 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create bytes32 ABI type: %w", err)
 	}
+	addressType, err := abi.NewType("address", "", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create address ABI type: %w", err)
+	}
 
-	gameArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
+	var gameArgs []byte
+	if disputeGameType == superPermissionedCannonGameType {
+		if initBond.Sign() != 0 {
+			return fmt.Errorf("--%s must be 0 for SUPER_PERMISSIONED_CANNON", InitialBondFlag.Name)
+		}
+		proposerFlag := cliCtx.String(DisputeProposerFlag.Name)
+		if proposerFlag == "" {
+			return fmt.Errorf("missing required flag for SUPER_PERMISSIONED_CANNON: %s", DisputeProposerFlag.Name)
+		}
+		challengerFlag := cliCtx.String(DisputeChallengerFlag.Name)
+		if challengerFlag == "" {
+			return fmt.Errorf("missing required flag for SUPER_PERMISSIONED_CANNON: %s", DisputeChallengerFlag.Name)
+		}
+		gameArgs, err = abi.Arguments{{Type: bytes32Type}, {Type: addressType}, {Type: addressType}}.Pack(
+			absolutePrestate,
+			common.HexToAddress(proposerFlag),
+			common.HexToAddress(challengerFlag),
+		)
+	} else {
+		gameArgs, err = abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to ABI-encode game args: %w", err)
 	}

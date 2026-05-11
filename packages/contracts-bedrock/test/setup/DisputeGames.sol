@@ -98,6 +98,14 @@ library DisputeGames {
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }
 
+    function superPermissionedGameArgsOffset(GameArg _gameArg) internal pure returns (uint256) {
+        if (_gameArg == GameArg.ASR) return 0;
+        if (_gameArg == GameArg.PROPOSER) return 20;
+        if (_gameArg == GameArg.CHALLENGER) return 40;
+
+        revert DisputeGames_UnsupportedGameArg(_gameArg);
+    }
+
     function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
@@ -137,6 +145,9 @@ library DisputeGames {
         // Return zero if no implementation exists for this game type
         address gameImpl = address(_dgf.gameImpls(_gameType));
         if (gameImpl == address(0)) {
+            return IDelayedWETH(payable(address(0)));
+        }
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             return IDelayedWETH(payable(address(0)));
         }
 
@@ -234,7 +245,9 @@ library DisputeGames {
         private
     {
         bytes memory modifiedGameArgs = _dgf.gameArgs(_gameType);
-        uint256 offset = gameArgsOffset(_gameArg);
+        uint256 offset = _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            ? superPermissionedGameArgsOffset(_gameArg)
+            : gameArgsOffset(_gameArg);
         modifiedGameArgs.overwriteAtOffset(offset, _value);
 
         vm.mockCall(

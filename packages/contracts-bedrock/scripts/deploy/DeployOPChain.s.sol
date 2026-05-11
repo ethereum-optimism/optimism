@@ -165,7 +165,7 @@ contract DeployOPChain is Script {
         disputeGameConfigs[3] = isSuperRoot
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: DEFAULT_INIT_BOND,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: abi.encode(pdgConfig)
             })

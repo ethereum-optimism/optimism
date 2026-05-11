@@ -3,6 +3,7 @@ package extract
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -82,10 +83,46 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 	}
 }
 
+func TestSuperPermissionedGameCaller_GetExtendedMetadata(t *testing.T) {
+	block := rpcblock.ByNumber(123)
+	expectedL1Head := common.Hash{0x11}
+	expectedL2SequenceNumber := uint64(456)
+	expectedRootClaim := common.Hash{0x22}
+	expectedStatus := types.GameStatusChallengerWon
+	expectedMaxClockDuration := uint64(789)
+
+	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, snapshots.LoadSuperPermissionedDisputeGameABI())
+	stubRpc.SetResponse(fdgAddr, "l1Head", block, nil, []interface{}{expectedL1Head})
+	stubRpc.SetResponse(fdgAddr, "l2SequenceNumber", block, nil, []interface{}{new(big.Int).SetUint64(expectedL2SequenceNumber)})
+	stubRpc.SetResponse(fdgAddr, "rootClaim", block, nil, []interface{}{expectedRootClaim})
+	stubRpc.SetResponse(fdgAddr, "status", block, nil, []interface{}{expectedStatus})
+	stubRpc.SetResponse(fdgAddr, "maxClockDuration", block, nil, []interface{}{expectedMaxClockDuration})
+
+	caller := NewSuperPermissionedGameCaller(&mockCacheMetrics{}, fdgAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
+	actual, err := caller.GetExtendedMetadata(context.Background(), block)
+	require.NoError(t, err)
+	require.Equal(t, expectedL1Head, actual.L1Head)
+	require.Equal(t, expectedL2SequenceNumber, actual.L2SequenceNum)
+	require.Equal(t, expectedRootClaim, actual.RootClaim)
+	require.Equal(t, expectedStatus, actual.Status)
+	require.Equal(t, expectedMaxClockDuration, actual.MaxClockDuration)
+
+	claims, err := caller.GetAllClaims(context.Background(), block)
+	require.NoError(t, err)
+	require.Empty(t, claims)
+
+	credits, err := caller.GetCredits(context.Background(), block, common.Address{0xaa}, common.Address{0xbb})
+	require.NoError(t, err)
+	require.Len(t, credits, 2)
+	require.Equal(t, big.NewInt(0), credits[0])
+	require.Equal(t, big.NewInt(0), credits[1])
+}
+
 func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCaller, *mockCacheMetrics) {
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
-	if gameType == uint32(types.SuperPermissionedGameType) ||
-		gameType == uint32(types.SuperCannonKonaGameType) {
+	if gameType == uint32(types.SuperPermissionedGameType) {
+		fdgAbi = snapshots.LoadSuperPermissionedDisputeGameABI()
+	} else if gameType == uint32(types.SuperCannonKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)

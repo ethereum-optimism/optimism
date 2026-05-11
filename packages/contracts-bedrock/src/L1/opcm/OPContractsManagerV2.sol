@@ -722,8 +722,19 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // If game is enabled, we must have a non-zero init bond.
-            if (_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0) {
+            if (
+                _cfg.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                    && _cfg.disputeGameConfigs[i].initBond != 0
+            ) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            // If game is enabled, we must have a non-zero init bond, except
+            // SUPER_PERMISSIONED_CANNON which does not use bonds.
+            if (
+                _cfg.disputeGameConfigs[i].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                    && _cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0
+            ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 

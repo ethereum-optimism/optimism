@@ -202,6 +202,37 @@ func TestHasProposedSince(t *testing.T) {
 	}
 }
 
+func TestHasProposedSinceSuperPermissioned(t *testing.T) {
+	cutOffTime := time.Unix(1000, 0)
+	expectedProposalTime := time.Unix(1100, 0)
+	expectedClaim := common.Hash{0xdd}
+
+	stubRpc, factory := setupDisputeGameFactoryTest(t)
+	withSuperPermissionedGames(
+		stubRpc,
+		gameMetadata{
+			GameType:  superPermissionedGameType,
+			Timestamp: expectedProposalTime,
+			Address:   common.Address{0x11},
+			Proposer:  proposerAddr,
+			Claim:     expectedClaim,
+		},
+		gameMetadata{
+			GameType:  superPermissionedGameType,
+			Timestamp: time.Unix(1200, 0),
+			Address:   common.Address{0x22},
+			Proposer:  common.Address{0xee}, // Wrong proposer
+			Claim:     common.Hash{0xee},
+		},
+	)
+
+	proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, superPermissionedGameType)
+	require.NoError(t, err)
+	require.True(t, proposed)
+	require.Equal(t, expectedProposalTime, proposalTime)
+	require.Equal(t, expectedClaim, claim)
+}
+
 func TestProposalTx(t *testing.T) {
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	gameType := uint32(123)
@@ -215,6 +246,21 @@ func TestProposalTx(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 	require.NotNil(t, tx.Value)
 	require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
+}
+
+func withSuperPermissionedGames(stubRpc *batchingTest.AbiBasedRpc, games ...gameMetadata) {
+	stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.Latest, nil, []interface{}{big.NewInt(int64(len(games)))})
+	gameAbi := snapshots.LoadSuperPermissionedDisputeGameABI()
+	for i, game := range games {
+		stubRpc.SetResponse(factoryAddr, methodGameAtIndex, rpcblock.Latest, []interface{}{big.NewInt(int64(i))}, []interface{}{
+			game.GameType,
+			uint64(game.Timestamp.Unix()),
+			game.Address,
+		})
+		stubRpc.AddContract(game.Address, gameAbi)
+		stubRpc.SetResponse(game.Address, methodProposer, rpcblock.Latest, nil, []interface{}{game.Proposer})
+		stubRpc.SetResponse(game.Address, methodRootClaim, rpcblock.Latest, nil, []interface{}{game.Claim})
+	}
 }
 
 func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...gameMetadata) {
