@@ -1470,23 +1470,7 @@ jobs:
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and weekly matrix are in sync
-          command: |
-            set -euo pipefail
-            json_chains=$(jq -r 'keys | sort | .[]' .circleci/l2-rpcs.json)
-            yaml_chains=$(yq '.workflows.scheduled-weekly-tests.jobs[].contracts-bedrock-tests-l2-fork.matrix.parameters.fork_op_chain[]' .circleci/continue/main.yml | sort)
-            if [ "$json_chains" = "$yaml_chains" ]; then
-              echo "OK: l2-rpcs.json and scheduled-weekly-tests matrix are in sync."
-            else
-              echo "ERROR: l2-rpcs.json and the scheduled-weekly-tests matrix are out of sync."
-              echo ""
-              echo "  In l2-rpcs.json only:"
-              comm -23 <(echo "$json_chains") <(echo "$yaml_chains") | sed 's/^/    /'
-              echo "  In matrix only:"
-              comm -13 <(echo "$json_chains") <(echo "$yaml_chains") | sed 's/^/    /'
-              echo ""
-              echo "Update .circleci/l2-rpcs.json or the matrix in .circleci/continue/main.yml to match."
-              exit 1
-            fi
+          command: bash .circleci/scripts/check-l2-chains-sync.sh
 
   todo-issues:
     parameters:
