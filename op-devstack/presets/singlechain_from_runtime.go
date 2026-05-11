@@ -1,6 +1,8 @@
 package presets
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -17,15 +19,31 @@ import (
 //   - CrossSafe (CLSync mode): requires derivation to process the first L1
 //     origin and advance safe; 60s is enough in practice.
 //   - CrossSafe (ELSync mode): the verifier must first complete EL sync over
-//     P2P (which can take tens of seconds on a cold node under CI load)
-//     before the forkchoice update that seeds safe/finalized fires; only
-//     after that does derivation start and begin advancing CrossSafe. The
-//     combined path is consistently slower than the CLSync case, so we give
-//     it a 4x budget. See issue #20334 for the failure mode this guards.
+//     P2P (which can take tens of seconds — sometimes minutes — on a cold
+//     node under CI load) before the forkchoice update that seeds
+//     safe/finalized fires; only after that does derivation start and begin
+//     advancing CrossSafe. Rather than guess a single budget large enough to
+//     absorb the worst CI run (see #20649), use a progress-aware wait that
+//     keeps polling as long as LocalUnsafe keeps advancing (the P2P gossip
+//     path is independent of EL snap-sync) and fails fast if the progress
+//     signal stalls.
 const (
-	initialSyncCheckAttemptsLocalUnsafe     = 30
-	initialSyncCheckAttemptsCrossSafe       = 30
-	initialSyncCheckAttemptsCrossSafeELSync = 120
+	initialSyncCheckAttemptsLocalUnsafe = 30
+	initialSyncCheckAttemptsCrossSafe   = 30
+
+	// initialSyncCrossSafeELSyncMaxWait caps how long we will wait for
+	// CrossSafe to match while initial EL-sync is in flight. The CL on the
+	// verifier cannot advance safe until the EL completes its initial
+	// snap-sync, which under CI load can far exceed a fixed multiple of the
+	// CLSync budget. This is a hard upper bound, not a typical case.
+	initialSyncCrossSafeELSyncMaxWait = 8 * time.Minute
+
+	// initialSyncCrossSafeELSyncStallTimeout fails fast if the verifier's
+	// LocalUnsafe head stops advancing while we're waiting for CrossSafe to
+	// match. LocalUnsafe advances every block via CL gossip independently of
+	// EL snap-sync, so a stall means the test setup is genuinely stuck and
+	// no extra waiting will help.
+	initialSyncCrossSafeELSyncStallTimeout = 30 * time.Second
 )
 
 func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime, runSyncChecks bool) *SingleChainMultiNode {
@@ -69,13 +87,25 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		// Ensure the follower node is in sync with the sequencer before starting tests.
 		// CrossSafe requires derivation to run, which under ELSync can only begin
 		// after the EL completes P2P sync and the node emits its first forkchoice
-		// update — so size that budget by the follower's sync mode.
-		crossSafeAttempts := initialSyncCheckAttemptsCrossSafe
+		// update — so the wait strategy depends on the follower's sync mode.
+		var crossSafeCheck dsl.CheckFunc
 		if opNode, ok := nodeB.CL.(*sysgo.OpNode); ok && opNode.SyncMode() == nodeSync.ELSync {
-			crossSafeAttempts = initialSyncCheckAttemptsCrossSafeELSync
+			// EL-sync's CrossSafe wait has unpredictable duration in CI. Wait
+			// up to initialSyncCrossSafeELSyncMaxWait, but only as long as the
+			// follower's LocalUnsafe head keeps advancing — if gossip stalls
+			// for initialSyncCrossSafeELSyncStallTimeout we fail fast rather
+			// than burn the whole budget. See #20649.
+			crossSafeCheck = preset.L2CLB.MatchedWithProgressFn(
+				preset.L2CL,
+				types.CrossSafe, types.LocalUnsafe,
+				initialSyncCrossSafeELSyncMaxWait,
+				initialSyncCrossSafeELSyncStallTimeout,
+			)
+		} else {
+			crossSafeCheck = preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, initialSyncCheckAttemptsCrossSafe)
 		}
 		dsl.CheckAll(t,
-			preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, crossSafeAttempts),
+			crossSafeCheck,
 			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}

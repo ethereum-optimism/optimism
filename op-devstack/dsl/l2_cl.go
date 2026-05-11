@@ -405,6 +405,14 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
+// MatchedWithProgressFn returns a lambda that waits for cl's matchLvl head to
+// match refNode's matchLvl head while requiring cl to keep making progress on
+// progressLvl. See MatchedWithProgressFn in check.go for the precise semantics.
+// Composable with other lambdas to wait in parallel.
+func (cl *L2CLNode) MatchedWithProgressFn(refNode SyncStatusProvider, matchLvl, progressLvl types.SafetyLevel, maxWait, stallTimeout time.Duration) CheckFunc {
+	return MatchedWithProgressFn(cl, refNode, cl.log, cl.ctx, matchLvl, progressLvl, cl.ChainID(), maxWait, stallTimeout)
+}
+
 func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
 	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
