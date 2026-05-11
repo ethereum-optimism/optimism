@@ -11,8 +11,16 @@ MAIN_YML_PATH="$REPO_ROOT/$MAIN_YML_FILE"
 
 json_chains=$(jq -r 'keys | sort | .[]' "$L2_RPCS_PATH")
 
-yaml_chains=$(yq '
-  .workflows.scheduled-weekly-tests.jobs[].contracts-bedrock-tests-l2-fork.matrix.parameters.fork_op_chain[]
+# Extract the fork_op_chain list from the scheduled-weekly-tests matrix block.
+# Relies on the block structure: the list appears after `fork_op_chain:` and
+# ends at the next non-list line (e.g. `test_profile:`).
+yaml_chains=$(awk '
+  /scheduled-weekly-tests/    { in_workflow=1 }
+  in_workflow && /fork_op_chain:/ { in_list=1; next }
+  in_workflow && in_list && /^[[:space:]]*- / {
+    sub(/^[[:space:]]*- /, ""); print; next
+  }
+  in_workflow && in_list      { exit }
 ' "$MAIN_YML_PATH" | sort)
 
 if [ "$json_chains" = "$yaml_chains" ]; then
