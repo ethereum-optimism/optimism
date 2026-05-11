@@ -1,6 +1,7 @@
 package interop
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -108,6 +109,39 @@ func TestLogsDB_Persistence(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, uint64(200), latestBlock2.Number)
 	})
+}
+
+func TestRestoreLogsDBToVerifiedFrontier_ReSealsDroppedRecoveryTip(t *testing.T) {
+	h := newInteropTestHarness(t).
+		WithActivation(100).
+		WithChain(10, nil).
+		Build()
+	chain10 := h.Mock(10)
+	block100 := eth.BlockID{Hash: common.Hash{0x64}, Number: 100}
+
+	db := h.interop.logsDBs[chain10.id]
+	require.NoError(t, db.SealBlock(common.Hash{}, block100, 100))
+	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.Hash{0x01}, Number: 1},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			chain10.id: block100,
+		},
+	}))
+	require.NoError(t, h.interop.Stop(context.Background()))
+
+	restored := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+	require.NotNil(t, restored)
+	restored.ctx = context.Background()
+	t.Cleanup(func() { _ = restored.Stop(context.Background()) })
+
+	_, ok := restored.logsDBs[chain10.id].LatestSealedBlock()
+	require.False(t, ok, "logs.DB recovery should drop the lone sealed block")
+
+	require.NoError(t, restored.restoreLogsDBToVerifiedFrontier())
+	latest, ok := restored.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, block100, latest)
 }
 
 // =============================================================================

@@ -304,6 +304,18 @@ func (i *Interop) Start(ctx context.Context) error {
 			}
 		}
 	}
+	for {
+		if err := i.restoreLogsDBToVerifiedFrontier(); err == nil {
+			break
+		} else {
+			i.log.Warn("restore logsDB to verified frontier failed, retrying", "err", err)
+		}
+		select {
+		case <-i.ctx.Done():
+			return fmt.Errorf("restore logsDB to verified frontier interrupted: %w", i.ctx.Err())
+		case <-time.After(errorBackoffPeriod):
+		}
+	}
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 

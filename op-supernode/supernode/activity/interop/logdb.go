@@ -108,6 +108,27 @@ func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.
 	return nil
 }
 
+// restoreLogsDBToVerifiedFrontier re-seals the last verified L2 heads into logsDB.
+// logs.DB recovery may conservatively drop its last sealed block on reopen, while
+// verifiedDB still records that timestamp as committed. Restoring the frontier
+// keeps accepted-history logs available before normal interop resumes at T+1.
+func (i *Interop) restoreLogsDBToVerifiedFrontier() error {
+	lastTS, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return nil
+	}
+	verified, err := i.verifiedDB.Get(lastTS)
+	if err != nil {
+		return fmt.Errorf("read last verified result at %d: %w", lastTS, err)
+	}
+	for chainID, blockID := range verified.L2Heads {
+		if err := i.sealFetchedBlockIntoLogsDB(chainID, blockID, lastTS); err != nil {
+			return fmt.Errorf("chain %s: restore logsDB to verified frontier at %d: %w", chainID, lastTS, err)
+		}
+	}
+	return nil
+}
+
 // sealFetchedBlockIntoLogsDB fetches receipts for blockID and seals logs using ts for monotonicity checks
 // (typically the interop round timestamp, or the block timestamp during backfill).
 func (i *Interop) sealFetchedBlockIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, ts uint64) error {
