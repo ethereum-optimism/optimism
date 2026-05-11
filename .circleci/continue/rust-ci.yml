@@ -130,6 +130,41 @@ commands:
             done
             sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
 
+  install-apko-melange:
+    description: "Install pinned apko and melange binaries for reproducible image builds."
+    steps:
+      - run:
+          name: Install apko and melange
+          command: |
+            set -euo pipefail
+
+            BIN_DIR=/tmp/apko-melange-bin
+            WORK_DIR=$(mktemp -d)
+            trap 'rm -rf "${WORK_DIR}"' EXIT
+
+            install_tool() {
+              local repo=$1
+              local name=$2
+              local version=$3
+              local archive="${name}_${version}_linux_amd64.tar.gz"
+              local url="https://github.com/chainguard-dev/${repo}/releases/download/v${version}"
+
+              curl -fsSLo "${WORK_DIR}/${archive}" "${url}/${archive}"
+              curl -fsSLo "${WORK_DIR}/${name}-checksums.txt" "${url}/checksums.txt"
+              (cd "${WORK_DIR}" && grep " ${archive}$" "${name}-checksums.txt" | sha256sum -c -)
+              tar -xzf "${WORK_DIR}/${archive}" -C "${BIN_DIR}" --strip-components=1 "${name}_${version}_linux_amd64/${name}"
+              chmod +x "${BIN_DIR}/${name}"
+            }
+
+            mkdir -p "${BIN_DIR}"
+            install_tool apko apko 1.2.12
+            install_tool melange melange 0.50.6
+
+            echo "export PATH=${BIN_DIR}:\${PATH}" >> "${BASH_ENV}"
+            export PATH="${BIN_DIR}:${PATH}"
+            apko version
+            melange version
+
   rust-setup-env:
     description: "Fix rust mise environment variables"
     steps:
@@ -887,8 +922,9 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - apt-install:
-          packages: "clang llvm-dev libclang-dev"
+          packages: "bubblewrap clang llvm-dev libclang-dev rsync"
           extra_flags: "--no-install-recommends"
+      - install-apko-melange
       - rust-prepare-and-restore-cache: &kona-publish-prestate-cache
           directory: rust
           profile: release

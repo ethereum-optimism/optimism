@@ -1,0 +1,136 @@
+package:
+  name: kona-prestates
+  version: 0.0.1
+  epoch: 0
+  description: Reproducible kona-client cannon prestate artifacts
+
+vars:
+  kona_custom_configs: ${KONA_CUSTOM_CONFIGS}
+  kona_prestate_variants: ${KONA_PRESTATE_VARIANTS}
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - bash
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - clang-18
+      - cmake
+      - curl
+      - git
+      - go-1.24
+      - jq
+      - just
+      - openssl-dev
+      - pkgconf
+      - rustup
+
+pipeline:
+  - name: Build cannon and kona prestate artifacts
+    runs: |
+      set -euo pipefail
+
+      export CARGO_HOME=/tmp/kona-cargo
+      export RUSTUP_HOME=/tmp/kona-rustup
+      export PATH="${CARGO_HOME}/bin:${PATH}"
+      mkdir -p "${CARGO_HOME}" "${RUSTUP_HOME}"
+
+      NIGHTLY="$(grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' "${{package.srcdir}}/mise.toml" | head -1)"
+      rustup toolchain install "${NIGHTLY}" --component rustfmt --component rust-src
+      TOOLCHAIN_BIN="${RUSTUP_HOME}/toolchains/${NIGHTLY}-x86_64-unknown-linux-gnu/bin"
+      if [ ! -x "${TOOLCHAIN_BIN}/cargo" ]; then
+        echo "cargo was not installed at ${TOOLCHAIN_BIN}/cargo" >&2
+        exit 1
+      fi
+      export PATH="${TOOLCHAIN_BIN}:${PATH}"
+      export LD_LIBRARY_PATH="${RUSTUP_HOME}/toolchains/${NIGHTLY}-x86_64-unknown-linux-gnu/lib:${LD_LIBRARY_PATH:-}"
+
+      # The existing just recipe sets CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER
+      # to this executable. The target spec uses ld.lld flavor, so point the
+      # expected name at the pinned nightly rust-lld rather than depending on
+      # a distro-provided MIPS GNU cross linker.
+      RUST_LLD="$(find "${RUSTUP_HOME}/toolchains" -path "*/bin/rust-lld" | head -1)"
+      if [ -z "${RUST_LLD}" ]; then
+        echo "rust-lld was not installed with ${NIGHTLY}" >&2
+        exit 1
+      fi
+      {
+        printf '%s\n' '#!/usr/bin/env bash'
+        printf '%s\n' 'set -euo pipefail'
+        printf '%s\n' ''
+        printf '%s\n' 'args=()'
+        printf '%s\n' 'for arg in "$@"; do'
+        printf '%s\n' '  case "${arg}" in'
+        printf '%s\n' '    -Wl,*)'
+        printf '%s\n' '      IFS="," read -r -a linker_args <<< "${arg#-Wl,}"'
+        printf '%s\n' '      args+=("${linker_args[@]}")'
+        printf '%s\n' '      ;;'
+        printf '%s\n' '    -nodefaultlibs)'
+        printf '%s\n' '      ;;'
+        printf '%s\n' '    -no-pie)'
+        printf '%s\n' '      args+=("--no-pie")'
+        printf '%s\n' '      ;;'
+        printf '%s\n' '    *)'
+        printf '%s\n' '      args+=("${arg}")'
+        printf '%s\n' '      ;;'
+        printf '%s\n' '  esac'
+        printf '%s\n' 'done'
+        printf '%s\n' ''
+        printf '%s\n' "exec \"${RUST_LLD}\" -flavor gnu \"\${args[@]}\""
+      } > /usr/local/bin/mips64-linux-gnuabi64-gcc
+      chmod +x /usr/local/bin/mips64-linux-gnuabi64-gcc
+      ln -sf /usr/local/bin/mips64-linux-gnuabi64-gcc /usr/local/bin/mips64-linux-gnuabi64-g++
+
+      cd "${{package.srcdir}}/cannon"
+      just cannon
+      CANNON_BIN="${{package.srcdir}}/cannon/bin/cannon"
+
+      if [ "${{vars.kona_custom_configs}}" = "true" ]; then
+        export KONA_CUSTOM_CONFIGS_DIR="${{package.srcdir}}/kona-custom-configs"
+      fi
+
+      cd "${{package.srcdir}}/rust"
+      for variant in $(printf '%s' "${{vars.kona_prestate_variants}}" | tr ',' ' '); do
+        just build-kona-client-elf "${variant}"
+
+        artifact_dir="/tmp/kona-prestates/${variant}"
+        mkdir -p "${artifact_dir}"
+        elf="${{package.srcdir}}/rust/target/mips64-unknown-none/release-client-lto/${variant}"
+
+        "${CANNON_BIN}" load-elf \
+          --path="${elf}" \
+          --out="${artifact_dir}/prestate.bin.gz" \
+          --meta="${artifact_dir}/meta.json" \
+          --type multithreaded64-5
+
+        "${CANNON_BIN}" run \
+          --proof-at "=0" \
+          --stop-at "=1" \
+          --input "${artifact_dir}/prestate.bin.gz" \
+          --meta "${artifact_dir}/meta.json" \
+          --proof-fmt "${artifact_dir}/%d.json" \
+          --output ""
+
+        mv "${artifact_dir}/0.json" "${artifact_dir}/prestate-proof.json"
+        cp "${elf}" "${artifact_dir}/kona-client-elf"
+      done
+
+  - name: Install prestate artifacts
+    runs: |
+      set -euo pipefail
+
+      for variant in $(printf '%s' "${{vars.kona_prestate_variants}}" | tr ',' ' '); do
+        install -Dm644 "/tmp/kona-prestates/${variant}/prestate.bin.gz" \
+          "${{targets.destdir}}/usr/share/kona-prestates/${variant}/prestate.bin.gz"
+        install -Dm644 "/tmp/kona-prestates/${variant}/prestate-proof.json" \
+          "${{targets.destdir}}/usr/share/kona-prestates/${variant}/prestate-proof.json"
+        install -Dm644 "/tmp/kona-prestates/${variant}/meta.json" \
+          "${{targets.destdir}}/usr/share/kona-prestates/${variant}/meta.json"
+        install -Dm755 "/tmp/kona-prestates/${variant}/kona-client-elf" \
+          "${{targets.destdir}}/usr/share/kona-prestates/${variant}/kona-client-elf"
+      done
