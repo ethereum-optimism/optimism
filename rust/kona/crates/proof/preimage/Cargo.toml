@@ -37,6 +37,7 @@ std = [
 	"alloy-primitives/std",
 	"dep:async-channel",
 	"serde?/std",
+	"sha2/std",
 	"thiserror/std",
 	"tracing/std",
 ]
