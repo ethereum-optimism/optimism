@@ -112,16 +112,6 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerMigrator_EthLockboxFeatureNotEnabled",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OPContractsManagerMigrator_InteropFeatureNotEnabled",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "OPContractsManagerMigrator_InteropNotEnabled",
     "type": "error"
   },
@@ -143,6 +133,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_SystemPaused",
     "type": "error"
   }
 ]

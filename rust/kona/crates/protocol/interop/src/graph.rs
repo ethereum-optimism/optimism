@@ -357,6 +357,24 @@ where
             return Err(MessageGraphError::ChainNotInDependencySet(initiating_chain_id));
         }
 
+        // Attempt to fetch the rollup config for the executing chain from the registry. If the
+        // rollup config is not found, fall back to the local rollup configs.
+        let exec_rollup_config = ROLLUP_CONFIGS
+            .get(&message.executing_chain_id)
+            .or_else(|| self.rollup_configs.get(&message.executing_chain_id))
+            .ok_or(MessageGraphError::MissingRollupConfig(message.executing_chain_id))?;
+
+        // Activation invariant: Interop must be active on the executing chain AND the executing
+        // block must not be the activation block.
+        if !exec_rollup_config.is_interop_active(message.executing_timestamp) ||
+            exec_rollup_config.is_first_interop_block(message.executing_timestamp)
+        {
+            return Err(MessageGraphError::ExecutedTooEarly {
+                activation_time: exec_rollup_config.hardforks.interop_time.unwrap_or_default(),
+                executing_message_time: message.executing_timestamp,
+            });
+        }
+
         // Attempt to fetch the rollup config for the initiating chain from the registry. If the
         // rollup config is not found, fall back to the local rollup configs.
         let rollup_config = ROLLUP_CONFIGS
@@ -372,8 +390,8 @@ where
                 max: message.executing_timestamp,
                 actual: initiating_timestamp,
             });
-        } else if initiating_timestamp <
-            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+        } else if !rollup_config.is_interop_active(initiating_timestamp) ||
+            rollup_config.is_first_interop_block(initiating_timestamp)
         {
             return Err(MessageGraphError::InitiatedTooEarly {
                 activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
@@ -802,6 +820,206 @@ mod test {
         assert_eq!(
             *invalid_messages.get(&CHAIN_B_ID).unwrap(),
             MessageGraphError::InitiatedTooEarly { activation_time: 2, initiating_message_time: 2 }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_initiating_chain_interop_time_none_rejected() {
+        // A chain with no interop activation cannot produce valid init messages.
+        // Op-supervisor's `IsInterop(ts) = InteropTime != nil && ts >= *InteropTime`
+        // rejects in this case, and `check_single_dependency` must do the same via
+        // `is_interop_active`.
+        //
+        // Attack: an attacker plants an arbitrary log on a chain whose kona-visible
+        // rollup config has `interop_time = None` (stale registry, oracle-supplied
+        // config, or a misconfigured dep set), then references it from an executing
+        // message on another chain. Without a `None`-rejecting gate, kona accepts the
+        // forged init message and downstream consumers (e.g. `L2toL2CrossDomainMessenger`)
+        // deliver the call.
+        let mut superchain = default_superchain();
+
+        // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
+        // (bundled registry stale, oracle-supplied, or genuinely pre-interop but
+        // incorrectly included in the dep set) has no interop activation.
+        superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
+        // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
+        assert!(
+            superchain.chain(CHAIN_A_ID).rollup_config.hardforks.interop_time.is_none(),
+            "test precondition: init chain must have interop_time = None"
+        );
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        // Attacker plants an arbitrary log on A and references it from an executing
+        // message on B. With the broken gate, kona accepts. With a spec-correct gate,
+        // kona rejects because A has no interop activation configured.
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages — forged init message must be rejected")
+        };
+
+        assert!(
+            invalid_messages.contains_key(&CHAIN_B_ID),
+            "exec chain B's message referencing a non-interop init chain must be invalidated, got {:?}",
+            invalid_messages
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_before_interop() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // Move CHAIN_B (the executing chain) activation to t=50, so its block at t=2 is
+        // pre-interop. CHAIN_A (initiating) stays at the default (interop_time=0, well
+        // past activation). The executing-chain guard must reject via `!is_interop_active`.
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(50);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: 50,
+                executing_message_time: chain_b_time,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_before_interop_unaligned_activation() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // CHAIN_B activates @ `1s`, unaligned with the block time of `2s`. The first
+        // CHAIN_B block at t=2 IS its activation block (`is_first_interop_block` is
+        // true under unaligned activation: `is_interop_active(2) && !is_interop_active(0)`).
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(1);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: 1,
+                executing_message_time: chain_b_time,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_executing_at_interop_activation() {
+        let mut superchain = default_superchain();
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+        let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
+
+        // CHAIN_B activates @ `chain_b_time`, exactly aligned with block_time. The block
+        // at `chain_b_time` IS the activation block. Mirrors the existing init-side test
+        // which uses `with_interop_activation_time(chain_a_time)`.
+        superchain.chain(CHAIN_B_ID).with_interop_activation_time(chain_b_time);
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages")
+        };
+
+        assert_eq!(invalid_messages.len(), 1);
+        assert_eq!(
+            *invalid_messages.get(&CHAIN_B_ID).unwrap(),
+            MessageGraphError::ExecutedTooEarly {
+                activation_time: chain_b_time,
+                executing_message_time: chain_b_time,
+            }
         );
     }
 

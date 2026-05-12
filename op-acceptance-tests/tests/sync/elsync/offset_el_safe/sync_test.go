@@ -34,7 +34,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()

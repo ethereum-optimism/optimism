@@ -33,7 +33,6 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 },
   { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 5000 }
 ]
@@ -71,6 +70,7 @@ fs_permissions = [
   { access='read', path='./lib/superchain-registry/superchain/configs/' },
   { access='read', path='./lib/superchain-registry/superchain/extra/' },
   { access='read', path='./lib/superchain-registry/validation/standard/' },
+  { access='read', path='../../op-core/nuts/' },
 ]
 
 # 5159 = selfdestruct deprecation
@@ -147,7 +147,6 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
   { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]
@@ -189,7 +188,6 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
   { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]
@@ -226,7 +224,6 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
   { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
   { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]

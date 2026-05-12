@@ -6,14 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum/go-ethereum/common"
 )
-
-// deprecatedProtocolVersionsPlaceholder is a non-zero `bytes32` used to
-// satisfy the Solidity DeploySuperchain.s.sol non-zero asserts on
-// requiredProtocolVersion / recommendedProtocolVersion until PR 2 of #20309
-// removes the corresponding fields from the script.
-var deprecatedProtocolVersionsPlaceholder = common.Hash{0x01}
 
 func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
@@ -29,12 +22,6 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		SuperchainProxyAdminOwner: intent.SuperchainRoles.SuperchainProxyAdminOwner,
 		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
 		Paused:                    false,
-		// Re-using SuperchainProxyAdminOwner as a non-zero placeholder for
-		// the deprecated ProtocolVersionsOwner — the deployed contract is
-		// removed in PR 2 of #20309.
-		ProtocolVersionsOwner:      intent.SuperchainRoles.SuperchainProxyAdminOwner,
-		RequiredProtocolVersion:    deprecatedProtocolVersionsPlaceholder,
-		RecommendedProtocolVersion: deprecatedProtocolVersionsPlaceholder,
 	}
 
 	var dso opcm.DeploySuperchainOutput
@@ -63,10 +50,6 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		SuperchainProxyAdminImpl: dso.SuperchainProxyAdmin,
 		SuperchainConfigProxy:    dso.SuperchainConfigProxy,
 		SuperchainConfigImpl:     dso.SuperchainConfigImpl,
-		// Retained for the DeployImplementations call below; PR 2 of #20309
-		// removes both fields.
-		ProtocolVersionsProxy: dso.ProtocolVersionsProxy,
-		ProtocolVersionsImpl:  dso.ProtocolVersionsImpl,
 	}
 	st.SuperchainRoles = intent.SuperchainRoles
 

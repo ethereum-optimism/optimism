@@ -69,6 +69,7 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 
 	// Make sure validator has the block too (keeps the test stable).
 	sys.L2ELValidatorNode().WaitForBlockNumber(targetBlock)
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), targetBlock)
 
 	// Pre-prune proof verification at targetBlock.
 	// This verifies the proof against the block's state root (efficient correctness check).

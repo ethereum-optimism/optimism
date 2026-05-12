@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 )
 
-// Test_ProgramAction_BatcherChangeWithinChannelTimeout verifies that after a
+// TestBatcherChangeWithinChannelTimeout verifies that after a
 // pipeline reset, the system config is loaded from the walked-back L2 block
 // (channel_timeout L1 blocks behind the safe head's L1 origin), not from the
 // safe head itself.
@@ -22,7 +22,7 @@ import (
 //     the pipeline walks back by channel_timeout and should find the old system
 //     config (batcher A). If it incorrectly uses the safe head's config
 //     (batcher B), it rejects batcher A's batch and derivation diverges.
-func Test_ProgramAction_BatcherChangeWithinChannelTimeout(gt *testing.T) {
+func TestBatcherChangeWithinChannelTimeout(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,

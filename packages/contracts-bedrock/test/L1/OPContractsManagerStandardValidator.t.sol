@@ -249,7 +249,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
             // Prepare the upgrade input.
             IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-                new IOPContractsManagerUtils.DisputeGameConfig[](7);
+                new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -279,22 +279,16 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: hex""
             });
             disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: hex""
-            });
-            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
                 gameType: GameTypes.SUPER_CANNON_KONA,
                 gameArgs: hex""
             });
-            disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
                 gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -1784,7 +1778,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         address owner = proxyAdmin.owner();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // Legacy types (all disabled).
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -1805,15 +1799,9 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             gameType: GameTypes.CANNON_KONA,
             gameArgs: hex""
         });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: hex""
-        });
 
         // Super types (enabled).
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
@@ -1825,13 +1813,13 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
                 })
             )
         });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
         });
-        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -1924,10 +1912,7 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
     }
 
     /// @notice Tests that enabling SUPER_CANNON in super mode triggers SCDG-SHAPE.
-    /// TODO(#20030): Once SUPER_CANNON is disabled in migrator and the SCDG-SHAPE check is re-added
-    ///               to assertValidSuperRootDisputeGames, unskip this test.
     function test_validate_superCannonNotDisabled_succeeds() public {
-        vm.skip(true);
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
@@ -2167,7 +2152,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             address owner = proxyAdmin.owner();
 
             IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
-                new IOPContractsManagerUtils.DisputeGameConfig[](7);
+                new IOPContractsManagerUtils.DisputeGameConfig[](6);
             configs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
@@ -2197,22 +2182,16 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             configs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                 gameArgs: hex""
             });
             configs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: hex""
-            });
-            configs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
                 gameType: GameTypes.SUPER_CANNON_KONA,
                 gameArgs: hex""
             });
-            configs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+            configs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0.08 ether,
                 gameType: GameTypes.ZK_DISPUTE_GAME,

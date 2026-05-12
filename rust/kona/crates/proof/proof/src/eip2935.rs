@@ -58,7 +58,19 @@ where
     let slot_key = Nibbles::unpack(keccak256(U256::from(slot).to_be_bytes::<32>()));
     let slot_value = storage_trie.open(&slot_key, provider)?.ok_or(TrieNodeError::KeyNotFound)?;
 
-    B256::decode(&mut slot_value.as_ref()).map_err(OracleProviderError::Rlp)
+    decode_history_storage_value(slot_value.as_ref())
+}
+
+fn decode_history_storage_value(slot_value: &[u8]) -> Result<B256, OracleProviderError> {
+    // Storage trie values are canonical RLP-encoded integers. Decoding as `U256` preserves that
+    // canonicality and restores leading zeroes before interpreting the word as a block hash.
+    let mut encoded = slot_value;
+    let value = U256::decode(&mut encoded).map_err(OracleProviderError::Rlp)?;
+    if !encoded.is_empty() {
+        return Err(OracleProviderError::Rlp(alloy_rlp::Error::UnexpectedLength));
+    }
+
+    Ok(B256::from(value.to_be_bytes::<32>()))
 }
 
 #[cfg(test)]
@@ -87,8 +99,9 @@ mod tests {
                 let mut storage_hb =
                     HashBuilder::default().with_proof_retainer(ProofRetainer::new(vec![slot_key]));
 
-                let mut encoded = Vec::with_capacity(block_hash.length());
-                block_hash.encode(&mut encoded);
+                let value = U256::from_be_slice(block_hash.as_slice());
+                let mut encoded = Vec::with_capacity(value.length());
+                value.encode(&mut encoded);
                 storage_hb.add_leaf(slot_key, encoded.as_slice());
 
                 let storage_root = storage_hb.root();
@@ -133,6 +146,37 @@ mod tests {
                 .map(|bytes| TrieNode::decode(&mut bytes.as_ref()).expect("valid node"))
                 .ok_or(OracleProviderError::TrieNode(TrieNodeError::KeyNotFound))
         }
+    }
+
+    #[rstest]
+    #[case::rlp_encoded_word({
+        let value = U256::from_be_bytes([0x33; 32]);
+        let mut encoded = Vec::with_capacity(value.length());
+        value.encode(&mut encoded);
+        encoded
+    }, B256::from([0x33; 32]))]
+    #[case::rlp_encoded_trimmed_word({
+        let mut value = [0x44; 32];
+        value[0] = 0;
+        let value = U256::from_be_bytes(value);
+        let mut encoded = Vec::with_capacity(value.length());
+        value.encode(&mut encoded);
+        encoded
+    }, {
+        let mut expected = [0x44; 32];
+        expected[0] = 0;
+        B256::from(expected)
+    })]
+    fn test_decode_history_storage_value(#[case] slot_value: Vec<u8>, #[case] expected: B256) {
+        let result = decode_history_storage_value(&slot_value).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    #[case::raw_full_word(vec![0xAA; 32])]
+    #[case::raw_trimmed_word(vec![0x22; 31])]
+    fn test_decode_history_storage_value_rejects_raw_values(#[case] slot_value: Vec<u8>) {
+        decode_history_storage_value(&slot_value).unwrap_err();
     }
 
     #[rstest]

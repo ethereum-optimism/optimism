@@ -193,6 +193,105 @@ hack partition="" shuffle="false" seed="default":
 
   cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
+########################### Release #################################
+
+# Release crates at the given version.
+# target: either "workspace" (releases every subdir under rust/ except op-reth,
+#         in dependency order) or one of the subdir names (op-alloy,
+#         alloy-op-hardforks, alloy-op-evm, op-revm, kona).
+# mode: "dry" (default, prints changes without applying) or "execute"
+# Extra args are forwarded to `cargo release`.
+# kona is split into two topologically-ordered batches to stay under the
+# crates.io "existing crates" rate limit of 30.
+# Example: just release workspace 1.0.0
+# Example: just release kona 1.0.0 execute
+# Example: just release op-alloy 1.0.0 execute --no-confirm
+release TARGET VERSION MODE="dry" *ARGS="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if ! command -v cargo-release >/dev/null 2>&1; then
+      echo "cargo-release not found, installing..."
+      cargo install cargo-release
+    fi
+
+    case "{{MODE}}" in
+      dry)     EXTRA="" ;;
+      execute) EXTRA="--execute" ;;
+      *) echo "error: mode must be 'dry' or 'execute', got '{{MODE}}'" >&2; exit 1 ;;
+    esac
+
+    METADATA=$(cargo metadata --format-version=1 --no-deps)
+
+    # Hardcoded split for kona: 32 crates exceeds crates.io's "existing crates"
+    # rate limit of 30, so we publish in two topologically-ordered batches.
+    # When adding a new crate under rust/kona/, append it to whichever batch
+    # leaves both <= 30 (preserving topo order: deps before dependents).
+    KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-engine kona-executor kona-hardforks"
+    KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-providers-local kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
+
+    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select(.manifest_path | contains("/rust/kona/")) | .name' | sort -u)
+    EXPECTED_KONA=$(echo "$KONA_BATCH_1 $KONA_BATCH_2" | tr ' ' '\n' | sort -u)
+    if [[ "$ACTUAL_KONA" != "$EXPECTED_KONA" ]]; then
+      echo "error: hardcoded kona batches don't match actual kona crates." >&2
+      echo "  diff (actual vs expected):" >&2
+      diff <(echo "$ACTUAL_KONA") <(echo "$EXPECTED_KONA") >&2 || true
+      echo "  Update KONA_BATCH_1/KONA_BATCH_2 in rust/justfile." >&2
+      exit 1
+    fi
+
+    # Release order is dependency-driven: foundational crates first, kona last.
+    ALL_SUBDIRS="op-alloy alloy-op-hardforks alloy-op-evm op-revm kona"
+
+    EXPECTED_SUBDIRS=$(echo "$ALL_SUBDIRS" | tr ' ' '\n' | sort -u)
+    ACTUAL_SUBDIRS=$(echo "$METADATA" \
+      | jq -r '.packages[].manifest_path' \
+      | sed -nE 's|.*/rust/([^/]+)/.*|\1|p' \
+      | grep -vx 'op-reth' \
+      | sort -u)
+    if [[ "$EXPECTED_SUBDIRS" != "$ACTUAL_SUBDIRS" ]]; then
+      echo "error: hardcoded ALL_SUBDIRS list doesn't match actual subdirs under rust/." >&2
+      echo "  diff (expected vs actual):" >&2
+      diff <(echo "$EXPECTED_SUBDIRS") <(echo "$ACTUAL_SUBDIRS") >&2 || true
+      echo "  Update ALL_SUBDIRS in rust/justfile." >&2
+      exit 1
+    fi
+
+    case "{{TARGET}}" in
+      workspace) SUBDIRS="$ALL_SUBDIRS" ;;
+      *)
+        if ! echo " $ALL_SUBDIRS " | grep -q " {{TARGET}} "; then
+          echo "error: unknown target '{{TARGET}}'. Must be 'workspace' or one of: $ALL_SUBDIRS" >&2
+          exit 1
+        fi
+        SUBDIRS="{{TARGET}}"
+        ;;
+    esac
+
+    run_release() {
+      local label="$1"; shift
+      local pkgs
+      pkgs=$(printf -- '-p %s ' "$@")
+      echo "=== $label → version {{VERSION}} (mode: {{MODE}}) ==="
+      printf '%s\n' "$@"
+      echo
+      cargo release {{VERSION}} $pkgs $EXTRA {{ARGS}}
+    }
+
+    for subdir in $SUBDIRS; do
+      if [[ "$subdir" == "kona" ]]; then
+        run_release "rust/kona/ batch 1/2" $KONA_BATCH_1
+        run_release "rust/kona/ batch 2/2" $KONA_BATCH_2
+      else
+        PKGS_LIST=$(echo "$METADATA" \
+          | jq -r --arg dir "/rust/$subdir/" \
+              '.packages[] | select(.manifest_path | contains($dir)) | .name' \
+          | sort -u)
+        [[ -z "$PKGS_LIST" ]] && continue
+        run_release "rust/$subdir/" $PKGS_LIST
+      fi
+    done
+
 ######################### Documentation ################################
 
 DOCS_DIR := justfile_directory() / "docs"

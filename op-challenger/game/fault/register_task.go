@@ -52,10 +52,6 @@ type RegisterTask struct {
 		poststateBlock uint64) (*trace.Accessor, error)
 }
 
-func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
-}
-
 func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
 }

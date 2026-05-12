@@ -100,10 +100,8 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_GarbageChannel(gt *testing.T) {
+func TestGarbageChannel(gt *testing.T) {
 	matrix := helpers.NewMatrix[actionsHelpers.GarbageKind]()
-	defer matrix.Run(gt)
-
 	for _, garbageKind := range garbageKinds {
 		matrix.AddTestCase(
 			fmt.Sprintf("HonestClaim-%s", garbageKind.String()),
@@ -121,4 +119,5 @@ func Test_ProgramAction_GarbageChannel(gt *testing.T) {
 			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 		)
 	}
+	matrix.Run(gt)
 }

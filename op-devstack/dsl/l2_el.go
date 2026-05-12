@@ -461,6 +461,15 @@ func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl suptypes.SafetyLeve
 	return blockRef.ID()
 }
 
+func (el *L2ELNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockID, error) {
+	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
+	ref, err := el.inner.L2EthClient().L2BlockRefByNumber(el.ctx, number)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return ref.ID(), nil
+}
+
 // WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
 func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	var receipt *types.Receipt
@@ -480,8 +489,16 @@ func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLev
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
+}
+
 func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
 }
 
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {

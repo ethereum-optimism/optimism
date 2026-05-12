@@ -144,9 +144,7 @@ contract StandardValidatorUtils {
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "PDDG-SHAPE", _errors);
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "CKDG-SHAPE", _errors);
-        // TODO(#20030): Once SUPER_CANNON is disabled in migrator, re-add check that SUPER_CANNON == address(0).
-        // _errors =
-        //     internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-SHAPE", _errors);
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-SHAPE", _errors);
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "SPDG-SHAPE", _errors
         );

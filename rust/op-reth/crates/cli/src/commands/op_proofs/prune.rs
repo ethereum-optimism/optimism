@@ -115,12 +115,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
         );
         drop(provider_ro);
 
-        let pruner = OpProofStoragePruner::new(
-            storage,
-            block_hash_reader,
-            proofs_history_window,
-            prune_batch_size,
-        );
+        let pruner = OpProofStoragePruner::new(storage, block_hash_reader, proofs_history_window)
+            .with_batch_size(prune_batch_size);
         pruner.run();
         Ok(())
     }

@@ -13,6 +13,11 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
+// ErrInconsistentSnapshot is returned when a chain's Generation() changed
+// during atTimestamp's per-chain reads. Callers should treat it as a
+// transient retryable signal.
+var ErrInconsistentSnapshot = errors.New("chain state changed during superroot gather")
+
 // Superroot satisfies the RPC Activity interface
 // it provides the superroot at a given timestamp for all chains
 // along with the current L1s and the verified and optimistic L1:L2 pairs
@@ -47,15 +52,22 @@ func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
+	// Capture each chain's Generation; re-checked at the end to discard
+	// data gathered across a state-mutating event.
+	startGens := make(map[eth.ChainID]uint64, len(s.chains))
+	for chainID, chain := range s.chains {
+		startGens[chainID] = chain.Generation()
+	}
+
 	aggregate, err := syncstatus.Aggregate(ctx, s.log, s.chains)
 	if err != nil {
 		return eth.SuperRootAtTimestampResponse{}, err
 	}
 
 	var (
-		optimistic            = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
-		minVerifiedRequiredL1 eth.BlockID
-		chainOutputs          = make([]eth.ChainIDAndOutput, 0, len(s.chains))
+		optimistic         = make(map[eth.ChainID]eth.OutputWithRequiredL1, len(s.chains))
+		verifiedRequiredL1 eth.BlockID
+		chainOutputs       = make([]eth.ChainIDAndOutput, 0, len(s.chains))
 	)
 
 	notFound := false
@@ -70,9 +82,10 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			s.log.Warn("failed to get verified block", "chain_id", chainID.String(), "err", err)
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("failed to get verified block: %w", err)
 		}
-		// Verified data is available: update min required L1 and collect the output root
-		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
-			minVerifiedRequiredL1 = verifiedL1
+		// Verified data is available: track the L1 block that includes the data
+		// for every chain — i.e. the MAX of per-chain minimum-required L1s.
+		if verifiedL1.Number > verifiedRequiredL1.Number {
+			verifiedRequiredL1 = verifiedL1
 		}
 		// Compute output root at or before timestamp using the verified L2 block number
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
@@ -108,6 +121,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 	}
 
+	for chainID, chain := range s.chains {
+		if endGen := chain.Generation(); endGen != startGens[chainID] {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("chain %v gen %d → %d: %w", chainID, startGens[chainID], endGen, ErrInconsistentSnapshot)
+		}
+	}
+
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:                 aggregate.CurrentL1,
 		CurrentSafeTimestamp:      aggregate.SafeTimestamp,
@@ -121,7 +140,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		superV1 := eth.NewSuperV1(timestamp, chainOutputs...)
 		superRoot := eth.SuperRoot(superV1)
 		response.Data = &eth.SuperRootResponseData{
-			VerifiedRequiredL1: minVerifiedRequiredL1,
+			VerifiedRequiredL1: verifiedRequiredL1,
 			Super:              superV1,
 			SuperRoot:          superRoot,
 		}

@@ -207,8 +207,8 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: failed to find sealed block %d: %w", chainID, latestBlock.Number, err)
 	}
 
-	// if the last sealed block is already after the timestamp in question, return success
-	if seal.Timestamp > ts {
+	// if the last sealed block is already at or after the timestamp in question, return success
+	if seal.Timestamp >= ts {
 		return latestBlock, hasBlocks, nil
 	}
 

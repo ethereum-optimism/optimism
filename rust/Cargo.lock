@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "alloy-op-evm"
-version = "0.31.0"
+version = "0.32.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.4",
@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "alloy-op-hardforks"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "alloy-chains",
  "alloy-hardforks",
@@ -7694,7 +7694,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "op-alloy"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "op-alloy-consensus",
  "op-alloy-network",
@@ -7706,7 +7706,7 @@ dependencies = [
 
 [[package]]
 name = "op-alloy-consensus"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.4",
@@ -7739,7 +7739,7 @@ checksum = "a79f352fc3893dcd670172e615afef993a41798a1d3fc0db88a3e60ef2e70ecc"
 
 [[package]]
 name = "op-alloy-network"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -7751,7 +7751,7 @@ dependencies = [
 
 [[package]]
 name = "op-alloy-provider"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-network",
  "alloy-primitives",
@@ -7764,7 +7764,7 @@ dependencies = [
 
 [[package]]
 name = "op-alloy-rpc-jsonrpsee"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-primitives",
  "jsonrpsee",
@@ -7772,7 +7772,7 @@ dependencies = [
 
 [[package]]
 name = "op-alloy-rpc-types"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.4",
@@ -7796,7 +7796,7 @@ dependencies = [
 
 [[package]]
 name = "op-alloy-rpc-types-engine"
-version = "0.24.0"
+version = "2.0.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.4",
@@ -7855,7 +7855,7 @@ dependencies = [
 
 [[package]]
 name = "op-revm"
-version = "19.0.0"
+version = "20.0.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -11403,6 +11403,7 @@ dependencies = [
  "auto_impl",
  "bincode 2.0.1",
  "bytes",
+ "crossbeam-channel",
  "derive_more",
  "eyre",
  "metrics",
@@ -12725,13 +12726,13 @@ dependencies = [
 
 [[package]]
 name = "rkyv"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a30e631b7f4a03dee9056b8ef6982e8ba371dd5bedb74d3ec86df4499132c70"
+checksum = "73389e0c99e664f919275ab5b5b0471391fe9a8de61e1dff9b1eaf56a90f16e3"
 dependencies = [
  "bytecheck",
  "bytes",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "indexmap 2.14.0",
  "munge",
  "ptr_meta",
@@ -12744,9 +12745,9 @@ dependencies = [
 
 [[package]]
 name = "rkyv_derive"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8100bb34c0a1d0f907143db3149e6b4eea3c33b9ee8b189720168e818303986f"
+checksum = "5d2ed0b54125315fb36bd021e82d314d1c126548f871634b483f46b31d13cac6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -14005,7 +14006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

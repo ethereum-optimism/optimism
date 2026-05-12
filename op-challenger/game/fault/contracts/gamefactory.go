@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -268,19 +270,39 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 	return games, nil
 }
 
-func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error) {
+func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64) (txmgr.TxCandidate, error) {
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodInitBonds, gameType))
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed to fetch init bond: %w", err)
 	}
 	initBond := result.GetBigInt(0)
-	call := f.contract.Call(methodCreateGame, gameType, outputRoot, common.BigToHash(big.NewInt(int64(l2BlockNum))).Bytes())
+	rootClaim, extraData := createGameParams(gameType, outputRoot, l2BlockNum, l2ChainID)
+	call := f.contract.Call(methodCreateGame, gameType, rootClaim, extraData)
 	candidate, err := call.ToTxCandidate()
 	if err != nil {
 		return txmgr.TxCandidate{}, err
 	}
 	candidate.Value = initBond
 	return candidate, err
+}
+
+func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64) (common.Hash, []byte) {
+	switch gameTypes.GameType(gameType) {
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		extraData := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
+		return crypto.Keccak256Hash(extraData), extraData
+	default:
+		return outputRoot, common.BigToHash(new(big.Int).SetUint64(l2BlockNum)).Bytes()
+	}
+}
+
+func encodeSuperRootProof(timestamp uint64, l2ChainID uint64, outputRoot common.Hash) []byte {
+	extraData := make([]byte, 1+8+32+32)
+	extraData[0] = 0x01
+	binary.BigEndian.PutUint64(extraData[1:9], timestamp)
+	copy(extraData[9:41], common.BigToHash(new(big.Int).SetUint64(l2ChainID)).Bytes())
+	copy(extraData[41:], outputRoot.Bytes())
+	return extraData
 }
 
 func (f *DisputeGameFactoryContract) DecodeDisputeGameCreatedLog(rcpt *ethTypes.Receipt) (common.Address, uint32, common.Hash, error) {

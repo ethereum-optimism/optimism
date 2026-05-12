@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var (
@@ -48,7 +49,7 @@ var acceleratedPrecompiles = []common.Address{
 }
 
 type L1Source interface {
-	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
+	HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error)
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
@@ -286,11 +287,11 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("invalid L1 block hint: %x", hint)
 		}
 		hash := common.Hash(hintBytes)
-		header, err := p.l1Fetcher.InfoByHash(ctx, hash)
+		header, err := p.l1Fetcher.HeaderByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L1 block %s header: %w", hash, err)
 		}
-		data, err := header.HeaderRLP()
+		data, err := rlp.EncodeToBytes(header)
 		if err != nil {
 			return fmt.Errorf("marshall header: %w", err)
 		}
@@ -417,11 +418,11 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		if err != nil {
 			return err
 		}
-		header, txs, err := source.InfoAndTxsByHash(ctx, hash)
+		header, txs, err := source.HeaderAndTxsByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 block %s: %w", hash, err)
 		}
-		data, err := header.HeaderRLP()
+		data, err := rlp.EncodeToBytes(header)
 		if err != nil {
 			return fmt.Errorf("failed to encode header to RLP: %w", err)
 		}

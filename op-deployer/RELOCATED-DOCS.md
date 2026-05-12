@@ -5,25 +5,25 @@
 
 ## Summary
 
-op-deployer documentation has been moved from the monorepo (mdBook in `op-deployer/book/`) to the [ethereum-optimism/docs](https://github.com/ethereum-optimism/docs) repository and the docs website ([docs.optimism.io](https://docs.optimism.io)). The mdBook has been removed from the monorepo.
+op-deployer documentation has been moved from the mdBook in `op-deployer/book/` to the public docs tree in this repository and the docs website ([docs.optimism.io](https://docs.optimism.io)). The mdBook has been removed from the monorepo.
 
 ## Rationale
 
-- **Single source of truth:** Documentation for chain operators is consolidated in the docs repo alongside other operator tools (op-conductor, op-validator, etc.).
-- **Easier maintenance:** Contributors can update op-deployer docs without cloning the optimism monorepo.
+- **Single source of truth:** Documentation for chain operators is consolidated in `docs/public-docs` alongside other operator tools (op-conductor, op-validator, etc.).
+- **Easier maintenance:** Contributors can update op-deployer docs through the same repository and pull request flow used for the rest of the public docs.
 - **Consistency:** All Optimism documentation follows the same structure and deployment pipeline.
 
 ## Canonical Documentation Location
 
-- **Primary:** [docs.optimism.io - Chain Operators > Tools > Deployer](https://docs.optimism.io/operators/chain-operators/tools/op-deployer)
-- **Source:** [ethereum-optimism/docs - pages/operators/chain-operators/tools/op-deployer.mdx](https://github.com/ethereum-optimism/docs/blob/main/pages/operators/chain-operators/tools/op-deployer.mdx)
-- **Tutorial:** [Create L2 Rollup - op-deployer setup](https://docs.optimism.io/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup)
+- **Primary:** [docs.optimism.io - Chain Operators > Tools > OP Deployer](https://docs.optimism.io/chain-operators/tools/op-deployer/overview)
+- **Source:** [`docs/public-docs/chain-operators/tools/op-deployer`](../docs/public-docs/chain-operators/tools/op-deployer)
+- **Tutorial:** [Create L2 Rollup - op-deployer setup](https://docs.optimism.io/chain-operators/tutorials/create-l2-rollup/op-deployer-setup)
 
 ## For op-deployer Maintainers and Contributors
 
-- Submit documentation changes to the [ethereum-optimism/docs](https://github.com/ethereum-optimism/docs) repository.
-- Open PRs against the `main` branch of the docs repo.
-- Documentation updates do not require changes to the optimism monorepo.
+- Submit documentation changes under [`docs/public-docs`](../docs/public-docs).
+- Open PRs against the `develop` branch of the optimism monorepo.
+- Documentation updates usually do not require changes under `op-deployer/`.
 
 ## What Was Removed
 
@@ -36,5 +36,5 @@ op-deployer documentation has been moved from the monorepo (mdBook in `op-deploy
 
 ## References
 
-- [ethereum-optimism/docs](https://github.com/ethereum-optimism/docs) — Mintlify docs at [docs.optimism.io](https://docs.optimism.io)
-- [op-deployer README](README.md) — links to docs repo
+- [`docs/public-docs`](../docs/public-docs) — source for [docs.optimism.io](https://docs.optimism.io)
+- [op-deployer README](README.md) — links to the current public docs

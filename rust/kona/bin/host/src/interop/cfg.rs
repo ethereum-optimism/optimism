@@ -109,10 +109,6 @@ pub struct InteropHost {
     /// dependency set. The config should be stored as a serde-JSON serialized file.
     #[arg(long, alias = "depset-cfg", env)]
     pub dependency_set_path: Option<PathBuf>,
-    /// Optionally enables the use of `debug_executePayload` to collect the execution witness from
-    /// the execution layer.
-    #[arg(long, env)]
-    pub enable_experimental_witness_endpoint: bool,
 }
 
 /// An error that can occur when handling interop hosts

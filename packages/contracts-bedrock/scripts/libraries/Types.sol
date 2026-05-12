@@ -20,7 +20,6 @@ library Types {
         address ETHLockbox;
         address SystemConfig;
         address L1ERC721Bridge;
-        address ProtocolVersions;
         address SuperchainConfig;
     }
 

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_BlockDataHint(gt *testing.T) {
+func TestBlockDataHint(gt *testing.T) {
 	testCfg := &helpers.TestCfg[any]{
 		Hardfork: helpers.LatestFork,
 	}
@@ -96,7 +96,6 @@ func Test_ProgramAction_BlockDataHint(gt *testing.T) {
 		L2ChainID:      chainID,
 		L1Head:         l1Head.Hash(),
 		AgreedPrestate: nil, // not used for block execution
-		InteropEnabled: false,
 		L2Sources: []*helpers.FaultProofProgramL2Source{{
 			Node:        verifier,
 			Engine:      verifierEngine,

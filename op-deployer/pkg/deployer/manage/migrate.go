@@ -161,11 +161,6 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
 	}
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
-	if err != nil {
-		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
-	}
-
 	l1ProxyAdminOwnerFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name)
 	if l1ProxyAdminOwnerFlag == "" {
 		return fmt.Errorf("missing required flag: %s", L1ProxyAdminOwnerFlag.Name)
@@ -187,6 +182,19 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", migrateStartingRespectedGameTypeU64)
 	}
 	migrateStartingRespectedGameType := uint32(migrateStartingRespectedGameTypeU64)
+
+	if disputeGameType == superCannonGameType {
+		return fmt.Errorf(
+			"--%s = %d (SUPER_CANNON) is retired and no longer accepted by OPCMv2",
+			DisputeGameTypeFlag.Name, disputeGameType,
+		)
+	}
+	if migrateStartingRespectedGameType == superCannonGameType {
+		return fmt.Errorf(
+			"--%s = %d (SUPER_CANNON) is retired and no longer accepted by OPCMv2",
+			MigrateStartingRespectedGameTypeFlag.Name, migrateStartingRespectedGameType,
+		)
+	}
 
 	absolutePrestate := common.HexToHash(disputeAbsolutePrestateFlag)
 
@@ -227,6 +235,11 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsLocatorStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts locator: %w", err)
+	}
+
+	l1RPC, err := rpc.Dial(l1RPCUrl)
+	if err != nil {
+		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
 	}
 
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
