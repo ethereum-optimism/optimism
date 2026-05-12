@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -43,14 +43,8 @@ type LogsDB interface {
 	Close() error
 }
 
-// Compile-time check that *logs.DB implements LogsDB.
-var _ LogsDB = (*logs.DB)(nil)
-
-// noopLogsDBMetrics implements the logs.Metrics interface with no-op methods.
-type noopLogsDBMetrics struct{}
-
-func (n *noopLogsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
-func (n *noopLogsDBMetrics) RecordDBSearchEntriesRead(count int64)       {}
+// Compile-time check that *raftwallogdb.DB implements LogsDB.
+var _ LogsDB = (*raftwallogdb.DB)(nil)
 
 // noopInvalidator implements reads.Invalidator as a no-op.
 // Used for rewind operations where we don't need cache invalidation.
@@ -64,20 +58,19 @@ func (n *noopInvalidator) TryInvalidate(rule reads.InvalidationRule) (release fu
 
 var _ reads.Invalidator = (*noopInvalidator)(nil)
 
-// openLogsDB opens a logs.DB for the given chain in the data directory.
+// openLogsDB opens a raft-wal-backed LogsDB for the given chain in the data directory.
 func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB, error) {
 	chainDir := filepath.Join(dataDir, fmt.Sprintf("chain-%s", chainID))
 	if err := os.MkdirAll(chainDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create chain directory: %w", err)
 	}
 
-	dbPath := filepath.Join(chainDir, "logs.db")
-	db, err := logs.NewFromFile(logger, &noopLogsDBMetrics{}, chainID, dbPath, true)
+	db, err := raftwallogdb.Open(chainDir, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open logs DB for chain %s: %w", chainID, err)
 	}
 
-	logger.Info("Initialized logs DB", "chain", chainID, "path", dbPath)
+	logger.Info("Initialized logs DB", "chain", chainID, "path", chainDir)
 	return db, nil
 }
 
