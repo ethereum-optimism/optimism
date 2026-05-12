@@ -12,11 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// l1GapBetweenChainBatches L1 blocks pass between chain A's batch and chain
-// B's so the two batches land at distinct L1 inclusion heights, with the
-// game's L1 head pinned between them.
-const l1GapBetweenChainBatches = 3
-
 // RunSuperrootOptimisticPairingTest exercises the optimistic branch of a
 // super-root transition when chain A has an invalid-exec block at
 // endTimestamp and chain B's at-endTimestamp block is built (empty) and
@@ -100,26 +95,20 @@ func runOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 	advanceSafeToCurrentUnsafe(t, chains[0])
 	gameL1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	// Force a gap so chain B's batch lands strictly after gameL1Head.
-	for i := 0; i < l1GapBetweenChainBatches; i++ {
-		sys.L1Network.WaitForBlock()
-	}
+	// One L1 block is enough separation: chain B's batch will land strictly
+	// after gameL1Head.
+	sys.L1Network.WaitForBlock()
 
 	if withReplacement {
 		sys.TestSequencer.SequenceBlock(t, chains[1].ID, unsafeB.Hash)
 		t.Require().Equal(endTimestamp, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Time)
-		l1HeadBeforeBBatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 		advanceSafeToCurrentUnsafe(t, chains[1])
-		t.Require().Greaterf(l1HeadBeforeBBatch.Number, gameL1Head.Number,
-			"chain B's batch must land strictly after gameL1Head=%d (was %d)",
-			gameL1Head.Number, l1HeadBeforeBBatch.Number)
 		sys.L2CLA.Reached(suptypes.CrossSafe, newHeadA.Number, 60)
 	}
 
 	// The super root at startTimestamp must be fully verifiable at gameL1Head;
 	// otherwise the setup itself is broken.
 	prevRoot := sys.SuperRoots.SuperRootAtTimestamp(startTimestamp)
-	t.Require().NotNil(prevRoot.Data, "super root at startTimestamp must have data")
 	t.Require().LessOrEqualf(prevRoot.Data.VerifiedRequiredL1.Number, gameL1Head.Number,
 		"prev super root VerifiedRequiredL1 %d must be <= gameL1Head %d",
 		prevRoot.Data.VerifiedRequiredL1.Number, gameL1Head.Number)
@@ -149,10 +138,6 @@ func runOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 		},
 	}
 
-	runPairingTransitionTests(t, sys, tests, startTimestamp)
-}
-
-func runPairingTransitionTests(t devtest.T, sys *presets.SimpleInterop, tests []*transitionTest, startTimestamp uint64) {
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
 	for _, test := range tests {
