@@ -90,6 +90,27 @@ func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
 }
 
+func TestInteropFaultProofs_SuperrootOptimisticPairing(gt *testing.T) {
+	// TODO(ethereum-optimism/optimism#20657): the supernode's safeDB only
+	// records blocks at their cross-safe-promotion L1, but op-challenger needs
+	// the local-safe L1 for the optimistic branch. Unskip when fixed.
+	gt.Skip("ethereum-optimism/optimism#20657")
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
+	sfp.RunSuperrootOptimisticPairingTest(t, sys)
+}
+
+func TestInteropFaultProofs_SuperrootOptimisticPairing_NoReplacement(gt *testing.T) {
+	// TODO(ethereum-optimism/optimism#20657): same root cause as the
+	// replacement variant — the optimistic block is never local-safe-recorded
+	// in safeDB, so OptimisticAtTimestamp's RequiredL1 reflects the later
+	// cross-safe promotion L1.
+	gt.Skip("ethereum-optimism/optimism#20657")
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
+	sfp.RunSuperrootOptimisticPairingNoReplacementTest(t, sys)
+}
+
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
