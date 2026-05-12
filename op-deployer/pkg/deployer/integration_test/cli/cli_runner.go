@@ -125,8 +125,19 @@ func newCaptureOutputWriter() *captureOutputWriter {
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
 	// Set up environment variables
 	for key, value := range env {
-		os.Setenv(key, value)
-		defer os.Unsetenv(key)
+		prev, ok := os.LookupEnv(key)
+		if value == "" {
+			os.Unsetenv(key)
+		} else {
+			os.Setenv(key, value)
+		}
+		defer func() {
+			if ok {
+				os.Setenv(key, prev)
+			} else {
+				os.Unsetenv(key)
+			}
+		}()
 	}
 
 	// Change to the working directory for the test

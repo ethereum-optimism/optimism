@@ -289,7 +289,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
+                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (Duration.wrap(3.5 days)))
             )
         });
         vm.startPrank(disputeGameFactory.owner());

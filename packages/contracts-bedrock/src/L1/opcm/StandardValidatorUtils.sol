@@ -407,16 +407,6 @@ contract StandardValidatorUtils {
         if (_args.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
             errors_ = internalRequire(
-                Duration.unwrap(game.clockExtension) == EXPECTED_CLOCK_EXTENSION,
-                string.concat(errorPrefix, "-80"),
-                errors_
-            );
-            errors_ =
-                internalRequire(game.splitDepth == EXPECTED_SPLIT_DEPTH, string.concat(errorPrefix, "-90"), errors_);
-            errors_ = internalRequire(
-                game.maxGameDepth == EXPECTED_MAX_GAME_DEPTH, string.concat(errorPrefix, "-100"), errors_
-            );
-            errors_ = internalRequire(
                 Duration.unwrap(game.maxClockDuration) == EXPECTED_MAX_CLOCK_DURATION,
                 string.concat(errorPrefix, "-110"),
                 errors_

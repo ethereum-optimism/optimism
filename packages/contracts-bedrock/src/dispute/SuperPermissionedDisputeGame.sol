@@ -21,22 +21,12 @@ import { Types } from "src/libraries/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 
 /// @title SuperPermissionedDisputeGame
 /// @notice A simplified permissioned super-root dispute game. The proposer creates a super-root
 ///         proposal, the challenger may invalidate it during the challenge window, and otherwise
 ///         the proposal resolves in favor of the defender after the window elapses.
 contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
-    /// @notice The max depth value retained for validator compatibility.
-    uint256 internal immutable MAX_GAME_DEPTH;
-
-    /// @notice The split depth value retained for validator compatibility.
-    uint256 internal immutable SPLIT_DEPTH;
-
-    /// @notice The clock extension value retained for validator compatibility.
-    Duration internal immutable CLOCK_EXTENSION;
-
     /// @notice The challenge window before the game can resolve to `DEFENDER_WINS`.
     Duration internal immutable MAX_CLOCK_DURATION;
 
@@ -59,14 +49,9 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Prevents re-initialization.
     bool internal initialized;
 
-    /// @param _params Parameters for creating a simplified permissioned game. Only
-    ///        `maxClockDuration` affects game behavior; the other values are retained as getters
-    ///        for compatibility with existing validation code.
-    constructor(ISuperFaultDisputeGame.GameConstructorParams memory _params) {
-        MAX_GAME_DEPTH = _params.maxGameDepth;
-        SPLIT_DEPTH = _params.splitDepth;
-        CLOCK_EXTENSION = _params.clockExtension;
-        MAX_CLOCK_DURATION = _params.maxClockDuration;
+    /// @param _maxClockDuration The challenge window before the game can resolve to `DEFENDER_WINS`.
+    constructor(Duration _maxClockDuration) {
+        MAX_CLOCK_DURATION = _maxClockDuration;
     }
 
     /// @notice Initializes the contract.
@@ -174,24 +159,9 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
         challenger_ = _getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 40);
     }
 
-    /// @notice Getter for the max game depth compatibility value.
-    function maxGameDepth() external view returns (uint256 maxGameDepth_) {
-        maxGameDepth_ = MAX_GAME_DEPTH;
-    }
-
-    /// @notice Getter for the split depth compatibility value.
-    function splitDepth() external view returns (uint256 splitDepth_) {
-        splitDepth_ = SPLIT_DEPTH;
-    }
-
     /// @notice Getter for the max clock duration / challenge window.
     function maxClockDuration() external view returns (Duration maxClockDuration_) {
         maxClockDuration_ = MAX_CLOCK_DURATION;
-    }
-
-    /// @notice Getter for the clock extension compatibility value.
-    function clockExtension() external view returns (Duration clockExtension_) {
-        clockExtension_ = CLOCK_EXTENSION;
     }
 
     /// @notice Returns the length of the super extra data in the initialize call.
