@@ -33,32 +33,34 @@ impl<F> VerifyingPreimageFetcher<F> {
 
 /// Verify that `data` is a valid preimage for `key`, when the key type carries a
 /// self-describing hash (Keccak256, Sha256). Other key types pass through.
+///
+/// `GlobalGeneric` is reserved and unused; observing it is treated as a programmer
+/// error and returns [`PreimageOracleError::UnsupportedKeyType`].
 pub fn verify_preimage(key: PreimageKey, data: &[u8]) -> PreimageOracleResult<()> {
     let key_bytes: [u8; 32] = key.into();
     match key.key_type() {
         PreimageKeyType::Keccak256 => {
             let digest = keccak256(data);
             if digest[1..] != key_bytes[1..] {
-                return Err(PreimageOracleError::IncorrectData);
+                return Err(PreimageOracleError::IncorrectData(key));
             }
         }
         PreimageKeyType::Sha256 => {
             let digest = Sha256::digest(data);
             if digest[1..] != key_bytes[1..] {
-                return Err(PreimageOracleError::IncorrectData);
+                return Err(PreimageOracleError::IncorrectData(key));
             }
         }
         // Pass through key types that aren't self-verifying from `(key, data)` alone:
         //   - Local: opaque local identifier, no hash relation.
         //   - Blob: individual field element; verification needs a KZG proof.
         //   - Precompile: result bytes; verification needs the precompile input.
-        //   - GlobalGeneric: reserved for future use; no defined semantics yet, and today no host
-        //     path produces it. Matching Blob/Precompile, we pass through rather than reject so
-        //     that adding any future use of this key type does not silently regress here.
-        PreimageKeyType::Local |
-        PreimageKeyType::GlobalGeneric |
-        PreimageKeyType::Blob |
-        PreimageKeyType::Precompile => {}
+        PreimageKeyType::Local | PreimageKeyType::Blob | PreimageKeyType::Precompile => {}
+        // Reserved, no defined semantics, and no host path produces it today. Reject so a
+        // future accidental use surfaces loudly rather than silently passing through.
+        PreimageKeyType::GlobalGeneric => {
+            return Err(PreimageOracleError::UnsupportedKeyType(PreimageKeyType::GlobalGeneric));
+        }
     }
     Ok(())
 }
@@ -136,7 +138,7 @@ mod test {
 
         let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
         let err = verifier.get_preimage(key).await.unwrap_err();
-        assert!(matches!(err, PreimageOracleError::IncorrectData));
+        assert!(matches!(err, PreimageOracleError::IncorrectData(_)));
     }
 
     #[tokio::test]
@@ -148,7 +150,7 @@ mod test {
 
         let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
         let err = verifier.get_preimage(key).await.unwrap_err();
-        assert!(matches!(err, PreimageOracleError::IncorrectData));
+        assert!(matches!(err, PreimageOracleError::IncorrectData(_)));
     }
 
     #[tokio::test]
@@ -174,7 +176,7 @@ mod test {
 
         let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
         let err = verifier.get_preimage(key).await.unwrap_err();
-        assert!(matches!(err, PreimageOracleError::IncorrectData));
+        assert!(matches!(err, PreimageOracleError::IncorrectData(_)));
     }
 
     #[tokio::test]
@@ -211,6 +213,35 @@ mod test {
         let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
         let got = verifier.get_preimage(key).await.unwrap();
         assert_eq!(got, data);
+    }
+
+    #[tokio::test]
+    async fn global_generic_key_rejected() {
+        let key = PreimageKey::new([0xCC; 32], PreimageKeyType::GlobalGeneric);
+        let mut map = HashMap::new();
+        map.insert(key, b"whatever".to_vec());
+
+        let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
+        let err = verifier.get_preimage(key).await.unwrap_err();
+        assert!(matches!(
+            err,
+            PreimageOracleError::UnsupportedKeyType(PreimageKeyType::GlobalGeneric)
+        ));
+    }
+
+    #[tokio::test]
+    async fn incorrect_data_error_carries_key() {
+        let data = b"hello world".to_vec();
+        let key = PreimageKey::new(*keccak256(&data), PreimageKeyType::Keccak256);
+        let mut map = HashMap::new();
+        map.insert(key, b"wrong".to_vec());
+
+        let verifier = VerifyingPreimageFetcher::new(make_fetcher(map));
+        let err = verifier.get_preimage(key).await.unwrap_err();
+        match err {
+            PreimageOracleError::IncorrectData(reported) => assert_eq!(reported, key),
+            other => panic!("expected IncorrectData, got {other:?}"),
+        }
     }
 
     #[tokio::test]
