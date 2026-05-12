@@ -1013,13 +1013,11 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 // without taking a dependency on this package's private error.
 //
 // The atomic (verifiedDB, currentL1) snapshot lets callers report a
-// CurrentL1 that cannot disagree with the verifiedDB observation:
-//   - Commit ordering writes the entry before advancing currentL1, so a
-//     snapshot showing NotFound necessarily sees currentL1 from before the
-//     advance.
-//   - Rewind ordering zeros currentL1 before deleting entries, so a
-//     snapshot showing an entry mid-rewind sees currentL1=0 and the
-//     downstream rewind-race coupling check fails the call.
+// CurrentL1 that cannot overstate verifier progress relative to the
+// verifiedDB observation. The verifier holds i.mu when mutating currentL1
+// (commit advances currentL1 after writing the entry; rewind zeros
+// currentL1 before deleting entries), so a snapshot taken under RLock is
+// consistent with one side or the other of those transitions.
 func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.BlockID, error) {
 	if ts < i.activationTimestamp {
 		return VerifiedResult{}, eth.BlockID{}, ErrNotActive

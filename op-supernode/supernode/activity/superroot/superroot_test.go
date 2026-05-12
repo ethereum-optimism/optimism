@@ -387,7 +387,11 @@ func TestSuperroot_AtTimestamp_DepSetKeyMismatch(t *testing.T) {
 	require.Contains(t, err.Error(), "missing chain")
 }
 
-func TestSuperroot_AtTimestamp_RewindRaceCouplingCheck(t *testing.T) {
+// Data is returned even when CurrentL1 sits below VerifiedRequiredL1 (e.g.
+// mid-rewind, where the verifier has rolled CurrentL1 back below T's
+// required L1 but the entry has not yet been deleted). Callers gate trust
+// on CurrentL1 themselves.
+func TestSuperroot_AtTimestamp_VerifiedDataReturnedBelowRequiredL1(t *testing.T) {
 	t.Parallel()
 	hashA := common.HexToHash("0x0a")
 	chainA := eth.ChainIDFromUInt64(10)
@@ -397,9 +401,7 @@ func TestSuperroot_AtTimestamp_RewindRaceCouplingCheck(t *testing.T) {
 			optL1:          eth.BlockID{Number: 900},
 			byHashOutputs:  map[common.Hash]eth.Bytes32{hashA: {0xaa}},
 			byHashFallback: eth.Bytes32{0xee},
-			// Simulate the mid-rewind state via the chain's CurrentL1:
-			// aggregate.CurrentL1=500 below VerifiedRequiredL1=1000.
-			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 500}},
+			status:         &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
 		},
 	}
 	reader := &mockVerifiedReader{
@@ -408,47 +410,16 @@ func TestSuperroot_AtTimestamp_RewindRaceCouplingCheck(t *testing.T) {
 			L1Inclusion: eth.BlockID{Number: 1000},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
 		},
-		currentL1: eth.BlockID{Number: 2000},
-	}
-	s := newSuperroot(chains, reader)
-	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "rewind in flight")
-}
-
-// Simulates the rewind race detected via the verifier's snapshot CurrentL1:
-// chain CurrentL1 still reflects a stale pre-rewind value (race window
-// between syncstatus.Aggregate and the verifiedDB read), but the
-// VerifiedResultAtTimestamp snapshot caught currentL1 already dropped to zero.
-// The min(aggregate, snapshot) used by composeVerifiedData must trip the
-// coupling check.
-func TestSuperroot_AtTimestamp_RewindRaceViaSnapshotL1(t *testing.T) {
-	t.Parallel()
-	hashA := common.HexToHash("0x0a")
-	chainA := eth.ChainIDFromUInt64(10)
-	chains := map[eth.ChainID]cc.ChainContainer{
-		chainA: &mockCC{
-			optL2:          eth.BlockID{Number: 100, Hash: hashA},
-			optL1:          eth.BlockID{Number: 900},
-			byHashOutputs:  map[common.Hash]eth.Bytes32{hashA: {0xaa}},
-			byHashFallback: eth.Bytes32{0xee},
-			// Stale pre-rewind aggregate.
-			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-		},
-	}
-	reader := &mockVerifiedReader{
-		result: interop.VerifiedResult{
-			Timestamp:   123,
-			L1Inclusion: eth.BlockID{Number: 1000},
-			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
-		},
-		// Atomic snapshot caught currentL1 already at zero.
+		// Snapshot caught currentL1 already at zero (mid-rewind).
 		currentL1: eth.BlockID{Number: 0},
 	}
 	s := newSuperroot(chains, reader)
-	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "rewind in flight")
+	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Data)
+	require.Equal(t, uint64(1000), resp.Data.VerifiedRequiredL1.Number)
+	require.Equal(t, uint64(0), resp.CurrentL1.Number,
+		"response CurrentL1 must be min(aggregate, snapshot) so it doesn't overstate verifier progress")
 }
 
 func TestSuperroot_AtTimestamp_VerifiedReaderError(t *testing.T) {

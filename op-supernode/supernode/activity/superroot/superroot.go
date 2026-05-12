@@ -28,11 +28,12 @@ import (
 //     deny-list state needed to reconstruct the canonical output from
 //     optimistic data is not available. Fail the call.
 //   - Verified entry available: Data is sourced from the VerifiedResult plus
-//     EL-by-hash reads. The answer for a given T is bound to the verifiedDB
-//     entry and cannot drift.
-//   - Active but not yet committed (ethereum.NotFound): Data == nil; the
-//     response's CurrentL1 communicates verifier progress so op-challenger
-//     can distinguish "may appear later" from a final answer.
+//     EL-by-hash reads. Callers gate trust on CurrentL1 >= VerifiedRequiredL1.
+//   - Active but not yet committed (ethereum.NotFound): Data == nil.
+//
+// CurrentL1 in the response is the lower of aggregate.CurrentL1 and the
+// verifier's CurrentL1 captured atomically with the verifiedDB read, so it
+// never overstates verifier progress.
 type Superroot struct {
 	log      gethlog.Logger
 	chains   map[eth.ChainID]cc.ChainContainer
@@ -103,7 +104,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		if verifierL1.Number < response.CurrentL1.Number {
 			response.CurrentL1 = verifierL1
 		}
-		data, derr := s.composeVerifiedData(ctx, timestamp, result, response.CurrentL1)
+		data, derr := s.composeVerifiedData(ctx, timestamp, result)
 		if derr != nil {
 			return eth.SuperRootAtTimestampResponse{}, derr
 		}
@@ -165,7 +166,7 @@ func (s *Superroot) buildOptimisticBranch(ctx context.Context, timestamp uint64)
 // composeVerifiedData composes the post-interop Data from a VerifiedResult.
 // The verifiedDB entry pins per-chain canonical block hashes; per-chain output
 // roots come from a by-hash read against the L2 EL.
-func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, result interop.VerifiedResult, currentL1 eth.BlockID) (*eth.SuperRootResponseData, error) {
+func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, result interop.VerifiedResult) (*eth.SuperRootResponseData, error) {
 	// Reject a dep-set mismatch: either side would yield a super root that
 	// disagrees with peers running the full dep set.
 	if len(result.L2Heads) != len(s.chains) {
@@ -185,22 +186,11 @@ func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, r
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 	}
 	super := eth.NewSuperV1(timestamp, chainOutputs...)
-	data := &eth.SuperRootResponseData{
+	return &eth.SuperRootResponseData{
 		VerifiedRequiredL1: result.L1Inclusion,
 		Super:              super,
 		SuperRoot:          eth.SuperRoot(super),
-	}
-
-	// Detect a verifier rewind in flight: rewind drops the verifier's
-	// CurrentL1 to zero before deleting verifiedDB rows, so a stale
-	// verifiedDB entry can briefly outlive a CurrentL1 that has already
-	// fallen below VerifiedRequiredL1. currentL1 here is the
-	// min(aggregate, snapshot) — both views must agree the entry is
-	// reachable.
-	if currentL1.Number < data.VerifiedRequiredL1.Number {
-		return nil, fmt.Errorf("rewind in flight at %d: CurrentL1=%d < VerifiedRequiredL1=%d", timestamp, currentL1.Number, data.VerifiedRequiredL1.Number)
-	}
-	return data, nil
+	}, nil
 }
 
 // composePreInteropDataFromOptimistic builds Data from the optimistic map.
