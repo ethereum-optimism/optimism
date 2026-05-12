@@ -1,6 +1,7 @@
 package raftwallogdb
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,11 +31,30 @@ func tempDB(t *testing.T) *DB {
 	return db
 }
 
+// sealRange seals blocks [start..end] (inclusive) on top of parent, each with
+// timestamp = number * 100. Returns the last sealed block ID.
+func sealRange(t *testing.T, db *DB, parent eth.BlockID, start, end uint64) eth.BlockID {
+	t.Helper()
+	prev := parent
+	for n := start; n <= end; n++ {
+		blk := blockID(n, byte(n))
+		require.NoError(t, db.SealBlock(prev.Hash, blk, n*100))
+		prev = blk
+	}
+	return prev
+}
+
 func TestEmpty(t *testing.T) {
 	db := tempDB(t)
 	_, ok := db.LatestSealedBlock()
 	require.False(t, ok)
 	_, err := db.FirstSealedBlock()
+	require.ErrorIs(t, err, types.ErrFuture)
+	_, err = db.FindSealedBlock(0)
+	require.ErrorIs(t, err, types.ErrFuture)
+	_, _, _, err = db.OpenBlock(1)
+	require.ErrorIs(t, err, types.ErrFuture)
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, Timestamp: 1})
 	require.ErrorIs(t, err, types.ErrFuture)
 }
 
@@ -59,9 +79,71 @@ func TestSealAndOpenBlock(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, ref.Hash)
 	require.Equal(t, parent.Hash, ref.ParentHash)
+	require.Equal(t, uint64(200), ref.Time)
 	require.Equal(t, uint32(2), count)
 	require.Len(t, msgs, 1)
 	require.Equal(t, em, msgs[1])
+}
+
+func TestSealBlock_FirstBlockAcceptsAnyNumber(t *testing.T) {
+	// Empty DB accepts any first block, including a non-zero number.
+	db := tempDB(t)
+	first := blockID(100, 0xAA)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	latest, ok := db.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, first, latest)
+}
+
+func TestSealBlock_Validation(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
+
+	// Wrong parent hash.
+	err := db.SealBlock(hash(0xFF), blockID(1, 0x11), 200)
+	require.ErrorIs(t, err, types.ErrConflict)
+
+	// Wrong block number.
+	err = db.SealBlock(parent.Hash, blockID(2, 0x22), 200)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+
+	// Timestamp regression.
+	err = db.SealBlock(parent.Hash, blockID(1, 0x11), 50)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+}
+
+func TestAddLog_Validation(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+
+	// First log must have index 0.
+	err := db.AddLog(hash(0x01), parent, 1, nil)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+
+	// Wrong parent for the first AddLog establishes pendingParent;
+	// subsequent calls must match.
+	require.NoError(t, db.AddLog(hash(0x01), parent, 0, nil))
+	err = db.AddLog(hash(0x02), blockID(99, 0xFF), 1, nil)
+	require.ErrorIs(t, err, types.ErrConflict)
+
+	// Duplicate index.
+	err = db.AddLog(hash(0x02), parent, 0, nil)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+
+	// Skipping an index.
+	err = db.AddLog(hash(0x02), parent, 2, nil)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+}
+
+func TestAddLog_WrongParentAgainstLatest(t *testing.T) {
+	// When the DB already has a sealed block, AddLog's parent must match it.
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	err := db.AddLog(hash(0xAA), blockID(99, 0xFF), 0, nil)
+	require.ErrorIs(t, err, types.ErrConflict)
 }
 
 func TestContains(t *testing.T) {
@@ -74,40 +156,252 @@ func TestContains(t *testing.T) {
 	blk1 := blockID(1, 0x11)
 	require.NoError(t, db.SealBlock(parent.Hash, blk1, 200))
 
-	good := types.ChecksumArgs{BlockNumber: 1, LogIndex: 0, Timestamp: 200, ChainID: chain, LogHash: logHash}.Checksum()
+	good := types.ChecksumArgs{
+		BlockNumber: 1, LogIndex: 0, Timestamp: 200, ChainID: chain, LogHash: logHash,
+	}.Checksum()
+
+	// Happy path.
 	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: good})
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, seal.Hash)
 
+	// Wrong checksum.
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: types.MessageChecksum(hash(0xDE))})
+	require.ErrorIs(t, err, types.ErrConflict)
+
+	// Wrong timestamp for the block.
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 999, Checksum: good})
+	require.ErrorIs(t, err, types.ErrConflict)
+
+	// LogIdx out of range for an existing block.
 	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 5, Timestamp: 200, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
 
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
-	require.ErrorIs(t, err, types.ErrConflict)
+	// Future block (timestamp consistent with growth): ErrFuture.
 	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 999, Checksum: good})
 	require.ErrorIs(t, err, types.ErrFuture)
+
+	// Future block but past timestamp: ErrConflict (cannot be in the future).
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
+	require.ErrorIs(t, err, types.ErrConflict)
+
+	// Block 0 is never a valid initiating-message location.
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0, Checksum: good})
+	require.ErrorIs(t, err, types.ErrConflict)
+}
+
+func TestFindSealedBlock(t *testing.T) {
+	db := tempDB(t)
+	// Anchor first block at 100 to exercise the "before first" path.
+	first := blockID(100, 0x64)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	sealRange(t, db, first, 101, 105)
+
+	seal, err := db.FindSealedBlock(100)
+	require.NoError(t, err)
+	require.Equal(t, first.Hash, seal.Hash)
+	require.Equal(t, uint64(1000), seal.Timestamp)
+
+	seal, err = db.FindSealedBlock(103)
+	require.NoError(t, err)
+	require.Equal(t, hash(103), seal.Hash)
+
+	// Below first block.
+	_, err = db.FindSealedBlock(50)
+	require.True(t, errors.Is(err, types.ErrSkipped))
+
+	// Past the latest block.
+	_, err = db.FindSealedBlock(999)
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestOpenBlock_Boundaries(t *testing.T) {
+	db := tempDB(t)
+	require.NoError(t, db.SealBlock(common.Hash{}, blockID(100, 0x64), 1000))
+	sealRange(t, db, blockID(100, 0x64), 101, 103)
+
+	// Below first block.
+	_, _, _, err := db.OpenBlock(50)
+	require.ErrorIs(t, err, types.ErrSkipped)
+
+	// Above latest block.
+	_, _, _, err = db.OpenBlock(999)
+	require.ErrorIs(t, err, types.ErrFuture)
+
+	// Block 0 only valid if DB anchors at 0.
+	db2 := tempDB(t)
+	require.NoError(t, db2.SealBlock(common.Hash{}, blockID(0, 0x00), 0))
+	ref, count, msgs, err := db2.OpenBlock(0)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), ref.Number)
+	require.Equal(t, uint32(0), count)
+	require.Empty(t, msgs)
+}
+
+func TestMultiBlockRoundtrip(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+
+	prev := parent
+	for n := uint64(1); n <= 10; n++ {
+		// 3 logs per block, one carries an execMsg.
+		for idx := uint32(0); idx < 3; idx++ {
+			var em *types.ExecutingMessage
+			if idx == 1 {
+				em = &types.ExecutingMessage{
+					ChainID:   eth.ChainIDFromUInt64(42),
+					BlockNum:  n,
+					LogIdx:    idx,
+					Timestamp: n * 10,
+					Checksum:  types.MessageChecksum(hash(byte(n*10 + uint64(idx)))),
+				}
+			}
+			require.NoError(t, db.AddLog(hash(byte(n*10+uint64(idx))), prev, idx, em))
+		}
+		blk := blockID(n, byte(n))
+		require.NoError(t, db.SealBlock(prev.Hash, blk, n*10))
+		prev = blk
+	}
+
+	latest, ok := db.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(10), latest.Number)
+
+	for n := uint64(1); n <= 10; n++ {
+		ref, count, msgs, err := db.OpenBlock(n)
+		require.NoError(t, err)
+		require.Equal(t, n, ref.Number)
+		require.Equal(t, uint32(3), count)
+		require.Len(t, msgs, 1)
+		require.Contains(t, msgs, uint32(1))
+		require.Equal(t, uint64(n*10), msgs[1].Timestamp)
+	}
 }
 
 func TestRewind(t *testing.T) {
 	db := tempDB(t)
 	parent := blockID(0, 0x00)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
-	prev := parent
-	for n := uint64(1); n <= 5; n++ {
-		blk := blockID(n, byte(n))
-		require.NoError(t, db.SealBlock(prev.Hash, blk, n*100))
-		prev = blk
-	}
+	last := sealRange(t, db, parent, 1, 5)
+	require.Equal(t, uint64(5), last.Number)
 
 	target := blockID(3, 0x03)
 	require.NoError(t, db.Rewind(target))
+
 	latest, ok := db.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, target, latest)
+
+	// Read-after-rewind: deleted blocks are gone, target survives.
 	_, err := db.FindSealedBlock(5)
+	require.ErrorIs(t, err, types.ErrFuture)
+	_, err = db.FindSealedBlock(4)
 	require.ErrorIs(t, err, types.ErrFuture)
 	_, err = db.FindSealedBlock(3)
 	require.NoError(t, err)
+	_, _, _, err = db.OpenBlock(5)
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestRewind_HashMismatch(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	sealRange(t, db, parent, 1, 3)
+
+	bogus := eth.BlockID{Hash: hash(0xFF), Number: 2}
+	err := db.Rewind(bogus)
+	require.ErrorIs(t, err, types.ErrConflict)
+}
+
+func TestRewind_Empty(t *testing.T) {
+	// Rewind on an empty DB is a no-op.
+	db := tempDB(t)
+	require.NoError(t, db.Rewind(blockID(5, 0x05)))
+	_, ok := db.LatestSealedBlock()
+	require.False(t, ok)
+}
+
+func TestRewind_AtLatest(t *testing.T) {
+	// Rewind to the existing latest block is a no-op.
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	last := sealRange(t, db, parent, 1, 3)
+
+	require.NoError(t, db.Rewind(last))
+	latest, ok := db.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, last, latest)
+}
+
+func TestRewind_AboveLatest(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+
+	_, err := db.FindSealedBlock(0)
+	require.NoError(t, err)
+	err = db.Rewind(blockID(99, 0x99))
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestRewind_BeforeFirstClears(t *testing.T) {
+	db := tempDB(t)
+	first := blockID(100, 0x64)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+
+	require.NoError(t, db.Rewind(blockID(50, 0x32)))
+	_, ok := db.LatestSealedBlock()
+	require.False(t, ok)
+}
+
+func TestRewind_AtFirstKeepsIt(t *testing.T) {
+	db := tempDB(t)
+	first := blockID(100, 0x64)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	sealRange(t, db, first, 101, 105)
+
+	require.NoError(t, db.Rewind(first))
+	latest, ok := db.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, first, latest)
+	_, err := db.FindSealedBlock(101)
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestRewind_DropsPendingLogs(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	require.NoError(t, db.AddLog(hash(0xAA), parent, 0, nil))
+
+	require.NoError(t, db.Rewind(parent))
+	// After rewind, pending buffer must be clear — first AddLog accepts index 0 again.
+	require.NoError(t, db.AddLog(hash(0xBB), parent, 0, nil))
+}
+
+func TestClear_Populated(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	sealRange(t, db, parent, 1, 3)
+
+	require.NoError(t, db.Clear())
+	_, ok := db.LatestSealedBlock()
+	require.False(t, ok)
+	_, err := db.FirstSealedBlock()
+	require.ErrorIs(t, err, types.ErrFuture)
+	_, err = db.FindSealedBlock(2)
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestClear_Empty(t *testing.T) {
+	db := tempDB(t)
+	require.NoError(t, db.Clear())
+	_, ok := db.LatestSealedBlock()
+	require.False(t, ok)
 }
 
 func TestPersistence(t *testing.T) {
@@ -128,6 +422,10 @@ func TestPersistence(t *testing.T) {
 	latest, ok := db2.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, blk1, latest)
+
+	_, count, _, err := db2.OpenBlock(1)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), count)
 }
 
 func TestPreSealCrashLosesPending(t *testing.T) {
@@ -138,6 +436,7 @@ func TestPreSealCrashLosesPending(t *testing.T) {
 	parent := blockID(5, 0x05)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 500))
 	require.NoError(t, db.AddLog(hash(0xAA), parent, 0, nil))
+	require.NoError(t, db.AddLog(hash(0xBB), parent, 1, nil))
 	require.NoError(t, db.Close())
 
 	db2, err := Open(dir, chain)
@@ -146,4 +445,36 @@ func TestPreSealCrashLosesPending(t *testing.T) {
 	latest, ok := db2.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, parent, latest)
+
+	// Block 6 must not exist.
+	_, err = db2.FindSealedBlock(6)
+	require.ErrorIs(t, err, types.ErrFuture)
+}
+
+func TestRecordEncoding_Roundtrip(t *testing.T) {
+	br := blockRecord{
+		Hash:         hash(0xAB),
+		ParentHash:   hash(0xCD),
+		Timestamp:    1234567890,
+		LogCount:     42,
+		ExecMsgCount: 3,
+	}
+	encoded := make([]byte, blockRecordSize)
+	br.encodeInto(encoded)
+	got, err := decodeBlockRecord(encoded)
+	require.NoError(t, err)
+	require.Equal(t, br, got)
+
+	em := types.ExecutingMessage{
+		ChainID:   eth.ChainIDFromUInt64(8453),
+		BlockNum:  99,
+		LogIdx:    7,
+		Timestamp: 4242,
+		Checksum:  types.MessageChecksum(hash(0x77)),
+	}
+	emBuf := make([]byte, execMsgRecordSize)
+	encodeExecMsgInto(emBuf, 5, &em)
+	gotIdx, gotEm := decodeExecMsg(emBuf)
+	require.Equal(t, uint32(5), gotIdx)
+	require.Equal(t, &em, gotEm)
 }
