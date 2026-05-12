@@ -25,6 +25,7 @@ src_validation = [
     "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
     "test/libraries/DeployUtils.t.sol",    # Tests library utilities - no direct src counterpart
     "test/setup/DeployVariations.t.sol",   # Tests deployment variations
+    "test/setup/PastNUTBundles.t.sol",     # Tests a test-only library (test/setup/PastNUTBundles.sol)
     "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
     "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
     "test/vendor/Initializable.t.sol",     # Tests external vendor code

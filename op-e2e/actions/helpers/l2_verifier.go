@@ -176,7 +176,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
 
-	syncStatusTracker := status.NewStatusTracker(log, metrics)
+	syncStatusTracker := status.NewStatusTracker(log, metrics, nil) // no SuperAuthority in this test seam
 	sys.Register("status", syncStatusTracker, opts)
 
 	// TODO(#17115): Refactor dependency cycles

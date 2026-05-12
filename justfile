@@ -40,12 +40,12 @@ build-customlint:
   cd linter && just build
 
 # Lints Go code with specific linters.
-lint-go: build-customlint
+lint-go: build-customlint sync-superchain
   ./linter/bin/op-golangci-lint run ./...
   go mod tidy -diff
 
 # Lints Go code with specific linters and fixes reported issues.
-lint-go-fix: build-customlint
+lint-go-fix: build-customlint sync-superchain
   ./linter/bin/op-golangci-lint run ./... --fix
 
 # Checks that op-geth version in go.mod is valid.
@@ -194,7 +194,7 @@ cannon-prestates: cannon op-program
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.
-mod-tidy:
+mod-tidy: sync-superchain
   GOPRIVATE="github.com/ethereum-optimism" go mod tidy
 
 # Removes all generated files under bin/.
@@ -239,7 +239,7 @@ make-pre-test:
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
+go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -250,7 +250,7 @@ go-tests: op-program-client op-program-host cannon build-contracts cannon-presta
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
+go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -261,7 +261,7 @@ go-tests-short: op-program-client op-program-host cannon build-contracts cannon-
 
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
-_go-tests-ci-internal go_test_flags="":
+_go-tests-ci-internal go_test_flags="": sync-superchain
   set -euo pipefail
   (cd cannon && just cannon elf)
   echo "Setting up test directories..."

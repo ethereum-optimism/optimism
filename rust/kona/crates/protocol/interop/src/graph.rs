@@ -390,8 +390,8 @@ where
                 max: message.executing_timestamp,
                 actual: initiating_timestamp,
             });
-        } else if initiating_timestamp <
-            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+        } else if !rollup_config.is_interop_active(initiating_timestamp) ||
+            rollup_config.is_first_interop_block(initiating_timestamp)
         {
             return Err(MessageGraphError::InitiatedTooEarly {
                 activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
@@ -820,6 +820,68 @@ mod test {
         assert_eq!(
             *invalid_messages.get(&CHAIN_B_ID).unwrap(),
             MessageGraphError::InitiatedTooEarly { activation_time: 2, initiating_message_time: 2 }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_derive_and_resolve_graph_initiating_chain_interop_time_none_rejected() {
+        // A chain with no interop activation cannot produce valid init messages.
+        // Op-supervisor's `IsInterop(ts) = InteropTime != nil && ts >= *InteropTime`
+        // rejects in this case, and `check_single_dependency` must do the same via
+        // `is_interop_active`.
+        //
+        // Attack: an attacker plants an arbitrary log on a chain whose kona-visible
+        // rollup config has `interop_time = None` (stale registry, oracle-supplied
+        // config, or a misconfigured dep set), then references it from an executing
+        // message on another chain. Without a `None`-rejecting gate, kona accepts the
+        // forged init message and downstream consumers (e.g. `L2toL2CrossDomainMessenger`)
+        // deliver the call.
+        let mut superchain = default_superchain();
+
+        // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
+        // (bundled registry stale, oracle-supplied, or genuinely pre-interop but
+        // incorrectly included in the dep set) has no interop activation.
+        superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
+        // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
+        assert!(
+            superchain.chain(CHAIN_A_ID).rollup_config.hardforks.interop_time.is_none(),
+            "test precondition: init chain must have interop_time = None"
+        );
+
+        let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;
+
+        // Attacker plants an arbitrary log on A and references it from an executing
+        // message on B. With the broken gate, kona accepts. With a spec-correct gate,
+        // kona rejects because A has no interop activation configured.
+        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(MOCK_MESSAGE))
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(chain_a_time),
+        );
+
+        let (headers, cfgs, provider) = superchain.build();
+
+        let graph = MessageGraph::derive(
+            &headers,
+            &provider,
+            &cfgs,
+            default_dep_set(),
+            MESSAGE_EXPIRY_WINDOW,
+        )
+        .await
+        .unwrap();
+        let MessageGraphError::InvalidMessages(invalid_messages) =
+            graph.resolve().await.unwrap_err()
+        else {
+            panic!("Expected invalid messages — forged init message must be rejected")
+        };
+
+        assert!(
+            invalid_messages.contains_key(&CHAIN_B_ID),
+            "exec chain B's message referencing a non-interop init chain must be invalidated, got {:?}",
+            invalid_messages
         );
     }
 
