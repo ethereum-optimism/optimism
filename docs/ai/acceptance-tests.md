@@ -50,19 +50,21 @@ This runs only packages listed in `gates/base.txt`.
 
 Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:
 
-**Native build** (no Docker required):
-
-```bash
-cd rust && mise exec -- just build-kona-prestates
-```
-
-**Reproducible build** (Docker required; needed when the prestate hash must match CI/release):
+**Reproducible build** (preferred when Docker is available):
 
 ```bash
 mise exec -- just reproducible-prestate-kona
 ```
 
-For local test runs, the native build is sufficient. Use the reproducible build only when you need a hash that matches a deployed release. If Docker is unavailable, ask the user to run the reproducible build for you.
+This produces a prestate whose hash matches CI/release builds. It works on any host with Docker installed.
+
+**Native build** (fallback when Docker is not available):
+
+```bash
+cd rust && mise exec -- just build-kona-prestates
+```
+
+Only works on **Linux** with the **MIPS cross-compile toolchain** installed. The produced hash will not match release builds, so this is only suitable for local test runs where the hash doesn't need to match a deployed release. If neither Docker nor the MIPS toolchain is available, ask the user to build the prestate for you.
 
 ## What `build-deps` Does
 
