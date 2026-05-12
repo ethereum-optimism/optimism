@@ -160,5 +160,11 @@ func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2Bloc
 	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
+// NotifyPipelineReset implements rollup.SuperAuthority by bumping the
+// generation counter on every inner-pipeline rollup.ResetEvent.
+func (c *simpleChainContainer) NotifyPipelineReset() {
+	c.gen.Add(1)
+}
+
 // Interface satisfaction static check
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)

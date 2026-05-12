@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // TestUnsafeGapFillAfterSafeReorg demonstrates the sequence:
@@ -43,9 +42,19 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
 	require.Eventually(func() bool {
-		// Advance single L1 block
-		require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: common.Hash{}}))
-		require.NoError(ts.Next(ctx))
+		// Advance a single L1 block. Sequencer.Next internally calls New with
+		// empty BuildOpts and tolerates ErrConflictingJob, so we do not call
+		// ts.New here — that would fail with ErrConflictingJob if a previous
+		// Next attempt timed out and left the job state wedged.
+		//
+		// We must not use require.NoError inside this polling callback: a
+		// single transient engine-API stall (CPU starvation under CI load)
+		// would otherwise mark the test failed on the first error. Instead we
+		// log and return false so Eventually retries until the L1 EL recovers.
+		if err := ts.Next(ctx); err != nil {
+			logger.Warn("ts.Next failed, will retry", "err", err)
+			return false
+		}
 		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 		l2Safe := sys.L2EL.BlockRefByLabel(eth.Safe)
 		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Safe.L1Origin, "l2Safe", l2Safe)
@@ -141,9 +150,13 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
 	require.Eventually(func() bool {
-		// Advance single L1 block
-		require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: common.Hash{}}))
-		require.NoError(ts.Next(ctx))
+		// Advance a single L1 block. See the comment on the matching loop in
+		// TestUnsafeGapFillAfterSafeReorg for why we use ts.Next alone and do
+		// not require.NoError inside the polling callback.
+		if err := ts.Next(ctx); err != nil {
+			logger.Warn("ts.Next failed, will retry", "err", err)
+			return false
+		}
 		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 		l2Unsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Unsafe.L1Origin, "l2Unsafe", l2Unsafe)
@@ -281,9 +294,13 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
 	require.Eventually(func() bool {
-		// Advance single L1 block
-		require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: common.Hash{}}))
-		require.NoError(ts.Next(ctx))
+		// Advance a single L1 block. See the comment on the matching loop in
+		// TestUnsafeGapFillAfterSafeReorg for why we use ts.Next alone and do
+		// not require.NoError inside the polling callback.
+		if err := ts.Next(ctx); err != nil {
+			logger.Warn("ts.Next failed, will retry", "err", err)
+			return false
+		}
 		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 		l2Unsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Unsafe.L1Origin, "l2Unsafe", l2Unsafe)

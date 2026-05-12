@@ -65,6 +65,7 @@ type RoundObservation struct {
 	BlocksAtTS     map[eth.ChainID]eth.BlockID
 	L1Heads        map[eth.ChainID]eth.BlockID
 	L1Consistent   bool
+	L1NeedsRewind  bool
 	Paused         bool
 }
 
@@ -183,6 +184,8 @@ type Interop struct {
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
 
+	l1Source l1Source
+
 	logBackfillDepth time.Duration
 	metrics          *resources.SupernodeMetrics
 }
@@ -221,7 +224,7 @@ func New(
 	messageExpiryWindow uint64,
 	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
-	l1Source l1ByNumberSource,
+	l1Source l1Source,
 	logBackfillDepth time.Duration,
 	metrics *resources.SupernodeMetrics,
 ) *Interop {
@@ -269,6 +272,7 @@ func New(
 	i.verifyFn = i.verifyInteropMessages
 	i.cycleVerifyFn = i.verifyCycleMessages
 	i.l1Checker = newL1ConsistencyChecker(l1Source)
+	i.l1Source = l1Source
 	return i
 }
 
@@ -416,8 +420,12 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
-	if !obs.L1Consistent {
+	if obs.L1NeedsRewind {
 		output := StepOutput{Decision: DecisionRewind}
+		return &output
+	}
+	if !obs.L1Consistent {
+		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
 	return nil
@@ -547,11 +555,22 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.BlocksAtTS = ready.blocks
 	obs.L1Heads = ready.l1Heads
 
-	// Check that all frontier L1 heads AND the accepted L1 head are on the same canonical fork.
-	heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
 	if obs.LastVerified != nil {
-		heads = append(heads, obs.LastVerified.L1Inclusion)
+		same, err := i.l1Checker.SameL1Chain(i.ctx, []eth.BlockID{obs.LastVerified.L1Inclusion})
+		if err != nil {
+			return obs, fmt.Errorf("L1 consistency check: %w", err)
+		}
+		if !same {
+			obs.L1Consistent = false
+			obs.L1NeedsRewind = true
+			return obs, nil
+		}
 	}
+
+	// Check the new frontier independently from the accepted L1 head. If the
+	// accepted head is still canonical but a frontier L1 head is stale, waiting
+	// gives the L2 nodes time to catch up to the L1 reorg.
+	heads := make([]eth.BlockID, 0, len(obs.L1Heads))
 	for _, l1 := range obs.L1Heads {
 		heads = append(heads, l1)
 	}
@@ -727,6 +746,29 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			return false, fmt.Errorf("persist frontier logs: %w", err)
 		}
 
+		// Under-claim by one L1 block. L1Inclusion is monotonic in L2 timestamp,
+		// so the next unverified timestamp can share the verified one's
+		// L1Inclusion when no chain advances source between them — common
+		// during the gap between batch postings. Reporting L1Inclusion directly
+		// would lie to consumers that read CurrentL1 ≥ s.l1Head as proof that
+		// everything derivable from L1[≤s.l1Head] is verified. The DecisionWait
+		// branch lifts i.currentL1 back to localL1 between Advances, so progress
+		// isn't gated on the next batch.
+		//
+		// Resolved before ClearPendingTransition so an L1 error retries the
+		// whole transition instead of committing with a stale i.currentL1.
+		currentL1, err := i.previousL1ID(pending.Result.L1Inclusion)
+		if err != nil {
+			return false, fmt.Errorf("resolve under-claimed currentL1: %w", err)
+		}
+		// Cap at min per-chain CurrentL1 so this field is safe individually,
+		// not just when aggregated via syncstatus.Aggregate.
+		if localL1, err := i.collectCurrentL1(); err != nil {
+			i.log.Warn("failed to collect node CurrentL1 on advance", "err", err)
+		} else if localL1.Number < currentL1.Number {
+			currentL1 = localL1
+		}
+
 		if err := i.commitVerifiedResult(pending.Result.Timestamp, pending.Result.ToVerifiedResult()); err != nil {
 			return false, fmt.Errorf("commit verified result: %w", err)
 		}
@@ -736,18 +778,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
 		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
-		// L1Inclusion is the max L1 block used for derivation across all chains at this
-		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
-		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
-		// the next timestamp (finding its batch at L1 995) without ever reaching L1 1000.
-		// Cap at the min of all nodes' CurrentL1 so this field is individually safe, not
-		// just safe when aggregated with chain CurrentL1s via syncstatus.Aggregate.
-		currentL1 := pending.Result.L1Inclusion
-		if localL1, err := i.collectCurrentL1(); err != nil {
-			i.log.Warn("failed to collect node CurrentL1 on advance, using L1Inclusion", "err", err)
-		} else if localL1.Number < currentL1.Number {
-			currentL1 = localL1
-		}
+
 		i.mu.Lock()
 		i.currentL1 = currentL1
 		i.mu.Unlock()
@@ -883,6 +914,20 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 			recordErr(fmt.Errorf("chain %s: reset chain engine after pruning deny-list entries: %w", chainID, err))
 		}
 	}
+}
+
+// previousL1ID returns the L1 BlockID one block before target. Looks up by
+// hash so the L1 client's header cache hits on the common-case repeated query.
+// At Number==0, target is returned unchanged.
+func (i *Interop) previousL1ID(target eth.BlockID) (eth.BlockID, error) {
+	if target.Number == 0 {
+		return target, nil
+	}
+	info, err := i.l1Source.InfoByHash(i.ctx, target.Hash)
+	if err != nil {
+		return eth.BlockID{}, fmt.Errorf("fetch L1 header at %s: %w", target, err)
+	}
+	return eth.BlockID{Number: target.Number - 1, Hash: info.ParentHash()}, nil
 }
 
 // collectCurrentL1 collects the current L1 head of all chains,

@@ -85,7 +85,7 @@ L1 reorgs typically happen at the unsafe head — only the most recent L1 blocks
 When an L1 reorg does affect L2, one of two things happens:
 
 * **The replacement L1 block carries the same batch data as the original.** Derivation is deterministic, so the L2 chain it produces is identical, and the reorg is a no-op from the L2 perspective.
-* **The replacement L1 block does not carry that batch data.** The sequencer notices and reposts the affected batch in a later L1 block. As long as the batch lands again before the [sequencer window](https://specs.optimism.io/glossary.html#sequencing-window) elapses (3600 L1 blocks ≈ 12 hours on standard chains like OP Mainnet and Base), derivation reproduces the same L2 chain. If the window does elapse without the batch reappearing, the affected L2 blocks are replaced with deposit-only blocks (see [Invalid block](#invalid-block) below).
+* **The replacement L1 block does not carry that batch data.** The sequencer notices and reposts the affected batch in a later L1 block. As long as the batch lands again before the [sequencer window](https://specs.optimism.io/glossary.html#sequencing-window) elapses (3600 L1 blocks ≈ 12 hours on standard chains like OP Mainnet and Unichain), derivation reproduces the same L2 chain. If the window does elapse without the batch reappearing, the affected L2 blocks are replaced with deposit-only blocks (see [Invalid block](#invalid-block) below).
 
 The takeaway is that L1 reorgs do not by themselves break interop guarantees: either the data comes back and L2 stays identical, or the chain falls back to deposit-only blocks for that span — the same behavior as if the sequencer had simply gone offline.
 
@@ -160,5 +160,6 @@ At worst, some unsafe blocks need to be recalculated (if one fork is chosen over
 ## Next steps
 
 *   Read the [interop explainer](./explainer) for the rest of the architecture.
+*   Read about [op-supernode](./supernode), the component that derives every chain in the dependency set together and enforces the safety levels described above.
 *   Read the [cross-chain security measures](/op-stack/security/interop-security) for safe interoperability.
-*   View more [interop tutorials](/app-developers/tutorials/interoperability/).
+*   View more [interop guides and tutorials](/app-developers/guides/interoperability/get-started).

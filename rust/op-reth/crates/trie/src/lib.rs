@@ -53,6 +53,7 @@ pub mod provider;
 pub mod live;
 
 pub mod engine;
+pub use engine::EngineHandle;
 
 pub mod cursor;
 #[cfg(not(feature = "metrics"))]
