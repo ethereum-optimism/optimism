@@ -4,6 +4,7 @@ use super::{
     DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
     error::EngineError,
     runner::Engine,
+    service_guard::ServiceGuard,
     tasks::{ExecuteBlockTask, IndexBlockTask, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
@@ -22,15 +23,10 @@ use tracing::error;
 ///
 /// Every public method (except [`Self::sync_to`]) sends an engine action to the
 /// engine thread and blocks on a one-shot reply channel.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EngineHandle<Block: reth_primitives_traits::Block> {
     sender: Sender<EngineAction<Block>>,
-}
-
-impl<Block: reth_primitives_traits::Block> Clone for EngineHandle<Block> {
-    fn clone(&self) -> Self {
-        Self { sender: self.sender.clone() }
-    }
+    _service_guard: Arc<ServiceGuard>,
 }
 
 impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> {
@@ -87,7 +83,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             .with_persistence_threshold(persistence_threshold)
             .with_backpressure_threshold(backpressure_threshold);
 
-        thread::Builder::new()
+        let join_handle = thread::Builder::new()
             .name("live-trie-collector".into())
             .spawn(move || {
                 if let Err(panic) = panic::catch_unwind(panic::AssertUnwindSafe(|| engine.run())) {
@@ -101,7 +97,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             })
             .expect("failed to spawn live-trie-collector thread");
 
-        Self { sender: tx }
+        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
     }
 
     fn send_and_recv(
@@ -164,7 +160,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     }
 
     /// Block until any in-progress background persistence completes (test/utility only).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn flush(&self) {
         use super::tasks::FlushTask;
         let (reply_tx, reply_rx) = bounded(1);

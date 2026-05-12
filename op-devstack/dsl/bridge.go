@@ -376,9 +376,30 @@ func (w *Withdrawal) Prove(user *EOA) {
 		Data:     params.Data,
 	}
 
+	// OptimismPortal2.proveWithdrawalTransaction reverts with
+	// OptimismPortal_InvalidProofTimestamp (selector 0xb4caa4e5) when
+	// block.timestamp <= disputeGameProxy.createdAt(). estimateGas evaluates
+	// against the current L1 head, so any attempt before the head advances past
+	// the game's createdAt is guaranteed to revert. Wait for that precondition
+	// explicitly instead of burning the prove-tx retry budget on guaranteed-revert
+	// estimateGas calls; under CI load L1 block production can stall and the
+	// prior retry-only approach exhausted its 30s budget before the head moved
+	// (#19963).
+	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
+		bindings.WithClient(w.bridge.l1Client.EthClient()),
+		bindings.WithTo(params.DisputeGameAddress),
+		bindings.WithTest(w.t))
+	gameCreatedAt, err := contractio.Read(gameContract.CreatedAt(), w.ctx)
+	w.require.NoError(err, "failed to read dispute game createdAt")
+	w.require.Eventuallyf(func() bool {
+		head, err := w.bridge.l1Client.EthClient().InfoByLabel(w.ctx, eth.Unsafe)
+		if err != nil {
+			return false
+		}
+		return head.Time() > gameCreatedAt
+	}, 60*time.Second, 500*time.Millisecond, "L1 head did not advance past dispute game createdAt %d", gameCreatedAt)
+
 	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
-	// Retry as withdrawals can't be proven in the same block as the game is created.
-	// estimateGas works against the current head so we may need to retry until it has progressed enough.
 	w.require.Eventually(func() bool {
 		proveReceipt, err := contractio.Write(call, w.ctx, user.Plan())
 		if err != nil {

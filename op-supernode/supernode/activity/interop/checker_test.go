@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -21,20 +20,6 @@ func (m *mockL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.
 		return eth.L1BlockRef{}, fmt.Errorf("block %d not found", num)
 	}
 	return ref, nil
-}
-
-func (m *mockL1Source) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
-	for _, ref := range m.blocks {
-		if ref.Hash == hash {
-			return &testutils.MockBlockInfo{
-				InfoHash:       ref.Hash,
-				InfoParentHash: ref.ParentHash,
-				InfoNum:        ref.Number,
-				InfoTime:       ref.Time,
-			}, nil
-		}
-	}
-	return nil, fmt.Errorf("block %s not found", hash)
 }
 
 // noopL1Checker treats every set of heads as canonical. Intended for tests that

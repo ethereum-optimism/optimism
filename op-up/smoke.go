@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -49,6 +50,11 @@ var (
 		Usage:   "RPC URL for chain B.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
 		Value:   "http://localhost:8546",
+	}
+	smokePrivateKeyFlag = &cli.StringFlag{
+		Name:    "private-key",
+		Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
 	}
 )
 
@@ -232,7 +238,7 @@ func (u *remoteUser) sendInvalidExecMessage(ctx context.Context, initMsg *initMe
 	}, nil
 }
 
-func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL string) (*smokeEnv, func(), error) {
+func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
 	logger := newLogger(ctx, stderr)
 
 	chainA, err := connectRemoteChain(ctx, logger, "L2A", l2AURL)
@@ -245,7 +251,7 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL string) (
 		return nil, nil, err
 	}
 
-	privKey, address, err := defaultSmokeKey()
+	privKey, address, err := resolveSmokeKey(privateKey)
 	if err != nil {
 		chainA.ethClient.Close()
 		chainB.ethClient.Close()
@@ -313,16 +319,28 @@ func defaultSmokeKey() (*ecdsa.PrivateKey, common.Address, error) {
 	return privKey, address, nil
 }
 
+func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, error) {
+	if privateKey == "" {
+		return defaultSmokeKey()
+	}
+	privKey, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
+	if err != nil {
+		return nil, common.Address{}, fmt.Errorf("parse private key: %w", err)
+	}
+	return privKey, crypto.PubkeyToAddress(privKey.PublicKey), nil
+}
+
 func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
 	ctx := cliCtx.Context
 	stderr := cliCtx.App.ErrWriter
 	l2AURL := cliCtx.String(smokeL2AURLFlag.Name)
 	l2BURL := cliCtx.String(smokeL2BURLFlag.Name)
+	privateKey := cliCtx.String(smokePrivateKeyFlag.Name)
 
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
 
-	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL)
+	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
 	if err != nil {
 		return err
 	}
@@ -341,7 +359,7 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 }
 
 func smokeCommand() *cli.Command {
-	smokeFlags := cliapp.ProtectFlags([]cli.Flag{smokeL2AURLFlag, smokeL2BURLFlag})
+	smokeFlags := cliapp.ProtectFlags([]cli.Flag{smokeL2AURLFlag, smokeL2BURLFlag, smokePrivateKeyFlag})
 
 	return &cli.Command{
 		Name:  "smoke-interop",

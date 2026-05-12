@@ -140,8 +140,6 @@ type mockEngineController struct {
 	rewindFunc               func(ctx context.Context, timestamp uint64) error // optional custom behavior
 	l2BlockRefByNumberResult eth.L2BlockRef
 	l2BlockRefByNumberErr    error
-	outputV0Result           *eth.OutputV0 // returned by OutputV0AtBlockNumber when non-nil
-	outputV0Err              error
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -153,7 +151,7 @@ func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint6
 }
 
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
-	return m.outputV0Result, m.outputV0Err
+	return nil, nil
 }
 
 func (m *mockEngineController) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {

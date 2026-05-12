@@ -7,12 +7,12 @@ use crossbeam_channel::Sender;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, NodePrimitives, RecoveredBlock};
 use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider,
+    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider, ProviderError,
     StateProviderFactory, StateReader, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use std::time::Instant;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub(crate) struct ExecuteBlockTask<Block: reth_primitives_traits::Block> {
     pub(crate) block: RecoveredBlock<Block>,
@@ -87,8 +87,24 @@ where
     let block_ref =
         BlockWithParent::new(block.parent_hash(), NumHash::new(block.number(), block.hash()));
 
+    let parent_state = match state.provider.state_by_block_hash(block.parent_hash()) {
+        Ok(p) => p,
+        Err(ProviderError::StateForHashNotFound(hash)) => {
+            // Likely a transient reorg race: reth no longer has state for what we believe is the
+            // parent. Skip gracefully; subsequent ChainCommitted/ChainReorged notifications will
+            // resync us.
+            warn!(
+                block_number = block.number(),
+                parent_hash = ?hash,
+                "Parent state not available in reth; skipping execute_block",
+            );
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
+    };
+
     let inner_provider = OpProofsStateProviderRef::new(
-        state.provider.state_by_block_hash(block.parent_hash())?,
+        parent_state,
         state.storage.provider_ro()?,
         parent_block_number,
     );

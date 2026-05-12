@@ -5,7 +5,7 @@
 //! the reply. The engine dispatcher is a thin match with no business logic.
 
 mod execute_block;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 mod flush;
 mod index_block;
 mod reorg;
@@ -13,7 +13,7 @@ mod sync_to;
 mod unwind;
 
 pub(super) use execute_block::{ExecuteBlockTask, run as execute_block};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub(super) use flush::FlushTask;
 pub(super) use index_block::IndexBlockTask;
 pub(super) use reorg::ReorgTask;

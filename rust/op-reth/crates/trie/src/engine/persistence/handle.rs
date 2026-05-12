@@ -1,6 +1,8 @@
 //! Handle and action enum for the persistence service.
 
-use super::{error::PersistenceError, service::PersistenceService};
+use super::{
+    super::service_guard::ServiceGuard, error::PersistenceError, service::PersistenceService,
+};
 use crate::{BlockStateDiff, OpProofsStore, prune::OpProofStoragePruner};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
@@ -29,14 +31,10 @@ pub enum PersistenceAction {
 #[derive(Debug, Clone)]
 pub struct PersistenceHandle {
     sender: Sender<PersistenceAction>,
+    _service_guard: Arc<ServiceGuard>,
 }
 
 impl PersistenceHandle {
-    /// Create a new handle.
-    pub const fn new(sender: Sender<PersistenceAction>) -> Self {
-        Self { sender }
-    }
-
     /// Spawn the service in a new thread and return a handle.
     pub fn spawn<H, S>(pruner: OpProofStoragePruner<S, H>, storage: S) -> Self
     where
@@ -46,12 +44,12 @@ impl PersistenceHandle {
         let (tx, rx) = crossbeam_channel::bounded(2);
         let service = PersistenceService::new(pruner, storage, rx);
 
-        thread::Builder::new()
+        let join_handle = thread::Builder::new()
             .name("Live Trie Persistence".into())
             .spawn(move || service.run())
             .expect("failed to spawn live trie persistence thread");
 
-        Self::new(tx)
+        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
     }
 
     /// Send a save request.

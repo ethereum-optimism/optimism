@@ -126,7 +126,7 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelInfo)
 	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)

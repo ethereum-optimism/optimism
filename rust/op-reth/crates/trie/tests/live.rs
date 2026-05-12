@@ -12,8 +12,10 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, MdbxProofsStorageV2, OpProofsStorage, OpProofsStorageError, OpProofsStore,
-    RethTrieStorageLayout, initialize::InitializationJob, live::LiveTrieCollector,
+    MdbxProofsStorage, MdbxProofsStorageV2, OpProofStoragePruner, OpProofsStorage, OpProofsStore,
+    RethTrieStorageLayout,
+    engine::{EngineError, EngineHandle},
+    initialize::InitializationJob,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
@@ -30,13 +32,13 @@ use tempfile::TempDir;
 use test_case::test_case;
 
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
-    let path = TempDir::new().unwrap();
-    Arc::new(MdbxProofsStorage::new(path.path()).unwrap())
+    let path = TempDir::new().unwrap().keep();
+    Arc::new(MdbxProofsStorage::new(&path).unwrap())
 }
 
 fn create_mdbx_proofs_storage_v2() -> Arc<MdbxProofsStorageV2> {
-    let path = TempDir::new().unwrap();
-    Arc::new(MdbxProofsStorageV2::new(path.path()).unwrap())
+    let path = TempDir::new().unwrap().keep();
+    Arc::new(MdbxProofsStorageV2::new(&path).unwrap())
 }
 
 /// Converts a secp256k1 public key to an Ethereum address.
@@ -276,8 +278,13 @@ where
         initialization_job.run(last_block_number, last_block_hash)?;
     }
 
-    // Execute blocks after initialization using live collector
+    // Execute blocks after initialization using live collector.
+    // A single collector is shared across all blocks so the in-memory buffer accumulates
+    // state between iterations (the new async-persistence architecture requires this).
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
+    let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let engine_handle = EngineHandle::spawn(evm_config, blockchain_db, storage, pruner);
 
     for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
         let block_number = last_block_number + idx as u64 + 1;
@@ -293,19 +300,17 @@ where
         // Execute the block to get the correct state root
         let execution_output = execute_block(&mut block, &provider_factory, &chain_spec)?;
 
-        // Create a fresh blockchain provider to ensure it sees all committed blocks
-        let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
-        let live_trie_collector =
-            LiveTrieCollector::new(evm_config.clone(), blockchain_db, &storage);
-
         // Use the live collector to execute and store trie updates
-        live_trie_collector.execute_and_store_block_updates(&block)?;
+        engine_handle.execute_block(&block)?;
 
         // Commit the block to the database so subsequent blocks can build on it
         commit_block_to_database(&block, &execution_output, &provider_factory)?;
 
         last_block_hash = block.hash();
     }
+
+    // Drain any pending in-memory blocks to disk before returning.
+    engine_handle.flush();
 
     Ok(())
 }
@@ -377,8 +382,8 @@ where
         storage.clone(),
     )?;
 
-    // Create a block whose parent block number is missing.
-    let incorrect_block_number = 2;
+    // Create a block that is sequential but has a wrong parent hash.
+    let incorrect_block_number = 1;
     let incorrect_parent_hash = B256::repeat_byte(0x11);
 
     let mut nonce_counter = 0;
@@ -392,17 +397,18 @@ where
     );
 
     let blockchain_db = BlockchainProvider::new(provider_factory).unwrap();
-    let storage_wrapped: OpProofsStorage<S> = storage.into();
-    let collector = LiveTrieCollector::new(
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
-        &storage_wrapped,
+        storage,
+        pruner,
     );
 
-    // EXPECT: MissingParentBlock
-    let err = collector.execute_and_store_block_updates(&incorrect_block).unwrap_err();
+    // EXPECT: ParentHashMismatch (block is at correct number but wrong parent hash)
+    let err = engine_handle.execute_block(&incorrect_block).unwrap_err();
 
-    assert!(matches!(err, OpProofsStorageError::MissingParentBlock { .. }));
+    assert!(matches!(err, EngineError::ParentHashMismatch { .. }));
     Ok(())
 }
 
@@ -440,17 +446,19 @@ where
 
     // Generate a second block normally
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
-    let storage_wrapped: OpProofsStorage<Arc<S>> = storage.into();
-    let collector = LiveTrieCollector::new(
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let engine_handle = EngineHandle::spawn(
         EthEvmConfig::ethereum(chain_spec.clone()),
         blockchain_db,
-        &storage_wrapped,
+        storage,
+        pruner,
     );
 
-    // Create the next block
+    // Create the next block — sequential after genesis so the parent hash check passes
+    // and execution runs, allowing us to verify the state root mismatch path.
     let mut nonce_counter = 0;
-    let last_block_hash = chain_spec.genesis_hash(); // because scenario executes 1 block
-    let next_number = 2;
+    let last_block_hash = chain_spec.genesis_hash();
+    let next_number = 1;
 
     let mut block = create_block_from_spec(
         &BlockSpec::new(vec![]),
@@ -468,9 +476,9 @@ where
     block.header_mut().state_root = B256::repeat_byte(0xAA);
 
     // EXPECT: StateRootMismatch
-    let err = collector.execute_and_store_block_updates(&block).unwrap_err();
+    let err = engine_handle.execute_block(&block).unwrap_err();
 
-    assert!(matches!(err, OpProofsStorageError::StateRootMismatch { .. }));
+    assert!(matches!(err, EngineError::StateRootMismatch { .. }));
     Ok(())
 }
 

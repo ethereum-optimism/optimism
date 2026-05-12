@@ -4,7 +4,7 @@
 
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use url::Url;
 
 /// Storage schema version for the proofs-history database.
@@ -122,25 +122,6 @@ pub struct RollupArgs {
     )]
     pub proofs_history_window: u64,
 
-    /// Interval between proof-storage prune runs. Accepts human-friendly durations
-    /// like "100s", "5m", "1h". Defaults to 15s.
-    ///
-    /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
-    ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
-    /// - Longer intervals prune larger batches less often, which reduces how often pruning runs,
-    ///   but each run can take longer and block writes for longer.
-    ///
-    /// A shorter interval is preferred so that prune
-    /// runs stay small and don’t stall writes for too long.
-    ///
-    /// CLI: `--proofs-history.prune-interval 10m`
-    #[arg(
-        long = "proofs-history.prune-interval",
-        value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
-        default_value = "15s",
-        value_parser = humantime::parse_duration
-    )]
-    pub proofs_history_prune_interval: Duration,
     /// Verification interval: perform full block execution every N blocks for data integrity.
     /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
     /// - 1: Always verify (always execute blocks, slowest)
@@ -190,7 +171,6 @@ impl Default for RollupArgs {
             proofs_history: false,
             proofs_history_storage_path: None,
             proofs_history_window: 1_296_000,
-            proofs_history_prune_interval: Duration::from_secs(15),
             proofs_history_verification_interval: 0,
             proofs_history_storage_version: ProofsStorageVersion::V1,
         }

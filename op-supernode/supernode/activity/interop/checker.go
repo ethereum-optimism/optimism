@@ -4,13 +4,11 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
 )
 
-// l1Source provides L1 block lookups.
-type l1Source interface {
+// l1ByNumberSource provides L1 block lookups by number for consistency checking.
+type l1ByNumberSource interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
-	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 }
 
 // l1ConsistencyChecker verifies that a set of L1 block IDs all belong to
@@ -20,12 +18,12 @@ type l1ConsistencyChecker interface {
 }
 
 // l1ByNumberChecker is the production l1ConsistencyChecker: it checks each
-// head against the canonical L1 chain fetched from an l1Source.
+// head against the canonical L1 chain fetched from an l1ByNumberSource.
 type l1ByNumberChecker struct {
-	l1 l1Source
+	l1 l1ByNumberSource
 }
 
-func newL1ConsistencyChecker(l1 l1Source) l1ConsistencyChecker {
+func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
 	if l1 == nil {
 		return nil
 	}

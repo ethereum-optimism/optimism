@@ -50,8 +50,6 @@ pub mod proof;
 
 pub mod provider;
 
-pub mod live;
-
 pub mod engine;
 pub use engine::EngineHandle;
 

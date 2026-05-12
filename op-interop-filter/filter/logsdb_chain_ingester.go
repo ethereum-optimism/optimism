@@ -812,7 +812,12 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
 
-	c.log.Debug("Ingested block", "block", blockNum, "hash", blockID.Hash, "timestamp", blockInfo.Time(), "logs", logCount)
+	c.log.Info("Ingested block",
+		"block", blockNum,
+		"hash", blockID.Hash,
+		"timestamp", blockInfo.Time(),
+		"ingested_at", time.Now().UTC(),
+		"logs", logCount)
 
 	// Set earliest block on first successful ingestion (fresh start case).
 	// On restart, findAndSetEarliestBlock handles this instead.

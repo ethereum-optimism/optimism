@@ -56,6 +56,7 @@ crossbeam-channel.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
+reth-optimism-trie = { path = ".", features = ["test-utils"] }
 reth-codecs = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
@@ -81,6 +82,18 @@ eyre.workspace = true
 serial_test.workspace = true
 
 [features]
+test-utils = [
+	"reth-codecs/test-utils",
+	"reth-db/test-utils",
+	"reth-ethereum-primitives?/test-utils",
+	"reth-evm/test-utils",
+	"reth-primitives-traits/test-utils",
+	"reth-provider/test-utils",
+	"reth-revm/test-utils",
+	"reth-tasks/test-utils",
+	"reth-trie/test-utils",
+	"reth-trie-common/test-utils"
+]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",
 	"alloy-consensus/serde-bincode-compat",
