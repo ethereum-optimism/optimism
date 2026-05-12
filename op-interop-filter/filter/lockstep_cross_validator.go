@@ -256,11 +256,11 @@ func (v *LockstepCrossValidator) runValidationLoop() {
 	defer ticker.Stop()
 
 	for {
+		v.advanceValidation()
 		select {
 		case <-v.ctx.Done():
 			return
 		case <-ticker.C:
-			v.advanceValidation()
 		}
 	}
 }
