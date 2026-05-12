@@ -42,10 +42,10 @@ import (
 // N = logCount, M = execMsgCount. Hashes are at a known fixed offset, so
 // Contains is an O(1) memcpy + checksum. OpenBlock walks both arrays once.
 const (
-	blockRecordSize     = 80
-	logHashSize         = 32
-	execMsgRecordSize   = 88
-	hashesOffset        = blockRecordSize
+	blockRecordSize   = 80
+	logHashSize       = 32
+	execMsgRecordSize = 88
+	hashesOffset      = blockRecordSize
 )
 
 type DB struct {
@@ -191,7 +191,7 @@ func (d *DB) FirstSealedBlock() (types.BlockSeal, error) {
 	}
 	rec, err := d.readBlockAt(indexFor(d.firstBlock))
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrDataCorruption, err)
+		return types.BlockSeal{}, fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
 	}
 	return types.BlockSeal{Hash: rec.Hash, Number: d.firstBlock, Timestamp: rec.Timestamp}, nil
 }
@@ -210,7 +210,7 @@ func (d *DB) FindSealedBlock(number uint64) (types.BlockSeal, error) {
 	}
 	rec, err := d.readBlockAt(indexFor(number))
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrDataCorruption, err)
+		return types.BlockSeal{}, fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
 	}
 	return types.BlockSeal{Hash: rec.Hash, Number: number, Timestamp: rec.Timestamp}, nil
 }
@@ -229,11 +229,11 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	}
 	var log raft.Log
 	if err := d.w.GetLog(indexFor(blockNum), &log); err != nil {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: GetLog(%d): %v", types.ErrDataCorruption, blockNum, err)
+		return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: GetLog(%d): %w", types.ErrDataCorruption, blockNum, err)
 	}
 	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: %v", types.ErrDataCorruption, err)
+		return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
 	}
 	ref := eth.BlockRef{
 		Hash:       rec.Hash,
@@ -275,11 +275,11 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 
 	var log raft.Log
 	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
-		return types.BlockSeal{}, fmt.Errorf("%w: GetLog(%d): %v", types.ErrDataCorruption, query.BlockNum, err)
+		return types.BlockSeal{}, fmt.Errorf("%w: GetLog(%d): %w", types.ErrDataCorruption, query.BlockNum, err)
 	}
 	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrDataCorruption, err)
+		return types.BlockSeal{}, fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
 	}
 	if query.LogIdx >= rec.LogCount {
 		return types.BlockSeal{}, types.ErrConflict
@@ -423,7 +423,7 @@ func (d *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 
 	rec, err := d.readBlockAt(indexFor(newHead.Number))
 	if err != nil {
-		return fmt.Errorf("%w: %v", types.ErrDataCorruption, err)
+		return fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
 	}
 	if rec.Hash != newHead.Hash {
 		return fmt.Errorf("%w: rewind target %s does not match stored hash %s", types.ErrConflict, newHead.Hash, rec.Hash)
