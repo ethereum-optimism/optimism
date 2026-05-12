@@ -266,6 +266,10 @@ func main() {
 			_, _, err := karsttest.CheckEIP7951(ctx, logger, basePlan)
 			return err
 		}),
+		makeCommand("karst-bn256-pair", func(ctx context.Context, logger log.Logger, _ apis.EthCode, basePlan txplan.Option) error {
+			_, _, err := karsttest.CheckKarstBn256PairInputLimit(ctx, logger, basePlan)
+			return err
+		}),
 		makeCommand("eip-7939", func(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error {
 			_, err := karsttest.CheckEIP7939(ctx, logger, l2, basePlan)
 			return err
