@@ -2,29 +2,31 @@ package interop
 
 import "errors"
 
-// ErrNotActive signals that the verifier has not produced — and will not
-// produce — a VerifiedResult for the requested timestamp. Two cases:
-//   - ts < activationTimestamp: interop is genuinely inactive for ts.
-//   - ts < firstVerifiableTimestamp: interop is active but the verifier's
-//     bootstrap floor has not reached ts and never will.
-//
-// Callers interpret this as "fall back to pre-interop composition" — distinct
-// from ethereum.NotFound which means "interop IS active for ts and the
-// verifier may eventually produce a result, but has not yet."
+// ErrNotActive signals that ts is before interop activation. Callers compose
+// the super root from per-chain optimistic outputs.
 var ErrNotActive = errors.New("interop not active for timestamp")
 
-// VerifiedResultReader exposes a read-only view of committed VerifiedResults
-// so non-interop activities can decide whether a timestamp falls into the
-// strict (verified) regime, the active-but-not-yet-verified regime
-// (returns ethereum.NotFound), or the pre-interop regime (returns
-// ErrNotActive).
+// ErrBeforeVerifiedDB signals that ts is post-activation but below the
+// verifier's first verifiable timestamp on this node. No VerifiedResult will
+// ever be produced for ts here, and the deny-list state needed to reproduce
+// the canonical super root from optimistic data is not available either. The
+// supernode cannot answer the call.
+var ErrBeforeVerifiedDB = errors.New("timestamp below verified-db start")
+
+// VerifiedResultReader exposes committed VerifiedResults to non-interop
+// activities. Errors discriminate the regime:
+//   - nil:                  verified entry returned
+//   - ErrNotActive:         pre-activation; compose from optimistic outputs
+//   - ErrBeforeVerifiedDB:  post-activation but below firstVerifiable; not
+//     answerable on this node
+//   - ethereum.NotFound:    verifier may eventually produce a result but has
+//     not yet — return Data = nil and let CurrentL1 communicate progress
 type VerifiedResultReader interface {
 	VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, error)
 }
 
-// NoopVerifiedResultReader is used when the supernode is wired without an
-// interop activity. Every call reports ErrNotActive, routing consumers into
-// the pre-interop fallback.
+// NoopVerifiedResultReader is used when interop is not configured: every
+// call returns ErrNotActive.
 type NoopVerifiedResultReader struct{}
 
 func (NoopVerifiedResultReader) VerifiedResultAtTimestamp(uint64) (VerifiedResult, error) {

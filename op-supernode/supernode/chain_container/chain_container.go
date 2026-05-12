@@ -50,12 +50,11 @@ type ChainContainer interface {
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	// OutputRootAtL2BlockHash returns the L2 output root for the canonical block
-	// at the given hash. Reading by hash binds the answer to a consensus-determined
-	// block payload; the same hash always yields the same OutputV0 (post-Isthmus
-	// from header alone; pre-Isthmus via eth_getProof on state at that block).
-	// If the EL does not have that hash on its canonical chain, returns
-	// ethereum.NotFound or a transport-level error.
+	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
+	// block at the given hash. Post-Isthmus the root is derived from the
+	// header alone; pre-Isthmus it falls back to eth_getProof on state at
+	// that block. Returns ethereum.NotFound if the EL no longer has the
+	// block at that hash on its canonical chain.
 	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
 	RegisterVerifier(v activity.VerificationActivity)
@@ -467,10 +466,6 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 	return st, nil
 }
 
-// OutputRootAtL2BlockHash computes the L2 output root for the specified L2 block hash.
-// Reading by hash pins the answer to a consensus-determined block payload — the same
-// hash always yields the same OutputV0 — eliminating the per-call drift the by-number
-// variant could exhibit when the EL reorgs at the requested height.
 func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if c.engine == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient

@@ -1130,12 +1130,30 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 				}
 			}).
 			Build()
-		// 125 > activation; firstVerifiableTimestamp resolves via safe-head
-		// handoff to <= 125, so this should NOT be ErrNotActive — it should
-		// be ethereum.NotFound (active but no entry yet).
+		// 126 > activation and >= firstVerifiable (resolves to 101 from
+		// SafeL2.Time=100); no entry yet → ethereum.NotFound.
 		_, err := h.interop.VerifiedResultAtTimestamp(126)
 		require.ErrorIs(t, err, ethereum.NotFound)
 		require.NotErrorIs(t, err, ErrNotActive)
+		require.NotErrorIs(t, err, ErrBeforeVerifiedDB)
+	})
+
+	t.Run("post-activation but below firstVerifiable returns ErrBeforeVerifiedDB", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(100).
+			WithChain(10, func(m *mockChainContainer) {
+				// SafeL2.Time=500 → firstVerifiable=501. ts=200 is post
+				// activation but below firstVerifiable on this node.
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
+					LocalSafeL2: eth.L2BlockRef{Number: 500, Time: 500},
+				}
+			}).
+			Build()
+		_, err := h.interop.VerifiedResultAtTimestamp(200)
+		require.ErrorIs(t, err, ErrBeforeVerifiedDB)
+		require.NotErrorIs(t, err, ErrNotActive)
+		require.NotErrorIs(t, err, ethereum.NotFound)
 	})
 
 	t.Run("returns committed VerifiedResult", func(t *testing.T) {

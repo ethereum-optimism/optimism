@@ -22,12 +22,9 @@ type EngineController interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
-	// OutputV0ByBlockHash returns the output preimage for the given L2 block hash.
-	// Locking the read to a hash (rather than a number) yields a consensus-bound
-	// answer: the same hash always maps to the same canonical block, so the
-	// returned OutputV0 cannot drift across calls. If the EL no longer has the
-	// block at the requested hash on its canonical chain, the underlying RPCs
-	// return ethereum.NotFound or a transport error.
+	// OutputV0ByBlockHash returns the output preimage for the given L2 block
+	// hash. Returns ethereum.NotFound if the EL no longer has the block at
+	// that hash on its canonical chain.
 	OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
 	RewindToTimestamp(ctx context.Context, timestamp uint64) error

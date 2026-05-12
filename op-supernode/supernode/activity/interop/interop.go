@@ -1002,11 +1002,10 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 }
 
 // VerifiedResultAtTimestamp returns the committed VerifiedResult for ts.
-// Mirrors the regime gating of VerifiedAtTimestamp:
-//   - ts < activationTimestamp                → ErrNotActive
-//   - ts < firstVerifiableTimestamp           → ErrNotActive
-//   - verifiedDB.Get returns ErrNotFound      → ethereum.NotFound
-//   - else                                    → the stored VerifiedResult
+//   - ts < activationTimestamp           → ErrNotActive
+//   - ts < firstVerifiableTimestamp      → ErrBeforeVerifiedDB
+//   - verifiedDB.Get returns ErrNotFound → ethereum.NotFound
+//   - else                               → the stored VerifiedResult
 //
 // The local ErrNotFound is translated to the standard ethereum.NotFound at the
 // public boundary so consumers can errors.Is against the standard sentinel
@@ -1020,7 +1019,7 @@ func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, error) {
 		return VerifiedResult{}, fmt.Errorf("resolve first verifiable: %w", err)
 	}
 	if ts < firstVerifiable {
-		return VerifiedResult{}, ErrNotActive
+		return VerifiedResult{}, ErrBeforeVerifiedDB
 	}
 	result, err := i.verifiedDB.Get(ts)
 	if err != nil {

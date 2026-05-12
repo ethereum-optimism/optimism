@@ -112,10 +112,9 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		narrowChains[id] = c
 	}
 
-	// Resolve interop activation first so the verified-result reader is available
-	// before Superroot is constructed. Superroot now requires an
-	// interop.VerifiedResultReader; when interop is not configured, the no-op
-	// reader routes every call into the pre-interop fallback.
+	// Resolve interop activation before constructing Superroot so the
+	// verified-result reader is available. When interop is not configured,
+	// the no-op reader routes every call into the pre-interop fallback.
 	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve interop activation timestamp: %w", err)
@@ -143,8 +142,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		s.interopMsgExpiryWindow = msgExpiryWindow
 	}
 
-	// Initialize fixed activities. Order in this slice governs Start/Stop
-	// ordering; interop is appended below so it starts after the RPC servers.
+	// Order in this slice governs Start/Stop ordering; interop is appended
+	// below so it starts after the RPC servers.
 	s.activities = []activity.Activity{
 		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
 		supernodeactivity.New(log.New("activity", "supernode"), narrowChains),

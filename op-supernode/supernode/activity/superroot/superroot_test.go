@@ -112,7 +112,8 @@ var _ cc.ChainContainer = (*mockCC)(nil)
 // mockVerifiedReader is a test fake for interop.VerifiedResultReader.
 // Set result to return a VerifiedResult; set err to return an error
 // (ethereum.NotFound for "active but not yet verified", interop.ErrNotActive
-// for pre-interop fallback, or any other error for the default branch).
+// for pre-interop fallback, interop.ErrBeforeVerifiedDB for the
+// hard-error regime, or any other error for the default branch).
 type mockVerifiedReader struct {
 	result interop.VerifiedResult
 	err    error
@@ -561,6 +562,25 @@ func TestSuperroot_AtTimestamp_PreInteropFallback_NoSecondFetch(t *testing.T) {
 	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Data)
+}
+
+// ------ Below-verified-db hard-error tests ------
+
+func TestSuperroot_AtTimestamp_BelowVerifiedDB_FailsRPC(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			optL2:     eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:     eth.BlockID{Number: 900},
+			optOutput: &eth.OutputV0{StateRoot: eth.Bytes32{0x01}},
+			status:    &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+		},
+	}
+	reader := &mockVerifiedReader{err: interop.ErrBeforeVerifiedDB}
+	s := newSuperroot(chains, reader)
+	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.Error(t, err)
+	require.ErrorIs(t, err, interop.ErrBeforeVerifiedDB)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.
