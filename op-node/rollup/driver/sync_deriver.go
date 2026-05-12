@@ -93,8 +93,8 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// If there is more data to process,
 		// continue derivation quickly
 		s.StepDeriver.RequestStep(ctx, true)
-	case engine.SafeDerivedEvent:
-		s.onSafeDerivedBlock(ctx, x)
+	case engine.LocalSafeUpdateEvent:
+		s.onLocalSafeUpdate(ctx, x)
 	case derive.ProvideL1Traversal:
 		s.StepDeriver.RequestStep(ctx, false)
 	default:
@@ -129,16 +129,28 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 
 }
 
-func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
-	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.Source.ID()); err != nil {
-			// At this point our state is in a potentially inconsistent state as we've updated the safe head
-			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
-			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
-			s.Emitter.Emit(ctx, rollup.ResetEvent{
-				Err: fmt.Errorf("safe head notifications failed: %w", err),
-			})
-		}
+// onLocalSafeUpdate records the local-safe head in the safeDB keyed by the L1
+// block from which it was derived. The safeDB serves dispute-game lookups of
+// "what L2 was safe at this L1 block", which requires the local-safe L1 (the
+// L1 block that includes the last piece of batch data needed to derive this
+// L2 block) rather than the cross-safe-promotion L1.
+//
+// Replacement blocks have no derivation L1; the prior local-safe entry is
+// re-keyed correctly by SafeHeadReset on engine-reset confirmation.
+func (s *SyncDeriver) onLocalSafeUpdate(ctx context.Context, x engine.LocalSafeUpdateEvent) {
+	if s.SafeHeadNotifs == nil || !s.SafeHeadNotifs.Enabled() {
+		return
+	}
+	if x.Source == engine.ReplaceBlockSource {
+		return
+	}
+	if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Ref, x.Source.ID()); err != nil {
+		// At this point our state is in a potentially inconsistent state as we've updated the safe head
+		// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+		// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+		s.Emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("safe head notifications failed: %w", err),
+		})
 	}
 }
 
