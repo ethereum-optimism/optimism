@@ -112,6 +112,15 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
 	db := i.logsDBs[cid]
+	// This is a startup best-effort repair for pre-existing logsDB reorg drift,
+	// separate from the normal interop observation/apply loop. It does not close
+	// the window where an L2 reorg lands after reconciliation/backfill and before
+	// normal interop persists its first frontier block. In that case the write path
+	// fails with ErrParentHashMismatch or ErrStaleLogsDB instead of appending
+	// inconsistent logs.
+	if err := i.reconcileLogsDBTail(ctx, cid, chain, db); err != nil {
+		return err
+	}
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
@@ -135,6 +144,60 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 			progress := float64(num-startNum+1) / float64(totalBlocks)
 			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
 		}
+	}
+	return nil
+}
+
+// reconcileLogsDBTail trims tail blocks whose hash no longer matches canonical,
+// so backfill resumes from a block that is still in force. Without this, an L2
+// reorg that occurs while supernode is offline leaves the tail diverged and the
+// first seal on resume loops forever on ErrParentHashMismatch.
+func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, db LogsDB) error {
+	latest, has := db.LatestSealedBlock()
+	if !has {
+		return nil
+	}
+	latestOut, err := chain.OutputV0AtBlockNumber(ctx, latest.Number)
+	if err != nil {
+		return fmt.Errorf("chain %s: output at block %d during logsDB reconcile: %w", cid, latest.Number, err)
+	}
+	if latestOut.BlockHash == latest.Hash {
+		return nil
+	}
+
+	first, err := db.FirstSealedBlock()
+	if err != nil {
+		return fmt.Errorf("chain %s: first sealed block during reconcile: %w", cid, err)
+	}
+
+	// Walk back from latest.Number-1 looking for the deepest sealed block whose
+	// hash still matches canonical. latest itself is already known to diverge.
+	for n := latest.Number; n > first.Number; {
+		n--
+		seal, err := db.FindSealedBlock(n)
+		if err != nil {
+			return fmt.Errorf("chain %s: find sealed block %d during reconcile: %w", cid, n, err)
+		}
+		out, err := chain.OutputV0AtBlockNumber(ctx, n)
+		if err != nil {
+			return fmt.Errorf("chain %s: output at block %d during reconcile: %w", cid, n, err)
+		}
+		if seal.Hash != out.BlockHash {
+			continue
+		}
+		i.log.Warn("rewinding logsDB to last canonical block",
+			"chain", cid, "rewindTo", n, "trimmedTipNumber", latest.Number,
+			"trimmedTipStored", latest.Hash, "trimmedTipCanonical", latestOut.BlockHash)
+		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
+			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
+		}
+		return nil
+	}
+
+	i.log.Warn("entire logsDB diverges from canonical; clearing",
+		"chain", cid, "firstSealed", first.Number, "latestSealed", latest.Number)
+	if err := db.Clear(&noopInvalidator{}); err != nil {
+		return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
 	}
 	return nil
 }

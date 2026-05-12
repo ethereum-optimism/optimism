@@ -22,6 +22,11 @@ contract GenerateNUTBundle_Harness is GenerateNUTBundle {
         return _buildOutput();
     }
 
+    /// @notice Returns the fork name used by the generated bundle.
+    function upgradeName() external pure returns (string memory) {
+        return UPGRADE_NAME;
+    }
+
     /// @notice Asserts that the given output is valid.
     function assertValidOutput(Output memory _output) external pure {
         _assertValidOutput(_output);
@@ -45,6 +50,8 @@ contract GenerateNUTBundleTest is Test {
     function test_run_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
+
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
             NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
@@ -56,6 +63,13 @@ contract GenerateNUTBundleTest is Test {
             assertEq(readTxns[i].gasLimit, uint256(output.txns[i].gasLimit), "Gas limit mismatch");
             assertEq(keccak256(readTxns[i].data), keccak256(output.txns[i].data), "Data mismatch");
         }
+    }
+
+    /// @notice Tests that the harness build path returns the same fork name as the script run path.
+    function test_buildOutput_setsFork_succeeds() public {
+        GenerateNUTBundle.Output memory output = script.buildOutput();
+
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
     }
 
     /// @notice Tests that transactions have correct structure.
@@ -132,6 +146,7 @@ contract GenerateNUTBundleTest is Test {
         internal
         pure
     {
+        assertEq(_output1.fork, _output2.fork, "Fork should match");
         assertEq(_output1.txns.length, _output2.txns.length, "Should produce same number of transactions");
         for (uint256 i = 0; i < _output1.txns.length; i++) {
             assertEq(_output1.txns[i].intent, _output2.txns[i].intent, "Transaction intent should match");

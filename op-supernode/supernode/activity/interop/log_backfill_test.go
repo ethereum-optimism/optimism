@@ -92,8 +92,8 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	require.True(t, has)
 	require.Equal(t, uint64(110), latest.Number)
 
-	// Should have fetched only blocks 106..110 (5 blocks), not 100..110 (11 blocks).
-	require.Equal(t, int32(5), fetchCount.Load())
+	// 5 fetches for blocks 106..110 + 1 reconcile probe at block 105.
+	require.Equal(t, int32(6), fetchCount.Load())
 }
 
 func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
@@ -153,6 +153,85 @@ func TestLogBackfill_RetriesWhenVirtualNodesNotReady(t *testing.T) {
 	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp)
 	requireFirstVerifiableTimestamp(t, h.interop, 111)
 	require.Equal(t, act, h.interop.activationTimestamp, "protocol activation must not change")
+
+	cancel()
+	<-done
+}
+
+// TestLogBackfill_RecoversFromOfflineReorg tests an L2 reorg that
+// invalidates a sealed block while supernode is offline self-heals on
+// restart, not loop forever on ErrParentHashMismatch.
+func TestLogBackfill_RecoversFromOfflineReorg(t *testing.T) {
+	const act = uint64(100)
+	depth := 20 * time.Second
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1, Hash: common.HexToHash("0xL1")}
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 110, Time: 110},
+				SafeL2:      eth.L2BlockRef{Number: 110, Time: 110},
+				LocalSafeL2: eth.L2BlockRef{Number: 110, Time: 110},
+			}
+		}).
+		Build()
+
+	chain10 := h.Mock(10)
+	db := h.interop.logsDBs[chain10.id]
+
+	// Pre-seed blocks 100..105 with a stale "v1" fork hash; the mock's canonical
+	// view ("v2") returns BigToHash(n).
+	v1Hash := func(n uint64) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(n | 0xdead0000))
+	}
+	require.NoError(t, db.SealBlock(common.Hash{},
+		eth.BlockID{Number: 100, Hash: v1Hash(100)}, 100))
+	for n := uint64(101); n <= 105; n++ {
+		require.NoError(t, db.SealBlock(v1Hash(n-1),
+			eth.BlockID{Number: n, Hash: v1Hash(n)}, n))
+	}
+	before, has := db.LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, uint64(105), before.Number)
+	require.Equal(t, v1Hash(105), before.Hash)
+
+	origBackoff := errorBackoffPeriod
+	errorBackoffPeriod = 10 * time.Millisecond
+	t.Cleanup(func() { errorBackoffPeriod = origBackoff })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- h.interop.Start(ctx) }()
+
+	require.Eventually(t, func() bool {
+		return h.interop.backfillCompleted.Load()
+	}, 15*time.Second, 20*time.Millisecond,
+		"Start must recover from an offline reorg, not loop forever on ErrParentHashMismatch")
+
+	require.Equal(t, uint64(110), h.interop.backfillEndTimestamp)
+
+	// Assert specific heights, not LatestSealedBlock: once backfill completes
+	// the main loop may seal further blocks before we read state.
+	canonicalHash := func(n uint64) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(n))
+	}
+	seal110, err := db.FindSealedBlock(110)
+	require.NoError(t, err, "backfill tip must be sealed")
+	require.Equal(t, canonicalHash(110), seal110.Hash,
+		"backfill tip must hold the canonical hash, not a stale v1 hash")
+	seal103, err := db.FindSealedBlock(103)
+	require.NoError(t, err)
+	require.Equal(t, canonicalHash(103), seal103.Hash,
+		"reorged interior block must be replaced with the canonical hash")
+	seal100, err := db.FindSealedBlock(100)
+	require.NoError(t, err)
+	require.Equal(t, canonicalHash(100), seal100.Hash,
+		"activation block must be replaced with the canonical hash")
 
 	cancel()
 	<-done
