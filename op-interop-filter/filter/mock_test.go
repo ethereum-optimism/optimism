@@ -36,6 +36,9 @@ type mockChainIngester struct {
 	latestBlock           eth.BlockID
 	latestTimestamp       uint64
 	earliestIngestedBlock uint64
+
+	rewindToFinalizedErr   error
+	rewindToFinalizedCount int
 }
 
 // logKey uniquely identifies a log entry
@@ -219,6 +222,17 @@ func (m *mockChainIngester) ClearError() {
 	m.err = nil
 }
 
+// RewindToFinalized implements ChainIngester.
+func (m *mockChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rewindToFinalizedCount++
+	if m.rewindToFinalizedErr != nil {
+		return eth.BlockID{}, 0, m.rewindToFinalizedErr
+	}
+	return m.latestBlock, m.latestTimestamp, nil
+}
+
 // SetLatestTimestamp sets the latest ingested timestamp (for testing).
 func (m *mockChainIngester) SetLatestTimestamp(ts uint64) {
 	m.mu.Lock()
@@ -244,6 +258,8 @@ var _ ChainIngester = (*mockChainIngester)(nil)
 type mockCrossValidator struct {
 	validateErr error
 	errState    *ValidatorError
+	resetTs     uint64
+	resetOK     bool
 }
 
 func (m *mockCrossValidator) Start() error { return nil }
@@ -253,6 +269,10 @@ func (m *mockCrossValidator) ValidateAccessEntry(access types.Access, minSafety 
 }
 func (m *mockCrossValidator) CrossValidatedTimestamp() (uint64, bool) { return 0, false }
 func (m *mockCrossValidator) Error() *ValidatorError                  { return m.errState }
+func (m *mockCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) {
+	m.resetTs = timestamp
+	m.resetOK = true
+}
 
 // SetError sets the error state for the mock validator.
 func (m *mockCrossValidator) SetError(msg string) {
@@ -369,6 +389,14 @@ func (m *MockEthClient) SetHeadBlock(block eth.BlockInfo) {
 	defer m.mu.Unlock()
 
 	m.blocksByLabel[eth.Unsafe] = block
+}
+
+// SetLabelBlock sets a block for the given label.
+func (m *MockEthClient) SetLabelBlock(label eth.BlockLabel, block eth.BlockInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.blocksByLabel[label] = block
 }
 
 // SetInfoByNumberErr sets an error to return from InfoByNumber.

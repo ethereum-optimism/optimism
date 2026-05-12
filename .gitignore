@@ -42,6 +42,8 @@ packages/contracts-bedrock/deployments/anvil
 
 .devnet*
 
+.claude/worktrees
+
 # Ignore local fuzzing results
 **/testdata/fuzz/
 

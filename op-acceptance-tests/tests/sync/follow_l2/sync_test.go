@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
@@ -99,9 +98,19 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
 	require.Eventually(func() bool {
-		// Advance single L1 block
-		require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: common.Hash{}}))
-		require.NoError(ts.Next(ctx))
+		// Advance a single L1 block. Sequencer.Next internally calls New with
+		// empty BuildOpts and tolerates ErrConflictingJob, so we do not call
+		// ts.New here — that would fail with ErrConflictingJob if a previous
+		// Next attempt timed out and left the job state wedged.
+		//
+		// We must not use require.NoError inside this polling callback: a
+		// single transient engine-API stall (CPU starvation under CI load)
+		// would otherwise mark the test failed on the first error. Instead we
+		// log and return false so Eventually retries until the L1 EL recovers.
+		if err := ts.Next(ctx); err != nil {
+			logger.Warn("ts.Next failed, will retry", "err", err)
+			return false
+		}
 		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 		l2Safe := sys.L2ELB.BlockRefByLabel(eth.Safe)
 

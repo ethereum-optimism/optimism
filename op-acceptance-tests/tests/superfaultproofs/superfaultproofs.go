@@ -45,20 +45,30 @@ type chain struct {
 	Batcher *dsl.L2Batcher
 }
 
-// freezeChains takes exclusive control of L2 block production: stops every
-// chain's real sequencer and batcher, and waits for both safety levels to
-// stall. After this returns no real-sequencer or batcher activity advances
-// the chain — block production is the caller's via TestSequencer.SequenceBlock.
+// freezeChains takes exclusive control of L2 block production. After this
+// returns: real sequencers are stopped, batchers are stopped, and on every
+// chain LocalSafe == LocalUnsafe. From here, only the caller advances the
+// chain via TestSequencer.SequenceBlock.
+//
+// Order matters: stopping the batcher before LocalSafe catches up to
+// LocalUnsafe leaves safe behind unsafe, which breaks downstream code that
+// expects "the head" to be unambiguous (e.g. nextTimestampAfterSafeHeads).
+// So we stop sequencers first, wait for unsafe to stall, then let the still-
+// running batchers drain the remaining unsafe blocks to L1 until safe catches
+// up, and only then stop the batchers.
 func freezeChains(chains []*chain) {
 	for _, c := range chains {
 		c.CLNode.StopSequencer()
 	}
 	for _, c := range chains {
-		c.Batcher.Stop()
+		c.CLNode.WaitForStall(types.LocalUnsafe)
 	}
 	for _, c := range chains {
-		c.CLNode.WaitForStall(types.LocalUnsafe)
-		c.CLNode.WaitForStall(types.LocalSafe)
+		unsafeNumber := c.CLNode.HeadBlockRef(types.LocalUnsafe).Number
+		c.CLNode.Reached(types.LocalSafe, unsafeNumber, 30)
+	}
+	for _, c := range chains {
+		c.Batcher.Stop()
 	}
 }
 

@@ -231,10 +231,6 @@ func NewOpProgramCfg(
 
 	dfault := config.NewConfig(rollupConfigs, l2chainConfigs, l1chainConfig, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 	dfault.L2ChainID = boot.CustomChainIDIndicator
-	if fi.InteropEnabled {
-		dfault.AgreedPrestate = fi.AgreedPrestate
-	}
-	dfault.InteropEnabled = fi.InteropEnabled
 	dfault.DependencySet = fi.DependencySet
 	return dfault
 }

@@ -2,7 +2,7 @@
 name = "alloy-op-hardforks"
 description = "Bindings for named OP hardforks"
 
-version = "0.4.7"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["Alloy Contributors", "OpLabsPBC"]
