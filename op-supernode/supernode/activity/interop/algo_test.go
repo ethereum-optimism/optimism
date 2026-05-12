@@ -914,7 +914,7 @@ func (m *algoMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, ti
 }
 func (m *algoMockLogsDB) Rewind(newHead eth.BlockID) error { return nil }
 func (m *algoMockLogsDB) Clear() error                     { return nil }
-func (m *algoMockLogsDB) Close() error                                            { return nil }
+func (m *algoMockLogsDB) Close() error                     { return nil }
 
 var _ LogsDB = (*algoMockLogsDB)(nil)
 
