@@ -16,6 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
+// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+var defaultInitBond = big.NewInt(8e16)
+
 // upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state
 // to enable all three super-root game types with the supplied starting anchor.
 func upgradeToSuperRoots(
@@ -85,7 +88,7 @@ func buildSuperRootUpgradeGameConfigs(
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon,
+			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeSuperPermCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
 				AbsolutePrestate: absoluteCannonPrestate,
 				Proposer:         proposer,
@@ -93,7 +96,7 @@ func buildSuperRootUpgradeGameConfigs(
 			},
 		},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona,
+			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeSuperCannonKona,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonKonaPrestate},
 		},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},

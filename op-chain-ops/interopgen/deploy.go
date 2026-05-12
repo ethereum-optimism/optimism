@@ -29,6 +29,9 @@ var (
 	// sysGenesisDeployer is used as tx.origin/msg.sender on system genesis script calls.
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
+
+	// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+	defaultInitBond = big.NewInt(8e16)
 )
 
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
@@ -294,13 +297,13 @@ func MigrateInterop(
 			DisputeGameConfigs: []manage.DisputeGameConfig{
 				{
 					Enabled:  true,
-					InitBond: big.NewInt(0),
+					InitBond: new(big.Int).Set(defaultInitBond),
 					GameType: GameTypeCannon,
 					GameArgs: cannonGameArgs,
 				},
 				{
 					Enabled:  true,
-					InitBond: big.NewInt(0),
+					InitBond: new(big.Int).Set(defaultInitBond),
 					GameType: GameTypeSuperCannonKona,
 					GameArgs: cannonKonaGameArgs,
 				},

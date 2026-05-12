@@ -267,13 +267,13 @@ func migrateSuperRootsWithProposal(
 		DisputeGameConfigs: []DisputeGameConfigV2{
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superPermissionedCannonGameType,
 				GameArgs: permGameArgs,
 			},
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superCannonKonaGameType,
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},
