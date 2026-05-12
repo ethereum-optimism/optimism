@@ -35,6 +35,10 @@
     "initCodeHash": "0x1701f191d49ba9c27d6ebee63eec095c97c20b66648c01b41aa2ad7b5808861c",
     "sourceCodeHash": "0x2650f2af1df017387e1f1aa6273decc4c46dd4f3ac7f0910c6f0edc92aef4747"
   },
+  "src/L1/opcm/OPContractsManagerMigrationValidator.sol:OPContractsManagerMigrationValidator": {
+    "initCodeHash": "0xfa4b3884f30f61cc1981619c54adf911afb21196faa1dbf09e80dbeb94a9cee5",
+    "sourceCodeHash": "0xad7e52c0f4f2f3bf40318a9edb7606407226f060e5dfacb55c8dbd01083eaab1"
+  },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
     "initCodeHash": "0x6deb928e693dbbe0ffeda11a17037201d86bdd5487ca01df7ac42f8ecf5eac47",
     "sourceCodeHash": "0x6dac26964e4f0421c6b47bcab147c230cc49daf3384d8eeb3a33acba8b7579f2"

@@ -6,8 +6,9 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
-interface IOPContractsManagerMigrationValidator {
+interface IOPContractsManagerMigrationValidator is ISemver {
     error InvalidGameArgsLength();
 
     struct MigrationValidationInput {

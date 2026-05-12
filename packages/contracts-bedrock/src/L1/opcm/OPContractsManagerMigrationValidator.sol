@@ -36,7 +36,11 @@ import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPCon
 ///         for full drill-down validation including WETH, ASR, MIPS, PreimageOracle), shared
 ///         lockbox proxy/impl, per-chain portal ASR migration, per-chain DGF clearing, and
 ///         lockbox authorization.
-contract OPContractsManagerMigrationValidator {
+contract OPContractsManagerMigrationValidator is ISemver {
+    /// @notice The semantic version of the OPContractsManagerMigrationValidator contract.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice Discovered shared contracts from on-chain state.
     struct SharedContracts {
         IProxyAdmin proxyAdmin;
