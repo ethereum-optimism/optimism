@@ -1116,7 +1116,7 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 
 	t.Run("before activation returns ErrNotActive", func(t *testing.T) {
 		h := newInteropTestHarness(t).Build()
-		_, err := h.interop.VerifiedResultAtTimestamp(999)
+		_, _, err := h.interop.VerifiedResultAtTimestamp(999)
 		require.ErrorIs(t, err, ErrNotActive)
 	})
 
@@ -1132,7 +1132,7 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 			Build()
 		// 126 > activation and >= firstVerifiable (resolves to 101 from
 		// SafeL2.Time=100); no entry yet → ethereum.NotFound.
-		_, err := h.interop.VerifiedResultAtTimestamp(126)
+		_, _, err := h.interop.VerifiedResultAtTimestamp(126)
 		require.ErrorIs(t, err, ethereum.NotFound)
 		require.NotErrorIs(t, err, ErrNotActive)
 		require.NotErrorIs(t, err, ErrBeforeVerifiedDB)
@@ -1150,7 +1150,7 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 				}
 			}).
 			Build()
-		_, err := h.interop.VerifiedResultAtTimestamp(200)
+		_, _, err := h.interop.VerifiedResultAtTimestamp(200)
 		require.ErrorIs(t, err, ErrBeforeVerifiedDB)
 		require.NotErrorIs(t, err, ErrNotActive)
 		require.NotErrorIs(t, err, ethereum.NotFound)
@@ -1169,10 +1169,11 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, applyResultCompat(h.interop, result))
 
-		got, err := h.interop.VerifiedResultAtTimestamp(1001)
+		got, currentL1, err := h.interop.VerifiedResultAtTimestamp(1001)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1001), got.Timestamp)
 		require.NotEmpty(t, got.L2Heads)
+		require.Equal(t, h.interop.CurrentL1(), currentL1, "snapshot CurrentL1 must match the verifier's current L1")
 	})
 
 	t.Run("returns ethereum.NotFound after Rewind", func(t *testing.T) {
@@ -1189,14 +1190,14 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 		require.NoError(t, applyResultCompat(h.interop, result))
 
 		// Pre-rewind: present.
-		_, err = h.interop.VerifiedResultAtTimestamp(1001)
+		_, _, err = h.interop.VerifiedResultAtTimestamp(1001)
 		require.NoError(t, err)
 
 		// Rewind erases the entry.
 		_, err = h.interop.verifiedDB.Rewind(1001)
 		require.NoError(t, err)
 
-		_, err = h.interop.VerifiedResultAtTimestamp(1001)
+		_, _, err = h.interop.VerifiedResultAtTimestamp(1001)
 		require.ErrorIs(t, err, ethereum.NotFound)
 	})
 }
@@ -1205,7 +1206,7 @@ func TestNoopVerifiedResultReader(t *testing.T) {
 	t.Parallel()
 	var r VerifiedResultReader = NoopVerifiedResultReader{}
 	for _, ts := range []uint64{0, 1, 1000, 1 << 60} {
-		_, err := r.VerifiedResultAtTimestamp(ts)
+		_, _, err := r.VerifiedResultAtTimestamp(ts)
 		require.ErrorIs(t, err, ErrNotActive)
 	}
 }

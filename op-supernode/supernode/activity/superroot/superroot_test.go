@@ -115,12 +115,13 @@ var _ cc.ChainContainer = (*mockCC)(nil)
 // for pre-interop fallback, interop.ErrBeforeVerifiedDB for the
 // hard-error regime, or any other error for the default branch).
 type mockVerifiedReader struct {
-	result interop.VerifiedResult
-	err    error
+	result    interop.VerifiedResult
+	currentL1 eth.BlockID
+	err       error
 }
 
-func (m *mockVerifiedReader) VerifiedResultAtTimestamp(ts uint64) (interop.VerifiedResult, error) {
-	return m.result, m.err
+func (m *mockVerifiedReader) VerifiedResultAtTimestamp(ts uint64) (interop.VerifiedResult, eth.BlockID, error) {
+	return m.result, m.currentL1, m.err
 }
 
 // preInteropReader always reports the pre-interop fallback regime.
@@ -265,6 +266,7 @@ func TestSuperroot_AtTimestamp_VerifiedFromDB(t *testing.T) {
 				chainB: {Number: 200, Hash: hashB},
 			},
 		},
+		currentL1: eth.BlockID{Number: 2000},
 	}
 	s := newSuperroot(chains, reader)
 	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
@@ -312,6 +314,7 @@ func TestSuperroot_AtTimestamp_OutputRootByHashFails(t *testing.T) {
 			L1Inclusion: eth.BlockID{Number: 1000},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
 		},
+		currentL1: eth.BlockID{Number: 2000},
 	}
 	s := newSuperroot(chains, reader)
 	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
@@ -341,6 +344,7 @@ func TestSuperroot_AtTimestamp_DepSetSizeMismatch(t *testing.T) {
 			L1Inclusion: eth.BlockID{Number: 1000},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: common.HexToHash("0x01")}},
 		},
+		currentL1: eth.BlockID{Number: 2000},
 	}
 	s := newSuperroot(chains, reader)
 	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
@@ -375,6 +379,7 @@ func TestSuperroot_AtTimestamp_DepSetKeyMismatch(t *testing.T) {
 				chainC: {Number: 200, Hash: common.HexToHash("0x02")},
 			},
 		},
+		currentL1: eth.BlockID{Number: 2000},
 	}
 	s := newSuperroot(chains, reader)
 	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
@@ -392,8 +397,8 @@ func TestSuperroot_AtTimestamp_RewindRaceCouplingCheck(t *testing.T) {
 			optL1:          eth.BlockID{Number: 900},
 			byHashOutputs:  map[common.Hash]eth.Bytes32{hashA: {0xaa}},
 			byHashFallback: eth.Bytes32{0xee},
-			// Simulate the mid-rewind state: i.currentL1 has been dropped to zero
-			// while verifiedDB still has the entry.
+			// Simulate the mid-rewind state via the chain's CurrentL1:
+			// aggregate.CurrentL1=500 below VerifiedRequiredL1=1000.
 			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 500}},
 		},
 	}
@@ -403,6 +408,42 @@ func TestSuperroot_AtTimestamp_RewindRaceCouplingCheck(t *testing.T) {
 			L1Inclusion: eth.BlockID{Number: 1000},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
 		},
+		currentL1: eth.BlockID{Number: 2000},
+	}
+	s := newSuperroot(chains, reader)
+	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "rewind in flight")
+}
+
+// Simulates the rewind race detected via the verifier's snapshot CurrentL1:
+// chain CurrentL1 still reflects a stale pre-rewind value (race window
+// between syncstatus.Aggregate and the verifiedDB read), but the
+// VerifiedResultAtTimestamp snapshot caught currentL1 already dropped to zero.
+// The min(aggregate, snapshot) used by composeVerifiedData must trip the
+// coupling check.
+func TestSuperroot_AtTimestamp_RewindRaceViaSnapshotL1(t *testing.T) {
+	t.Parallel()
+	hashA := common.HexToHash("0x0a")
+	chainA := eth.ChainIDFromUInt64(10)
+	chains := map[eth.ChainID]cc.ChainContainer{
+		chainA: &mockCC{
+			optL2:          eth.BlockID{Number: 100, Hash: hashA},
+			optL1:          eth.BlockID{Number: 900},
+			byHashOutputs:  map[common.Hash]eth.Bytes32{hashA: {0xaa}},
+			byHashFallback: eth.Bytes32{0xee},
+			// Stale pre-rewind aggregate.
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+		},
+	}
+	reader := &mockVerifiedReader{
+		result: interop.VerifiedResult{
+			Timestamp:   123,
+			L1Inclusion: eth.BlockID{Number: 1000},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
+		},
+		// Atomic snapshot caught currentL1 already at zero.
+		currentL1: eth.BlockID{Number: 0},
 	}
 	s := newSuperroot(chains, reader)
 	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
@@ -443,6 +484,7 @@ func TestSuperroot_AtTimestamp_OptimisticErrorFailsRPC_VerifiedHit(t *testing.T)
 			L1Inclusion: eth.BlockID{Number: 1000},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainA: {Number: 100, Hash: hashA}},
 		},
+		currentL1: eth.BlockID{Number: 2000},
 	}
 	s := newSuperroot(chains, reader)
 	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)

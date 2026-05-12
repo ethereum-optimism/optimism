@@ -71,7 +71,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		return eth.SuperRootAtTimestampResponse{}, err
 	}
 
-	result, vrErr := s.verified.VerifiedResultAtTimestamp(timestamp)
+	result, verifierL1, vrErr := s.verified.VerifiedResultAtTimestamp(timestamp)
 
 	// Any chain-level error building the optimistic branch must fail the
 	// call: op-challenger reads OptimisticAtTimestamp at step>0 and a silent
@@ -91,9 +91,19 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		ChainIDs:                  aggregate.ChainIDs,
 	}
 
+	// When interop is engaged (verified entry or active-but-not-yet-verified
+	// regimes), use the lower of aggregate.CurrentL1 and the verifier's
+	// CurrentL1 observed atomically with the verifiedDB read. Reporting the
+	// snapshot L1 closes the race where aggregate's read happens to straddle
+	// a commit (entry-now-present but currentL1 not yet observed) or a
+	// rewind (currentL1 already dropped but aggregate captured a stale high
+	// value).
 	switch {
 	case vrErr == nil:
-		data, derr := s.composeVerifiedData(ctx, timestamp, result, aggregate)
+		if verifierL1.Number < response.CurrentL1.Number {
+			response.CurrentL1 = verifierL1
+		}
+		data, derr := s.composeVerifiedData(ctx, timestamp, result, response.CurrentL1)
 		if derr != nil {
 			return eth.SuperRootAtTimestampResponse{}, derr
 		}
@@ -103,6 +113,9 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		// Interop active at T but no VerifiedResult yet. Leave Data nil;
 		// the verifiedDB write gate guarantees CurrentL1 has not reached
 		// VerifiedRequiredL1(T).
+		if verifierL1.Number < response.CurrentL1.Number {
+			response.CurrentL1 = verifierL1
+		}
 		return response, nil
 	case errors.Is(vrErr, interop.ErrNotActive):
 		// Pre-interop: local-safe outputs cannot be invalidated, so the
@@ -152,7 +165,7 @@ func (s *Superroot) buildOptimisticBranch(ctx context.Context, timestamp uint64)
 // composeVerifiedData composes the post-interop Data from a VerifiedResult.
 // The verifiedDB entry pins per-chain canonical block hashes; per-chain output
 // roots come from a by-hash read against the L2 EL.
-func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, result interop.VerifiedResult, aggregate eth.SuperNodeSyncStatusResponse) (*eth.SuperRootResponseData, error) {
+func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, result interop.VerifiedResult, currentL1 eth.BlockID) (*eth.SuperRootResponseData, error) {
 	// Reject a dep-set mismatch: either side would yield a super root that
 	// disagrees with peers running the full dep set.
 	if len(result.L2Heads) != len(s.chains) {
@@ -178,12 +191,14 @@ func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, r
 		SuperRoot:          eth.SuperRoot(super),
 	}
 
-	// Detect a verifier rewind in flight: rewind drops the aggregate
+	// Detect a verifier rewind in flight: rewind drops the verifier's
 	// CurrentL1 to zero before deleting verifiedDB rows, so a stale
 	// verifiedDB entry can briefly outlive a CurrentL1 that has already
-	// fallen below VerifiedRequiredL1.
-	if aggregate.CurrentL1.Number < data.VerifiedRequiredL1.Number {
-		return nil, fmt.Errorf("rewind in flight at %d: CurrentL1=%d < VerifiedRequiredL1=%d", timestamp, aggregate.CurrentL1.Number, data.VerifiedRequiredL1.Number)
+	// fallen below VerifiedRequiredL1. currentL1 here is the
+	// min(aggregate, snapshot) — both views must agree the entry is
+	// reachable.
+	if currentL1.Number < data.VerifiedRequiredL1.Number {
+		return nil, fmt.Errorf("rewind in flight at %d: CurrentL1=%d < VerifiedRequiredL1=%d", timestamp, currentL1.Number, data.VerifiedRequiredL1.Number)
 	}
 	return data, nil
 }

@@ -1001,7 +1001,8 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return i.verifiedDB.Has(ts)
 }
 
-// VerifiedResultAtTimestamp returns the committed VerifiedResult for ts.
+// VerifiedResultAtTimestamp returns the committed VerifiedResult for ts plus
+// the verifier's CurrentL1 captured atomically with the verifiedDB read.
 //   - ts < activationTimestamp           → ErrNotActive
 //   - ts < firstVerifiableTimestamp      → ErrBeforeVerifiedDB
 //   - verifiedDB.Get returns ErrNotFound → ethereum.NotFound
@@ -1010,25 +1011,37 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 // The local ErrNotFound is translated to the standard ethereum.NotFound at the
 // public boundary so consumers can errors.Is against the standard sentinel
 // without taking a dependency on this package's private error.
-func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, error) {
+//
+// The atomic (verifiedDB, currentL1) snapshot lets callers report a
+// CurrentL1 that cannot disagree with the verifiedDB observation:
+//   - Commit ordering writes the entry before advancing currentL1, so a
+//     snapshot showing NotFound necessarily sees currentL1 from before the
+//     advance.
+//   - Rewind ordering zeros currentL1 before deleting entries, so a
+//     snapshot showing an entry mid-rewind sees currentL1=0 and the
+//     downstream rewind-race coupling check fails the call.
+func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.BlockID, error) {
 	if ts < i.activationTimestamp {
-		return VerifiedResult{}, ErrNotActive
+		return VerifiedResult{}, eth.BlockID{}, ErrNotActive
 	}
 	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
 	if err != nil {
-		return VerifiedResult{}, fmt.Errorf("resolve first verifiable: %w", err)
+		return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve first verifiable: %w", err)
 	}
 	if ts < firstVerifiable {
-		return VerifiedResult{}, ErrBeforeVerifiedDB
+		return VerifiedResult{}, eth.BlockID{}, ErrBeforeVerifiedDB
 	}
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	currentL1 := i.currentL1
 	result, err := i.verifiedDB.Get(ts)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return VerifiedResult{}, ethereum.NotFound
+			return VerifiedResult{}, currentL1, ethereum.NotFound
 		}
-		return VerifiedResult{}, err
+		return VerifiedResult{}, currentL1, err
 	}
-	return result, nil
+	return result, currentL1, nil
 }
 
 // IsActiveAt reports whether the interop verifier is responsible for verifying
