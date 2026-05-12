@@ -20,7 +20,9 @@ pub use key::{PreimageKey, PreimageKeyType};
 mod oracle;
 pub use oracle::{OracleReader, OracleServer};
 
+#[cfg(feature = "verify")]
 mod verifier;
+#[cfg(feature = "verify")]
 pub use verifier::{VerifyingPreimageFetcher, verify_preimage};
 
 mod hint;
