@@ -26,7 +26,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data: &eth.SuperRootResponseData{
 				VerifiedRequiredL1: l1Head,
@@ -47,7 +47,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data: &eth.SuperRootResponseData{
 				VerifiedRequiredL1: l1Head,
@@ -77,7 +77,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data: &eth.SuperRootResponseData{
 				VerifiedRequiredL1: eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xcc}},
@@ -98,7 +98,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 			Output:  eth.Bytes32{0xbb},
 		})
 		response := eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data: &eth.SuperRootResponseData{
 				VerifiedRequiredL1: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xcc}},
@@ -202,7 +202,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	t.Run("Step0ForTimestampBeyondChainHead", func(t *testing.T) {
 		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		stubSuperNode.AddAtTimestamp(poststateTimestamp, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
 		})
@@ -217,7 +217,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		prev, _ := createValidSuperNodeSuperRoots(l1Head)
 		stubSuperNode.Add(prev)
 		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  prev.ChainIDs,
 			Data:      nil,
 		})
@@ -235,7 +235,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		stubSuperNode.Add(prev)
 		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  prev.ChainIDs,
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				eth.ChainIDFromUInt64(2): next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)],
@@ -255,7 +255,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		prev, next := createValidSuperNodeSuperRoots(l1Head)
 		stubSuperNode.Add(prev)
 		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  next.ChainIDs,
 			OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 				eth.ChainIDFromUInt64(1): next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)],
@@ -278,12 +278,12 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 	t.Run("PreviousSuperRootTimestampBeyondChainHead", func(t *testing.T) {
 		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
 		stubSuperNode.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
 		})
 		stubSuperNode.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
-			CurrentL1: l1Head,
+			CurrentL1: inSyncCurrentL1(l1Head),
 			ChainIDs:  []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)},
 			Data:      nil,
 		})
@@ -424,6 +424,14 @@ func createSuperNodeProvider(t *testing.T) (*SuperNodeTraceProvider, *stubSuperN
 	return provider, stubSuperNode, l1Head
 }
 
+// inSyncCurrentL1 returns a CurrentL1 value that signals the supernode has
+// processed past the game's l1Head. CurrentL1 names the block currently being
+// processed, so any value strictly greater than l1Head means l1Head is fully
+// verified.
+func inSyncCurrentL1(l1Head eth.BlockID) eth.BlockID {
+	return eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xee}}
+}
+
 func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestampResponse, eth.SuperRootAtTimestampResponse) {
 	rng := rand.New(rand.NewSource(1))
 	outputA1 := testutils.RandomOutputV0(rng)
@@ -441,7 +449,7 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 		eth.ChainIDAndOutput{ChainID: chainID2, Output: eth.OutputRoot(outputB2)})
 
 	prevResponse := eth.SuperRootAtTimestampResponse{
-		CurrentL1: l1Head,
+		CurrentL1: inSyncCurrentL1(l1Head),
 		ChainIDs:  []eth.ChainID{chainID1, chainID2},
 		OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 			chainID1: {
@@ -462,7 +470,7 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 		},
 	}
 	nextResponse := eth.SuperRootAtTimestampResponse{
-		CurrentL1: l1Head,
+		CurrentL1: inSyncCurrentL1(l1Head),
 		ChainIDs:  []eth.ChainID{chainID1, chainID2},
 		OptimisticAtTimestamp: map[eth.ChainID]eth.OutputWithRequiredL1{
 			chainID1: {

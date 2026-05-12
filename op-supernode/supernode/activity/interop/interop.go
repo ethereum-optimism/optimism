@@ -976,8 +976,13 @@ func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult Verified
 	return i.verifiedDB.Commit(verifiedResult)
 }
 
-// CurrentL1 returns the L1 block which has been fully considered for interop,
-// whether or not it advanced the verified timestamp.
+// CurrentL1 returns the L1 block currently being processed by the interop
+// verifier. Every L1 block strictly below CurrentL1.Number has been fully
+// considered for interop (i.e. used to verify every L2 timestamp whose source
+// is at or below it); data at CurrentL1 itself may still be unverified, since
+// L1Inclusion is monotonic in L2 timestamp and the next unverified timestamp
+// can share the same L1 source. Consumers must require CurrentL1.Number > X
+// to treat L1[≤X] as fully verified.
 func (i *Interop) CurrentL1() eth.BlockID {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
