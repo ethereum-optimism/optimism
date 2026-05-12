@@ -72,7 +72,7 @@
     "sourceCodeHash": "0xea9fed192db1a7a1f39dd56ede98293e1bacc2275f58696e8b22f25f265be770"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xe92527f1ec67ed66b56994d25bc051166c99ee33a48e4755ab1934740a2a5184",
+    "initCodeHash": "0xd522a49139178ac64c3e383df2ee1e4e4ac1fc5060a39a124ad0062ac5d058c2",
     "sourceCodeHash": "0x129b7aeef5fa6a6ab6bf3e24b249cff81c45f1ce2f1a45767b280b35d46a2e02"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
