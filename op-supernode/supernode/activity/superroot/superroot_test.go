@@ -29,9 +29,6 @@ type mockCC struct {
 	outputErr     error
 	optimisticErr error
 	syncStatusErr error
-
-	gen        uint64                          // returned by Generation; tests bump this from hooks
-	syncStatus func() (*eth.SyncStatus, error) // when set, overrides SyncStatus(); used to bump gen mid-gather
 }
 
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
@@ -49,9 +46,6 @@ func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.
 	return eth.L2BlockRef{}, nil
 }
 func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	if m.syncStatus != nil {
-		return m.syncStatus()
-	}
 	if m.syncStatusErr != nil {
 		return nil, m.syncStatusErr
 	}
@@ -124,8 +118,6 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
 }
-
-func (m *mockCC) Generation() uint64 { return m.gen }
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
@@ -395,37 +387,3 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 
 // assertErr returns a generic error instance used to signal mock failures.
 func assertErr() error { return fmt.Errorf("mock error") }
-
-func TestSuperroot_AtTimestamp_GenChangedDuringGather_ReturnsInconsistentSnapshot(t *testing.T) {
-	t.Parallel()
-	chainID := eth.ChainIDFromUInt64(10)
-	mock := &mockCC{
-		verL2:  eth.BlockID{Number: 100},
-		verL1:  eth.BlockID{Number: 1000},
-		optL2:  eth.BlockID{Number: 100},
-		optL1:  eth.BlockID{Number: 1000},
-		output: eth.Bytes32{},
-		status: &eth.SyncStatus{
-			CurrentL1:   eth.L1BlockRef{Number: 2000},
-			LocalSafeL2: eth.L2BlockRef{Time: 200},
-			SafeL2:      eth.L2BlockRef{Time: 190},
-			FinalizedL2: eth.L2BlockRef{Time: 150},
-		},
-	}
-	// Bump gen on the first SyncStatus call so the handler's end-check
-	// observes a different value than at start.
-	bumped := false
-	mock.syncStatus = func() (*eth.SyncStatus, error) {
-		if !bumped {
-			bumped = true
-			mock.gen++
-		}
-		return mock.status, nil
-	}
-
-	chains := map[eth.ChainID]cc.ChainContainer{chainID: mock}
-	s := New(gethlog.New(), chains)
-	api := &superrootAPI{s: s}
-	_, err := api.AtTimestamp(context.Background(), 123)
-	require.ErrorIs(t, err, ErrInconsistentSnapshot)
-}

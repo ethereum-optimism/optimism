@@ -1029,6 +1029,5 @@ func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, 
 	return false, nil
 }
 func (m *algoMockChain) SetResetCallback(cb cc.ResetCallback) {}
-func (m *algoMockChain) Generation() uint64                   { return 0 }
 
 var _ cc.ChainContainer = (*algoMockChain)(nil)

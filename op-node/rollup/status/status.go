@@ -31,18 +31,13 @@ type StatusTracker struct {
 
 	metrics Metrics
 
-	// superAuthority, if non-nil, has NotifyPipelineReset called on every
-	// rollup.ResetEvent.
-	superAuthority rollup.SuperAuthority
-
 	mu sync.RWMutex
 }
 
-func NewStatusTracker(log log.Logger, metrics Metrics, superAuthority rollup.SuperAuthority) *StatusTracker {
+func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 	st := &StatusTracker{
-		log:            log,
-		metrics:        metrics,
-		superAuthority: superAuthority,
+		log:     log,
+		metrics: metrics,
 	}
 	st.data = eth.SyncStatus{}
 	st.published.Store(&eth.SyncStatus{})
@@ -78,10 +73,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.SafeL2 = eth.L2BlockRef{}
 		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
-		// Notify before UpdateSyncStatus below republishes the zeroed snapshot.
-		if st.superAuthority != nil {
-			st.superAuthority.NotifyPipelineReset()
-		}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe
 		st.data.CrossUnsafeL2 = x.CrossUnsafe

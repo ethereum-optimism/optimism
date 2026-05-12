@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +21,7 @@ func (m NoopMetrics) RecordL1Ref(name string, ref eth.L1BlockRef) {}
 
 func TestStatus(t *testing.T) {
 
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
 
 	status := tracker.SyncStatus()
 	require.Equal(t, eth.SyncStatus{}, *status)
@@ -66,7 +65,7 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
 	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    genesis,
 		SafeL2Head:      genesis,
@@ -77,39 +76,4 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.SafeL2)
 	require.Equal(t, genesis, status.LocalSafeL2)
 	require.Equal(t, genesis, status.FinalizedL2)
-}
-
-// stubSuperAuthority counts NotifyPipelineReset invocations.
-type stubSuperAuthority struct {
-	pipelineResets int
-}
-
-func (s *stubSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool)   { return eth.BlockID{}, true }
-func (s *stubSuperAuthority) FinalizedL2Head() (eth.BlockID, bool)       { return eth.BlockID{}, true }
-func (s *stubSuperAuthority) IsDenied(uint64, common.Hash) (bool, error) { return false, nil }
-func (s *stubSuperAuthority) NotifyPipelineReset()                       { s.pipelineResets++ }
-
-func TestNotifyPipelineReset_InvokedOnResetEvent(t *testing.T) {
-	sa := &stubSuperAuthority{}
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, sa)
-
-	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
-		SafeL2Head:      eth.L2BlockRef{Number: 102},
-		FinalizedL2Head: eth.L2BlockRef{Number: 99},
-	})
-	require.Equal(t, 0, sa.pipelineResets, "non-reset events must not notify")
-
-	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
-	require.Equal(t, 1, sa.pipelineResets)
-
-	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
-	require.Equal(t, 2, sa.pipelineResets, "every reset must notify")
-}
-
-func TestNotifyPipelineReset_NilSafe(t *testing.T) {
-	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{}, nil)
-	require.NotPanics(t, func() {
-		tracker.OnEvent(context.Background(), rollup.ResetEvent{})
-	})
 }

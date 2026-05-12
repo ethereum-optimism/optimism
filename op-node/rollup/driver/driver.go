@@ -53,7 +53,7 @@ func NewDriver(
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
-	statusTracker := status.NewStatusTracker(log, metrics, superAuthority)
+	statusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)

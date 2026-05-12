@@ -45,6 +45,4 @@ func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
 	return m.finalizedL2Head, false
 }
 
-func (m *mockSuperAuthority) NotifyPipelineReset() {}
-
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)
