@@ -1006,6 +1006,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         // this chain has opted out of ZKDisputeGame. In this case, there is nothing to validate.
         // Note: Even if the devFeatureBitmap is on for ZK_DISPUTE_GAME, we treat the deployment pipeline and
         // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
+        // ZK is the only per-chain opt-in game type; mandatory game types fail loud in getGameImplementation()
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
