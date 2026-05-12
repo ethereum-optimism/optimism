@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -632,7 +631,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
 	}
 
-	if err := c.logsDB.Rewind(reads.NoopRegistry{}, targetID); err != nil {
+	if err := c.logsDB.Rewind(targetID); err != nil {
 		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
 	}
 

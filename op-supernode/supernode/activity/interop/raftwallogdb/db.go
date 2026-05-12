@@ -18,7 +18,6 @@ import (
 	wal "github.com/hashicorp/raft-wal"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -407,15 +406,12 @@ func (d *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint
 	return nil
 }
 
-func (d *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+func (d *DB) Rewind(newHead eth.BlockID) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !d.hasBlocks {
-		return d.clearLocked(inv)
-	}
-	if newHead.Number < d.firstBlock {
-		return d.clearLocked(inv)
+	if !d.hasBlocks || newHead.Number < d.firstBlock {
+		return d.clearLocked()
 	}
 	if newHead.Number > d.latest.Number {
 		return fmt.Errorf("%w: cannot rewind to %s, latest is %s", types.ErrFuture, newHead, d.latest)
@@ -428,12 +424,6 @@ func (d *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	if rec.Hash != newHead.Hash {
 		return fmt.Errorf("%w: rewind target %s does not match stored hash %s", types.ErrConflict, newHead.Hash, rec.Hash)
 	}
-
-	release, err := inv.TryInvalidate(reads.DerivedInvalidation{Timestamp: rec.Timestamp})
-	if err != nil {
-		return err
-	}
-	defer release()
 
 	if newHead.Number < d.latest.Number {
 		if err := d.w.DeleteRange(indexFor(newHead.Number+1), indexFor(d.latest.Number)); err != nil {
@@ -449,18 +439,13 @@ func (d *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	return nil
 }
 
-func (d *DB) Clear(inv reads.Invalidator) error {
+func (d *DB) Clear() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.clearLocked(inv)
+	return d.clearLocked()
 }
 
-func (d *DB) clearLocked(inv reads.Invalidator) error {
-	release, err := inv.TryInvalidate(reads.DerivedInvalidation{Timestamp: 0})
-	if err != nil {
-		return err
-	}
-	defer release()
+func (d *DB) clearLocked() error {
 	if d.hasBlocks {
 		if err := d.w.DeleteRange(indexFor(d.firstBlock), indexFor(d.latest.Number)); err != nil && !errors.Is(err, raft.ErrLogNotFound) {
 			return fmt.Errorf("failed to clear raft-wal: %w", err)

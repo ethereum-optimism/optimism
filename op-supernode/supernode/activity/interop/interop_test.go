@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -2613,11 +2612,11 @@ func (m *mockLogsDBWithState) AddLog(logHash common.Hash, parentBlock eth.BlockI
 func (m *mockLogsDBWithState) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
-func (m *mockLogsDBWithState) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+func (m *mockLogsDBWithState) Rewind(newHead eth.BlockID) error {
 	m.rewindCalled = true
 	return nil
 }
-func (m *mockLogsDBWithState) Clear(inv reads.Invalidator) error {
+func (m *mockLogsDBWithState) Clear() error {
 	m.clearCalled++
 	return nil
 }
@@ -2717,11 +2716,11 @@ func (m *mockLogsDBForInterop) SealBlock(parentHash common.Hash, block eth.Block
 	m.sealCalls++
 	return nil
 }
-func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+func (m *mockLogsDBForInterop) Rewind(newHead eth.BlockID) error {
 	m.rewindCalls = append(m.rewindCalls, newHead)
 	return nil
 }
-func (m *mockLogsDBForInterop) Clear(inv reads.Invalidator) error {
+func (m *mockLogsDBForInterop) Clear() error {
 	m.clearCalls++
 	return nil
 }

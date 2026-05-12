@@ -852,7 +852,7 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 
 	if plan.TargetHeads == nil {
 		for chainID, db := range i.logsDBs {
-			if err := db.Clear(&noopInvalidator{}); err != nil {
+			if err := db.Clear(); err != nil {
 				i.log.Error("failed to clear logsDB on full rewind", "chain", chainID, "err", err)
 				recordErr(fmt.Errorf("chain %s: clear logsDB on full rewind: %w", chainID, err))
 			}
@@ -874,7 +874,7 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 		}
 		i.log.Info("rewinding logsDB to previous verified head",
 			"chain", chainID, "from", latestBlock, "to", expectedHead)
-		if err := db.Rewind(&noopInvalidator{}, expectedHead); err != nil {
+		if err := db.Rewind(expectedHead); err != nil {
 			i.log.Error("failed to rewind logsDB, transition preserved for retry",
 				"chain", chainID, "err", err)
 			recordErr(fmt.Errorf("chain %s: rewind logsDB to previous verified head: %w", chainID, err))
