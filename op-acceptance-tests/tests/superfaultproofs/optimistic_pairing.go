@@ -1,65 +1,184 @@
 package superfaultproofs
 
 import (
-	"math/rand"
-
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// RunSuperrootOptimisticPairingTest invalidates chain A's block at T and pins
-// the game L1 head between chain A's original-batch L1 inclusion and chain B's
-// at-T batch L1 inclusion. Kona derives chain A's original optimistic block
-// from the L1 batches at this L1 head; op-challenger should agree.
+// RunSuperrootOptimisticPairingTest exercises the OPTIMISTIC branch of the
+// super-root transition when chain A has a local-safe block at endTimestamp
+// whose exec message references a fabricated log in chain B's would-be
+// at-endTimestamp block.
 //
-// The bug it exposes (ethereum-optimism/optimism#20657): the supernode's
-// OptimisticAtTimestamp[A].RequiredL1 reflects the L1 at which the replacement
-// was cross-safe-promoted, not the L1 at which the original block was
-// local-safe. That cross-safe-promotion L1 is strictly later than the game L1
-// head here, so the trace provider short-circuits to InvalidTransition while
-// kona produces the proper transition.
+// Test sequencing builds an explicit L1 gap between chain A's batch and chain
+// B's batch so the supernode can clearly distinguish them. See
+// runOptimisticPairingTest for the full step-by-step setup.
 func RunSuperrootOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop) {
+	runOptimisticPairingTest(t, sys, true)
+}
+
+// RunSuperrootOptimisticPairingNoReplacementTest is the same scenario as
+// RunSuperrootOptimisticPairingTest except chain B's at-endTimestamp block is
+// never built or batched. Chain A's invalid block therefore stays local-safe
+// at endTimestamp forever and no replacement occurs.
+func RunSuperrootOptimisticPairingNoReplacementTest(t devtest.T, sys *presets.SimpleInterop) {
+	runOptimisticPairingTest(t, sys, false)
+}
+
+// l1GapBetweenChainBatches is the number of additional L1 blocks the test
+// waits after chain A's batch lands and before chain B's batch lands. The
+// gap ensures the supernode records distinct L1 inclusion blocks for each
+// chain's batch — without a gap the supernode greedily promotes both at the
+// same L1 and the timing window for ethereum-optimism/optimism#20657 closes.
+const l1GapBetweenChainBatches = 3
+
+func runOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withReplacement bool) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
-	rng := rand.New(rand.NewSource(20657))
+	t.Require().NotNil(sys.TestSequencer, "test sequencer is required for controlled block building")
 
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 	t.Require().Equal(chains[0].ID, sys.L2ChainA.ChainID(), "expected chain A as chains[0]")
 	t.Require().Equal(chains[1].ID, sys.L2ChainB.ChainID(), "expected chain B as chains[1]")
 
+	// --- Fund EOAs and deploy chain B's event logger while sequencers are
+	// still live. The fabricated invalid exec message references this address
+	// as Origin; the log itself will never exist.
 	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
-	aliceB := sys.FunderB.NewFundedEOA(eth.OneEther)
-	eventLoggerB := aliceB.DeployEventLogger()
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	eventLoggerB := bob.DeployEventLogger()
 
-	// Hold chain B's at-T batch until chain A's has landed, so the original
-	// chain A batch reaches L1 strictly before chain B's.
-	sys.L2BatcherB.Stop()
+	// --- Freeze chains: only TestSequencer advances unsafe, only explicit
+	// Batcher.Start/Stop advances local-safe.
+	freezeChains(chains)
 
-	initMsg := aliceB.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
-	execMsg := aliceA.SendInvalidExecMessage(initMsg)
-
-	execBlockNumA := bigs.Uint64Strict(execMsg.BlockNumber())
-	endTimestamp := sys.L2ChainA.TimestampForBlockNum(execBlockNumA)
+	// Drive both chains to startTimestamp and batch so both are local-safe
+	// AND (after consolidation) cross-safe at startTimestamp.
+	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1
+	advanceUnsafeToTimestamp(t, sys, chains, startTimestamp)
 
-	sys.L2CLA.Reached(types.LocalSafe, execBlockNumA, 30)
-	sys.L2BatcherB.Start()
+	l1HeadBeforeAnyBatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+	advanceSafeToCurrentUnsafe(t, chains[0])
+	l1HeadAfterPreSafeABatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+	advanceSafeToCurrentUnsafe(t, chains[1])
+	l1HeadAfterPreSafeBBatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
 
-	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	sys.L2CLA.Reached(types.CrossSafe, execBlockNumA, 30)
-	sys.L2ELA.AssertExecMessageNotInBlock(execMsg)
+	sys.SuperRoots.AwaitValidatedTimestamp(startTimestamp)
 
-	// L1 head one below chain B's at-T batch inclusion: chain A's at-T block
-	// (original or replacement) is derivable, chain B's is not.
-	chainBRequired := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp).
-		OptimisticAtTimestamp[chains[1].ID].RequiredL1
-	gameL1Head := sys.L1EL.BlockRefByNumber(chainBRequired.Number - 1).ID()
+	// --- Build chain A's at-endTimestamp block with a fabricated invalid
+	// exec message. nextTimestampAfterSafeHeads guarantees each chain's next
+	// scheduled block from here lands at endTimestamp.
+	unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	t.Require().Equalf(endTimestamp, unsafeA.Time+chains[0].Cfg.BlockTime,
+		"chain A's next scheduled block must land at endTimestamp %d (head time %d, blockTime %d)",
+		endTimestamp, unsafeA.Time, chains[0].Cfg.BlockTime)
+	t.Require().Equalf(endTimestamp, unsafeB.Time+chains[1].Cfg.BlockTime,
+		"chain B's next scheduled block must land at endTimestamp %d (head time %d, blockTime %d)",
+		endTimestamp, unsafeB.Time, chains[1].Cfg.BlockTime)
+	expectedBlockNumB := unsafeB.Number + 1
+
+	topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
+	msgHash := crypto.Keccak256Hash([]byte("optimistic pairing fabricated msg"))
+	fabricatedPayload := make([]byte, 0, 64)
+	fabricatedPayload = append(fabricatedPayload, topic.Bytes()...)
+	fabricatedPayload = append(fabricatedPayload, msgHash.Bytes()...)
+
+	fabricatedMsg := suptypes.Message{
+		Identifier: suptypes.Identifier{
+			Origin:      eventLoggerB,
+			BlockNumber: expectedBlockNumB,
+			LogIndex:    0,
+			Timestamp:   endTimestamp,
+			ChainID:     chains[1].ID,
+		},
+		PayloadHash: crypto.Keccak256Hash(fabricatedPayload),
+	}
+
+	execTx := dsl.SubmitExecForMessage(fabricatedMsg, aliceA)
+	txplan.WithStaticNonce(aliceA.PendingNonce())(execTx)
+	signedTx, err := execTx.Signed.Eval(t.Ctx())
+	t.Require().NoError(err, "failed to sign chain A invalid exec tx")
+	rawExecTx, err := signedTx.MarshalBinary()
+	t.Require().NoError(err, "failed to marshal chain A invalid exec tx")
+
+	sys.TestSequencer.SequenceBlockWithTxs(t, chains[0].ID, unsafeA.Hash, [][]byte{rawExecTx})
+	newHeadA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	t.Require().Equalf(endTimestamp, newHeadA.Time,
+		"chain A's invalid exec block must land at endTimestamp %d, got %d",
+		endTimestamp, newHeadA.Time)
+
+	// Batch chain A's at-endTimestamp block — A is now local-safe at endTimestamp.
+	l1HeadBeforeABatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+	advanceSafeToCurrentUnsafe(t, chains[0])
+	l1HeadAfterABatch := sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+
+	// Force an L1 gap so chain A's batch L1 is strictly less than chain B's.
+	for i := 0; i < l1GapBetweenChainBatches; i++ {
+		sys.L1Network.WaitForBlock()
+	}
+
+	// Capture game L1 head at the START of the gap window: any chain whose batch
+	// landed at-or-before this L1 should be derivable optimistically at gameL1Head.
+	gameL1Head := l1HeadAfterABatch
+
+	t.Logf("[optimistic-pairing] L1 heads during setup:"+
+		" before-any-batch=%d, after-preSafe-A=%d, after-preSafe-B=%d,"+
+		" before-A-at-end=%d, after-A-at-end=%d, gameL1Head=%d",
+		l1HeadBeforeAnyBatch.Number,
+		l1HeadAfterPreSafeABatch.Number,
+		l1HeadAfterPreSafeBBatch.Number,
+		l1HeadBeforeABatch.Number,
+		l1HeadAfterABatch.Number,
+		gameL1Head.Number,
+	)
+
+	var l1HeadBeforeBBatch, l1HeadAfterBBatch eth.BlockID
+	if withReplacement {
+		// Build chain B's empty at-endTimestamp block and batch it. By
+		// construction the batch lands at an L1 height strictly greater than
+		// gameL1Head (we waited l1GapBetweenChainBatches L1 blocks first).
+		sys.TestSequencer.SequenceBlock(t, chains[1].ID, unsafeB.Hash)
+		newHeadB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+		t.Require().Equalf(endTimestamp, newHeadB.Time,
+			"chain B's at-endTimestamp block must land at endTimestamp %d, got %d",
+			endTimestamp, newHeadB.Time)
+		l1HeadBeforeBBatch = sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+		advanceSafeToCurrentUnsafe(t, chains[1])
+		l1HeadAfterBBatch = sys.L1EL.BlockRefByLabel(eth.Unsafe).ID()
+
+		t.Logf("[optimistic-pairing] chain B batch L1 heads: before=%d after=%d",
+			l1HeadBeforeBBatch.Number, l1HeadAfterBBatch.Number)
+		t.Require().Greaterf(l1HeadBeforeBBatch.Number, gameL1Head.Number,
+			"chain B's batch must land strictly after gameL1Head=%d (was before-B=%d)",
+			gameL1Head.Number, l1HeadBeforeBBatch.Number)
+
+		// Wait for chain A's at-endTimestamp position to reach cross-safe via
+		// replacement.
+		sys.L2CLA.Reached(suptypes.CrossSafe, newHeadA.Number, 60)
+	}
+
+	// --- Setup diagnostics: report what the supernode currently sees for both
+	// timestamps and what L1 it ties each chain's optimistic output to.
+	prevRoot := sys.SuperRoots.SuperRootAtTimestamp(startTimestamp)
+	endRoot := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp)
+	logSuperRoot(t, "startTimestamp", startTimestamp, prevRoot, chains)
+	logSuperRoot(t, "endTimestamp", endTimestamp, endRoot, chains)
+
+	// Pre-condition assertion: prev super root must be fully verifiable at
+	// gameL1Head — otherwise the test setup itself is broken.
+	t.Require().NotNil(prevRoot.Data, "super root at startTimestamp must have data")
+	t.Require().LessOrEqualf(prevRoot.Data.VerifiedRequiredL1.Number, gameL1Head.Number,
+		"prev super root VerifiedRequiredL1 %d must be <= gameL1Head %d",
+		prevRoot.Data.VerifiedRequiredL1.Number, gameL1Head.Number)
 
 	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
 
@@ -90,73 +209,27 @@ func RunSuperrootOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop) 
 	runPairingTransitionTests(t, sys, tests, startTimestamp)
 }
 
-// RunSuperrootOptimisticPairingNoReplacementTest is the same scenario as
-// RunSuperrootOptimisticPairingTest but chain B's batcher is never restarted,
-// so chain B's at-T batch never lands on L1 and interop validation cannot
-// proceed. No replacement is generated; chain A's invalid block stays local-
-// safe at T. The game L1 head is pinned one L1 block past where chain A
-// reached local-safe.
-//
-// Same bug (ethereum-optimism/optimism#20657), independent of replacement:
-// because the supernode's safeDB only records cross-safe-promotion L1s,
-// chain A's optimistic block is never recorded with its local-safe L1, and
-// RequiredL1 ends up above the game L1 head — so the trace provider returns
-// InvalidTransition where kona builds the proper transition.
-func RunSuperrootOptimisticPairingNoReplacementTest(t devtest.T, sys *presets.SimpleInterop) {
-	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
-	rng := rand.New(rand.NewSource(20657))
-
-	chains := orderedChains(sys)
-	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
-	t.Require().Equal(chains[0].ID, sys.L2ChainA.ChainID(), "expected chain A as chains[0]")
-	t.Require().Equal(chains[1].ID, sys.L2ChainB.ChainID(), "expected chain B as chains[1]")
-
-	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
-	aliceB := sys.FunderB.NewFundedEOA(eth.OneEther)
-	eventLoggerB := aliceB.DeployEventLogger()
-
-	sys.L2BatcherB.Stop()
-
-	initMsg := aliceB.SendRandomInitMessage(rng, eventLoggerB, 2, 10)
-	execMsg := aliceA.SendInvalidExecMessage(initMsg)
-
-	execBlockNumA := bigs.Uint64Strict(execMsg.BlockNumber())
-	endTimestamp := sys.L2ChainA.TimestampForBlockNum(execBlockNumA)
-	startTimestamp := endTimestamp - 1
-
-	sys.L2CLA.Reached(types.LocalSafe, execBlockNumA, 30)
-
-	// Game head one L1 block past where chain A's invalid block became safe;
-	// chain B's batch never lands so its at-T block is not derivable.
-	gameL1Head := sys.L1Network.WaitForBlock().ID()
-
-	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
-
-	start := superRootAtTimestamp(t, chains, startTimestamp)
-	step1Trace := marshalTransition(start, 1, firstOptimistic)
-
-	tests := []*transitionTest{
-		{
-			Name:               "FirstChainOptimisticBlock",
-			AgreedClaim:        start.Marshal(),
-			DisputedClaim:      step1Trace,
-			DisputedTraceIndex: 0,
-			L1Head:             gameL1Head,
-			ClaimTimestamp:     endTimestamp,
-			ExpectValid:        true,
-		},
-		{
-			Name:               "SecondChainOptimisticBlock-Invalid",
-			AgreedClaim:        step1Trace,
-			DisputedClaim:      super.InvalidTransition,
-			DisputedTraceIndex: 1,
-			L1Head:             gameL1Head,
-			ClaimTimestamp:     endTimestamp,
-			ExpectValid:        true,
-		},
+// logSuperRoot prints a compact summary of what the supernode returned for
+// SuperRootAtTimestamp(ts) — current L1, verified-required L1, and each
+// chain's optimistic-output RequiredL1.
+func logSuperRoot(t devtest.T, label string, ts uint64, resp eth.SuperRootAtTimestampResponse, chains []*chain) {
+	t.Logf("[optimistic-pairing] superroot_atTimestamp(%s=%d): CurrentL1=%d CurrentSafeTimestamp=%d CurrentLocalSafeTimestamp=%d",
+		label, ts, resp.CurrentL1.Number, resp.CurrentSafeTimestamp, resp.CurrentLocalSafeTimestamp)
+	if resp.Data != nil {
+		t.Logf("[optimistic-pairing] superroot_atTimestamp(%s).Data: VerifiedRequiredL1=%d SuperRoot=%s",
+			label, resp.Data.VerifiedRequiredL1.Number, resp.Data.SuperRoot)
+	} else {
+		t.Logf("[optimistic-pairing] superroot_atTimestamp(%s).Data is nil (some chain has no verified block here)", label)
 	}
-
-	runPairingTransitionTests(t, sys, tests, startTimestamp)
+	for _, c := range chains {
+		out, ok := resp.OptimisticAtTimestamp[c.ID]
+		if !ok {
+			t.Logf("[optimistic-pairing] superroot_atTimestamp(%s) OptimisticAtTimestamp[chain %s]: MISSING", label, c.ID)
+			continue
+		}
+		t.Logf("[optimistic-pairing] superroot_atTimestamp(%s) OptimisticAtTimestamp[chain %s]: RequiredL1=%d OutputRoot=%s BlockHash=%s",
+			label, c.ID, out.RequiredL1.Number, out.OutputRoot, out.Output.BlockHash)
+	}
 }
 
 func runPairingTransitionTests(t devtest.T, sys *presets.SimpleInterop, tests []*transitionTest, startTimestamp uint64) {
