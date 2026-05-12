@@ -764,6 +764,12 @@ jobs:
           working_directory: rust/kona/bin/client
           no_output_timeout: 40m
           command: |
+            # Pre-create the workspace target dir as the circleci user. Without
+            # this, `just build-cannon-client` (invoked inside run-client-cannon-offline)
+            # runs Docker as root and creates `rust/target/` with root ownership,
+            # which then breaks the subsequent native `cargo build --bin kona-host`
+            # with EACCES when it tries to create `target/debug`.
+            mkdir -p ../../../target
             just run-client-cannon-offline \
               $BLOCK_NUMBER \
               $L2_CLAIM \
