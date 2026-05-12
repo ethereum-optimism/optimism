@@ -17,23 +17,6 @@ import (
 // Superroot composes the super-root at a given timestamp across the
 // configured dep set, returning aggregated sync status and the per-chain
 // optimistic outputs alongside.
-//
-// Four regimes coexist in atTimestamp, distinguished by the error returned
-// from interop.VerifiedResultReader:
-//   - Pre-activation (ErrNotActive): Data is composed from per-chain
-//     optimistic outputs. Pre-interop, local-safe blocks cannot be
-//     invalidated, so the optimistic outputs are canonical.
-//   - Post-activation but below firstVerifiable (ErrBeforeVerifiedDB): the
-//     verifier will not produce a result for this T on this node, and the
-//     deny-list state needed to reconstruct the canonical output from
-//     optimistic data is not available. Fail the call.
-//   - Verified entry available: Data is sourced from the VerifiedResult plus
-//     EL-by-hash reads. Callers gate trust on CurrentL1 >= VerifiedRequiredL1.
-//   - Active but not yet committed (ethereum.NotFound): Data == nil.
-//
-// CurrentL1 in the response is the lower of aggregate.CurrentL1 and the
-// verifier's CurrentL1 captured atomically with the verifiedDB read, so it
-// never overstates verifier progress.
 type Superroot struct {
 	log      gethlog.Logger
 	chains   map[eth.ChainID]cc.ChainContainer
