@@ -1158,9 +1158,6 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 
 	t.Run("returns ErrNotStarted when Start has not populated i.ctx", func(t *testing.T) {
 		h := newInteropTestHarness(t).Build()
-		// Supernode registers the RPC API before scheduling Start, so a
-		// caller can reach this method between AddAPI and the Start
-		// goroutine running. Simulate that window by clearing i.ctx.
 		h.interop.ctx = nil
 		_, _, err := h.interop.VerifiedResultAtTimestamp(h.interop.activationTimestamp + 1)
 		require.ErrorIs(t, err, ErrNotStarted)

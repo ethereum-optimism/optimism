@@ -102,11 +102,8 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		}
 		return response, nil
 	case errors.Is(vrErr, interop.ErrNotActive), errors.Is(vrErr, interop.ErrBeforeVerifiedDB), errors.Is(vrErr, interop.ErrNotStarted):
-		// Pre-activation, post-activation but below the verifier's first
-		// verifiable timestamp on this node, or interop activity not yet
-		// started. All three regimes are already covered by pre-interop
-		// consensus, the safe-head startup handoff, or a subsequent retry
-		// once Start has run, so the optimistic outputs are canonical.
+		// Optimistic outputs are canonical: pre-interop consensus,
+		// safe-head handoff, or pre-Start retry path.
 		response.Data = composeHandoffDataFromOptimistic(timestamp, s.chains, optimisticBranch)
 		return response, nil
 	default:

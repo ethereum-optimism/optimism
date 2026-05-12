@@ -578,10 +578,7 @@ func TestSuperroot_AtTimestamp_PreInteropFallback_NoSecondFetch(t *testing.T) {
 	require.NotNil(t, resp.Data)
 }
 
-// ErrNotStarted is returned during the startup window after AddAPI has
-// registered the RPC but before the interop activity's Start goroutine has
-// populated its context. Route it to the same optimistic fallback so the
-// response is composed rather than failing the call.
+// ErrNotStarted routes to the optimistic-composition fallback.
 func TestSuperroot_AtTimestamp_InteropNotStarted_ComposesFromOptimistic(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
