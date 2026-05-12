@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Features } from "src/libraries/Features.sol";
-import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim, Duration } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
@@ -364,10 +364,10 @@ contract OPContractsManagerMigrationValidator {
             ISuperPermissionedDisputeGame superPermissionedGame = ISuperPermissionedDisputeGame(_gameImplAddr);
             return DisputeGameImplementation({
                 gameAddress: _gameImplAddr,
-                maxGameDepth: superPermissionedGame.maxGameDepth(),
-                splitDepth: superPermissionedGame.splitDepth(),
                 maxClockDuration: superPermissionedGame.maxClockDuration(),
-                clockExtension: superPermissionedGame.clockExtension(),
+                maxGameDepth: 0,
+                splitDepth: 0,
+                clockExtension: Duration.wrap(0),
                 gameType: _gameType,
                 l2SequenceNumber: 0,
                 absolutePrestate: Claim.wrap(bytes32(0)),

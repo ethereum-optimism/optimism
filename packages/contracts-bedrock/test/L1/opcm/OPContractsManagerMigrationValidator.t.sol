@@ -431,36 +431,6 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
         assertEq("MIG-SPDG-GARGS-10", _validateMigration(true));
     }
 
-    /// @notice MIG-SPDG-100: Wrong maxGameDepth on SPDG game impl.
-    function test_validate_spdg100WrongMaxGameDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-100", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-90: Wrong splitDepth on SPDG game impl.
-    function test_validate_spdg90WrongSplitDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-90", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-80: Wrong clockExtension on SPDG game impl.
-    function test_validate_spdg80WrongClockExtension_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-80", _validateMigration(true));
-    }
-
     /// @notice MIG-SPDG-110: Wrong maxClockDuration on SPDG game impl.
     function test_validate_spdg110WrongMaxClockDuration_succeeds() public {
         vm.mockCall(

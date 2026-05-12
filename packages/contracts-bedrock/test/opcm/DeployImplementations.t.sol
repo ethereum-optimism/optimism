@@ -112,21 +112,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
             // Validate constructor args for SuperPermissionedDisputeGame
             assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                73,
-                "SuperPermissionedDisputeGame maxGameDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(),
-                30,
-                "SuperPermissionedDisputeGame splitDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                10800,
-                "SuperPermissionedDisputeGame clockExtension incorrect"
-            );
-            assertEq(
                 output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
                 302400,
                 "SuperPermissionedDisputeGame maxClockDuration incorrect"
@@ -313,19 +298,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 "SuperDG maxClockDuration"
             );
 
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                _faultGameV2MaxGameDepth,
-                "PSuperDG maxGameDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                uint64(_faultGameV2ClockExtension),
-                "PSuperDG clockExtension"
-            );
             assertEq(
                 output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),

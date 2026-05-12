@@ -155,6 +155,9 @@ func TestCLIValidate(t *testing.T) {
 		runner.ExpectErrorContains(t, []string{
 			"validate", "auto",
 			"--workdir", workDir,
-		}, nil, "l1-rpc-url")
+		}, map[string]string{
+			"L1_RPC_URL":  "",
+			"ETH_RPC_URL": "",
+		}, "l1-rpc-url")
 	})
 }

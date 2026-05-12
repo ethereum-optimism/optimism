@@ -85,9 +85,6 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(gameProxy.proposer(), PROPOSER);
         assertEq(gameProxy.challenger(), CHALLENGER);
-        assertEq(gameProxy.maxGameDepth(), 2 ** 3);
-        assertEq(gameProxy.splitDepth(), 2 ** 2);
-        assertEq(gameProxy.clockExtension().raw(), 3 hours);
         assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
     }
 
