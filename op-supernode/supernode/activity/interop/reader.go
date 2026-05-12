@@ -11,18 +11,17 @@ import (
 var ErrNotActive = errors.New("interop not active for timestamp")
 
 // ErrBeforeVerifiedDB signals that ts is post-activation but below the
-// verifier's first verifiable timestamp on this node. No VerifiedResult will
-// ever be produced for ts here, and the deny-list state needed to reproduce
-// the canonical super root from optimistic data is not available either. The
-// supernode cannot answer the call.
+// verifier's first verifiable timestamp on this node. The timestamp is
+// already covered by the safe-head startup handoff: no VerifiedResult will
+// be produced here, but callers can treat optimistic outputs as canonical.
 var ErrBeforeVerifiedDB = errors.New("timestamp below verified-db start")
 
 // VerifiedResultReader exposes committed VerifiedResults to non-interop
 // activities. Errors discriminate the regime:
 //   - nil:                  verified entry returned
 //   - ErrNotActive:         pre-activation; compose from optimistic outputs
-//   - ErrBeforeVerifiedDB:  post-activation but below firstVerifiable; not
-//     answerable on this node
+//   - ErrBeforeVerifiedDB:  post-activation but below firstVerifiable; the
+//     handoff covers ts, so compose from optimistic outputs
 //   - ethereum.NotFound:    verifier may eventually produce a result but has
 //     not yet — return Data = nil and let CurrentL1 communicate progress
 //

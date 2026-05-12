@@ -43,13 +43,13 @@ type mockCC struct {
 	byHashCalled   int
 }
 
-func (m *mockCC) Start(ctx context.Context) error          { return nil }
-func (m *mockCC) Stop(ctx context.Context) error           { return nil }
-func (m *mockCC) Pause(ctx context.Context) error          { return nil }
-func (m *mockCC) Resume(ctx context.Context) error         { return nil }
-func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) Start(ctx context.Context) error                  { return nil }
+func (m *mockCC) Stop(ctx context.Context) error                   { return nil }
+func (m *mockCC) Pause(ctx context.Context) error                  { return nil }
+func (m *mockCC) Resume(ctx context.Context) error                 { return nil }
+func (m *mockCC) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockCC) VerifierCurrentL1s() []eth.BlockID                 { return m.verifierL1s }
+func (m *mockCC) VerifierCurrentL1s() []eth.BlockID                { return m.verifierL1s }
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
@@ -87,8 +87,8 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	return nil, nil, nil
 }
-func (m *mockCC) ID() eth.ChainID                                                { return eth.ChainIDFromUInt64(10) }
-func (m *mockCC) BlockTime() uint64                                              { return 1 }
+func (m *mockCC) ID() eth.ChainID   { return eth.ChainIDFromUInt64(10) }
+func (m *mockCC) BlockTime() uint64 { return 1 }
 func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	return &eth.OutputV0{}, nil
 }
@@ -106,6 +106,7 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
 }
+func (m *mockCC) Generation() uint64 { return 0 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
@@ -577,9 +578,12 @@ func TestSuperroot_AtTimestamp_PreInteropFallback_NoSecondFetch(t *testing.T) {
 	require.NotNil(t, resp.Data)
 }
 
-// ------ Below-verified-db hard-error tests ------
+// ------ Below-verified-db handoff tests ------
 
-func TestSuperroot_AtTimestamp_BelowVerifiedDB_FailsRPC(t *testing.T) {
+// Below firstVerifiable, the safe-head startup handoff guarantees the
+// optimistic outputs are canonical, so Data is composed from them rather
+// than returning an error.
+func TestSuperroot_AtTimestamp_BelowVerifiedDB_ComposesFromOptimistic(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
@@ -591,9 +595,9 @@ func TestSuperroot_AtTimestamp_BelowVerifiedDB_FailsRPC(t *testing.T) {
 	}
 	reader := &mockVerifiedReader{err: interop.ErrBeforeVerifiedDB}
 	s := newSuperroot(chains, reader)
-	_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
-	require.Error(t, err)
-	require.ErrorIs(t, err, interop.ErrBeforeVerifiedDB)
+	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Data)
 }
 
 // assertErr returns a generic error instance used to signal mock failures.

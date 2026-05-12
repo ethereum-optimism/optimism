@@ -101,17 +101,13 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			response.CurrentL1 = verifierL1
 		}
 		return response, nil
-	case errors.Is(vrErr, interop.ErrNotActive):
-		// Pre-interop: local-safe outputs cannot be invalidated, so the
-		// optimistic outputs are canonical.
-		response.Data = composePreInteropDataFromOptimistic(timestamp, s.chains, optimisticBranch)
+	case errors.Is(vrErr, interop.ErrNotActive), errors.Is(vrErr, interop.ErrBeforeVerifiedDB):
+		// Pre-activation or post-activation but below the verifier's
+		// first verifiable timestamp on this node. Both regimes are
+		// already covered by pre-interop consensus or by the safe-head
+		// startup handoff, so the optimistic outputs are canonical.
+		response.Data = composeHandoffDataFromOptimistic(timestamp, s.chains, optimisticBranch)
 		return response, nil
-	case errors.Is(vrErr, interop.ErrBeforeVerifiedDB):
-		// Post-activation but below the verifier's first verifiable
-		// timestamp on this node. No entry will ever be written for T,
-		// and we have no deny-list data to reconstruct the canonical
-		// output from optimistic state — the call cannot be answered.
-		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("timestamp %d is below verified-db start on this node: %w", timestamp, vrErr)
 	default:
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("read verifiedDB at %d: %w", timestamp, vrErr)
 	}
@@ -176,9 +172,11 @@ func (s *Superroot) composeVerifiedData(ctx context.Context, timestamp uint64, r
 	}, nil
 }
 
-// composePreInteropDataFromOptimistic builds Data from the optimistic map.
-// Returns nil if any chain is missing from the map (chain hasn't derived T).
-func composePreInteropDataFromOptimistic(timestamp uint64, chains map[eth.ChainID]cc.ChainContainer, optimisticBranch map[eth.ChainID]eth.OutputWithRequiredL1) *eth.SuperRootResponseData {
+// composeHandoffDataFromOptimistic builds Data from the optimistic map. Used
+// for pre-activation and below-firstVerifiable regimes, where the safe-head
+// handoff guarantees the optimistic outputs are canonical. Returns nil if
+// any chain is missing from the map (chain hasn't derived T).
+func composeHandoffDataFromOptimistic(timestamp uint64, chains map[eth.ChainID]cc.ChainContainer, optimisticBranch map[eth.ChainID]eth.OutputWithRequiredL1) *eth.SuperRootResponseData {
 	if len(optimisticBranch) != len(chains) {
 		return nil
 	}

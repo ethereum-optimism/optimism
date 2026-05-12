@@ -168,36 +168,6 @@ func (m *mockEngineController) Close() error {
 
 var _ engine_controller.EngineController = (*mockEngineController)(nil)
 
-// mockVerificationActivity is a mock implementation of activity.VerificationActivity
-type mockVerificationActivity struct {
-	name                      string
-	currentL1Result           eth.BlockID
-	verifiedAtTimestampResult bool
-	verifiedAtTimestampErr    error
-}
-
-func (m *mockVerificationActivity) Name() string {
-	return m.name
-}
-
-func (m *mockVerificationActivity) CurrentL1() eth.BlockID {
-	return m.currentL1Result
-}
-
-func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) {
-	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
-}
-
-func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
-	return eth.BlockID{}, 0
-}
-func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
-}
-func (m *mockVerificationActivity) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
-	return eth.BlockID{}, 0
-}
-func (m *mockVerificationActivity) IsActiveAt(ts uint64) bool { return true }
-
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
