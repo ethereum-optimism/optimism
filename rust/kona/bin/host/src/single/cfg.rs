@@ -15,6 +15,7 @@ use kona_cli::cli_styles;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
+    VerifyingPreimageFetcher,
 };
 use kona_proof::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
@@ -171,7 +172,7 @@ impl SingleChainHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(OfflineHostBackend::new(kv_store)),
+                    Arc::new(VerifyingPreimageFetcher::new(OfflineHostBackend::new(kv_store))),
                 )
                 .start()
                 .await
@@ -191,7 +192,7 @@ impl SingleChainHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(backend),
+                    Arc::new(VerifyingPreimageFetcher::new(backend)),
                 )
                 .start()
                 .await

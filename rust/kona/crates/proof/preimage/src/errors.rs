@@ -17,6 +17,9 @@ pub enum PreimageOracleError {
     /// Key not found.
     #[error("Key not found.")]
     KeyNotFound,
+    /// The preimage returned by the fetcher does not hash to the requested key.
+    #[error("Incorrect preimage data: hash does not match requested key.")]
+    IncorrectData,
     /// Timeout while waiting for preimage.
     #[error("Timeout while waiting for preimage.")]
     Timeout,

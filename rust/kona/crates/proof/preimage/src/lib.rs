@@ -20,6 +20,9 @@ pub use key::{PreimageKey, PreimageKeyType};
 mod oracle;
 pub use oracle::{OracleReader, OracleServer};
 
+mod verifier;
+pub use verifier::{VerifyingPreimageFetcher, verify_preimage};
+
 mod hint;
 pub use hint::{HintReader, HintWriter};
 

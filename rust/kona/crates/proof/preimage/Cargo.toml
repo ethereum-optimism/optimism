@@ -17,6 +17,7 @@ tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 alloy-primitives.workspace = true
+sha2.workspace = true
 
 # `std` feature dependencies
 async-channel = { workspace = true, optional = true }
