@@ -1,6 +1,13 @@
-# E2E Testing: op-wheel rewind-reth
+# op-wheel rewind-reth
 
-End-to-end test to verify `op-wheel engine rewind-reth offline` properly rewinds a reth node.
+`op-wheel engine rewind-reth offline` performs an offline rewind of a stopped
+reth node by shelling out to `reth stage unwind to-block <N>`. The companion
+`engine reth-head` / `engine reth-state` commands wrap `reth db
+stage-checkpoints get` and `reth db state` for inspecting the datadir offline.
+
+Unit tests in `op-wheel/engine/reth_test.go` cover argument construction and
+subprocess exit-code handling, but they cannot detect drift in reth's CLI
+surface. The recipe below is the manual validation against a real reth binary.
 
 ## Prerequisites
 
