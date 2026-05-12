@@ -430,7 +430,6 @@ func TestValidateMessageTiming(t *testing.T) {
 		inclusionTimestamp  uint64
 		messageExpiryWindow uint64
 		timeout             uint64
-		execTimestamp       uint64
 		wantErr             bool
 		errContains         string
 	}{
@@ -440,7 +439,6 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  150,
 			messageExpiryWindow: 100,
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             false,
 		},
 		{
@@ -449,17 +447,15 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  200,
 			messageExpiryWindow: 100, // expiresAt = 200
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             false,
 		},
 		{
 			name:                "valid: with timeout, message expires after deadline",
 			initTimestamp:       100,
 			inclusionTimestamp:  150,
-			messageExpiryWindow: 100, // expiresAt = 200
-			timeout:             40,  // maxExecTs = 150 + 40 = 190
-			execTimestamp:       150, // 200 >= 190, valid
-			wantErr:             false,
+			messageExpiryWindow: 100,   // expiresAt = 200
+			timeout:             40,    // maxExecTs = 150 + 40 = 190
+			wantErr:             false, // 200 >= 190, valid
 		},
 		{
 			name:                "invalid: init timestamp equals inclusion",
@@ -467,7 +463,6 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  100,
 			messageExpiryWindow: 100,
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             true,
 			errContains:         "not before inclusion",
 		},
@@ -477,7 +472,6 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  100,
 			messageExpiryWindow: 100,
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             true,
 			errContains:         "not before inclusion",
 		},
@@ -487,7 +481,6 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  ^uint64(0),
 			messageExpiryWindow: 100, // will overflow
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             true,
 			errContains:         "overflow in expiry calculation",
 		},
@@ -497,17 +490,15 @@ func TestValidateMessageTiming(t *testing.T) {
 			inclusionTimestamp:  250,
 			messageExpiryWindow: 100, // expiresAt = 200 < 250
 			timeout:             0,
-			execTimestamp:       0,
 			wantErr:             true,
-			errContains:         "expired",
+			errContains:         "expire before timeout",
 		},
 		{
 			name:                "invalid: timeout overflow",
 			initTimestamp:       100,
-			inclusionTimestamp:  150,
+			inclusionTimestamp:  ^uint64(0) - 10, // will overflow when added to timeout
 			messageExpiryWindow: 100,
-			timeout:             ^uint64(0),      // max uint64
-			execTimestamp:       ^uint64(0) - 10, // will overflow when added to timeout
+			timeout:             ^uint64(0), // max uint64
 			wantErr:             true,
 			errContains:         "overflow in max exec timestamp",
 		},
@@ -515,20 +506,18 @@ func TestValidateMessageTiming(t *testing.T) {
 			name:                "invalid: expires before timeout deadline",
 			initTimestamp:       100,
 			inclusionTimestamp:  150,
-			messageExpiryWindow: 100, // expiresAt = 200
-			timeout:             51,  // maxExecTs = 150 + 51 = 201
-			execTimestamp:       150, // 200 < 201, invalid
-			wantErr:             true,
+			messageExpiryWindow: 100,  // expiresAt = 200
+			timeout:             51,   // maxExecTs = 150 + 51 = 201
+			wantErr:             true, // 200 < 201, invalid
 			errContains:         "expire before timeout",
 		},
 		{
 			name:                "valid: expires exactly at timeout deadline",
 			initTimestamp:       100,
 			inclusionTimestamp:  150,
-			messageExpiryWindow: 100, // expiresAt = 200
-			timeout:             50,  // maxExecTs = 150 + 50 = 200
-			execTimestamp:       150, // 200 >= 200, valid (equal is ok)
-			wantErr:             false,
+			messageExpiryWindow: 100,   // expiresAt = 200
+			timeout:             50,    // maxExecTs = 150 + 50 = 200
+			wantErr:             false, // 200 >= 200, valid (equal is ok)
 		},
 	}
 
@@ -539,7 +528,6 @@ func TestValidateMessageTiming(t *testing.T) {
 				tt.inclusionTimestamp,
 				tt.messageExpiryWindow,
 				tt.timeout,
-				tt.execTimestamp,
 			)
 			if tt.wantErr {
 				require.Error(t, err)

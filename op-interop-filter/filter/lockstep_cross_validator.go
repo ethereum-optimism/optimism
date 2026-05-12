@@ -127,9 +127,11 @@ func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 //   - timeout: optional max execution delay (0 = disabled)
 //   - execTimestamp: execution timestamp (only used if timeout > 0)
 func validateMessageTiming(
-	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
+	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout uint64,
 ) error {
 	// Rule 1: init must be strictly before inclusion
+	// geoknee: seems like we won't allow it in the mempool even if it would be invalid
+	// now, even if it were to become valid before the timeout
 	if initTimestamp >= inclusionTimestamp {
 		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
 			initTimestamp, inclusionTimestamp, types.ErrConflict)
@@ -142,26 +144,21 @@ func validateMessageTiming(
 			initTimestamp, messageExpiryWindow, types.ErrConflict)
 	}
 
-	// Rule 3: message must not be expired at inclusion
-	if expiresAt < inclusionTimestamp {
-		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
-			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
+	// We want to allow for the message to be included any time from (now) to (now + timeout)
+	// So compute the max inclusion time and rerun the checks against the expiry window
+	maxInclusionTimestamp := inclusionTimestamp + timeout
+	if maxInclusionTimestamp < inclusionTimestamp {
+		return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
+			inclusionTimestamp, timeout, types.ErrConflict)
 	}
 
-	// Rule 4: if timeout set, message must not expire before timeout deadline
-	if timeout > 0 {
-		maxExecTimestamp := execTimestamp + timeout
-		if maxExecTimestamp < execTimestamp {
-			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
-				execTimestamp, timeout, types.ErrConflict)
-		}
-		if expiresAt < maxExecTimestamp {
-			return fmt.Errorf("initiating message will expire before timeout: "+
-				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
-				initTimestamp, messageExpiryWindow, expiresAt,
-				execTimestamp, timeout, maxExecTimestamp,
-				types.ErrConflict)
-		}
+	// Rule 3: message must not be expired at inclusion
+	if expiresAt < maxInclusionTimestamp {
+		return fmt.Errorf("initiating message will expire before timeout: "+
+			"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
+			initTimestamp, messageExpiryWindow, expiresAt,
+			inclusionTimestamp, timeout, maxInclusionTimestamp,
+			types.ErrConflict)
 	}
 
 	return nil
@@ -199,7 +196,6 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 		execDescriptor.Timestamp,
 		v.messageExpiryWindow,
 		execDescriptor.Timeout,
-		execDescriptor.Timestamp,
 	); err != nil {
 		return err
 	}
@@ -234,7 +230,7 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 		execMsg.Timestamp,
 		inclusionTimestamp,
 		v.messageExpiryWindow,
-		0, 0, // no timeout
+		0, // no timeout
 	); err != nil {
 		return err
 	}
