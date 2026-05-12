@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -1022,8 +1021,8 @@ func (m *algoMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, lo
 func (m *algoMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
-func (m *algoMockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
-func (m *algoMockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
+func (m *algoMockLogsDB) Rewind(newHead eth.BlockID) error { return nil }
+func (m *algoMockLogsDB) Clear() error                     { return nil }
 func (m *algoMockLogsDB) Close() error                                            { return nil }
 
 var _ LogsDB = (*algoMockLogsDB)(nil)

@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -36,27 +35,15 @@ type LogsDB interface {
 	// SealBlock seals a block in the database.
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 	// Rewind removes all blocks after newHead from the database.
-	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
+	Rewind(newHead eth.BlockID) error
 	// Clear removes all data from the database.
-	Clear(inv reads.Invalidator) error
+	Clear() error
 	// Close closes the database.
 	Close() error
 }
 
 // Compile-time check that *raftwallogdb.DB implements LogsDB.
 var _ LogsDB = (*raftwallogdb.DB)(nil)
-
-// noopInvalidator implements reads.Invalidator as a no-op.
-// Used for rewind operations where we don't need cache invalidation.
-// noopInvalidator is a stub needed to use the logs.DB.Rewind method.
-// read-handle invalidation is not currently used
-type noopInvalidator struct{}
-
-func (n *noopInvalidator) TryInvalidate(rule reads.InvalidationRule) (release func(), err error) {
-	return func() {}, nil
-}
-
-var _ reads.Invalidator = (*noopInvalidator)(nil)
 
 // openLogsDB opens a raft-wal-backed LogsDB for the given chain in the data directory.
 func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB, error) {

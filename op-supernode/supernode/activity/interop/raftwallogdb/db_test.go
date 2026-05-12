@@ -7,17 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
-
-type noopInvalidator struct{}
-
-func (noopInvalidator) TryInvalidate(reads.InvalidationRule) (func(), error) {
-	return func() {}, nil
-}
-
-var inv reads.Invalidator = noopInvalidator{}
 
 func hash(b byte) common.Hash {
 	var h common.Hash
@@ -109,7 +100,7 @@ func TestRewind(t *testing.T) {
 	}
 
 	target := blockID(3, 0x03)
-	require.NoError(t, db.Rewind(inv, target))
+	require.NoError(t, db.Rewind(target))
 	latest, ok := db.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, target, latest)

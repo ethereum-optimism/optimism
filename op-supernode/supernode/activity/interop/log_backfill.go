@@ -188,7 +188,7 @@ func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chai
 		i.log.Warn("rewinding logsDB to last canonical block",
 			"chain", cid, "rewindTo", n, "trimmedTipNumber", latest.Number,
 			"trimmedTipStored", latest.Hash, "trimmedTipCanonical", latestOut.BlockHash)
-		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
+		if err := db.Rewind(eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
 			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
 		}
 		return nil
@@ -196,7 +196,7 @@ func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chai
 
 	i.log.Warn("entire logsDB diverges from canonical; clearing",
 		"chain", cid, "firstSealed", first.Number, "latestSealed", latest.Number)
-	if err := db.Clear(&noopInvalidator{}); err != nil {
+	if err := db.Clear(); err != nil {
 		return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
 	}
 	return nil
