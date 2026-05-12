@@ -32,10 +32,10 @@ import (
 //	    [76..80) execMsgCount  (uint32 BE)
 //	[80                 ..  80 + 32*N    ) logHashes[N]
 //	[80 + 32*N          ..  80 + 32*N + 88*M) execMsgs[M], each 88 bytes:
-//	    [ 0.. 4) logIdx        (uint32 BE)
+//	    [ 0.. 4) localLogIdx   (uint32 BE)  // which slot in *this* block carries the executing message
 //	    [ 4..36) chainID       (32-byte big-endian)
-//	    [36..44) blockNum      (uint64 BE)
-//	    [44..48) logIdx echo   (uint32 BE)
+//	    [36..44) blockNum      (uint64 BE)  // initiating message's block on source chain
+//	    [44..48) initLogIdx    (uint32 BE)  // initiating message's log index on source chain
 //	    [48..56) timestamp     (uint64 BE)
 //	    [56..88) checksum
 //
