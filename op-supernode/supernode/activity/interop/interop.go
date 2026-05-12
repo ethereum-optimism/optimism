@@ -1022,6 +1022,13 @@ func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.Bloc
 	if ts < i.activationTimestamp {
 		return VerifiedResult{}, eth.BlockID{}, ErrNotActive
 	}
+	// Supernode registers RPC APIs before scheduling each activity's Start
+	// goroutine, so VerifiedResultAtTimestamp can be reached before Start has
+	// populated i.ctx. Surface a dedicated error so the superroot handler
+	// can fall back to optimistic composition instead of dereferencing nil.
+	if i.ctx == nil {
+		return VerifiedResult{}, eth.BlockID{}, ErrNotStarted
+	}
 	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
 	if err != nil {
 		return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve first verifiable: %w", err)

@@ -578,6 +578,27 @@ func TestSuperroot_AtTimestamp_PreInteropFallback_NoSecondFetch(t *testing.T) {
 	require.NotNil(t, resp.Data)
 }
 
+// ErrNotStarted is returned during the startup window after AddAPI has
+// registered the RPC but before the interop activity's Start goroutine has
+// populated its context. Route it to the same optimistic fallback so the
+// response is composed rather than failing the call.
+func TestSuperroot_AtTimestamp_InteropNotStarted_ComposesFromOptimistic(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			optL2:     eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:     eth.BlockID{Number: 900},
+			optOutput: &eth.OutputV0{StateRoot: eth.Bytes32{0x01}},
+			status:    &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+		},
+	}
+	reader := &mockVerifiedReader{err: interop.ErrNotStarted}
+	s := newSuperroot(chains, reader)
+	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Data)
+}
+
 // ------ Below-verified-db handoff tests ------
 
 // Below firstVerifiable, the safe-head startup handoff guarantees the

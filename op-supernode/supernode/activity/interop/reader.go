@@ -16,6 +16,13 @@ var ErrNotActive = errors.New("interop not active for timestamp")
 // be produced here, but callers can treat optimistic outputs as canonical.
 var ErrBeforeVerifiedDB = errors.New("timestamp below verified-db start")
 
+// ErrNotStarted signals that the interop activity has been constructed and
+// its RPC registered, but its Start goroutine has not yet populated the
+// internal context. Callers should retry after startup completes. Until then,
+// this is routed to the same fallback as ErrNotActive so the response is
+// composed from optimistic outputs rather than panicking on a nil context.
+var ErrNotStarted = errors.New("interop activity not started")
+
 // VerifiedResultReader exposes committed VerifiedResults to non-interop
 // activities. Errors discriminate the regime:
 //   - nil:                  verified entry returned
