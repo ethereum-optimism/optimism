@@ -1069,10 +1069,16 @@ workflows:
           target: "cannon-client"
           context: *rust-ci-context
 
-      - kona-coverage:
-          context: *rust-ci-context
-          requires:
-            - rust-tests
+      # kona-coverage is temporarily disabled. The current `just llvm-cov-tests`
+      # recipe OOMs rustc while compiling reth-optimism-node under
+      # `-C instrument-coverage --all-features` on the xlarge executor and the
+      # bash script has no `set -e`, so the failure was silently swallowed and
+      # only a near-empty lcov was being uploaded to Codecov. Re-enable once the
+      # recipe is fixed (memory, cache path, stale --exclude kona-p2p).
+      # - kona-coverage:
+      #     context: *rust-ci-context
+      #     requires:
+      #       - rust-tests
 
       - kona-host-client-offline:
           name: kona-host-client-offline-cannon
@@ -1102,7 +1108,7 @@ workflows:
             - op-reth-integration-tests: terminal
             - kona-lint-cannon: terminal
             - kona-build-fpvm-cannon-client: terminal
-            - kona-coverage: terminal
+            # kona-coverage temporarily removed from the fan-in; see disabled invocation below.
             - kona-host-client-offline-cannon: terminal
           context:
             - circleci-api-token
