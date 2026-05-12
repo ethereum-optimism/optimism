@@ -12,24 +12,17 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// RunSuperrootOptimisticPairingTest exercises the optimistic branch of a
-// super-root transition when chain A has an invalid-exec block at
-// endTimestamp and chain B's at-endTimestamp block is built (empty) and
-// batched after the game L1 head, causing chain A's invalid block to be
-// replaced via cross-validation.
-func RunSuperrootOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop) {
-	runOptimisticPairingTest(t, sys, true)
-}
-
-// RunSuperrootOptimisticPairingNoReplacementTest is the same scenario as
-// RunSuperrootOptimisticPairingTest except chain B's at-endTimestamp block
-// is never built or batched. Chain A's invalid block stays local-safe at
-// endTimestamp; no replacement occurs.
-func RunSuperrootOptimisticPairingNoReplacementTest(t devtest.T, sys *presets.SimpleInterop) {
-	runOptimisticPairingTest(t, sys, false)
-}
-
-func runOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withReplacement bool) {
+// RunOptimisticPairingTest exercises the optimistic branch of a super-root
+// transition when chain A has an invalid-exec block at endTimestamp whose
+// exec message references a fabricated log at chain B's would-be
+// at-endTimestamp block.
+//
+// If withReplacement is true, chain B's at-endTimestamp block is built
+// (empty) and batched after the game L1 head, causing chain A's invalid
+// block to be replaced via cross-validation. Otherwise chain B's
+// at-endTimestamp block is never built and chain A's invalid block stays
+// local-safe at endTimestamp forever.
+func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withReplacement bool) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required")
 	t.Require().NotNil(sys.TestSequencer, "test sequencer is required")
 
