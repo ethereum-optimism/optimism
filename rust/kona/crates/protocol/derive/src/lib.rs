@@ -13,6 +13,13 @@ extern crate alloc;
 #[macro_use]
 extern crate tracing;
 
+// Test-construction macros. Available under `test` or `test-utils` so that
+// `--no-default-features` lib tests inside `core/*` and `pure/*` can
+// construct kona-protocol `Frame`s without depending on the async
+// `test_utils/` mocks.
+#[cfg(any(test, feature = "test-utils"))]
+mod test_macros;
+
 mod errors;
 pub use errors::{
     BatchDecompressionError, BlobDecodingError, BlobProviderError, BuilderError,
@@ -30,6 +37,17 @@ pub use metrics::Metrics;
 // `core::*` is consumed by the async stages today and by `pure::Deriver`
 // in phase 3 — both build on the same IO-free primitives.
 mod core;
+
+// The pure (sync, IO-free, no_std) deriver. Phase 3 of the pure-derivation
+// migration. Always available, regardless of the `async` feature; consumers
+// migrate off the async pipeline in phases 4–5.
+// See plans/2026-05-06-refactor-kona-pure-derivation-plan.md.
+mod pure;
+pub use pure::{
+    BatchKind, BatchVerdict, CriticalError, Derivation, DeriveTrace, Deriver, EmptyBatchReason,
+    FrameDropReason, L1Input, L1TxView, SpanBatchOverlap, SpanBatchOverlapBlock, TraceEntry,
+    extract_l1_input,
+};
 
 // Async derivation surface, gated behind the `async` feature.
 //

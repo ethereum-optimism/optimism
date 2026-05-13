@@ -47,5 +47,3 @@ pub use sys_config_fetcher::{TestSystemConfigL2Fetcher, TestSystemConfigL2Fetche
 
 mod frames;
 pub use frames::{FrameQueueAsserter, FrameQueueBuilder};
-
-mod macros;
