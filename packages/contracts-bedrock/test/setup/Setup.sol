@@ -366,12 +366,6 @@ abstract contract Setup is FeatureFlags {
         }
     }
 
-    /// @dev Returns true if the forked L2 network has the Karst upgrade applied, by checking if the ConditionalDeployer predeploy exists.
-    ///      When true, fork upgrade tests skip bundle execution but still run verification.
-    function isKarstForkActivated() public view returns (bool) {
-        return Predeploys.CONDITIONAL_DEPLOYER.code.length > 0;
-    }
-
     /// @dev Sets up the L1 contracts.
     function L1() public {
         console.log("Setup: creating L1 deployments");

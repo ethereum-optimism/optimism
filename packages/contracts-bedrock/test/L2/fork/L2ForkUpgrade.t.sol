@@ -90,12 +90,9 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
-    ///         Skipped when the network already has the upgrade applied.
     function _executeCurrentBundle() internal virtual {
-        if (!isKarstForkActivated()) {
-            PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
-            PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
-        }
+        PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
+        PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
     }
 
     /// @notice Copies the cached current bundle transactions from storage to memory.
@@ -690,12 +687,6 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
-
-        // Events were emitted in the past and cannot be replayed on an already-upgraded network
-        if (isKarstForkActivated()) {
-            vm.skip(true);
-            return;
-        }
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
