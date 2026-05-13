@@ -25,19 +25,23 @@ impl<TX: DbTx> MdbxProofsProviderV2<TX> {
     pub(super) fn get_block_number_hash_inner(
         &self,
         key: ProofWindowKey,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    ) -> OpProofsStorageResult<NumHash> {
         let mut cursor = self.tx.cursor_read::<V2ProofWindow>()?;
-        Ok(cursor.seek_exact(key)?.map(|(_, val)| (val.number(), *val.hash())))
+        cursor
+            .seek_exact(key)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(OpProofsStorageError::NoBlocksFound)
     }
 
     /// Returns `true` when `max_block_number` is >= the latest stored block,
     /// meaning the current-state tables are authoritative and history/changeset
     /// lookups can be skipped entirely.
     pub(super) fn is_latest_block(&self, max_block_number: u64) -> OpProofsStorageResult<bool> {
-        match self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)? {
-            Some((latest, _)) => Ok(max_block_number >= latest),
+        match self.get_block_number_hash_inner(ProofWindowKey::LatestBlock) {
+            Ok(latest) => Ok(max_block_number >= latest.number),
             // No blocks stored yet → current state is empty but correct.
-            None => Ok(true),
+            Err(OpProofsStorageError::NoBlocksFound) => Ok(true),
+            Err(err) => Err(err),
         }
     }
 

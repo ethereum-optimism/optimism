@@ -5,7 +5,7 @@ use crate::{
     state::OpStateProviderFactory,
 };
 use alloy_consensus::BlockHeader;
-use alloy_eips::{BlockId, BlockNumberOrTag, NumHash};
+use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{B256, Sealed};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
@@ -23,8 +23,7 @@ use reth_optimism_payload_builder::{
     builder::{OpBuilder, OpPayloadBuilderCtx},
 };
 use reth_optimism_trie::{
-    OpProofsStorage, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
-    api::OpProofsProviderRO,
+    OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
 };
 use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
 use reth_payload_util::NoopPayloadTransactions;
@@ -324,17 +323,15 @@ where
         let provider_ro =
             self.inner.storage.provider_ro().map_err(|err| internal_rpc_err(err.to_string()))?;
 
-        // NoBlocksFound is the uninitialized-store sentinel; surface it as `None` so the RPC
-        // contract (Option fields) keeps the same shape it had before the API change.
-        let to_option = |result: OpProofsStorageResult<NumHash>| match result {
-            Ok(NumHash { number, .. }) => Ok(Some(number)),
-            Err(OpProofsStorageError::NoBlocksFound) => Ok(None),
+        match provider_ro.get_proof_window() {
+            Ok(window) => Ok(ProofsSyncStatus {
+                earliest: Some(window.earliest.number),
+                latest: Some(window.latest.number),
+            }),
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                Ok(ProofsSyncStatus { earliest: None, latest: None })
+            }
             Err(err) => Err(internal_rpc_err(err.to_string())),
-        };
-
-        Ok(ProofsSyncStatus {
-            earliest: to_option(provider_ro.get_earliest_block())?,
-            latest: to_option(provider_ro.get_latest_block())?,
-        })
+        }
     }
 }

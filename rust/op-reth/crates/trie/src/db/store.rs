@@ -83,23 +83,18 @@ impl<TX> MdbxProofsProvider<TX> {
 }
 
 impl<TX: DbTx> MdbxProofsProvider<TX> {
-    fn get_block_number_hash_inner(
-        &self,
-        key: ProofWindowKey,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_block_number_hash_inner(&self, key: ProofWindowKey) -> OpProofsStorageResult<NumHash> {
         let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        let value = cursor.seek_exact(key)?;
-        Ok(value.map(|(_, val)| (val.number(), *val.hash())))
+        cursor
+            .seek_exact(key)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(NoBlocksFound)
     }
 
     /// Phase 1 of pruning: Calculate survivors.
     /// Scans change sets to find the LATEST update for every key in the range.
     fn calculate_prune_plan(&self, target_block: u64) -> OpProofsStorageResult<Option<PrunePlan>> {
-        let Some((earliest, _)) =
-            self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?
-        else {
-            return Err(NoBlocksFound);
-        };
+        let earliest = self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.number;
         if earliest >= target_block {
             return Err(OpProofsStorageError::PruneBeyondEarliest {
                 target_block_number: target_block,
@@ -521,8 +516,7 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     ) -> OpProofsStorageResult<WriteCounts> {
         let block_number = block_ref.block.number;
 
-        let (_, latest_block_hash) =
-            self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?.ok_or(NoBlocksFound)?;
+        let latest_block_hash = self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?.hash;
 
         if latest_block_hash != block_ref.parent {
             return Err(OpProofsStorageError::OutOfOrder {
@@ -588,19 +582,11 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         TX: 'tx;
 
     fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
-        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        cursor
-            .seek_exact(ProofWindowKey::EarliestBlock)?
-            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
-            .ok_or(NoBlocksFound)
+        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)
     }
 
     fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
-        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        cursor
-            .seek_exact(ProofWindowKey::LatestBlock)?
-            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
-            .ok_or(NoBlocksFound)
+        self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)
     }
 
     fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
@@ -888,15 +874,15 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
             return Ok(InitialStateAnchor::default());
         };
 
-        let completed = self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.is_some();
+        let status = match self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock) {
+            Ok(_) => InitialStateStatus::Completed,
+            Err(NoBlocksFound) => InitialStateStatus::InProgress,
+            Err(err) => return Err(err),
+        };
 
         Ok(InitialStateAnchor {
             block: Some(block),
-            status: if completed {
-                InitialStateStatus::Completed
-            } else {
-                InitialStateStatus::InProgress
-            },
+            status,
             latest_account_trie_key: self.get_latest_key_inner::<AccountTrieHistory>()?,
             latest_storage_trie_key: self.get_latest_key_inner::<StorageTrieHistory>()?,
             latest_hashed_account_key: self.get_latest_key_inner::<HashedAccountHistory>()?,

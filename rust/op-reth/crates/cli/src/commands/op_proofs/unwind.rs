@@ -9,7 +9,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
 use reth_provider::{BlockReader, TransactionVariant};
@@ -51,9 +51,13 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
     fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
         let provider_ro = storage.provider_ro()?;
-        let Ok(window) = provider_ro.get_proof_window() else {
-            warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
-            return Ok(false);
+        let window = match provider_ro.get_proof_window() {
+            Ok(w) => w,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
         };
 
         if self.target <= window.earliest.number {

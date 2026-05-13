@@ -5,7 +5,7 @@ use super::{
     cursor::{V2AccountCursor, V2AccountTrieCursor, V2StorageCursor, V2StorageTrieCursor},
 };
 use crate::{
-    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
+    BlockStateDiff, OpProofsStorageResult,
     api::{OpProofsProviderRO, ProofWindowRange},
     db::{
         ProofWindowKey,
@@ -64,15 +64,11 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         TX: 'tx;
 
     fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
-        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)
+        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)
     }
 
     fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
-        self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)
+        self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)
     }
 
     fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {

@@ -468,8 +468,7 @@ mod tests {
     fn init_storage<S: OpProofsStore>(storage: S) {
         let genesis = NumHash::new(0, b256(0x00));
         let init = storage.initialization_provider().expect("init");
-        init.set_initial_state_anchor(genesis)
-            .expect("anchor");
+        init.set_initial_state_anchor(genesis).expect("anchor");
         init.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(init).expect("commit");
     }

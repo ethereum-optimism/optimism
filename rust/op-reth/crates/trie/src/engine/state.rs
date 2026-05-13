@@ -237,6 +237,6 @@ where
             return Ok(tip);
         }
 
-        self.storage.provider_ro()?.get_latest_block().map_err(Into::into)
+        Ok(self.storage.provider_ro()?.get_latest_block()?)
     }
 }
