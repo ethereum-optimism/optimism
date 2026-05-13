@@ -101,13 +101,18 @@ where
             sub_transition(oracle, boot, evm_factory).await
         }
         PreState::TransitionState(ref transition_state) => {
-            // If the claimed L2 block timestamp is less than the prestate timestamp, the
-            // claim must be invalid.
+            // If the claimed L2 block timestamp is at or before the prestate timestamp, the
+            // post-state must be the agreed pre-state to accommodate trace extension. This
+            // mirrors the SuperRoot branch above.
             if transition_state.pre_state.timestamp >= boot.claimed_l2_timestamp {
-                return Err(FaultProofProgramError::InvalidClaim(
-                    boot.agreed_pre_state_commitment,
-                    boot.claimed_post_state,
-                ));
+                if boot.agreed_pre_state_commitment == boot.claimed_post_state {
+                    return Ok(());
+                } else {
+                    return Err(FaultProofProgramError::InvalidClaim(
+                        boot.agreed_pre_state_commitment,
+                        boot.claimed_post_state,
+                    ));
+                }
             }
 
             // If the pre-state is a transition state, the sub-problem is selected based on the
