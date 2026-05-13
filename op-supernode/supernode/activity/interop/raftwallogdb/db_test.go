@@ -184,9 +184,36 @@ func TestContains(t *testing.T) {
 	// Future block but past timestamp: ErrConflict (cannot be in the future).
 	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
+}
 
-	// Block 0 is never a valid initiating-message location.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0, Checksum: good})
+func TestContains_Block0(t *testing.T) {
+	// Block 0 must flow through the same validation paths as any other block —
+	// no special-case rejection. Matches op-supervisor's logs.DB. The supernode
+	// only seals block 0 as a logless genesis (see processBlockLogs in
+	// op-supernode/.../logdb.go), so we test that shape here.
+	db := tempDB(t)
+
+	// Empty DB → ErrFuture, regardless of block number.
+	_, err := db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
+	require.ErrorIs(t, err, types.ErrFuture)
+
+	// Seal block 0 as a logless genesis.
+	genesis := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, genesis, 0))
+
+	// Sealed genesis is discoverable by FindSealedBlock / OpenBlock.
+	seal, err := db.FindSealedBlock(0)
+	require.NoError(t, err)
+	require.Equal(t, genesis.Hash, seal.Hash)
+	ref, count, msgs, err := db.OpenBlock(0)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), ref.Number)
+	require.Equal(t, uint32(0), count)
+	require.Empty(t, msgs)
+
+	// Contains on block 0 with logIdx 0 hits the "logIdx >= logCount" check (not
+	// a hard-coded block-0 reject) and returns ErrConflict.
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
 	require.ErrorIs(t, err, types.ErrConflict)
 }
 
@@ -477,4 +504,140 @@ func TestRecordEncoding_Roundtrip(t *testing.T) {
 	gotIdx, gotEm := decodeExecMsg(emBuf)
 	require.Equal(t, uint32(5), gotIdx)
 	require.Equal(t, &em, gotEm)
+}
+
+func TestMultipleExecMsgsInBlock(t *testing.T) {
+	// Exercise the SealBlock loop with M > 1: several logs carry executing
+	// messages, interleaved with logs that don't. OpenBlock must return all of
+	// them keyed by their local log index.
+	db := tempDB(t)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+
+	want := map[uint32]*types.ExecutingMessage{}
+	const logCount = 6
+	for idx := uint32(0); idx < logCount; idx++ {
+		var em *types.ExecutingMessage
+		// Logs 0, 2, 5 carry exec messages — non-contiguous slots.
+		if idx == 0 || idx == 2 || idx == 5 {
+			em = &types.ExecutingMessage{
+				ChainID:   eth.ChainIDFromUInt64(uint64(100 + idx)),
+				BlockNum:  uint64(idx) + 1,
+				LogIdx:    idx + 10,
+				Timestamp: uint64(idx) * 7,
+				Checksum:  types.MessageChecksum(hash(byte(0xA0 + idx))),
+			}
+			want[idx] = em
+		}
+		require.NoError(t, db.AddLog(hash(byte(idx)), parent, idx, em))
+	}
+	blk1 := blockID(1, 0x11)
+	require.NoError(t, db.SealBlock(parent.Hash, blk1, 100))
+
+	ref, count, msgs, err := db.OpenBlock(1)
+	require.NoError(t, err)
+	require.Equal(t, blk1.Hash, ref.Hash)
+	require.Equal(t, uint32(logCount), count)
+	require.Equal(t, want, msgs)
+}
+
+func TestContains_LastIndexBoundary(t *testing.T) {
+	// A Contains lookup at the highest valid logIdx hits the final 32 bytes of
+	// the log-hash array exactly — exercises the off-by-one at the end of the
+	// entry buffer.
+	db := tempDB(t)
+	chain := eth.ChainIDFromUInt64(10)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+
+	const n = 4
+	hashes := make([]common.Hash, n)
+	for i := uint32(0); i < n; i++ {
+		hashes[i] = hash(byte(0x10 + i))
+		require.NoError(t, db.AddLog(hashes[i], parent, i, nil))
+	}
+	blk1 := blockID(1, 0x11)
+	require.NoError(t, db.SealBlock(parent.Hash, blk1, 200))
+
+	// Last valid logIdx is n-1.
+	lastIdx := uint32(n - 1)
+	good := types.ChecksumArgs{
+		BlockNumber: 1, LogIndex: lastIdx, Timestamp: 200, ChainID: chain, LogHash: hashes[lastIdx],
+	}.Checksum()
+	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: lastIdx, Timestamp: 200, Checksum: good})
+	require.NoError(t, err)
+	require.Equal(t, blk1.Hash, seal.Hash)
+
+	// logIdx == n is one past the end and must be ErrConflict.
+	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: n, Timestamp: 200, Checksum: good})
+	require.ErrorIs(t, err, types.ErrConflict)
+}
+
+func TestPersistence_AfterRewind(t *testing.T) {
+	// Rewinding a non-zero-anchored DB and reopening must report the correct
+	// firstBlock and latest from the trimmed WAL.
+	dir := t.TempDir()
+	chain := eth.ChainIDFromUInt64(10)
+	db, err := Open(dir, chain)
+	require.NoError(t, err)
+	first := blockID(100, 0x64)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	last := sealRange(t, db, first, 101, 105)
+	require.Equal(t, uint64(105), last.Number)
+
+	target := blockID(102, 102)
+	require.NoError(t, db.Rewind(target))
+	require.NoError(t, db.Close())
+
+	db2, err := Open(dir, chain)
+	require.NoError(t, err)
+	defer db2.Close()
+
+	latest, ok := db2.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, target, latest)
+
+	firstSeal, err := db2.FirstSealedBlock()
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), firstSeal.Number)
+	require.Equal(t, first.Hash, firstSeal.Hash)
+
+	// Trimmed blocks are gone.
+	_, err = db2.FindSealedBlock(103)
+	require.ErrorIs(t, err, types.ErrFuture)
+
+	// Surviving blocks are intact.
+	for n := uint64(100); n <= 102; n++ {
+		_, err := db2.FindSealedBlock(n)
+		require.NoErrorf(t, err, "block %d should survive rewind", n)
+	}
+}
+
+func TestPersistence_AfterClear(t *testing.T) {
+	// Clearing a populated DB and reopening must come up empty, with no
+	// orphaned segments from the prior incarnation.
+	dir := t.TempDir()
+	chain := eth.ChainIDFromUInt64(10)
+	db, err := Open(dir, chain)
+	require.NoError(t, err)
+	parent := blockID(0, 0x00)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
+	sealRange(t, db, parent, 1, 5)
+	require.NoError(t, db.Clear())
+	require.NoError(t, db.Close())
+
+	db2, err := Open(dir, chain)
+	require.NoError(t, err)
+	defer db2.Close()
+	_, ok := db2.LatestSealedBlock()
+	require.False(t, ok)
+	_, err = db2.FirstSealedBlock()
+	require.ErrorIs(t, err, types.ErrFuture)
+
+	// And we can seal fresh blocks after reopen.
+	fresh := blockID(42, 0x2A)
+	require.NoError(t, db2.SealBlock(common.Hash{}, fresh, 4200))
+	latest, ok := db2.LatestSealedBlock()
+	require.True(t, ok)
+	require.Equal(t, fresh, latest)
 }
