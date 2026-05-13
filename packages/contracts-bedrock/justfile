@@ -228,7 +228,6 @@ test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
 
 # Runs L2 fork upgrade tests against a Karst betanet L2 fork.
-# Skips bundle execution and only runs verification steps.
 # Usage: KARST_BETANET_L2_FORK_RPC_URL=<url> just test-karst-betanet-l2-fork-upgrade [ARGS]
 test-karst-betanet-l2-fork-upgrade *ARGS:
   KARST_BETANET_L2_FORK_TEST=true just prepare-l2-upgrade-env "just test {{ARGS}}"
