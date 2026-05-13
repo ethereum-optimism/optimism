@@ -60,7 +60,7 @@ func TestEmpty(t *testing.T) {
 
 func TestSealAndOpenBlock(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
 
 	em := &types.ExecutingMessage{
@@ -97,25 +97,28 @@ func TestSealBlock_FirstBlockAcceptsAnyNumber(t *testing.T) {
 
 func TestSealBlock_Validation(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
 
 	// Wrong parent hash.
 	err := db.SealBlock(hash(0xFF), blockID(1, 0x11), 200)
 	require.ErrorIs(t, err, types.ErrConflict)
 
-	// Wrong block number.
+	// Wrong block number. Matches old logs DB: state desync on SealBlock is
+	// ErrConflict so op-interop-filter's failsafe (logsdb_chain_ingester.go:793)
+	// trips rather than silently retrying.
 	err = db.SealBlock(parent.Hash, blockID(2, 0x22), 200)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, types.ErrConflict)
 
-	// Timestamp regression.
+	// Timestamp regression. Same rationale: regressing timestamps indicate
+	// upstream desync, not a transient out-of-order condition.
 	err = db.SealBlock(parent.Hash, blockID(1, 0x11), 50)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, types.ErrConflict)
 }
 
 func TestAddLog_Validation(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
 	// First log must have index 0.
@@ -123,10 +126,11 @@ func TestAddLog_Validation(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrOutOfOrder)
 
 	// Wrong parent for the first AddLog establishes pendingParent;
-	// subsequent calls must match.
+	// subsequent calls must match. Matches old logs DB: parent identity
+	// mismatch in AddLog is ErrOutOfOrder, not ErrConflict.
 	require.NoError(t, db.AddLog(hash(0x01), parent, 0, nil))
 	err = db.AddLog(hash(0x02), blockID(99, 0xFF), 1, nil)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
 
 	// Duplicate index.
 	err = db.AddLog(hash(0x02), parent, 0, nil)
@@ -137,19 +141,31 @@ func TestAddLog_Validation(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrOutOfOrder)
 }
 
+// TestAddLog_RejectsGenesisParent ensures AddLog refuses logs whose parent is
+// the zero BlockID. Genesis blocks cannot carry receipts (the EVM does not
+// execute genesis), so logs against block 0 are invalid input from any
+// legitimate writer. Rejecting at the write boundary matches the old logs DB
+// (state.go:431) and keeps the structural invariant out of the read path.
+func TestAddLog_RejectsGenesisParent(t *testing.T) {
+	db := tempDB(t)
+	err := db.AddLog(hash(0xAA), eth.BlockID{}, 0, nil)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
+}
+
 func TestAddLog_WrongParentAgainstLatest(t *testing.T) {
 	// When the DB already has a sealed block, AddLog's parent must match it.
+	// Matches old logs DB: AddLog parent mismatch is ErrOutOfOrder.
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	err := db.AddLog(hash(0xAA), blockID(99, 0xFF), 0, nil)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, types.ErrOutOfOrder)
 }
 
 func TestContains(t *testing.T) {
 	db := tempDB(t)
 	chain := eth.ChainIDFromUInt64(10)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
 	logHash := hash(0xAB)
 	require.NoError(t, db.AddLog(logHash, parent, 0, nil))
@@ -198,7 +214,7 @@ func TestContains_Block0(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrFuture)
 
 	// Seal block 0 as a logless genesis.
-	genesis := blockID(0, 0x00)
+	genesis := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, genesis, 0))
 
 	// Sealed genesis is discoverable by FindSealedBlock / OpenBlock.
@@ -257,7 +273,7 @@ func TestOpenBlock_Boundaries(t *testing.T) {
 
 	// Block 0 only valid if DB anchors at 0.
 	db2 := tempDB(t)
-	require.NoError(t, db2.SealBlock(common.Hash{}, blockID(0, 0x00), 0))
+	require.NoError(t, db2.SealBlock(common.Hash{}, blockID(0, 0xA0), 0))
 	ref, count, msgs, err := db2.OpenBlock(0)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), ref.Number)
@@ -265,9 +281,35 @@ func TestOpenBlock_Boundaries(t *testing.T) {
 	require.Empty(t, msgs)
 }
 
+// TestOpenBlock_FirstBlockReturnsSkipped asserts that OpenBlock at the first
+// sealed block number returns ErrSkipped when the first block is not genesis,
+// matching the old op-supervisor logs DB contract. Callers (op-supernode's
+// algo.go fallback) rely on this to identify the anchor and use
+// FirstSealedBlock instead. FirstSealedBlock must still return the block.
+func TestOpenBlock_FirstBlockReturnsSkipped(t *testing.T) {
+	db := tempDB(t)
+	first := blockID(100, 0x64)
+	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	sealRange(t, db, first, 101, 103)
+
+	_, _, _, err := db.OpenBlock(100)
+	require.ErrorIs(t, err, types.ErrSkipped, "OpenBlock(firstBlock) must return ErrSkipped when firstBlock > 0")
+
+	seal, err := db.FirstSealedBlock()
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), seal.Number)
+	require.Equal(t, first.Hash, seal.Hash)
+	require.Equal(t, uint64(1000), seal.Timestamp)
+
+	// OpenBlock(firstBlock + 1) still succeeds.
+	ref, _, _, err := db.OpenBlock(101)
+	require.NoError(t, err)
+	require.Equal(t, uint64(101), ref.Number)
+}
+
 func TestMultiBlockRoundtrip(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
 	prev := parent
@@ -308,7 +350,7 @@ func TestMultiBlockRoundtrip(t *testing.T) {
 
 func TestRewind(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	last := sealRange(t, db, parent, 1, 5)
 	require.Equal(t, uint64(5), last.Number)
@@ -333,7 +375,7 @@ func TestRewind(t *testing.T) {
 
 func TestRewind_HashMismatch(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	sealRange(t, db, parent, 1, 3)
 
@@ -353,7 +395,7 @@ func TestRewind_Empty(t *testing.T) {
 func TestRewind_AtLatest(t *testing.T) {
 	// Rewind to the existing latest block is a no-op.
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	last := sealRange(t, db, parent, 1, 3)
 
@@ -365,7 +407,7 @@ func TestRewind_AtLatest(t *testing.T) {
 
 func TestRewind_AboveLatest(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
 	_, err := db.FindSealedBlock(0)
@@ -400,7 +442,7 @@ func TestRewind_AtFirstKeepsIt(t *testing.T) {
 
 func TestRewind_DropsPendingLogs(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	require.NoError(t, db.AddLog(hash(0xAA), parent, 0, nil))
 
@@ -411,7 +453,7 @@ func TestRewind_DropsPendingLogs(t *testing.T) {
 
 func TestClear_Populated(t *testing.T) {
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	sealRange(t, db, parent, 1, 3)
 
@@ -436,7 +478,7 @@ func TestPersistence(t *testing.T) {
 	chain := eth.ChainIDFromUInt64(10)
 	db, err := Open(dir, chain)
 	require.NoError(t, err)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	require.NoError(t, db.AddLog(hash(0xAA), parent, 0, nil))
 	blk1 := blockID(1, 0x11)
@@ -511,7 +553,7 @@ func TestMultipleExecMsgsInBlock(t *testing.T) {
 	// messages, interleaved with logs that don't. OpenBlock must return all of
 	// them keyed by their local log index.
 	db := tempDB(t)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
 	want := map[uint32]*types.ExecutingMessage{}
@@ -547,7 +589,7 @@ func TestContains_LastIndexBoundary(t *testing.T) {
 	// entry buffer.
 	db := tempDB(t)
 	chain := eth.ChainIDFromUInt64(10)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
 	const n = 4
@@ -620,7 +662,7 @@ func TestPersistence_AfterClear(t *testing.T) {
 	chain := eth.ChainIDFromUInt64(10)
 	db, err := Open(dir, chain)
 	require.NoError(t, err)
-	parent := blockID(0, 0x00)
+	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	sealRange(t, db, parent, 1, 5)
 	require.NoError(t, db.Clear())
