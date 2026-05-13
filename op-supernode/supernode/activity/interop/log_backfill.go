@@ -47,10 +47,23 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 
 	firstVerifiable := i.firstVerifiable
 	if !i.firstVerifiableSet {
-		var err error
-		firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
-		if err != nil {
-			return 0, err
+		// On a wipe-logs restart the verifiedDB persists and is the durable
+		// source of truth for the next timestamp the main loop will verify:
+		// observeRound picks NextTimestamp = LastTimestamp+1 whenever the
+		// verifiedDB is initialized. Anchor backfill's end to that same value
+		// instead of to a live SafeL2 read. The op-node's StatusTracker
+		// briefly reports SafeL2 at block 0 after a rollup.ResetEvent and
+		// before the next OnCrossSafeUpdate, and a SyncStatus call in that
+		// window would otherwise pin endTime to genesisTime and seal only
+		// block 0.
+		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			firstVerifiable = lastTS + 1
+		} else {
+			var err error
+			firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
+			if err != nil {
+				return 0, err
+			}
 		}
 	}
 	if firstVerifiable == i.activationTimestamp {

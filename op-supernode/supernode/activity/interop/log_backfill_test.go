@@ -696,3 +696,73 @@ func TestLogBackfill_ClampsStartToGenesis(t *testing.T) {
 	require.Equal(t, int32(11), outputCalls.Load(),
 		"backfill must start at genesis (%d), not the pre-clamp startTime (60)", genesisTime)
 }
+
+// TestLogBackfill_RestartWithStaleCrossSafe reproduces the
+// TestSupernodeLogBackfill_HappyPath flake.
+//
+// Scenario: after a wipe-logs restart, the new interop activity calls
+// runLogBackfill before the L2 op-node's StatusTracker has re-emitted its
+// cross-safe head. SafeL2 momentarily reads at block 0 (timestamp ==
+// genesisTime == activation) — the value StatusTracker installs after a
+// rollup.ResetEvent and before the next OnCrossSafeUpdate. The previous
+// runLogBackfill computed endTime from this live SafeL2 and produced a
+// degenerate one-block range covering only block 0, so the test asserting
+// "backfill produced multiple sealed blocks" failed with "0 is not greater
+// than 0".
+//
+// The verifiedDB persists across restart and is the durable source of truth
+// for the verification handoff boundary. After this fix runLogBackfill uses
+// verifiedDB.LastTimestamp() to derive endTime when the verifiedDB has
+// committed results, so a stale live SafeL2 can no longer truncate the
+// backfill range.
+func TestLogBackfill_RestartWithStaleCrossSafe(t *testing.T) {
+	const (
+		act          uint64 = 100
+		lastVerified uint64 = 195
+	)
+	depth := 60 * time.Second
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			// LocalSafe has advanced (chain has plenty of history), but SafeL2
+			// is reported as block 0 — the post-ResetEvent state of the
+			// op-node's StatusTracker before the next OnCrossSafeUpdate.
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 200, Time: 200},
+				SafeL2:      eth.L2BlockRef{Number: 0, Time: act},
+				LocalSafeL2: eth.L2BlockRef{Number: 200, Time: 200},
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	// Simulate the pre-restart verifiedDB state: the previous activity verified
+	// timestamps up through `lastVerified`. The wipe-logs restart preserves this
+	// DB because verifiedDB lives in the supernode data dir, not in the
+	// per-chain logs dir the wipe deletes.
+	chain10 := h.Mock(10)
+	for ts := act + 1; ts <= lastVerified; ts++ {
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   ts,
+			L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0xL1")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chain10.id: {Number: ts, Hash: common.BigToHash(new(big.Int).SetUint64(ts))}},
+		}))
+	}
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	h.interop.backfillEndTimestamp = end
+
+	require.Equal(t, lastVerified, end,
+		"backfill must derive endTime from verifiedDB.LastTimestamp on restart, not from stale live SafeL2")
+
+	latest, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Greater(t, latest.Number, uint64(0),
+		"backfill must produce multiple sealed blocks; got only block %d", latest.Number)
+	require.Equal(t, lastVerified, latest.Number,
+		"backfill latest must equal verifiedDB.LastTimestamp / block height")
+}
