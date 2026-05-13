@@ -1,5 +1,9 @@
-//! Trace-extension boundary tests for the interop `run()` dispatch on a
-//! `PreState::TransitionState` agreed prestate.
+//! Trace-extension boundary tests for the interop `run()` dispatch.
+//!
+//! Covers both `PreState::SuperRoot` and `PreState::TransitionState` agreed prestates at
+//! `prestate.timestamp == claimed_l2_timestamp` (legitimate boundary) and the strict-`>` case
+//! (invariant violation, must panic to match op-program; see
+//! `op-program/client/interop/interop.go:87-97`).
 
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
@@ -62,28 +66,35 @@ fn b256(fill: u8) -> B256 {
     B256::from([fill; 32])
 }
 
+const CHAIN_A: u64 = 9901;
+const CHAIN_B: u64 = 9902;
+const L1_CHAIN_ID: u64 = 9001;
+
+fn super_root(timestamp: u64) -> SuperRoot {
+    SuperRoot::new(
+        timestamp,
+        vec![
+            OutputRootWithChain::new(CHAIN_A, b256(0xA1)),
+            OutputRootWithChain::new(CHAIN_B, b256(0xB2)),
+        ],
+    )
+}
+
+fn transition_state_prestate(timestamp: u64) -> PreState {
+    PreState::TransitionState(TransitionState::new(super_root(timestamp), Vec::new(), 1))
+}
+
+fn super_root_prestate(timestamp: u64) -> PreState {
+    PreState::SuperRoot(super_root(timestamp))
+}
+
 // Synthetic chain IDs absent from the embedded registries, so `BootInfo::load`
 // uses the preimage-oracle fallback paths and the fixture stays self-contained.
 fn setup_interop_preimages(
-    prestate_timestamp: u64,
+    pre_state: PreState,
     claimed_l2_timestamp: u64,
     claimed_post_state: B256,
 ) -> (HashMap<PreimageKey, Vec<u8>>, B256) {
-    const CHAIN_A: u64 = 9901;
-    const CHAIN_B: u64 = 9902;
-    const L1_CHAIN_ID: u64 = 9001;
-
-    let pre_state = PreState::TransitionState(TransitionState::new(
-        SuperRoot::new(
-            prestate_timestamp,
-            vec![
-                OutputRootWithChain::new(CHAIN_A, b256(0xA1)),
-                OutputRootWithChain::new(CHAIN_B, b256(0xB2)),
-            ],
-        ),
-        Vec::new(),
-        1,
-    ));
     let mut pre_state_rlp = Vec::with_capacity(pre_state.length());
     pre_state.encode(&mut pre_state_rlp);
     let agreed_pre_state_commitment = pre_state.hash();
@@ -127,7 +138,8 @@ fn setup_interop_preimages(
 #[tokio::test(flavor = "multi_thread")]
 async fn trace_extension_transition_state_at_game_timestamp_accepts_matching_claim() {
     let t: u64 = 1000;
-    let (preimages, agreed_commit) = setup_interop_preimages(t, t, B256::ZERO);
+    let (preimages, agreed_commit) =
+        setup_interop_preimages(transition_state_prestate(t), t, B256::ZERO);
     let mut preimages = preimages;
     preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
 
@@ -149,7 +161,8 @@ async fn trace_extension_transition_state_at_game_timestamp_accepts_matching_cla
 async fn trace_extension_transition_state_at_game_timestamp_rejects_mismatched_claim() {
     let t: u64 = 1000;
     let mismatched_claim = b256(0xCC);
-    let (preimages, agreed_commit) = setup_interop_preimages(t, t, mismatched_claim);
+    let (preimages, agreed_commit) =
+        setup_interop_preimages(transition_state_prestate(t), t, mismatched_claim);
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();
@@ -165,25 +178,43 @@ async fn trace_extension_transition_state_at_game_timestamp_rejects_mismatched_c
     }
 }
 
-// `prestate.timestamp > claimed_l2_timestamp` and `claim == prestate_commitment`: must accept
-// (covers the strict-`>` half of the `>=` arm, symmetric with the SuperRoot branch).
+// `prestate.timestamp > claimed_l2_timestamp`: invariant violation, must panic in
+// `BootInfo::load`. Matches op-program's defensive panic on the same condition.
 #[tokio::test(flavor = "multi_thread")]
-async fn trace_extension_transition_state_past_game_timestamp_accepts_matching_claim() {
-    let t: u64 = 1000;
-    let game_timestamp: u64 = t - 1;
-    let (preimages, agreed_commit) = setup_interop_preimages(t, game_timestamp, B256::ZERO);
+#[should_panic(expected = "agreed prestate timestamp")]
+async fn rejects_transition_state_with_timestamp_after_game_timestamp() {
+    let prestate_timestamp: u64 = 1000;
+    let claimed_l2_timestamp: u64 = prestate_timestamp - 1;
+    let (preimages, agreed_commit) = setup_interop_preimages(
+        transition_state_prestate(prestate_timestamp),
+        claimed_l2_timestamp,
+        B256::ZERO,
+    );
     let mut preimages = preimages;
     preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();
 
-    let result = run(oracle, hints).await;
-    match result {
-        Ok(()) => {}
-        Err(FaultProofProgramError::InvalidClaim(expected, actual)) => {
-            panic!("expected Ok(()); got InvalidClaim(expected={expected}, actual={actual})");
-        }
-        Err(other) => panic!("unexpected error variant: {other:?}"),
-    }
+    let _ = run(oracle, hints).await;
+}
+
+// Mirror of the above for the `PreState::SuperRoot` arm: same invariant, same guard, same panic.
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "agreed prestate timestamp")]
+async fn rejects_super_root_with_timestamp_after_game_timestamp() {
+    let prestate_timestamp: u64 = 1000;
+    let claimed_l2_timestamp: u64 = prestate_timestamp - 1;
+    let (preimages, agreed_commit) = setup_interop_preimages(
+        super_root_prestate(prestate_timestamp),
+        claimed_l2_timestamp,
+        B256::ZERO,
+    );
+    let mut preimages = preimages;
+    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+
+    let oracle = MockOracle::from_preimages(preimages);
+    let hints = MockHintWriter::default();
+
+    let _ = run(oracle, hints).await;
 }

@@ -84,9 +84,10 @@ where
     // sub-problem.
     match boot.agreed_pre_state {
         PreState::SuperRoot(ref super_root) => {
-            // If the claimed L2 block timestamp is less than the super root timestamp, the
-            // post-state must be the agreed pre-state to accommodate trace extension.
-            if super_root.timestamp >= boot.claimed_l2_timestamp {
+            // At the trace-extension boundary, the post-state must equal the agreed pre-state.
+            // The strict-`>` case is guarded against in `BootInfo::load` (panics there); this
+            // arm only handles the legitimate `==` boundary.
+            if super_root.timestamp == boot.claimed_l2_timestamp {
                 if boot.agreed_pre_state_commitment == boot.claimed_post_state {
                     return Ok(());
                 } else {
@@ -101,10 +102,10 @@ where
             sub_transition(oracle, boot, evm_factory).await
         }
         PreState::TransitionState(ref transition_state) => {
-            // If the claimed L2 block timestamp is at or before the prestate timestamp, the
-            // post-state must be the agreed pre-state to accommodate trace extension. This
-            // mirrors the SuperRoot branch above.
-            if transition_state.pre_state.timestamp >= boot.claimed_l2_timestamp {
+            // At the trace-extension boundary, the post-state must equal the agreed pre-state.
+            // The strict-`>` case is guarded against in `BootInfo::load` (panics there); this
+            // arm only handles the legitimate `==` boundary, mirroring the SuperRoot arm above.
+            if transition_state.pre_state.timestamp == boot.claimed_l2_timestamp {
                 if boot.agreed_pre_state_commitment == boot.claimed_post_state {
                     return Ok(());
                 } else {
