@@ -117,6 +117,11 @@ jobs:
               "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
             chmod +x /usr/local/bin/yq
             echo "yq version: $(yq --version)"
+      # Validates the decision tree logic against known scenarios.
+      # Fails fast if a refactor breaks expected workflow activation.
+      - run:
+          name: Test decision tree
+          command: .circleci/scripts/test-decision-tree.sh
       # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
       # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
       # Add a line here when a new string value needs to reach continuation config jobs
