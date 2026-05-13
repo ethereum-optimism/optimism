@@ -525,7 +525,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
             || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
     }
 }
 
