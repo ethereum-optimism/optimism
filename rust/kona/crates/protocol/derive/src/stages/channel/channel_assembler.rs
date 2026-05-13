@@ -2,6 +2,7 @@
 
 use super::{ChannelReaderProvider, NextFrameProvider};
 use crate::{
+    core::channel::{FrameDropReason, FrameOutcome, TimeoutOutcome},
     errors::PipelineError,
     traits::{OriginAdvancer, OriginProvider, Stage},
     types::PipelineResult,
@@ -11,9 +12,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::{Bytes, hex};
 use async_trait::async_trait;
 use core::fmt::Debug;
-use kona_genesis::{
-    MAX_RLP_BYTES_PER_CHANNEL_BEDROCK, MAX_RLP_BYTES_PER_CHANNEL_FJORD, RollupConfig, SystemConfig,
-};
+use kona_genesis::{RollupConfig, SystemConfig};
 use kona_protocol::{BlockInfo, OrderedChannel};
 
 /// The [`ChannelAssembler`] stage is responsible for assembling the [`Frame`]s from the
@@ -46,11 +45,10 @@ where
     /// Returns whether or not the channel currently being assembled has timed out.
     pub fn is_timed_out(&self) -> PipelineResult<bool> {
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-        let is_timed_out = self.channel.as_ref().is_some_and(|c| {
-            c.open_block_number() + self.cfg.channel_timeout(origin.timestamp) < origin.number
-        });
-
-        Ok(is_timed_out)
+        Ok(matches!(
+            crate::core::channel::check_timeout(&self.cfg, self.channel.as_ref(), origin),
+            TimeoutOutcome::TimedOut
+        ))
     }
 }
 
@@ -63,9 +61,13 @@ where
         let origin = self.origin().ok_or(PipelineError::MissingOrigin.crit())?;
 
         // Time out the channel if it has timed out.
-        if let Some(channel) = self.channel.as_ref() &&
-            self.is_timed_out()?
+        if crate::core::channel::check_timeout(&self.cfg, self.channel.as_ref(), origin) ==
+            TimeoutOutcome::TimedOut
         {
+            let channel = self
+                .channel
+                .as_ref()
+                .expect("TimedOut implies Some(channel) — see core::channel::check_timeout");
             let channel_id = hex::encode(channel.id());
             let open_block = channel.open_block_number();
             warn!(
@@ -80,90 +82,85 @@ where
 
         // Grab the next frame from the previous stage.
         let next_frame = self.prev.next_frame().await?;
+        let next_frame_number = next_frame.number;
+        let next_frame_id = next_frame.id;
 
-        // Start a new channel if the frame number is 0.
-        if next_frame.number == 0 {
+        // Pre-process: log the "start new channel" hint before the core
+        // mutates state, so the existing log message ordering is preserved.
+        if next_frame_number == 0 {
             info!(
                 target: "channel_assembler",
                 "Starting new channel (ID: {}) at L1 origin #{}",
-                hex::encode(next_frame.id),
+                hex::encode(next_frame_id),
                 origin.number
             );
-            self.channel = Some(OrderedChannel::new(next_frame.id, origin));
         }
+
+        let outcome =
+            crate::core::channel::process_frame(&self.cfg, &mut self.channel, next_frame, origin);
 
         let _count = if self.channel.is_some() { 1 } else { 0 };
         kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_BUFFER, _count);
 
-        if let Some(channel) = self.channel.as_mut() {
-            // Track the number of blocks until the channel times out.
+        if let Some(channel) = self.channel.as_ref() {
             let timeout = channel.open_block_number() + self.cfg.channel_timeout(origin.timestamp);
             let _margin = timeout.saturating_sub(origin.number) as f64;
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_TIMEOUT, _margin);
 
-            // Add the frame to the channel. If this fails, return NotEnoughData and discard the
-            // frame.
-            debug!(
-                target: "channel_assembler",
-                "Adding frame #{} to channel (ID: {}) at L1 origin #{}",
-                next_frame.number,
-                hex::encode(channel.id()),
-                origin.number
-            );
-            if channel.add_frame(next_frame, origin).is_err() {
-                error!(
-                    target: "channel_assembler",
-                    "Failed to add frame to channel (ID: {}) at L1 origin #{}",
-                    hex::encode(channel.id()),
-                    origin.number
-                );
-                return Err(PipelineError::NotEnoughData.temp());
-            }
-
             let _size = channel.size() as f64;
             kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, _size);
 
-            let max_rlp_bytes_per_channel = if self.cfg.is_fjord_active(origin.timestamp) {
-                MAX_RLP_BYTES_PER_CHANNEL_FJORD
-            } else {
-                MAX_RLP_BYTES_PER_CHANNEL_BEDROCK
-            };
+            let _max_rlp_bytes_per_channel =
+                crate::core::channel::max_rlp_bytes_per_channel(&self.cfg, origin.timestamp);
             kona_macros::set!(
                 gauge,
                 crate::metrics::Metrics::PIPELINE_MAX_RLP_BYTES,
-                max_rlp_bytes_per_channel as f64
+                _max_rlp_bytes_per_channel as f64
             );
-            if channel.size() > max_rlp_bytes_per_channel as usize {
-                warn!(
-                    target: "channel_assembler",
-                    "Compressed channel size exceeded max RLP bytes per channel, dropping channel (ID: {}) with {} bytes",
-                    hex::encode(channel.id()),
-                    channel.size()
-                );
-                self.channel = None;
-                return Err(PipelineError::NotEnoughData.temp());
-            }
+        } else {
+            kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, 0);
+        }
 
-            // If the channel is ready, forward the channel to the next stage.
-            if channel.is_ready() {
-                let channel_bytes =
-                    channel.data().map_err(|_| PipelineError::ChannelNotFound.crit())?;
-
+        match outcome {
+            FrameOutcome::ChannelReady(bytes) => {
                 info!(
                     target: "channel_assembler",
                     "Channel (ID: {}) ready for decompression.",
-                    hex::encode(channel.id()),
+                    hex::encode(next_frame_id),
                 );
-
-                // Reset the channel and return the compressed bytes.
-                self.channel = None;
-                return Ok(Some(channel_bytes));
+                Ok(Some(bytes))
+            }
+            FrameOutcome::OpenedChannel | FrameOutcome::Buffered => {
+                debug!(
+                    target: "channel_assembler",
+                    "Adding frame #{} to channel (ID: {}) at L1 origin #{}",
+                    next_frame_number,
+                    hex::encode(next_frame_id),
+                    origin.number
+                );
+                Err(PipelineError::NotEnoughData.temp())
+            }
+            FrameOutcome::Dropped(FrameDropReason::AddFrameFailed(_)) => {
+                error!(
+                    target: "channel_assembler",
+                    "Failed to add frame to channel (ID: {}) at L1 origin #{}",
+                    hex::encode(next_frame_id),
+                    origin.number
+                );
+                Err(PipelineError::NotEnoughData.temp())
+            }
+            FrameOutcome::Dropped(FrameDropReason::ChannelSizeExceeded) => {
+                warn!(
+                    target: "channel_assembler",
+                    "Compressed channel size exceeded max RLP bytes per channel, dropping channel (ID: {})",
+                    hex::encode(next_frame_id),
+                );
+                Err(PipelineError::NotEnoughData.temp())
+            }
+            FrameOutcome::Dropped(FrameDropReason::NoActiveChannel) => {
+                Err(PipelineError::NotEnoughData.temp())
             }
         }
-
-        kona_macros::set!(gauge, crate::metrics::Metrics::PIPELINE_CHANNEL_MEM, 0);
-
-        Err(PipelineError::NotEnoughData.temp())
     }
 }
 

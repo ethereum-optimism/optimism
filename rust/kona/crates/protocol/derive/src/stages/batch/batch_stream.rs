@@ -89,7 +89,7 @@ where
         l1_origins: &[BlockInfo],
     ) -> Result<(), SpanBatchError> {
         if let Some(span) = self.span.take() {
-            self.buffer.extend(span.get_singular_batches(l1_origins, parent)?);
+            crate::core::batch::hydrate_span_batch(span, parent, l1_origins, &mut self.buffer)?;
         }
         #[cfg(feature = "metrics")]
         {

@@ -25,6 +25,12 @@ pub use types::{ActivationSignal, PipelineResult, ResetSignal, Signal, StepResul
 mod metrics;
 pub use metrics::Metrics;
 
+// Sync derivation building blocks. `pub(crate)` for now; phase 6b promotes
+// the module to `pub` as the seam for a future `kona-core` extraction.
+// `core::*` is consumed by the async stages today and by `pure::Deriver`
+// in phase 3 — both build on the same IO-free primitives.
+mod core;
+
 // Async derivation surface, gated behind the `async` feature.
 //
 // Phase 1 of the pure-derivation migration: the existing async pipeline

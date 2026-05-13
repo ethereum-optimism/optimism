@@ -1,22 +1,19 @@
 //! The [`AttributesBuilder`] and it's default implementation.
 
 use crate::{
-    AttributesBuilder, BuilderError, ChainProvider, L2ChainProvider, PipelineEncodingError,
-    PipelineError, PipelineErrorKind, PipelineResult,
+    AttributesBuilder, ChainProvider, L2ChainProvider, PipelineError, PipelineErrorKind,
+    PipelineResult,
+    core::attributes::{
+        PrepareInputs, PreparedAttributes, check_block_mismatch, derive_deposits, needs_receipts,
+    },
 };
-use alloc::{boxed::Box, fmt::Debug, string::ToString, sync::Arc, vec, vec::Vec};
-use alloy_consensus::{Eip658Value, Receipt};
-use alloy_eips::{BlockNumHash, eip2718::Encodable2718};
-use alloy_primitives::{Address, B256, Bytes};
-use alloy_rlp::Encodable;
-use alloy_rpc_types_engine::PayloadAttributes;
+use alloc::{boxed::Box, fmt::Debug, sync::Arc, vec, vec::Vec};
+use alloy_eips::BlockNumHash;
+use alloy_primitives::Bytes;
 use async_trait::async_trait;
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_hardforks::{Hardfork, Hardforks, Interop};
 use kona_interop::DependencySet;
-use kona_protocol::{
-    DEPOSIT_EVENT_ABI_HASH, L1BlockInfoTx, L2BlockInfo, Predeploys, decode_deposit,
-};
+use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
 /// A stateful implementation of the [`AttributesBuilder`].
@@ -88,54 +85,35 @@ where
         l2_parent: L2BlockInfo,
         epoch: BlockNumHash,
     ) -> PipelineResult<OpPayloadAttributes> {
-        let l1_header;
-        let deposit_transactions: Vec<Bytes>;
-
         let mut sys_config = self
             .config_fetcher
             .system_config_by_number(l2_parent.block_info.number, self.rollup_cfg.clone())
             .await
             .map_err(Into::into)?;
 
-        // If the L1 origin changed in this block, then we are in the first block of the epoch.
-        // In this case we need to fetch all transaction receipts from the L1 origin block so
-        // we can scan for user deposits.
-        let sequence_number = if l2_parent.l1_origin.number == epoch.number {
-            #[allow(clippy::collapsible_else_if)]
-            if l2_parent.l1_origin.hash != epoch.hash {
-                return Err(PipelineErrorKind::Reset(
-                    BuilderError::BlockMismatch(epoch, l2_parent.l1_origin).into(),
-                ));
-            }
+        let l1_header =
+            self.receipts_fetcher.header_by_hash(epoch.hash).await.map_err(Into::into)?;
 
-            let header =
-                self.receipts_fetcher.header_by_hash(epoch.hash).await.map_err(Into::into)?;
-            l1_header = header;
-            deposit_transactions = vec![];
-            l2_parent.seq_num + 1
-        } else {
-            let header =
-                self.receipts_fetcher.header_by_hash(epoch.hash).await.map_err(Into::into)?;
-            if l2_parent.l1_origin.hash != header.parent_hash {
-                return Err(PipelineErrorKind::Reset(
-                    BuilderError::BlockMismatchEpochReset(
-                        epoch,
-                        l2_parent.l1_origin,
-                        header.parent_hash,
-                    )
-                    .into(),
-                ));
-            }
+        // Sync block-mismatch check — short-circuits before deposit IO when
+        // the L2 parent / epoch pair is inconsistent.
+        let header_parent_for_check =
+            needs_receipts(&l2_parent, &epoch).then_some(l1_header.parent_hash);
+        if let Some(err) = check_block_mismatch(&l2_parent, &epoch, header_parent_for_check) {
+            return Err(PipelineErrorKind::Reset(err.into()));
+        }
+
+        let (deposit_transactions, sequence_number): (Vec<Bytes>, u64) = if needs_receipts(
+            &l2_parent, &epoch,
+        ) {
             let receipts =
                 self.receipts_fetcher.receipts_by_hash(epoch.hash).await.map_err(Into::into)?;
             let deposits =
                 derive_deposits(epoch.hash, &receipts, self.rollup_cfg.deposit_contract_address)
-                    .await
                     .map_err(|e| PipelineError::BadEncoding(e).crit())?;
             let (updates, errors) = sys_config.update_with_receipts(
                 &receipts,
                 self.rollup_cfg.l1_system_config_address,
-                self.rollup_cfg.is_ecotone_active(header.timestamp),
+                self.rollup_cfg.is_ecotone_active(l1_header.timestamp),
             );
             for kind in &updates {
                 info!(target: "attributes", epoch = epoch.number, %kind, "Applied system config update");
@@ -143,178 +121,46 @@ where
             for err in &errors {
                 warn!(target: "attributes", ?err, epoch = epoch.number, "Malformed system config update (skipped)");
             }
-            l1_header = header;
-            deposit_transactions = deposits;
-            0
+            (deposits, 0)
+        } else {
+            (vec![], l2_parent.seq_num + 1)
         };
 
-        // Sanity check the L1 origin was correctly selected to maintain the time invariant
-        // between L1 and L2.
-        let next_l2_time = l2_parent.block_info.timestamp + self.rollup_cfg.block_time;
-        if next_l2_time < l1_header.timestamp {
-            return Err(PipelineErrorKind::Reset(
-                BuilderError::BrokenTimeInvariant(
-                    l2_parent.l1_origin,
-                    next_l2_time,
-                    BlockNumHash { hash: l1_header.hash_slow(), number: l1_header.number },
-                    l1_header.timestamp,
-                )
-                .into(),
-            ));
-        }
-
-        let mut upgrade_transactions: Vec<Bytes> =
-            if self.rollup_cfg.is_ecotone_active(next_l2_time) &&
-                !self.rollup_cfg.is_ecotone_active(l2_parent.block_info.timestamp)
-            {
-                Hardforks::ECOTONE.txs().collect()
-            } else {
-                vec![]
-            };
-        if self.rollup_cfg.is_fjord_active(next_l2_time) &&
-            !self.rollup_cfg.is_fjord_active(l2_parent.block_info.timestamp)
-        {
-            upgrade_transactions.append(&mut Hardforks::FJORD.txs().collect());
-        }
-        if self.rollup_cfg.is_isthmus_active(next_l2_time) &&
-            !self.rollup_cfg.is_isthmus_active(l2_parent.block_info.timestamp)
-        {
-            upgrade_transactions.append(&mut Hardforks::ISTHMUS.txs().collect());
-        }
-        if self.rollup_cfg.is_jovian_active(next_l2_time) &&
-            !self.rollup_cfg.is_jovian_active(l2_parent.block_info.timestamp)
-        {
-            upgrade_transactions.append(&mut Hardforks::JOVIAN.txs().collect());
-        }
-        // Starting with Karst, upgrade transactions carry their own gas budget that is
-        // added to the block gas limit at the fork activation block.
-        let mut upgrade_gas: u64 = 0;
-        if self.rollup_cfg.is_karst_active(next_l2_time) &&
-            !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
-        {
-            upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
-            upgrade_gas += Hardforks::KARST.upgrade_gas();
-        }
-        if self.rollup_cfg.is_interop_active(next_l2_time) &&
-            !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
-        {
-            // Base 7 txs: always emitted on interop activation.
-            upgrade_transactions.append(&mut Hardforks::INTEROP.txs().collect());
-
-            // CrossL2Inbox pair: only emitted when the dependency set has >1 chains.
-            // Matches op-node's gate at op-node/rollup/derive/attributes.go:178.
-            // `dependency_set` is guaranteed Some(_) here because the constructor
-            // panics when interop_time.is_some() && dependency_set.is_none(), and
-            // we only reach this branch when interop is active.
-            let dependency_set = self.dependency_set.as_ref().expect(
-                "dependency_set must be Some when interop is active — constructor invariant",
-            );
-            if dependency_set.dependencies.len() > 1 {
-                upgrade_transactions.extend(Interop::cross_l2_inbox_txs());
-            }
-        }
-
-        // Build and encode the L1 info transaction for the current payload.
-        let (_, l1_info_tx_envelope) = L1BlockInfoTx::try_new_with_deposit_tx(
-            &self.rollup_cfg,
-            &self.l1_cfg,
-            &sys_config,
+        match crate::core::attributes::prepare_payload_attributes(PrepareInputs {
+            rollup_cfg: &self.rollup_cfg,
+            l1_cfg: &self.l1_cfg,
+            l2_parent,
+            sys_config,
+            l1_header,
+            deposit_transactions,
             sequence_number,
-            &l1_header,
-            next_l2_time,
-        )
-        .map_err(|e| {
-            PipelineError::AttributesBuilder(BuilderError::Custom(e.to_string())).crit()
-        })?;
-        let mut encoded_l1_info_tx = Vec::with_capacity(l1_info_tx_envelope.length());
-        l1_info_tx_envelope.encode_2718(&mut encoded_l1_info_tx);
-
-        let mut txs =
-            Vec::with_capacity(1 + deposit_transactions.len() + upgrade_transactions.len());
-        txs.push(encoded_l1_info_tx.into());
-        txs.extend(deposit_transactions);
-        txs.extend(upgrade_transactions);
-
-        let withdrawals = self.rollup_cfg.is_canyon_active(next_l2_time).then(Vec::default);
-
-        let parent_beacon_root = self
-            .rollup_cfg
-            .is_ecotone_active(next_l2_time)
-            .then(|| l1_header.parent_beacon_block_root.unwrap_or_default());
-
-        Ok(OpPayloadAttributes {
-            payload_attributes: PayloadAttributes {
-                timestamp: next_l2_time,
-                prev_randao: l1_header.mix_hash,
-                suggested_fee_recipient: Predeploys::SEQUENCER_FEE_VAULT,
-                parent_beacon_block_root: parent_beacon_root,
-                withdrawals,
-                slot_number: None,
-            },
-            transactions: Some(txs),
-            no_tx_pool: Some(true),
-            gas_limit: Some(
-                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
-                    upgrade_gas,
-            ),
-            eip_1559_params: sys_config.eip_1559_params(
-                &self.rollup_cfg,
-                l2_parent.block_info.timestamp,
-                next_l2_time,
-            ),
-            min_base_fee: self
-                .rollup_cfg
-                .is_jovian_active(next_l2_time)
-                .then(|| sys_config.min_base_fee.unwrap_or_default()), /* Default to zero if not
-                                                                        * set at Jovian */
-        })
-    }
-}
-
-/// Derive deposits as `Vec<Bytes>` for transaction receipts.
-///
-/// Successful deposits must be emitted by the deposit contract and have the correct event
-/// signature. So the receipt address must equal the specified deposit contract and the first topic
-/// must be the [`DEPOSIT_EVENT_ABI_HASH`].
-async fn derive_deposits(
-    block_hash: B256,
-    receipts: &[Receipt],
-    deposit_contract: Address,
-) -> Result<Vec<Bytes>, PipelineEncodingError> {
-    let mut global_index = 0;
-    let mut res = Vec::new();
-    for r in receipts {
-        if Eip658Value::Eip658(false) == r.status {
-            continue;
-        }
-        for l in &r.logs {
-            let curr_index = global_index;
-            global_index += 1;
-            if l.data.topics().first().is_none_or(|i| *i != DEPOSIT_EVENT_ABI_HASH) {
-                continue;
+            dependency_set: self.dependency_set.as_ref(),
+        }) {
+            PreparedAttributes::Ok(attrs) => Ok(attrs),
+            PreparedAttributes::BrokenTimeInvariant(err) => {
+                Err(PipelineErrorKind::Reset(err.into()))
             }
-            if l.address != deposit_contract {
-                continue;
+            PreparedAttributes::L1InfoTxBuild(err) => {
+                Err(PipelineError::AttributesBuilder(err).crit())
             }
-            let decoded = decode_deposit(block_hash, curr_index, l)?;
-            res.push(decoded);
         }
     }
-    Ok(res)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
+        BuilderError,
         errors::ResetError,
         test_utils::{TestChainProvider, TestSystemConfigL2Fetcher},
     };
     use alloc::vec;
-    use alloy_consensus::Header;
+    use alloy_consensus::{Eip658Value, Header, Receipt};
     use alloy_primitives::{B256, Bytes, Log, LogData, U64, U256, address};
+    use alloy_rpc_types_engine::PayloadAttributes;
     use kona_genesis::{CONFIG_UPDATE_TOPIC, HardForkConfig, SystemConfig};
-    use kona_protocol::{BlockInfo, DepositError};
+    use kona_protocol::{BlockInfo, DEPOSIT_EVENT_ABI_HASH, DepositError, Predeploys};
     use kona_registry::L1Config;
 
     fn generate_valid_log() -> Log {
@@ -367,51 +213,51 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_empty() {
+    #[test]
+    fn test_derive_deposits_empty() {
         let receipts = vec![];
-        let deposit_contract = Address::default();
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let deposit_contract = address!("0000000000000000000000000000000000000000");
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert!(result.unwrap().is_empty());
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_non_deposit_events_filtered_out() {
+    #[test]
+    fn test_derive_deposits_non_deposit_events_filtered_out() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
         invalid.logs[0].data = LogData::new_unchecked(vec![], Bytes::default());
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 5);
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_non_deposit_contract_addr() {
+    #[test]
+    fn test_derive_deposits_non_deposit_contract_addr() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
-        invalid.logs[0].address = Address::default();
+        invalid.logs[0].address = alloy_primitives::Address::default();
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 5);
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_decoding_errors() {
+    #[test]
+    fn test_derive_deposits_decoding_errors() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let mut invalid = generate_valid_receipt();
         invalid.logs[0].data =
             LogData::new_unchecked(vec![DEPOSIT_EVENT_ABI_HASH], Bytes::default());
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt(), invalid];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         let downcasted = result.unwrap_err();
         assert_eq!(downcasted, DepositError::UnexpectedTopicsLen(1).into());
     }
 
-    #[tokio::test]
-    async fn test_derive_deposits_succeeds() {
+    #[test]
+    fn test_derive_deposits_succeeds() {
         let deposit_contract = address!("1111111111111111111111111111111111111111");
         let receipts = vec![generate_valid_receipt(), generate_valid_receipt()];
-        let result = derive_deposits(B256::default(), &receipts, deposit_contract).await;
+        let result = derive_deposits(B256::default(), &receipts, deposit_contract);
         assert_eq!(result.unwrap().len(), 4);
     }
 
@@ -433,8 +279,6 @@ mod tests {
             l1_origin: BlockNumHash { hash: B256::left_padding_from(&[0xFF]), number: 2 },
             seq_num: 0,
         };
-        // This should error because the l2 parent's l1_origin.hash should equal the epoch header
-        // hash. Here we use the default header whose hash will not equal the custom `l2_hash`.
         let expected =
             BuilderError::BlockMismatchEpochReset(epoch, l2_parent.l1_origin, B256::default());
         let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
@@ -459,8 +303,6 @@ mod tests {
             l1_origin: BlockNumHash { hash: B256::ZERO, number: l2_number },
             seq_num: 0,
         };
-        // This should error because the l2 parent's l1_origin.hash should equal the epoch hash
-        // Here the default header is used whose hash will not equal the custom `l2_hash` above.
         let expected = BuilderError::BlockMismatch(epoch, l2_parent.l1_origin);
         let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
         assert_eq!(err, PipelineErrorKind::Reset(ResetError::AttributesBuilder(expected)));
@@ -767,8 +609,6 @@ mod tests {
             l1_origin: BlockNumHash { hash: parent_origin_hash, number: 0 },
             seq_num: 0,
         };
-        // Before the fix this would return Err(Critical(SystemConfigUpdate(...))).
-        // After the fix, the error is logged as a warning and attributes are returned.
         let result = builder.prepare_payload_attributes(l2_parent, epoch).await;
         assert!(
             result.is_ok(),

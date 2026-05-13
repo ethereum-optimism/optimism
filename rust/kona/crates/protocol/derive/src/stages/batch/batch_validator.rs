@@ -144,53 +144,35 @@ where
         &mut self,
         parent: &L2BlockInfo,
     ) -> PipelineResult<SingleBatch> {
-        let epoch = self.l1_blocks[0];
-
-        // If the current epoch is too old compared to the L1 block we are at,
-        // i.e. if the sequence window expired, we create empty batches for the current epoch
         let stage_origin = self.origin.ok_or(PipelineError::MissingOrigin.crit())?;
-        let expiry_epoch = epoch.number + self.cfg.seq_window_size;
-        let force_empty_batches = expiry_epoch <= stage_origin.number;
-        let first_of_epoch = epoch.number == parent.l1_origin.number + 1;
+        let epoch_number = self.l1_blocks[0].number;
+        let next_epoch_for_log = self.l1_blocks.get(1).copied().unwrap_or_default();
         let next_timestamp = parent.block_info.timestamp + self.cfg.block_time;
 
-        // If the sequencer window did not expire,
-        // there is still room to receive batches for the current epoch.
-        // No need to force-create empty batch(es) towards the next epoch yet.
-        if !force_empty_batches {
-            return Err(PipelineError::Eof.temp());
+        match crate::core::batch::try_derive_empty_batch(
+            self.cfg.as_ref(),
+            parent,
+            stage_origin,
+            &mut self.l1_blocks,
+        ) {
+            crate::core::batch::EmptyBatchOutcome::Generated(batch) => {
+                info!(
+                    target: "batch_validator",
+                    "Generating empty batch for epoch #{}",
+                    epoch_number,
+                );
+                Ok(batch)
+            }
+            crate::core::batch::EmptyBatchOutcome::AdvancedEpoch => {
+                debug!(
+                    target: "batch_validator",
+                    "Advancing batch validator epoch: {}, timestamp: {}, epoch timestamp: {}",
+                    next_epoch_for_log.number, next_timestamp, next_epoch_for_log.timestamp
+                );
+                Err(PipelineError::Eof.temp())
+            }
+            crate::core::batch::EmptyBatchOutcome::Eof => Err(PipelineError::Eof.temp()),
         }
-
-        // The next L1 block is needed to proceed towards the next epoch.
-        if self.l1_blocks.len() < 2 {
-            return Err(PipelineError::Eof.temp());
-        }
-
-        let next_epoch = self.l1_blocks[1];
-
-        // Fill with empty L2 blocks of the same epoch until we meet the time of the next L1 origin,
-        // to preserve that L2 time >= L1 time. If this is the first block of the epoch, always
-        // generate a batch to ensure that we at least have one batch per epoch.
-        if next_timestamp < next_epoch.timestamp || first_of_epoch {
-            info!(target: "batch_validator", "Generating empty batch for epoch #{}", epoch.number);
-            return Ok(SingleBatch {
-                parent_hash: parent.block_info.hash,
-                epoch_num: epoch.number,
-                epoch_hash: epoch.hash,
-                timestamp: next_timestamp,
-                transactions: Vec::new(),
-            });
-        }
-
-        // At this point we have auto generated every batch for the current epoch
-        // that we can, so we can advance to the next epoch.
-        debug!(
-            target: "batch_validator",
-            "Advancing batch validator epoch: {}, timestamp: {}, epoch timestamp: {}",
-            next_epoch.number, next_timestamp, next_epoch.timestamp
-        );
-        self.l1_blocks.remove(0);
-        Err(PipelineError::Eof.temp())
     }
 }
 
