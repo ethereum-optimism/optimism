@@ -792,6 +792,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
 
         assertEq(result.length, _implRecords.length, "getImplementations length mismatch");
         for (uint256 i = 0; i < result.length; i++) {
+            assertTrue(result[i].impl != address(0), string.concat(result[i].name, " impl is zero"));
             assertEq(result[i].impl, _findImplByName(result[i].name), string.concat(result[i].name, " impl mismatch"));
         }
     }
