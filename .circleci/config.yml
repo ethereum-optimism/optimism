@@ -83,7 +83,7 @@ parameters:
     default: "v0.0"
 
 orbs:
-  continuation: circleci/continuation@1.0.0
+  continuation: circleci/continuation@2.0.1
 
 jobs:
   prepare-continuation-config:
