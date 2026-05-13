@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -41,14 +40,6 @@ type L2CLConfig struct {
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
-
-	// customNUTActivationOffset, if non-zero, triggers injection of custom NUT transactions at
-	// genesis-time + customNUTActivationOffset seconds. The *rollup.CustomNUTActivation handle
-	// returned by WithCustomNUTAtOffset must have SetTransactions called before that block.
-	customNUTActivationOffset uint64
-	// customNUTActivation is the shared handle written by singlechain_build once the genesis time
-	// is known. The caller holds the same pointer to feed in transactions after startup.
-	customNUTActivation *rollup.CustomNUTActivation
 }
 
 func L2CLSequencer() L2CLOption {

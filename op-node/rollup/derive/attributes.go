@@ -167,12 +167,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	if ba.rollupCfg.IsCustomNUTActivationBlock(nextL2Time) {
-		customTxs, customGas := ba.rollupCfg.CustomNUTActivation.Transactions()
-		upgradeTxs = append(upgradeTxs, customTxs...)
-		upgradeGas += customGas
-	}
-
 	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
 		interop, err := InteropNetworkUpgradeTransactions()

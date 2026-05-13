@@ -430,10 +430,6 @@ func startL2CLNode(
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
 	}
-	if cfg.customNUTActivation != nil {
-		cfg.customNUTActivation.Time = l2Net.rollupCfg.Genesis.L2Time + cfg.customNUTActivationOffset
-		nodeCfg.Rollup.CustomNUTActivation = cfg.customNUTActivation
-	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,
 		opNode:   nil,
