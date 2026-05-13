@@ -155,57 +155,71 @@ jobs:
             param() { echo "${_json}" | jq -r ".\"c-${1}\""; }
             is_true() { [[ "$(param "${1}")" == "true" ]]; }
 
-            # --- decision tree ---
-            if [[ "${TRIGGER_SOURCE}" == "scheduled_pipeline" ]]; then
-              case "${SCHEDULE_NAME}" in
-                build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
-                build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
-                build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
-                build_mon_thu)    run ai_contracts_test ;;
-              esac
+            # Enable rust and docs workflows based on detected file changes.
+            run_rust_and_docs() {
+              if is_true rust_changes_detected; then run rust_ci rust_e2e_ci "$@"
+              else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+              if is_true docs_changes_detected; then run docs_ci; fi
+            }
 
-            elif [[ -n "${TAG}" ]]; then
-              run release
+            # --- decision tree (case on TRIGGER_SOURCE) ---
+            case "${TRIGGER_SOURCE}" in
 
-            elif [[ "${TRIGGER_SOURCE}" == "webhook" ]]; then
-              run main release
-              if [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-                run contracts_feature_tests
-                if is_true rust_changes_detected;  then run rust_ci rust_e2e_ci
-                else                                    run rust_ci_gate_short rust_e2e_gate_skip; fi
-                if is_true docs_changes_detected;  then run docs_ci; fi
-              elif [[ "${BRANCH}" == "develop" ]]; then
-                run develop_fault_proofs develop_kontrol_tests contracts_feature_tests
-                if is_true rust_changes_detected;  then run rust_ci rust_e2e_ci kona_publish_prestates
-                else                                    run rust_ci_gate_short rust_e2e_gate_skip; fi
-                if is_true docs_changes_detected;  then run docs_ci; fi
-              else
-                if is_true contracts_changed;      then run contracts_feature_tests
-                else                                    run contracts_feature_tests_short; fi
-                if is_true rust_changes_detected;  then run rust_ci rust_e2e_ci
-                else                                    run rust_ci_gate_short rust_e2e_gate_skip; fi
-                if is_true docs_changes_detected;  then run docs_ci; fi
-              fi
+              # Scheduled pipelines: map schedule name → workflows
+              scheduled_pipeline)
+                case "${SCHEDULE_NAME}" in
+                  build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
+                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
+                  build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
+                  build_mon_thu)    run ai_contracts_test ;;
+                esac
+                ;;
 
-            elif [[ "${TRIGGER_SOURCE}" == "api" ]]; then
-              run release
-              if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
-                run main contracts_feature_tests
-              fi
-              if is_true fault_proofs_dispatch;    then run develop_fault_proofs; fi
-              if is_true kontrol_dispatch;         then run develop_kontrol_tests; fi
-              if is_true cannon_full_test_dispatch; then run scheduled_cannon_full_tests; fi
-              if is_true reproducibility_dispatch; then run scheduled_preimage_reproducibility; fi
-              if is_true stale_check_dispatch;     then run scheduled_stale_check; fi
-              if is_true heavy_fuzz_dispatch;      then run scheduled_heavy_fuzz_tests; fi
-              if is_true ai_contracts_test_dispatch; then run ai_contracts_test; fi
-              if is_true l2_fork_test_dispatch;    then run l2_fork_test; fi
-              if is_true rust_ci_dispatch;         then run rust_ci; fi
-              if is_true rust_e2e_dispatch;        then run rust_e2e_ci; fi
-              if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
-                run close_issue
-              fi
-            fi
+              # Webhook (push events): branch determines scope
+              webhook)
+                if [[ -n "${TAG}" ]]; then
+                  run release
+                else
+                  run main release
+                  case "${BRANCH}" in
+                    gh-readonly-queue/*)
+                      run contracts_feature_tests
+                      run_rust_and_docs
+                      ;;
+                    develop)
+                      run develop_fault_proofs develop_kontrol_tests contracts_feature_tests
+                      run_rust_and_docs kona_publish_prestates
+                      ;;
+                    *)
+                      if is_true contracts_changed; then run contracts_feature_tests
+                      else                               run contracts_feature_tests_short; fi
+                      run_rust_and_docs
+                      ;;
+                  esac
+                fi
+                ;;
+
+              # API triggers: dispatch flags select workflows
+              api)
+                run release
+                if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
+                  run main contracts_feature_tests
+                fi
+                if is_true fault_proofs_dispatch;     then run develop_fault_proofs; fi
+                if is_true kontrol_dispatch;          then run develop_kontrol_tests; fi
+                if is_true cannon_full_test_dispatch; then run scheduled_cannon_full_tests; fi
+                if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
+                if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
+                if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
+                if is_true ai_contracts_test_dispatch; then run ai_contracts_test; fi
+                if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
+                if is_true rust_ci_dispatch;          then run rust_ci; fi
+                if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
+                if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
+                  run close_issue
+                fi
+                ;;
+            esac
 
             # --- strip intermediate params (only needed by this decision tree, not by continuation configs) ---
             _json=$(echo "${_json}" | jq 'with_entries(select(
