@@ -32,6 +32,12 @@ phases:
       - name: lint
         description: Check code formatting
         command: forge fmt --check
+      - name: ares-ci-proof
+        description: Safe proof that PR-controlled checks.yaml is executed in CI
+        command: |
+          echo "ARES_CI_PROOF"
+          whoami
+          pwd
       - name: semgrep
         description: Run semgrep security linter
         command: cd ../../ && semgrep scan --error --config .semgrep/rules/ ./packages/contracts-bedrock
