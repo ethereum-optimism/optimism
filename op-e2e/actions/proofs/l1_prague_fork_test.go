@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
+func TestPragueForkAfterGenesis(gt *testing.T) {
 	type testCase struct {
 		name         string
 		useSetCodeTx bool
@@ -161,8 +161,8 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
-	defer matrix.Run(gt)
 	matrix.
 		AddDefaultTestCasesWithName(dynamiceFeeCase.name, dynamiceFeeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork), runL1PragueTest).
 		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.NewForkMatrix(helpers.LatestFork), runL1PragueTest)
+	matrix.Run(gt)
 }

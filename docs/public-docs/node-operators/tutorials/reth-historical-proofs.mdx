@@ -92,7 +92,7 @@ Initialize the separate storage used by the ExEx to store historical proofs. Thi
 ```
 
 <Info>
-`proofs init` completes in seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization.
+The first time `proofs init` runs, it takes minutes to hours to complete. Subsequent invocations should only take seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization. For that reason it is recommended to start from a snapshot whose tip is old enough to cover the required time window, so that when the node starts syncing from the snapshot's tip, the full window is covered.
 </Info>
 
 ## Running op-reth

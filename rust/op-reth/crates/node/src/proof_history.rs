@@ -71,12 +71,8 @@ where
     let storage: OpProofsStorage<Arc<S>> = mdbx.clone().into();
     let storage_exec = storage.clone();
 
-    let RollupArgs {
-        proofs_history_window,
-        proofs_history_prune_interval,
-        proofs_history_verification_interval,
-        ..
-    } = args.clone();
+    let RollupArgs { proofs_history_window, proofs_history_verification_interval, .. } =
+        args.clone();
 
     let handle = builder
         .node(OpNode::new(args))
@@ -91,7 +87,6 @@ where
         .install_exex("proofs-history", async move |exex_context| {
             Ok(OpProofsExEx::builder(exex_context, storage_exec)
                 .with_proofs_history_window(proofs_history_window)
-                .with_proofs_history_prune_interval(proofs_history_prune_interval)
                 .with_verification_interval(proofs_history_verification_interval)
                 .build()
                 .run()

@@ -23,7 +23,6 @@ contract OPContractsManagerContainer {
     /// @notice Addresses of the implementation contracts.
     struct Implementations {
         address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address ethLockboxImpl;

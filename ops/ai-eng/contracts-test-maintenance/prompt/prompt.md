@@ -465,10 +465,10 @@ function testFuzz_isEnabled_randomAddress_succeeds(address _random) public {
 <example>
 <scenario>Redundant getter test</scenario>
 <wrong>
-contract ProtocolVersions_Required_Test {
-    function test_required_succeeds() external view {
+contract SystemConfig_Owner_Test {
+    function test_owner_succeeds() external view {
         // ❌ Getter already tested in initialize test
-        assertEq(protocolVersions.required(), required);
+        assertEq(systemConfig.owner(), owner);
     }
 }
 </wrong>

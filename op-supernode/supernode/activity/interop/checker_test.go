@@ -31,11 +31,22 @@ func (noopL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
 }
 
 // inconsistentL1Checker always reports that heads disagree on the canonical L1
-// chain. Tests use it to drive observeRound into a rewind decision.
+// chain. Tests use it to drive observeRound into an L1 inconsistency decision.
 type inconsistentL1Checker struct{}
 
 func (inconsistentL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
 	return false, nil
+}
+
+// staleFrontierL1Checker treats the accepted L1 head as canonical on the first
+// check, then reports the frontier L1 heads as stale on the second check.
+type staleFrontierL1Checker struct {
+	calls int
+}
+
+func (s *staleFrontierL1Checker) SameL1Chain(context.Context, []eth.BlockID) (bool, error) {
+	s.calls++
+	return s.calls == 1, nil
 }
 
 func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {

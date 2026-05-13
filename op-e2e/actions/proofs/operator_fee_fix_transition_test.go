@@ -23,7 +23,7 @@ import (
 // It establishes that no special logic is in place to automatically reset
 // the scalars, and fees are therefore expected to vastly increase
 // under the new Jovian formula.
-func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
+func TestOperatorFeeFixTransition(gt *testing.T) {
 
 	run := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		t := actionsHelpers.NewDefaultTesting(gt)

@@ -216,13 +216,9 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
 		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
 		SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-		// Non-zero placeholder for the deprecated protocolVersionsProxy
-		// field the Solidity script still asserts on. The deployed impls
-		// store but never call into this address; PR 2 of #20309 removes it.
-		ProtocolVersionsProxy: cfg.SuperchainConfigProxy,
-		SuperchainProxyAdmin:  cfg.SuperchainProxyAdmin,
-		L1ProxyAdminOwner:     cfg.L1ProxyAdminOwner,
-		Challenger:            cfg.Challenger,
+		SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
+		L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
+		Challenger:                      cfg.Challenger,
 	}
 
 	if cfg.UseForge {

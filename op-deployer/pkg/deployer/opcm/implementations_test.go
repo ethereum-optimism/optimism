@@ -61,11 +61,9 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			FaultGameV2ClockExtension:       big.NewInt(10800),
 			FaultGameV2MaxClockDuration:     big.NewInt(302400),
 			SuperchainConfigProxy:           proxyAddress,
-			// Non-zero placeholder; PR 2 of #20309 removes the field.
-			ProtocolVersionsProxy: proxyAddress,
-			SuperchainProxyAdmin:  proxyAdminAddress,
-			L1ProxyAdminOwner:     common.BigToAddress(big.NewInt(13)),
-			Challenger:            common.BigToAddress(big.NewInt(14)),
+			SuperchainProxyAdmin:            proxyAdminAddress,
+			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),
+			Challenger:                      common.BigToAddress(big.NewInt(14)),
 		})
 
 		// And do some simple asserts

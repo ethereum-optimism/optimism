@@ -39,8 +39,8 @@ under that directory (alongside the existing `op-core/forks/` and `op-core/prede
 | `op-service/superutil/` | merged into `op-core/superchain/` |
 | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` |
 
-**Not carried over** — the protocol-versions signalling mechanism is deprecated and will be
-removed as step 0 (see §0): `eth/catalyst/superchain.go` (`SuperchainSignal`,
+**Not carried over** — the protocol-versions signalling mechanism was deprecated and removed
+in step 0 (see §0): `eth/catalyst/superchain.go` (`SuperchainSignal`,
 `LogProtocolVersionSupport`), `params.ProtocolVersion*` types and constants,
 `params.OPStackSupport`.
 
@@ -78,55 +78,32 @@ import (
 
 ---
 
-## 0. Remove ProtocolVersions watching from op-node
-
-### Why
+## 0. Remove ProtocolVersions watching from op-node — **DONE**
 
 The protocol-versions signalling mechanism — op-node watching the L1 `ProtocolVersions` contract,
 reporting deltas via metrics, signalling the engine over `engine_signalSuperchainV1`, and halting
-the node when outdated — is a **deprecated feature**. Rather than port its op-geth types
+the node when outdated — was a deprecated feature. Rather than port its op-geth types
 (`params.ProtocolVersion*`, `catalyst.SuperchainSignal`, `catalyst.LogProtocolVersionSupport`,
-`params.OPStackSupport`) into `op-core`, we remove the feature from op-node entirely. This is the
-first step: it shrinks the surface we need to decouple and avoids carrying dead code into
-`op-core`.
+`params.OPStackSupport`) into `op-core`, the feature was removed entirely. This shrank the
+surface to decouple and avoided carrying dead code into `op-core`.
 
-### Scope
+Landed across:
+- #20258 — op-node watching/halting removal.
+- #20311 — `op-node/node/superchain.go` deletion + flag/runcfg/metrics cleanup.
+- #20317 — Rust kona ProtocolVersions support removal.
+- #20441 — final Go cleanup: `params.OPStackSupport`, `addresses.SuperchainContracts`,
+  op-deployer / op-chain-ops / op-devstack / op-e2e wiring, the `op-chain-ops/cmd/protocol-version`
+  CLI.
+- #20527 — Solidity contract deletion (`packages/contracts-bedrock/src/L1/ProtocolVersions.sol`)
+  and `OPContractsManagerContainer.Implementations.protocolVersionsImpl` removal; final Go
+  placeholder cleanup that #20441 left behind to keep the Solidity script ABIs in sync.
 
-**op-node (delete):**
-- `op-node/node/superchain.go` — the entire file (`handleProtocolVersionsUpdate`, `haltMaybe`).
-- In `op-node/node/runcfg/runtime_config.go`: remove the `ProtocolVersion` fields on
-  `runtimeConfigData`, the `RequiredProtocolVersion()` / `RecommendedProtocolVersion()` methods,
-  `RequiredProtocolVersionStorageSlot` / `RecommendedProtocolVersionStorageSlot` constants, and the
-  corresponding `ReadStorageAt` calls in `Load`. Keep everything related to the unsafe block
-  signer (`P2PSequencerAddress`, `UnsafeBlockSignerAddressSystemConfigStorageSlot`) — P2P gossip
-  needs that.
-- In `op-node/node/node.go`: remove the `handleProtocolVersionsUpdate(ctx)` call in
-  `initRuntimeConfig`; remove the `rollupHalt` field wiring and `halted.Store(true)` flow if it is
-  only driven by protocol-versions halting (needs verification).
-- In `op-node/service.go`: remove the block (~lines 59-61) that clears
-  `ProtocolVersionsAddress` when the load flag is unset; remove the `RollupHalt` option plumbing.
-- In `op-node/flags/flags.go`: remove `RollupLoadProtocolVersions` and `RollupHalt` flags and
-  their registration.
-- In `op-node/rollup/types.go`: remove `Config.ProtocolVersionsAddress` field.
-- In `op-node/rollup/superchain.go`: remove `OPStackSupport` var; remove the line that copies
-  `ProtocolVersionsAddr` from superchain config into `Config`.
-- In `op-node/metrics/metrics.go` + `noop.go`: remove `ReportProtocolVersions` method from the
-  `Metricer` interface and implementations; remove `ProtocolVersionDelta` and `ProtocolVersions`
-  gauge vectors.
+The remaining superchain registry usages (loading chain config, `NetworkNames`-style lookups)
+continue to work and are addressed in §§6–7.
 
-**op-service (delete):**
-- `op-service/sources/engine_client.go`: remove `SignalSuperchainV1` method and its
-  `catalyst.SuperchainSignal` / `params.ProtocolVersion` usage.
-
-**Unrelated — leave alone** (same "ProtocolVersion" name, different concept):
+**Unrelated — left alone** (same "ProtocolVersion" name, different concept):
 - `op-service/apis/p2p.go:46` `ProtocolVersion string` — libp2p peer protocol version string.
 - `op-node/p2p/rpc_server.go:115` — reads libp2p `"ProtocolVersion"` from peerstore.
-
-### Outcome
-
-After this step, op-node no longer imports `params.ProtocolVersion*` or `eth/catalyst` for
-protocol-version signalling. The remaining superchain registry usages (loading chain config,
-`NetworkNames`-style lookups) continue to work and are addressed in §§6–7.
 
 ---
 
@@ -459,8 +436,8 @@ users in the monorepo:
   used by `op-service/superutil/chain_config.go` and (transitively) `op-node/rollup/superchain.go`.
 
 The `ProtocolVersion*` types, `ProtocolVersionComparison`, `AheadMajor` / `OutdatedMajor`
-constants, `OPStackSupport` variable, and `NetworkNames` map in the same op-geth file are **all
-removed in §0** and are not carried over.
+constants, `OPStackSupport` variable, and `NetworkNames` map in the same op-geth file were
+**all removed in §0** and are not carried over.
 
 ### Proposed decoupling
 

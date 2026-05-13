@@ -342,9 +342,13 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		return nil, err
 	}
 
+	return opcmsFromVersions(chainID, versions), nil
+}
+
+func opcmsFromVersions(chainID uint64, versions Versions) []OPCMInfo {
 	var opcms []OPCMInfo
 
-	for _, versionConfig := range versions {
+	for releaseTag, versionConfig := range versions {
 		if versionConfig.OPContractsManager == nil {
 			continue
 		}
@@ -352,7 +356,10 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 			continue
 		}
 
-		releaseVersion := versionConfig.OPContractsManager.Version
+		releaseVersion, err := releaseVersionFromTag(releaseTag)
+		if err != nil {
+			continue
+		}
 
 		// Skip prerelease versions (rc, beta, alpha, etc.)
 		sv, err := ParseSemver(releaseVersion)
@@ -387,7 +394,15 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		}
 	}
 
-	return result, nil
+	return result
+}
+
+func releaseVersionFromTag(releaseTag string) (string, error) {
+	const prefix = "op-contracts/v"
+	if strings.HasPrefix(releaseTag, prefix) {
+		return strings.TrimPrefix(releaseTag, prefix), nil
+	}
+	return "", fmt.Errorf("invalid release tag: %s", releaseTag)
 }
 
 // FilterOPCMsByReleaseVersion filters OPCMs to only include those with release version > lastVersion.

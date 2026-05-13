@@ -56,7 +56,7 @@ library UpgradeUtils {
     /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
-        return GasLimits({ l2cmDeployment: 4_942_996, upgradeExecution: 2_115_000 });
+        return GasLimits({ l2cmDeployment: 4_944_000, upgradeExecution: 2_115_000 });
     }
 
     /// @notice Returns the array of predeploy names to upgrade.

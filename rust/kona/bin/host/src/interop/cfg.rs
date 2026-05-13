@@ -16,6 +16,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
+    VerifyingPreimageFetcher,
 };
 use kona_proof_interop::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
@@ -109,10 +110,6 @@ pub struct InteropHost {
     /// dependency set. The config should be stored as a serde-JSON serialized file.
     #[arg(long, alias = "depset-cfg", env)]
     pub dependency_set_path: Option<PathBuf>,
-    /// Optionally enables the use of `debug_executePayload` to collect the execution witness from
-    /// the execution layer.
-    #[arg(long, env)]
-    pub enable_experimental_witness_endpoint: bool,
 }
 
 /// An error that can occur when handling interop hosts
@@ -199,7 +196,7 @@ impl InteropHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(OfflineHostBackend::new(kv_store)),
+                    Arc::new(VerifyingPreimageFetcher::new(OfflineHostBackend::new(kv_store))),
                 )
                 .start()
                 .await
@@ -220,7 +217,7 @@ impl InteropHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(backend),
+                    Arc::new(VerifyingPreimageFetcher::new(backend)),
                 )
                 .start()
                 .await

@@ -122,8 +122,8 @@ func addGameTypesForRuntime(
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
 	}
 
-	// OPCMv2 requires all 7 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	// OPCMv2 requires all 6 game configs in order:
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	configs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  enabled[gameTypes.CannonGameType],
@@ -151,7 +151,6 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{

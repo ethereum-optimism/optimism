@@ -16,7 +16,7 @@ GIT_COMMIT="${GIT_COMMIT:-$(git rev-parse HEAD)}"
 # Read image list from the single source of truth
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-IMAGES_JSON="$REPO_ROOT/.github/docker-images.json"
+IMAGES_JSON="$REPO_ROOT/.github/images.json"
 
 if [ ! -f "$IMAGES_JSON" ]; then
   echo "Error: $IMAGES_JSON not found" >&2

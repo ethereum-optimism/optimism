@@ -168,6 +168,8 @@ impl RollupConfig {
     pub fn spec_id(&self, timestamp: u64) -> op_revm::OpSpecId {
         if self.is_interop_active(timestamp) {
             op_revm::OpSpecId::INTEROP
+        } else if self.is_karst_active(timestamp) {
+            op_revm::OpSpecId::KARST
         } else if self.is_jovian_active(timestamp) {
             op_revm::OpSpecId::JOVIAN
         } else if self.is_isthmus_active(timestamp) {
@@ -534,6 +536,12 @@ mod tests {
         assert_eq!(config.spec_id(50), op_revm::OpSpecId::HOLOCENE);
         config.hardforks.isthmus_time = Some(60);
         assert_eq!(config.spec_id(60), op_revm::OpSpecId::ISTHMUS);
+        config.hardforks.jovian_time = Some(70);
+        assert_eq!(config.spec_id(70), op_revm::OpSpecId::JOVIAN);
+        config.hardforks.karst_time = Some(80);
+        assert_eq!(config.spec_id(80), op_revm::OpSpecId::KARST);
+        config.hardforks.interop_time = Some(90);
+        assert_eq!(config.spec_id(90), op_revm::OpSpecId::INTEROP);
     }
 
     #[test]

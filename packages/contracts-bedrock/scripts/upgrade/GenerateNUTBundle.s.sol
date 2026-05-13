@@ -34,8 +34,10 @@ contract GenerateNUTBundle is Script {
 
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
+    /// @param fork Fork name; L2 fork tests use it as the `PastNUTBundles.wrappersForFork` dispatch key.
     struct Output {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] txns;
+        string fork;
     }
 
     /// @notice Configuration for a implementation contract deployment.
@@ -96,6 +98,8 @@ contract GenerateNUTBundle is Script {
     /// @dev Only modify phases 1 and 3 for fork-specific logic. Other phases must remain unchanged.
     /// @return output_ Output containing all generated transactions in execution order.
     function _buildOutput() internal returns (Output memory output_) {
+        output_.fork = UPGRADE_NAME;
+
         // Build implementation deployment configurations
         _buildImplementationDeploymentConfigs();
 
@@ -497,7 +501,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
             name: "L2DevFeatureFlags",
             artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deploymentGasLimit: 315_000,
+            deploymentGasLimit: 328_329,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
             )

@@ -175,11 +175,11 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
 
 # Run action tests for the single-chain client program on the native target.
 #
-# By default, runs every Test* in op-e2e/actions/proofs/ except those
-# matching `skip_pattern`. The exclusion encodes "this test is op-program-only
-# and not expected to pass under kona-host" — opt out by naming a test
-# `Test_OPProgramAction_*` rather than opting in by prefix.
-action-tests-single test_name='.*' skip_pattern='^Test_OPProgramAction' *args='': action-tests-build (action-tests-single-run test_name skip_pattern args)
+# Runs every Test* in op-e2e/actions/proofs/. Tests that exercise op-program-only
+# behavior (and aren't expected to pass under kona-host) opt themselves out by
+# calling helpers.SkipIfKona(t) at the top — the runner sets KONA_HOST_PATH,
+# which the helper detects.
+action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
 
 # Build action tests for host program
 action-tests-build:
@@ -189,7 +189,7 @@ action-tests-build:
   just build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single-run test_name='.*' skip_pattern='^Test_OPProgramAction' parallel="0" *args='':
+action-tests-single-run test_name='.*' parallel="0" *args='':
   #!/bin/bash
   set -euo pipefail
 
@@ -227,13 +227,14 @@ action-tests-single-run test_name='.*' skip_pattern='^Test_OPProgramAction' para
     export NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
-    # List matching test names, filtering out the "ok" summary line from go test -list,
-    # and excluding tests matched by skip_pattern (op-program-only tests).
-    go test -list '{{test_name}}' . | grep -E '^Test' | grep -vE '{{skip_pattern}}' > /tmp/tests.txt
+    # List matching test names, filtering out the "ok" summary line from go test -list.
+    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
+    # so no name-based exclusion is needed here.
+    go test -list '{{test_name}}' . | grep -E '^Test' > /tmp/tests.txt
 
     TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
     if [ "$TOTAL_TESTS" -eq 0 ]; then
-      echo "Error: no tests matched '{{test_name}}' after excluding '{{skip_pattern}}'" >&2
+      echo "Error: no tests matched '{{test_name}}'" >&2
       exit 1
     fi
     echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
@@ -264,7 +265,7 @@ action-tests-single-run test_name='.*' skip_pattern='^Test_OPProgramAction' para
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
-    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}" -skip "{{skip_pattern}}"
+    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
 action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)

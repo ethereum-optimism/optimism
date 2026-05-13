@@ -48,7 +48,7 @@ type verifyInteropTestCase struct {
 func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	t.Parallel()
 	interop, timestamp, blocks := tc.setup()
-	result, err := interop.verifyInteropMessages(timestamp, blocks, nil)
+	result, err := interop.verifyInteropMessages(timestamp, blocks, l1HeadsFromMocks(interop.chains, blocks), nil)
 
 	if tc.expectError {
 		require.Error(t, err)
@@ -62,6 +62,20 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	if tc.validate != nil {
 		tc.validate(t, result)
 	}
+}
+
+// l1HeadsFromMocks builds the snapshot observeRound would produce, by reading optimisticL1
+// from each mock. Mocks tagged with optimisticAtErr are omitted to simulate a missing entry.
+func l1HeadsFromMocks(chains map[eth.ChainID]cc.InteropChain, blocks map[eth.ChainID]eth.BlockID) map[eth.ChainID]eth.BlockID {
+	heads := make(map[eth.ChainID]eth.BlockID, len(blocks))
+	for chainID := range blocks {
+		mock, ok := chains[chainID].(*algoMockChain)
+		if !ok || mock.optimisticAtErr != nil {
+			continue
+		}
+		heads[chainID] = mock.optimisticL1
+	}
+	return heads
 }
 
 func TestL1Inclusion(t *testing.T) {
@@ -152,10 +166,11 @@ func TestL1Inclusion(t *testing.T) {
 			},
 		},
 		{
-			name: "OptimisticAtError_ReturnsError",
+			name: "MissingL1HeadInSnapshot_ReturnsError",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				chainID := eth.ChainIDFromUInt64(10)
 
+				// optimisticAtErr makes l1HeadsFromMocks omit the chain, simulating a snapshot gap.
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
 					log:                 gethlog.New(),
@@ -169,7 +184,7 @@ func TestL1Inclusion(t *testing.T) {
 				}
 			},
 			expectError: true,
-			errorMsg:    "failed to get L1 inclusion",
+			errorMsg:    "missing L1 inclusion in observation snapshot",
 		},
 		{
 			name: "NoChains_ReturnsEmpty",
@@ -213,8 +228,8 @@ func TestL1Inclusion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			interop, ts, blocks := tc.setup()
-			l1, err := interop.l1Inclusion(ts, blocks)
+			interop, _, blocks := tc.setup()
+			l1, err := interop.l1Inclusion(blocks, l1HeadsFromMocks(interop.chains, blocks))
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -230,6 +245,35 @@ func TestL1Inclusion(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestL1Inclusion_UsesSnapshotNotChainContainer pins the reorg-safety property: l1Inclusion
+// must read from the snapshot, not re-query the chain. The mock errors on OptimisticAt to
+// catch any regression that re-introduces the call.
+func TestL1Inclusion_UsesSnapshotNotChainContainer(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+
+	interop := &Interop{
+		messageExpiryWindow: defaultMessageExpiryWindow,
+		log:                 gethlog.New(),
+		logsDBs:             map[eth.ChainID]LogsDB{},
+		chains: map[eth.ChainID]cc.InteropChain{
+			chainID: &algoMockChain{id: chainID, optimisticAtErr: errors.New("chain container must not be called")},
+		},
+	}
+
+	blocks := map[eth.ChainID]eth.BlockID{
+		chainID: {Number: 100, Hash: common.HexToHash("0xL2")},
+	}
+	snapshot := map[eth.ChainID]eth.BlockID{
+		chainID: {Number: 50, Hash: common.HexToHash("0xL1Snapshot")},
+	}
+
+	l1, err := interop.l1Inclusion(blocks, snapshot)
+	require.NoError(t, err)
+	require.Equal(t, snapshot[chainID], l1)
 }
 
 func TestVerifyInteropMessages(t *testing.T) {
@@ -899,8 +943,7 @@ func (m *testBlockInfo) GasLimit() uint64                                     { 
 func (m *testBlockInfo) BlobGasUsed() *uint64                                 { return nil }
 func (m *testBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
 func (m *testBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *testBlockInfo) HeaderRLP() ([]byte, error)                           { return nil, nil }
-func (m *testBlockInfo) Header() *types.Header                                { return nil }
+func (m *testBlockInfo) Extra() []byte                                        { return nil }
 func (m *testBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*testBlockInfo)(nil)
@@ -932,9 +975,6 @@ func (m *algoMockChain) VerifierCurrentL1s() []eth.BlockID                { retu
 func (m *algoMockChain) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
-func (m *algoMockChain) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
 func (m *algoMockChain) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -944,7 +984,7 @@ func (m *algoMockChain) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockI
 	}
 	return m.optimisticL2, m.optimisticL1, nil
 }
-func (m *algoMockChain) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *algoMockChain) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
 func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
@@ -978,6 +1018,9 @@ func (m *algoMockChain) GetDeniedOutput(height uint64, payloadHash common.Hash) 
 }
 func (m *algoMockChain) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
 	return nil, nil
+}
+func (m *algoMockChain) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	return false, nil
 }
 func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
 	return false, nil

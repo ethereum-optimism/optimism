@@ -162,8 +162,8 @@ The `just rank` command generates `components/tests_ranker/output/{run_id}_ranki
   "generated_at": "2025-09-22T14:30:52.517107+00:00",
   "entries": [
     {
-      "test_path": "test/L1/ProtocolVersions.t.sol",
-      "contract_path": "src/L1/ProtocolVersions.sol",
+      "test_path": "test/L1/SystemConfig.t.sol",
+      "contract_path": "src/L1/SystemConfig.sol",
       "test_commit_ts": 1746564380,
       "contract_commit_ts": 1738079001,
       "staleness_days": -98.21,

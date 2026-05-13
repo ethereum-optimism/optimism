@@ -657,6 +657,45 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
 }
 
+func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(20295))
+	l1Origin := testutils.RandomBlockRef(rng)
+	genesis := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           l1Origin.Time,
+		L1Origin:       l1Origin.ID(),
+		SequenceNumber: 0,
+	}
+
+	cfg := &rollup.Config{}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec.unsafeHead = genesis
+
+	mockEngine.ExpectL2BlockRefByNumber(0, genesis, nil)
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      genesis.Hash,
+			SafeBlockHash:      genesis.Hash,
+			FinalizedBlockHash: genesis.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	ec.FollowSource(genesis, genesis, genesis)
+
+	require.Equal(t, genesis, ec.localSafeHead)
+	require.Equal(t, genesis, ec.deprecatedSafeHead)
+	require.Equal(t, genesis, ec.deprecatedFinalizedHead)
+	mockEngine.AssertExpectations(t)
+}
+
 // TestEngineController_FinalizedHead tests FinalizedHead behavior with various configurations
 func TestEngineController_FinalizedHead(t *testing.T) {
 	tests := []struct {
@@ -856,9 +895,9 @@ func TestTryUpdateEngine_SyncingInELSyncModeIsAccepted(t *testing.T) {
 	// Mock ForkchoiceUpdate to return SYNCING
 	mockEngine.ExpectForkchoiceUpdate(
 		&eth.ForkchoiceState{
-			HeadBlockHash:      unsafeRef.Hash,
-			SafeBlockHash:      safeRef.Hash,
-			FinalizedBlockHash: finalRef.Hash,
+			HeadBlockHash: unsafeRef.Hash,
+			SafeBlockHash: safeRef.Hash,
+			// we omit FinalizedBlockHash because we expect it to NOT be set in EL sync mode
 		},
 		nil,
 		&eth.ForkchoiceUpdatedResult{

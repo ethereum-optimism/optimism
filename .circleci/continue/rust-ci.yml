@@ -6,7 +6,6 @@ version: 2.1
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.27
   gcp-cli: circleci/gcp-cli@3.0.1
-  codecov: codecov/codecov@5.0.3
 
 parameters:
   c-default_docker_image:
@@ -765,7 +764,11 @@ jobs:
           working_directory: rust/kona/bin/client
           no_output_timeout: 40m
           command: |
-            source <(cargo llvm-cov show-env --export-prefix)
+            # Pre-create the workspace target dir as the circleci user. Without
+            # this, `just build-cannon-client` (invoked inside run-client-cannon-offline)
+            # runs Docker as root and creates `rust/target/` with root ownership,
+            # which then breaks the subsequent native `cargo build --bin kona-host`
+            # with EACCES when it tries to create `target/debug`.
             mkdir -p ../../../target
             just run-client-cannon-offline \
               $BLOCK_NUMBER \
@@ -774,7 +777,6 @@ jobs:
               $L2_HEAD \
               $L1_HEAD \
               $L2_CHAIN_ID
-            cargo llvm-cov report --lcov --output-path client_host_cov.lcov
 
   # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
@@ -825,35 +827,6 @@ jobs:
           no_output_timeout: 40m
           command: |
             just build-<<parameters.target>>
-
-  # Kona Coverage
-  kona-coverage:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-coverage-cache
-          directory: rust
-          prefix: kona-coverage
-          version: "1"
-      - run:
-          name: Generate lockfile if needed
-          working_directory: rust
-          command: |
-            [ -f Cargo.lock ] || cargo generate-lockfile
-      - run:
-          name: Run coverage
-          working_directory: rust/kona
-          no_output_timeout: 40m
-          command: |
-            just llvm-cov-tests
-      - codecov/upload:
-          disable_search: true
-          files: rust/kona/lcov.info
-          flags: unit
-      - rust-save-build-cache: *kona-coverage-cache
 
   # Kona Link Checker
   kona-link-checker:
@@ -1057,7 +1030,7 @@ workflows:
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------
-      # Kona crate-specific jobs (lint, FPVM builds, benches, coverage)
+      # Kona crate-specific jobs (lint, FPVM builds, host-client offline)
       # -----------------------------------------------------------------------
       - kona-cargo-lint:
           name: kona-lint-cannon
@@ -1069,11 +1042,6 @@ workflows:
           target: "cannon-client"
           context: *rust-ci-context
 
-      - kona-coverage:
-          context: *rust-ci-context
-          requires:
-            - rust-tests
-
       - kona-host-client-offline:
           name: kona-host-client-offline-cannon
           context: *rust-ci-context
@@ -1083,9 +1051,26 @@ workflows:
       # -----------------------------------------------------------------------
       - required-rust-ci:
           requires:
-            - rust-tests: terminal
+            - rust-fmt: terminal
             - rust-clippy: terminal
+            - rust-deny: terminal
+            - rust-typos: terminal
+            - rust-zepter: terminal
+            - rust-tests: terminal
+            - rust-doctest: terminal
             - rust-docs: terminal
+            - rust-udeps: terminal
+            - rust-cargo-hack: terminal
+            - rust-build: terminal
+            - rust-build-release: terminal
+            - rust-check-no-std: terminal
+            - rust-wasm-unknown: terminal
+            - rust-wasm-wasi: terminal
+            - op-reth-compact-codec: terminal
+            - op-reth-integration-tests: terminal
+            - kona-lint-cannon: terminal
+            - kona-build-fpvm-cannon-client: terminal
+            - kona-host-client-offline-cannon: terminal
           context:
             - circleci-api-token
   # =====================================

@@ -182,10 +182,8 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_BadTxInBatch(gt *testing.T) {
+func TestBadTxInBatch(gt *testing.T) {
 	matrix := helpers.NewMatrix[int64]()
-	defer matrix.Run(gt)
-
 	matrix.AddDefaultTestCasesWithName(
 		"BadSignature",
 		BadSignature,
@@ -210,4 +208,5 @@ func Test_ProgramAction_BadTxInBatch(gt *testing.T) {
 		helpers.NewForkMatrix(helpers.Granite, helpers.Holocene, helpers.Isthmus),
 		runBadTxInBatch_ResubmitBadFirstFrame_Test,
 	)
+	matrix.Run(gt)
 }

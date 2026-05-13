@@ -36,7 +36,7 @@ type Result struct {
 //
 // Phase 2 keeps this intentionally small:
 // - advance/invalidate carry their Result directly
-// - rewind carries the accepted timestamp to rewind from
+// - rewind carries the accepted frontier to rewind from
 // Later phases can expand this into a richer explicit transition plan.
 type PendingTransition struct {
 	Decision Decision    `json:"decision"`
@@ -45,9 +45,8 @@ type PendingTransition struct {
 }
 
 // RewindPlan is the explicit rewind transition persisted in the WAL.
-// It captures the target verified frontier and per-chain logsDB target heads so
-// recovery can apply the same rewind path without recomputing it from live
-// state.
+// It captures the target verified frontier and engine reset decision so recovery
+// can apply the same rewind path without recomputing it from live state.
 type RewindPlan struct {
 	RewindAtOrAfter  uint64                      `json:"rewindAtOrAfter"`
 	ResetAllChainsTo *uint64                     `json:"resetAllChainsTo,omitempty"`

@@ -29,11 +29,11 @@ func NewRetryingL1Source(logger log.Logger, source L1Source) *RetryingL1Source {
 	}
 }
 
-func (s *RetryingL1Source) InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error) {
-	return retry.Do(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, error) {
-		res, err := s.source.InfoByHash(ctx, blockHash)
+func (s *RetryingL1Source) HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() (*types.Header, error) {
+		res, err := s.source.HeaderByHash(ctx, blockHash)
 		if err != nil {
-			s.logger.Warn("Failed to retrieve info", "hash", blockHash, "err", err)
+			s.logger.Warn("Failed to retrieve header", "hash", blockHash, "err", err)
 		}
 		return res, err
 	})
@@ -101,13 +101,13 @@ func (s *RetryingL2Source) ExperimentalEnabled() bool {
 	return s.source.ExperimentalEnabled()
 }
 
-func (s *RetryingL2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	return retry.Do2(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, types.Transactions, error) {
-		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
+func (s *RetryingL2Source) HeaderAndTxsByHash(ctx context.Context, blockHash common.Hash) (*types.Header, types.Transactions, error) {
+	return retry.Do2(ctx, maxAttempts, s.strategy, func() (*types.Header, types.Transactions, error) {
+		h, t, err := s.source.HeaderAndTxsByHash(ctx, blockHash)
 		if err != nil {
-			s.logger.Warn("Failed to retrieve l2 info and txs", "hash", blockHash, "err", err)
+			s.logger.Warn("Failed to retrieve l2 header and txs", "hash", blockHash, "err", err)
 		}
-		return i, t, err
+		return h, t, err
 	})
 }
 

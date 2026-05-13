@@ -1,0 +1,166 @@
+name: build images
+
+on:
+  push:
+    branches:
+      - 'develop'
+    tags:
+      - '*/v*'
+  pull_request:
+    branches:
+      - 'develop'
+    paths:
+      - 'op-*/**'
+      - 'cannon/**'
+      - 'packages/contracts-bedrock/**'
+      - 'rust/**'
+      - 'ops/docker/**'
+      - 'ops/scripts/compute-git-versions.sh'
+      - 'docker-bake.hcl'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/build-images.yaml'
+      - '.github/images.json'
+      - '.github/actions/docker-build-prep/**'
+  schedule:
+    # Daily build of all images at 02:00 UTC (matches the previous CircleCI schedule).
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix_json: ${{ steps.plan.outputs.matrix_json }}
+      has_builds: ${{ steps.plan.outputs.has_builds }}
+      is_release: ${{ steps.plan.outputs.is_release }}
+      go_check_images_json: ${{ steps.checks.outputs.go_check_images_json }}
+      rust_check_images_json: ${{ steps.checks.outputs.rust_check_images_json }}
+      has_go_check_images: ${{ steps.checks.outputs.has_go_check_images }}
+      has_rust_check_images: ${{ steps.checks.outputs.has_rust_check_images }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+      - name: Plan
+        id: plan
+        uses: ethereum-optimism/factory/actions/plan@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
+        with:
+          config: .github/images.json
+      - name: Compute cross-platform check sub-matrices
+        id: checks
+        env:
+          MATRIX: ${{ steps.plan.outputs.matrix_json }}
+        run: |
+          set -euo pipefail
+          go_json=$(echo "$MATRIX" | jq -c '[.[] | select(.check == "go") | .image_name]')
+          rust_json=$(echo "$MATRIX" | jq -c '[.[] | select(.check == "rust") | .image_name]')
+          has_go=$( [[ $(echo "$go_json" | jq 'length') -gt 0 ]] && echo true || echo false )
+          has_rust=$( [[ $(echo "$rust_json" | jq 'length') -gt 0 ]] && echo true || echo false )
+          {
+            echo "go_check_images_json=$go_json"
+            echo "rust_check_images_json=$rust_json"
+            echo "has_go_check_images=$has_go"
+            echo "has_rust_check_images=$has_rust"
+          } >> "$GITHUB_OUTPUT"
+          echo "go_check_images=$go_json"
+          echo "rust_check_images=$rust_json"
+
+  prep:
+    needs: plan
+    if: needs.plan.outputs.has_builds == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      versions: ${{ steps.prep.outputs.versions }}
+      date: ${{ steps.prep.outputs.date }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+      - uses: ./.github/actions/docker-build-prep
+        id: prep
+
+  build:
+    needs: [plan, prep]
+    if: needs.plan.outputs.has_builds == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.matrix_json) }}
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
+    with:
+      mode: ${{ matrix.mode }}
+      image_name: ${{ matrix.image_name }}
+      tag: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '24h' || matrix.tag }}
+      bake_file: ${{ matrix.bake_file }}
+      target: ${{ matrix.target }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
+      env: |
+        GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+        *.args.GIT_DATE=${{ github.ref_type == 'tag' && github.event.head_commit.timestamp || needs.prep.outputs.date }}
+        op-reth.args.BUILD_PROFILE=${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+  check-cross-platform:
+    needs: [plan, build]
+    if: |
+      always()
+      && needs.plan.outputs.has_go_check_images == 'true'
+      && needs.build.result == 'success'
+    strategy:
+      fail-fast: true
+      matrix:
+        image_name: ${{ fromJson(needs.plan.outputs.go_check_images_json) }}
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
+    steps:
+      - name: Run image
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+        run: docker run "$IMAGE" "$IMAGE_NAME" --version
+
+  check-cross-platform-rust:
+    needs: [plan, build]
+    if: |
+      always()
+      && needs.plan.outputs.has_rust_check_images == 'true'
+      && needs.build.result == 'success'
+    strategy:
+      fail-fast: true
+      matrix:
+        image_name: ${{ fromJson(needs.plan.outputs.rust_check_images_json) }}
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && format('ttl.sh/{0}/{1}:{2}', github.sha, matrix.image_name, github.sha) || format('us-docker.pkg.dev/oplabs-tools-artifacts/images/{0}:{1}', matrix.image_name, github.sha) }}
+    steps:
+      - name: Run image
+        run: docker run "$IMAGE" --version

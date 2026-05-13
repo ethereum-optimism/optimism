@@ -9,26 +9,15 @@ import (
 )
 
 // DeploySuperchainInput must mirror the Solidity DeploySuperchain.s.sol input
-// struct exactly — script ABI matching is checked at load time. The
-// ProtocolVersions* fields are no longer meaningful (the contract is dead in
-// op-node since #20258) but stay until PR 2 of #20309 strips them from the
-// Solidity script. Versions use `common.Hash` (= `bytes32`) to avoid the
-// op-geth `params.ProtocolVersion` import that #20266 needs gone.
+// struct exactly — script ABI matching is checked at load time.
 type DeploySuperchainInput struct {
-	Guardian                   common.Address `toml:"guardian"`
-	ProtocolVersionsOwner      common.Address `toml:"protocolVersionsOwner"`
-	SuperchainProxyAdminOwner  common.Address `toml:"superchainProxyAdminOwner"`
-	Paused                     bool           `toml:"paused"`
-	RecommendedProtocolVersion common.Hash    `toml:"recommendedProtocolVersion"`
-	RequiredProtocolVersion    common.Hash    `toml:"requiredProtocolVersion"`
+	Guardian                  common.Address `toml:"guardian"`
+	SuperchainProxyAdminOwner common.Address `toml:"superchainProxyAdminOwner"`
+	Paused                    bool           `toml:"paused"`
 }
 
 // DeploySuperchainOutput must mirror DeploySuperchain.s.sol's output struct.
-// The ProtocolVersions* addresses are no longer read by callers, but stay
-// here until PR 2 of #20309 strips them from Solidity.
 type DeploySuperchainOutput struct {
-	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
 	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
 	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
 	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`

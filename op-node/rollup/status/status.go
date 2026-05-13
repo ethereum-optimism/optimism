@@ -56,7 +56,7 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 		st.data.UnsafeL2 = x.UnsafeL2Head
 		st.data.SafeL2 = x.SafeL2Head
-		if st.data.LocalSafeL2.Number < x.SafeL2Head.Number {
+		if eth.L2BlockRefAdvances(st.data.LocalSafeL2, x.SafeL2Head) {
 			st.data.LocalSafeL2 = x.SafeL2Head
 		}
 		st.data.FinalizedL2 = x.FinalizedL2Head

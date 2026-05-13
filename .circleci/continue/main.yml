@@ -71,11 +71,6 @@ parameters:
   c-rust_files_changed:
     type: boolean
     default: false
-  # Set to true by path-filtering when files outside docs/public-docs/ change.
-  # When false, the main workflow is skipped entirely (docs-only PR).
-  c-non_docs_changes:
-    type: boolean
-    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -931,7 +926,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: large
     parameters:
       build_args:
         description: Forge build arguments
@@ -973,7 +968,7 @@ jobs:
   check-kontrol-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1648,7 +1643,7 @@ jobs:
   go-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: medium
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2470,7 +2465,6 @@ workflows:
         - or:
             - and:
                 - equal: ["webhook", << pipeline.trigger_source >>]
-                - << pipeline.parameters.c-non_docs_changes >>
             - and:
                 - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
                 - equal: ["api", << pipeline.trigger_source >>]
@@ -2760,18 +2754,6 @@ workflows:
           name: generate-flaky-tests-report
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
-  main-skip:
-    when:
-      and:
-        - equal: ["", << pipeline.git.tag >>]
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-non_docs_changes >>
-    jobs:
-      - ci-gate:
-          always-succeed: true
-          context:
             - circleci-api-token
 
   go-release-op-deployer:
@@ -3084,12 +3066,10 @@ workflows:
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - << pipeline.parameters.c-contracts_changed >>
-            - << pipeline.parameters.c-non_docs_changes >>
         # Always run on develop (mirrors previous check-changed whitelist behavior)
         - and:
             - equal: ["webhook", << pipeline.trigger_source >>]
             - equal: ["develop", << pipeline.git.branch >>]
-            - << pipeline.parameters.c-non_docs_changes >>
         # Merge queue (merge gate). Match checkout branch.
         - matches:
             pattern: "^gh-readonly-queue/.*"
@@ -3112,11 +3092,15 @@ workflows:
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
-                - CANNON_KONA
                 - SUPER_ROOT_GAMES_MIGRATION
-                - L2CM
-                - L2CM,CUSTOM_GAS_TOKEN
-                - L2CM,OPTIMISM_PORTAL_INTEROP
+                 # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
+                #   L2CM and CANNON_KONA are now enabled by default, so we do not need to
+                #   explicitly enable them and run these additional jobs. However they are kept here for now so that they
+                #   can easily be reactivated.
+                # - CANNON_KONA
+                # - L2CM
+                # - L2CM,CUSTOM_GAS_TOKEN
+                # - L2CM,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3269,19 +3253,17 @@ workflows:
           - and:
               - equal: ["webhook", << pipeline.trigger_source >>]
               - << pipeline.parameters.c-contracts_changed >>
-              - << pipeline.parameters.c-non_docs_changes >>
           # Always run on develop (mirrors previous check-changed whitelist behavior)
           - and:
               - equal: ["webhook", << pipeline.trigger_source >>]
               - equal: ["develop", << pipeline.git.branch >>]
-              - << pipeline.parameters.c-non_docs_changes >>
           # Merge queue (merge gate). Match checkout branch.
           - matches:
               pattern: "^gh-readonly-queue/.*"
               value: << pipeline.git.branch >>
           - and:
-            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+              - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
+              - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - required-contracts-ci:
           always-succeed: true
