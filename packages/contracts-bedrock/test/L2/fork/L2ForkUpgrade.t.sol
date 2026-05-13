@@ -993,7 +993,7 @@ contract L2ForkUpgrade_DeterministicDeploymentProxy_Test is CommonTest {
     }
 
     /// @notice Arachnid's proxy must be deployed at the canonical address on forked L2 state.
-    function test_fork_deterministicDeploymentProxy_exists_succeeds() external view {
+    function test_l2ForkUpgrade_deterministicDeploymentProxyExistence_succeeds() external view {
         address proxy = Preinstalls.DeterministicDeploymentProxy;
         assertNotEq(proxy.code.length, 0, "DeterministicDeploymentProxy must have code");
         assertEq(
