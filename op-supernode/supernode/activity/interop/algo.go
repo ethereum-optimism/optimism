@@ -186,12 +186,8 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
 	}
 
-	// Activation invariant: interop must be active for at least one full block on both
-	// the executing chain and the initiating chain. Mirrors kona's
-	// MessageGraph::check_single_dependency at
-	// rust/kona/crates/protocol/interop/src/graph.rs:367-401, and op-program's
-	// cross.CrossUnsafeHazards → depset.LinkChecker.CanExecute path
-	// (op-program/client/interop/consolidate.go:178 → 225).
+	// Activation invariant: interop must be active for at least one full block on
+	// both the executing chain and the initiating chain. Matches kona and op-program.
 	execChain, ok := i.chains[executingChain]
 	if !ok {
 		return fmt.Errorf("executing chain %s not registered: %w", executingChain, ErrUnknownChain)

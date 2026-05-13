@@ -911,11 +911,8 @@ func TestVerifyInteropMessages(t *testing.T) {
 				require.Contains(t, result.InvalidHeads, invalidChainID)
 			},
 		},
-		// Interop activation-block boundary cases. Mirrors kona's
-		// MessageGraph::check_single_dependency at
-		// rust/kona/crates/protocol/interop/src/graph.rs:367-401 and op-program's
-		// depset.LinkChecker.CanExecute (op-supervisor/supervisor/backend/depset/links.go).
-		// See issue #20684 and PR #20550.
+		// Interop activation-block boundary cases. Mirrors the equivalent kona
+		// MessageGraph tests (see PR description).
 		newActivationBoundaryCase(
 			"ActivationBoundary/ExecutingSide",
 			1000, 0, 1000, 999, false,
