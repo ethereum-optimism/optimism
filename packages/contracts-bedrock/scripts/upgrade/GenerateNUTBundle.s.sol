@@ -493,7 +493,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deploymentGasLimit: 116_400,
+            deploymentGasLimit: 580_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
             )
