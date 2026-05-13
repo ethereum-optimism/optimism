@@ -17,10 +17,15 @@ type checksFunc func(t devtest.T, sys *presets.TwoL2SupernodeInterop)
 func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
+		// Capture refs that must remain canonical before the manual L1 sequencing loop runs,
+		// so their L1 origins are in the pre-divergence prefix.
+		preEarly := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			ss := sys.L2ACL.SyncStatus()
 			crossSafeRef = ss.SafeL2.ID()
 			localSafeRef = ss.LocalSafeL2.ID()
+		}
+		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
+			ss := sys.L2ACL.SyncStatus()
 			unsafeRef = ss.UnsafeL2.ID()
 		}
 		post := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
@@ -28,7 +33,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 			require.True(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should still be canonical")
 			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
 		}
-		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
+		testL2ReorgAfterL1Reorg(gt, 3, preEarly, pre, post)
 	})
 
 	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
@@ -46,7 +51,8 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
 		}
-		testL2ReorgAfterL1Reorg(gt, 10, pre, post)
+		preEarly := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {}
+		testL2ReorgAfterL1Reorg(gt, 10, preEarly, pre, post)
 	})
 }
 
@@ -54,8 +60,13 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // for unsafe reorgs - n must be at least >= confDepth, which is 2 in our test deployments
 // for cross-safe reorgs - n must be at least >= safe distance, which is 10 in our test deployments (set in
 // op-e2e/e2eutils/geth/geth.go when initialising FakePoS)
-// pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
-func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
+// preEarlyChecks runs before the L1 CL is stopped, so refs captured there have L1 origins in
+// the pre-divergence prefix (anything visible before Stop has L1Origin.Number <= T0, and the
+// reorg's alternative chain branches at T0's child).
+// preChecks runs after the manual L1 sequencing loop, so refs captured there can land in the
+// to-be-reorged window.
+// postChecks runs after the reorg has been recovered.
+func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, postChecks checksFunc) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
@@ -67,6 +78,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// This ensures the supernode has verified state that references canonical L1 blocks,
 	// so after the reorg it doesn't need to rewind all the way back to genesis.
 	sys.L2ACL.Advanced(types.CrossSafe, 20, 100)
+
+	preEarlyChecks(t, sys)
 
 	sys.L1CL.Stop()
 
