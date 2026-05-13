@@ -15,7 +15,7 @@ use reth_optimism_trie::{
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
 use std::{path::PathBuf, sync::Arc};
-use tracing::info;
+use tracing::{debug, info};
 
 /// Initializes the proofs storage with the current state of the chain.
 ///
@@ -101,7 +101,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                 );
                 return Ok(());
             }
-            Err(OpProofsStorageError::NoBlocksFound) => {}
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                debug!(target: "reth::cli", "Proofs storage is empty; starting initialization");
+            }
             Err(err) => return Err(err.into()),
         }
 
