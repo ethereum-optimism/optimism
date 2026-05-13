@@ -223,11 +223,14 @@ jobs:
                 #    Path-based gating: only changed areas are tested.
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-                  run main release
+                  run main
+                  run release
                   if is_true contracts_changed; then run contracts_feature_tests
                   else                               run contracts_feature_tests_short; fi
-                  if is_true rust_changes_detected; then run rust_ci rust_e2e_ci
-                  else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                  if is_true rust_changes_detected; then run rust_ci
+                                                        run rust_e2e_ci
+                  else                                   run rust_ci_gate_short
+                                                        run rust_e2e_gate_skip; fi
                   if is_true docs_changes_detected; then run docs_ci; fi
 
                 # 2. Merge queue (pre-merge validation)
@@ -235,9 +238,13 @@ jobs:
                 #    Full contract tests, path-gated rust/docs.
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-                  run main release contracts_feature_tests
-                  if is_true rust_changes_detected; then run rust_ci rust_e2e_ci
-                  else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                  run main
+                  run release
+                  run contracts_feature_tests
+                  if is_true rust_changes_detected; then run rust_ci
+                                                        run rust_e2e_ci
+                  else                                   run rust_ci_gate_short
+                                                        run rust_e2e_gate_skip; fi
                   if is_true docs_changes_detected; then run docs_ci; fi
 
                 # 3. After merge (develop push)
@@ -245,10 +252,16 @@ jobs:
                 #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" == "develop" ]]; then
-                  run main release
-                  run develop_fault_proofs develop_kontrol_tests contracts_feature_tests
-                  if is_true rust_changes_detected; then run rust_ci rust_e2e_ci kona_publish_prestates
-                  else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                  run main
+                  run release
+                  run develop_fault_proofs
+                  run develop_kontrol_tests
+                  run contracts_feature_tests
+                  if is_true rust_changes_detected; then run rust_ci
+                                                        run rust_e2e_ci
+                                                        run kona_publish_prestates
+                  else                                   run rust_ci_gate_short
+                                                        run rust_e2e_gate_skip; fi
                   if is_true docs_changes_detected; then run docs_ci; fi
                 fi
                 ;;
