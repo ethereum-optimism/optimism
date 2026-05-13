@@ -697,24 +697,11 @@ func TestLogBackfill_ClampsStartToGenesis(t *testing.T) {
 		"backfill must start at genesis (%d), not the pre-clamp startTime (60)", genesisTime)
 }
 
-// TestLogBackfill_RestartWithStaleCrossSafe reproduces the
-// TestSupernodeLogBackfill_HappyPath flake.
-//
-// Scenario: after a wipe-logs restart, the new interop activity calls
-// runLogBackfill before the L2 op-node's StatusTracker has re-emitted its
-// cross-safe head. SafeL2 momentarily reads at block 0 (timestamp ==
-// genesisTime == activation) — the value StatusTracker installs after a
-// rollup.ResetEvent and before the next OnCrossSafeUpdate. The previous
-// runLogBackfill computed endTime from this live SafeL2 and produced a
-// degenerate one-block range covering only block 0, so the test asserting
-// "backfill produced multiple sealed blocks" failed with "0 is not greater
-// than 0".
-//
-// The verifiedDB persists across restart and is the durable source of truth
-// for the verification handoff boundary. After this fix runLogBackfill uses
-// verifiedDB.LastTimestamp() to derive endTime when the verifiedDB has
-// committed results, so a stale live SafeL2 can no longer truncate the
-// backfill range.
+// TestLogBackfill_RestartWithStaleCrossSafe simulates a post-restart state
+// where StatusTracker reports SafeL2 at block 0 (the value installed between
+// rollup.ResetEvent and the next OnCrossSafeUpdate). With a populated
+// verifiedDB, backfill must derive its end from verifiedDB.LastTimestamp()
+// rather than the stale live SafeL2.
 func TestLogBackfill_RestartWithStaleCrossSafe(t *testing.T) {
 	const (
 		act          uint64 = 100
@@ -726,9 +713,7 @@ func TestLogBackfill_RestartWithStaleCrossSafe(t *testing.T) {
 		WithActivation(act).
 		WithLogBackfillDepth(depth).
 		WithChain(10, func(m *mockChainContainer) {
-			// LocalSafe has advanced (chain has plenty of history), but SafeL2
-			// is reported as block 0 — the post-ResetEvent state of the
-			// op-node's StatusTracker before the next OnCrossSafeUpdate.
+			// LocalSafe advanced; SafeL2 still zeroed (stale post-Reset state).
 			m.syncStatusFull = &eth.SyncStatus{
 				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
 				UnsafeL2:    eth.L2BlockRef{Number: 200, Time: 200},
@@ -739,10 +724,8 @@ func TestLogBackfill_RestartWithStaleCrossSafe(t *testing.T) {
 		Build()
 	h.interop.ctx = context.Background()
 
-	// Simulate the pre-restart verifiedDB state: the previous activity verified
-	// timestamps up through `lastVerified`. The wipe-logs restart preserves this
-	// DB because verifiedDB lives in the supernode data dir, not in the
-	// per-chain logs dir the wipe deletes.
+	// Pre-restart verifiedDB state (survives wipe-logs since it lives outside
+	// the per-chain dir).
 	chain10 := h.Mock(10)
 	for ts := act + 1; ts <= lastVerified; ts++ {
 		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
