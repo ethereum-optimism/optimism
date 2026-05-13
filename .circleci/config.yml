@@ -86,6 +86,20 @@ orbs:
   continuation: circleci/continuation@2.0.1
 
 jobs:
+  # --------------------------------------------------------------------------
+  # This job prepares the dynamic continuation pipeline in 6 steps:
+  #
+  #   1. Install yq (YAML processor for merging configs)
+  #   2. Store string pipeline params  → /tmp/pipeline-parameters.json
+  #   3. Store boolean pipeline params → /tmp/pipeline-parameters.json
+  #   4. Detect file-tree changes     → /tmp/pipeline-parameters.json
+  #   5. Decision tree: read the JSON, enable c-run_* workflow flags, strip
+  #      intermediate params, write final JSON
+  #   6. Merge continuation YAML configs → /tmp/merged-config.yml
+  #   7. Call CircleCI continuation API with merged config + JSON params
+  #
+  # The result: only workflows whose c-run_* flag is true will execute.
+  # --------------------------------------------------------------------------
   prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
@@ -93,6 +107,8 @@ jobs:
       BASE_REVISION: develop
     steps:
       - checkout
+      # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
+      # Keep version in sync with mise.toml.
       - run:
           name: Install yq
           command: |
@@ -101,6 +117,10 @@ jobs:
               "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
             chmod +x /usr/local/bin/yq
             echo "yq version: $(yq --version)"
+      # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
+      # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
+      # Add a line here when a new string value needs to reach continuation config jobs
+      # (e.g., a new docker image, event payload, or cache version).
       - run:
           name: Store string pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh str
@@ -112,6 +132,11 @@ jobs:
             c-github-event-action: << pipeline.parameters.github-event-action >>
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
+      # Same as above but for booleans. Separate step because CircleCI renders
+      # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
+      # normalizes them to JSON true/false.
+      # These dispatch flags are consumed only by the decision tree below;
+      # they do NOT reach continuation configs.
       - run:
           name: Store boolean pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh bool
@@ -130,6 +155,15 @@ jobs:
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
+      # Each env var value is a POSIX Extended Regular Expression (ERE, like grep -E).
+      # Matched line-by-line against `git diff --name-only origin/develop...HEAD`.
+      # Result: the c-* key is set to true/false in the JSON.
+      #
+      # Test a pattern locally:
+      #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
+      #
+      # When to add: you need path-based workflow gating. Also add a corresponding
+      # is_true/run call in the decision tree below.
       - run:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
@@ -138,6 +172,18 @@ jobs:
             c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+      # Decision tree: determines which workflows to enable based on trigger, branch, and params.
+      #
+      # Helpers (defined in workflow-helpers.sh):
+      #   run foo      → sets c-run_foo: true in JSON (maps 1:1 to
+      #                   "when: << pipeline.parameters.c-run_foo >>" in a continuation config)
+      #   is_true x   → checks if c-x is true in JSON (set by earlier steps)
+      #   param x     → reads raw value of c-x from JSON
+      #   finalize    → strips intermediate params, keeps only the listed whitelist + all c-run_* flags
+      #
+      # How to add a new workflow:
+      #   1. Add "c-run_your_workflow: {type: boolean, default: false}" in the relevant continuation config
+      #   2. Add "run your_workflow" in the appropriate branch below
       - run:
           name: Compute workflow conditions from pipeline parameters and store in JSON file
           environment:
@@ -216,9 +262,15 @@ jobs:
 
             # Params to forward to continuation configs (everything else is stripped)
             finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
+      # Deep-merges the 4 continuation YAML configs (main, docs-ci, rust-ci, rust-e2e)
+      # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
+      # explode(.) resolves YAML anchors/aliases so the output is self-contained.
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
+      # Calls the CircleCI continuation API with the merged config + JSON params.
+      # This triggers the actual CI pipeline where only workflows with their
+      # c-run_* flag set to true will execute.
       - continuation/continue:
           configuration_path: /tmp/merged-config.yml
           parameters: /tmp/pipeline-parameters.json
