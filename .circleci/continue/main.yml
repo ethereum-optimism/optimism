@@ -2653,6 +2653,8 @@ workflows:
           ignore-dirs: |
             ./packages/contracts-bedrock/lib
             ./docs/public-docs
+            ./rust/op-rbuilder
+            ./rust/rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
