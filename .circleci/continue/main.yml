@@ -2667,21 +2667,6 @@ workflows:
           rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-op-rbuilder
-          name: rust-build-op-rbuilder
-          directory: op-rbuilder
-          binaries: "op-rbuilder"
-          build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
-          name: rust-build-rollup-boost
-          directory: rollup-boost
-          binaries: "rollup-boost"
-          build_command: cargo build --release -p rollup-boost --bin rollup-boost
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
           requires:
             - rust-workspace-binaries
@@ -3095,7 +3080,7 @@ workflows:
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
                 - SUPER_ROOT_GAMES_MIGRATION
-                 # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
+                  # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
                 #   L2CM and CANNON_KONA are now enabled by default, so we do not need to
                 #   explicitly enable them and run these additional jobs. However they are kept here for now so that they
                 #   can easily be reactivated.
