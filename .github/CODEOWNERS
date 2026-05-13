@@ -24,5 +24,9 @@
 # Public developer documentation
 /docs/public-docs/  @ethereum-optimism/solutions
 
+# CI configuration
+/.circleci/config.yml                   @raffaele-oplabs @geoknee
+/.circleci/scripts/test-decision-tree.sh @raffaele-oplabs @geoknee
+
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security
