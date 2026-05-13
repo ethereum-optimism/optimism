@@ -207,6 +207,42 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     }
 }
 
+/// @title Predeploys_GetAllRecords_Test
+/// @notice Tests ordering invariants of the `getAllRecords` return value.
+contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
+    /// @notice Test that once a non-proxied record appears at index i, every subsequent record j > i must
+    ///         also be non-proxied or deprecated.
+    function test_getAllRecords_nonProxiedRecordsAtEnd_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        bool seenNonProxied = false;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!records[i].isProxied) seenNonProxied = true;
+            if (seenNonProxied) {
+                assertTrue(
+                    !records[i].isProxied || records[i].isDeprecated,
+                    string.concat(records[i].name, ": proxied record appears after non-proxied record")
+                );
+            }
+        }
+    }
+
+    /// @notice Test that once a deprecated record appears at index i, every subsequent record j > i must
+    ///         also be deprecated.
+    function test_getAllRecords_deprecatedRecordsAtEnd_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        bool seenDeprecated = false;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isDeprecated) seenDeprecated = true;
+            if (seenDeprecated) {
+                assertTrue(
+                    records[i].isDeprecated,
+                    string.concat(records[i].name, ": non-deprecated record appears after deprecated record")
+                );
+            }
+        }
+    }
+}
+
 /// @title Predeploys_Interop_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once, using interop mode.
