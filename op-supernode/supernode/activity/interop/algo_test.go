@@ -912,7 +912,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		// Interop activation-block boundary cases. Mirrors the equivalent kona
-		// MessageGraph tests (see PR description).
+		// MessageGraph tests.
 		newActivationBoundaryCase(
 			"ActivationBoundary/ExecutingSide",
 			1000, 0, 1000, 999, false,
