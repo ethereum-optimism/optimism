@@ -226,24 +226,29 @@ jobs:
                 # 1. PR (feature branch push)
                 #    Runs on every push to a feature branch.
                 #    Path-based gating: only changed areas are tested.
+                #    Docs-only changes skip main/release entirely.
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-                  run main
-                  run release
-                  if is_true contracts_changed; then
-                    run contracts_feature_tests
-                  else
-                    run contracts_feature_tests_short
-                  fi
-                  if is_true rust_changes_detected; then
-                    run rust_ci
-                    run rust_e2e_ci
-                  else
-                    run rust_ci_gate_short
-                    run rust_e2e_gate_skip
-                  fi
-                  if is_true docs_changes_detected; then
+                  if is_true docs_changes_detected && ! is_true contracts_changed && ! is_true rust_changes_detected; then
                     run docs_ci
+                  else
+                    run main
+                    run release
+                    if is_true contracts_changed; then
+                      run contracts_feature_tests
+                    else
+                      run contracts_feature_tests_short
+                    fi
+                    if is_true rust_changes_detected; then
+                      run rust_ci
+                      run rust_e2e_ci
+                    else
+                      run rust_ci_gate_short
+                      run rust_e2e_gate_skip
+                    fi
+                    if is_true docs_changes_detected; then
+                      run docs_ci
+                    fi
                   fi
 
                 # 2. Merge queue (pre-merge validation)
