@@ -189,7 +189,7 @@ abstract contract Setup is FeatureFlags {
         console.log("Setup: L1 setup start!");
 
         // Handle L2 fork test (takes precedence over L1 fork)
-        if (isL2ForkTest() || isKarstBetanetL2ForkTest()) {
+        if (isL2ForkTest()) {
             uint256 l2ForkBlock = Config.l2ForkBlockNumber();
             if (isKarstBetanetL2ForkTest()) {
                 if (l2ForkBlock == 0) {
