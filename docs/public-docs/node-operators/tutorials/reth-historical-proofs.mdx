@@ -11,7 +11,7 @@ Use historical proofs storage format v2 by setting `--proofs-history.storage-ver
 
 ## Problem
 
-Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. The `--rpc.eth-proof-window <num_blocks>` flag (default 0) allows queries against older blocks via this reconstruction, but performance and memory cost grow the further back the query reaches — making it impractical for any meaningful historical window. This is a critical issue for infrastructure serving rollup fault proofs, withdrawal proving, and indexers that query historical state.
+Reth's default eth_getProof implementation works by reverting in-memory state diffs backward from the current tip. The --rpc.eth-proof-window <num_blocks> flag (default 0) controls how far back from the current tip the node can serve eth_getProof responses. For withdrawal proving to work, the window must reach back to the block referenced by any dispute game created after the withdrawal was submitted on L2.
 
 ## Solution
 
