@@ -179,6 +179,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 //  1. The initiating message exists in the source chain's database
 //  2. The initiating message's timestamp is not greater than the executing block's timestamp
 //  3. The initiating message hasn't expired (timestamp + messageExpiryWindow >= executing timestamp)
+//  4. Neither the executing block nor the initiating block falls in its chain's interop
+//     activation block (interop must be active for at least one full block on both sides)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage, view *frontierVerificationView) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
