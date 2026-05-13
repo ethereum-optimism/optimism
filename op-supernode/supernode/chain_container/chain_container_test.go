@@ -3,6 +3,7 @@ package chain_container
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -949,7 +950,7 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	vncfg := createTestVNConfig()
 	vncfg.Rollup.Genesis.L2Time = 1000
 	vncfg.Rollup.BlockTime = 2
-	log := createTestLogger(t)
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
@@ -984,6 +985,50 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ethereum.NotFound),
 		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l1 block number at which l2 block became safe"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l1 block at which l2 block became safe is not available yet"),
+	))
+}
+
+func TestChainContainer_OptimisticAt_LocalSafeTipNotFoundLogsDebug(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	impl.engine = &mockEngineController{}
+	impl.vn = &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+	}
+
+	_, _, err := container.OptimisticAt(context.Background(), 2000)
+
+	require.ErrorIs(t, err, ethereum.NotFound)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l2 block at given timestamp"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l2 block at timestamp is not local safe yet"),
+	))
 }
 
 // mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus

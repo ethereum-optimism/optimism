@@ -508,12 +508,20 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l2 block at timestamp is not local safe yet", "timestamp", ts, "err", err)
+		} else {
+			c.log.Error("error determining l2 block at given timestamp", "timestamp", ts, "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l1 block at which l2 block became safe is not available yet", "l2", l2Block.ID(), "err", err)
+		} else {
+			c.log.Error("error determining l1 block number at which l2 block became safe", "l2", l2Block.ID(), "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 
