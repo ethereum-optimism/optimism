@@ -256,9 +256,6 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	if query.BlockNum == 0 {
-		return types.BlockSeal{}, types.ErrConflict
-	}
 	if !d.hasBlocks {
 		return types.BlockSeal{}, types.ErrFuture
 	}
