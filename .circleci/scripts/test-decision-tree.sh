@@ -57,7 +57,7 @@ run_scenario() {
   export SCHEDULE_NAME="${schedule}"
 
   # Source helpers and run decision tree
-  # shellcheck source=workflow-helpers.sh
+  # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/workflow-helpers.sh"
   _json=$(cat "${OUTPUT}")
 
