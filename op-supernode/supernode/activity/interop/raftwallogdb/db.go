@@ -126,6 +126,14 @@ func decodeExecMsg(buf []byte) (uint32, *types.ExecutingMessage) {
 func indexFor(blockNum uint64) uint64 { return blockNum + 1 }
 func blockNumFor(idx uint64) uint64   { return idx - 1 }
 
+func errSealBlock(err error) error {
+	return fmt.Errorf("failed to seal block: %w", err)
+}
+
+func errApplyLog(err error) error {
+	return fmt.Errorf("failed to apply log: %w", err)
+}
+
 // Open opens or creates a raft-wal-backed LogsDB at dir.
 func Open(dir string, chainID eth.ChainID) (*DB, error) {
 	w, err := wal.Open(dir)
@@ -199,13 +207,13 @@ func (d *DB) FindSealedBlock(number uint64) (types.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.hasBlocks {
-		return types.BlockSeal{}, types.ErrFuture
+		return types.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, types.ErrFuture)
 	}
 	if number > d.latest.Number {
-		return types.BlockSeal{}, types.ErrFuture
+		return types.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, types.ErrFuture)
 	}
 	if number < d.firstBlock {
-		return types.BlockSeal{}, types.ErrSkipped
+		return types.BlockSeal{}, fmt.Errorf("failed to find sealed block %d: %w", number, types.ErrSkipped)
 	}
 	rec, err := d.readBlockAt(indexFor(number))
 	if err != nil {
@@ -220,11 +228,22 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	if !d.hasBlocks {
 		return eth.BlockRef{}, 0, nil, types.ErrFuture
 	}
+	if blockNum == 0 && d.firstBlock != 0 {
+		rec, err := d.readBlockAt(indexFor(d.firstBlock))
+		if err != nil {
+			return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: %w", types.ErrDataCorruption, err)
+		}
+		first := types.BlockSeal{Hash: rec.Hash, Number: d.firstBlock, Timestamp: rec.Timestamp}
+		return eth.BlockRef{}, 0, nil, fmt.Errorf("looked for block 0 but got %s: %w", first, types.ErrSkipped)
+	}
 	if blockNum > d.latest.Number {
 		return eth.BlockRef{}, 0, nil, types.ErrFuture
 	}
 	if blockNum < d.firstBlock {
 		return eth.BlockRef{}, 0, nil, types.ErrSkipped
+	}
+	if blockNum == d.firstBlock && d.firstBlock != 0 {
+		return eth.BlockRef{}, 0, nil, fmt.Errorf("cannot open first non-zero block %d without parent block: %w", blockNum, types.ErrSkipped)
 	}
 	var log raft.Log
 	if err := d.w.GetLog(indexFor(blockNum), &log); err != nil {
@@ -256,6 +275,9 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	if query.BlockNum == 0 {
+		return types.BlockSeal{}, types.ErrConflict
+	}
 	if !d.hasBlocks {
 		return types.BlockSeal{}, types.ErrFuture
 	}
@@ -267,6 +289,9 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	}
 	if query.BlockNum < d.firstBlock {
 		return types.BlockSeal{}, types.ErrSkipped
+	}
+	if query.BlockNum == d.firstBlock && d.firstBlock != 0 {
+		return types.BlockSeal{}, fmt.Errorf("cannot search first non-zero block %d without parent block: %w", query.BlockNum, types.ErrSkipped)
 	}
 
 	var log raft.Log
@@ -281,7 +306,7 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		return types.BlockSeal{}, types.ErrConflict
 	}
 	if rec.Timestamp != query.Timestamp {
-		return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d: %w", query.Timestamp, rec.Timestamp, types.ErrConflict)
+		return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d %w", query.Timestamp, rec.Timestamp, types.ErrConflict)
 	}
 
 	// Direct O(1) lookup into the log-hash array.
@@ -299,7 +324,7 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		LogHash:     logHash,
 	}.Checksum()
 	if expectedChecksum != query.Checksum {
-		return types.BlockSeal{}, fmt.Errorf("checksum mismatch: %w", types.ErrConflict)
+		return types.BlockSeal{}, fmt.Errorf("payload hash mismatch: expected %s, got %s %w", query.Checksum, expectedChecksum, types.ErrConflict)
 	}
 	return types.BlockSeal{Hash: rec.Hash, Number: query.BlockNum, Timestamp: rec.Timestamp}, nil
 }
@@ -308,21 +333,36 @@ func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32,
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	if parentBlock == (eth.BlockID{}) {
+		return errApplyLog(fmt.Errorf("genesis does not have logs: %w", types.ErrOutOfOrder))
+	}
+	if !d.hasBlocks {
+		if parentBlock.Hash != (common.Hash{}) {
+			return errApplyLog(fmt.Errorf("%w: log builds on top of block %s, but have block %s", types.ErrOutOfOrder, parentBlock, common.Hash{}))
+		}
+		return errApplyLog(fmt.Errorf("%w: log builds on top of block %d, but have block %d", types.ErrOutOfOrder, parentBlock.Number, uint64(0)))
+	}
 	if d.hasBlocks {
 		if parentBlock != d.latest {
-			return fmt.Errorf("%w: AddLog parent %s does not match latest sealed %s", types.ErrConflict, parentBlock, d.latest)
+			if parentBlock.Hash != d.latest.Hash {
+				return errApplyLog(fmt.Errorf("%w: log builds on top of block %s, but have block %s", types.ErrOutOfOrder, parentBlock, d.latest.Hash))
+			}
+			return errApplyLog(fmt.Errorf("%w: log builds on top of block %d, but have block %d", types.ErrOutOfOrder, parentBlock.Number, d.latest.Number))
 		}
 	}
 	if d.hasPending {
 		if parentBlock != d.pendingParent {
-			return fmt.Errorf("%w: AddLog parent %s does not match pending parent %s", types.ErrConflict, parentBlock, d.pendingParent)
+			if parentBlock.Hash != d.pendingParent.Hash {
+				return errApplyLog(fmt.Errorf("%w: log builds on top of block %s, but have block %s", types.ErrOutOfOrder, parentBlock, d.pendingParent.Hash))
+			}
+			return errApplyLog(fmt.Errorf("%w: log builds on top of block %d, but have block %d", types.ErrOutOfOrder, parentBlock.Number, d.pendingParent.Number))
 		}
 		if logIdx != uint32(len(d.pendingLogs)) {
-			return fmt.Errorf("%w: AddLog index %d does not match expected %d", types.ErrOutOfOrder, logIdx, len(d.pendingLogs))
+			return errApplyLog(fmt.Errorf("%w: expected event index %d, cannot append %d", types.ErrOutOfOrder, len(d.pendingLogs), logIdx))
 		}
 	} else {
 		if logIdx != 0 {
-			return fmt.Errorf("%w: first AddLog of a block must have index 0, got %d", types.ErrOutOfOrder, logIdx)
+			return errApplyLog(fmt.Errorf("%w: expected event index 0, cannot append %d", types.ErrOutOfOrder, logIdx))
 		}
 		d.pendingParent = parentBlock
 		d.hasPending = true
@@ -337,19 +377,19 @@ func (d *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint
 
 	if d.hasBlocks {
 		if block.Number != d.latest.Number+1 {
-			return fmt.Errorf("%w: SealBlock expected number %d, got %d", types.ErrOutOfOrder, d.latest.Number+1, block.Number)
+			return errSealBlock(fmt.Errorf("%w: cannot apply block %d on top of %d", types.ErrConflict, block.Number, d.latest.Number))
 		}
 		if parentHash != d.latest.Hash {
-			return fmt.Errorf("%w: SealBlock parent %s does not match latest %s", types.ErrConflict, parentHash, d.latest.Hash)
+			return errSealBlock(fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", types.ErrConflict, block, parentHash, d.latest.Hash))
 		}
 		if timestamp < d.latestTS {
-			return fmt.Errorf("%w: SealBlock timestamp %d before latest %d", types.ErrOutOfOrder, timestamp, d.latestTS)
+			return errSealBlock(fmt.Errorf("%w: block timestamp %d must be equal or larger than current timestamp %d", types.ErrConflict, timestamp, d.latestTS))
 		}
 	}
 	if d.hasPending {
 		expectedParent := eth.BlockID{Hash: parentHash, Number: block.Number - 1}
 		if d.pendingParent != expectedParent {
-			return fmt.Errorf("%w: SealBlock parent %s does not match pending logs' parent %s", types.ErrConflict, expectedParent, d.pendingParent)
+			return errSealBlock(fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", types.ErrConflict, block, parentHash, d.pendingParent.Hash))
 		}
 	}
 
@@ -407,7 +447,10 @@ func (d *DB) Rewind(newHead eth.BlockID) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if !d.hasBlocks || newHead.Number < d.firstBlock {
+	if !d.hasBlocks {
+		return types.ErrFuture
+	}
+	if newHead.Number < d.firstBlock {
 		return d.clearLocked()
 	}
 	if newHead.Number > d.latest.Number {
