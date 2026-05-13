@@ -6,6 +6,7 @@ use kona_preimage::{
     HintWriterClient, PreimageKey, PreimageOracleClient,
     errors::{PreimageOracleError, PreimageOracleResult},
 };
+use kona_proof::errors::OracleProviderError;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
@@ -32,6 +33,13 @@ impl PreimageOracleClient for MockOracle {
             return Err(PreimageOracleError::BufferLengthMismatch(buf.len(), data.len()));
         }
         buf.copy_from_slice(&data);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl HintWriterClient for MockOracle {
+    async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
         Ok(())
     }
 }
@@ -147,4 +155,23 @@ async fn does_not_short_circuit_on_root_match_at_different_block() {
     let hints = MockHintWriter::default();
 
     assert!(run(oracle, hints).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetch_safe_head_hash_rejects_unknown_output_version() {
+    let agreed_root = b256(0xAA);
+    let mut bad_preimage = [0u8; 128];
+    bad_preimage[0] = 0x01; // non-V0 version word; [96..128] stays zero
+
+    let mut preimages = HashMap::new();
+    preimages.insert(PreimageKey::new_keccak256(*agreed_root), bad_preimage.to_vec());
+    let oracle = MockOracle::from_preimages(preimages);
+
+    let err = kona_client::single::fetch_safe_head_hash(&oracle, agreed_root).await.unwrap_err();
+    match err {
+        OracleProviderError::UnknownOutputVersion(version) => {
+            assert_eq!(version[0], 0x01);
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }
