@@ -5,10 +5,10 @@ use super::{
     cursor::{V2AccountCursor, V2AccountTrieCursor, V2StorageCursor, V2StorageTrieCursor},
 };
 use crate::{
-    BlockStateDiff, OpProofsStorageResult,
-    api::OpProofsProviderRO,
+    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
+    api::{OpProofsProviderRO, ProofWindowRange},
     db::{
-        ProofWindowKey, V2ProofWindow,
+        ProofWindowKey,
         models::{
             V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
             V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
@@ -17,8 +17,9 @@ use crate::{
         },
     },
 };
+use alloy_eips::NumHash;
 use alloy_primitives::B256;
-use reth_db::{cursor::DbCursorRO, transaction::DbTx};
+use reth_db::transaction::DbTx;
 use std::fmt::Debug;
 
 impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofsProviderV2<TX> {
@@ -62,17 +63,20 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         Self: 'tx,
         TX: 'tx;
 
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?
+            .map(|(number, hash)| NumHash::new(number, hash))
+            .ok_or(OpProofsStorageError::NoBlocksFound)
     }
 
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let mut cursor = self.tx.cursor_read::<V2ProofWindow>()?;
-        if let Some((_, val)) = cursor.seek_exact(ProofWindowKey::LatestBlock)? {
-            return Ok(Some((val.number(), *val.hash())));
-        }
-        let earliest = cursor.seek_exact(ProofWindowKey::EarliestBlock)?;
-        Ok(earliest.map(|(_, val)| (val.number(), *val.hash())))
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?
+            .map(|(number, hash)| NumHash::new(number, hash))
+            .ok_or(OpProofsStorageError::NoBlocksFound)
+    }
+
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        self.get_proof_window_inner()
     }
 
     fn storage_trie_cursor<'tx>(

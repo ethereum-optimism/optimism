@@ -145,6 +145,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
         let anchor =
             self.get_initial_state_anchor_inner()?.ok_or(OpProofsStorageError::NoBlocksFound)?;
         self.set_earliest_block_number_inner(anchor.number, anchor.hash)?;
+        self.set_latest_block_number_inner(anchor.number, anchor.hash)?;
         Ok(anchor)
     }
 

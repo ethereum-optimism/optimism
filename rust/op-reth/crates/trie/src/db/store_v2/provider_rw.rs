@@ -185,14 +185,6 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
         Ok(())
     }
 
-    fn set_earliest_block_number(
-        &self,
-        block_number: u64,
-        hash: B256,
-    ) -> OpProofsStorageResult<()> {
-        self.set_earliest_block_number_inner(block_number, hash)
-    }
-
     fn commit(self) -> OpProofsStorageResult<()> {
         self.tx.commit()?;
         Ok(())

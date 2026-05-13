@@ -907,42 +907,28 @@ fn fetch_trie_updates_empty_changeset() {
 fn test_proof_window() {
     let db = setup_db();
 
-    // Initial state: no values set
+    // Empty store: both endpoints are None.
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        assert_eq!(provider.get_earliest_block_number().expect("get"), None);
+        assert!(matches!(provider.get_earliest_block(), Err(OpProofsStorageError::NoBlocksFound)));
+        assert!(matches!(provider.get_latest_block(), Err(OpProofsStorageError::NoBlocksFound)));
     }
 
-    // Set earliest
+    // Bootstrap via the init flow: commit_initial_state sets both earliest and latest.
+    let anchor_hash = B256::repeat_byte(0x42);
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(42, B256::repeat_byte(0x42)).expect("set");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider
+            .set_initial_state_anchor(BlockNumHash { number: 42, hash: anchor_hash })
+            .expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
-    // Verify
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        let earliest = provider.get_earliest_block_number().expect("get");
-        assert_eq!(earliest, Some((42, B256::repeat_byte(0x42))));
-
-        // Latest should fall back to earliest when not set
-        let latest = provider.get_latest_block_number().expect("get");
-        assert_eq!(latest, Some((42, B256::repeat_byte(0x42))));
-    }
-
-    // Update earliest
-    {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(100, B256::repeat_byte(0x64)).expect("set");
-        OpProofsProviderRw::commit(provider).expect("commit");
-    }
-
-    // Verify update
-    {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        let earliest = provider.get_earliest_block_number().expect("get");
-        assert_eq!(earliest, Some((100, B256::repeat_byte(0x64))));
+        assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(42, anchor_hash));
+        assert_eq!(provider.get_latest_block().expect("get"), NumHash::new(42, anchor_hash));
     }
 }
 

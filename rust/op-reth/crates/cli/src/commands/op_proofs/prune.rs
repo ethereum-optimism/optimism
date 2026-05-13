@@ -105,8 +105,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
         prune_batch_size: u64,
     ) -> eyre::Result<()> {
         let provider_ro = storage.provider_ro()?;
-        let earliest_block = provider_ro.get_earliest_block_number()?;
-        let latest_block = provider_ro.get_latest_block_number()?;
+        let earliest_block = provider_ro.get_earliest_block().ok();
+        let latest_block = provider_ro.get_latest_block().ok();
         info!(
             target: "reth::cli",
             ?earliest_block,

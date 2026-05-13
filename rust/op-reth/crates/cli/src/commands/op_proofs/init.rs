@@ -9,7 +9,8 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    InitializationJob, OpProofsProviderRO, OpProofsStore, RethTrieStorageLayout,
+    InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
+    RethTrieStorageLayout,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
@@ -90,16 +91,18 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         F::Provider: DBProvider,
     {
         // Check if already initialized
-        if let Some((block_number, block_hash)) =
-            storage.provider_ro()?.get_earliest_block_number()?
-        {
-            info!(
-                target: "reth::cli",
-                block_number = block_number,
-                block_hash = ?block_hash,
-                "Proofs storage already initialized"
-            );
-            return Ok(());
+        match storage.provider_ro()?.get_earliest_block() {
+            Ok(anchor) => {
+                info!(
+                    target: "reth::cli",
+                    block_number = anchor.number,
+                    block_hash = ?anchor.hash,
+                    "Proofs storage already initialized"
+                );
+                return Ok(());
+            }
+            Err(OpProofsStorageError::NoBlocksFound) => {}
+            Err(err) => return Err(err.into()),
         }
 
         // Get the current chain state
