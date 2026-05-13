@@ -5,9 +5,7 @@ use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
 use thiserror::Error;
 
-/// An [`AttributesBuilder`] Error.
-///
-/// [`AttributesBuilder`]: crate::traits::AttributesBuilder
+/// An `AttributesBuilder` Error.
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum BuilderError {
     /// Mismatched blocks.

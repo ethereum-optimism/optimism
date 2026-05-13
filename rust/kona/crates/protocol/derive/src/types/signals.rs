@@ -1,11 +1,8 @@
 //! Signal types for the `kona-derive` pipeline.
 //!
 //! Signals are the primary method of communication between the pipeline driver
-//! and the [`DerivationPipeline`]. The pipeline receives [`Signal`]s and
-//! dispatches to stages via [`Stage`] methods.
-//!
-//! [`DerivationPipeline`]: crate::DerivationPipeline
-//! [`Stage`]: crate::Stage
+//! and the `DerivationPipeline`. The pipeline receives [`Signal`]s and
+//! dispatches to stages via the `Stage` trait.
 
 use kona_protocol::{BlockInfo, L2BlockInfo};
 

@@ -152,50 +152,40 @@ pub enum PipelineError {
     /// waiting for network propagation delays.
     #[error("Not enough data")]
     NotEnoughData,
-    /// No channels are available in the [`ChannelProvider`].
+    /// No channels are available in the `ChannelProvider`.
     ///
     /// This error occurs when the channel provider stage has no assembled
     /// channels ready for reading. It typically indicates that frame assembly
     /// is still in progress or that no valid channels have been constructed
     /// from available L1 data.
-    ///
-    /// [`ChannelProvider`]: crate::stages::ChannelProvider
     #[error("The channel provider is empty")]
     ChannelProviderEmpty,
-    /// The channel has already been fully processed by the [`ChannelAssembler`] stage.
+    /// The channel has already been fully processed by the `ChannelAssembler` stage.
     ///
     /// This error indicates an attempt to reprocess a channel that has already
     /// been assembled and consumed. It suggests a logic error in channel tracking
     /// or an attempt to double-process the same channel data.
-    ///
-    /// [`ChannelAssembler`]: crate::stages::ChannelAssembler
     #[error("Channel already built")]
     ChannelAlreadyBuilt,
-    /// Failed to locate the requested channel in the [`ChannelProvider`].
+    /// Failed to locate the requested channel in the `ChannelProvider`.
     ///
     /// This error occurs when attempting to access a specific channel that
     /// is not available in the channel provider's cache or storage. It may
     /// indicate a channel ID mismatch or premature channel eviction.
-    ///
-    /// [`ChannelProvider`]: crate::stages::ChannelProvider
     #[error("Channel not found in channel provider")]
     ChannelNotFound,
-    /// No channel data returned by the [`ChannelReader`] stage.
+    /// No channel data returned by the `ChannelReader` stage.
     ///
     /// This error indicates that the channel reader stage has no channels
     /// available for reading. It typically occurs when all channels have
     /// been consumed or when no valid channels have been assembled yet.
-    ///
-    /// [`ChannelReader`]: crate::stages::ChannelReader
     #[error("The channel reader has no channel available")]
     ChannelReaderEmpty,
-    /// The [`BatchQueue`] contains no batches ready for processing.
+    /// The `BatchQueue` contains no batches ready for processing.
     ///
     /// This error occurs when the batch queue stage has no assembled batches
     /// available for attribute generation. It indicates that batch assembly
     /// is still in progress or that no valid batches have been constructed.
-    ///
-    /// [`BatchQueue`]: crate::stages::BatchQueue
     #[error("The batch queue has no batches available")]
     BatchQueueEmpty,
     /// Required L1 origin information is missing from the previous pipeline stage.
@@ -205,13 +195,11 @@ pub enum PipelineError {
     /// It suggests a configuration or sequencing issue in the pipeline setup.
     #[error("Missing L1 origin from previous stage")]
     MissingOrigin,
-    /// Required L1 data is missing from the [`L1Retrieval`] stage.
+    /// Required L1 data is missing from the `L1Retrieval` stage.
     ///
     /// This error occurs when the L1 retrieval stage cannot provide the
     /// requested L1 block data, transactions, or receipts. It may indicate
     /// network issues, data availability problems, or L1 node synchronization lag.
-    ///
-    /// [`L1Retrieval`]: crate::stages::L1Retrieval
     #[error("L1 Retrieval missing data")]
     MissingL1Data,
     /// Invalid or unsupported batch type encountered during processing.

@@ -244,7 +244,7 @@ kona-client = { path = "kona/bin/client", version = "1.0.2", default-features = 
 
 # Protocol
 kona-comp = { path = "kona/crates/batcher/comp", version = "0.4.5", default-features = false }
-kona-derive = { path = "kona/crates/protocol/derive", version = "0.4.5", default-features = false }
+kona-derive = { path = "kona/crates/protocol/derive", version = "0.4.5" }
 kona-interop = { path = "kona/crates/protocol/interop", version = "0.4.5", default-features = false }
 kona-genesis = { path = "kona/crates/protocol/genesis", version = "0.4.5", default-features = false }
 kona-protocol = { path = "kona/crates/protocol/protocol", version = "0.4.5", default-features = false }
