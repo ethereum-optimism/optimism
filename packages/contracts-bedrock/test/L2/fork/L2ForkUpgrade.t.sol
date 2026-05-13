@@ -15,6 +15,7 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -980,5 +981,23 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
 
         _logReportSummary(totalGasUsed, totalGasLimit);
         _logAdjustments(measurements);
+    }
+}
+
+/// @title L2ForkUpgrade_DeterministicDeploymentProxy_Test
+/// @notice Sanity check that the forked L2 has the deterministic deployment proxy preinstall.
+contract L2ForkUpgrade_DeterministicDeploymentProxy_Test is CommonTest {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfNotL2ForkTest("L2ForkUpgrade: deterministic deployer test requires L2 fork");
+    }
+
+    /// @notice Arachnid's proxy must be deployed at the canonical address on forked L2 state.
+    function test_fork_deterministicDeploymentProxy_exists_succeeds() external view {
+        address proxy = Preinstalls.DeterministicDeploymentProxy;
+        assertNotEq(proxy.code.length, 0, "DeterministicDeploymentProxy must have code");
+        assertEq(
+            proxy.code, Preinstalls.DeterministicDeploymentProxyCode, "unexpected DeterministicDeploymentProxy bytecode"
+        );
     }
 }
