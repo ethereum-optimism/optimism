@@ -9,7 +9,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
 use reth_provider::{BlockReader, TransactionVariant};
@@ -51,20 +51,22 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Validates that the target block number is within a valid range for unwinding.
     fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
         let provider_ro = storage.provider_ro()?;
-        let (Some((earliest, _)), Some((latest, _))) =
-            (provider_ro.get_earliest_block_number()?, provider_ro.get_latest_block_number()?)
-        else {
-            warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
-            return Ok(false);
+        let window = match provider_ro.get_proof_window() {
+            Ok(w) => w,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
         };
 
-        if self.target <= earliest {
-            warn!(target: "reth::cli", unwind_target = ?self.target, ?earliest, "Target block is less than the earliest block in proofs storage. Nothing to unwind.");
+        if self.target <= window.earliest.number {
+            warn!(target: "reth::cli", unwind_target = ?self.target, earliest = window.earliest.number, "Target block is less than the earliest block in proofs storage. Nothing to unwind.");
             return Ok(false);
         }
 
-        if self.target > latest {
-            warn!(target: "reth::cli", unwind_target = ?self.target, ?latest, "Target block is not less than the latest block in proofs storage. Nothing to unwind.");
+        if self.target > window.latest.number {
+            warn!(target: "reth::cli", unwind_target = ?self.target, latest = window.latest.number, "Target block is not less than the latest block in proofs storage. Nothing to unwind.");
             return Ok(false);
         }
 

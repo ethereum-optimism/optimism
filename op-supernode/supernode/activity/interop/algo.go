@@ -25,6 +25,14 @@ var (
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than the message expiry window).
 	ErrMessageExpired = errors.New("initiating message has expired")
+
+	// ErrExecutedTooEarly is returned when an executing message is in the executing chain's
+	// pre-activation or activation block.
+	ErrExecutedTooEarly = errors.New("interop is not active for at least one block on the executing chain")
+
+	// ErrInitiatedTooEarly is returned when an executing message references an initiating
+	// message in the initiating chain's pre-activation or activation block.
+	ErrInitiatedTooEarly = errors.New("interop is not active for at least one block on the initiating chain")
 )
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
@@ -171,11 +179,33 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 //  1. The initiating message exists in the source chain's database
 //  2. The initiating message's timestamp is not greater than the executing block's timestamp
 //  3. The initiating message hasn't expired (timestamp + messageExpiryWindow >= executing timestamp)
+//  4. Neither the executing block nor the initiating block falls in its chain's interop
+//     activation block (interop must be active for at least one full block on both sides)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage, view *frontierVerificationView) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
 		return fmt.Errorf("source chain %s not found: %w", execMsg.ChainID, ErrUnknownChain)
+	}
+
+	// Activation invariant: interop must be active for at least one full block on
+	// both the executing chain and the initiating chain. Matches kona and op-program.
+	execChain, ok := i.chains[executingChain]
+	if !ok {
+		return fmt.Errorf("executing chain %s not registered: %w", executingChain, ErrUnknownChain)
+	}
+	if executingTimestamp < i.activationTimestamp+execChain.BlockTime() {
+		return fmt.Errorf("executing chain %s timestamp %d < activation %d + blockTime: %w",
+			executingChain, executingTimestamp, i.activationTimestamp, ErrExecutedTooEarly)
+	}
+
+	initChain, ok := i.chains[execMsg.ChainID]
+	if !ok {
+		return fmt.Errorf("initiating chain %s not registered: %w", execMsg.ChainID, ErrUnknownChain)
+	}
+	if execMsg.Timestamp < i.activationTimestamp+initChain.BlockTime() {
+		return fmt.Errorf("initiating chain %s timestamp %d < activation %d + blockTime: %w",
+			execMsg.ChainID, execMsg.Timestamp, i.activationTimestamp, ErrInitiatedTooEarly)
 	}
 
 	// Verify timestamp ordering: initiating message timestamp must be <= executing block timestamp.

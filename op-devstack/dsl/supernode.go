@@ -72,6 +72,23 @@ func (s *Supernode) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClai
 	s.require.Equal(superRoot[:], rootClaim[:])
 }
 
+// AwaitFullyProcessedL1 waits until the supernode has fully processed the given L1
+// block number. SuperRootAtTimestamp's CurrentL1 names the block currently being
+// processed (L1[<CurrentL1] is fully processed), so this returns once
+// CurrentL1.Number > targetL1.
+func (s *Supernode) AwaitFullyProcessedL1(targetL1 uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		return resp.CurrentL1.Number > targetL1, nil
+	})
+	s.require.NoError(err, "supernode did not fully process L1 block %d in time", targetL1)
+}
+
 // AwaitValidatedTimestamp waits for the super-root at the given timestamp to be fully validated
 func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)

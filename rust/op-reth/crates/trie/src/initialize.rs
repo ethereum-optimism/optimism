@@ -658,6 +658,7 @@ impl<C> InitTable for StoragesTrieInitLegacy<C> {
 mod tests {
     use super::*;
     use crate::{MdbxProofsStorage, OpProofsProviderRO};
+    use alloy_eips::NumHash;
     use alloy_primitives::{Address, U256, keccak256};
     use reth_db::{
         Database, cursor::DbCursorRW, test_utils::create_test_rw_db, transaction::DbTxMut,
@@ -976,14 +977,17 @@ mod tests {
             storage.initialization_provider().unwrap().initial_state_anchor().unwrap().block,
             None
         );
-        assert_eq!(storage.provider_ro().unwrap().get_earliest_block_number().unwrap(), None);
+        assert!(matches!(
+            storage.provider_ro().unwrap().get_earliest_block(),
+            Err(OpProofsStorageError::NoBlocksFound)
+        ));
 
         job.run(best_number, best_hash).unwrap();
 
         // Should be set after initialization
         assert_eq!(
-            storage.provider_ro().unwrap().get_earliest_block_number().unwrap(),
-            Some((best_number, best_hash))
+            storage.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(best_number, best_hash)
         );
 
         // Verify data was initialized
@@ -1037,8 +1041,8 @@ mod tests {
 
         // Should still have the old earliest block
         assert_eq!(
-            storage.provider_ro().unwrap().get_earliest_block_number().unwrap(),
-            Some((50, B256::repeat_byte(0x01)))
+            storage.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(50, B256::repeat_byte(0x01))
         );
     }
 

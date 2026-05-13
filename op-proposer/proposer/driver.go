@@ -302,7 +302,10 @@ func (l *L2OutputSubmitter) waitNodeSync() error {
 		return fmt.Errorf("failed to retrieve current L1 block number: %w", err)
 	}
 
-	return dial.WaitL1Sync(l.ctx, l.Log, l1head, time.Second*12, func(ctx context.Context) (eth.BlockID, error) {
+	// CurrentL1 names the L1 block currently being processed: only blocks strictly
+	// below it are fully derived. Wait until the source reports CurrentL1 > l1head
+	// by setting the target one above l1head.
+	return dial.WaitL1Sync(l.ctx, l.Log, l1head+1, time.Second*12, func(ctx context.Context) (eth.BlockID, error) {
 		status, err := l.ProposalSource.SyncStatus(ctx)
 		if err != nil {
 			return eth.BlockID{}, err

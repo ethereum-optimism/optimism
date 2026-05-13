@@ -24,32 +24,16 @@ library UpgradeUtils {
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
     /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
-    /// @param conditionalDeployerDeployment Gas for deploying ConditionalDeployer
-    /// @param conditionalDeployerUpgrade Gas for upgrading ConditionalDeployer proxy
-    /// @param proxyAdminUpgrade Gas for upgrading ProxyAdmin implementation
     struct GasLimits {
-        // Fixed
         uint64 l2cmDeployment;
         uint64 upgradeExecution;
-        // Karst
-        uint64 conditionalDeployerDeployment;
-        uint64 conditionalDeployerUpgrade;
-        uint64 proxyAdminUpgrade;
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
-        return GasLimits({
-            // Fixed
-            l2cmDeployment: 8_700_000,
-            upgradeExecution: 3_487_603,
-            // Karst
-            conditionalDeployerDeployment: 580_000,
-            conditionalDeployerUpgrade: 77_000,
-            proxyAdminUpgrade: 49_711
-        });
+        return GasLimits({ l2cmDeployment: 4_944_000, upgradeExecution: 2_115_000 });
     }
 
     /// @notice Computes the intrinsic gas cost for a NUT bundle transaction.

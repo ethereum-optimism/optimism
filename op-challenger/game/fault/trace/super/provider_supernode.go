@@ -54,8 +54,10 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
 	}
-	if root.CurrentL1.Number < s.l1Head.Number {
-		// Node has not processed the game's L1 head so it is not safe to play until it syncs further.
+	if root.CurrentL1.Number <= s.l1Head.Number {
+		// CurrentL1 is the L1 block currently being processed; L1[<CurrentL1] is
+		// fully verified. We need the game's l1Head fully verified, so require
+		// CurrentL1 > l1Head — otherwise wait for further sync.
 		return nil, types2.ErrNotInSync
 	}
 	if root.Data == nil {
@@ -83,7 +85,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
-	if prevRoot.CurrentL1.Number < s.l1Head.Number {
+	if prevRoot.CurrentL1.Number <= s.l1Head.Number {
 		return nil, types2.ErrNotInSync
 	}
 	if prevRoot.Data == nil {
@@ -100,7 +102,7 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
 	}
-	if nextRoot.CurrentL1.Number < s.l1Head.Number {
+	if nextRoot.CurrentL1.Number <= s.l1Head.Number {
 		return nil, types2.ErrNotInSync
 	}
 

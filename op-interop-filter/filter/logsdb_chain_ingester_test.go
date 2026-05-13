@@ -592,12 +592,52 @@ func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
 	mockClient.AddBlock(reorgBlock, createTestReceipts(101, 1))
 
 	err = ingester.ingestBlock(101)
-	require.NoError(t, err) // ingestBlock doesn't return error, it sets error state
+	require.Error(t, err)
 
 	// Check that error state was set
 	ingesterErr := ingester.Error()
 	require.NotNil(t, ingesterErr)
 	require.Equal(t, ErrorReorg, ingesterErr.Reason)
+}
+
+func TestLogsDBChainIngester_IngestBlockRangeStopsAtErrorState(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	reorgBlock101 := createTestBlock(101, 1202, common.Hash{0xDE, 0xAD})
+	block102 := createTestBlock(102, 1204, reorgBlock101.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.AddBlock(reorgBlock101, createTestReceipts(101, 1))
+	mockClient.AddBlock(block102, createTestReceipts(102, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.fetchConcurrency = 2
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+	require.NoError(t, ingester.sealParentBlock(99))
+
+	nextBlock, _, err := ingester.ingestBlockRange(100, 102, clock.SystemClock.Now())
+	require.Error(t, err)
+	require.Equal(t, uint64(101), nextBlock)
+
+	ingesterErr := ingester.Error()
+	require.NotNil(t, ingesterErr)
+	require.Equal(t, ErrorReorg, ingesterErr.Reason)
+
+	latestBlock, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(100), latestBlock.Number)
 }
 
 func TestLogsDBChainIngester_RewindToFinalized(t *testing.T) {
@@ -1223,9 +1263,9 @@ func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) 
 	// Set error state before ingestion
 	ingester.SetError(ErrorReorg, "test error")
 
-	// ingestBlock should return nil without doing anything
+	// ingestBlock should return the existing error without doing anything
 	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Block 100 should NOT have been ingested
 	latestBlock, ok := ingester.LatestBlock()

@@ -4,10 +4,10 @@ use super::*;
 use crate::db::models;
 use alloy_eips::NumHash;
 use reth_db::{
-    Database, DatabaseEnv,
-    cursor::DbDupCursorRO,
+    BlockNumberList, Database, DatabaseEnv,
+    cursor::{DbCursorRW, DbDupCursorRO},
     mdbx::{DatabaseArguments, init_db_for},
-    transaction::DbTx,
+    transaction::{DbTx, DbTxMut},
 };
 use reth_trie::{
     HashedStorage,
@@ -21,9 +21,11 @@ use crate::{
     db::{
         ProofWindowKey, V2ProofWindow,
         models::{
-            BlockNumberHashedAddress, HashedAccountShardedKey, V2AccountTrieChangeSets,
-            V2AccountsTrie, V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
+            AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountShardedKey,
+            StorageTrieShardedKey, V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
+            V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
             V2HashedStorageChangeSets, V2HashedStorages, V2StorageTrieChangeSets, V2StoragesTrie,
+            V2StoragesTrieHistory,
         },
     },
 };
@@ -907,42 +909,28 @@ fn fetch_trie_updates_empty_changeset() {
 fn test_proof_window() {
     let db = setup_db();
 
-    // Initial state: no values set
+    // Empty store: both endpoints are None.
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        assert_eq!(provider.get_earliest_block_number().expect("get"), None);
+        assert!(matches!(provider.get_earliest_block(), Err(OpProofsStorageError::NoBlocksFound)));
+        assert!(matches!(provider.get_latest_block(), Err(OpProofsStorageError::NoBlocksFound)));
     }
 
-    // Set earliest
+    // Bootstrap via the init flow: commit_initial_state sets both earliest and latest.
+    let anchor_hash = B256::repeat_byte(0x42);
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(42, B256::repeat_byte(0x42)).expect("set");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider
+            .set_initial_state_anchor(BlockNumHash { number: 42, hash: anchor_hash })
+            .expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
-    // Verify
     {
         let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        let earliest = provider.get_earliest_block_number().expect("get");
-        assert_eq!(earliest, Some((42, B256::repeat_byte(0x42))));
-
-        // Latest should fall back to earliest when not set
-        let latest = provider.get_latest_block_number().expect("get");
-        assert_eq!(latest, Some((42, B256::repeat_byte(0x42))));
-    }
-
-    // Update earliest
-    {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number(100, B256::repeat_byte(0x64)).expect("set");
-        OpProofsProviderRw::commit(provider).expect("commit");
-    }
-
-    // Verify update
-    {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
-        let earliest = provider.get_earliest_block_number().expect("get");
-        assert_eq!(earliest, Some((100, B256::repeat_byte(0x64))));
+        assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(42, anchor_hash));
+        assert_eq!(provider.get_latest_block().expect("get"), NumHash::new(42, anchor_hash));
     }
 }
 
@@ -1889,4 +1877,89 @@ fn hashed_storages_batch_no_duplicates() {
     let slots = collect_hashed_storage_slots(&db, addr);
     assert_eq!(slots.len(), 1, "batch: exactly 1 entry, no duplicates");
     assert_eq!(slots[0], (slot, U256::from(300u64)));
+}
+
+// ========================== Sharded-key sort order regression ==========================
+//
+// End-to-end check that round-tripping `AccountTrieShardedKey` / `StorageTrieShardedKey`
+// through a real MDBX env preserves `Nibbles`' lex-by-nibble order. Under the old
+// length-prefixed encoding, the length byte at position 0 dominated MDBX's byte-wise sort
+// and `[0x05]` walked before `[0x01, 0x05]` even though logically `[0x01, ...]` must
+// come first.
+
+#[test]
+fn account_trie_history_cursor_walk_returns_lex_by_nibble_order() {
+    let db = setup_db();
+
+    let short = StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x05]));
+    let long = StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x01, 0x05]));
+
+    // Insert in the order that *would* have been wrong under the old encoding.
+    {
+        let wtx = db.tx_mut().expect("rw");
+        let mut cur = wtx.cursor_write::<V2AccountsTrieHistory>().expect("cursor");
+        cur.upsert(
+            AccountTrieShardedKey::new(short.clone(), u64::MAX),
+            &BlockNumberList::new_pre_sorted([0]),
+        )
+        .expect("upsert short");
+        cur.upsert(
+            AccountTrieShardedKey::new(long.clone(), u64::MAX),
+            &BlockNumberList::new_pre_sorted([0]),
+        )
+        .expect("upsert long");
+        wtx.commit().expect("commit");
+    }
+
+    // Walk the table; MDBX returns entries in encoded-byte order.
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_read::<V2AccountsTrieHistory>().expect("cursor");
+    let mut walked = Vec::new();
+    let mut entry = cur.first().expect("first");
+    while let Some((k, _)) = entry {
+        walked.push(k.key);
+        entry = cur.next().expect("next");
+    }
+
+    assert_eq!(
+        walked,
+        vec![long, short],
+        "[0x01, 0x05] must precede [0x05]: nibble 0x01 < 0x05 dominates lex order",
+    );
+}
+
+#[test]
+fn storage_trie_history_cursor_walk_returns_lex_by_nibble_order() {
+    let db = setup_db();
+
+    let addr = B256::repeat_byte(0x11);
+    let short = StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x05]));
+    let long = StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x01, 0x05]));
+
+    {
+        let wtx = db.tx_mut().expect("rw");
+        let mut cur = wtx.cursor_write::<V2StoragesTrieHistory>().expect("cursor");
+        cur.upsert(
+            StorageTrieShardedKey::new(addr, short.clone(), u64::MAX),
+            &BlockNumberList::new_pre_sorted([0]),
+        )
+        .expect("upsert short");
+        cur.upsert(
+            StorageTrieShardedKey::new(addr, long.clone(), u64::MAX),
+            &BlockNumberList::new_pre_sorted([0]),
+        )
+        .expect("upsert long");
+        wtx.commit().expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_read::<V2StoragesTrieHistory>().expect("cursor");
+    let mut walked = Vec::new();
+    let mut entry = cur.first().expect("first");
+    while let Some((k, _)) = entry {
+        walked.push(k.key);
+        entry = cur.next().expect("next");
+    }
+
+    assert_eq!(walked, vec![long, short], "within an address, [0x01, 0x05] must precede [0x05]",);
 }

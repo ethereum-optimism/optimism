@@ -72,45 +72,48 @@ fn create_test_account_with_values(nonce: u64, balance: u64, code_hash_byte: u8)
     }
 }
 
+/// Bootstrap a fresh store via the init flow. Equivalent to running the initial-state
+/// preparation step in production.
+fn bootstrap_anchor<S: OpProofsStore>(storage: &S, anchor: BlockNumHash) {
+    let init = storage.initialization_provider().expect("init provider");
+    init.set_initial_state_anchor(anchor).expect("set anchor");
+    init.commit_initial_state().expect("commit initial state");
+    OpProofsInitProvider::commit(init).expect("commit tx");
+}
+
 fn create_mdbx_proofs_storage() -> MdbxProofsStorage {
     let path = TempDir::new().unwrap();
     let storage = MdbxProofsStorage::new(path.path()).unwrap();
-    let provider = storage.provider_rw().unwrap();
-    provider.set_earliest_block_number(0, B256::ZERO).unwrap();
-    OpProofsProviderRw::commit(provider).unwrap();
+    bootstrap_anchor(&storage, BlockNumHash { number: 0, hash: B256::ZERO });
     storage
 }
 
 fn create_mdbx_proofs_storage_v2() -> MdbxProofsStorageV2 {
     let path = TempDir::new().unwrap();
     let storage = MdbxProofsStorageV2::new(path.path()).unwrap();
-    let provider = storage.provider_rw().unwrap();
-    provider.set_earliest_block_number(0, B256::ZERO).unwrap();
-    OpProofsProviderRw::commit(provider).unwrap();
+    bootstrap_anchor(&storage, BlockNumHash { number: 0, hash: B256::ZERO });
     storage
 }
 
-/// Test basic storage and retrieval of earliest block number
+/// Test bootstrap via `commit_initial_state` populates both earliest and latest.
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(MdbxProofsStorage::new(TempDir::new().unwrap().path()).unwrap(); "Mdbx")]
 #[test_case(MdbxProofsStorageV2::new(TempDir::new().unwrap().path()).unwrap(); "MdbxV2")]
 #[serial]
-fn test_earliest_block_operations<S: OpProofsStore>(
-    storage: S,
-) -> Result<(), OpProofsStorageError> {
-    // Initially should be None
-    let earliest = storage.provider_ro().expect("provider ro").get_earliest_block_number()?;
-    assert!(earliest.is_none());
+fn test_bootstrap_initial_state<S: OpProofsStore>(storage: S) -> Result<(), OpProofsStorageError> {
+    // Initially both endpoints surface NoBlocksFound.
+    let provider = storage.provider_ro().expect("provider ro");
+    assert!(matches!(provider.get_earliest_block(), Err(OpProofsStorageError::NoBlocksFound)));
+    assert!(matches!(provider.get_latest_block(), Err(OpProofsStorageError::NoBlocksFound)));
 
-    // Set earliest block
+    // Run the init flow.
     let block_hash = B256::repeat_byte(0x42);
-    let provider_rw = storage.provider_rw().expect("provider rw");
-    provider_rw.set_earliest_block_number(100, block_hash)?;
-    provider_rw.commit()?;
+    bootstrap_anchor(&storage, BlockNumHash { number: 100, hash: block_hash });
 
-    // Should retrieve the same values
-    let earliest = storage.provider_ro().expect("provider ro").get_earliest_block_number()?;
-    assert_eq!(earliest, Some((100, block_hash)));
+    // Both endpoints point at the anchor.
+    let provider = storage.provider_ro().expect("provider ro");
+    assert_eq!(provider.get_earliest_block()?, NumHash::new(100, block_hash));
+    assert_eq!(provider.get_latest_block()?, NumHash::new(100, block_hash));
 
     Ok(())
 }

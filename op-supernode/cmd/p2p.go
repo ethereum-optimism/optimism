@@ -28,12 +28,24 @@ func withNamespacedP2P(vcli *flags.VirtualCLI, datadir string, namespace string)
 	vcli.WithStringOverride(opnodeflags.PeerstorePathName, filepath.Join(p2pDir, "peerstore_db"))
 	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, filepath.Join(p2pDir, "discovery_db"))
 	// Default listen ports to 0 (dynamic) to prevent collisions when the user
-	// has not pinned a port. Honour vn.all.<flag> and vn.<id>.<flag> when set.
-	if !vcli.IsSet(opnodeflags.ListenTCPPortName) {
-		vcli.WithUintOverride(opnodeflags.ListenTCPPortName, 0)
+	// has not pinned a per-chain port. A non-zero vn.all.<flag> would be reused
+	// by every virtual node, so require per-chain listen ports instead.
+	if err := withNamespacedP2PListenPort(vcli, opnodeflags.ListenTCPPortName); err != nil {
+		return err
 	}
-	if !vcli.IsSet(opnodeflags.ListenUDPPortName) {
-		vcli.WithUintOverride(opnodeflags.ListenUDPPortName, 0)
+	if err := withNamespacedP2PListenPort(vcli, opnodeflags.ListenUDPPortName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func withNamespacedP2PListenPort(vcli *flags.VirtualCLI, name string) error {
+	if !vcli.IsSet(name) {
+		vcli.WithUintOverride(name, 0)
+		return nil
+	}
+	if vcli.IsGlobalSet(name) && vcli.GlobalUint(name) != 0 {
+		return fmt.Errorf("%s%s cannot be non-zero for virtual-node P2P listen ports; use %s<chainID>.%s for fixed per-chain ports", flags.VNFlagGlobalPrefix, name, flags.VNFlagNamePrefix, name)
 	}
 	return nil
 }

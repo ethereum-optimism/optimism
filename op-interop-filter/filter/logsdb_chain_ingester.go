@@ -675,8 +675,8 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 }
 
 func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, lastLogTime time.Time) (uint64, time.Time, error) {
-	if c.Error() != nil {
-		return startBlock, lastLogTime, nil
+	if errState := c.Error(); errState != nil {
+		return startBlock, lastLogTime, errState
 	}
 	if startBlock > endBlock {
 		return startBlock, lastLogTime, nil
@@ -761,8 +761,8 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 }
 
 func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
-	if c.Error() != nil {
-		return nil
+	if errState := c.Error(); errState != nil {
+		return errState
 	}
 
 	blockInfo := fetched.blockInfo
@@ -786,7 +786,7 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 				"expected_parent", latestBlock.Hash,
 				"actual_parent", blockInfo.ParentHash())
 			c.SetError(ErrorReorg, fmt.Sprintf("parent hash mismatch at block %d", blockNum))
-			return nil
+			return c.Error()
 		}
 	}
 
@@ -794,15 +794,15 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 	if err != nil {
 		if errors.Is(err, types.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
-			return nil
+			return c.Error()
 		}
 		if errors.Is(err, types.ErrDataCorruption) {
 			c.SetError(ErrorDataCorruption, fmt.Sprintf("data corruption at block %d: %v", blockNum, err))
-			return nil
+			return c.Error()
 		}
 		if errors.Is(err, ErrInvalidLog) {
 			c.SetError(ErrorInvalidExecutingMessage, fmt.Sprintf("invalid log at block %d: %v", blockNum, err))
-			return nil
+			return c.Error()
 		}
 		return err
 	}

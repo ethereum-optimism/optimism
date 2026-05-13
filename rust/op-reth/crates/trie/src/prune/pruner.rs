@@ -1,7 +1,7 @@
 #[cfg(feature = "metrics")]
 use crate::prune::metrics::Metrics;
 use crate::{
-    OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
     prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
 };
 
@@ -141,15 +141,15 @@ where
         &self,
         provider: &P,
     ) -> Result<Option<(u64, u64, PrunerOutput)>, PrunerError> {
-        let Some(latest) = provider.get_latest_block_number()? else {
-            trace!(target: "trie::pruner", "No latest blocks in the proof storage");
-            return Ok(None);
+        let window = match provider.get_proof_window() {
+            Ok(w) => w,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                trace!(target: "trie::pruner", "Proof storage is empty");
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
         };
-        let Some(earliest) = provider.get_earliest_block_number()? else {
-            trace!(target: "trie::pruner", "No earliest blocks in the proof storage");
-            return Ok(None);
-        };
-        let (latest_block, earliest_block) = (latest.0, earliest.0);
+        let (latest_block, earliest_block) = (window.latest.number, window.earliest.number);
         if latest_block.saturating_sub(earliest_block) <= self.min_block_interval {
             trace!(target: "trie::pruner", "Nothing to prune");
             return Ok(None);
@@ -234,8 +234,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlockStateDiff, OpProofsStorage, db::MdbxProofsStorage};
-    use alloy_eips::{BlockHashOrNumber, NumHash};
+    use crate::{BlockStateDiff, OpProofsInitProvider, OpProofsStorage, db::MdbxProofsStorage};
+    use alloy_eips::{BlockHashOrNumber, BlockNumHash, NumHash};
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
     use reth_primitives_traits::Account;
@@ -286,9 +286,11 @@ mod tests {
         let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         {
-            let provider = store.provider_rw().expect("provider_rw");
-            provider.set_earliest_block_number(0, B256::ZERO).expect("set earliest");
-            provider.commit().expect("commit");
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
         }
 
         // --- entities ---
@@ -354,7 +356,7 @@ mod tests {
             };
             let provider = store.provider_rw().expect("provider_rw");
             provider.store_trie_updates(b1, d).expect("b1");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
             parent = b256(1);
         }
 
@@ -389,7 +391,7 @@ mod tests {
             };
             let provider = store.provider_rw().expect("provider_rw");
             provider.store_trie_updates(b2, d).expect("b2");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
             parent = b256(2);
         }
 
@@ -417,7 +419,7 @@ mod tests {
             };
             let provider = store.provider_rw().expect("provider_rw");
             provider.store_trie_updates(b3, d).expect("b3");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
             parent = b256(3);
         }
 
@@ -446,7 +448,7 @@ mod tests {
             };
             let provider = store.provider_rw().expect("provider_rw");
             provider.store_trie_updates(b4, d).expect("b4");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
             parent = b256(4);
         }
 
@@ -471,16 +473,16 @@ mod tests {
             };
             let provider = store.provider_rw().expect("provider_rw");
             provider.store_trie_updates(b5, d).expect("b5");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
         }
 
         // sanity: earliest=0, latest=5
         {
             let provider = store.provider_ro().expect("provider_ro");
-            let e = provider.get_earliest_block_number().expect("earliest").expect("some");
-            let l = provider.get_latest_block_number().expect("latest").expect("some");
-            assert_eq!(e.0, 0);
-            assert_eq!(l.0, 5);
+            let e = provider.get_earliest_block().expect("earliest");
+            let l = provider.get_latest_block().expect("latest");
+            assert_eq!(e.number, 0);
+            assert_eq!(l.number, 5);
         }
 
         // --- prune: remove the first 3 blocks, keep 4 and 5
@@ -504,12 +506,10 @@ mod tests {
         // proof window moved: earliest=4, latest=5
         {
             let provider = store.provider_ro().expect("provider_ro");
-            let e = provider.get_earliest_block_number().expect("earliest").expect("some");
-            let l = provider.get_latest_block_number().expect("latest").expect("some");
-            assert_eq!(e.0, 4);
-            assert_eq!(e.1, b256(4));
-            assert_eq!(l.0, 5);
-            assert_eq!(l.1, b256(5));
+            let e = provider.get_earliest_block().expect("earliest");
+            let l = provider.get_latest_block().expect("latest");
+            assert_eq!(e, NumHash::new(4, b256(4)));
+            assert_eq!(l, NumHash::new(5, b256(5)));
         }
 
         // --- DB checks
@@ -592,11 +592,11 @@ mod tests {
 
         {
             let provider = store.provider_ro().unwrap();
-            let earliest = provider.get_earliest_block_number().unwrap();
-            let latest = provider.get_latest_block_number().unwrap();
+            let earliest = provider.get_earliest_block();
+            let latest = provider.get_latest_block();
             println!("{:?} {:?}", earliest, latest);
-            assert!(earliest.is_none());
-            assert!(latest.is_none());
+            assert!(matches!(earliest, Err(OpProofsStorageError::NoBlocksFound)));
+            assert!(matches!(latest, Err(OpProofsStorageError::NoBlocksFound)));
         }
 
         let block_hash_reader = MockBlockHashReader::new();
@@ -613,19 +613,22 @@ mod tests {
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
-        // Set earliest only. In V2, get_latest_block_number() falls back to earliest.
+        // Bootstrap the chain anchor via the init flow; commit_initial_state sets both
+        // earliest and latest.
         {
-            let provider = store.provider_rw().expect("provider_rw");
-            provider.set_earliest_block_number(3, b256(3)).expect("set earliest");
-            provider.commit().expect("commit");
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 3, hash: b256(3) })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
         }
 
         {
             let provider = store.provider_ro().unwrap();
-            let earliest = provider.get_earliest_block_number().unwrap();
-            let latest = provider.get_latest_block_number().unwrap();
-            assert_eq!(earliest.unwrap().0, 3);
-            assert_eq!(latest.unwrap().0, 3, "latest should fall back to earliest");
+            let earliest = provider.get_earliest_block().unwrap();
+            let latest = provider.get_latest_block().unwrap();
+            assert_eq!(earliest.number, 3);
+            assert_eq!(latest.number, 3, "commit_initial_state bootstraps both anchors");
         }
 
         let block_hash_reader = MockBlockHashReader::new();
@@ -643,26 +646,32 @@ mod tests {
         let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
             OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
-        // Set earliest=4 explicitly
+        // Bootstrap earliest=4 via the init flow.
         let earliest_num = 4u64;
         let h4 = b256(4);
         {
-            let provider = store.provider_rw().expect("provider_rw");
-            provider.set_earliest_block_number(earliest_num, h4).expect("set earliest");
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: earliest_num, hash: h4 })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
 
-            // Set latest=5 by storing block 5
+        // Set latest=5 by storing block 5.
+        {
+            let provider = store.provider_rw().expect("provider_rw");
             let b5 = block(5, h4);
             provider.store_trie_updates(b5, BlockStateDiff::default()).expect("store b5");
-            provider.commit().expect("commit");
+            OpProofsProviderRw::commit(provider).expect("commit");
         }
 
         // Sanity: earliest=4, latest=5 => interval=1
         {
             let provider = store.provider_ro().unwrap();
-            let e = provider.get_earliest_block_number().unwrap().unwrap();
-            let l = provider.get_latest_block_number().unwrap().unwrap();
-            assert_eq!(e.0, 4);
-            assert_eq!(l.0, 5);
+            let e = provider.get_earliest_block().unwrap();
+            let l = provider.get_latest_block().unwrap();
+            assert_eq!(e.number, 4);
+            assert_eq!(l.number, 5);
         }
 
         // Require min_block_interval=2 (or greater) so interval < min
