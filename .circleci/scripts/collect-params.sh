@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Generic parameter collector for CircleCI dynamic configuration.
+# Collects pipeline parameters from the environment and writes them to a JSON file.
 #
 # Called once per type with a mode argument:
-#   compute-changes.sh str    — emit all c-* env vars as JSON strings
-#   compute-changes.sh bool   — emit all c-* env vars as JSON booleans (normalizes 0/1)
-#   compute-changes.sh detect — treat c-* env var values as ERE patterns, match against git diff
+#   collect-params.sh str    — emit all c-* env vars as JSON strings
+#   collect-params.sh bool   — emit all c-* env vars as JSON booleans (normalizes 0/1)
+#   collect-params.sh detect — treat c-* env var values as ERE patterns, match against git diff
 #
 # Each invocation appends to /tmp/pipeline-parameters.json.
 # Env vars whose name starts with c- are processed; all others are ignored.
 set -euo pipefail
 
-MODE="${1:?Usage: compute-changes.sh <str|bool|detect>}"
+MODE="${1:?Usage: collect-params.sh <str|bool|detect>}"
 OUTPUT="/tmp/pipeline-parameters.json"
 
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
@@ -58,7 +58,7 @@ case "${MODE}" in
     ;;
 
   *)
-    echo "ERROR: Unknown mode '${MODE}'. Use: str, bool, or detect." >&2
+    echo "ERROR: Unknown mode '${MODE}'. Use str, bool, or detect." >&2
     exit 1
     ;;
 esac

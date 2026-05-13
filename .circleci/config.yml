@@ -86,7 +86,7 @@ orbs:
   continuation: circleci/continuation@1.0.0
 
 jobs:
-  compute-changes:
+  prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
     environment:
@@ -102,8 +102,8 @@ jobs:
             chmod +x /usr/local/bin/yq
             echo "yq version: $(yq --version)"
       - run:
-          name: Collect string parameters
-          command: .circleci/scripts/compute-changes.sh str
+          name: Store string pipeline parameters in JSON file
+          command: .circleci/scripts/collect-params.sh str
           environment:
             c-default_docker_image: << pipeline.parameters.default_docker_image >>
             c-rust_base_image: << pipeline.parameters.rust_base_image >>
@@ -113,8 +113,8 @@ jobs:
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
       - run:
-          name: Collect boolean parameters
-          command: .circleci/scripts/compute-changes.sh bool
+          name: Store boolean pipeline parameters in JSON file
+          command: .circleci/scripts/collect-params.sh bool
           environment:
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
@@ -131,15 +131,15 @@ jobs:
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       - run:
-          name: Detect path changes
-          command: .circleci/scripts/compute-changes.sh detect
+          name: Detect file tree changes and store in JSON file
+          command: .circleci/scripts/collect-params.sh detect
           environment:
             c-rust_files_changed: "^rust/"
             c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       - run:
-          name: Compute workflow conditions
+          name: Compute workflow conditions from pipeline parameters and store in JSON file
           environment:
             BRANCH: << pipeline.git.branch >>
             TRIGGER_SOURCE: << pipeline.trigger_source >>
@@ -231,14 +231,14 @@ workflows:
     when:
       equal: ["", << pipeline.git.tag >>]
     jobs:
-      - compute-changes
+      - prepare-continuation-config
 
   setup-tag:
     when:
       not:
         equal: ["", << pipeline.git.tag >>]
     jobs:
-      - compute-changes:
+      - prepare-continuation-config:
           filters:
             tags:
               only: /.*/
