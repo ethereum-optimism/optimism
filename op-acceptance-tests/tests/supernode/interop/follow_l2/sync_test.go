@@ -115,8 +115,10 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	dsl.CheckAll(t, divergenceChecks...)
 
 	// Freeze new block production so interop can catch cross-safe up to local-safe.
-	sys.L2ACL.StopSequencer()
-	sys.L2BCL.StopSequencer()
+	// Cross-safe only advances at timestamps where every chain has a local-safe block,
+	// so the two sequencers must end on the same unsafe height — otherwise the leader
+	// has a block at a timestamp the laggard will never produce, and cross-safe stalls.
+	dsl.StopSequencersSynced(t, sys.L2ACL, sys.L2BCL)
 	t.Cleanup(func() {
 		sys.L2ACL.StartSequencer()
 		sys.L2BCL.StartSequencer()
