@@ -1,6 +1,5 @@
-//! Integration tests for the interop client's trace-extension boundary on a
-//! `PreState::TransitionState` agreed prestate. Mirrors the single-proof
-//! `trace_extension.rs` tests but exercises the interop `run()` dispatch.
+//! Trace-extension boundary tests for the interop `run()` dispatch on a
+//! `PreState::TransitionState` agreed prestate.
 
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
@@ -63,12 +62,8 @@ fn b256(fill: u8) -> B256 {
     B256::from([fill; 32])
 }
 
-/// Builds a synthetic interop boot fixture with a `PreState::TransitionState` agreed prestate
-/// whose embedded `SuperRoot.timestamp == prestate_timestamp`.
-///
-/// Chain IDs `9901` and `9902` are intentionally absent from the embedded
-/// `ROLLUP_CONFIGS`, `L1_CONFIGS`, and `DEPENDENCY_SETS` registries, forcing
-/// `BootInfo::load` down the preimage-oracle fallback paths (keys 6, 7, 8).
+// Synthetic chain IDs absent from the embedded registries, so `BootInfo::load`
+// uses the preimage-oracle fallback paths and the fixture stays self-contained.
 fn setup_interop_preimages(
     prestate_timestamp: u64,
     claimed_l2_timestamp: u64,
@@ -78,9 +73,6 @@ fn setup_interop_preimages(
     const CHAIN_B: u64 = 9902;
     const L1_CHAIN_ID: u64 = 9001;
 
-    // Build the TransitionState prestate. `step = 1` is a plausible mid-transition value;
-    // `PreState::decode` dispatches purely on the leading version byte, so any `step` in
-    // `[0, TRANSITION_STATE_MAX_STEPS]` reaches the `TransitionState` arm.
     let pre_state = PreState::TransitionState(TransitionState::new(
         SuperRoot::new(
             prestate_timestamp,
@@ -98,15 +90,11 @@ fn setup_interop_preimages(
 
     let mut preimages = HashMap::new();
 
-    // Local keys consumed by BootInfo::load.
     preimages.insert(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec());
     preimages.insert(PreimageKey::new_local(2), agreed_pre_state_commitment.as_slice().to_vec());
     preimages.insert(PreimageKey::new_local(3), claimed_post_state.as_slice().to_vec());
     preimages.insert(PreimageKey::new_local(4), claimed_l2_timestamp.to_be_bytes().to_vec());
 
-    // RollupConfig fallback (key 6): chain IDs absent from ROLLUP_CONFIGS, so JSON deserialization
-    // path is exercised. Default values are fine — `run()` short-circuits before any config field
-    // is consumed.
     let mut rollup_configs: HashMap<u64, RollupConfig> = HashMap::new();
     for chain_id in [CHAIN_A, CHAIN_B] {
         let cfg = RollupConfig { l1_chain_id: L1_CHAIN_ID, ..RollupConfig::default() };
@@ -117,15 +105,12 @@ fn setup_interop_preimages(
         serde_json::to_vec(&rollup_configs).expect("serialize rollup configs"),
     );
 
-    // L1ChainConfig fallback (key 7): synthetic L1 chain ID 9001 is absent from L1_CONFIGS.
     let l1_config = L1ChainConfig { chain_id: L1_CHAIN_ID, ..L1ChainConfig::default() };
     preimages.insert(
         PreimageKey::new_local(7),
         serde_json::to_vec(&l1_config).expect("serialize l1 config"),
     );
 
-    // DependencySet fallback (key 8): the two synthetic chain IDs are absent from
-    // DEPENDENCY_SETS.
     let mut dependencies = BTreeMap::new();
     dependencies.insert(CHAIN_A, kona_genesis::ChainDependency {});
     dependencies.insert(CHAIN_B, kona_genesis::ChainDependency {});
@@ -133,22 +118,16 @@ fn setup_interop_preimages(
     preimages
         .insert(PreimageKey::new_local(8), serde_json::to_vec(&depset).expect("serialize depset"));
 
-    // Keccak preimage for the agreed pre-state commitment (consumed by `read_raw_pre_state`).
     preimages.insert(PreimageKey::new_keccak256(*agreed_pre_state_commitment), pre_state_rlp);
 
     (preimages, agreed_pre_state_commitment)
 }
 
-/// Sub-case A: `T == GT AND C == P`.
-///
-/// Baseline (`fbbf9089d0`) returns `Err(InvalidClaim(expected, actual))` with
-/// `expected == actual == agreed_pre_state_commitment`. After the fix, returns `Ok(())`,
-/// matching the existing `PreState::SuperRoot` arm at `mod.rs:86-98`.
+// `prestate.timestamp == claimed_l2_timestamp` and `claim == prestate_commitment`: must accept.
 #[tokio::test(flavor = "multi_thread")]
 async fn trace_extension_transition_state_at_game_timestamp_accepts_matching_claim() {
     let t: u64 = 1000;
     let (preimages, agreed_commit) = setup_interop_preimages(t, t, B256::ZERO);
-    // Overwrite key 3 with the matching commitment (sub-case A: C == P).
     let mut preimages = preimages;
     preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
 
@@ -159,17 +138,13 @@ async fn trace_extension_transition_state_at_game_timestamp_accepts_matching_cla
     match result {
         Ok(()) => {}
         Err(FaultProofProgramError::InvalidClaim(expected, actual)) => {
-            panic!(
-                "expected Ok(()); got InvalidClaim(expected={expected}, actual={actual}) — \
-                 trace-extension parity bug not yet fixed"
-            );
+            panic!("expected Ok(()); got InvalidClaim(expected={expected}, actual={actual})");
         }
         Err(other) => panic!("unexpected error variant: {other:?}"),
     }
 }
 
-/// Sub-case B: `T == GT AND C != P`. Must remain a fail-closed `InvalidClaim` on baseline and
-/// after the fix.
+// `prestate.timestamp == claimed_l2_timestamp` but `claim != prestate_commitment`: must reject.
 #[tokio::test(flavor = "multi_thread")]
 async fn trace_extension_transition_state_at_game_timestamp_rejects_mismatched_claim() {
     let t: u64 = 1000;
@@ -190,12 +165,12 @@ async fn trace_extension_transition_state_at_game_timestamp_rejects_mismatched_c
     }
 }
 
-/// Sub-case C-eq: `T > GT AND C == P`. Baseline returns `Err(InvalidClaim)`; after the fix the
-/// symmetric `>=` arm accepts and returns `Ok(())`.
+// `prestate.timestamp > claimed_l2_timestamp` and `claim == prestate_commitment`: must accept
+// (covers the strict-`>` half of the `>=` arm, symmetric with the SuperRoot branch).
 #[tokio::test(flavor = "multi_thread")]
 async fn trace_extension_transition_state_past_game_timestamp_accepts_matching_claim() {
     let t: u64 = 1000;
-    let game_timestamp: u64 = t - 1; // T > GT
+    let game_timestamp: u64 = t - 1;
     let (preimages, agreed_commit) = setup_interop_preimages(t, game_timestamp, B256::ZERO);
     let mut preimages = preimages;
     preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
@@ -207,10 +182,7 @@ async fn trace_extension_transition_state_past_game_timestamp_accepts_matching_c
     match result {
         Ok(()) => {}
         Err(FaultProofProgramError::InvalidClaim(expected, actual)) => {
-            panic!(
-                "expected Ok(()); got InvalidClaim(expected={expected}, actual={actual}) — \
-                 symmetric `>=` arm not yet covering the strict-`>` half"
-            );
+            panic!("expected Ok(()); got InvalidClaim(expected={expected}, actual={actual})");
         }
         Err(other) => panic!("unexpected error variant: {other:?}"),
     }
