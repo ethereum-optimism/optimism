@@ -9,11 +9,13 @@ use kona_preimage::{
 };
 use kona_proof::{Hint, errors::HintParsingError};
 use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
-use tokio::{sync::RwLock, time::Duration};
+use tokio::{
+    sync::RwLock,
+    time::{Duration, sleep},
+};
 use tracing::{debug, error, trace};
 
 /// Bounded retry policy for `OnlineHostBackend::get_preimage`. Private to the `online` module.
-#[allow(dead_code)]
 struct RetryPolicy {
     /// Maximum number of `fetch_hint` invocations per `get_preimage` call.
     max_attempts: usize,
@@ -79,6 +81,8 @@ where
     proactive_hints: HashSet<C::HintType>,
     /// The last hint that was received.
     last_hint: Arc<RwLock<Option<Hint<C::HintType>>>>,
+    /// Retry policy for preimage prefetches in `get_preimage`.
+    retry_policy: RetryPolicy,
     /// Phantom marker for the [`HintHandler`].
     _hint_handler: std::marker::PhantomData<H>,
 }
@@ -97,6 +101,7 @@ where
             providers,
             proactive_hints: HashSet::default(),
             last_hint: Arc::new(RwLock::new(None)),
+            retry_policy: RetryPolicy::default(),
             _hint_handler: std::marker::PhantomData,
         }
     }
@@ -109,9 +114,8 @@ where
 
     /// Override the default retry policy. Test-only seam.
     #[cfg(test)]
-    #[allow(clippy::missing_const_for_fn)]
-    fn with_retry_policy(self, _policy: RetryPolicy) -> Self {
-        // Commit 1 (red): no-op stub. Commit 2 replaces the body with the real assignment.
+    const fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
         self
     }
 }
@@ -153,30 +157,52 @@ where
     async fn get_preimage(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
         trace!(target: "host_backend", "Pre-image requested. Key: {key}");
 
-        // Acquire a read lock on the key-value store.
-        let kv_lock = self.kv.read().await;
-        let mut preimage = kv_lock.get(key.into());
+        // Fast path: preimage already cached.
+        if let Some(preimage) = self.kv.read().await.get(key.into()) {
+            return Ok(preimage);
+        }
 
-        // Drop the read lock before beginning the retry loop.
-        drop(kv_lock);
+        // Snapshot the hint once. If no hint has been routed, the client must request a hint
+        // before requesting this key; matches op-program's `for ... && p.lastHint != ""` guard.
+        let hint = match self.last_hint.read().await.as_ref() {
+            Some(h) => h.clone(),
+            None => return Err(PreimageOracleError::KeyNotFound),
+        };
 
-        // Use a loop to keep retrying the prefetch as long as the key is not found
-        while preimage.is_none() {
-            if let Some(hint) = self.last_hint.read().await.as_ref() {
-                let value =
-                    H::fetch_hint(hint.clone(), &self.cfg, &self.providers, self.kv.clone()).await;
+        let policy = &self.retry_policy;
+        let mut backoff = policy.initial_backoff;
 
-                if let Err(e) = value {
-                    error!(target: "host_backend", "Failed to prefetch hint: {e}");
-                    continue;
+        for attempt in 1..=policy.max_attempts {
+            match H::fetch_hint(hint.clone(), &self.cfg, &self.providers, self.kv.clone()).await {
+                Ok(()) => {
+                    if let Some(preimage) = self.kv.read().await.get(key.into()) {
+                        return Ok(preimage);
+                    }
+                    debug!(
+                        target: "host_backend",
+                        "Prefetch attempt {attempt}/{} for key {key} succeeded but key still missing; retrying",
+                        policy.max_attempts
+                    );
                 }
+                Err(e) => {
+                    error!(
+                        target: "host_backend",
+                        "Prefetch attempt {attempt}/{} for key {key} failed: {e}",
+                        policy.max_attempts
+                    );
+                }
+            }
 
-                let kv_lock = self.kv.read().await;
-                preimage = kv_lock.get(key.into());
+            if attempt < policy.max_attempts {
+                sleep(backoff).await;
+                backoff = (backoff * 2).min(policy.max_backoff);
             }
         }
 
-        preimage.ok_or(PreimageOracleError::KeyNotFound)
+        Err(PreimageOracleError::Other(format!(
+            "prefetch failed after {} attempts for key {key}; see prior error logs for per-attempt failures",
+            policy.max_attempts
+        )))
     }
 }
 
