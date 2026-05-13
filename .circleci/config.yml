@@ -147,22 +147,9 @@ jobs:
             SCHEDULE_NAME: << pipeline.schedule.name >>
           command: |
             set -euo pipefail
-            OUTPUT="/tmp/pipeline-parameters.json"
-            _json=$(cat "${OUTPUT}")
+            source .circleci/scripts/workflow-helpers.sh
+            init_json
 
-            # --- helpers ---
-            run() { for wf in "$@"; do _json=$(echo "${_json}" | jq '. + {"c-run_'"${wf}"'": true}'); echo "  [enable] c-run_${wf}"; done; }
-            param() { echo "${_json}" | jq -r ".\"c-${1}\""; }
-            is_true() { [[ "$(param "${1}")" == "true" ]]; }
-
-            # Enable rust and docs workflows based on detected file changes.
-            run_rust_and_docs() {
-              if is_true rust_changes_detected; then run rust_ci rust_e2e_ci "$@"
-              else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
-              if is_true docs_changes_detected; then run docs_ci; fi
-            }
-
-            # --- decision tree (case on TRIGGER_SOURCE) ---
             case "${TRIGGER_SOURCE}" in
 
               # Scheduled pipelines: map schedule name → workflows
@@ -184,16 +171,22 @@ jobs:
                   case "${BRANCH}" in
                     gh-readonly-queue/*)
                       run contracts_feature_tests
-                      run_rust_and_docs
+                      if is_true rust_changes_detected; then run rust_ci rust_e2e_ci
+                      else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                      if is_true docs_changes_detected; then run docs_ci; fi
                       ;;
                     develop)
                       run develop_fault_proofs develop_kontrol_tests contracts_feature_tests
-                      run_rust_and_docs kona_publish_prestates
+                      if is_true rust_changes_detected; then run rust_ci rust_e2e_ci kona_publish_prestates
+                      else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                      if is_true docs_changes_detected; then run docs_ci; fi
                       ;;
                     *)
                       if is_true contracts_changed; then run contracts_feature_tests
                       else                               run contracts_feature_tests_short; fi
-                      run_rust_and_docs
+                      if is_true rust_changes_detected; then run rust_ci rust_e2e_ci
+                      else                                   run rust_ci_gate_short rust_e2e_gate_skip; fi
+                      if is_true docs_changes_detected; then run docs_ci; fi
                       ;;
                   esac
                 fi
@@ -221,18 +214,8 @@ jobs:
                 ;;
             esac
 
-            # --- strip intermediate params (only needed by this decision tree, not by continuation configs) ---
-            _json=$(echo "${_json}" | jq 'with_entries(select(
-              .key | startswith("c-run_") or
-              IN("c-default_docker_image","c-rust_base_image","c-base_image",
-                 "c-github-event-base64","c-go-cache-version","c-rust_files_changed")
-            ))')
-
-            # --- write results ---
-            echo "${_json}" > "${OUTPUT}"
-            echo "=== Enabled workflows ==="
-            echo "${_json}" | jq -r 'to_entries[] | select(.key | startswith("c-run_")) | select(.value == true) | "  \(.key)"'
-            echo "========================="
+            # Params to forward to continuation configs (everything else is stripped)
+            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
