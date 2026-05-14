@@ -136,23 +136,25 @@ func (cl *L2CLNode) StopSequencer() common.Hash {
 	return unsafeHead
 }
 
-// StopSequencersSynced stops every provided sequencer and leaves all chains at
-// the same unsafe head number (and therefore the same block timestamp, since
-// chains in the same interop set share a genesis time and block time).
+// StopSequencersSynced stops every provided sequencer and leaves all chains
+// with their unsafe head at the same L2 timestamp.
 //
 // Interop cross-safety advances one L2 timestamp at a time and waits for every
 // participating chain to have a local-safe block at that timestamp before
 // committing. If two sequencers are stopped via separate sequential RPCs, the
-// leader can sneak in an extra block (ts=N+blockTime) while the laggard is
-// still being stopped. Cross-safe then ceilings at the laggard's last
-// timestamp and never catches up to local-safe on the leader, leaving any
-// convergence wait stuck until it times out. See
+// chain stopped second can seal an extra block while the first is still being
+// stopped. Cross-safe then ceilings at the trailing chain's last timestamp and
+// never catches up to local-safe on the leader, leaving any convergence wait
+// stuck until it times out. See
 // https://github.com/ethereum-optimism/optimism/issues/19821.
 //
-// This helper stops all sequencers concurrently and then aligns them: any
-// chain whose unsafe head trails the maximum is restarted long enough to
-// produce the missing blocks and then stopped again. The loop is bounded —
-// if alignment cannot be achieved, the test fails fast rather than hanging.
+// Alignment is on unsafe-head timestamp, not block number, so the helper makes
+// no assumption about chains sharing a genesis time or block time — chains
+// with different rollup configs are tolerated. The helper stops all sequencers
+// concurrently, then restarts any chain whose unsafe-head timestamp trails the
+// maximum just long enough to produce blocks past that timestamp, then stops
+// it again. The alignment loop is bounded; if convergence cannot be reached,
+// the test fails fast rather than hanging.
 func StopSequencersSynced(t devtest.T, sequencers ...*L2CLNode) {
 	require := t.Require()
 	require.NotEmpty(sequencers, "StopSequencersSynced requires at least one sequencer")
@@ -172,31 +174,33 @@ func StopSequencersSynced(t devtest.T, sequencers ...*L2CLNode) {
 	}
 	require.NoError(g.Wait(), "concurrent StopSequencer failed")
 
-	// Bounded alignment: if any chain is behind the leader, level it up.
+	// Bounded alignment: if any chain trails the latest unsafe-head timestamp,
+	// restart it just long enough to catch up. A chain that overshoots becomes
+	// the new leader on the next iteration; convergence is bounded by maxRounds.
 	const maxRounds = 5
 	for round := range maxRounds {
 		heads := make([]eth.L2BlockRef, len(sequencers))
-		var maxNum uint64
+		var maxTime uint64
 		var leader *L2CLNode
 		for i, cl := range sequencers {
 			heads[i] = cl.HeadBlockRef(types.LocalUnsafe)
-			if heads[i].Number > maxNum {
-				maxNum = heads[i].Number
+			if heads[i].Time > maxTime {
+				maxTime = heads[i].Time
 				leader = cl
 			}
 		}
 
 		aligned := true
 		for i, cl := range sequencers {
-			if heads[i].Number == maxNum {
+			if heads[i].Time == maxTime {
 				continue
 			}
 			aligned = false
 			cl.log.Info("StopSequencersSynced: chain trails leader, levelling up",
 				"chain", cl.ChainID(),
-				"head", heads[i].Number,
+				"head_time", heads[i].Time,
 				"leader_chain", leader.ChainID(),
-				"target", maxNum,
+				"target_time", maxTime,
 				"round", round,
 			)
 			cl.StartSequencer()
@@ -208,18 +212,17 @@ func StopSequencersSynced(t devtest.T, sequencers ...*L2CLNode) {
 					if hErr != nil {
 						return hErr
 					}
-					if head.Number >= maxNum {
+					if head.Time >= maxTime {
 						return nil
 					}
-					return fmt.Errorf("waiting for chain %d to reach %d (current %d)", cl.ChainID(), maxNum, head.Number)
+					return fmt.Errorf("waiting for chain %d to reach ts %d (current %d)", cl.ChainID(), maxTime, head.Time)
 				})
-			cl.require.NoError(err, "failed to level up chain %d to target %d", cl.ChainID(), maxNum)
+			cl.require.NoError(err, "failed to level up chain %d to target ts %d", cl.ChainID(), maxTime)
 			cl.StopSequencer()
 		}
 		if aligned {
 			t.Logger().Info("StopSequencersSynced: chains aligned",
-				"unsafe_number", maxNum,
-				"unsafe_time", heads[0].Time,
+				"unsafe_time", maxTime,
 				"rounds", round,
 			)
 			return
