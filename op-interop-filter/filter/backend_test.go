@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -84,36 +83,6 @@ func makeExecDescriptor(chainID, timestamp, timeout uint64) types.ExecutingDescr
 // Backend Failsafe Tests
 // =============================================================================
 
-func TestBackend_Failsafe_ManualEnabled(t *testing.T) {
-	backend, _ := newTestBackendWithMockChain(testChainA)
-
-	// Initially not enabled
-	require.False(t, backend.FailsafeEnabled())
-
-	// Enable manually
-	backend.SetFailsafeEnabled(true)
-	require.True(t, backend.FailsafeEnabled())
-
-	// Disable
-	backend.SetFailsafeEnabled(false)
-	require.False(t, backend.FailsafeEnabled())
-}
-
-func TestBackend_Failsafe_ChainError(t *testing.T) {
-	backend, mock := newTestBackendWithMockChain(testChainA)
-
-	// Initially not enabled
-	require.False(t, backend.FailsafeEnabled())
-
-	// Chain error enables failsafe
-	mock.SetError(ErrorReorg, "reorg detected")
-	require.True(t, backend.FailsafeEnabled())
-
-	// Clearing error disables failsafe
-	mock.ClearError()
-	require.False(t, backend.FailsafeEnabled())
-}
-
 func TestBackend_Failsafe_CrossValidatorError(t *testing.T) {
 	mock := newMockChainIngester()
 	mock.SetReady(true)
@@ -174,27 +143,6 @@ func TestBackend_Failsafe_AllClear(t *testing.T) {
 	require.False(t, backend.FailsafeEnabled())
 }
 
-func TestBackend_ReorgRecovery_ResolvesReorgError(t *testing.T) {
-	mock := newMockChainIngester()
-	mock.AddBlock(eth.BlockID{Hash: common.Hash{0x01}, Number: 10})
-	mock.SetLatestTimestamp(120)
-	mock.SetError(ErrorReorg, "reorg detected")
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := &mockCrossValidator{}
-	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: cv})
-
-	require.True(t, backend.FailsafeEnabled())
-	backend.tryResolveReorgs(context.Background())
-	require.Equal(t, 1, mock.rewindToFinalizedCount)
-	require.True(t, cv.resetOK)
-	require.Equal(t, uint64(120), cv.resetTs)
-	require.Nil(t, mock.Error())
-	require.False(t, backend.FailsafeEnabled())
-}
-
 func TestBackend_ReorgRecovery_NoErrorIsNotResolvable(t *testing.T) {
 	mock := newMockChainIngester()
 	chains := map[eth.ChainID]ChainIngester{
@@ -208,26 +156,6 @@ func TestBackend_ReorgRecovery_NoErrorIsNotResolvable(t *testing.T) {
 	require.Equal(t, 0, mock.rewindToFinalizedCount)
 }
 
-func TestBackend_ReorgRecovery_IgnoresNonReorgError(t *testing.T) {
-	mock := newMockChainIngester()
-	mock.SetError(ErrorConflict, "conflict")
-
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
-	}
-	cv := &mockCrossValidator{}
-	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: cv})
-
-	backend.tryResolveReorgs(context.Background())
-	require.NotNil(t, mock.Error())
-	require.Equal(t, 0, mock.rewindToFinalizedCount)
-	require.False(t, cv.resetOK)
-}
-
-// =============================================================================
-// Backend Ready State Tests
-// =============================================================================
-
 func TestBackend_Ready(t *testing.T) {
 	// No chains = not ready
 	backend := newTestBackend()
@@ -240,40 +168,6 @@ func TestBackend_Ready(t *testing.T) {
 
 	mock.SetReady(false)
 	require.False(t, backend.Ready(), "should not be ready when chains are not ready")
-}
-
-// =============================================================================
-// Backend CheckAccessList Tests
-// =============================================================================
-
-func TestBackend_CheckAccessList(t *testing.T) {
-	// Failsafe enabled returns error
-	backend, _ := newTestBackendWithMockChain(testChainA)
-	backend.SetFailsafeEnabled(true)
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
-	require.ErrorIs(t, err, types.ErrFailsafeEnabled)
-
-	// Not ready returns error
-	backend = newTestBackend() // No chains = not ready
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
-	require.ErrorIs(t, err, types.ErrUninitialized)
-
-	// Unsupported safety level returns error
-	backend, mock := newTestBackendWithMockChain(testChainA)
-	mock.SetReady(true)
-	err = backend.CheckAccessList(context.Background(), nil, types.Finalized, makeExecDescriptor(testChainA, 100, 0))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "unsupported safety level")
-
-	// Unknown executing chain returns error
-	mock.SetLatestTimestamp(200)
-	unknownChainID := uint64(999)
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(unknownChainID, 150, 0))
-	require.ErrorIs(t, err, types.ErrUnknownChain)
-
-	// LocalUnsafe with empty access list passes
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
-	require.NoError(t, err)
 }
 
 func TestBackend_CheckAccessList_SupportLegacyCheckAccessListFormat(t *testing.T) {

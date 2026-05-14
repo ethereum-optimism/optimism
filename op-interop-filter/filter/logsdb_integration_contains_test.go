@@ -3,7 +3,10 @@ package filter
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestIntegration_Contains_HappyPath_AccessListAccepted(t *testing.T) {
@@ -88,6 +91,20 @@ func TestIntegration_Contains_UnknownChain_UnknownChainReason(t *testing.T) {
 
 	bk := twoChainBackend(t, 1)
 	bk.requireRejection(eth.ChainIDFromUInt64(7777), inclusionTs, "unknown_chain")
+}
+
+func TestIntegration_Contains_BeforeInit_Uninitialized(t *testing.T) {
+	t.Parallel()
+
+	si := newSeededIngester(t, seedSpec{
+		NoSealAnchor: true,
+		NoIngest:     true,
+	})
+	require.NoError(t, si.logsDB.Close())
+	si.logsDB = nil
+
+	_, err := si.Contains(types.ContainsQuery{BlockNum: 100, Timestamp: 1200})
+	require.ErrorIs(t, err, types.ErrUninitialized)
 }
 
 func TestIntegration_Contains_FailsafeAlreadyEnabled_Rejected(t *testing.T) {

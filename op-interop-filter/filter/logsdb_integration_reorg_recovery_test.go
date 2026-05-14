@@ -51,10 +51,27 @@ func TestIntegration_RecoverReorg_HappyPath(t *testing.T) {
 
 	putIntoReorg(t, si, 103, 1206)
 
-	blockID, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
+	blockID, timestamp, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.NoError(t, err)
 	require.Equal(t, uint64(101), blockID.Number)
 	require.Equal(t, si.blockInfo[101].hash, blockID.Hash)
+	require.Equal(t, uint64(1202), timestamp)
+	require.Equal(t, uint64(102), si.applyPendingRewind(200),
+		"ingestion loop must resume from finalized+1 after recovery")
+}
+
+func TestIntegration_RecoverReorg_BeforeInit_Uninitialized(t *testing.T) {
+	t.Parallel()
+
+	si := newSeededIngester(t, seedSpec{
+		NoSealAnchor: true,
+		NoIngest:     true,
+	})
+	require.NoError(t, si.logsDB.Close())
+	si.logsDB = nil
+
+	_, _, err := si.RewindToFinalized(context.Background())
+	require.ErrorIs(t, err, types.ErrUninitialized)
 }
 
 func TestIntegration_RecoverReorg_FinalizedBlockNotInDB_StaysInFailsafe(t *testing.T) {

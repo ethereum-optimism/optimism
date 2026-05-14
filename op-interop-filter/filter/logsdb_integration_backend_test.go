@@ -79,6 +79,24 @@ func TestIntegration_Backend_RecoverConflict_DoesNotClearFailsafe(t *testing.T) 
 		"ErrorConflict is not auto-recoverable; failsafe must stay on")
 }
 
+func TestIntegration_Backend_UnsupportedSafetyLevel_Rejected(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	err := bk.CheckAccessList(context.Background(), nil, types.Finalized,
+		types.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported safety level")
+}
+
+func TestIntegration_Backend_EmptyAccessList_LocalUnsafe_Accepted(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	require.NoError(t, bk.CheckAccessList(context.Background(), nil, types.LocalUnsafe,
+		types.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs}))
+}
+
 func TestIntegration_Backend_Ready_FalseUntilAllChainsReady(t *testing.T) {
 	t.Parallel()
 

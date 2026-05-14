@@ -69,6 +69,20 @@ func TestIntegration_GetExecMsgsAtTimestamp_NoMessagesAtTimestamp(t *testing.T) 
 	require.Empty(t, msgs)
 }
 
+func TestIntegration_GetExecMsgsAtTimestamp_BeforeInit_Uninitialized(t *testing.T) {
+	t.Parallel()
+
+	si := newSeededIngester(t, seedSpec{
+		NoSealAnchor: true,
+		NoIngest:     true,
+	})
+	require.NoError(t, si.logsDB.Close())
+	si.logsDB = nil
+
+	_, err := si.GetExecMsgsAtTimestamp(1200)
+	require.ErrorIs(t, err, types.ErrUninitialized)
+}
+
 func TestIntegration_GetExecMsgsAtTimestamp_AnchorOnly_Uninitialized(t *testing.T) {
 	t.Parallel()
 
