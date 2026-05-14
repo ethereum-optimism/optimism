@@ -838,6 +838,76 @@ jobs:
           paths:
             - ".circleci-cache/rust-binaries"
 
+  # Run clippy and the test suite against a vendored Rust workspace.
+  # Replaces upstream GitHub Actions (op_rbuilder_checks, common-lint, common-tests)
+  # that were not vendored because they target the standalone repos' CI.
+  rust-vendored-checks:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      clippy_command:
+        description: "Cargo clippy invocation"
+        type: string
+        default: "cargo clippy --workspace --all-targets -- -D warnings"
+      test_command:
+        description: "Cargo test invocation"
+        type: string
+        default: "cargo test --workspace --no-fail-fast"
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Get << parameters.directory >> content HASH
+          command: |
+            mkdir -p .circleci-cache
+            git ls-tree -r HEAD << parameters.directory >> | sha256sum | awk '{print $1}' > .circleci-cache/expected-content-sha.txt
+            echo "Content HASH: $(cat .circleci-cache/expected-content-sha.txt)"
+      - restore_cache:
+          name: Restore target cache for << parameters.directory >>
+          keys:
+            - rust-vendored-checks-<< parameters.directory >>-v1-{{ checksum ".circleci-cache/expected-content-sha.txt" }}
+            - rust-vendored-checks-<< parameters.directory >>-v1-
+      - run:
+          name: Install clang (if needed)
+          command: |
+            if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              for i in 1 2 3; do
+                if sudo apt-get -o Acquire::Retries=5 update; then
+                  break
+                fi
+                if [ "$i" = "3" ]; then
+                  echo "apt-get update failed after 3 attempts" >&2
+                  exit 1
+                fi
+                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
+                sleep 10
+              done
+              sudo apt-get install -y --no-install-recommends clang
+            fi
+      - run:
+          name: Clippy
+          working_directory: << parameters.directory >>
+          command: << parameters.clippy_command >>
+          no_output_timeout: 30m
+      - run:
+          name: Tests
+          working_directory: << parameters.directory >>
+          command: << parameters.test_command >>
+          no_output_timeout: 30m
+      - save_cache:
+          key: rust-vendored-checks-<< parameters.directory >>-v1-{{ checksum ".circleci-cache/expected-content-sha.txt" }}
+          name: Save target cache for << parameters.directory >>
+          paths:
+            - "<< parameters.directory >>/target"
+
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2668,6 +2738,17 @@ workflows:
           directory: rust/rollup-boost
           binaries: "rollup-boost"
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-vendored-checks:
+          name: rust-checks-op-rbuilder
+          directory: rust/op-rbuilder
+          needs_clang: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - rust-vendored-checks:
+          name: rust-checks-rollup-boost
+          directory: rust/rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
