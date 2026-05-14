@@ -203,9 +203,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
         if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
 
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        proposer_ = gameArgs.proposer;
+        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Creates the default migration input with both SPDG and SCKDG.
@@ -308,8 +306,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
     /// @notice Returns the ASR address from the SPDG game args.
     function _spdgASR() internal view returns (address) {
-        bytes memory args = sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
-        return LibGameArgs.decodeSuperPermissioned(args).anchorStateRegistry;
+        return DisputeGames.superPermissionedGameAnchorStateRegistry(sharedDGF);
     }
 }
 
@@ -422,14 +419,7 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
 
     /// @notice MIG-SPDG-140: Wrong proposer in SPDG game args.
     function test_validate_spdg140WrongProposer_succeeds() public {
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        gameArgs.proposer = address(0xbad);
-        vm.mockCall(
-            address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
-        );
+        DisputeGames.mockSuperPermissionedGameProposer(sharedDGF, address(0xbad));
         assertEq("MIG-SPDG-140", _validateMigration(true));
     }
 }

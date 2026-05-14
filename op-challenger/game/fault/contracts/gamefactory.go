@@ -163,9 +163,6 @@ func (f *DisputeGameFactoryContract) GetGameVm(ctx context.Context, gameType gam
 		}
 		return disputeGame.Vm(ctx)
 	}
-	if gameType == gameTypes.SuperPermissionedGameType {
-		return nil, fmt.Errorf("%w: game type %v has no VM", ErrUnsupportedGameType, gameType)
-	}
 	// V2 contract, so load the VM address from game args
 	args, err := gameargs.Parse(gameArgs)
 	if err != nil {
@@ -187,9 +184,6 @@ func (f *DisputeGameFactoryContract) GetGamePrestate(ctx context.Context, gameTy
 			return common.Hash{}, err
 		}
 		return disputeGame.GetAbsolutePrestateHash(ctx)
-	}
-	if gameType == gameTypes.SuperPermissionedGameType {
-		return common.Hash{}, fmt.Errorf("%w: game type %v has no absolute prestate", ErrUnsupportedGameType, gameType)
 	}
 	// V2 contract, so load the VM address from game args
 	args, err := gameargs.Parse(gameArgs)

@@ -255,13 +255,11 @@ func (c Config) Check() error {
 			return ErrMissingSuperRpc
 		}
 
-		if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
-			if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
-				return ErrMissingDepsetConfig
-			}
-			if err := c.validateBaseCannonKonaOptions(); err != nil {
-				return err
-			}
+		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
+		}
+		if err := c.validateBaseCannonKonaOptions(); err != nil {
+			return err
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.CannonKonaGameType) {
