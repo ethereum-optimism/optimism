@@ -479,7 +479,7 @@ func TestCannonCustomConfigArgs(t *testing.T) {
 }
 
 func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
 		gameType := gameType
 
 		t.Run(fmt.Sprintf("TestRequireEitherCannonKonaNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
@@ -705,7 +705,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestCannonKonaServer-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
@@ -769,7 +769,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 
 func TestDepsetConfig(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
-		if gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
 			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
 					"flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required",
@@ -986,10 +986,8 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 		addRequiredCannonArgs(args)
 	case gameTypes.CannonKonaGameType:
 		addRequiredCannonKonaArgs(args)
-	case gameTypes.SuperCannonKonaGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		addRequiredSuperCannonKonaArgs(args)
-	case gameTypes.SuperPermissionedGameType:
-		args["--supernode-rpc"] = superRpc
 	case gameTypes.ZKDisputeGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)
 	}

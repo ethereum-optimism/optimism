@@ -2153,9 +2153,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
         if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
 
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        proposer_ = gameArgs.proposer;
+        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Helper function to create the default migration input.

@@ -440,9 +440,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
         IAnchorStateRegistry newAnchorStateRegistry = Config.devFeatureSuperRootGamesMigration()
-            ? IAnchorStateRegistry(
-                LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry
-            )
+            ? IAnchorStateRegistry(DisputeGames.superPermissionedGameAnchorStateRegistry(disputeGameFactory))
             : IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 

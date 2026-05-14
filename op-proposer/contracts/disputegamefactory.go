@@ -22,12 +22,8 @@ const (
 	methodCreateGame  = "create"
 	methodVersion     = "version"
 
-	methodClaim     = "claimData"
-	methodProposer  = "proposer"
-	methodRootClaim = "rootClaim"
+	methodClaim = "claimData"
 )
-
-const superPermissionedGameType = uint32(5)
 
 type gameMetadata struct {
 	GameType  uint32
@@ -41,7 +37,6 @@ type DisputeGameFactory struct {
 	caller         *batching.MultiCaller
 	contract       *batching.BoundContract
 	gameABI        *abi.ABI
-	superPermABI   *abi.ABI
 	networkTimeout time.Duration
 }
 
@@ -51,12 +46,10 @@ func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, ne
 	// is actually needed, proposer always uses the latest FaultDisputeGameABI. Compatibility with other ABIs is tested
 	// in disputegamefactory_test.go
 	gameABI := snapshots.LoadFaultDisputeGameABI()
-	superPermABI := snapshots.LoadSuperPermissionedDisputeGameABI()
 	return &DisputeGameFactory{
 		caller:         caller,
 		contract:       batching.NewBoundContract(factoryABI, addr),
 		gameABI:        gameABI,
-		superPermABI:   superPermABI,
 		networkTimeout: networkTimeout,
 	}
 }
@@ -140,44 +133,22 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	timestamp := result.GetUint64(1)
 	address := result.GetAddress(2)
 
-	proposer, claim, err := f.gameProposerAndClaim(ctx, gameType, address, idx)
+	gameContract := batching.NewBoundContract(f.gameABI, address)
+	cCtx, cancel = context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err = f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
 	if err != nil {
-		return gameMetadata{}, err
+		return gameMetadata{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
 	}
+	// We don't need most of the claim data, only the claim and the claimant which is the game proposer
+	claimant := result.GetAddress(2)
+	claim := result.GetHash(4)
 
 	return gameMetadata{
 		GameType:  gameType,
 		Timestamp: time.Unix(int64(timestamp), 0),
 		Address:   address,
-		Proposer:  proposer,
+		Proposer:  claimant,
 		Claim:     claim,
 	}, nil
-}
-
-func (f *DisputeGameFactory) gameProposerAndClaim(ctx context.Context, gameType uint32, address common.Address, idx uint64) (common.Address, common.Hash, error) {
-	if gameType == superPermissionedGameType {
-		gameContract := batching.NewBoundContract(f.superPermABI, address)
-		cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
-		defer cancel()
-		result, err := f.caller.Call(cCtx, rpcblock.Latest,
-			gameContract.Call(methodProposer),
-			gameContract.Call(methodRootClaim),
-		)
-		if err != nil {
-			return common.Address{}, common.Hash{}, fmt.Errorf("failed to load proposer and root claim of game %v: %w", idx, err)
-		}
-		return result[0].GetAddress(0), result[1].GetHash(0), nil
-	}
-
-	gameContract := batching.NewBoundContract(f.gameABI, address)
-	cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
-	defer cancel()
-	result, err := f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
-	if err != nil {
-		return common.Address{}, common.Hash{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
-	}
-	// We don't need most of the claim data, only the claim and the claimant which is the game proposer
-	claimant := result.GetAddress(2)
-	claim := result.GetHash(4)
-	return claimant, claim, nil
 }
