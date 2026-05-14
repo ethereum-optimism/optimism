@@ -34,7 +34,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 		}, status)
 	})
 
-	t.Run("Multi-ReturnLowestCurrentL1", func(t *testing.T) {
+	t.Run("Multi-ReturnHighestCurrentL1", func(t *testing.T) {
 		client1 := &mockSuperNodeClient{
 			fn: func(_ context.Context, _ uint64) (eth.SuperRootAtTimestampResponse, error) {
 				return eth.SuperRootAtTimestampResponse{
@@ -57,9 +57,9 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
-			CurrentL1:   eth.BlockID{Hash: common.Hash{0x02}, Number: 100},
-			SafeL2:      123,
-			FinalizedL2: 456,
+			CurrentL1:   eth.BlockID{Hash: common.Hash{0x01}, Number: 999},
+			SafeL2:      9999,
+			FinalizedL2: 9999,
 		}, status)
 	})
 

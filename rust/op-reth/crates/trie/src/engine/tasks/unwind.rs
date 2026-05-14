@@ -49,7 +49,7 @@ where
     let tip = state.get_tip()?;
     if to.block.number > tip.number {
         debug!(
-            target: "live-trie::engine",
+            target: "trie::engine::task",
             to_block = to.block.number,
             tip = tip.number,
             "Unwind target beyond stored tip, skipping"
@@ -57,7 +57,7 @@ where
         return Ok(());
     }
 
-    info!(target: "live-trie::engine", to_block = to.block.number, "Unwinding history");
+    info!(target: "trie::engine::task", to_block = to.block.number, "Unwinding history");
     state.unwind(to)?;
     Ok(())
 }

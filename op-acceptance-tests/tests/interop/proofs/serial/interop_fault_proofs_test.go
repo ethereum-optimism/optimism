@@ -90,6 +90,18 @@ func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
 }
 
+func TestInteropFaultProofs_SuperrootOptimisticPairing(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
+	sfp.RunOptimisticPairingTest(t, sys, true)
+}
+
+func TestInteropFaultProofs_SuperrootOptimisticPairing_NoReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInteropSupernodeProofs(t)
+	sfp.RunOptimisticPairingTest(t, sys, false)
+}
+
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	const messageExpiryWindow = uint64(12) // 12 seconds for fast test

@@ -21,7 +21,7 @@ use kona_driver::Driver;
 use kona_executor::TrieDBProvider;
 use kona_preimage::{
     BidirectionalChannel, HintReader, HintWriter, OracleReader, OracleServer, PreimageKey,
-    PreimageKeyType,
+    PreimageKeyType, VerifyingPreimageFetcher,
 };
 use kona_proof::{
     CachingOracle, Hint,
@@ -540,7 +540,7 @@ impl HintHandler for InteropHintHandler {
                     PreimageServer::new(
                         OracleServer::new(preimage.host),
                         HintReader::new(hint.host),
-                        Arc::new(backend),
+                        Arc::new(VerifyingPreimageFetcher::new(backend)),
                     )
                     .start(),
                 );

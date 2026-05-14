@@ -8,8 +8,12 @@ type SuperNodeSyncStatusResponse struct {
 	// ChainIDs are the chain IDs in the dependency set, sorted ascending.
 	ChainIDs []ChainID `json:"chain_ids"`
 
-	// CurrentL1 is the highest L1 block ID that has been fully derived and verified by all chains.
-	// This value is derived from the minimum per-chain current L1 block IDs, including validators.
+	// CurrentL1 is the L1 block currently being processed by the slowest L1
+	// processor (op-node or verifier) in the supernode. Every L1 block strictly
+	// below CurrentL1.Number has been fully processed by all chains; data at
+	// CurrentL1 itself may still be incomplete. Consumers gating on
+	// "L1[≤X] is fully processed" must require CurrentL1.Number > X.
+	// Aggregated as the minimum of per-chain current L1 block IDs, including verifiers.
 	CurrentL1 BlockID `json:"current_l1"`
 
 	// SafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.

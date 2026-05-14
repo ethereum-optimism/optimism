@@ -2,6 +2,7 @@ package superfaultproofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"os"
@@ -260,6 +261,22 @@ func marshalTransition(superRoot eth.SuperV1, step uint64, progress ...interopTy
 	}).Marshal()
 }
 
+// awaitFullyProcessedL1 polls the supernode until it has fully processed targetL1
+// (CurrentL1.Number > targetL1). Required before driving the challenger trace
+// provider, whose gate rejects an l1Head not strictly below the supernode's
+// in-progress L1 block.
+func awaitFullyProcessedL1(t devtest.T, queryAPI apis.SupernodeQueryAPI, targetL1 uint64) {
+	t.Require().Eventually(func() bool {
+		ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+		defer cancel()
+		resp, err := queryAPI.SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
+		if err != nil {
+			return false
+		}
+		return resp.CurrentL1.Number > targetL1
+	}, 5*time.Minute, 1*time.Second, fmt.Sprintf("supernode did not fully process L1 block %d in time", targetL1))
+}
+
 // latestRequiredL1 returns the latest RequiredL1 across all optimistic outputs,
 // i.e. the earliest L1 block at which all chains' data is derivable.
 func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
@@ -312,6 +329,12 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 
 // runChallengerProviderTest verifies the challenger trace provider agrees with the test expectations.
 func runChallengerProviderTest(t devtest.T, queryAPI apis.SupernodeQueryAPI, gameDepth challengerTypes.Depth, startTimestamp, claimTimestamp uint64, test *transitionTest) {
+	// SuperRootAtTimestamp's CurrentL1 names the block currently being processed
+	// (L1[<CurrentL1] is fully processed). The trace provider's gate requires
+	// supernode CurrentL1 > test.L1Head, so wait for the supernode to advance
+	// past test.L1Head before driving the provider.
+	awaitFullyProcessedL1(t, queryAPI, test.L1Head.Number)
+
 	prestateProvider := super.NewSuperNodePrestateProvider(queryAPI, startTimestamp)
 	traceProvider := super.NewSuperNodeTraceProvider(
 		t.Logger().New("role", "challenger-provider"),

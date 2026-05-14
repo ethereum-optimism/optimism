@@ -32,6 +32,7 @@ type Metricer interface {
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
 	RecordPipelineReset()
+	RecordFollowSourceError(reason string)
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
@@ -83,6 +84,7 @@ type Metrics struct {
 	L2SourceCache *metrics.CacheMetrics
 
 	L2FollowSourceCache *metrics.CacheMetrics
+	FollowSourceErrors  *prometheus.CounterVec
 
 	DerivationIdle prometheus.Gauge
 
@@ -187,6 +189,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
 		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
+		FollowSourceErrors: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "follow_source_errors_total",
+			Help:      "Count of follow source errors by reason",
+		}, []string{"reason"}),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -474,6 +481,10 @@ func (m *Metrics) RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.B
 	m.RecordRef("l1_origin", "inconsistent_to", to.Number, 0, to.Hash)
 }
 
+func (m *Metrics) RecordFollowSourceError(reason string) {
+	m.FollowSourceErrors.WithLabelValues(reason).Inc()
+}
+
 func (m *Metrics) RecordSequencerReset() {
 	m.SequencerResets.Record()
 }
@@ -635,6 +646,9 @@ func (m *noopMetricer) SetSequencerState(active bool) {
 }
 
 func (n *noopMetricer) RecordPipelineReset() {
+}
+
+func (n *noopMetricer) RecordFollowSourceError(reason string) {
 }
 
 func (n *noopMetricer) RecordSequencingError() {

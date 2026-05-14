@@ -3,8 +3,9 @@
 use super::MdbxProofsProviderV2;
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
+    api::ProofWindowRange,
     db::{
-        ProofWindowKey, ProofWindowValue, V2ProofWindow,
+        ProofWindowKey, V2ProofWindow,
         models::{
             BlockNumberHashedAddress, V2AccountTrieChangeSets, V2AccountsTrie,
             V2HashedAccountChangeSets, V2HashedAccounts, V2HashedStorageChangeSets,
@@ -24,46 +25,37 @@ impl<TX: DbTx> MdbxProofsProviderV2<TX> {
     pub(super) fn get_block_number_hash_inner(
         &self,
         key: ProofWindowKey,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    ) -> OpProofsStorageResult<NumHash> {
         let mut cursor = self.tx.cursor_read::<V2ProofWindow>()?;
-        Ok(cursor.seek_exact(key)?.map(|(_, val)| (val.number(), *val.hash())))
-    }
-
-    pub(super) fn get_latest_block_number_hash_inner(
-        &self,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let block = self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?;
-        if block.is_some() {
-            return Ok(block);
-        }
-        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)
+        cursor
+            .seek_exact(key)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(OpProofsStorageError::NoBlocksFound)
     }
 
     /// Returns `true` when `max_block_number` is >= the latest stored block,
     /// meaning the current-state tables are authoritative and history/changeset
     /// lookups can be skipped entirely.
     pub(super) fn is_latest_block(&self, max_block_number: u64) -> OpProofsStorageResult<bool> {
-        match self.get_latest_block_number_hash_inner()? {
-            Some((latest, _)) => Ok(max_block_number >= latest),
+        match self.get_block_number_hash_inner(ProofWindowKey::LatestBlock) {
+            Ok(latest) => Ok(max_block_number >= latest.number),
             // No blocks stored yet → current state is empty but correct.
-            None => Ok(true),
+            Err(OpProofsStorageError::NoBlocksFound) => Ok(true),
+            Err(err) => Err(err),
         }
     }
 
-    pub(super) fn get_proof_window_inner(&self) -> OpProofsStorageResult<ProofWindowValue> {
+    pub(super) fn get_proof_window_inner(&self) -> OpProofsStorageResult<ProofWindowRange> {
         let mut cursor = self.tx.cursor_read::<V2ProofWindow>()?;
-
         let earliest = match cursor.seek_exact(ProofWindowKey::EarliestBlock)? {
             Some((_, val)) => NumHash::new(val.number(), *val.hash()),
             None => return Err(OpProofsStorageError::NoBlocksFound),
         };
-
         let latest = match cursor.seek_exact(ProofWindowKey::LatestBlock)? {
             Some((_, val)) => NumHash::new(val.number(), *val.hash()),
-            None => earliest,
+            None => return Err(OpProofsStorageError::NoBlocksFound),
         };
-
-        Ok(ProofWindowValue { earliest, latest })
+        Ok(ProofWindowRange { earliest, latest })
     }
 
     pub(super) fn get_initial_state_anchor_inner(

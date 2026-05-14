@@ -10,7 +10,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
-use clap::Parser;
+use clap::{Parser, arg};
 use eyre::bail;
 use http::{HeaderMap, Uri};
 use jsonrpsee::core::async_trait;
@@ -27,7 +27,7 @@ use paste::paste;
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{info, instrument};
+use tracing::{error, info, instrument};
 
 use super::auth::Auth;
 

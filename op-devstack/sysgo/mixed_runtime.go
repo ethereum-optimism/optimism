@@ -371,7 +371,6 @@ func buildMixedOpRethNode(
 		args,
 		"--proofs-history",
 		"--proofs-history.window=10000",
-		"--proofs-history.prune-interval=1m",
 		"--proofs-history.storage-path="+proofHistoryDir,
 		"--proofs-history.storage-version="+storageVersion,
 	)

@@ -491,6 +491,10 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	l1Head := superRootResp.CurrentL1
+	// SuperRootAtTimestamp's CurrentL1 names the block currently being processed.
+	// The trace provider's gate requires supernode CurrentL1 > l1Head, so wait
+	// until the supernode advances past this block before invoking it.
+	f.superNode.AwaitFullyProcessedL1(l1Head.Number)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
 	traceProvider := super.NewSuperNodeTraceProvider(

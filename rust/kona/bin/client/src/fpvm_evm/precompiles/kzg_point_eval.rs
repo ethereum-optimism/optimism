@@ -21,6 +21,8 @@ where
     O: PreimageOracleClient + Send + Sync,
 {
     const GAS_COST: u64 = 50_000;
+    /// Oracle/L1 staticcall gas required by [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904).
+    const KZG_ORACLE_GAS: u64 = 89_363;
 
     if gas_limit < GAS_COST {
         return Err(PrecompileHalt::OutOfGas);
@@ -33,7 +35,7 @@ where
     let result_data = kona_proof::block_on(precompile_run! {
         hint_writer,
         oracle_reader,
-        &[KZG_POINT_EVAL_ADDR.as_slice(), &GAS_COST.to_be_bytes(), input]
+        &[KZG_POINT_EVAL_ADDR.as_slice(), &KZG_ORACLE_GAS.to_be_bytes(), input]
     })
     .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
@@ -45,22 +47,26 @@ mod test {
     use super::*;
     use crate::fpvm_evm::precompiles::test_utils::{
         execute_native_precompile, test_accelerated_precompile,
+        test_accelerated_precompile_capture_hint,
     };
     use alloy_eips::eip4844::VERSIONED_HASH_VERSION_KZG;
     use alloy_primitives::hex;
     use sha2::{Digest, Sha256};
 
+    fn valid_kzg_input() -> Vec<u8> {
+        let commitment = hex!("8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7").to_vec();
+        let mut versioned_hash = Sha256::digest(&commitment).to_vec();
+        versioned_hash[0] = VERSIONED_HASH_VERSION_KZG;
+        let z = hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").to_vec();
+        let y = hex!("1522a4a7f34e1ea350ae07c29c96c7e79655aa926122e95fe69fcbd932ca49e9").to_vec();
+        let proof = hex!("a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c").to_vec();
+        [versioned_hash, z, y, commitment, proof].concat()
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_accelerated_kzg_point_eval() {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
-            let commitment = hex!("8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7").to_vec();
-            let mut versioned_hash = Sha256::digest(&commitment).to_vec();
-            versioned_hash[0] = VERSIONED_HASH_VERSION_KZG;
-            let z = hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").to_vec();
-            let y = hex!("1522a4a7f34e1ea350ae07c29c96c7e79655aa926122e95fe69fcbd932ca49e9").to_vec();
-            let proof = hex!("a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c").to_vec();
-
-            let input = [versioned_hash, z, y, commitment, proof].concat();
+            let input = valid_kzg_input();
 
             let expected_result = hex!("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
 
@@ -70,6 +76,38 @@ mod test {
             assert_eq!(accelerated_result.bytes.as_ref(), expected_result.as_ref());
             assert_eq!(accelerated_result.bytes, native_result.bytes);
             assert_eq!(accelerated_result.gas_used, native_result.gas_used);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_kzg_point_eval_oracle_gas_carries_l1_cost() {
+        let recorded_gas_used: std::sync::Arc<std::sync::Mutex<Option<u64>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let recorded_gas_used_in = recorded_gas_used.clone();
+
+        let captured =
+            test_accelerated_precompile_capture_hint(move |hint_writer, oracle_reader| {
+                let input = valid_kzg_input();
+                let result =
+                    fpvm_kzg_point_eval(&input, u64::MAX, hint_writer, oracle_reader).unwrap();
+                *recorded_gas_used_in.lock().unwrap() = Some(result.gas_used);
+            })
+            .await;
+
+        // Oracle hint must carry the current L1 KZG cost (EIP-7904: 89_363).
+        assert_eq!(captured.oracle_gas(), 89_363);
+        // L2 charge must remain unchanged (Cancun KZG = 50_000).
+        assert_eq!(recorded_gas_used.lock().unwrap().unwrap(), 50_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_kzg_point_eval_at_l2_gas_boundary() {
+        // OOG guard is `<` not `<=`, so gas_limit == GAS_COST must succeed.
+        test_accelerated_precompile(|hint_writer, oracle_reader| {
+            let input = valid_kzg_input();
+            let result = fpvm_kzg_point_eval(&input, 50_000, hint_writer, oracle_reader);
+            assert!(result.is_ok(), "expected Ok at gas_limit == GAS_COST, got {result:?}");
         })
         .await;
     }

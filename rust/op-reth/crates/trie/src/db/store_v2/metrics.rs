@@ -68,15 +68,20 @@ impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorageV2 {
 
                 Ok::<(), eyre::Report>(())
             })
-            .map_err(|error| error!(%error, "Failed to read db table stats"));
+            .map_err(|error| {
+                error!(target: "trie::db::metrics", %error, "Failed to read db table stats")
+            });
 
-        if let Ok(freelist) =
-            self.env.freelist().map_err(|error| error!(%error, "Failed to read db.freelist"))
-        {
+        if let Ok(freelist) = self.env.freelist().map_err(
+            |error| error!(target: "trie::db::metrics", %error, "Failed to read db.freelist"),
+        ) {
             metrics.push(("optimism_proof_storage.freelist", freelist as f64, vec![]));
         }
 
-        if let Ok(stat) = self.env.stat().map_err(|error| error!(%error, "Failed to read db.stat"))
+        if let Ok(stat) = self
+            .env
+            .stat()
+            .map_err(|error| error!(target: "trie::db::metrics", %error, "Failed to read db.stat"))
         {
             metrics.push(("optimism_proof_storage.page_size", stat.page_size() as f64, vec![]));
         }

@@ -49,17 +49,14 @@ type ChainContainer interface {
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
+	// block at the given hash. Post-Isthmus the root is derived from the
+	// header alone; pre-Isthmus it falls back to eth_getProof on state at
+	// that block. Returns ethereum.NotFound if the EL no longer has the
+	// block at that hash on its canonical chain.
+	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
-	// Generation is bumped on every state-mutating event that could make
-	// data gathered earlier inconsistent with state observed later: VN
-	// restart, RewindEngine entry, and inner-pipeline rollup.ResetEvent.
-	// Callers that perform multiple per-chain reads capture this before the
-	// first read and re-read it after the last; a change between the two
-	// means the reads straddle a mutation and must be discarded.
-	Generation() uint64
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
 	// This allows callers to determine the minimum L1 block that all verifiers have processed.
@@ -121,19 +118,16 @@ type simpleChainContainer struct {
 	// unsynchronized access produces a torn interface read: non-nil type with
 	// nil data pointer, which slips past a plain `vn == nil` check and panics
 	// on the next method dispatch.
-	vnMu      sync.RWMutex
-	vn        virtual_node.VirtualNode
-	vncfg     *opnodecfg.Config
-	cfg       config.CLIConfig
-	engine    engine_controller.EngineController
-	denyList  *DenyList
-	pause     atomic.Bool
-	stop      atomic.Bool
-	resetting atomic.Bool
-	stopped   chan struct{}
-	// gen backs Generation(). See the ChainContainer interface for the
-	// invariant; bump sites are setVN, RewindEngine, and NotifyPipelineReset.
-	gen                atomic.Uint64
+	vnMu               sync.RWMutex
+	vn                 virtual_node.VirtualNode
+	vncfg              *opnodecfg.Config
+	cfg                config.CLIConfig
+	engine             engine_controller.EngineController
+	denyList           *DenyList
+	pause              atomic.Bool
+	stop               atomic.Bool
+	resetting          atomic.Bool
+	stopped            chan struct{}
 	log                gethlog.Logger
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
@@ -270,13 +264,12 @@ func (c *simpleChainContainer) getVN() virtual_node.VirtualNode {
 	return c.vn
 }
 
-// setVN writes c.vn under the lock and bumps gen. Used by the restart loop
-// when it installs a new virtual node on each iteration.
+// setVN writes c.vn under the lock. Used by the restart loop when it installs
+// a new virtual node on each iteration.
 func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 	c.vnMu.Lock()
 	defer c.vnMu.Unlock()
 	c.vn = vn
-	c.gen.Add(1)
 }
 
 func (c *simpleChainContainer) subPath(path string) string {
@@ -309,8 +302,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 					c.addMetricsRegistry(c.chainID.String(), reg)
 				}
 			}
-			// Pass the chain container as SuperAuthority for payload denylist
-			// and pipeline-reset notification.
+			// Pass the chain container as SuperAuthority for payload denylist checks
 			c.initOverload.SuperAuthority = c
 		}
 		// Pass in the chain container as a SuperAuthority
@@ -474,12 +466,11 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 	return st, nil
 }
 
-// OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
-func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if c.engine == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
 	}
-	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	out, err := c.engine.OutputV0ByBlockHash(ctx, blockHash)
 	if err != nil {
 		return eth.Bytes32{}, err
 	}
@@ -513,48 +504,24 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	return l1, nil
 }
 
-// VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
-// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
-	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
-	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-
-	c.verifiersMu.RLock()
-	verifiers := append([]activity.VerificationActivity(nil), c.verifiers...)
-	c.verifiersMu.RUnlock()
-	for _, verifier := range verifiers {
-		verified, err := verifier.VerifiedAtTimestamp(ts)
-		if err != nil {
-			c.log.Error("error checking if data could be verified at this L1", "error", err)
-			return eth.BlockID{}, eth.BlockID{}, err
-		}
-		if !verified {
-			c.log.Error("verifier does not have data at this timestamp. cannot supply block at this timestamp as verified", "verifier", verifier.Name())
-			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
-		}
-	}
-
-	return l2Block.ID(), l1Block, nil
-}
-
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l2 block at timestamp is not local safe yet", "timestamp", ts, "err", err)
+		} else {
+			c.log.Error("error determining l2 block at given timestamp", "timestamp", ts, "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l1 block at which l2 block became safe is not available yet", "l2", l2Block.ID(), "err", err)
+		} else {
+			c.log.Error("error determining l1 block number at which l2 block became safe", "l2", l2Block.ID(), "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 
@@ -585,12 +552,6 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 	}
 
 	return c.OutputV0AtBlockNumber(ctx, blockNum)
-}
-
-// Generation implements ChainContainer. See the interface doc comment for the
-// invariants that callers rely on.
-func (c *simpleChainContainer) Generation() uint64 {
-	return c.gen.Load()
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
@@ -644,8 +605,6 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("reset already in progress")
 	}
 	defer c.resetting.Store(false)
-	// Bump up-front so the gen change precedes any engine mutation below.
-	c.gen.Add(1)
 
 	vn := c.getVN()
 	if vn == nil {

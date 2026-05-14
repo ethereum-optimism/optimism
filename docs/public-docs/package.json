@@ -19,5 +19,15 @@
     "ts-morph": "^21.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@reown/appkit",
+      "bigint-buffer",
+      "bufferutil",
+      "esbuild",
+      "sharp",
+      "utf-8-validate"
+    ]
   }
 }

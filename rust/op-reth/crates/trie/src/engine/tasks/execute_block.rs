@@ -7,7 +7,7 @@ use crossbeam_channel::Sender;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_primitives_traits::{AlloyBlockHeader, NodePrimitives, RecoveredBlock};
 use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider,
+    BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider, ProviderError,
     StateProviderFactory, StateReader, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
@@ -59,6 +59,7 @@ where
 
     if block.number() <= tip.number {
         debug!(
+            target: "trie::engine::task",
             block_number = block.number(),
             tip_number = tip.number,
             "Block already covered by tip, skipping execute_and_store",
@@ -68,6 +69,7 @@ where
 
     if block.number() > tip.number.saturating_add(1) {
         debug!(
+            target: "trie::engine::task",
             block_number = block.number(),
             tip_number = tip.number,
             "Gap detected, updating sync target",
@@ -87,8 +89,25 @@ where
     let block_ref =
         BlockWithParent::new(block.parent_hash(), NumHash::new(block.number(), block.hash()));
 
+    let parent_state = match state.provider.state_by_block_hash(block.parent_hash()) {
+        Ok(p) => p,
+        Err(ProviderError::StateForHashNotFound(hash)) => {
+            // Recoverable: either a transient reorg race or reth still materializing state
+            // (staged sync mid-flight). Skip; subsequent notifications will resync us.
+            // Logged at debug to avoid flooding during long catch-up phases
+            debug!(
+                target: "trie::engine::task",
+                block_number = block.number(),
+                parent_hash = ?hash,
+                "Parent state not available in reth; skipping execute_block",
+            );
+            return Ok(());
+        }
+        Err(e) => return Err(e.into()),
+    };
+
     let inner_provider = OpProofsStateProviderRef::new(
-        state.provider.state_by_block_hash(block.parent_hash())?,
+        parent_state,
         state.storage.provider_ro()?,
         parent_block_number,
     );
@@ -127,6 +146,7 @@ where
     }
 
     info!(
+        target: "trie::engine::task",
         block_number = block.number(),
         ?total_duration,
         ?execution_duration,

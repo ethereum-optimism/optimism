@@ -79,6 +79,17 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			expectedSeqOutOfSync: true,
 			expectedLogs:         []string{"empty BlockRef in sync status"},
 		},
+		{name: "empty currentL1",
+			newSyncStatus: eth.SyncStatus{
+				HeadL1:      eth.BlockRef{Number: 2},
+				CurrentL1:   eth.BlockRef{},
+				LocalSafeL2: eth.L2BlockRef{Number: 100},
+				UnsafeL2:    eth.L2BlockRef{Number: 101},
+			},
+			expected:             syncActions{},
+			expectedSeqOutOfSync: true,
+			expectedLogs:         []string{"empty BlockRef in sync status"},
+		},
 		{name: "current l1 reversed",
 			// This can happen when the sequencer restarts or is switched
 			// to a backup sequencer:

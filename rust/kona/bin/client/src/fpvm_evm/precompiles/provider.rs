@@ -575,6 +575,88 @@ mod test {
         .await;
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_provider_dispatches_l1_precompile_gas() {
+        use alloy_eips::eip4844::VERSIONED_HASH_VERSION_KZG;
+        use alloy_primitives::hex;
+        use revm::precompile::{
+            bls12_381_const::{G1_ADD_INPUT_LENGTH, G2_ADD_INPUT_LENGTH},
+            bn254::PAIR_ELEMENT_LEN,
+        };
+        use sha2::{Digest, Sha256};
+
+        // For each of the four precompiles whose L1 cost diverges from the L2 charge, drive
+        // `OpFpvmPrecompiles::run` at JOVIAN and assert the hint payload carries the L1 cost.
+        // This locks the production call site (provider-level dispatch), not just the leaf
+        // function — a future provider rewrite that swaps in a stale leaf would fail here even
+        // if the per-leaf tests still pass. Current L1 values reflect EIP-7904.
+
+        // KZG: 0x0a, valid input → expect 89_363
+        let kzg_input: Bytes = {
+            let commitment = hex!("8f59a8d2a1a625a17f3fea0fe5eb8c896db3764f3185481bc22f91b4aaffcca25f26936857bc3a7c2539ea8ec3a952b7").to_vec();
+            let mut versioned_hash = Sha256::digest(&commitment).to_vec();
+            versioned_hash[0] = VERSIONED_HASH_VERSION_KZG;
+            let z =
+                hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").to_vec();
+            let y =
+                hex!("1522a4a7f34e1ea350ae07c29c96c7e79655aa926122e95fe69fcbd932ca49e9").to_vec();
+            let proof = hex!("a62ad71d14c5719385c0686f1871430475bf3a00f0aa3f7b8dd99a9abc2160744faf0070725e00b60ad9a026a15b1a8c").to_vec();
+            [versioned_hash, z, y, commitment, proof].concat().into()
+        };
+        run_dispatch_and_assert_oracle_gas(
+            super::super::kzg_point_eval::KZG_POINT_EVAL_ADDR,
+            kzg_input,
+            89_363,
+        )
+        .await;
+
+        // bn254 pair: 0x08, 2 valid pairs of zero bytes → expect 113_206
+        let bn128_input: Bytes = vec![0u8; 2 * PAIR_ELEMENT_LEN].into();
+        run_dispatch_and_assert_oracle_gas(bn254::pair::ADDRESS, bn128_input, 113_206).await;
+
+        // BLS12-381 G1Add: 0x0b, 256-byte zero input → expect 643
+        let g1_input: Bytes = vec![0u8; G1_ADD_INPUT_LENGTH].into();
+        run_dispatch_and_assert_oracle_gas(bls12_381_const::G1_ADD_ADDRESS, g1_input, 643).await;
+
+        // BLS12-381 G2Add: 0x0d, 512-byte zero input → expect 765
+        let g2_input: Bytes = vec![0u8; G2_ADD_INPUT_LENGTH].into();
+        run_dispatch_and_assert_oracle_gas(bls12_381_const::G2_ADD_ADDRESS, g2_input, 765).await;
+    }
+
+    /// Helper: drive `OpFpvmPrecompiles::run` at JOVIAN for the given precompile address,
+    /// capture the L1Precompile hint, and assert its 8-byte gas word equals `expected_gas`.
+    async fn run_dispatch_and_assert_oracle_gas(address: Address, input: Bytes, expected_gas: u64) {
+        use crate::fpvm_evm::precompiles::test_utils::test_accelerated_precompile_capture_hint;
+
+        let captured =
+            test_accelerated_precompile_capture_hint(move |hint_writer, oracle_reader| {
+                let mut ctx = create_test_context();
+                let mut precompiles = OpFpvmPrecompiles::new_with_spec(
+                    OpSpecId::JOVIAN,
+                    hint_writer.clone(),
+                    oracle_reader.clone(),
+                );
+                let call_inputs = create_call_inputs(address, input.clone(), u64::MAX);
+                let result = precompiles
+                    .run(&mut ctx, &call_inputs)
+                    .expect("provider run errored")
+                    .expect("provider returned None for accelerated address");
+                assert_eq!(
+                    result.result,
+                    InstructionResult::Return,
+                    "expected successful precompile result, got {:?}",
+                    result.result
+                );
+            })
+            .await;
+
+        assert_eq!(
+            captured.oracle_gas(),
+            expected_gas,
+            "oracle gas mismatch at address {address:?}",
+        );
+    }
+
     #[test]
     fn test_run_with_shared_buffer_empty() {
         let (hint_chan, preimage_chan) = (
