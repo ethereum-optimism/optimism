@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -127,6 +128,29 @@ func TestIntegration_Ingest_AfterIngesterError_SubsequentIngestsSkipped(t *testi
 	require.Error(t, err)
 	require.Equal(t, sealedBefore, si.metrics.sealedCount(chainID),
 		"no further blocks should be sealed once ingester is in error state")
+}
+
+// A block with a backwards timestamp is the one path through writeFetchedBlock
+// that reaches the logsdb's defensive checks without being pre-guarded — only
+// block number and parent hash are pre-checked. The behavioural contract is
+// that the resulting SealBlock failure trips the Backend's failsafe state, so
+// subsequent CheckAccessList requests are rejected with the failsafe label.
+// A logsdb that returns the wrong sentinel here would silently retry instead.
+func TestIntegration_Ingest_BackwardsTimestamp_TripsBackendFailsafe(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	source := bk.ingesters[eth.ChainIDFromUInt64(901)]
+
+	bk.requireAccepted(executingChain(), inclusionTs, bk.sourceAccess(100, 0))
+	require.False(t, bk.FailsafeEnabled())
+
+	source.addBlock(102, 1100, source.blockInfo[101].hash, []seedLog{{}})
+	require.Error(t, source.ingestBlock(102))
+
+	require.True(t, bk.FailsafeEnabled(),
+		"backwards-timestamp SealBlock failure must transition the Backend into failsafe")
+	bk.requireRejection(executingChain(), inclusionTs, "failsafe", bk.sourceAccess(100, 0))
 }
 
 func TestIntegration_Ingest_RPCFetchError_LogsAndRetries(t *testing.T) {
