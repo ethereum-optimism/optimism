@@ -2901,6 +2901,7 @@ workflows:
       - rust-test-vendored:
           name: rust-test-rollup-boost
           directory: rust/rollup-boost
+          apt_packages: "clang libclang-dev"
           test_command: cargo test --verbose
           no_output_timeout: 30m
           context:
