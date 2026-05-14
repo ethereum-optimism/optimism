@@ -15,10 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -334,63 +332,38 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 	}
 }
 
-func TestEngineController_TryUpdateEngineHandlesSuperAuthorityHeadLookupError(t *testing.T) {
-	tests := []struct {
-		name         string
-		lookupErr    error
-		wantCritical bool
-	}{
-		{
-			name:      "temporary when engine lookup is unavailable",
-			lookupErr: errors.New("dial tcp: connect: connection refused"),
-		},
-		{
-			name:         "critical when engine reports block not found",
-			lookupErr:    ethereum.NotFound,
-			wantCritical: true,
-		},
+func TestEngineController_TryUpdateEngineUsesSuperAuthoritySafeHashWithoutLookup(t *testing.T) {
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{}
+
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localSafeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 100}
+	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 40}
+	verifiedID := eth.BlockID{Hash: common.Hash{0xdd}, Number: 50}
+	mockSA := &mockSuperAuthority{
+		fullyVerifiedL2Head: verifiedID,
+		finalizedL2Head:     finalizedRef.ID(),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockEngine := &testutils.MockEngine{}
-			emitter := &testutils.MockEmitter{}
-			cfg := &rollup.Config{}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, true, &testutils.MockL1Source{}, emitter, mockSA)
+	ec.unsafeHead = unsafeRef
+	ec.syncStatus = syncStatusStartedEL
+	ec.SetLocalSafeHead(localSafeRef)
+	ec.SetFinalizedHead(finalizedRef)
+	ec.SetCrossUnsafeHead(localSafeRef)
 
-			unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
-			localSafeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 100}
-			finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 40}
-			verifiedID := eth.BlockID{Hash: common.Hash{0xdd}, Number: 50}
-			mockSA := &mockSuperAuthority{
-				fullyVerifiedL2Head: verifiedID,
-				finalizedL2Head:     finalizedRef.ID(),
-			}
+	mockEngine.ExpectL2BlockRefByHash(finalizedRef.Hash, finalizedRef, nil)
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+		HeadBlockHash: unsafeRef.Hash,
+		SafeBlockHash: verifiedID.Hash,
+	}, nil, nil, errors.New("dial tcp: connect: connection refused"))
+	emitter.ExpectOnceType("EngineTemporaryErrorEvent")
 
-			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, true, &testutils.MockL1Source{}, emitter, mockSA)
-			ec.unsafeHead = unsafeRef
-			ec.SetLocalSafeHead(localSafeRef)
-			ec.SetFinalizedHead(finalizedRef)
-			ec.SetCrossUnsafeHead(localSafeRef)
+	ec.tryUpdateEngine(context.Background())
 
-			mockEngine.ExpectL2BlockRefByHash(finalizedRef.Hash, finalizedRef, nil)
-			mockEngine.ExpectL2BlockRefByHash(finalizedRef.Hash, finalizedRef, nil)
-			mockEngine.ExpectL2BlockRefByHash(verifiedID.Hash, eth.L2BlockRef{}, tt.lookupErr)
-			emitter.ExpectOnceRun(func(ev event.Event) {
-				if tt.wantCritical {
-					_, ok := ev.(rollup.CriticalErrorEvent)
-					require.True(t, ok)
-				} else {
-					_, ok := ev.(rollup.EngineTemporaryErrorEvent)
-					require.True(t, ok)
-				}
-			})
-
-			ec.tryUpdateEngine(context.Background())
-
-			mockEngine.AssertExpectations(t)
-			emitter.AssertExpectations(t)
-		})
-	}
+	mockEngine.AssertExpectations(t)
+	emitter.AssertExpectations(t)
 }
 
 // TestEngineController_ForkchoiceUpdateUsesSuperAuthority tests that forkchoice

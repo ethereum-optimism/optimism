@@ -265,39 +265,47 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	}
 }
 
-func (e *EngineController) safeL2HeadForForkchoice(ctx context.Context) (eth.L2BlockRef, error) {
+type selectedHeadID struct {
+	id     eth.BlockID
+	source string
+}
+
+func (e *EngineController) safeHeadID() selectedHeadID {
 	if e.superAuthority == nil {
-		return e.SafeL2Head(), nil
+		return selectedHeadID{id: e.SafeL2Head().ID(), source: "local"}
 	}
 	fvshid, useLocalSafe := e.superAuthority.FullyVerifiedL2Head()
 	switch {
 	case useLocalSafe:
 		e.log.Debug("super authority signaled to use local-safe fallback")
-		return e.localSafeHead, nil
+		return selectedHeadID{id: e.localSafeHead.ID(), source: "local_safe"}
 	case fvshid == (eth.BlockID{}):
-		br, err := e.engine.L2BlockRefByNumber(ctx, 0)
-		if err != nil {
-			return eth.L2BlockRef{}, derive.NewTemporaryError(fmt.Errorf("failed to resolve superAuthority safe genesis head from engine: %w", err))
-		}
-		return br, nil
+		return selectedHeadID{id: e.rollupCfg.Genesis.L2, source: "genesis"}
 	case fvshid.Number > e.localSafeHead.Number:
 		e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as SafeL2Head")
-		return e.localSafeHead, nil
+		return selectedHeadID{id: e.localSafeHead.ID(), source: "local_safe_cap"}
 	default:
-		return e.resolveSuperAuthoritySafeHead(ctx, fvshid)
+		return selectedHeadID{id: fvshid, source: "super_authority"}
 	}
 }
 
-func (e *EngineController) resolveSuperAuthoritySafeHead(ctx context.Context, fvshid eth.BlockID) (eth.L2BlockRef, error) {
-	br, err := e.engine.L2BlockRefByHash(ctx, fvshid.Hash)
-	if err == nil {
-		return br, nil
+func (e *EngineController) finalizedHeadID() selectedHeadID {
+	if e.superAuthority == nil {
+		return selectedHeadID{id: e.FinalizedHead().ID(), source: "local"}
 	}
-	err = eth.MaybeAsNotFoundErr(err)
-	if errors.Is(err, ethereum.NotFound) {
-		return eth.L2BlockRef{}, derive.NewCriticalError(fmt.Errorf("superAuthority supplied an identifier for the safe head which is not known to the engine: id=%s local_safe=%s: %w", fvshid, e.localSafeHead, err))
+	f, useLocalFinalized := e.superAuthority.FinalizedL2Head()
+	switch {
+	case useLocalFinalized:
+		e.log.Debug("super authority has no verifiers, using local finalized head")
+		return selectedHeadID{id: e.localFinalizedHead.ID(), source: "local_finalized"}
+	case f == (eth.BlockID{}):
+		return selectedHeadID{id: e.rollupCfg.Genesis.L2, source: "genesis"}
+	case f.Number > e.localSafeHead.Number:
+		e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
+		return selectedHeadID{id: e.localSafeHead.ID(), source: "local_safe_cap"}
+	default:
+		return selectedHeadID{id: f, source: "super_authority"}
 	}
-	return eth.L2BlockRef{}, derive.NewTemporaryError(fmt.Errorf("failed to resolve superAuthority safe head from engine: id=%s local_safe=%s: %w", fvshid, e.localSafeHead, err))
 }
 
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
@@ -412,8 +420,8 @@ func (e *EngineController) onSafeUpdate(ctx context.Context, crossSafe, localSaf
 // First, the pre-state is registered.
 // A callback is returned to then log the changes to the pre-state, if any.
 func (e *EngineController) logSyncProgressMaybe() func() {
-	prevFinalized := e.FinalizedHead()
-	prevSafe := e.SafeL2Head()
+	prevFinalized := e.finalizedHeadID()
+	prevSafe := e.safeHeadID()
 	prevPendingSafe := e.pendingSafeHead
 	prevUnsafe := e.unsafeHead
 	prevBackupUnsafe := e.backupUnsafeHead
@@ -424,10 +432,12 @@ func (e *EngineController) logSyncProgressMaybe() func() {
 			return
 		}
 		var reason string
-		if prevFinalized != e.FinalizedHead() {
+		finalized := e.finalizedHeadID()
+		safe := e.safeHeadID()
+		if prevFinalized.id != finalized.id {
 			reason = "finalized block"
-		} else if prevSafe != e.SafeL2Head() {
-			if prevSafe == prevUnsafe {
+		} else if prevSafe.id != safe.id {
+			if prevSafe.id == prevUnsafe.ID() {
 				reason = "derived safe block from L1"
 			} else {
 				reason = "consolidated block with L1"
@@ -442,8 +452,12 @@ func (e *EngineController) logSyncProgressMaybe() func() {
 		if reason != "" {
 			e.log.Info("Sync progress",
 				"reason", reason,
-				"l2_finalized", e.FinalizedHead(),
-				"l2_safe", e.SafeL2Head(),
+				"l2_finalized_hash", finalized.id.Hash,
+				"l2_finalized_number", finalized.id.Number,
+				"l2_finalized_source", finalized.source,
+				"l2_safe_hash", safe.id.Hash,
+				"l2_safe_number", safe.id.Number,
+				"l2_safe_source", safe.source,
 				"l2_pending_safe", e.pendingSafeHead,
 				"l2_unsafe", e.unsafeHead,
 				"l2_backup_unsafe", e.backupUnsafeHead,
@@ -541,22 +555,20 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if err := e.initializeUnknowns(ctx); err != nil {
 		return derive.NewTemporaryError(fmt.Errorf("cannot update engine until engine forkchoice is initialized: %w", err))
 	}
-	if e.unsafeHead.Number < e.FinalizedHead().Number {
-		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.FinalizedHead())
+	finalized := e.finalizedHeadID()
+	if e.unsafeHead.Number < finalized.id.Number {
+		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, finalized.id)
 		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return err
 	}
-	safeHead, err := e.safeL2HeadForForkchoice(ctx)
-	if err != nil {
-		return err
-	}
+	safe := e.safeHeadID()
 	fc := eth.ForkchoiceState{
 		HeadBlockHash: e.unsafeHead.Hash,
-		SafeBlockHash: safeHead.Hash,
+		SafeBlockHash: safe.id.Hash,
 	}
 	// only set finalized after initial EL sync
 	if !e.isEngineInitialELSyncing() {
-		fc.FinalizedBlockHash = e.FinalizedHead().Hash
+		fc.FinalizedBlockHash = finalized.id.Hash
 	}
 	if fc == e.lastForkchoice {
 		return nil
@@ -591,7 +603,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.requestForkchoiceUpdate(ctx)
 	}
-	if e.unsafeHead == safeHead && safeHead == e.pendingSafeHead {
+	if e.unsafeHead.ID() == safe.id && e.pendingSafeHead.ID() == safe.id {
 		// Remove backupUnsafeHead because this backup will be never used after consolidation.
 		e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	}
