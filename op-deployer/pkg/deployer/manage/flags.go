@@ -62,11 +62,6 @@ var (
 		Usage:   "Proposer address for SUPER_PERMISSIONED_CANNON migration configs.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_PROPOSER_ADDRESS"),
 	}
-	DisputeChallengerFlag = &cli.StringFlag{
-		Name:    "dispute-challenger-address",
-		Usage:   "Challenger address for permissioned migration configs.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_CHALLENGER_ADDRESS"),
-	}
 	InitialBondFlag = &cli.StringFlag{
 		Name:    "initial-bond",
 		Usage:   "Initial bond amount required for the dispute game (value as string, in wei). Defaults to 1 ETH.",
@@ -150,7 +145,6 @@ var Commands = cli.Commands{
 			DisputeGameTypeFlag,
 			DisputeAbsolutePrestateFlag,
 			DisputeProposerFlag,
-			DisputeChallengerFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
 	},
