@@ -139,11 +139,6 @@ contract GenerateNUTBundle is Script {
         }
 
         _assertValidOutput(output_);
-
-        // Write transactions to artifact with metadata
-        NetworkUpgradeTxns.BundleMetadata memory metadata =
-            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(_txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 
     /// @notice Returns the names of implementations scheduled for standard deployment.
