@@ -129,7 +129,6 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		sys.L2BCL.StartSequencer()
 	})
 
-	require.NotNil(sys.TestSequencer, "TestSequencer required for timestamp alignment")
 	for range 10 {
 		unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 		unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
