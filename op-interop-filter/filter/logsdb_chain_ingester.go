@@ -54,7 +54,7 @@ type LogsDBChainIngester struct {
 
 	rpcClient        client.RPC
 	ethClient        EthClient
-	logsDB           *logs.DB
+	logsDB           LogsDB
 	dataDir          string
 	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
