@@ -96,6 +96,22 @@ func decodeBlockRecord(buf []byte) (blockRecord, error) {
 	return r, nil
 }
 
+// decodeSealedBlock parses an entry and verifies its full length matches the
+// header's declared counts. Returns the header plus slices into the log-hash
+// and execMsg regions so callers can index without re-checking bounds.
+func decodeSealedBlock(buf []byte) (blockRecord, []byte, []byte, error) {
+	rec, err := decodeBlockRecord(buf)
+	if err != nil {
+		return blockRecord{}, nil, nil, err
+	}
+	expected := blockRecordSize + int(rec.LogCount)*logHashSize + int(rec.ExecMsgCount)*execMsgRecordSize
+	if len(buf) != expected {
+		return blockRecord{}, nil, nil, fmt.Errorf("%w: entry length %d, expected %d", types.ErrDataCorruption, len(buf), expected)
+	}
+	hashesEnd := hashesOffset + int(rec.LogCount)*logHashSize
+	return rec, buf[hashesOffset:hashesEnd], buf[hashesEnd:], nil
+}
+
 // encodeExecMsgInto writes an 88-byte execMsg record (with embedded logIdx) to buf.
 func encodeExecMsgInto(buf []byte, logIdx uint32, em *types.ExecutingMessage) {
 	binary.BigEndian.PutUint32(buf[0:4], logIdx)
@@ -233,7 +249,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	if err := d.w.GetLog(indexFor(blockNum), &log); err != nil {
 		return eth.BlockRef{}, 0, nil, fmt.Errorf("GetLog(%d): %w", blockNum, err)
 	}
-	rec, err := decodeBlockRecord(log.Data)
+	rec, _, execBuf, err := decodeSealedBlock(log.Data)
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}
@@ -244,13 +260,9 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 		Time:       rec.Timestamp,
 	}
 	execMsgs := make(map[uint32]*types.ExecutingMessage, rec.ExecMsgCount)
-	execStart := hashesOffset + int(rec.LogCount)*logHashSize
-	if len(log.Data) < execStart+int(rec.ExecMsgCount)*execMsgRecordSize {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("%w: entry truncated", types.ErrDataCorruption)
-	}
 	for i := uint32(0); i < rec.ExecMsgCount; i++ {
-		off := execStart + int(i)*execMsgRecordSize
-		idx, em := decodeExecMsg(log.Data[off : off+execMsgRecordSize])
+		off := int(i) * execMsgRecordSize
+		idx, em := decodeExecMsg(execBuf[off : off+execMsgRecordSize])
 		execMsgs[idx] = em
 	}
 	return ref, rec.LogCount, execMsgs, nil
@@ -276,7 +288,7 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
 		return types.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
 	}
-	rec, err := decodeBlockRecord(log.Data)
+	rec, hashes, _, err := decodeSealedBlock(log.Data)
 	if err != nil {
 		return types.BlockSeal{}, err
 	}
@@ -288,12 +300,9 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	}
 
 	// Direct O(1) lookup into the log-hash array.
-	hashOff := hashesOffset + int(query.LogIdx)*logHashSize
-	if hashOff+logHashSize > len(log.Data) {
-		return types.BlockSeal{}, fmt.Errorf("%w: entry truncated", types.ErrDataCorruption)
-	}
+	hashOff := int(query.LogIdx) * logHashSize
 	var logHash common.Hash
-	copy(logHash[:], log.Data[hashOff:hashOff+logHashSize])
+	copy(logHash[:], hashes[hashOff:hashOff+logHashSize])
 	expectedChecksum := types.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,
