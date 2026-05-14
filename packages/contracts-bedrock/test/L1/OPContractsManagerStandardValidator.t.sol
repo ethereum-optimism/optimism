@@ -1968,7 +1968,14 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
 
     /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
     function test_validate_superPermissionedDisputeGameInvalidProposer_succeeds() public {
-        DisputeGames.mockGameImplProposer(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        gameArgs.proposer = address(0xbad);
+        vm.mockCall(
+            address(dgf),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
+        );
         assertEq("SPDG-140", _validate(true));
     }
 }

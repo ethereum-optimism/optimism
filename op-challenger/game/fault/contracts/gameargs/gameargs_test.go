@@ -55,24 +55,6 @@ func TestParse(t *testing.T) {
 	})
 }
 
-func TestParseSuperPermissioned(t *testing.T) {
-	t.Run("InvalidLength", func(t *testing.T) {
-		_, err := ParseSuperPermissioned(make([]byte, SuperPermissionedArgsLength-1))
-		require.ErrorIs(t, err, ErrInvalidGameArgs)
-	})
-
-	t.Run("Valid", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(1))
-		expected := SuperPermissionedGameArgs{
-			AnchorStateRegistry: testutils.RandomAddress(rng),
-			Proposer:            testutils.RandomAddress(rng),
-		}
-		actual, err := ParseSuperPermissioned(expected.Pack())
-		require.NoError(t, err)
-		require.Equal(t, expected, actual)
-	})
-}
-
 func TestZKGameArgsPack(t *testing.T) {
 	prestate := common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	verifier := common.HexToAddress("0x1111111111111111111111111111111111111111")

@@ -422,7 +422,14 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
 
     /// @notice MIG-SPDG-140: Wrong proposer in SPDG game args.
     function test_validate_spdg140WrongProposer_succeeds() public {
-        DisputeGames.mockGameImplProposer(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        gameArgs.proposer = address(0xbad);
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
+        );
         assertEq("MIG-SPDG-140", _validateMigration(true));
     }
 }

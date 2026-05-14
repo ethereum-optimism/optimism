@@ -12,10 +12,9 @@ import (
 )
 
 const (
-	PermissionlessArgsLength    = 124
-	PermissionedArgsLength      = 164
-	SuperPermissionedArgsLength = 40
-	ZKArgsLength                = 172
+	PermissionlessArgsLength = 124
+	PermissionedArgsLength   = 164
+	ZKArgsLength             = 172
 )
 
 var (
@@ -30,11 +29,6 @@ type GameArgs struct {
 	L2ChainID           eth.ChainID
 	Proposer            common.Address
 	Challenger          common.Address
-}
-
-type SuperPermissionedGameArgs struct {
-	AnchorStateRegistry common.Address
-	Proposer            common.Address
 }
 
 func (g GameArgs) PackPermissionless() []byte {
@@ -53,13 +47,6 @@ func (g GameArgs) PackPermissioned() []byte {
 		g.PackPermissionless(),
 		g.Proposer[:],
 		g.Challenger[:],
-	)
-}
-
-func (g SuperPermissionedGameArgs) Pack() []byte {
-	return slices.Concat(
-		g.AnchorStateRegistry[:],
-		g.Proposer[:],
 	)
 }
 
@@ -119,14 +106,4 @@ func Parse(args []byte) (GameArgs, error) {
 		output.Challenger = common.BytesToAddress(args[144:164])
 	}
 	return output, nil
-}
-
-func ParseSuperPermissioned(args []byte) (SuperPermissionedGameArgs, error) {
-	if len(args) != SuperPermissionedArgsLength {
-		return SuperPermissionedGameArgs{}, fmt.Errorf("%w: invalid length (%v)", ErrInvalidGameArgs, len(args))
-	}
-	return SuperPermissionedGameArgs{
-		AnchorStateRegistry: common.BytesToAddress(args[0:20]),
-		Proposer:            common.BytesToAddress(args[20:40]),
-	}, nil
 }
