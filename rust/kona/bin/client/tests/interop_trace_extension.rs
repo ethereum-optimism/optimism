@@ -81,7 +81,7 @@ fn super_root(timestamp: u64) -> SuperRoot {
 }
 
 fn transition_state_prestate(timestamp: u64) -> PreState {
-    PreState::TransitionState(TransitionState::new(super_root(timestamp), Vec::new(), 1))
+    PreState::TransitionState(TransitionState::new(super_root(timestamp), Vec::new(), 0))
 }
 
 fn super_root_prestate(timestamp: u64) -> PreState {
