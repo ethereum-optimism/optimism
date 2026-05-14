@@ -237,7 +237,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
-						m.elFinalizedHead = eth.L2BlockRef{Number: 0, Time: 50, Hash: common.HexToHash("0xgenesis")}
+						m.elFinalizedHead = eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123")}
 						m.elFinalizedHeadSet = true
 					}).
 					Build()
