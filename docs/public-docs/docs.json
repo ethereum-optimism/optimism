@@ -1957,6 +1957,7 @@
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
               "chain-operators/tutorials/integrating-da-layer",
+              "chain-operators/tutorials/merge-shared-dispute-game",
               "chain-operators/tutorials/migrating-permissionless",
               "chain-operators/tutorials/modifying-predeploys",
               "chain-operators/tutorials/rewind-op-geth",
