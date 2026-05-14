@@ -108,13 +108,12 @@ func TestL1Beacon(t *testing.T) {
 }
 
 func TestSuperNodeRpc(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
-		gameType := gameType
-
-		t.Run("RequiredFor-"+gameType.String(), func(t *testing.T) {
-			verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameType, "--supernode-rpc"))
-		})
-	}
+	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc"))
+	})
+	t.Run("RequiredForSuperPermissioned", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc"))
+	})
 
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
