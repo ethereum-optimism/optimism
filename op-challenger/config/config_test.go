@@ -525,7 +525,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 func TestSuperRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
+		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SuperRPC = ""

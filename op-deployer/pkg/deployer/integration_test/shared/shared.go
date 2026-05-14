@@ -305,10 +305,7 @@ func DeployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.Sta
 	t.Helper()
 
 	artifacts := &foundry.ArtifactsFS{FS: afactsFS}
-	artifact, err := artifacts.ReadArtifact("DummyCaller.sol", "DummyCaller")
-	if err != nil {
-		artifact, err = artifacts.ReadArtifact("DummyCaller.sol", "DummyCaller.0.8.15")
-	}
+	artifact, err := artifacts.ReadArtifact("DummyCaller.sol", "DummyCaller.0.8.15")
 	require.NoError(t, err, "failed to read DummyCaller artifact")
 
 	err = rpcClient.Call(nil, "anvil_setCode", prank, hexutil.Encode(artifact.DeployedBytecode.Object))
