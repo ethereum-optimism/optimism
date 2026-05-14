@@ -107,7 +107,7 @@ contract GenerateNUTBundle is Script {
         output_.fork = UPGRADE_NAME;
 
         // Build implementation deployment configurations
-        buildImplementationDeploymentConfigs();
+        _buildImplementationDeploymentConfigs();
 
         // Phase 1: Pre-implementation deployments
         // Add fork-specific deployment or upgrade txns that must occur prior to the implementation deployments
@@ -328,7 +328,7 @@ contract GenerateNUTBundle is Script {
     /// @dev Iterates the predeploy registry as the single source of truth.
     ///      All records are deployed unconditionally. L2CM selects the correct variant at runtime.
     ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
-    function buildImplementationDeploymentConfigs() public {
+    function _buildImplementationDeploymentConfigs() internal {
         _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 498_000));
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();

@@ -31,6 +31,11 @@ contract GenerateNUTBundle_Harness is GenerateNUTBundle {
     function assertValidOutput(Output memory _output) external view {
         _assertValidOutput(_output);
     }
+
+    /// @notice Builds the implementation deployment configurations.
+    function buildImplementationDeploymentConfigs() external {
+        _buildImplementationDeploymentConfigs();
+    }
 }
 
 /// @title GenerateNUTBundleTest
