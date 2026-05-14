@@ -2033,7 +2033,8 @@
                 "pages": [
                   "node-operators/guides/configuration/consensus-clients",
                   "node-operators/guides/configuration/execution-clients",
-                  "node-operators/guides/configuration/legacy-geth"
+                  "node-operators/guides/configuration/legacy-geth",
+                  "node-operators/guides/configuration/supernode"
                 ]
               },
               {
