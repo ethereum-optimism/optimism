@@ -296,7 +296,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
-			name:              "panics when SuperAuthority block unknown to engine",
+			name:              "falls back to finalized when SuperAuthority block unknown to engine",
 			supervisorEnabled: true,
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
@@ -304,10 +304,11 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
 			},
-			expectPanic: "superAuthority supplied an identifier for the safe head which is not known to the engine",
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 		},
 	}
 
