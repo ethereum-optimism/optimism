@@ -83,7 +83,7 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
-	L2FollowSourceCache *metrics.CacheMetrics
+	L2FollowSourceCache   *metrics.CacheMetrics
 	FollowSourceErrors    *prometheus.CounterVec
 	FollowSourceSuccesses prometheus.Counter
 
