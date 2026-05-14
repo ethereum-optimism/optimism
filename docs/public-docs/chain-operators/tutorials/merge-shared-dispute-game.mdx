@@ -6,6 +6,8 @@ description: Runbook for merging two pre-interop OP Stack chains into a shared D
 
 # Merging Two Chains Into a Shared Dispute Game
 
+<Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
+
 This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerMigrator.migrate` (`opcm.migrate`). After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
 By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each still backed by its existing single-chain supernode — winding down the retired games on the old per-chain factories.
