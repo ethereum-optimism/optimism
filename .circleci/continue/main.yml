@@ -969,6 +969,9 @@ jobs:
               sudo apt-get install -y --no-install-recommends clang
             fi
       - run:
+          name: Install nightly rustfmt
+          command: rustup toolchain install nightly --component rustfmt --no-self-update
+      - run:
           name: Lint << parameters.directory >>
           command: cd << parameters.directory >> && << parameters.lint_command >>
           no_output_timeout: 20m
@@ -2872,14 +2875,14 @@ workflows:
       - rust-lint-vendored:
           name: rust-lint-op-rbuilder
           directory: rust/op-rbuilder
-          lint_command: cargo fmt -- --check && cargo clippy --all-features -- -D warnings
+          lint_command: cargo +nightly fmt -- --check && cargo clippy --all-features -- -D warnings
           needs_clang: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-lint-vendored:
           name: rust-lint-rollup-boost
           directory: rust/rollup-boost
-          lint_command: cargo fmt -- --check && cargo clippy -- -D warnings
+          lint_command: cargo +nightly fmt -- --check && cargo clippy -- -D warnings
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-test-vendored:
