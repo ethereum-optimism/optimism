@@ -114,6 +114,15 @@ func (n *SuperNode) RestartInteropActivity(wipeLogsDBs bool) error {
 	return n.sn.RestartInteropActivity(wipeLogsDBs)
 }
 
+func (n *SuperNode) PromoteFinalizedForTest(ctx context.Context, chainID eth.ChainID, ref eth.L2BlockRef) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn == nil {
+		return errSupernodeNotRunning
+	}
+	return n.sn.PromoteFinalizedForTest(ctx, chainID, ref)
+}
+
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.
 type SuperNodeProxy struct {
 	p                devtest.CommonT

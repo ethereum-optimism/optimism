@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	gn "github.com/ethereum/go-ethereum/node"
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -39,11 +37,6 @@ func TestSupernodeInterop_FinalityCacheSurvivesEngineRPCOutage(gt *testing.T) {
 	finalizedA := sys.L2ACL.HeadBlockRef(types.Finalized)
 	require.Greater(t, finalizedA.Number, uint64(0), "test needs a non-genesis finalized head cached")
 
-	interopEndpoint, interopJWT := sys.L2ACL.Escape().InteropRPC()
-	interopRPC, err := gethrpc.DialOptions(ctx, interopEndpoint, gethrpc.WithHTTPAuth(gn.NewJWTAuth(interopJWT)))
-	require.NoError(t, err)
-	defer interopRPC.Close()
-
 	genesis := sys.L2ELA.BlockRefByNumber(0)
 
 	sys.L2ELA.DisconnectEngineRPC()
@@ -54,7 +47,7 @@ func TestSupernodeInterop_FinalityCacheSurvivesEngineRPCOutage(gt *testing.T) {
 		}
 	}()
 
-	require.NoError(t, interopRPC.CallContext(ctx, nil, "interop_updateFinalized", genesis.ID()))
+	sys.Supernode.PromoteFinalizedForTest(sys.L2A.ChainID(), genesis)
 
 	sys.L2ELA.ReconnectEngineRPC()
 	disconnected = false

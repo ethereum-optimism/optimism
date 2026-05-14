@@ -1,7 +1,10 @@
 package stack
 
 import (
+	"context"
+
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
@@ -29,4 +32,8 @@ type InteropTestControl interface {
 	// still-running supernode (HTTP server, chain containers, and all other
 	// activities remain up).
 	RestartInteropActivity(wipeLogsDBs bool) error
+
+	// PromoteFinalizedForTest drives a chain's inner engine-controller
+	// finalization path. Integration-test only.
+	PromoteFinalizedForTest(ctx context.Context, chainID eth.ChainID, ref eth.L2BlockRef) error
 }

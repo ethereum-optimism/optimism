@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
@@ -38,6 +39,24 @@ func (s *Supernode) InteropActivity() *interop.Interop {
 // the public ChainContainer interface.
 type verifierReplacer interface {
 	ReplaceVerifier(old, new activity.VerificationActivity) bool
+}
+
+type finalizedPromoterForTest interface {
+	PromoteFinalizedForTest(ctx context.Context, ref eth.L2BlockRef) error
+}
+
+// PromoteFinalizedForTest drives one chain's inner engine-controller
+// finalization path. It is intended for integration tests only.
+func (s *Supernode) PromoteFinalizedForTest(ctx context.Context, chainID eth.ChainID, ref eth.L2BlockRef) error {
+	chain, ok := s.chains[chainID]
+	if !ok {
+		return fmt.Errorf("supernode: chain %s not found", chainID)
+	}
+	promoter, ok := chain.(finalizedPromoterForTest)
+	if !ok {
+		return fmt.Errorf("supernode: chain %s does not support finalized promotion test hook", chainID)
+	}
+	return promoter.PromoteFinalizedForTest(ctx, ref)
 }
 
 // RestartInteropActivity stops the running interop activity (if any),

@@ -144,6 +144,14 @@ func (s *Supernode) RestartInterop(wipeLogsDBs bool) {
 	s.require.NoError(err, "failed to restart interop activity")
 }
 
+// PromoteFinalizedForTest drives a chain's inner engine-controller
+// finalization path. It is intended for integration tests only.
+func (s *Supernode) PromoteFinalizedForTest(chainID eth.ChainID, ref eth.L2BlockRef) {
+	s.require.NotNil(s.testControl, "PromoteFinalizedForTest requires test control; use NewSupernodeWithTestControl")
+	err := s.testControl.PromoteFinalizedForTest(s.ctx, chainID, ref)
+	s.require.NoError(err, "failed to promote finalized head for chain %s", chainID)
+}
+
 // BackfillAttempts returns the number of log-backfill attempts since the
 // running interop activity's most recent (re)start.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
