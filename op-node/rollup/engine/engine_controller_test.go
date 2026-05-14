@@ -244,20 +244,22 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
 		},
 		{
-			name:              "falls back to local safe when SuperAuthority block is not canonical",
+			name:              "falls back to SuperAuthority finalized when SuperAuthority block is not canonical",
 			supervisorEnabled: true,
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
+					finalizedL2Head:     eth.BlockID{Hash: common.Hash{0xee}, Number: 40},
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
+				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
-			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
 		},
 		{
 			name:              "with SuperAuthority empty BlockID returns genesis",
@@ -296,19 +298,21 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
-			name:              "falls back to finalized when SuperAuthority block unknown to engine",
+			name:              "falls back to SuperAuthority finalized when SuperAuthority block unknown to engine",
 			supervisorEnabled: true,
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0x99}, Number: 50},
+					finalizedL2Head:     eth.BlockID{Hash: common.Hash{0xee}, Number: 40},
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
+				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
-			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
 		},
 	}
 
