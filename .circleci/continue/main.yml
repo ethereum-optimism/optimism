@@ -801,8 +801,9 @@ jobs:
             echo "Cache miss - will build"
 
             if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              export NEEDRESTART_MODE=a
               for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
+                if sudo -E apt-get -o Acquire::Retries=5 update; then
                   break
                 fi
                 if [ "$i" = "3" ]; then
@@ -812,7 +813,7 @@ jobs:
                 echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
                 sleep 10
               done
-              sudo apt-get install -y --no-install-recommends clang
+              sudo -E apt-get install -y --no-install-recommends clang
             fi
 
             cd << parameters.directory >> && << parameters.build_command >>
@@ -894,8 +895,9 @@ jobs:
             echo "Cache miss - will build"
 
             if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              export NEEDRESTART_MODE=a
               for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
+                if sudo -E apt-get -o Acquire::Retries=5 update; then
                   break
                 fi
                 if [ "$i" = "3" ]; then
@@ -905,7 +907,7 @@ jobs:
                 echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
                 sleep 10
               done
-              sudo apt-get install -y --no-install-recommends clang
+              sudo -E apt-get install -y --no-install-recommends clang
             fi
 
             cd << parameters.directory >> && << parameters.build_command >>
@@ -955,8 +957,9 @@ jobs:
           name: Install clang (if needed)
           command: |
             if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              export NEEDRESTART_MODE=a
               for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
+                if sudo -E apt-get -o Acquire::Retries=5 update; then
                   break
                 fi
                 if [ "$i" = "3" ]; then
@@ -966,7 +969,7 @@ jobs:
                 echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
                 sleep 10
               done
-              sudo apt-get install -y --no-install-recommends clang
+              sudo -E apt-get install -y --no-install-recommends clang
             fi
       - run:
           name: Install nightly rustfmt
@@ -1013,8 +1016,9 @@ jobs:
           command: |
             PACKAGES="<< parameters.apt_packages >>"
             if [ -n "$PACKAGES" ]; then
+              export NEEDRESTART_MODE=a
               for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
+                if sudo -E apt-get -o Acquire::Retries=5 update; then
                   break
                 fi
                 if [ "$i" = "3" ]; then
@@ -1025,7 +1029,7 @@ jobs:
                 sleep 10
               done
               # shellcheck disable=SC2086
-              sudo apt-get install -y --no-install-recommends $PACKAGES
+              sudo -E apt-get install -y --no-install-recommends $PACKAGES
             fi
       - run:
           name: Pre-test build (<< parameters.directory >>)
