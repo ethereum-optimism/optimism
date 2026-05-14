@@ -12,7 +12,7 @@ This runbook walks you through merging two existing OP Stack chains into a share
 
 By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each still backed by its existing single-chain supernode — winding down the retired games on the old per-chain factories.
 
-> **Critical:** `opcm.migrate` is a one-way operation that invalidates every withdrawal proof submitted but not finalized on either chain. Affected users must re-prove against a new super-root game after migration. Announce the migration window to users at least seven days in advance—long enough for a withdrawal proven just before the announcement to mature past `PROOF_MATURITY_DELAY_SECONDS` and finalize.
+<Warning>`opcm.migrate` is a one-way operation that invalidates every withdrawal proof submitted but not finalized on either chain. Affected users must re-prove against a new super-root game after migration. Announce the migration window to users at least seven days in advance—long enough for a withdrawal proven just before the announcement to mature past `PROOF_MATURITY_DELAY_SECONDS` and finalize.</Warning>
 
 If you instead want to swap a single chain's proof method from output roots to super roots without merging chains, follow [Upgrading a Chain From Output Roots to Super Roots](/chain-operators/tutorials/upgrade-chain-to-super-roots). This runbook is for two chains that are merging into a shared interop set.
 
@@ -299,7 +299,7 @@ The validator behind `OPContractsManagerMigrationValidator` returns a comma-sepa
 
 ## Execute the Migration
 
-> **Critical:** Verify that the user announcement has gone out and at least seven days have elapsed since the announcement before broadcasting. Withdrawals proven against either chain's old games will not finalize against the new shared registry; users must re-prove or finalize ahead of cutover.
+<Warning>Verify that the user announcement has gone out and at least seven days have elapsed since the announcement before broadcasting. Withdrawals proven against either chain's old games will not finalize against the new shared registry; users must re-prove or finalize ahead of cutover.</Warning>
 
 1. Stop both per-chain `op-proposer` processes. Once the migration broadcasts, the per-chain factories no longer have `SUPER_CANNON_KONA` registered, so `DisputeGameFactory.create` reverts. Stopping the proposers first prevents wasted gas.
 2. Leave both per-chain `op-challenger` and `op-dispute-mon` instances running. They continue to defend and observe in-flight pre-migration games on the per-chain factories.
