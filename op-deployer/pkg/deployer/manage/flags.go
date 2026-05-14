@@ -64,7 +64,7 @@ var (
 	}
 	DisputeChallengerFlag = &cli.StringFlag{
 		Name:    "dispute-challenger-address",
-		Usage:   "Challenger address for SUPER_PERMISSIONED_CANNON migration configs.",
+		Usage:   "Challenger address for permissioned migration configs.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_CHALLENGER_ADDRESS"),
 	}
 	InitialBondFlag = &cli.StringFlag{

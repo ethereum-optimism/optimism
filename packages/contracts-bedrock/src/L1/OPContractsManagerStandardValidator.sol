@@ -28,7 +28,6 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -531,9 +530,11 @@ contract OPContractsManagerStandardValidator is ISemver {
             _buildDisputeGameConfig(_overrides)
         );
 
-        // Challenger and proposer are specific to permissioned dispute game contracts.
-        address _challenger = expectedChallenger(_overrides);
-        _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
+        // Challenger is specific to legacy permissioned dispute game contracts.
+        if (_gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            address _challenger = expectedChallenger(_overrides);
+            _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
+        }
         _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
 
         return _errors;
@@ -1047,10 +1048,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             LibGameArgs.SuperPermissionedGameArgs memory superPermissionedGameArgs =
                 LibGameArgs.decodeSuperPermissioned(_gameArgsBytes);
-            ISuperPermissionedDisputeGame superGame = ISuperPermissionedDisputeGame(address(_game));
             gameImpl_ = DisputeGameImplementation({
                 gameAddress: address(_game),
-                maxClockDuration: superGame.maxClockDuration(),
+                maxClockDuration: Duration.wrap(0),
                 maxGameDepth: 0,
                 splitDepth: 0,
                 clockExtension: Duration.wrap(0),
@@ -1061,7 +1061,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 asr: IAnchorStateRegistry(superPermissionedGameArgs.anchorStateRegistry),
                 weth: IDelayedWETH(payable(address(0))),
                 l2ChainId: 0,
-                challenger: superPermissionedGameArgs.challenger,
+                challenger: address(0),
                 proposer: superPermissionedGameArgs.proposer
             });
             return gameImpl_;

@@ -284,11 +284,7 @@ func MigrateInterop(
 	l2ChainID := l2ChainIDs[0]
 	cannonGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeAbsolutePrestate.Bytes(), 32)
 	cannonKonaGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate.Bytes(), 32)
-	superPermissionedGameArgs, err := encodePermissionedGameArgs(
-		l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
-		l2Cfgs[l2ChainID].Proposer,
-		l2Cfgs[l2ChainID].Challenger,
-	)
+	superPermissionedGameArgs, err := encodeSuperPermissionedGameArgs(l2Cfgs[l2ChainID].Proposer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode super permissioned game args: %w", err)
 	}
@@ -341,20 +337,12 @@ func MigrateInterop(
 	}, nil
 }
 
-func encodePermissionedGameArgs(absolutePrestate common.Hash, proposer common.Address, challenger common.Address) ([]byte, error) {
-	bytes32Type, err := abi.NewType("bytes32", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bytes32 ABI type: %w", err)
-	}
+func encodeSuperPermissionedGameArgs(proposer common.Address) ([]byte, error) {
 	addressType, err := abi.NewType("address", "", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create address ABI type: %w", err)
 	}
-	return abi.Arguments{{Type: bytes32Type}, {Type: addressType}, {Type: addressType}}.Pack(
-		absolutePrestate,
-		proposer,
-		challenger,
-	)
+	return abi.Arguments{{Type: addressType}}.Pack(proposer)
 }
 
 func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {

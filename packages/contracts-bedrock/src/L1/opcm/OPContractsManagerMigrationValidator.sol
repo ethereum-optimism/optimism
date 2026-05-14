@@ -16,7 +16,6 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -54,7 +53,6 @@ contract OPContractsManagerMigrationValidator {
         bytes32 expectedPrestate;
         bool isPermissioned;
         address proposer;
-        address challenger;
         string prefix;
         address discoveredWeth;
         address expectedGameImpl;
@@ -137,7 +135,6 @@ contract OPContractsManagerMigrationValidator {
                 expectedPrestate: _input.cannonPrestate,
                 isPermissioned: true,
                 proposer: _input.proposer,
-                challenger: _cfg.challenger,
                 prefix: "MIG-SPDG",
                 discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superPermissionedDisputeGameImpl
@@ -154,7 +151,6 @@ contract OPContractsManagerMigrationValidator {
                 expectedPrestate: _input.cannonKonaPrestate,
                 isPermissioned: false,
                 proposer: address(0),
-                challenger: address(0),
                 prefix: "MIG-SCKDG",
                 discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superFaultDisputeGameImpl
@@ -288,7 +284,6 @@ contract OPContractsManagerMigrationValidator {
                     LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
                 gameArgs.anchorStateRegistry = simpleArgs.anchorStateRegistry;
                 gameArgs.proposer = simpleArgs.proposer;
-                gameArgs.challenger = simpleArgs.challenger;
             } else {
                 gameArgs = LibGameArgs.decode(gameArgsBytes);
             }
@@ -306,9 +301,8 @@ contract OPContractsManagerMigrationValidator {
             _errors = _delegateSuperGameValidation(_errors, _p, gameType, gameImplAddr, gameArgs, _impls, _cfg);
         }
 
-        // Permissioned-only: proposer/challenger checks.
+        // Permissioned-only: proposer check.
         if (_p.isPermissioned) {
-            _errors = internalRequire(gameArgs.challenger == _p.challenger, string.concat(_p.prefix, "-130"), _errors);
             _errors = internalRequire(gameArgs.proposer == _p.proposer, string.concat(_p.prefix, "-140"), _errors);
         }
 
@@ -361,10 +355,9 @@ contract OPContractsManagerMigrationValidator {
         returns (DisputeGameImplementation memory gameImpl_)
     {
         if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-            ISuperPermissionedDisputeGame superPermissionedGame = ISuperPermissionedDisputeGame(_gameImplAddr);
             return DisputeGameImplementation({
                 gameAddress: _gameImplAddr,
-                maxClockDuration: superPermissionedGame.maxClockDuration(),
+                maxClockDuration: Duration.wrap(0),
                 maxGameDepth: 0,
                 splitDepth: 0,
                 clockExtension: Duration.wrap(0),
@@ -375,7 +368,7 @@ contract OPContractsManagerMigrationValidator {
                 asr: IAnchorStateRegistry(_gameArgs.anchorStateRegistry),
                 weth: IDelayedWETH(payable(address(0))),
                 l2ChainId: 0,
-                challenger: _gameArgs.challenger,
+                challenger: address(0),
                 proposer: _gameArgs.proposer
             });
         }

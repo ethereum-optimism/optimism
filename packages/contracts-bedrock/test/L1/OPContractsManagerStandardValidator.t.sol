@@ -1807,13 +1807,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -1970,12 +1964,6 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         );
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
         assertEq("SPDG-20", _validate(true));
-    }
-
-    /// @notice Tests SPDG-130 when SUPER_PERMISSIONED_CANNON challenger is invalid.
-    function test_validate_superPermissionedDisputeGameInvalidChallenger_succeeds() public {
-        DisputeGames.mockGameImplChallenger(dgf, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
-        assertEq("SPDG-130", _validate(true));
     }
 
     /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
@@ -2379,27 +2367,5 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and surfaces the shared
         // DelayedWETH proxyAdminOwner mismatch through the bonded super-game drill-down.
         assertEq("MIG-SDGF-30,MIG-SCKDG-DWETH-30", errors);
-    }
-
-    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override when
-    ///         the SPDG game args challenger matches the overridden address.
-    function test_validateMigratedChainWithOverrides_challengerMatch_succeeds() public {
-        address overrideChallenger = makeAddr("overrideChallenger");
-        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, overrideChallenger);
-
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: overrideChallenger });
-        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
-        assertEq(errors, "");
-    }
-
-    /// @notice Tests that validateMigratedChainWithOverrides applies the challenger override, causing
-    ///         MIG-SPDG-130 when the SPDG game args challenger does not match the overridden address.
-    function test_validateMigratedChainWithOverrides_challengerMismatch_succeeds() public {
-        address wrongChallenger = makeAddr("wrongChallenger");
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: address(0), challenger: wrongChallenger });
-        string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
-        assertEq("MIG-SPDG-130", errors);
     }
 }

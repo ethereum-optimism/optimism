@@ -73,9 +73,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The proposer role for super games.
     address proposer;
 
-    /// @notice The challenger role for super games.
-    address challenger;
-
     function setUp() public virtual override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
@@ -84,15 +81,12 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         chainContracts1 = _deployChainForMigration(1000001);
         chainContracts2 = _deployChainForMigration(1000002);
 
-        // Get validators from OPCM. Fetch challenger from StandardValidator state so that
-        // when StandardValidator.validateMigratedChain pulls challenger from its own storage,
-        // it matches the SPDG game args we configure below.
+        // Get validators from OPCM.
         standardValidator = opcmV2.opcmStandardValidator();
         migrationValidator = standardValidator.migrationValidator();
 
-        // Set proposer/challenger before building migration input.
+        // Set proposer before building migration input.
         proposer = makeAddr("superProposer");
-        challenger = standardValidator.challenger();
 
         // Run real migration with both SPDG and SCKDG.
         _doMigration(_getDefaultMigrateInput());
@@ -156,13 +150,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: superRoot
-                ? abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
-                    })
-                )
+                ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
                 : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -209,9 +197,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
         if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        challenger_ = gameArgs.challenger;
+        challenger_ = address(0);
     }
 
     function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
@@ -235,13 +221,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -454,12 +434,6 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
     function test_validate_spdg140WrongProposer_succeeds() public {
         DisputeGames.mockGameImplProposer(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
         assertEq("MIG-SPDG-140", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-130: Wrong challenger in SPDG game args.
-    function test_validate_spdg130WrongChallenger_succeeds() public {
-        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
-        assertEq("MIG-SPDG-130", _validateMigration(true));
     }
 }
 

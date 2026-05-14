@@ -35,6 +35,11 @@ interface IOPContractsManagerUtils {
         address challenger;
     }
 
+    /// @notice Configuration struct for the SuperPermissionedDisputeGame.
+    struct SuperPermissionedDisputeGameConfig {
+        address proposer;
+    }
+
     /// @notice Configuration struct for the ZKDisputeGame.
     struct ZKDisputeGameConfig {
         Claim absolutePrestate;
@@ -69,6 +74,7 @@ interface IOPContractsManagerUtils {
     error EmptyInitcode();
     error BytesArrayTooLong();
     error IdentityPrecompileCallFailed();
+
     function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
     function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
     function contractsContainer() external view returns (IOPContractsManagerContainer);

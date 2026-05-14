@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "Duration",
-        "name": "_maxClockDuration",
-        "type": "uint64"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -17,26 +11,6 @@
       {
         "internalType": "contract IAnchorStateRegistry",
         "name": "registry_",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "challenge",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "challenger",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "challenger_",
         "type": "address"
       }
     ],
@@ -149,19 +123,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "maxClockDuration",
-    "outputs": [
-      {
-        "internalType": "Duration",
-        "name": "maxClockDuration_",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -300,16 +261,6 @@
   {
     "inputs": [],
     "name": "BadExtraData",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockNotExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockTimeExceeded",
     "type": "error"
   },
   {

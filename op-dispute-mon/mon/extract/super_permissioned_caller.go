@@ -37,13 +37,12 @@ func (s *SuperPermissionedGameCaller) GetExtendedMetadata(ctx context.Context, b
 		s.contract.Call("l2SequenceNumber"),
 		s.contract.Call("rootClaim"),
 		s.contract.Call("status"),
-		s.contract.Call("maxClockDuration"),
 	)
 	if err != nil {
 		return gameContracts.GameMetadata{}, fmt.Errorf("failed to retrieve game metadata: %w", err)
 	}
-	if len(results) != 5 {
-		return gameContracts.GameMetadata{}, fmt.Errorf("expected 5 results but got %v", len(results))
+	if len(results) != 4 {
+		return gameContracts.GameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -54,11 +53,10 @@ func (s *SuperPermissionedGameCaller) GetExtendedMetadata(ctx context.Context, b
 		l2SequenceNumber = bigs.Uint64Strict(result)
 	}
 	return gameContracts.GameMetadata{
-		L1Head:           results[0].GetHash(0),
-		L2SequenceNum:    l2SequenceNumber,
-		RootClaim:        results[2].GetHash(0),
-		Status:           status,
-		MaxClockDuration: results[4].GetUint64(0),
+		L1Head:        results[0].GetHash(0),
+		L2SequenceNum: l2SequenceNumber,
+		RootClaim:     results[2].GetHash(0),
+		Status:        status,
 	}, nil
 }
 

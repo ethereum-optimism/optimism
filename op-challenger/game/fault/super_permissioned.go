@@ -21,7 +21,6 @@ type SuperPermissionedGameContract interface {
 	GetL2SequenceNumber(ctx context.Context) (uint64, error)
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	ResolveTx() (txmgr.TxCandidate, error)
-	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 }
 
 type SupervisorRootProvider interface {
@@ -77,12 +76,8 @@ func (a *SuperPermissionedActor) Act(ctx context.Context) error {
 		return err
 	}
 	if !valid || expected != claim {
-		a.log.Info("Challenging invalid super permissioned game", "timestamp", timestamp, "claim", claim, "expected", expected, "valid", valid)
-		tx, err := a.contract.ChallengeTx(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create challenge tx: %w", err)
-		}
-		return a.txSender.SendAndWaitSimple("challenge super permissioned game", tx)
+		a.log.Warn("Skipping invalid super permissioned game", "timestamp", timestamp, "claim", claim, "expected", expected, "valid", valid)
+		return nil
 	}
 
 	status, err := a.contract.CallResolve(ctx)

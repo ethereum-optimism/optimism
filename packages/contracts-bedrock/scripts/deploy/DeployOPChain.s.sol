@@ -117,13 +117,15 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
-        // Shared permissioned game config — identical for both legacy and super root modes.
+        // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
             .PermissionedDisputeGameConfig({
             absolutePrestate: _input.disputeAbsolutePrestate,
             proposer: _input.proposer,
             challenger: _input.challenger
         });
+        IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory superPdgConfig =
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _input.proposer });
 
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
@@ -167,7 +169,7 @@ contract DeployOPChain is Script {
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(pdgConfig)
+                gameArgs: abi.encode(superPdgConfig)
             })
             : IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,

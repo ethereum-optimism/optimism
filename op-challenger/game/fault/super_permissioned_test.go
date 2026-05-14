@@ -15,12 +15,11 @@ import (
 
 var testGameL1Head = eth.BlockID{Number: 10}
 
-func TestSuperPermissionedActorChallengesInvalidRoot(t *testing.T) {
+func TestSuperPermissionedActorSkipsInvalidRoot(t *testing.T) {
 	ctx := context.Background()
 	contract := &stubSuperPermissionedContract{
-		rootClaim:   common.Hash{0xaa},
-		sequence:    123,
-		challengeTx: txmgr.TxCandidate{TxData: []byte{0x01}},
+		rootClaim: common.Hash{0xaa},
+		sequence:  123,
 	}
 	sender := new(stubSuperPermissionedTxSender)
 	actor := NewSuperPermissionedActor(log.New(), sender, contract, nil, nil, testGameL1Head)
@@ -30,18 +29,15 @@ func TestSuperPermissionedActorChallengesInvalidRoot(t *testing.T) {
 
 	require.NoError(t, actor.Act(ctx))
 
-	require.Equal(t, 1, contract.challengeTxCalls)
 	require.Equal(t, 0, contract.callResolveCalls)
-	require.Equal(t, []string{"challenge super permissioned game"}, sender.purposes)
-	require.Equal(t, [][]byte{{0x01}}, sender.txData)
+	require.Empty(t, sender.purposes)
 }
 
-func TestSuperPermissionedActorChallengesUnavailableRoot(t *testing.T) {
+func TestSuperPermissionedActorSkipsUnavailableRoot(t *testing.T) {
 	ctx := context.Background()
 	contract := &stubSuperPermissionedContract{
-		rootClaim:   common.Hash{0xaa},
-		sequence:    123,
-		challengeTx: txmgr.TxCandidate{TxData: []byte{0x01}},
+		rootClaim: common.Hash{0xaa},
+		sequence:  123,
 	}
 	sender := new(stubSuperPermissionedTxSender)
 	actor := NewSuperPermissionedActor(log.New(), sender, contract, nil, nil, testGameL1Head)
@@ -51,8 +47,8 @@ func TestSuperPermissionedActorChallengesUnavailableRoot(t *testing.T) {
 
 	require.NoError(t, actor.Act(ctx))
 
-	require.Equal(t, 1, contract.challengeTxCalls)
-	require.Equal(t, []string{"challenge super permissioned game"}, sender.purposes)
+	require.Equal(t, 0, contract.callResolveCalls)
+	require.Empty(t, sender.purposes)
 }
 
 func TestSuperPermissionedActorWaitsWhenValidGameIsNotResolvable(t *testing.T) {
@@ -71,7 +67,6 @@ func TestSuperPermissionedActorWaitsWhenValidGameIsNotResolvable(t *testing.T) {
 
 	require.NoError(t, actor.Act(ctx))
 
-	require.Equal(t, 0, contract.challengeTxCalls)
 	require.Equal(t, 1, contract.callResolveCalls)
 	require.Empty(t, sender.purposes)
 }
@@ -93,7 +88,6 @@ func TestSuperPermissionedActorResolvesValidResolvableGame(t *testing.T) {
 
 	require.NoError(t, actor.Act(ctx))
 
-	require.Equal(t, 0, contract.challengeTxCalls)
 	require.Equal(t, 1, contract.callResolveCalls)
 	require.Equal(t, 1, contract.resolveTxCalls)
 	require.Equal(t, []string{"resolve super permissioned game"}, sender.purposes)
@@ -106,10 +100,8 @@ type stubSuperPermissionedContract struct {
 	status            gameTypes.GameStatus
 	callResolveStatus gameTypes.GameStatus
 	callResolveErr    error
-	challengeTx       txmgr.TxCandidate
 	resolveTx         txmgr.TxCandidate
 	callResolveCalls  int
-	challengeTxCalls  int
 	resolveTxCalls    int
 }
 
@@ -137,11 +129,6 @@ func (s *stubSuperPermissionedContract) CallResolve(context.Context) (gameTypes.
 func (s *stubSuperPermissionedContract) ResolveTx() (txmgr.TxCandidate, error) {
 	s.resolveTxCalls++
 	return s.resolveTx, nil
-}
-
-func (s *stubSuperPermissionedContract) ChallengeTx(context.Context) (txmgr.TxCandidate, error) {
-	s.challengeTxCalls++
-	return s.challengeTx, nil
 }
 
 type stubSuperPermissionedTxSender struct {

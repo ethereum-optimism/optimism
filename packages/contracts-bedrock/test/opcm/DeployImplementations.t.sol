@@ -109,13 +109,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 302400,
                 "SuperFaultDisputeGame maxClockDuration incorrect"
             );
-
-            // Validate constructor args for SuperPermissionedDisputeGame
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                302400,
-                "SuperPermissionedDisputeGame maxClockDuration incorrect"
-            );
         } else {
             assertEq(
                 address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should not be deployed"
@@ -296,12 +289,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),
                 "SuperDG maxClockDuration"
-            );
-
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                uint64(_faultGameV2MaxClockDuration),
-                "PSuperDG maxClockDuration"
             );
         } else {
             assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");

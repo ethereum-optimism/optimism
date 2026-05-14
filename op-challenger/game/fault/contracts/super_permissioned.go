@@ -91,15 +91,6 @@ func (s *SuperPermissionedDisputeGameContract) resolveCall() *batching.ContractC
 	return s.contract.Call(methodResolve)
 }
 
-func (s *SuperPermissionedDisputeGameContract) ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error) {
-	defer s.metrics.StartContractRequest("Challenge")()
-	call := s.contract.Call(methodChallenge)
-	if _, err := s.multiCaller.SingleCall(ctx, rpcblock.Latest, call); err != nil {
-		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
-	}
-	return call.ToTxCandidate()
-}
-
 func (s *SuperPermissionedDisputeGameContract) GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error) {
 	defer s.metrics.StartContractRequest("GetResolvedAt")()
 	result, err := s.multiCaller.SingleCall(ctx, block, s.contract.Call(methodResolvedAt))

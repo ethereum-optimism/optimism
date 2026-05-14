@@ -406,11 +406,6 @@ contract StandardValidatorUtils {
 
         if (_args.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
             errors_ = internalRequire(game.l2SequenceNumber == 0, string.concat(errorPrefix, "-70"), errors_);
-            errors_ = internalRequire(
-                Duration.unwrap(game.maxClockDuration) == EXPECTED_MAX_CLOCK_DURATION,
-                string.concat(errorPrefix, "-110"),
-                errors_
-            );
             errors_ =
                 internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
             errors_ = assertValidAnchorStateRegistry(

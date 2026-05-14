@@ -3,15 +3,9 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Clone } from "@solady/utils/Clone.sol";
-import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { Claim, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
-    AlreadyInitialized,
-    BadAuth,
-    BadExtraData,
-    ClockNotExpired,
-    ClockTimeExceeded,
-    GameNotInProgress,
-    UnknownChainId
+    AlreadyInitialized, BadAuth, BadExtraData, GameNotInProgress, UnknownChainId
 } from "src/dispute/lib/Errors.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -24,12 +18,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title SuperPermissionedDisputeGame
 /// @notice A simplified permissioned super-root dispute game. The proposer creates a super-root
-///         proposal, the challenger may invalidate it during the challenge window, and otherwise
-///         the proposal resolves in favor of the defender after the window elapses.
+///         proposal, and the proposal resolves in favor of the defender. Invalid proposals are
+///         invalidated through the AnchorStateRegistry blacklist before finalization.
 contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
-    /// @notice The challenge window before the game can resolve to `DEFENDER_WINS`.
-    Duration internal immutable MAX_CLOCK_DURATION;
-
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -49,10 +40,7 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Prevents re-initialization.
     bool internal initialized;
 
-    /// @param _maxClockDuration The challenge window before the game can resolve to `DEFENDER_WINS`.
-    constructor(Duration _maxClockDuration) {
-        MAX_CLOCK_DURATION = _maxClockDuration;
-    }
+    constructor() { }
 
     /// @notice Initializes the contract.
     function initialize() external payable {
@@ -72,22 +60,9 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
         initialized = true;
     }
 
-    /// @notice Invalidates the game. This immediately resolves the game as `CHALLENGER_WINS`.
-    function challenge() external {
-        if (msg.sender != challenger()) revert BadAuth();
-        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
-        if (block.timestamp > createdAt.raw() + MAX_CLOCK_DURATION.raw()) revert ClockTimeExceeded();
-
-        status = GameStatus.CHALLENGER_WINS;
-        resolvedAt = Timestamp.wrap(uint64(block.timestamp));
-
-        emit Resolved(GameStatus.CHALLENGER_WINS);
-    }
-
-    /// @notice Resolves an unchallenged game after the challenge window has elapsed.
+    /// @notice Resolves the game in favor of the defender.
     function resolve() external returns (GameStatus status_) {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
-        if (block.timestamp <= createdAt.raw() + MAX_CLOCK_DURATION.raw()) revert ClockNotExpired();
 
         status_ = GameStatus.DEFENDER_WINS;
         status = status_;
@@ -154,16 +129,6 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
         proposer_ = _getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 20);
     }
 
-    /// @notice Getter for the challenger role.
-    function challenger() public pure returns (address challenger_) {
-        challenger_ = _getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 40);
-    }
-
-    /// @notice Getter for the max clock duration / challenge window.
-    function maxClockDuration() external view returns (Duration maxClockDuration_) {
-        maxClockDuration_ = MAX_CLOCK_DURATION;
-    }
-
     /// @notice Returns the length of the super extra data in the initialize call.
     function _extraDataByteCount() internal pure returns (uint256) {
         uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
@@ -177,7 +142,7 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Returns the byte count of the simplified game implementation args.
     function gameImplArgsByteCount() internal pure returns (uint256) {
-        return 60;
+        return 40;
     }
 
     /// @notice Validates the expected length of initialize calldata.

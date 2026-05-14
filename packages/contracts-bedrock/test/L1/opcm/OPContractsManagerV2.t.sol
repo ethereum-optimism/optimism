@@ -74,21 +74,29 @@ contract OPContractsManagerV2_TestInit is CommonTest {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Grab the proposer and challenger from deploy config for validator.
-        // Check both PERMISSIONED_CANNON and SUPER_PERMISSIONED_CANNON since only one will be
-        // enabled depending on the mode.
         address deployProposer;
         address deployChallenger;
         for (uint256 i = 0; i < _deployConfig.disputeGameConfigs.length; i++) {
-            bool isPermissioned = _deployConfig.disputeGameConfigs[i].gameType.raw()
-                == GameTypes.PERMISSIONED_CANNON.raw()
-                || _deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
-            if (isPermissioned && _deployConfig.disputeGameConfigs[i].enabled) {
+            if (
+                _deployConfig.disputeGameConfigs[i].enabled
+                    && _deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+            ) {
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedArgs = abi.decode(
                     _deployConfig.disputeGameConfigs[i].gameArgs,
                     (IOPContractsManagerUtils.PermissionedDisputeGameConfig)
                 );
                 deployProposer = parsedArgs.proposer;
                 deployChallenger = parsedArgs.challenger;
+                break;
+            } else if (
+                _deployConfig.disputeGameConfigs[i].enabled
+                    && _deployConfig.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            ) {
+                IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory parsedArgs = abi.decode(
+                    _deployConfig.disputeGameConfigs[i].gameArgs,
+                    (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig)
+                );
+                deployProposer = parsedArgs.proposer;
                 break;
             }
         }
@@ -1240,15 +1248,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: _proposer,
-                        challenger: _challenger
-                    })
-                )
+                gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _proposer }))
             })
         );
+        (_challenger);
         if (_isPermissionless) {
             v2UpgradeInput.disputeGameConfigs.push(
                 IOPContractsManagerUtils.DisputeGameConfig({
@@ -1741,6 +1744,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             proposer: initialProposer,
             challenger: initialChallenger
         });
+        IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory superPdgConfig =
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer });
 
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
@@ -1771,7 +1776,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 enabled: superRoot,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: superRoot ? abi.encode(pdgConfig) : bytes("")
+                gameArgs: superRoot ? abi.encode(superPdgConfig) : bytes("")
             })
         );
         deployConfig.disputeGameConfigs.push(
@@ -2093,13 +2098,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: superRoot
-                ? abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
-                    })
-                )
+                ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
                 : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -2156,9 +2155,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
         if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(disputeGameFactory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        challenger_ = gameArgs.challenger;
+        challenger_ = address(0);
     }
 
     function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
@@ -2179,7 +2176,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         // Set up the dispute game configs for super root games.
         address proposer = makeAddr("superProposer");
-        address challenger = makeAddr("superChallenger");
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](1);
@@ -2187,13 +2183,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: superPrestate,
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
 
         input_ = IOPContractsManagerMigrator.MigrateInput({

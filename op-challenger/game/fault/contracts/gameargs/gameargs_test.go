@@ -66,7 +66,6 @@ func TestParseSuperPermissioned(t *testing.T) {
 		expected := SuperPermissionedGameArgs{
 			AnchorStateRegistry: testutils.RandomAddress(rng),
 			Proposer:            testutils.RandomAddress(rng),
-			Challenger:          testutils.RandomAddress(rng),
 		}
 		actual, err := ParseSuperPermissioned(expected.Pack())
 		require.NoError(t, err)
