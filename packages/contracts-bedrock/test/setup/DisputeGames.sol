@@ -101,7 +101,6 @@ library DisputeGames {
     function superPermissionedGameArgsOffset(GameArg _gameArg) internal pure returns (uint256) {
         if (_gameArg == GameArg.ASR) return 0;
         if (_gameArg == GameArg.PROPOSER) return 20;
-        if (_gameArg == GameArg.CHALLENGER) return 40;
 
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }

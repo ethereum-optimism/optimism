@@ -14,7 +14,7 @@ import (
 const (
 	PermissionlessArgsLength    = 124
 	PermissionedArgsLength      = 164
-	SuperPermissionedArgsLength = 60
+	SuperPermissionedArgsLength = 40
 	ZKArgsLength                = 172
 )
 
@@ -35,7 +35,6 @@ type GameArgs struct {
 type SuperPermissionedGameArgs struct {
 	AnchorStateRegistry common.Address
 	Proposer            common.Address
-	Challenger          common.Address
 }
 
 func (g GameArgs) PackPermissionless() []byte {
@@ -61,7 +60,6 @@ func (g SuperPermissionedGameArgs) Pack() []byte {
 	return slices.Concat(
 		g.AnchorStateRegistry[:],
 		g.Proposer[:],
-		g.Challenger[:],
 	)
 }
 
@@ -130,6 +128,5 @@ func ParseSuperPermissioned(args []byte) (SuperPermissionedGameArgs, error) {
 	return SuperPermissionedGameArgs{
 		AnchorStateRegistry: common.BytesToAddress(args[0:20]),
 		Proposer:            common.BytesToAddress(args[20:40]),
-		Challenger:          common.BytesToAddress(args[40:60]),
 	}, nil
 }

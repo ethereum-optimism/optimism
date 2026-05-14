@@ -286,13 +286,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
-                        proposer: proposer,
-                        challenger: challenger
-                    })
-                )
+                gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
             });
             if (isPermissionless) {
                 disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({

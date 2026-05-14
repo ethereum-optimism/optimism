@@ -8,7 +8,7 @@ import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 library LibGameArgs {
     uint256 public constant PERMISSIONLESS_ARGS_LENGTH = 124;
     uint256 public constant PERMISSIONED_ARGS_LENGTH = 164;
-    uint256 public constant SUPER_PERMISSIONED_ARGS_LENGTH = 60;
+    uint256 public constant SUPER_PERMISSIONED_ARGS_LENGTH = 40;
     uint256 public constant ZK_ARGS_LENGTH = 172;
 
     /// @notice Struct representing the game arguments.
@@ -38,7 +38,6 @@ library LibGameArgs {
     struct SuperPermissionedGameArgs {
         address anchorStateRegistry;
         address proposer;
-        address challenger;
     }
 
     /// @notice Encodes the game arguments into a bytes array.
@@ -117,7 +116,7 @@ library LibGameArgs {
 
     /// @notice Encodes simplified super permissioned game arguments into a bytes array.
     function encodeSuperPermissioned(SuperPermissionedGameArgs memory _args) internal pure returns (bytes memory) {
-        return abi.encodePacked(_args.anchorStateRegistry, _args.proposer, _args.challenger);
+        return abi.encodePacked(_args.anchorStateRegistry, _args.proposer);
     }
 
     /// @notice Decodes simplified super permissioned game arguments from a bytes array.
@@ -129,14 +128,12 @@ library LibGameArgs {
         if (_args.length != SUPER_PERMISSIONED_ARGS_LENGTH) revert InvalidGameArgsLength();
         address asr;
         address proposer;
-        address challenger;
         assembly {
             let d := add(_args, 32)
             asr := shr(96, mload(d))
             proposer := shr(96, mload(add(d, 20)))
-            challenger := shr(96, mload(add(d, 40)))
         }
-        args_ = SuperPermissionedGameArgs({ anchorStateRegistry: asr, proposer: proposer, challenger: challenger });
+        args_ = SuperPermissionedGameArgs({ anchorStateRegistry: asr, proposer: proposer });
     }
 
     /// @notice Checks if the provided game arguments are valid for a simplified super permissioned game.

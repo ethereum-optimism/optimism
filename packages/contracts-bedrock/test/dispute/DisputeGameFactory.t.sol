@@ -159,6 +159,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer, _challenger);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
         (_absolutePrestate);
+        (_challenger);
         (vm_, preimageOracle_) = _createVM(_absolutePrestate);
     }
 
@@ -253,7 +254,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         view
         returns (bytes memory implArgs_)
     {
-        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer, _challenger);
+        (_challenger);
+        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
@@ -288,9 +290,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (Duration.wrap(3.5 days)))
-            )
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
         vm.startPrank(disputeGameFactory.owner());
         disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(gameImpl_), _implArgs);

@@ -89,14 +89,12 @@ func TestSuperPermissionedGameCaller_GetExtendedMetadata(t *testing.T) {
 	expectedL2SequenceNumber := uint64(456)
 	expectedRootClaim := common.Hash{0x22}
 	expectedStatus := types.GameStatusChallengerWon
-	expectedMaxClockDuration := uint64(789)
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, snapshots.LoadSuperPermissionedDisputeGameABI())
 	stubRpc.SetResponse(fdgAddr, "l1Head", block, nil, []interface{}{expectedL1Head})
 	stubRpc.SetResponse(fdgAddr, "l2SequenceNumber", block, nil, []interface{}{new(big.Int).SetUint64(expectedL2SequenceNumber)})
 	stubRpc.SetResponse(fdgAddr, "rootClaim", block, nil, []interface{}{expectedRootClaim})
 	stubRpc.SetResponse(fdgAddr, "status", block, nil, []interface{}{expectedStatus})
-	stubRpc.SetResponse(fdgAddr, "maxClockDuration", block, nil, []interface{}{expectedMaxClockDuration})
 
 	caller := NewSuperPermissionedGameCaller(&mockCacheMetrics{}, fdgAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 	actual, err := caller.GetExtendedMetadata(context.Background(), block)
@@ -105,7 +103,7 @@ func TestSuperPermissionedGameCaller_GetExtendedMetadata(t *testing.T) {
 	require.Equal(t, expectedL2SequenceNumber, actual.L2SequenceNum)
 	require.Equal(t, expectedRootClaim, actual.RootClaim)
 	require.Equal(t, expectedStatus, actual.Status)
-	require.Equal(t, expectedMaxClockDuration, actual.MaxClockDuration)
+	require.Zero(t, actual.MaxClockDuration)
 
 	claims, err := caller.GetAllClaims(context.Background(), block)
 	require.NoError(t, err)

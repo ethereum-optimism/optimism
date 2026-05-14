@@ -6,14 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { GameStatus, GameTypes, Claim } from "src/dispute/lib/Types.sol";
-import {
-    BadAuth,
-    BadExtraData,
-    ClockNotExpired,
-    ClockTimeExceeded,
-    GameNotInProgress,
-    UnknownChainId
-} from "src/dispute/lib/Errors.sol";
+import { BadAuth, BadExtraData, GameNotInProgress, UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -27,7 +20,6 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
     event Resolved(GameStatus indexed status);
 
     address internal constant PROPOSER = address(0xfacade9);
-    address internal constant CHALLENGER = address(0xfacadec);
 
     ISuperPermissionedDisputeGame internal gameImpl;
     ISuperPermissionedDisputeGame internal gameProxy;
@@ -48,7 +40,7 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         rootClaim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
         extraData = Encoding.encodeSuperRootProof(superRootProof);
 
-        (address impl,,) = setupSuperPermissionedDisputeGame(Claim.wrap(bytes32(0)), PROPOSER, CHALLENGER);
+        (address impl,,) = setupSuperPermissionedDisputeGame(Claim.wrap(bytes32(0)), PROPOSER, address(0));
         gameImpl = ISuperPermissionedDisputeGame(impl);
 
         vm.prank(superchainConfig.guardian());
@@ -84,8 +76,6 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         assertEq(gameProxy.extraData(), extraData);
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(gameProxy.proposer(), PROPOSER);
-        assertEq(gameProxy.challenger(), CHALLENGER);
-        assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
     }
 
     function test_createGame_notProposer_reverts() public {
@@ -127,49 +117,8 @@ contract SuperPermissionedDisputeGame_RootClaimByChainId_Test is SuperPermission
     }
 }
 
-contract SuperPermissionedDisputeGame_Challenge_Test is SuperPermissionedDisputeGame_TestInit {
-    function test_challenge_challenger_succeeds() public {
-        vm.prank(CHALLENGER);
-        vm.expectEmit(address(gameProxy));
-        emit Resolved(GameStatus.CHALLENGER_WINS);
-        gameProxy.challenge();
-
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
-        assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
-    }
-
-    function test_challenge_notChallenger_reverts() public {
-        vm.expectRevert(BadAuth.selector);
-        gameProxy.challenge();
-    }
-
-    function test_challenge_afterChallengeWindowElapsed_reverts() public {
-        vm.warp(block.timestamp + gameProxy.maxClockDuration().raw() + 1);
-
-        vm.prank(CHALLENGER);
-        vm.expectRevert(ClockTimeExceeded.selector);
-        gameProxy.challenge();
-    }
-
-    function test_challenge_afterResolution_reverts() public {
-        vm.warp(block.timestamp + gameProxy.maxClockDuration().raw() + 1);
-        gameProxy.resolve();
-
-        vm.prank(CHALLENGER);
-        vm.expectRevert(GameNotInProgress.selector);
-        gameProxy.challenge();
-    }
-}
-
 contract SuperPermissionedDisputeGame_Resolve_Test is SuperPermissionedDisputeGame_TestInit {
-    function test_resolve_beforeChallengeWindowElapsed_reverts() public {
-        vm.warp(block.timestamp + gameProxy.maxClockDuration().raw());
-        vm.expectRevert(ClockNotExpired.selector);
-        gameProxy.resolve();
-    }
-
-    function test_resolve_afterChallengeWindowElapsed_succeeds() public {
-        vm.warp(block.timestamp + gameProxy.maxClockDuration().raw() + 1);
+    function test_resolve_succeeds() public {
         vm.expectEmit(address(gameProxy));
         emit Resolved(GameStatus.DEFENDER_WINS);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
@@ -178,11 +127,21 @@ contract SuperPermissionedDisputeGame_Resolve_Test is SuperPermissionedDisputeGa
         assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
     }
 
-    function test_resolve_afterChallenge_reverts() public {
-        vm.prank(CHALLENGER);
-        gameProxy.challenge();
+    function test_resolve_afterResolution_reverts() public {
+        gameProxy.resolve();
 
         vm.expectRevert(GameNotInProgress.selector);
         gameProxy.resolve();
+    }
+
+    function test_resolve_blacklistedGameIsNotClaimValid() public {
+        gameProxy.resolve();
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(gameProxy);
+
+        assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
+        vm.expectRevert();
+        anchorStateRegistry.setAnchorState(gameProxy);
     }
 }

@@ -442,9 +442,9 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.challenger
             );
         } else if (rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-            IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
-                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
-            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer, parsedInputArgs.challenger);
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
+            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));

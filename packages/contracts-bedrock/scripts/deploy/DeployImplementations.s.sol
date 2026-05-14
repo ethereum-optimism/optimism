@@ -483,13 +483,11 @@ contract DeployImplementations is Script {
     }
 
     function deploySuperPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
-        Duration maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
+        (_input);
         ISuperPermissionedDisputeGame impl = ISuperPermissionedDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "SuperPermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (maxClockDuration))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ())),
                 _salt: _salt
             })
         );

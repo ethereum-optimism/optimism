@@ -55,23 +55,17 @@ func TestDevFeatureBitmapForL2Genesis(t *testing.T) {
 	}
 }
 
-func TestEncodePermissionedGameArgs(t *testing.T) {
-	prestate := common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+func TestEncodeSuperPermissionedGameArgs(t *testing.T) {
 	proposer := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	challenger := common.HexToAddress("0x2222222222222222222222222222222222222222")
 
-	args, err := encodePermissionedGameArgs(prestate, proposer, challenger)
+	args, err := encodeSuperPermissionedGameArgs(proposer)
 	require.NoError(t, err)
-	require.Len(t, args, 96)
+	require.Len(t, args, 32)
 
-	bytes32Type, err := abi.NewType("bytes32", "", nil)
-	require.NoError(t, err)
 	addressType, err := abi.NewType("address", "", nil)
 	require.NoError(t, err)
 
-	unpacked, err := abi.Arguments{{Type: bytes32Type}, {Type: addressType}, {Type: addressType}}.Unpack(args)
+	unpacked, err := abi.Arguments{{Type: addressType}}.Unpack(args)
 	require.NoError(t, err)
-	require.Equal(t, prestate, common.Hash(unpacked[0].([32]byte)))
-	require.Equal(t, proposer, unpacked[1])
-	require.Equal(t, challenger, unpacked[2])
+	require.Equal(t, proposer, unpacked[0])
 }

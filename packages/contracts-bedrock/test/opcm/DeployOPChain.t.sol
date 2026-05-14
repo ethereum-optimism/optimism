@@ -260,14 +260,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             assertEq(
                 Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension"
             );
-        }
-        assertEq(
-            Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
-        );
-
-        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs.
-        // Super game impls use a different immutable args layout so skip these checks.
-        if (!isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            assertEq(
+                Duration.unwrap(pdg.maxClockDuration()),
+                Duration.unwrap(disputeMaxClockDuration),
+                "PDG maxClockDuration"
+            );
             assertEq(address(pdg.proposer()), address(0), "PDG proposer");
             assertEq(address(pdg.challenger()), address(0), "PDG challenger");
             assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
