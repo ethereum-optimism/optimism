@@ -222,7 +222,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "zero EL finalized blocks startup",
+			name: "empty EL finalized response blocks startup",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -231,6 +231,18 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 					Build()
 			},
 			wantErr: true,
+		},
+		{
+			name: "EL finalized at genesis with a real hash is accepted",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+						m.elFinalizedHead = eth.L2BlockRef{Number: 0, Time: 50, Hash: common.HexToHash("0xgenesis")}
+						m.elFinalizedHeadSet = true
+					}).
+					Build()
+			},
+			want: 100,
 		},
 		{
 			name: "EL finalized before activation returns activation",
@@ -412,25 +424,20 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
-func TestStartWithoutBackfillWaitsWhenVerifiedDBAheadOfELFinalized(t *testing.T) {
+// Warm restart with no backfill must resume from verifiedDB without consulting
+// EL finalized.
+func TestStartWithoutBackfillResumesFromVerifiedDBIgnoringELFinalized(t *testing.T) {
 	const (
 		activation   uint64 = 100
 		lastVerified uint64 = 195
 	)
-	origBackoff := errorBackoffPeriod
-	errorBackoffPeriod = 10 * time.Millisecond
-	t.Cleanup(func() { errorBackoffPeriod = origBackoff })
 
-	var elCaughtUp atomic.Bool
 	var elFinalizedCalls atomic.Int32
 	h := newInteropTestHarness(t).
 		WithActivation(activation).
 		WithChain(10, func(m *mockChainContainer) {
 			m.elFinalizedHeadOverride = func() (eth.L2BlockRef, error) {
 				elFinalizedCalls.Add(1)
-				if elCaughtUp.Load() {
-					return eth.L2BlockRef{Number: 200, Time: 200}, nil
-				}
 				return eth.L2BlockRef{Number: 190, Time: 190}, nil
 			}
 			m.syncStatusFull = &eth.SyncStatus{
@@ -462,26 +469,17 @@ func TestStartWithoutBackfillWaitsWhenVerifiedDBAheadOfELFinalized(t *testing.T)
 	done := make(chan error, 1)
 	go func() { done <- h.interop.Start(ctx) }()
 
-	require.Eventually(t, func() bool {
-		return elFinalizedCalls.Load() > 0
-	}, 5*time.Second, 10*time.Millisecond, "startup did not query EL finalized head")
-
 	select {
 	case ts := <-verifiedTS:
-		t.Fatalf("interop attempted verification at %d while verifiedDB was ahead of EL finalized", ts)
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	elCaughtUp.Store(true)
-
-	select {
-	case ts := <-verifiedTS:
-		require.Equal(t, lastVerified+1, ts)
+		require.Equal(t, lastVerified+1, ts,
+			"startup must resume verification at verifiedDB.LastTimestamp+1, not gate on EL finalized")
 	case <-time.After(5 * time.Second):
-		t.Fatal("interop did not resume after EL finalized caught up to verifiedDB")
+		t.Fatal("interop did not start verifying despite initialized verifiedDB")
 	}
 
 	require.ErrorIs(t, <-done, context.Canceled)
+	require.Zero(t, elFinalizedCalls.Load(),
+		"warm-restart startup must not consult EL finalized when verifiedDB is initialized")
 }
 
 func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {

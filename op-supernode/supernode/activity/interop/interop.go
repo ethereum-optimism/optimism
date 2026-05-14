@@ -195,7 +195,8 @@ func (i *Interop) Name() string {
 // firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
 // to verify. If verification has already committed results, the first committed
 // timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
-// after log backfill, or the EL-finalized-derived startup timestamp.
+// after log backfill, or — on cold start with no committed results and no
+// backfill range — the EL-finalized-derived startup timestamp.
 func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if i.verifiedDB != nil {
 		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
@@ -308,48 +309,38 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.backfillCompleted.Store(true)
 	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
 
-	waitForFirstVerifiable := func(resolve func(context.Context) (uint64, error)) (uint64, error) {
-		for {
-			first, err := resolve(i.ctx)
-			if err == nil {
-				return first, nil
-			}
-			// Permanent SafeDB gap must halt normal startup cleanly. Backfill-enabled
-			// startup reaches this path only if backfill had no range to seal.
-			if errors.Is(err, cc.ErrHistoryUnavailable) {
-				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-				return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
-			}
-			i.log.Warn("first verifiable timestamp unavailable, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
-			select {
-			case <-i.ctx.Done():
-				return 0, fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
-			case <-time.After(errorBackoffPeriod):
-			}
-		}
-	}
-
 	firstVerifiableLog := uint64(0)
 	if i.backfillEndTimestamp != 0 {
 		firstVerifiableLog = i.backfillEndTimestamp + 1
 		if firstVerifiableLog < i.activationTimestamp {
 			firstVerifiableLog = i.activationTimestamp
 		}
-	} else if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
-		first, err := waitForFirstVerifiable(i.resolveFirstVerifiableTimestamp)
-		if err != nil {
-			return err
-		}
-		firstVerifiableLog = first
+	} else if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		// Resume from the last commit to keep verifiedDB gap-free.
+		firstVerifiableLog = lastTS + 1
 	} else {
-		first, err := waitForFirstVerifiable(i.readyFirstVerifiableTimestamp)
-		if err != nil {
-			return err
+		for {
+			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
+			if err == nil {
+				i.firstVerifiable = first
+				i.firstVerifiableSet = true
+				firstVerifiableLog = first
+				break
+			}
+			// Permanent SafeDB gap must halt normal startup cleanly. Backfill-enabled
+			// startup reaches this path only if backfill had no range to seal.
+			if errors.Is(err, cc.ErrHistoryUnavailable) {
+				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				return fmt.Errorf("interop halted due to unavailable history: %w", err)
+			}
+			i.log.Warn("first verifiable timestamp unavailable, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
+			select {
+			case <-i.ctx.Done():
+				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
+			case <-time.After(errorBackoffPeriod):
+			}
 		}
-		i.firstVerifiable = first
-		i.firstVerifiableSet = true
-		firstVerifiableLog = first
 	}
 	i.log.Info("interop first verifiable timestamp resolved",
 		"activationTimestamp", i.activationTimestamp,

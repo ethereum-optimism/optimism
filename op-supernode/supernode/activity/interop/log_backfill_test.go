@@ -807,7 +807,9 @@ func TestLogBackfill_UsesVerifiedDBWhenInitializedAndSyncStatusStale(t *testing.
 	require.Equal(t, lastVerified, latest.Number)
 }
 
-func TestLogBackfill_ErrorsWhenVerifiedDBAheadOfELFinalized(t *testing.T) {
+// verifiedDB.LastTimestamp typically exceeds min EL finalized; backfill must
+// still resume from verifiedDB.
+func TestLogBackfill_UsesVerifiedDBWhenAheadOfELFinalized(t *testing.T) {
 	const (
 		act          uint64 = 100
 		elFinalized  uint64 = 190
@@ -839,11 +841,14 @@ func TestLogBackfill_ErrorsWhenVerifiedDBAheadOfELFinalized(t *testing.T) {
 		}))
 	}
 
-	_, err := h.interop.runLogBackfill()
-	require.ErrorContains(t, err, "verifiedDB last timestamp 195 is ahead of minimum EL finalized timestamp 190")
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, lastVerified, end,
+		"backfill end derives from verifiedDB.LastTimestamp regardless of EL finalized")
 
-	_, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
-	require.False(t, has, "backfill must not write logs when verifiedDB is ahead of EL finalized")
+	latest, has := h.interop.logsDBs[chain10.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, lastVerified, latest.Number)
 }
 
 // TestLogBackfill_LeavesAheadLogsDBUnchanged asserts that when a chain's

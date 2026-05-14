@@ -10,23 +10,21 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
-// resolveFirstVerifiableTimestamp returns the first timestamp not already
-// covered by durable local state, bounded by the minimum EL finalized head.
+// resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
+// by durable local state: verifiedDB.LastTimestamp+1 when initialized,
+// otherwise the minimum EL finalized head + 1 (clamped to activation).
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
 	}
+	if i.verifiedDB != nil {
+		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			return lastTS + 1, nil
+		}
+	}
 	minELFinalizedTime, err := i.minELFinalizedTime(ctx)
 	if err != nil {
 		return 0, err
-	}
-	if i.verifiedDB != nil {
-		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
-			if lastTS > minELFinalizedTime {
-				return 0, fmt.Errorf("verifiedDB last timestamp %d is ahead of minimum EL finalized timestamp %d", lastTS, minELFinalizedTime)
-			}
-			return lastTS + 1, nil
-		}
 	}
 	if minELFinalizedTime < i.activationTimestamp {
 		return i.activationTimestamp, nil
@@ -45,8 +43,10 @@ func (i *Interop) minELFinalizedTime(ctx context.Context) (uint64, error) {
 		if err != nil {
 			return 0, fmt.Errorf("chain %s: EL finalized head: %w", chain.ID(), err)
 		}
-		if elFinalized.Number == 0 {
-			return 0, fmt.Errorf("chain %s: EL finalized head number is 0", chain.ID())
+		// Genesis (Number == 0) with a real hash is a legitimate finalized head;
+		// only reject the zero-value response from an EL that isn't ready yet.
+		if elFinalized == (eth.L2BlockRef{}) {
+			return 0, fmt.Errorf("chain %s: EL finalized head not yet available", chain.ID())
 		}
 		i.log.Debug("first verifiable timestamp: EL finalized head",
 			"chain", chain.ID(), "elFinalized", elFinalized)
