@@ -340,13 +340,16 @@ mod tests {
                     Ok((connection, _addr)) => {
                         match accept_async(connection).await {
                             Ok(ws_stream) => {
-                                let (_, mut read) = ws_stream.split();
+                                let (mut write, mut read) = ws_stream.split();
                                 loop {
                                     if send_pongs.load(Ordering::Relaxed) {
                                         let msg = read.next().await;
                                         match msg {
-                                            // we need to read for the library to handle pong messages
                                             Some(Ok(Message::Ping(data))) => {
+                                                write
+                                                    .send(Message::Pong(data.clone()))
+                                                    .await
+                                                    .ok();
                                                 send_ping_tx
                                                     .send(data)
                                                     .await
