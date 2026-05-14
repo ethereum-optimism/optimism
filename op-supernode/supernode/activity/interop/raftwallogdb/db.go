@@ -73,6 +73,11 @@ type blockRecord struct {
 	Timestamp    uint64
 	LogCount     uint32
 	ExecMsgCount uint32
+
+	// hashes and execMsgs are sub-slices of the decoded entry buffer.
+	// Nil on records built for encoding.
+	hashes   []byte
+	execMsgs []byte
 }
 
 func (r *blockRecord) encodeInto(buf []byte) {
@@ -83,6 +88,23 @@ func (r *blockRecord) encodeInto(buf []byte) {
 	binary.BigEndian.PutUint32(buf[76:80], r.ExecMsgCount)
 }
 
+// LogHash returns the log hash at slot i. Caller must ensure i < r.LogCount.
+func (r *blockRecord) LogHash(i uint32) common.Hash {
+	var h common.Hash
+	off := int(i) * logHashSize
+	copy(h[:], r.hashes[off:off+logHashSize])
+	return h
+}
+
+// ExecMsg returns the i-th executing-message record as (localLogIdx, msg).
+// Caller must ensure i < r.ExecMsgCount.
+func (r *blockRecord) ExecMsg(i uint32) (uint32, *types.ExecutingMessage) {
+	off := int(i) * execMsgRecordSize
+	return decodeExecMsg(r.execMsgs[off : off+execMsgRecordSize])
+}
+
+// decodeBlockRecord parses an entry and verifies its full length matches the
+// header's declared counts.
 func decodeBlockRecord(buf []byte) (blockRecord, error) {
 	if len(buf) < blockRecordSize {
 		return blockRecord{}, fmt.Errorf("%w: blockRecord: short buffer %d", types.ErrDataCorruption, len(buf))
@@ -93,23 +115,15 @@ func decodeBlockRecord(buf []byte) (blockRecord, error) {
 	r.Timestamp = binary.BigEndian.Uint64(buf[64:72])
 	r.LogCount = binary.BigEndian.Uint32(buf[72:76])
 	r.ExecMsgCount = binary.BigEndian.Uint32(buf[76:80])
-	return r, nil
-}
 
-// decodeSealedBlock parses an entry and verifies its full length matches the
-// header's declared counts. Returns the header plus slices into the log-hash
-// and execMsg regions so callers can index without re-checking bounds.
-func decodeSealedBlock(buf []byte) (blockRecord, []byte, []byte, error) {
-	rec, err := decodeBlockRecord(buf)
-	if err != nil {
-		return blockRecord{}, nil, nil, err
-	}
-	expected := blockRecordSize + int(rec.LogCount)*logHashSize + int(rec.ExecMsgCount)*execMsgRecordSize
+	expected := blockRecordSize + int(r.LogCount)*logHashSize + int(r.ExecMsgCount)*execMsgRecordSize
 	if len(buf) != expected {
-		return blockRecord{}, nil, nil, fmt.Errorf("%w: entry length %d, expected %d", types.ErrDataCorruption, len(buf), expected)
+		return blockRecord{}, fmt.Errorf("%w: entry length %d, expected %d", types.ErrDataCorruption, len(buf), expected)
 	}
-	hashesEnd := hashesOffset + int(rec.LogCount)*logHashSize
-	return rec, buf[hashesOffset:hashesEnd], buf[hashesEnd:], nil
+	hashesEnd := hashesOffset + int(r.LogCount)*logHashSize
+	r.hashes = buf[hashesOffset:hashesEnd]
+	r.execMsgs = buf[hashesEnd:]
+	return r, nil
 }
 
 // encodeExecMsgInto writes an 88-byte execMsg record (with embedded logIdx) to buf.
@@ -249,7 +263,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	if err := d.w.GetLog(indexFor(blockNum), &log); err != nil {
 		return eth.BlockRef{}, 0, nil, fmt.Errorf("GetLog(%d): %w", blockNum, err)
 	}
-	rec, _, execBuf, err := decodeSealedBlock(log.Data)
+	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}
@@ -261,8 +275,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	}
 	execMsgs := make(map[uint32]*types.ExecutingMessage, rec.ExecMsgCount)
 	for i := uint32(0); i < rec.ExecMsgCount; i++ {
-		off := int(i) * execMsgRecordSize
-		idx, em := decodeExecMsg(execBuf[off : off+execMsgRecordSize])
+		idx, em := rec.ExecMsg(i)
 		execMsgs[idx] = em
 	}
 	return ref, rec.LogCount, execMsgs, nil
@@ -288,7 +301,7 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
 		return types.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
 	}
-	rec, hashes, _, err := decodeSealedBlock(log.Data)
+	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
 		return types.BlockSeal{}, err
 	}
@@ -299,10 +312,7 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d: %w", query.Timestamp, rec.Timestamp, types.ErrConflict)
 	}
 
-	// Direct O(1) lookup into the log-hash array.
-	hashOff := int(query.LogIdx) * logHashSize
-	var logHash common.Hash
-	copy(logHash[:], hashes[hashOff:hashOff+logHashSize])
+	logHash := rec.LogHash(query.LogIdx)
 	expectedChecksum := types.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,

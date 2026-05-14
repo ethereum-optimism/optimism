@@ -521,31 +521,67 @@ func TestPreSealCrashLosesPending(t *testing.T) {
 }
 
 func TestRecordEncoding_Roundtrip(t *testing.T) {
+	logHashes := []common.Hash{hash(0x11), hash(0x22), hash(0x33)}
+	execMsgs := []struct {
+		localLogIdx uint32
+		msg         types.ExecutingMessage
+	}{
+		{
+			localLogIdx: 0,
+			msg: types.ExecutingMessage{
+				ChainID:   eth.ChainIDFromUInt64(8453),
+				BlockNum:  99,
+				LogIdx:    7,
+				Timestamp: 4242,
+				Checksum:  types.MessageChecksum(hash(0x77)),
+			},
+		},
+		{
+			localLogIdx: 2,
+			msg: types.ExecutingMessage{
+				ChainID:   eth.ChainIDFromUInt64(10),
+				BlockNum:  100,
+				LogIdx:    1,
+				Timestamp: 4243,
+				Checksum:  types.MessageChecksum(hash(0x88)),
+			},
+		},
+	}
+
 	br := blockRecord{
 		Hash:         hash(0xAB),
 		ParentHash:   hash(0xCD),
 		Timestamp:    1234567890,
-		LogCount:     42,
-		ExecMsgCount: 3,
+		LogCount:     uint32(len(logHashes)),
+		ExecMsgCount: uint32(len(execMsgs)),
 	}
-	encoded := make([]byte, blockRecordSize)
-	br.encodeInto(encoded)
+	dataLen := blockRecordSize + len(logHashes)*logHashSize + len(execMsgs)*execMsgRecordSize
+	encoded := make([]byte, dataLen)
+	br.encodeInto(encoded[:blockRecordSize])
+	for i, h := range logHashes {
+		copy(encoded[hashesOffset+i*logHashSize:hashesOffset+(i+1)*logHashSize], h[:])
+	}
+	execOff := hashesOffset + len(logHashes)*logHashSize
+	for i, em := range execMsgs {
+		encodeExecMsgInto(encoded[execOff+i*execMsgRecordSize:execOff+(i+1)*execMsgRecordSize], em.localLogIdx, &em.msg)
+	}
+
 	got, err := decodeBlockRecord(encoded)
 	require.NoError(t, err)
-	require.Equal(t, br, got)
+	require.Equal(t, br.Hash, got.Hash)
+	require.Equal(t, br.ParentHash, got.ParentHash)
+	require.Equal(t, br.Timestamp, got.Timestamp)
+	require.Equal(t, br.LogCount, got.LogCount)
+	require.Equal(t, br.ExecMsgCount, got.ExecMsgCount)
 
-	em := types.ExecutingMessage{
-		ChainID:   eth.ChainIDFromUInt64(8453),
-		BlockNum:  99,
-		LogIdx:    7,
-		Timestamp: 4242,
-		Checksum:  types.MessageChecksum(hash(0x77)),
+	for i, want := range logHashes {
+		require.Equal(t, want, got.LogHash(uint32(i)))
 	}
-	emBuf := make([]byte, execMsgRecordSize)
-	encodeExecMsgInto(emBuf, 5, &em)
-	gotIdx, gotEm := decodeExecMsg(emBuf)
-	require.Equal(t, uint32(5), gotIdx)
-	require.Equal(t, &em, gotEm)
+	for i, want := range execMsgs {
+		gotIdx, gotEm := got.ExecMsg(uint32(i))
+		require.Equal(t, want.localLogIdx, gotIdx)
+		require.Equal(t, &want.msg, gotEm)
+	}
 }
 
 func TestMultipleExecMsgsInBlock(t *testing.T) {
