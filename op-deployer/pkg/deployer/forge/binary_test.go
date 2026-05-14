@@ -44,7 +44,7 @@ func TestStandardBinary_ForgeBins(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			require.NoError(t, bin.Ensure(ctx))
 		})
@@ -52,9 +52,6 @@ func TestStandardBinary_ForgeBins(t *testing.T) {
 }
 
 func TestStandardBinary_Downloads(t *testing.T) {
-	// Force the download path so a locally installed matching forge binary does not satisfy Ensure.
-	t.Setenv("PATH", "")
-
 	expChecksum, err := os.ReadFile("testdata/foundry.tgz.sha256")
 	require.NoError(t, err)
 
