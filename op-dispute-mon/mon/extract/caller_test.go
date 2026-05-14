@@ -47,9 +47,8 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(types.FastGameType), Proxy: fdgAddr},
 		},
 		{
-			name:        "unsupportedSuperPermissionedGameType",
-			game:        types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType), Proxy: fdgAddr},
-			expectedErr: fmt.Errorf("unsupported game type: 5"),
+			name: "validSuperPermissionedGameType",
+			game: types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperCannonKonaGameType",
@@ -85,7 +84,8 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 
 func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCaller, *mockCacheMetrics) {
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
-	if gameType == uint32(types.SuperCannonKonaGameType) {
+	if gameType == uint32(types.SuperPermissionedGameType) ||
+		gameType == uint32(types.SuperCannonKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
