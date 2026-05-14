@@ -178,6 +178,20 @@ func (r *l2ELFrontend) Stop() {
 	r.lifecycle.Stop()
 }
 
+func (r *l2ELFrontend) DisconnectEngineRPC() {
+	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
+	ctrl, ok := r.lifecycle.(interface{ DisconnectEngineRPC() })
+	r.require().Truef(ok, "L2EL node %s does not support engine RPC disconnection", r.Name())
+	ctrl.DisconnectEngineRPC()
+}
+
+func (r *l2ELFrontend) ReconnectEngineRPC() {
+	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
+	ctrl, ok := r.lifecycle.(interface{ ReconnectEngineRPC() })
+	r.require().Truef(ok, "L2EL node %s does not support engine RPC reconnection", r.Name())
+	ctrl.ReconnectEngineRPC()
+}
+
 type l2CLFrontend struct {
 	presetCommon
 	chainID          eth.ChainID

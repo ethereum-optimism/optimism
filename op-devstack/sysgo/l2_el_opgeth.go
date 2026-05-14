@@ -30,8 +30,9 @@ type OpGeth struct {
 	l2Geth        *geth.GethInstance
 	cfg           *L2ELConfig
 
-	authRPC string
-	userRPC string
+	authRPC      string
+	userRPC      string
+	authUpstream string
 
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
@@ -126,8 +127,24 @@ func (n *OpGeth) Start() {
 	require.NoError(err)
 	require.NoError(l2Geth.Node.Start())
 	n.l2Geth = l2Geth
-	n.authProxy.SetUpstream(ProxyAddr(require, l2Geth.AuthRPC().RPC()))
+	n.authUpstream = ProxyAddr(require, l2Geth.AuthRPC().RPC())
+	n.authProxy.SetUpstream(n.authUpstream)
 	n.userProxy.SetUpstream(ProxyAddr(require, l2Geth.UserRPC().RPC()))
+}
+
+func (n *OpGeth) DisconnectEngineRPC() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.authProxy, "op-geth auth proxy is not initialized")
+	n.authProxy.ClearUpstream()
+}
+
+func (n *OpGeth) ReconnectEngineRPC() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.authProxy, "op-geth auth proxy is not initialized")
+	n.p.Require().NotEmpty(n.authUpstream, "op-geth auth upstream is not initialized")
+	n.authProxy.SetUpstream(n.authUpstream)
 }
 
 func (n *OpGeth) Stop() {

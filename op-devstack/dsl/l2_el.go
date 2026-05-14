@@ -359,6 +359,18 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+func (el *L2ELNode) DisconnectEngineRPC() {
+	ctrl, ok := el.inner.(interface{ DisconnectEngineRPC() })
+	el.require.Truef(ok, "L2EL node %s does not support engine RPC disconnection", el.inner.Name())
+	ctrl.DisconnectEngineRPC()
+}
+
+func (el *L2ELNode) ReconnectEngineRPC() {
+	ctrl, ok := el.inner.(interface{ ReconnectEngineRPC() })
+	el.require.Truef(ok, "L2EL node %s does not support engine RPC reconnection", el.inner.Name())
+	ctrl.ReconnectEngineRPC()
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
 }

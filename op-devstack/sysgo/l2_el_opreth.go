@@ -79,12 +79,13 @@ func OpRethWithSupervisorURL(supervisorURL string) OpRethOption {
 type OpReth struct {
 	mu sync.Mutex
 
-	name      string
-	chainID   eth.ChainID
-	jwtPath   string
-	jwtSecret [32]byte
-	authRPC   string
-	userRPC   string
+	name         string
+	chainID      eth.ChainID
+	jwtPath      string
+	jwtSecret    [32]byte
+	authRPC      string
+	userRPC      string
+	authUpstream string
 
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
@@ -185,7 +186,23 @@ func (n *OpReth) Start() {
 	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
-	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+	n.authUpstream = ProxyAddr(n.p.Require(), authRPCAddr)
+	n.authProxy.SetUpstream(n.authUpstream)
+}
+
+func (n *OpReth) DisconnectEngineRPC() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.authProxy, "op-reth auth proxy is not initialized")
+	n.authProxy.ClearUpstream()
+}
+
+func (n *OpReth) ReconnectEngineRPC() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.authProxy, "op-reth auth proxy is not initialized")
+	n.p.Require().NotEmpty(n.authUpstream, "op-reth auth upstream is not initialized")
+	n.authProxy.SetUpstream(n.authUpstream)
 }
 
 // Stop stops the op-reth node.

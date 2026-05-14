@@ -43,6 +43,20 @@ func (p *Proxy) SetUpstream(addr string) {
 	p.mu.Unlock()
 }
 
+func (p *Proxy) ClearUpstream() {
+	p.mu.Lock()
+	p.upstreamAddr = ""
+	p.lgr.Info("cleared upstream")
+	p.closeConnsLocked()
+	p.mu.Unlock()
+}
+
+func (p *Proxy) closeConnsLocked() {
+	for conn := range p.conns {
+		conn.Close()
+	}
+}
+
 func (p *Proxy) Start() error {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -144,9 +158,7 @@ func (p *Proxy) Close() error {
 	// p.stopped under p.mu before adding new connections, so after this
 	// iteration no new connections can appear in p.conns.
 	p.mu.Lock()
-	for conn := range p.conns {
-		conn.Close()
-	}
+	p.closeConnsLocked()
 	p.mu.Unlock()
 
 	p.wg.Wait()
