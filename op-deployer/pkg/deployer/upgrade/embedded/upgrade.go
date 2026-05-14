@@ -31,6 +31,9 @@ var (
 	// This is used to encode the permissioned dispute game config for the upgrade input
 	permEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address proposer,address challenger))", "")
 
+	// This is used to encode the super-permissioned dispute game config for the upgrade input
+	superPermEncoder = w3.MustNewFunc("dummy((address proposer))", "")
+
 	// This is used to encode the ZK dispute game config for the upgrade input
 	zkEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
@@ -63,12 +66,13 @@ type UpgradeInputV2 struct {
 
 // DisputeGameConfig represents the configuration for a dispute game.
 type DisputeGameConfig struct {
-	Enabled                       bool                           `json:"enabled"`
-	InitBond                      *big.Int                       `json:"initBond"`
-	GameType                      GameType                       `json:"gameType"`
-	FaultDisputeGameConfig        *FaultDisputeGameConfig        `json:"faultDisputeGameConfig,omitempty"`
-	PermissionedDisputeGameConfig *PermissionedDisputeGameConfig `json:"permissionedDisputeGameConfig,omitempty"`
-	ZKDisputeGameConfig           *ZKDisputeGameConfig           `json:"zkDisputeGameConfig,omitempty"`
+	Enabled                            bool                                `json:"enabled"`
+	InitBond                           *big.Int                            `json:"initBond"`
+	GameType                           GameType                            `json:"gameType"`
+	FaultDisputeGameConfig             *FaultDisputeGameConfig             `json:"faultDisputeGameConfig,omitempty"`
+	PermissionedDisputeGameConfig      *PermissionedDisputeGameConfig      `json:"permissionedDisputeGameConfig,omitempty"`
+	SuperPermissionedDisputeGameConfig *SuperPermissionedDisputeGameConfig `json:"superPermissionedDisputeGameConfig,omitempty"`
+	ZKDisputeGameConfig                *ZKDisputeGameConfig                `json:"zkDisputeGameConfig,omitempty"`
 }
 
 // ExtraInstruction represents an additional upgrade instruction for the upgrade on OPCM v2.
@@ -89,6 +93,12 @@ type PermissionedDisputeGameConfig struct {
 	AbsolutePrestate common.Hash    `json:"absolutePrestate"`
 	Proposer         common.Address `json:"proposer"`
 	Challenger       common.Address `json:"challenger"`
+}
+
+// SuperPermissionedDisputeGameConfig represents the configuration for a super-permissioned dispute game.
+// It contains the proposer of the super-permissioned dispute game.
+type SuperPermissionedDisputeGameConfig struct {
+	Proposer common.Address `json:"proposer"`
 }
 
 // ZKDisputeGameConfig represents the configuration for a ZK dispute game.
@@ -139,7 +149,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode fault game config: %w", err)
 				}
-			case GameTypePermissionedCannon, GameTypeSuperPermCannon:
+			case GameTypePermissionedCannon:
 				if gameConfig.PermissionedDisputeGameConfig == nil {
 					return nil, fmt.Errorf("permissionedDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}
@@ -147,6 +157,15 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				gameArgs, err = permEncoder.EncodeArgs(gameConfig.PermissionedDisputeGameConfig)
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode permissioned game config: %w", err)
+				}
+			case GameTypeSuperPermCannon:
+				if gameConfig.SuperPermissionedDisputeGameConfig == nil {
+					return nil, fmt.Errorf("superPermissionedDisputeGameConfig is required for game type %d", gameConfig.GameType)
+				}
+				// Encode the super-permissioned dispute game args
+				gameArgs, err = superPermEncoder.EncodeArgs(gameConfig.SuperPermissionedDisputeGameConfig)
+				if err != nil {
+					return nil, fmt.Errorf("failed to encode super permissioned game config: %w", err)
 				}
 			case GameTypeZKDisputeGame:
 				if gameConfig.ZKDisputeGameConfig == nil {
