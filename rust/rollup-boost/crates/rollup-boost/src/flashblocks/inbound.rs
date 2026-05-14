@@ -238,12 +238,14 @@ mod tests {
         mpsc::Sender<FlashblocksPayloadV1>,
         mpsc::Receiver<()>,
         url::Url,
+        SocketAddr,
     )> {
         let (term_tx, mut term_rx) = watch::channel(false);
         let (send_tx, mut send_rx) = mpsc::channel::<FlashblocksPayloadV1>(100);
         let (send_ping_tx, send_ping_rx) = mpsc::channel::<()>(100);
 
         let listener = TcpListener::bind(addr)?;
+        let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
         listener
@@ -311,17 +313,17 @@ mod tests {
             }
         });
 
-        Ok((term_tx, send_tx, send_ping_rx, url))
+        Ok((term_tx, send_tx, send_ping_rx, url, addr))
     }
 
     async fn start_ping_server(
-        addr: SocketAddr,
         send_pongs: Arc<AtomicBool>,
     ) -> eyre::Result<(watch::Receiver<bool>, mpsc::Receiver<Bytes>, url::Url)> {
         let (term_tx, term_rx) = watch::channel(false);
         let (send_ping_tx, send_ping_rx) = mpsc::channel(100);
 
-        let listener = TcpListener::bind(addr)?;
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
         listener
@@ -383,10 +385,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_flashblocks_receiver_service() -> eyre::Result<()> {
-        let addr = "127.0.0.1:8080"
-            .parse::<SocketAddr>()
-            .expect("valid socket address");
-        let (term, send_msg, _, url) = start(addr).await?;
+        let (term, send_msg, _, url, addr) =
+            start("127.0.0.1:0".parse().expect("valid socket address")).await?;
 
         let (tx, mut rx) = mpsc::channel(100);
 
@@ -418,7 +418,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         // start a new server with the same address
-        let (term, send_msg, _, _url) = start(addr).await?;
+        let (term, send_msg, _, _url, _) = start(addr).await?;
         send_msg
             .send(FlashblocksPayloadV1::default())
             .await
@@ -436,11 +436,8 @@ mod tests {
         // test that if the builder is not sending any messages back, the service will send
         // ping messages to test the connection periodically
 
-        let addr = "127.0.0.1:8081"
-            .parse::<SocketAddr>()
-            .expect("valid socket address");
         let send_pongs = Arc::new(AtomicBool::new(true));
-        let (term, mut ping_rx, url) = start_ping_server(addr, send_pongs.clone()).await?;
+        let (term, mut ping_rx, url) = start_ping_server(send_pongs.clone()).await?;
         let config = FlashblocksWebsocketConfig {
             flashblock_builder_ws_initial_reconnect_ms: 100,
             flashblock_builder_ws_max_reconnect_ms: 1000,
