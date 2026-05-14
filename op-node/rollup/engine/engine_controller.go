@@ -265,6 +265,41 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	}
 }
 
+func (e *EngineController) safeL2HeadForForkchoice(ctx context.Context) (eth.L2BlockRef, error) {
+	if e.superAuthority == nil {
+		return e.SafeL2Head(), nil
+	}
+	fvshid, useLocalSafe := e.superAuthority.FullyVerifiedL2Head()
+	switch {
+	case useLocalSafe:
+		e.log.Debug("super authority signaled to use local-safe fallback")
+		return e.localSafeHead, nil
+	case fvshid == (eth.BlockID{}):
+		br, err := e.engine.L2BlockRefByNumber(ctx, 0)
+		if err != nil {
+			return eth.L2BlockRef{}, derive.NewTemporaryError(fmt.Errorf("failed to resolve superAuthority safe genesis head from engine: %w", err))
+		}
+		return br, nil
+	case fvshid.Number > e.localSafeHead.Number:
+		e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as SafeL2Head")
+		return e.localSafeHead, nil
+	default:
+		return e.resolveSuperAuthoritySafeHead(ctx, fvshid)
+	}
+}
+
+func (e *EngineController) resolveSuperAuthoritySafeHead(ctx context.Context, fvshid eth.BlockID) (eth.L2BlockRef, error) {
+	br, err := e.engine.L2BlockRefByHash(ctx, fvshid.Hash)
+	if err == nil {
+		return br, nil
+	}
+	err = eth.MaybeAsNotFoundErr(err)
+	if errors.Is(err, ethereum.NotFound) {
+		return eth.L2BlockRef{}, derive.NewCriticalError(fmt.Errorf("superAuthority supplied an identifier for the safe head which is not known to the engine: id=%s local_safe=%s: %w", fvshid, e.localSafeHead, err))
+	}
+	return eth.L2BlockRef{}, derive.NewTemporaryError(fmt.Errorf("failed to resolve superAuthority safe head from engine: id=%s local_safe=%s: %w", fvshid, e.localSafeHead, err))
+}
+
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
@@ -511,9 +546,13 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return err
 	}
+	safeHead, err := e.safeL2HeadForForkchoice(ctx)
+	if err != nil {
+		return err
+	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash: e.unsafeHead.Hash,
-		SafeBlockHash: e.SafeL2Head().Hash,
+		SafeBlockHash: safeHead.Hash,
 	}
 	// only set finalized after initial EL sync
 	if !e.isEngineInitialELSyncing() {
@@ -552,7 +591,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.requestForkchoiceUpdate(ctx)
 	}
-	if e.unsafeHead == e.SafeL2Head() && e.SafeL2Head() == e.pendingSafeHead {
+	if e.unsafeHead == safeHead && safeHead == e.pendingSafeHead {
 		// Remove backupUnsafeHead because this backup will be never used after consolidation.
 		e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	}
@@ -569,6 +608,8 @@ func (e *EngineController) tryUpdateEngine(ctx context.Context) {
 			e.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
 		} else if errors.Is(err, derive.ErrTemporary) {
 			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else if errors.Is(err, derive.ErrCritical) {
+			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
 		} else {
 			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 				Err: fmt.Errorf("unexpected tryUpdateEngine error type: %w", err),
