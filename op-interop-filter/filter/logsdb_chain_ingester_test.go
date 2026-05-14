@@ -592,12 +592,52 @@ func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
 	mockClient.AddBlock(reorgBlock, createTestReceipts(101, 1))
 
 	err = ingester.ingestBlock(101)
-	require.NoError(t, err) // ingestBlock doesn't return error, it sets error state
+	require.Error(t, err)
 
 	// Check that error state was set
 	ingesterErr := ingester.Error()
 	require.NotNil(t, ingesterErr)
 	require.Equal(t, ErrorReorg, ingesterErr.Reason)
+}
+
+func TestLogsDBChainIngester_IngestBlockRangeStopsAtErrorState(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	reorgBlock101 := createTestBlock(101, 1202, common.Hash{0xDE, 0xAD})
+	block102 := createTestBlock(102, 1204, reorgBlock101.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.AddBlock(reorgBlock101, createTestReceipts(101, 1))
+	mockClient.AddBlock(block102, createTestReceipts(102, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.fetchConcurrency = 2
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+	require.NoError(t, ingester.sealParentBlock(99))
+
+	nextBlock, _, err := ingester.ingestBlockRange(100, 102, clock.SystemClock.Now())
+	require.Error(t, err)
+	require.Equal(t, uint64(101), nextBlock)
+
+	ingesterErr := ingester.Error()
+	require.NotNil(t, ingesterErr)
+	require.Equal(t, ErrorReorg, ingesterErr.Reason)
+
+	latestBlock, ok := ingester.LatestBlock()
+	require.True(t, ok)
+	require.Equal(t, uint64(100), latestBlock.Number)
 }
 
 func TestLogsDBChainIngester_RewindToFinalized(t *testing.T) {
@@ -696,6 +736,90 @@ func TestLogsDBChainIngester_QueryMethods(t *testing.T) {
 	// BlockHashAt: non-existent block
 	_, ok = ingester.BlockHashAt(999)
 	require.False(t, ok)
+}
+
+// TestLogsDBChainIngester_GetExecMsgsAtTimestamp_AnchorOnly verifies that
+// GetExecMsgsAtTimestamp returns ErrUninitialized when the DB contains only
+// the anchor block (no block with log data has been ingested yet). It must
+// not silently report "no executing messages" in this state.
+func TestLogsDBChainIngester_GetExecMsgsAtTimestamp_AnchorOnly(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	mockClient.AddBlock(parentBlock, nil)
+
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+
+	require.NoError(t, ingester.sealParentBlock(99))
+	require.False(t, ingester.earliestIngestedBlockSet.Load(),
+		"sealParentBlock alone must not mark the ingester initialized")
+
+	// The anchor block is in range (blockNum <= latestSealed) but no block
+	// has been ingested with logs yet, so the lower bound is unset. The
+	// query must surface ErrUninitialized rather than silently returning
+	// (nil, nil) — that distinguishes "we haven't ingested anything yet"
+	// from "no executing messages at this timestamp".
+	_, err := ingester.GetExecMsgsAtTimestamp(1198)
+	require.ErrorIs(t, err, types.ErrUninitialized)
+
+	// Queries past the latest sealed block still return (nil, nil) — that's
+	// the existing "block not sealed yet" semantics, unchanged by this fix.
+	msgs, err := ingester.GetExecMsgsAtTimestamp(1200)
+	require.NoError(t, err)
+	require.Empty(t, msgs)
+}
+
+// TestLogsDBChainIngester_GetExecMsgsAtTimestamp_BeforeEarliest verifies that
+// once the ingester is initialized, queries for blocks older than
+// earliestIngestedBlock return (nil, nil) rather than an error. This is the
+// "we don't have data that old" branch, distinct from "uninitialized".
+func TestLogsDBChainIngester_GetExecMsgsAtTimestamp_BeforeEarliest(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	mockClient.AddBlock(parentBlock, nil)
+
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+
+	require.NoError(t, ingester.sealParentBlock(99))
+	require.NoError(t, ingester.ingestBlock(100))
+
+	require.True(t, ingester.earliestIngestedBlockSet.Load())
+	require.Equal(t, uint64(100), ingester.earliestIngestedBlock.Load())
+
+	// Anchor block 99 (timestamp 1198) is sealed but predates earliest=100.
+	// The query path must distinguish this from the uninitialized state.
+	msgs, err := ingester.GetExecMsgsAtTimestamp(1198)
+	require.NoError(t, err)
+	require.Empty(t, msgs)
 }
 
 // =============================================================================
@@ -922,6 +1046,62 @@ func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
 	require.Equal(t, uint64(100), ingester2.earliestIngestedBlock.Load())
 }
 
+// TestLogsDBChainIngester_InitIngestion_ResumeAnchorOnly covers the case where
+// a previous run died after sealing the anchor but before ingesting any block.
+// On resume the DB contains only the anchor, so initIngestion must succeed
+// without setting earliestIngestedBlockSet — ingestion of the first real block
+// will set it, exactly like the fresh-start path.
+func TestLogsDBChainIngester_InitIngestion_ResumeAnchorOnly(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	mockClient.AddBlock(parentBlock, nil)
+
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+
+	headBlock := createTestBlock(200, 3000, common.Hash{0x99})
+	mockClient.AddBlock(headBlock, nil)
+	mockClient.SetHeadBlock(headBlock)
+
+	// First ingester: seal the anchor only, then close.
+	ingester1 := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	require.NoError(t, ingester1.initLogsDB())
+	require.NoError(t, ingester1.sealParentBlock(99))
+	require.NoError(t, ingester1.logsDB.Close())
+
+	// Second ingester: resume from a DB containing only the anchor.
+	ingester2 := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	require.NoError(t, ingester2.initLogsDB())
+	t.Cleanup(func() { ingester2.logsDB.Close() })
+
+	nextBlock, err := ingester2.initIngestion()
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), nextBlock,
+		"resume should pick up immediately after the anchor")
+
+	require.False(t, ingester2.earliestIngestedBlockSet.Load(),
+		"with only the anchor sealed, earliest must remain unset until first ingestion")
+
+	// Ingesting the first real block then sets earliest, matching the fresh-start path.
+	require.NoError(t, ingester2.ingestBlock(100))
+	require.True(t, ingester2.earliestIngestedBlockSet.Load())
+	require.Equal(t, uint64(100), ingester2.earliestIngestedBlock.Load())
+}
+
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
@@ -1083,9 +1263,9 @@ func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) 
 	// Set error state before ingestion
 	ingester.SetError(ErrorReorg, "test error")
 
-	// ingestBlock should return nil without doing anything
+	// ingestBlock should return the existing error without doing anything
 	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Block 100 should NOT have been ingested
 	latestBlock, ok := ingester.LatestBlock()

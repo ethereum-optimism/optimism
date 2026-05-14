@@ -187,12 +187,12 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         storage_threshold: usize,
         log_threshold: usize,
     ) -> Result<u64, OpProofsStorageError> {
-        info!("Starting {} initialization", name);
+        info!(target: "trie::initialize", "Starting {} initialization", name);
         let start_time = Instant::now();
 
         let mut source = source.peekable();
         let Some(first_entry) = source.peek() else {
-            debug!(target: "reth::cli", "No entries to store for table");
+            debug!(target: "trie::initialize", "No entries to store for table");
             return Ok(0);
         };
         let initial_progress = match first_entry {
@@ -225,13 +225,17 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
                 };
                 let progress_pct = progress * 100.0;
                 info!(
+                    target: "trie::initialize",
                     "Processed {} {}, progress: {progress_pct:.2}%, ETA: {}s",
                     name, total_entries, estimated_total_time,
                 );
             }
 
             if batch.len() >= storage_threshold {
-                info!("Storing {} entries, total entries: {}", name, total_entries);
+                info!(
+                    target: "trie::initialize",
+                    "Storing {} entries, total entries: {}", name, total_entries,
+                );
                 I::store_entries(&self.storage, batch)?;
                 batch = Vec::with_capacity(
                     (source_size_hint.saturating_sub(total_entries)).min(storage_threshold),
@@ -240,11 +244,14 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         }
 
         if !batch.is_empty() {
-            info!("Storing final {} entries", name);
+            info!(target: "trie::initialize", "Storing final {} entries", name);
             I::store_entries(&self.storage, batch)?;
         }
 
-        info!("{} initialization complete: {} entries", name, total_entries);
+        info!(
+            target: "trie::initialize",
+            "{} initialization complete: {} entries", name, total_entries,
+        );
         Ok(total_entries as u64)
     }
 
@@ -658,6 +665,7 @@ impl<C> InitTable for StoragesTrieInitLegacy<C> {
 mod tests {
     use super::*;
     use crate::{MdbxProofsStorage, OpProofsProviderRO};
+    use alloy_eips::NumHash;
     use alloy_primitives::{Address, U256, keccak256};
     use reth_db::{
         Database, cursor::DbCursorRW, test_utils::create_test_rw_db, transaction::DbTxMut,
@@ -976,14 +984,17 @@ mod tests {
             storage.initialization_provider().unwrap().initial_state_anchor().unwrap().block,
             None
         );
-        assert_eq!(storage.provider_ro().unwrap().get_earliest_block_number().unwrap(), None);
+        assert!(matches!(
+            storage.provider_ro().unwrap().get_earliest_block(),
+            Err(OpProofsStorageError::NoBlocksFound)
+        ));
 
         job.run(best_number, best_hash).unwrap();
 
         // Should be set after initialization
         assert_eq!(
-            storage.provider_ro().unwrap().get_earliest_block_number().unwrap(),
-            Some((best_number, best_hash))
+            storage.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(best_number, best_hash)
         );
 
         // Verify data was initialized
@@ -1037,8 +1048,8 @@ mod tests {
 
         // Should still have the old earliest block
         assert_eq!(
-            storage.provider_ro().unwrap().get_earliest_block_number().unwrap(),
-            Some((50, B256::repeat_byte(0x01)))
+            storage.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(50, B256::repeat_byte(0x01))
         );
     }
 

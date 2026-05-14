@@ -1,9 +1,10 @@
-//! [`EngineHandle`] — the public, clonable, Send + Sync interface.
+//! [`EngineHandle`] — the public, cloneable, Send + Sync interface.
 
 use super::{
     DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
     error::EngineError,
     runner::Engine,
+    service_guard::ServiceGuard,
     tasks::{ExecuteBlockTask, IndexBlockTask, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
@@ -18,19 +19,14 @@ use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
 use tracing::error;
 
-/// A thin, clonable handle used to communicate with the collector engine.
+/// A thin, cloneable handle used to communicate with the collector engine.
 ///
-/// Every public method (except [`sync_to`]) sends an [`EngineAction`] to the
+/// Every public method (except [`Self::sync_to`]) sends an engine action to the
 /// engine thread and blocks on a one-shot reply channel.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EngineHandle<Block: reth_primitives_traits::Block> {
     sender: Sender<EngineAction<Block>>,
-}
-
-impl<Block: reth_primitives_traits::Block> Clone for EngineHandle<Block> {
-    fn clone(&self) -> Self {
-        Self { sender: self.sender.clone() }
-    }
+    _service_guard: Arc<ServiceGuard>,
 }
 
 impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> {
@@ -87,7 +83,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             .with_persistence_threshold(persistence_threshold)
             .with_backpressure_threshold(backpressure_threshold);
 
-        thread::Builder::new()
+        let join_handle = thread::Builder::new()
             .name("live-trie-collector".into())
             .spawn(move || {
                 if let Err(panic) = panic::catch_unwind(panic::AssertUnwindSafe(|| engine.run())) {
@@ -96,12 +92,12 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
                         .copied()
                         .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
                         .unwrap_or("unknown");
-                    error!(target: "live-trie::engine", %msg, "Collector engine panicked");
+                    error!(target: "trie::engine::handle", %msg, "Collector engine panicked");
                 }
             })
             .expect("failed to spawn live-trie-collector thread");
 
-        Self { sender: tx }
+        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
     }
 
     fn send_and_recv(

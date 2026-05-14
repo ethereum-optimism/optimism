@@ -1,4 +1,4 @@
-//! Task structs — one per [`EngineAction`] variant.
+//! Task structs — one per engine action variant.
 //!
 //! Each task owns its input data and reply channel. Its `execute` method
 //! takes `&mut EngineState`, calls the appropriate state method, and sends

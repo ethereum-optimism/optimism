@@ -46,15 +46,25 @@ RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test bas
 
 This runs only packages listed in `gates/base.txt`.
 
-### Kona Reproducible Prestate
+### Kona Prestate
 
-Some tests (e.g. superfaultproofs, interop fault proofs) require a reproducible kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`:
+Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:
+
+**Reproducible build** (preferred when Docker is available):
 
 ```bash
 mise exec -- just reproducible-prestate-kona
 ```
 
-**Requires Docker.** If Docker is not available in your environment, ask the user to run this command for you.
+This produces a prestate whose hash matches CI/release builds. It works on any host with Docker installed.
+
+**Native build** (fallback when Docker is not available):
+
+```bash
+cd rust && mise exec -- just build-kona-prestates
+```
+
+Only works on **Linux** with the **MIPS cross-compile toolchain** installed. The produced hash will not match release builds, so this is only suitable for local test runs where the hash doesn't need to match a deployed release. If neither Docker nor the MIPS toolchain is available, ask the user to build the prestate for you.
 
 ## What `build-deps` Does
 

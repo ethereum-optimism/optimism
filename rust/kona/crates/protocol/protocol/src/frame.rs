@@ -56,6 +56,19 @@ pub const FRAME_OVERHEAD: usize = 200;
 /// - **Memory constraints**: Avoid excessive memory usage during processing
 pub const MAX_FRAME_LEN: usize = 1_000_000;
 
+/// Base frame length of a frame without its data.
+///
+/// ```text
+/// frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
+///
+/// channel_id        = bytes16
+/// frame_number      = uint16
+/// frame_data_length = uint32
+/// frame_data        = bytes
+/// is_last           = bool
+/// ```
+pub const BASE_FRAME_LEN: usize = 16 + 2 + 4 + 1;
+
 /// A frame decoding error.
 #[derive(Debug, thiserror::Error, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FrameDecodingError {
@@ -74,6 +87,9 @@ pub enum FrameDecodingError {
     /// Error decoding the frame data length.
     #[error("Invalid frame data length")]
     InvalidDataLength,
+    /// The `is_last` byte was neither 0 nor 1.
+    #[error("Invalid is_last byte: {0}")]
+    InvalidIsLast(u8),
 }
 
 /// Frame parsing error.
@@ -178,7 +194,7 @@ impl Frame {
 
     /// Encode the frame into a byte vector.
     pub fn encode(&self) -> Vec<u8> {
-        let mut encoded = Vec::with_capacity(16 + 2 + 4 + self.data.len() + 1);
+        let mut encoded = Vec::with_capacity(BASE_FRAME_LEN + self.data.len());
         encoded.extend_from_slice(&self.id);
         encoded.extend_from_slice(&self.number.to_be_bytes());
         encoded.extend_from_slice(&(self.data.len() as u32).to_be_bytes());
@@ -189,26 +205,39 @@ impl Frame {
 
     /// Decode a frame from a byte vector.
     pub fn decode(encoded: &[u8]) -> Result<(usize, Self), FrameDecodingError> {
-        const BASE_FRAME_LEN: usize = 16 + 2 + 4 + 1;
+        const ID_LEN: usize = 16; // bytes16
+        const FRAME_NUM_START: usize = 16;
+        const FRAME_NUM_LEN: usize = 2; // uint16
+        const DATA_LENGTH_START: usize = 16 + 2;
+        const DATA_LENGTH_LEN: usize = 4; // uint32
+        const DATA_START: usize = 16 + 2 + 4;
 
         if encoded.len() < BASE_FRAME_LEN {
             return Err(FrameDecodingError::DataTooShort(encoded.len()));
         }
 
-        let id = encoded[..16].try_into().map_err(|_| FrameDecodingError::InvalidId)?;
+        let id = encoded[..ID_LEN].try_into().map_err(|_| FrameDecodingError::InvalidId)?;
         let number = u16::from_be_bytes(
-            encoded[16..18].try_into().map_err(|_| FrameDecodingError::InvalidNumber)?,
+            encoded[FRAME_NUM_START..FRAME_NUM_START + FRAME_NUM_LEN]
+                .try_into()
+                .map_err(|_| FrameDecodingError::InvalidNumber)?,
         );
         let data_len = u32::from_be_bytes(
-            encoded[18..22].try_into().map_err(|_| FrameDecodingError::InvalidDataLength)?,
+            encoded[DATA_LENGTH_START..DATA_LENGTH_START + DATA_LENGTH_LEN]
+                .try_into()
+                .map_err(|_| FrameDecodingError::InvalidDataLength)?,
         ) as usize;
 
-        if data_len > MAX_FRAME_LEN || data_len >= encoded.len() - (BASE_FRAME_LEN - 1) {
+        if data_len > MAX_FRAME_LEN || data_len > encoded.len() - BASE_FRAME_LEN {
             return Err(FrameDecodingError::DataTooLarge(data_len));
         }
 
-        let data = encoded[22..22 + data_len].to_vec();
-        let is_last = encoded[22 + data_len] == 1;
+        let data = encoded[DATA_START..DATA_START + data_len].to_vec();
+        let is_last = match encoded[DATA_START + data_len] {
+            0 => false,
+            1 => true,
+            b => return Err(FrameDecodingError::InvalidIsLast(b)),
+        };
         Ok((BASE_FRAME_LEN + data_len, Self { id, number, data, is_last }))
     }
 
@@ -309,6 +338,29 @@ mod test {
         encoded[18..22].copy_from_slice(&valid_data_len.to_be_bytes());
         let (_, frame_decoded) = Frame::decode(&encoded).unwrap();
         assert_eq!(frame, frame_decoded);
+    }
+
+    #[test]
+    fn test_decode_invalid_is_last() {
+        // Mirrors op-node's TestFrameUnmarshalInvalidIsLast: any byte other than 0 or 1
+        // for `is_last` must be rejected, per the derivation spec.
+        let frame = Frame { id: [0xFF; 16], number: 0xEE, data: vec![0xDD; 16], is_last: true };
+        let mut encoded = frame.encode();
+        let last = encoded.len() - 1;
+
+        encoded[last] = 2;
+        let err = Frame::decode(&encoded).unwrap_err();
+        assert_eq!(err, FrameDecodingError::InvalidIsLast(2));
+
+        encoded[last] = u8::MAX;
+        let err = Frame::decode(&encoded).unwrap_err();
+        assert_eq!(err, FrameDecodingError::InvalidIsLast(u8::MAX));
+
+        // is_last = 0 and 1 must still decode correctly.
+        encoded[last] = 0;
+        assert!(!Frame::decode(&encoded).unwrap().1.is_last);
+        encoded[last] = 1;
+        assert!(Frame::decode(&encoded).unwrap().1.is_last);
     }
 
     #[test]

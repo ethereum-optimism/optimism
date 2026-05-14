@@ -31,8 +31,8 @@
 //!   `storage_changeset`).
 //! - Trie node before-values come from [`ChangesetCache`], which uses
 //!   `compute_block_trie_changesets` as a DB fallback.
-//! - A shared [`ChangesetCache`] is kept across the whole backfill run so that
-//!   blocks that are warm in cache are not recomputed.
+//! - A shared [`ChangesetCache`] is kept across the whole backfill run so that blocks that are warm
+//!   in cache are not recomputed.
 //!
 //! ## Write invariants
 //!

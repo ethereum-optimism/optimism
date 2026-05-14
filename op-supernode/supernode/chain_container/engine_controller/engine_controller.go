@@ -22,6 +22,10 @@ type EngineController interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
+	// OutputV0ByBlockHash returns the output preimage for the given L2 block
+	// hash. Returns ethereum.NotFound if the EL no longer has the block at
+	// that hash on its canonical chain.
+	OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
 	RewindToTimestamp(ctx context.Context, timestamp uint64) error
 	// FetchReceipts fetches the receipts for a given block by hash.
@@ -35,7 +39,9 @@ type l2Provider interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error)
+	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
@@ -155,6 +161,22 @@ func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num 
 		e.log.Debug("engine_controller: falling back to proof-based OutputV0", "blockNumber", num)
 	}
 	return e.l2.OutputV0AtBlockNumber(ctx, num)
+}
+
+func (e *simpleEngineController) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	if e.l2 == nil {
+		return nil, ErrNoEngineClient
+	}
+	env, err := e.l2.PayloadByHash(ctx, blockHash)
+	if err == nil && env != nil && env.ExecutionPayload != nil && env.ExecutionPayload.WithdrawalsRoot != nil {
+		p := env.ExecutionPayload
+		return &eth.OutputV0{
+			StateRoot:                p.StateRoot,
+			MessagePasserStorageRoot: eth.Bytes32(*p.WithdrawalsRoot),
+			BlockHash:                p.BlockHash,
+		}, nil
+	}
+	return e.l2.OutputV0AtBlock(ctx, blockHash)
 }
 
 func (e *simpleEngineController) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {

@@ -21,6 +21,9 @@ alloy-primitives.workspace = true
 # `std` feature dependencies
 async-channel = { workspace = true, optional = true }
 
+# `verify` feature dependencies
+sha2 = { workspace = true, optional = true }
+
 # `rkyv` feature dependencies
 rkyv = { workspace = true, optional = true }
 
@@ -29,6 +32,7 @@ serde = { workspace = true, optional = true, features = ["derive"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
+sha2.workspace = true
 
 [features]
 default = []
@@ -36,8 +40,10 @@ std = [
 	"alloy-primitives/std",
 	"dep:async-channel",
 	"serde?/std",
+	"sha2?/std",
 	"thiserror/std",
 	"tracing/std",
 ]
 rkyv = [ "dep:rkyv" ]
 serde = [ "alloy-primitives/serde", "dep:serde" ]
+verify = [ "dep:sha2" ]

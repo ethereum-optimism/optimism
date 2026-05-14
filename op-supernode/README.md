@@ -45,7 +45,7 @@ This allows for *roughly* 1:1 setup and behavior between Node and Supernode, wit
 - Some behaviors are expected to be configured at the `op-supernode` level and are not respected the usual way when the application starts:
   - `l1` and `l1.beacon` are used to create the shared L1 client. Any L1 configuration will not be respected by a Virtual Node.
   - Log and Metric settings are passed down to the Virtual node from the top level Log/Metric flags, and individual chain settings may not be respected.
-  - `p2p` is enabled/disabled at the top level. While enabled, listen ports default to `0` (dynamic) to prevent collisions, but `--vn.all.p2p.listen.tcp` / `--vn.all.p2p.listen.udp` and the per-chain `--vn.<chainID>.p2p.listen.tcp` / `--vn.<chainID>.p2p.listen.udp` flags are honoured when set. The user is responsible for picking distinct ports across chains. Per-chain P2P functionality will be added via a shared resource in the future.
+  - `p2p` is enabled/disabled at the top level. While enabled, listen ports default to `0` (dynamic) to prevent collisions. Non-zero `--vn.all.p2p.listen.tcp` / `--vn.all.p2p.listen.udp` values are rejected because they would be reused by every virtual node. Use the per-chain `--vn.<chainID>.p2p.listen.tcp` / `--vn.<chainID>.p2p.listen.udp` flags when fixed ports are required.
 
 Example launch of Supernode:
 

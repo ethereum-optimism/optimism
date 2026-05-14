@@ -22,7 +22,9 @@ use reth_db::{
     transaction::{DbTx, DbTxMut},
 };
 use reth_primitives_traits::StorageEntry;
-use reth_trie::{HashedPostStateSorted, StoredNibbles, StoredNibblesSubKey, updates::TrieUpdatesSorted};
+use reth_trie::{
+    HashedPostStateSorted, StoredNibbles, StoredNibblesSubKey, updates::TrieUpdatesSorted,
+};
 use std::{collections::BTreeMap, fmt::Debug};
 use tracing::debug;
 
@@ -188,10 +190,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
         let mut cs = self.tx.cursor_dup_write::<V2HashedAccountChangeSets>()?;
         let mut count = 0u64;
         for &(hashed_address, maybe_account) in &post_state.accounts {
-            cs.upsert(
-                block_number,
-                &HashedAccountBeforeTx::new(hashed_address, maybe_account),
-            )?;
+            cs.upsert(block_number, &HashedAccountBeforeTx::new(hashed_address, maybe_account))?;
             collector.hashed_accounts.entry(hashed_address).or_default().push(block_number);
             count += 1;
         }

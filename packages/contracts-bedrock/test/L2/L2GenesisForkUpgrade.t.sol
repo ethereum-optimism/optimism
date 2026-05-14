@@ -43,7 +43,11 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         generateScript = new GenerateNUTBundle();
 
         // Generate bundle
-        generateScript.run();
+        GenerateNUTBundle.Output memory output = generateScript.run();
+        delete currentBundleTxns;
+        for (uint256 i = 0; i < output.txns.length; i++) {
+            currentBundleTxns.push(output.txns[i]);
+        }
 
         // Capture feature flags from deploy config (genesis state)
         commonState.isInteropEnabled =
@@ -53,6 +57,11 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         commonState.isCustomGasToken = deploy.cfg().useCustomGasToken();
         console.log("L2GenesisForkUpgrade: isCustomGasToken", commonState.isCustomGasToken);
     }
+
+    /// @notice Genesis tests execute the bare current bundle because genesis already applies feature setup.
+    function _executeCurrentBundle() internal virtual override {
+        executeScript.executeAll(_currentBundleTxns());
+    }
 }
 
 /// @title L2GenesisForkUpgrade_Versions_Test
@@ -60,6 +69,10 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 contract L2GenesisForkUpgrade_Versions_Test is L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_Versions_Test {
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
     }
 }
 
@@ -72,6 +85,10 @@ contract L2GenesisForkUpgrade_Initialization_Test is
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
     }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
 }
 
 /// @title L2GenesisForkUpgrade_Implementations_Test
@@ -83,6 +100,10 @@ contract L2GenesisForkUpgrade_Implementations_Test is
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
     }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
 }
 
 /// @title L2GenesisForkUpgrade_Events_Test
@@ -90,5 +111,9 @@ contract L2GenesisForkUpgrade_Implementations_Test is
 contract L2GenesisForkUpgrade_Events_Test is L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_Events_Test {
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
     }
 }

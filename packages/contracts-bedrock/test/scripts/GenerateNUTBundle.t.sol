@@ -22,6 +22,11 @@ contract GenerateNUTBundle_Harness is GenerateNUTBundle {
         return _buildOutput();
     }
 
+    /// @notice Returns the fork name used by the generated bundle.
+    function upgradeName() external pure returns (string memory) {
+        return UPGRADE_NAME;
+    }
+
     /// @notice Asserts that the given output is valid.
     function assertValidOutput(Output memory _output) external pure {
         _assertValidOutput(_output);
@@ -45,6 +50,8 @@ contract GenerateNUTBundleTest is Test {
     function test_run_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
+
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
             NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
@@ -58,49 +65,31 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
+    /// @notice Tests that the harness build path returns the same fork name as the script run path.
+    function test_buildOutput_setsFork_succeeds() public {
+        GenerateNUTBundle.Output memory output = script.buildOutput();
+
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
+    }
+
     /// @notice Tests that transactions have correct structure.
-    /// @dev Includes ConditionalDeployer and ProxyAdmin upgrades.
     function test_run_transactionStructure_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
         // Should include:
-        // 1. ConditionalDeployer deployment
-        // 2. ConditionalDeployer upgrade
-        // 3. All implementation deployments (StorageSetter + predeploys)
-        // 4. L2ProxyAdmin upgrade
-        // 5. L2ContractsManager deployment
-        // 6. Upgrade execution
-
-        // Verify ConditionalDeployer deployment
-        assertEq(
-            output.txns[0].intent,
-            "ConditionalDeployer Deployment",
-            "First transaction should be ConditionalDeployer deployment"
-        );
-
-        // Verify ConditionalDeployer upgrade
-        assertEq(
-            output.txns[1].intent,
-            "Upgrade ConditionalDeployer Implementation",
-            "Second transaction should be ConditionalDeployer upgrade"
-        );
+        // 1. All implementation deployments (StorageSetter + predeploys)
+        // 2. L2ContractsManager deployment
+        // 3. Upgrade execution
 
         // Verify implementation deployments
         string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
-                output.txns[i + 2].intent,
+                output.txns[i].intent,
                 string.concat("Deploy ", implementationsToUpgrade[i], " Implementation"),
                 string.concat("Transaction should be ", implementationsToUpgrade[i], " deployment")
             );
         }
-
-        // Verify L2ProxyAdmin upgrade
-        assertEq(
-            output.txns[output.txns.length - 3].intent,
-            "Upgrade L2ProxyAdmin Implementation",
-            "Third to last transaction should be L2ProxyAdmin upgrade"
-        );
 
         // Verify L2ContractsManager deployment
         assertEq(
@@ -132,6 +121,7 @@ contract GenerateNUTBundleTest is Test {
         internal
         pure
     {
+        assertEq(_output1.fork, _output2.fork, "Fork should match");
         assertEq(_output1.txns.length, _output2.txns.length, "Should produce same number of transactions");
         for (uint256 i = 0; i < _output1.txns.length; i++) {
             assertEq(_output1.txns[i].intent, _output2.txns[i].intent, "Transaction intent should match");

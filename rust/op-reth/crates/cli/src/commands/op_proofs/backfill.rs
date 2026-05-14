@@ -54,8 +54,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
         info!(target: "reth::cli", "Backfilling OP proofs storage at: {:?}", self.storage_path);
 
-        let Environment { provider_factory, .. } =
-            self.env.init::<N>(AccessRights::RO, runtime)?;
+        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
 
         match self.storage_version {
             ProofsStorageVersion::V1 => {

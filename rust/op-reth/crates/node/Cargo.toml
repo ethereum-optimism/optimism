@@ -147,7 +147,8 @@ test-utils = [
 	"reth-stages-types/test-utils",
 	"reth-db-api/test-utils",
 	"reth-tasks/test-utils",
-	"reth-optimism-exex/test-utils"
+	"reth-optimism-exex/test-utils",
+	"reth-optimism-trie/test-utils"
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
 

@@ -7,8 +7,8 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use std::sync::Arc;
 
-pub mod init;
 pub mod backfill;
+pub mod init;
 pub mod prune;
 pub mod unwind;
 

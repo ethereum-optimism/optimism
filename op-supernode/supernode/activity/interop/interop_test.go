@@ -1111,6 +1111,113 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 	}
 }
 
+func TestVerifiedResultAtTimestamp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("before activation returns ErrNotActive", func(t *testing.T) {
+		h := newInteropTestHarness(t).Build()
+		_, _, err := h.interop.VerifiedResultAtTimestamp(999)
+		require.ErrorIs(t, err, ErrNotActive)
+	})
+
+	t.Run("interop active but not yet verified returns ethereum.NotFound", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(100).
+			WithChain(10, func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 100, Time: 100},
+					LocalSafeL2: eth.L2BlockRef{Number: 100, Time: 100},
+				}
+			}).
+			Build()
+		// 126 > activation and >= firstVerifiable (resolves to 101 from
+		// SafeL2.Time=100); no entry yet → ethereum.NotFound.
+		_, _, err := h.interop.VerifiedResultAtTimestamp(126)
+		require.ErrorIs(t, err, ethereum.NotFound)
+		require.NotErrorIs(t, err, ErrNotActive)
+		require.NotErrorIs(t, err, ErrBeforeVerifiedDB)
+	})
+
+	t.Run("post-activation but below firstVerifiable returns ErrBeforeVerifiedDB", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(100).
+			WithChain(10, func(m *mockChainContainer) {
+				// SafeL2.Time=500 → firstVerifiable=501. ts=200 is post
+				// activation but below firstVerifiable on this node.
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
+					LocalSafeL2: eth.L2BlockRef{Number: 500, Time: 500},
+				}
+			}).
+			Build()
+		_, _, err := h.interop.VerifiedResultAtTimestamp(200)
+		require.ErrorIs(t, err, ErrBeforeVerifiedDB)
+		require.NotErrorIs(t, err, ErrNotActive)
+		require.NotErrorIs(t, err, ethereum.NotFound)
+	})
+
+	t.Run("returns ErrNotStarted when Start has not populated i.ctx", func(t *testing.T) {
+		h := newInteropTestHarness(t).Build()
+		h.interop.ctx = nil
+		_, _, err := h.interop.VerifiedResultAtTimestamp(h.interop.activationTimestamp + 1)
+		require.ErrorIs(t, err, ErrNotStarted)
+	})
+
+	t.Run("returns committed VerifiedResult", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
+			}).
+			Build()
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		result, err := progressInteropCompat(h.interop)
+		require.NoError(t, err)
+		require.NoError(t, applyResultCompat(h.interop, result))
+
+		got, currentL1, err := h.interop.VerifiedResultAtTimestamp(1001)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1001), got.Timestamp)
+		require.NotEmpty(t, got.L2Heads)
+		require.Equal(t, h.interop.CurrentL1(), currentL1, "snapshot CurrentL1 must match the verifier's current L1")
+	})
+
+	t.Run("returns ethereum.NotFound after Rewind", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100}
+			}).
+			Build()
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		result, err := progressInteropCompat(h.interop)
+		require.NoError(t, err)
+		require.NoError(t, applyResultCompat(h.interop, result))
+
+		// Pre-rewind: present.
+		_, _, err = h.interop.VerifiedResultAtTimestamp(1001)
+		require.NoError(t, err)
+
+		// Rewind erases the entry.
+		_, err = h.interop.verifiedDB.Rewind(1001)
+		require.NoError(t, err)
+
+		_, _, err = h.interop.VerifiedResultAtTimestamp(1001)
+		require.ErrorIs(t, err, ethereum.NotFound)
+	})
+}
+
+func TestNoopVerifiedResultReader(t *testing.T) {
+	t.Parallel()
+	var r VerifiedResultReader = NoopVerifiedResultReader{}
+	for _, ts := range []uint64{0, 1, 1000, 1 << 60} {
+		_, _, err := r.VerifiedResultAtTimestamp(ts)
+		require.ErrorIs(t, err, ErrNotActive)
+	}
+}
+
 func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.T) {
 	t.Parallel()
 
@@ -1691,6 +1798,50 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
+func TestInterop_ProgressAndRecord_StaleFrontierL1Waits(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{}, nil
+	}
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.True(t, made)
+
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS)
+
+	// The accepted L1 head is still canonical, but the frontier L1 heads are
+	// stale. This should wait for the L2 node to catch up instead of rewinding
+	// already accepted Supernode state.
+	h.interop.l1Checker = &staleFrontierL1Checker{}
+
+	made, err = h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.False(t, made)
+
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS)
+
+	pending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, pending)
+	require.Empty(t, mock.rewindEngineCalls)
+}
+
 // =============================================================================
 // TestResult_IsEmpty
 // =============================================================================
@@ -1907,9 +2058,6 @@ func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts u
 	ref.Hash = common.BigToHash(big.NewInt(int64(ts)))
 	return ref, nil
 }
-func (m *mockChainContainer) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
 func (m *mockChainContainer) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -1942,7 +2090,7 @@ func (m *mockChainContainer) OptimisticAt(ctx context.Context, ts uint64) (eth.B
 	ref.Hash = common.BigToHash(big.NewInt(int64(ts)))
 	return ref.ID(), eth.BlockID{}, nil
 }
-func (m *mockChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }
 func (m *mockChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {

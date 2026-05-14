@@ -56,12 +56,21 @@ pub fn decompress_brotli(
         );
         let old_len = output.len();
 
+        // `NeedsMoreOutput` means the buffer is full (`available_out == 0`).
+        // `NeedsMoreInput` is normally raised when input is exhausted while
+        // there's still output space — but when `available_in` and
+        // `available_out` both reach 0 in the same call, brotli returns
+        // `NeedsMoreInput` with priority, even though it could produce more
+        // output given more buffer space. Treat both cases identically: at the
+        // size cap, stop (spec truncation); otherwise grow the buffer and
+        // continue.
         match result {
-            // Buffer was already grown to the limit on a previous iteration, but the decompressor
-            // filled it and still has more to produce: stop per spec.
-            BrotliResult::NeedsMoreOutput if old_len >= max_rlp_bytes_per_channel => break,
-            // Enlarge output buffer to continue decompression.
-            BrotliResult::NeedsMoreOutput => {
+            BrotliResult::NeedsMoreOutput | BrotliResult::NeedsMoreInput
+                if available_out == 0 && old_len >= max_rlp_bytes_per_channel =>
+            {
+                break;
+            }
+            BrotliResult::NeedsMoreOutput | BrotliResult::NeedsMoreInput if available_out == 0 => {
                 let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
                 output.resize(new_len, 0);
                 available_out += new_len - old_len;
@@ -70,8 +79,8 @@ pub fn decompress_brotli(
             _ if written == 0 => {
                 return Err(BrotliDecompressionError::DecompressionFailed(result));
             }
-            // Success, NeedsMoreInput or ResultFailure with some output written: return partial
-            // data.
+            // Success, NeedsMoreInput with output space remaining, or
+            // ResultFailure with some bytes written: return what we have.
             _ => break,
         }
     }
@@ -130,6 +139,66 @@ mod test {
             decompressed.len(),
             limit
         );
+    }
+
+    #[test]
+    fn test_decompress_truncated_matches_streaming_reader() {
+        // Regression test for a buffer-exhaustion bug where `decompress_brotli`
+        // returned fewer output bytes than the underlying brotli decoder could
+        // produce.
+        //
+        // When `available_in` and `available_out` reach 0 in the same iteration,
+        // `BrotliDecompressStream` returns `NeedsMoreInput` (priority over
+        // `NeedsMoreOutput`). The previous loop treated that as "done" without
+        // first growing the output buffer, so brotli never got a chance to flush
+        // bytes it could have produced from internal state. Go's
+        // `brotli.NewReader` doesn't have this issue (its own bufio indirection
+        // re-reads and provides more output space on the next call), so the bug
+        // manifested as a Go vs Rust derivation divergence on truncated brotli
+        // channels.
+        //
+        // Compare kona's output to the brotli crate's high-level Reader API on a
+        // truncated stream: the byte counts must match.
+        use std::io::Read;
+
+        let data: Vec<u8> = (0..2000).map(|i| ((i * 7) % 256) as u8).collect();
+        let compressed = {
+            let params = brotli::enc::BrotliEncoderParams::default();
+            let mut output = alloc::vec::Vec::new();
+            let mut input = &data[..];
+            brotli::BrotliCompress(&mut input, &mut output, &params).unwrap();
+            output
+        };
+        assert!(compressed.len() < data.len(), "brotli should compress this");
+
+        // Sweep truncations across the compressed stream. The bug only fires when
+        // brotli's output fills the (input-sized) initial buffer at the moment
+        // input is exhausted, so we need to try multiple offsets to find one
+        // that triggers it.
+        let mut any_partial = false;
+        for trunc_len in (1..compressed.len()).step_by(3) {
+            let truncated = &compressed[..trunc_len];
+
+            // Reference: the brotli crate's high-level Reader on the same input.
+            // It writes partial bytes to the output Vec even when it ultimately
+            // surfaces an error — that's the canonical "streaming decoder"
+            // output, matching Go's brotli.NewReader byte-for-byte.
+            let mut reader_out = alloc::vec::Vec::new();
+            let mut reader = brotli::Decompressor::new(truncated, 4096);
+            let _ = reader.read_to_end(&mut reader_out);
+
+            let kona_out = decompress_brotli(truncated, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize)
+                .unwrap_or_default();
+
+            if !reader_out.is_empty() {
+                any_partial = true;
+            }
+            assert_eq!(
+                kona_out, reader_out,
+                "decompress_brotli must match the streaming Reader at truncation len {trunc_len}",
+            );
+        }
+        assert!(any_partial, "test fixture should produce at least one non-empty partial decode");
     }
 
     #[test]

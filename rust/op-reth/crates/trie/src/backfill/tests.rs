@@ -6,10 +6,8 @@
 
 use super::{BackfillError, BackfillJob};
 use crate::{
-    MdbxProofsStorageV2, OpProofsStore, OpProofsStorageError,
-    RethTrieStorageLayout,
-    api::OpProofsProviderRO,
-    initialize::InitializationJob,
+    MdbxProofsStorageV2, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
+    api::OpProofsProviderRO, initialize::InitializationJob,
 };
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};
@@ -25,8 +23,7 @@ use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, DatabaseProviderFactory, ExecutionOutcome, HashedPostStateProvider,
     LatestStateProviderRef, ProviderFactory, StateRootProvider, StorageSettingsCache,
-    providers::ProviderNodeTypes,
-    test_utils::create_test_provider_factory_with_chain_spec,
+    providers::ProviderNodeTypes, test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, rand::rng};
@@ -183,7 +180,11 @@ fn commit_block_to_database<N>(
     );
     let provider_rw = provider_factory.provider_rw().unwrap();
     provider_rw
-        .append_blocks_with_state(vec![block.clone()], &execution_outcome, hashed_state.into_sorted())
+        .append_blocks_with_state(
+            vec![block.clone()],
+            &execution_outcome,
+            hashed_state.into_sorted(),
+        )
         .unwrap();
     provider_rw.commit().unwrap();
 }
@@ -259,8 +260,7 @@ fn build_chain_and_initialize_storage(
     let mut last_hash = chain_spec.genesis_hash();
     let mut last_number = 0u64;
     for n in 1..=num_blocks {
-        let mut block =
-            build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
         let exec = execute_block(&mut block, &provider_factory, &chain_spec);
         commit_block_to_database(&block, &exec, &provider_factory);
         last_hash = block.hash();
@@ -429,10 +429,10 @@ fn run_extends_window_backward_with_storage_writes() {
     // Every block calls `STORAGE_CONTRACT`, writing `block.number` to slot 0.
     // This exercises the backfill code paths that are silent in plain-transfer
     // tests:
-    //   - `V2HashedStorageChangeSets` / `V2HashedStoragesHistory` writes during
-    //     `prepend_block` (the slot value changes every block).
-    //   - Storage-side reconstruction via `V2StorageCursor` at each historical
-    //     block during the in-job `StateRoot::overlay_root` validation.
+    //   - `V2HashedStorageChangeSets` / `V2HashedStoragesHistory` writes during `prepend_block`
+    //     (the slot value changes every block).
+    //   - Storage-side reconstruction via `V2StorageCursor` at each historical block during the
+    //     in-job `StateRoot::overlay_root` validation.
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_with_storage_writes_and_initialize_storage(5);
 

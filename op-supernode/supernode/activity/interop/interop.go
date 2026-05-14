@@ -65,6 +65,7 @@ type RoundObservation struct {
 	BlocksAtTS     map[eth.ChainID]eth.BlockID
 	L1Heads        map[eth.ChainID]eth.BlockID
 	L1Consistent   bool
+	L1NeedsRewind  bool
 	Paused         bool
 }
 
@@ -416,8 +417,12 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
-	if !obs.L1Consistent {
+	if obs.L1NeedsRewind {
 		output := StepOutput{Decision: DecisionRewind}
+		return &output
+	}
+	if !obs.L1Consistent {
+		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
 	return nil
@@ -547,11 +552,22 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.BlocksAtTS = ready.blocks
 	obs.L1Heads = ready.l1Heads
 
-	// Check that all frontier L1 heads AND the accepted L1 head are on the same canonical fork.
-	heads := make([]eth.BlockID, 0, len(obs.L1Heads)+1)
 	if obs.LastVerified != nil {
-		heads = append(heads, obs.LastVerified.L1Inclusion)
+		same, err := i.l1Checker.SameL1Chain(i.ctx, []eth.BlockID{obs.LastVerified.L1Inclusion})
+		if err != nil {
+			return obs, fmt.Errorf("L1 consistency check: %w", err)
+		}
+		if !same {
+			obs.L1Consistent = false
+			obs.L1NeedsRewind = true
+			return obs, nil
+		}
 	}
+
+	// Check the new frontier independently from the accepted L1 head. If the
+	// accepted head is still canonical but a frontier L1 head is stale, waiting
+	// gives the L2 nodes time to catch up to the L1 reorg.
+	heads := make([]eth.BlockID, 0, len(obs.L1Heads))
 	for _, l1 := range obs.L1Heads {
 		heads = append(heads, l1)
 	}
@@ -960,8 +976,13 @@ func (i *Interop) commitVerifiedResult(timestamp uint64, verifiedResult Verified
 	return i.verifiedDB.Commit(verifiedResult)
 }
 
-// CurrentL1 returns the L1 block which has been fully considered for interop,
-// whether or not it advanced the verified timestamp.
+// CurrentL1 returns the L1 block currently being processed by the interop
+// verifier. Every L1 block strictly below CurrentL1.Number has been fully
+// considered for interop (i.e. used to verify every L2 timestamp whose source
+// is at or below it); data at CurrentL1 itself may still be unverified, since
+// L1Inclusion is monotonic in L2 timestamp and the next unverified timestamp
+// can share the same L1 source. Consumers must require CurrentL1.Number > X
+// to treat L1[≤X] as fully verified.
 func (i *Interop) CurrentL1() eth.BlockID {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -983,6 +1004,51 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return true, nil
 	}
 	return i.verifiedDB.Has(ts)
+}
+
+// VerifiedResultAtTimestamp returns the committed VerifiedResult for ts plus
+// the verifier's CurrentL1 captured atomically with the verifiedDB read.
+//   - ts < activationTimestamp           → ErrNotActive
+//   - ts < firstVerifiableTimestamp      → ErrBeforeVerifiedDB
+//   - verifiedDB.Get returns ErrNotFound → ethereum.NotFound
+//   - else                               → the stored VerifiedResult
+//
+// The local ErrNotFound is translated to the standard ethereum.NotFound at the
+// public boundary so consumers can errors.Is against the standard sentinel
+// without taking a dependency on this package's private error.
+//
+// The atomic (verifiedDB, currentL1) snapshot lets callers report a
+// CurrentL1 that cannot overstate verifier progress relative to the
+// verifiedDB observation. The verifier holds i.mu when mutating currentL1
+// (commit advances currentL1 after writing the entry; rewind zeros
+// currentL1 before deleting entries), so a snapshot taken under RLock is
+// consistent with one side or the other of those transitions.
+func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.BlockID, error) {
+	if ts < i.activationTimestamp {
+		return VerifiedResult{}, eth.BlockID{}, ErrNotActive
+	}
+	// RPC is registered before Start runs; guard against a nil i.ctx.
+	if i.ctx == nil {
+		return VerifiedResult{}, eth.BlockID{}, ErrNotStarted
+	}
+	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	if err != nil {
+		return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve first verifiable: %w", err)
+	}
+	if ts < firstVerifiable {
+		return VerifiedResult{}, eth.BlockID{}, ErrBeforeVerifiedDB
+	}
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	currentL1 := i.currentL1
+	result, err := i.verifiedDB.Get(ts)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return VerifiedResult{}, currentL1, ethereum.NotFound
+		}
+		return VerifiedResult{}, currentL1, err
+	}
+	return result, currentL1, nil
 }
 
 // IsActiveAt reports whether the interop verifier is responsible for verifying

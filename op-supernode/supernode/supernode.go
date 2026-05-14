@@ -112,13 +112,9 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		narrowChains[id] = c
 	}
 
-	// Initialize fixed activities
-	s.activities = []activity.Activity{
-		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
-		supernodeactivity.New(log.New("activity", "supernode"), narrowChains),
-		superroot.New(log.New("activity", "superroot"), narrowChains),
-	}
-
+	// Resolve interop activation before constructing Superroot so the
+	// verified-result reader is available. When interop is not configured,
+	// the no-op reader routes every call into the pre-interop fallback.
 	interopActivationTimestamp, err := resolveInteropActivationTimestamp(cfg.InteropActivationTimestamp, vnCfgs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve interop activation timestamp: %w", err)
@@ -129,10 +125,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	}
 
 	log.Info("initializing interop activity", "enabled", interopActivationTimestamp != nil)
-	// Initialize interop activity if the activation timestamp is known (non-nil).
-	// If it's nil, don't start interop. If it's non-nil (including 0), do start it.
+
+	var verifiedReader interop.VerifiedResultReader = interop.NoopVerifiedResultReader{}
+	var interopActivity *interop.Interop
 	if interopActivationTimestamp != nil {
-		// Extract the message expiry window from the first virtual node's dependency set.
 		var msgExpiryWindow uint64
 		for _, vnCfg := range vnCfgs {
 			if vnCfg.DependencySet != nil {
@@ -140,13 +136,25 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 				break
 			}
 		}
-		interopActivity := interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		verifiedReader = interopActivity
+		s.interopActivationTs = interopActivationTimestamp
+		s.interopMsgExpiryWindow = msgExpiryWindow
+	}
+
+	// Order in this slice governs Start/Stop ordering; interop is appended
+	// below so it starts after the RPC servers.
+	s.activities = []activity.Activity{
+		heartbeat.New(log.New("activity", "heartbeat"), 10*time.Second),
+		supernodeactivity.New(log.New("activity", "supernode"), narrowChains),
+		superroot.New(log.New("activity", "superroot"), narrowChains, verifiedReader),
+	}
+
+	if interopActivity != nil {
 		s.activities = append(s.activities, interopActivity)
 		for _, chain := range s.chains {
 			chain.RegisterVerifier(interopActivity)
 		}
-		s.interopActivationTs = interopActivationTimestamp
-		s.interopMsgExpiryWindow = msgExpiryWindow
 	}
 
 	// Set up reset callbacks on all chain containers

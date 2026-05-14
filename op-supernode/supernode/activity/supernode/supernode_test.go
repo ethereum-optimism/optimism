@@ -57,18 +57,11 @@ func (m *mockCC) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
-func (m *mockCC) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	if m.verifiedErr != nil {
-		return eth.BlockID{}, eth.BlockID{}, m.verifiedErr
-	}
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-
 func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if m.outputErr != nil {
 		return eth.Bytes32{}, m.outputErr
 	}

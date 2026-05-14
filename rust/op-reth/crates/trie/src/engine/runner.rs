@@ -2,7 +2,7 @@
 
 use super::{
     DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
-    error::EngineError, state::EngineState as State,
+    IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
 use crossbeam_channel::Receiver;
@@ -19,7 +19,7 @@ use std::{
 use tracing::{debug, error};
 
 /// The engine that runs on a dedicated thread, dispatching [`EngineAction`]
-/// messages to self-contained task structs that operate on [`EngineState`].
+/// messages to self-contained task structs that operate on the engine state.
 #[allow(missing_debug_implementations)]
 pub(super) struct Engine<Evm, Provider, Store>
 where
@@ -86,7 +86,7 @@ where
         if self.state.memory.len() as u64 >= self.persistence_threshold &&
             let Err(e) = self.state.advance_persistence()
         {
-            error!(target: "live-trie::engine", ?e, "Failed to start persistence save");
+            error!(target: "trie::engine::runner", ?e, "Failed to start persistence save");
         }
     }
 
@@ -108,19 +108,23 @@ where
         super::tasks::execute_block(&block, &mut self.state)
     }
 
-    /// Process one event from the action, persistence, or sync channel.
+    /// Process one event from the action, persistence, sync, or idle-flush channel.
     ///
-    /// Three receivers compete in a single `select!`:
+    /// Four receivers compete in a single `select!`:
     /// - **action**: a new [`EngineAction`] from a caller, or [`crossbeam_channel::never`] while
     ///   backpressure is active — callers naturally block in their bounded `send` until the
     ///   in-flight save completes and memory is pruned.
     /// - **persistence**: signals a completed background save.
     /// - **sync**: a zero-duration timer that fires immediately when the engine is behind its sync
     ///   target and not under backpressure; [`crossbeam_channel::never`] otherwise.
+    /// - **idle-flush**: fires after [`IDLE_FLUSH_INTERVAL`] when memory holds buffered blocks but
+    ///   the persistence threshold hasn't been reached and no save is in flight. Keeps a paused
+    ///   chain from leaving buffered blocks invisible to the proofs RPC indefinitely.
     ///
     /// Returns [`ControlFlow::Break`] when the action channel disconnects.
     fn process_next_event(&mut self) -> ControlFlow<()> {
         let backpressure = self.backpressure_active();
+        let save_in_flight = self.state.persistence.in_flight.is_some();
 
         let persist_rx =
             self.state.persistence.in_flight.clone().unwrap_or_else(crossbeam_channel::never);
@@ -136,6 +140,14 @@ where
             crossbeam_channel::never()
         };
 
+        // Arm the idle-flush timer only when there's buffered work that nothing else will flush.
+        let idle_flush_rx: Receiver<Instant> =
+            if !self.state.memory.is_empty() && !save_in_flight && !backpressure {
+                crossbeam_channel::after(IDLE_FLUSH_INTERVAL)
+            } else {
+                crossbeam_channel::never()
+            };
+
         crossbeam_channel::select! {
             recv(incoming_rx) -> msg => match msg {
                 Ok(action) => action.execute(&mut self.state),
@@ -143,7 +155,10 @@ where
             },
             recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
             recv(sync_rx) -> _ => if let Err(err) = self.advance_sync() {
-                error!(target: "live-trie::engine", ?err, "Sync step failed");
+                error!(target: "trie::engine::runner", ?err, "Sync step failed");
+            },
+            recv(idle_flush_rx) -> _ => if let Err(e) = self.state.advance_persistence() {
+                error!(target: "trie::engine::runner", ?e, "Idle flush failed");
             },
         }
         ControlFlow::Continue(())
@@ -157,7 +172,7 @@ where
             self.backpressure_threshold,
             self.persistence_threshold,
         );
-        debug!(target: "live-trie::engine", "Collector engine started");
+        debug!(target: "trie::engine::runner", "Collector engine started");
 
         loop {
             match self.process_next_event() {
@@ -167,8 +182,8 @@ where
             self.maybe_start_save();
         }
 
-        debug!(target: "live-trie::engine", "Collector engine shutting down, draining in-flight persist");
+        debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");
         self.state.drain_persistence();
-        debug!(target: "live-trie::engine", "Collector engine stopped");
+        debug!(target: "trie::engine::runner", "Collector engine stopped");
     }
 }

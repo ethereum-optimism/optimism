@@ -3,8 +3,7 @@
 use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
     BlockStateDiff, OpProofsBackfillProvider, OpProofsProviderRO, OpProofsStorageError,
-    OpProofsStore,
-    proof::DatabaseStateRoot,
+    OpProofsStore, proof::DatabaseStateRoot,
 };
 use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
 use alloy_primitives::BlockNumber;
@@ -78,11 +77,8 @@ where
             let is_final = block_number == target_earliest_block + 1;
             if done.is_multiple_of(LOG_EVERY) || is_final {
                 let elapsed_secs = start.elapsed().as_secs_f64();
-                let blocks_per_sec = if elapsed_secs.is_normal() {
-                    done as f64 / elapsed_secs
-                } else {
-                    0.0
-                };
+                let blocks_per_sec =
+                    if elapsed_secs.is_normal() { done as f64 / elapsed_secs } else { 0.0 };
                 let eta_secs = if blocks_per_sec.is_normal() && blocks_per_sec > 0.0 {
                     (total - done) as f64 / blocks_per_sec
                 } else {
@@ -139,10 +135,7 @@ where
         let bp = self.storage.backfill_provider()?;
         bp.prepend_block(
             block_ref,
-            BlockStateDiff {
-                sorted_trie_updates: trie_updates,
-                sorted_post_state: post_state,
-            },
+            BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state },
         )?;
 
         // Validate the written before-values by computing a full state root at block_number - 1

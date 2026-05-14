@@ -9,8 +9,8 @@
 //! | Account Trie | `V2AccountsTrie` | `V2AccountTrieChangeSets` | `V2AccountsTrieHistory` |
 //! | Storage Trie | `V2StoragesTrie` | `V2StorageTrieChangeSets` | `V2StoragesTrieHistory` |
 
-pub(crate) mod cursor;
 mod backfill;
+pub(crate) mod cursor;
 mod init;
 #[cfg(feature = "metrics")]
 mod metrics;
