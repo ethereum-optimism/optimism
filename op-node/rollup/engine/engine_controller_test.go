@@ -222,6 +222,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 		supervisorEnabled bool
 		setupSuperAuth    func() *mockSuperAuthority
 		setupLocalSafe    *eth.L2BlockRef
+		setupFinalized    *eth.L2BlockRef
 		setupDeprecated   *eth.L2BlockRef
 		setupEngine       func(*testutils.MockEngine)
 		expectPanic       string
@@ -251,11 +252,12 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
 			},
-			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 		},
 		{
 			name:              "with SuperAuthority empty BlockID returns genesis",
@@ -327,6 +329,9 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, tt.supervisorEnabled, &testutils.MockL1Source{}, emitter, superAuthority)
 			if tt.setupLocalSafe != nil {
 				ec.SetLocalSafeHead(*tt.setupLocalSafe)
+			}
+			if tt.setupFinalized != nil {
+				ec.SetFinalizedHead(*tt.setupFinalized)
 			}
 			if tt.setupDeprecated != nil {
 				ec.SetDeprecatedSafeHead(*tt.setupDeprecated)

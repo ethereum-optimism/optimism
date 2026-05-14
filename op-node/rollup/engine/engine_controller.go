@@ -226,12 +226,12 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
 		if err != nil {
-			e.log.Warn("cannot verify superAuthority safe head canonicality, using local safe head", "super_authority_safe", br, "local_safe", e.localSafeHead, "err", err)
-			return e.localSafeHead
+			e.log.Warn("cannot verify superAuthority safe head canonicality, using finalized head", "super_authority_safe", br, "finalized", e.localFinalizedHead, "err", err)
+			return e.localFinalizedHead
 		}
 		if canonical.Hash != br.Hash {
-			e.log.Warn("superAuthority safe head is not canonical, using local safe head", "super_authority_safe", br, "canonical", canonical, "local_safe", e.localSafeHead)
-			return e.localSafeHead
+			e.log.Warn("superAuthority safe head is not canonical, using finalized head", "super_authority_safe", br, "canonical", canonical, "finalized", e.localFinalizedHead)
+			return e.localFinalizedHead
 		}
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
