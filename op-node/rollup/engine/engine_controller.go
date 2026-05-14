@@ -224,6 +224,15 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		if err != nil {
 			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
 		}
+		canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
+		if err != nil {
+			e.log.Warn("cannot verify superAuthority safe head canonicality, using local safe head", "super_authority_safe", br, "local_safe", e.localSafeHead, "err", err)
+			return e.localSafeHead
+		}
+		if canonical.Hash != br.Hash {
+			e.log.Warn("superAuthority safe head is not canonical, using local safe head", "super_authority_safe", br, "canonical", canonical, "local_safe", e.localSafeHead)
+			return e.localSafeHead
+		}
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead

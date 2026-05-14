@@ -238,8 +238,24 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
+				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 			},
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
+		},
+		{
+			name:              "falls back to local safe when SuperAuthority block is not canonical",
+			supervisorEnabled: true,
+			setupSuperAuth: func() *mockSuperAuthority {
+				return &mockSuperAuthority{
+					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
+				}
+			},
+			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupEngine: func(m *testutils.MockEngine) {
+				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
+				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
+			},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
 			name:              "with SuperAuthority empty BlockID returns genesis",
@@ -369,6 +385,7 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	// SafeL2Head is called multiple times during initialization and forkchoice - be generous
 	for i := 0; i < 10; i++ {
 		mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
+		mockEngine.ExpectL2BlockRefByNumber(verifiedRef.Number, verifiedRef, nil)
 	}
 	// FinalizedHead is also called and will look up the finalized block by hash
 	for i := 0; i < 10; i++ {
