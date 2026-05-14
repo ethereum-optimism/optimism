@@ -6,13 +6,15 @@ description: Runbook for upgrading an OP Stack chain from output-root dispute ga
 
 # Upgrading a Chain From Output Roots to Super Roots
 
+<Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
+
 This runbook walks you through upgrading a single OP Stack chain from output-root dispute games (`PERMISSIONED_CANNON`, `CANNON` or `CANNON_KONA`) to super-root dispute games (`SUPER_PERMISSIONED_CANNON` or `SUPER_CANNON_KONA`). It runs as a single `opcm.upgrade` call against the chain's existing per-chain `AnchorStateRegistry` and `DisputeGameFactory`. The chain's permission model is preserved: a permissioned chain stays permissioned with `SUPER_PERMISSIONED_CANNON` only; a permissionless chain runs both super game types with `SUPER_CANNON_KONA` as the respected one. Differences between the two are called out inline.
 
 By the end you will have a chain proposing super-root claims via `op-proposer` against an `op-supernode`, defending them via `op-challenger`, monitored by `op-dispute-mon`, and rejecting creation of new pre-migration games at the factory. Every pre-migration dispute game already in flight continues to resolve, and proven withdrawals are not invalidated.
 
-> **Important:** This is `opcm.upgrade`, not `opcm.migrate` — the chain keeps its own per-chain `AnchorStateRegistry` and `DisputeGameFactory`.
+<Note>This is `opcm.upgrade`, not `opcm.migrate` — the chain keeps its own per-chain `AnchorStateRegistry` and `DisputeGameFactory`.</Note>
 
-> Looking to switch from permissioned to permissionless fault proofs? See [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless). This runbook is for chains already running fault proofs that need to move from output-root games to super-root games.
+Looking to switch from permissioned to permissionless fault proofs? See [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless). This runbook is for chains already running fault proofs that need to move from output-root games to super-root games.
 
 ## Before You Begin
 
@@ -214,7 +216,7 @@ The on-chain effect:
 
 Run the checks below before you cut `op-proposer` over.
 
-> **Important:** If any check fails, stop, do not start the new proposer, and escalate via your standard incident-response channel. Recovery from a half-cut state with a misbehaving proposer is materially harder than recovery from a paused proposer.
+<Warning>If any check fails, stop, do not start the new proposer, and escalate via your standard incident-response channel. Recovery from a half-cut state with a misbehaving proposer is materially harder than recovery from a paused proposer.</Warning>
 
 ### Common Checks
 
