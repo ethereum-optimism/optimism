@@ -15,9 +15,10 @@ use tokio::{
         watch,
     },
 };
-use tokio_tungstenite::WebSocketStream;
-use tokio_tungstenite::tungstenite::Utf8Bytes;
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use tokio_tungstenite::{
+    WebSocketStream, accept_async,
+    tungstenite::{Message, Utf8Bytes},
+};
 
 /// A WebSockets publisher that accepts connections from client websockets and broadcasts to them
 /// updates about new flashblocks. It maintains a count of sent messages and active subscriptions.
@@ -47,12 +48,7 @@ impl WebSocketPublisher {
             Arc::clone(&subs),
         ));
 
-        Ok(Self {
-            sent,
-            subs,
-            term,
-            pipe,
-        })
+        Ok(Self { sent, subs, term, pipe })
     }
 
     pub fn publish(&self, payload: &FlashblocksPayloadV1) -> io::Result<()> {
@@ -85,16 +81,12 @@ async fn listener_loop(
     sent: Arc<AtomicUsize>,
     subs: Arc<AtomicUsize>,
 ) {
-    listener
-        .set_nonblocking(true)
-        .expect("Failed to set TcpListener socket to non-blocking");
+    listener.set_nonblocking(true).expect("Failed to set TcpListener socket to non-blocking");
 
     let listener = tokio::net::TcpListener::from_std(listener)
         .expect("Failed to convert TcpListener to tokio TcpListener");
 
-    let listen_addr = listener
-        .local_addr()
-        .expect("Failed to get local address of listener");
+    let listen_addr = listener.local_addr().expect("Failed to get local address of listener");
     tracing::info!("Flashblocks WebSocketPublisher listening on {listen_addr}");
 
     let mut term = term;

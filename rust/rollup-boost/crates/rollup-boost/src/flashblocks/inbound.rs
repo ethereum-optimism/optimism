@@ -1,13 +1,13 @@
 use super::{metrics::FlashblocksWsInboundMetrics, primitives::FlashblocksPayloadV1};
 use crate::FlashblocksWebsocketConfig;
-use backoff::ExponentialBackoff;
-use backoff::backoff::Backoff;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+};
 use tokio::{sync::mpsc, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
@@ -59,21 +59,15 @@ impl FlashblocksReceiverService {
         sender: mpsc::Sender<FlashblocksPayloadV1>,
         websocket_config: FlashblocksWebsocketConfig,
     ) -> Self {
-        Self {
-            url,
-            sender,
-            websocket_config,
-            metrics: Default::default(),
-        }
+        Self { url, sender, websocket_config, metrics: Default::default() }
     }
 
     pub async fn run(self) {
         let mut backoff = self.websocket_config.backoff();
         loop {
             if let Err(e) = self.connect_and_handle(&mut backoff).await {
-                let interval = backoff
-                    .next_backoff()
-                    .expect("max_elapsed_time not set, never None");
+                let interval =
+                    backoff.next_backoff().expect("max_elapsed_time not set, never None");
                 error!(
                     "Flashblocks receiver connection error, retrying in {}ms: {}",
                     interval.as_millis(),
@@ -213,7 +207,8 @@ impl FlashblocksReceiverService {
         cancel_token.cancel();
 
         // Only reset backoff if connection was stable for the max_interval set
-        // This prevents rapid reconnection loops when a proxy accepts and immediately drops connections
+        // This prevents rapid reconnection loops when a proxy accepts and immediately drops
+        // connections
         if connection_start.elapsed() >= backoff.max_interval {
             backoff.reset();
         }
@@ -228,8 +223,10 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Utf8Bytes};
 
     use super::*;
-    use std::net::{SocketAddr, TcpListener};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::{
+        net::{SocketAddr, TcpListener},
+        sync::atomic::{AtomicBool, Ordering},
+    };
 
     async fn start(
         addr: SocketAddr,
@@ -248,9 +245,7 @@ mod tests {
         let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener
-            .set_nonblocking(true)
-            .expect("Failed to set TcpListener socket to non-blocking");
+        listener.set_nonblocking(true).expect("Failed to set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("Failed to convert TcpListener to tokio TcpListener");
@@ -326,9 +321,7 @@ mod tests {
         let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener
-            .set_nonblocking(true)
-            .expect("can set TcpListener socket to non-blocking");
+        listener.set_nonblocking(true).expect("can set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("can convert TcpListener to tokio TcpListener");
@@ -337,40 +330,31 @@ mod tests {
             loop {
                 let result = listener.accept().await;
                 match result {
-                    Ok((connection, _addr)) => {
-                        match accept_async(connection).await {
-                            Ok(ws_stream) => {
-                                let (mut write, mut read) = ws_stream.split();
-                                loop {
-                                    if send_pongs.load(Ordering::Relaxed) {
-                                        let msg = read.next().await;
-                                        match msg {
-                                            Some(Ok(Message::Ping(data))) => {
-                                                write
-                                                    .send(Message::Pong(data.clone()))
-                                                    .await
-                                                    .ok();
-                                                send_ping_tx
-                                                    .send(data)
-                                                    .await
-                                                    .expect("ping data sent");
-                                            }
-                                            Some(Err(_)) => {
-                                                break;
-                                            }
-                                            _ => {}
+                    Ok((connection, _addr)) => match accept_async(connection).await {
+                        Ok(ws_stream) => {
+                            let (mut write, mut read) = ws_stream.split();
+                            loop {
+                                if send_pongs.load(Ordering::Relaxed) {
+                                    let msg = read.next().await;
+                                    match msg {
+                                        Some(Ok(Message::Ping(data))) => {
+                                            write.send(Message::Pong(data.clone())).await.ok();
+                                            send_ping_tx.send(data).await.expect("ping data sent");
                                         }
-                                    } else {
-                                        tokio::time::sleep(tokio::time::Duration::from_millis(1))
-                                            .await;
+                                        Some(Err(_)) => {
+                                            break;
+                                        }
+                                        _ => {}
                                     }
+                                } else {
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("Failed to accept WebSocket connection: {}", e);
-                            }
                         }
-                    }
+                        Err(e) => {
+                            eprintln!("Failed to accept WebSocket connection: {}", e);
+                        }
+                    },
                     Err(e) => {
                         // Optionally break or continue based on error type
                         if e.kind() == std::io::ErrorKind::Interrupted {

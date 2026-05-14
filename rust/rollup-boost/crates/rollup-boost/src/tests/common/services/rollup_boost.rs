@@ -89,10 +89,6 @@ impl RollupBoostConfig {
         // Allow some time for the app to startup
         tokio::time::sleep(Duration::from_secs(4)).await;
 
-        RollupBoost {
-            args: self.args,
-            _handle,
-            _tracing_guard: guard,
-        }
+        RollupBoost { args: self.args, _handle, _tracing_guard: guard }
     }
 }

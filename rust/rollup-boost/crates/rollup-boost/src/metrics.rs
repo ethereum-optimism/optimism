@@ -8,23 +8,19 @@ use tokio::net::TcpListener;
 use tracing::{error, info};
 
 use http::StatusCode;
-use hyper::service::service_fn;
-use hyper::{Request, Response, server::conn::http1};
+use hyper::{Request, Response, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use metrics_exporter_prometheus::PrometheusHandle;
 
-use crate::ExecutionMode;
-use crate::cli::RollupBoostServiceArgs;
+use crate::{ExecutionMode, cli::RollupBoostServiceArgs};
 
 pub fn init_metrics(args: &RollupBoostServiceArgs) -> Result<()> {
     if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();
 
-        Stack::new(recorder)
-            .push(PrefixLayer::new("rollup-boost"))
-            .install()?;
+        Stack::new(recorder).push(PrefixLayer::new("rollup-boost")).install()?;
 
         // Start the metrics server
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);

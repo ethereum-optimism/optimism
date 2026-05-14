@@ -25,11 +25,7 @@ impl BuilderProxyHandler for Handler {
                 serde_json::from_value::<OpExecutionPayloadEnvelopeV3>(_result).unwrap();
 
             // modify the state root field
-            payload
-                .execution_payload
-                .payload_inner
-                .payload_inner
-                .state_root = B256::ZERO;
+            payload.execution_payload.payload_inner.payload_inner.state_root = B256::ZERO;
 
             let result = serde_json::to_value(&payload).unwrap();
             Some(result)

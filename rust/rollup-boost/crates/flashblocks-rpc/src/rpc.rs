@@ -59,10 +59,7 @@ pub struct FlashblocksApiExt<Eth, FB> {
 
 impl<Eth, FB> FlashblocksApiExt<Eth, FB> {
     pub fn new(eth_api: Eth, flashblocks_api: FB) -> Self {
-        Self {
-            eth_api,
-            flashblocks_api,
-        }
+        Self { eth_api, flashblocks_api }
     }
 }
 
@@ -84,9 +81,7 @@ where
         if number.is_pending() {
             Ok(self.flashblocks_api.block_by_number(full).await)
         } else {
-            EthBlocks::rpc_block(&self.eth_api, number.into(), full)
-                .await
-                .map_err(Into::into)
+            EthBlocks::rpc_block(&self.eth_api, number.into(), full).await.map_err(Into::into)
         }
     }
 
@@ -100,9 +95,7 @@ where
             return Ok(Some(fb_receipt));
         }
 
-        EthTransactions::transaction_receipt(&self.eth_api, tx_hash)
-            .await
-            .map_err(Into::into)
+        EthTransactions::transaction_receipt(&self.eth_api, tx_hash).await.map_err(Into::into)
     }
 
     async fn get_balance(
@@ -113,14 +106,12 @@ where
         debug!("get_balance: {:?}, {:?}", address, block_number);
 
         let block_id = block_number.unwrap_or_default();
-        if block_id.is_pending()
-            && let Some(balance) = self.flashblocks_api.get_balance(address).await
+        if block_id.is_pending() &&
+            let Some(balance) = self.flashblocks_api.get_balance(address).await
         {
             return Ok(balance);
         }
-        EthState::balance(&self.eth_api, address, block_number)
-            .await
-            .map_err(Into::into)
+        EthState::balance(&self.eth_api, address, block_number).await.map_err(Into::into)
     }
 
     async fn get_transaction_count(
@@ -145,8 +136,6 @@ where
             }
         }
 
-        EthState::transaction_count(&self.eth_api, address, block_number)
-            .await
-            .map_err(Into::into)
+        EthState::transaction_count(&self.eth_api, address, block_number).await.map_err(Into::into)
     }
 }

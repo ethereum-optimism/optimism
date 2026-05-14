@@ -1,26 +1,21 @@
-use alloy_consensus::BlockHeader;
-use alloy_consensus::Transaction as _;
-use alloy_consensus::TxReceipt;
-use alloy_consensus::transaction::SignerRecoverable;
-use alloy_consensus::transaction::TransactionMeta;
+use alloy_consensus::{
+    BlockHeader, Transaction as _, TxReceipt,
+    transaction::{SignerRecoverable, TransactionMeta},
+};
 use alloy_primitives::{Address, Sealable, TxHash, U256};
-use alloy_rpc_types::Withdrawals;
-use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo};
+use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo, Withdrawals};
 use arc_swap::ArcSwap;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types::OpTransactionReceipt;
-use op_alloy_rpc_types::Transaction;
+use op_alloy_rpc_types::{OpTransactionReceipt, Transaction};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::extract_l1_info;
-use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
 use reth_optimism_rpc::OpReceiptBuilder;
 use reth_primitives::Recovered;
 use reth_primitives_traits::block::body::BlockBody;
 
-use reth_rpc_eth_api::transaction::ConvertReceiptInput;
-use reth_rpc_eth_api::{RpcBlock, RpcReceipt};
+use reth_rpc_eth_api::{RpcBlock, RpcReceipt, transaction::ConvertReceiptInput};
 use rollup_boost::{
     FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
 };
@@ -42,11 +37,7 @@ pub struct FlashblocksCache {
 
 impl FlashblocksCache {
     pub fn new(chain_spec: Arc<OpChainSpec>) -> Self {
-        Self {
-            inner: Arc::new(ArcSwap::from_pointee(FlashblocksCacheInner::new(
-                chain_spec,
-            ))),
-        }
+        Self { inner: Arc::new(ArcSwap::from_pointee(FlashblocksCacheInner::new(chain_spec))) }
     }
 
     pub fn get_block(&self, full: bool) -> Option<RpcBlock<Optimism>> {
@@ -105,9 +96,8 @@ impl FlashblocksCacheInner {
         let transactions = block.body.transactions.to_vec();
 
         if full {
-            let transactions_with_senders = transactions
-                .into_iter()
-                .zip(block.body.recover_signers().unwrap());
+            let transactions_with_senders =
+                transactions.into_iter().zip(block.body.recover_signers().unwrap());
             let converted_txs = transactions_with_senders
                 .enumerate()
                 .map(|(idx, (tx, sender))| {
@@ -170,10 +160,7 @@ impl FlashblocksCacheInner {
         let block: OpBlock = match execution_payload.try_into_block() {
             Ok(block) => block,
             Err(e) => {
-                return Err(eyre::eyre!(
-                    "Failed to convert execution payload to block: {}",
-                    e
-                ));
+                return Err(eyre::eyre!("Failed to convert execution payload to block: {}", e));
             }
         };
 
@@ -188,10 +175,8 @@ impl FlashblocksCacheInner {
             }
 
             // update the receipts
-            let receipt = metadata
-                .receipts
-                .get(&tx.tx_hash().to_string())
-                .expect("Receipt should exist");
+            let receipt =
+                metadata.receipts.get(&tx.tx_hash().to_string()).expect("Receipt should exist");
 
             all_receipts.push(receipt.clone());
         }
@@ -213,9 +198,7 @@ impl FlashblocksCacheInner {
 
             // build the receipts
             for (indx, tx) in block.body.transactions.iter().enumerate() {
-                let receipt = all_receipts
-                    .get(indx)
-                    .expect("Receipt should exist for transaction");
+                let receipt = all_receipts.get(indx).expect("Receipt should exist for transaction");
                 let meta = TransactionMeta {
                     tx_hash: tx.tx_hash(),
                     index: indx as u64,
@@ -241,8 +224,7 @@ impl FlashblocksCacheInner {
                         .expect("failed to build receipt")
                         .build();
 
-                self.receipts_cache
-                    .insert(tx.tx_hash(), rpc_receipt.clone());
+                self.receipts_cache.insert(tx.tx_hash(), rpc_receipt.clone());
             }
         }
 
@@ -277,13 +259,8 @@ impl FlashblocksCacheInner {
 fn transform_tx(tx: Recovered<OpTransactionSigned>, tx_info: TransactionInfo) -> Transaction {
     let tx = tx.convert::<OpTxEnvelope>();
 
-    let TransactionInfo {
-        block_hash,
-        block_number,
-        index: transaction_index,
-        base_fee,
-        ..
-    } = tx_info;
+    let TransactionInfo { block_hash, block_number, index: transaction_index, base_fee, .. } =
+        tx_info;
 
     let effective_gas_price = if tx.is_deposit() {
         // For deposits, we must always set the `gasPrice` field to 0 in rpc

@@ -26,32 +26,20 @@ impl OpExecutionPayloadEnvelope {
     pub fn gas_used(&self) -> u64 {
         match self {
             OpExecutionPayloadEnvelope::V3(payload) => {
-                payload
-                    .execution_payload
-                    .payload_inner
-                    .payload_inner
-                    .gas_used
+                payload.execution_payload.payload_inner.payload_inner.gas_used
             }
 
             OpExecutionPayloadEnvelope::V4(payload) => {
-                payload
-                    .execution_payload
-                    .payload_inner
-                    .payload_inner
-                    .payload_inner
-                    .gas_used
+                payload.execution_payload.payload_inner.payload_inner.payload_inner.gas_used
             }
         }
     }
 
     pub fn tx_count(&self) -> usize {
         match self {
-            OpExecutionPayloadEnvelope::V3(payload) => payload
-                .execution_payload
-                .payload_inner
-                .payload_inner
-                .transactions
-                .len(),
+            OpExecutionPayloadEnvelope::V3(payload) => {
+                payload.execution_payload.payload_inner.payload_inner.transactions.len()
+            }
             OpExecutionPayloadEnvelope::V4(payload) => payload
                 .execution_payload
                 .payload_inner
@@ -64,12 +52,9 @@ impl OpExecutionPayloadEnvelope {
 
     pub fn transactions(&self) -> Vec<Bytes> {
         match self {
-            OpExecutionPayloadEnvelope::V3(payload) => payload
-                .execution_payload
-                .payload_inner
-                .payload_inner
-                .transactions
-                .clone(),
+            OpExecutionPayloadEnvelope::V3(payload) => {
+                payload.execution_payload.payload_inner.payload_inner.transactions.clone()
+            }
             OpExecutionPayloadEnvelope::V4(payload) => payload
                 .execution_payload
                 .payload_inner
@@ -84,11 +69,7 @@ impl OpExecutionPayloadEnvelope {
         match self {
             OpExecutionPayloadEnvelope::V3(payload) => PayloadAttributes {
                 timestamp: payload.execution_payload.payload_inner.timestamp(),
-                prev_randao: payload
-                    .execution_payload
-                    .payload_inner
-                    .payload_inner
-                    .prev_randao,
+                prev_randao: payload.execution_payload.payload_inner.payload_inner.prev_randao,
                 suggested_fee_recipient: payload
                     .execution_payload
                     .payload_inner
@@ -111,13 +92,7 @@ impl OpExecutionPayloadEnvelope {
                     .payload_inner
                     .payload_inner
                     .fee_recipient,
-                withdrawals: Some(
-                    payload
-                        .execution_payload
-                        .payload_inner
-                        .withdrawals()
-                        .clone(),
-                ),
+                withdrawals: Some(payload.execution_payload.payload_inner.withdrawals().clone()),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
             },
         }
@@ -266,15 +241,7 @@ impl PayloadTraceContext {
         builder_has_payload: bool,
         trace_id: Option<tracing::Id>,
     ) {
-        self.payload_id
-            .insert(
-                payload_id,
-                PayloadTrace {
-                    builder_has_payload,
-                    trace_id,
-                },
-            )
-            .await;
+        self.payload_id.insert(payload_id, PayloadTrace { builder_has_payload, trace_id }).await;
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -293,10 +260,7 @@ impl PayloadTraceContext {
             Some(payload_ids) => Some(
                 stream::iter(payload_ids.iter())
                     .filter_map(|payload_id| async {
-                        self.payload_id
-                            .get(payload_id)
-                            .await
-                            .and_then(|x| x.trace_id)
+                        self.payload_id.get(payload_id).await.and_then(|x| x.trace_id)
                     })
                     .collect()
                     .await,
@@ -306,18 +270,11 @@ impl PayloadTraceContext {
     }
 
     pub async fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
-        self.payload_id
-            .get(payload_id)
-            .await
-            .and_then(|x| x.trace_id)
+        self.payload_id.get(payload_id).await.and_then(|x| x.trace_id)
     }
 
     pub async fn has_builder_payload(&self, payload_id: &PayloadId) -> bool {
-        self.payload_id
-            .get(payload_id)
-            .await
-            .map(|x| x.builder_has_payload)
-            .unwrap_or_default()
+        self.payload_id.get(payload_id).await.map(|x| x.builder_has_payload).unwrap_or_default()
     }
 
     pub async fn remove_by_parent_hash(&self, block_hash: &B256) {

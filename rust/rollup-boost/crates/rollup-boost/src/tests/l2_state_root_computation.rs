@@ -25,11 +25,7 @@ impl BuilderProxyHandler for ZeroStateRootHandler {
                 serde_json::from_value::<OpExecutionPayloadEnvelopeV3>(_result).unwrap();
 
             // Set state root to zero to simulate builder payload without computed state root
-            payload
-                .execution_payload
-                .payload_inner
-                .payload_inner
-                .state_root = B256::ZERO;
+            payload.execution_payload.payload_inner.payload_inner.state_root = B256::ZERO;
 
             let result = serde_json::to_value(&payload).unwrap();
             Some(result)
@@ -54,10 +50,7 @@ async fn test_l2_state_root_computation() -> eyre::Result<()> {
     // with L2 computing the correct state root
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(
-            block_creator.is_builder(),
-            "Block creator should be the builder"
-        );
+        assert!(block_creator.is_builder(), "Block creator should be the builder");
     }
 
     // Check logs to verify L2 state root computation was used

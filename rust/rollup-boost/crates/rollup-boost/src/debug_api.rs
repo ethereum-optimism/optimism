@@ -1,7 +1,9 @@
-use jsonrpsee::core::{RpcResult, async_trait};
-use jsonrpsee::http_client::HttpClient;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::server::Server;
+use jsonrpsee::{
+    core::{RpcResult, async_trait},
+    http_client::HttpClient,
+    proc_macros::rpc,
+    server::Server,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -115,15 +117,11 @@ impl DebugApiServer for DebugServer {
 
         tracing::info!("Set execution mode to {:?}", request.execution_mode);
 
-        Ok(SetExecutionModeResponse {
-            execution_mode: request.execution_mode,
-        })
+        Ok(SetExecutionModeResponse { execution_mode: request.execution_mode })
     }
 
     async fn get_execution_mode(&self) -> RpcResult<GetExecutionModeResponse> {
-        Ok(GetExecutionModeResponse {
-            execution_mode: self.execution_mode(),
-        })
+        Ok(GetExecutionModeResponse { execution_mode: self.execution_mode() })
     }
 }
 
@@ -170,10 +168,7 @@ mod tests {
         let client = DebugClient::new(format!("http://{}", DEFAULT_ADDR).as_str()).unwrap();
 
         // Test setting execution mode to Disabled
-        let result = client
-            .set_execution_mode(ExecutionMode::Disabled)
-            .await
-            .unwrap();
+        let result = client.set_execution_mode(ExecutionMode::Disabled).await.unwrap();
         assert_eq!(result.execution_mode, ExecutionMode::Disabled);
 
         // Verify with get_execution_mode
@@ -181,10 +176,7 @@ mod tests {
         assert_eq!(status.execution_mode, ExecutionMode::Disabled);
 
         // Test setting execution mode back to Enabled
-        let result = client
-            .set_execution_mode(ExecutionMode::Enabled)
-            .await
-            .unwrap();
+        let result = client.set_execution_mode(ExecutionMode::Enabled).await.unwrap();
         assert_eq!(result.execution_mode, ExecutionMode::Enabled);
 
         // Verify again with get_execution_mode

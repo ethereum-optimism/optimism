@@ -64,17 +64,11 @@ mod tests {
 
         let genesis: Genesis = serde_json::from_str(include_str!("assets/genesis.json")).unwrap();
         let chain_spec = Arc::new(
-            OpChainSpecBuilder::base_mainnet()
-                .genesis(genesis)
-                .ecotone_activated()
-                .build(),
+            OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build(),
         );
 
         let network_config = NetworkArgs {
-            discovery: DiscoveryArgs {
-                disable_discovery: true,
-                ..DiscoveryArgs::default()
-            },
+            discovery: DiscoveryArgs { disable_discovery: true, ..DiscoveryArgs::default() },
             ..NetworkArgs::default()
         };
 
@@ -90,10 +84,7 @@ mod tests {
         let (sender, mut receiver) =
             mpsc::channel::<(FlashblocksPayloadV1, oneshot::Sender<()>)>(100);
 
-        let NodeHandle {
-            node,
-            node_exit_future,
-        } = NodeBuilder::new(node_config.clone())
+        let NodeHandle { node, node_exit_future } = NodeBuilder::new(node_config.clone())
             .testing_node(exec.clone())
             .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
             .with_components(node.components_builder())
@@ -170,7 +161,8 @@ mod tests {
 
     fn create_second_payload() -> FlashblocksPayloadV1 {
         // Create second payload (index 1) with transactions
-        // tx1 hash: 0x2be2e6f8b01b03b87ae9f0ebca8bbd420f174bef0fbcc18c7802c5378b78f548 (deposit transaction)
+        // tx1 hash: 0x2be2e6f8b01b03b87ae9f0ebca8bbd420f174bef0fbcc18c7802c5378b78f548 (deposit
+        // transaction)
         // tx2 hash: 0xa6155b295085d3b87a3c86e342fe11c3b22f9952d0d85d9d34d223b7d6a17cd8
         let tx1 = Bytes::from_str("0x7ef8f8a042a8ae5ec231af3d0f90f68543ec8bca1da4f7edd712d5b51b490688355a6db794deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e200000044d000a118b00000000000000040000000067cb7cb0000000000077dbd4000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000014edd27304108914dd6503b19b9eeb9956982ef197febbeeed8a9eac3dbaaabdf000000000000000000000000fc56e7272eebbba5bc6c544e159483c4a38f8ba3").unwrap();
         let tx2 = Bytes::from_str("0xf8cd82016d8316e5708302c01c94f39635f2adf40608255779ff742afe13de31f57780b8646e530e9700000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000001bc16d674ec8000000000000000000000000000000000000000000000000000156ddc81eed2a36d68302948ba0a608703e79b22164f74523d188a11f81c25a65dd59535bab1cd1d8b30d115f3ea07f4cfbbad77a139c9209d3bded89091867ff6b548dd714109c61d1f8e7a84d14").unwrap();
@@ -241,9 +233,8 @@ mod tests {
         assert_eq!(latest_block.number(), 0);
 
         // Querying pending block when it does not exists yet
-        let pending_block = provider
-            .get_block_by_number(alloy_eips::BlockNumberOrTag::Pending)
-            .await?;
+        let pending_block =
+            provider.get_block_by_number(alloy_eips::BlockNumberOrTag::Pending).await?;
         assert_eq!(pending_block.is_none(), true);
 
         let base_payload = create_first_payload();
@@ -301,10 +292,7 @@ mod tests {
 
         node.send_test_payloads().await?;
 
-        let receipt = provider
-            .get_transaction_receipt(TX1_HASH)
-            .await?
-            .expect("receipt expected");
+        let receipt = provider.get_transaction_receipt(TX1_HASH).await?.expect("receipt expected");
         assert_eq!(receipt.gas_used, 21000);
 
         // TODO: Add a new payload and validate that the receipts from the previous payload

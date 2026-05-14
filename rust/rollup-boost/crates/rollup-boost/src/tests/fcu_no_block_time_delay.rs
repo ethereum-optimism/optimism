@@ -2,9 +2,7 @@ use super::common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 
 use futures::FutureExt;
 use serde_json::Value;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{pin::Pin, sync::Arc, time::Duration};
 
 // TODO: Use the same implementation as in builder_full_delay.rs
 struct DelayHandler {
@@ -48,10 +46,7 @@ async fn fcu_no_block_time_delay() -> eyre::Result<()> {
 
     for _ in 0..30 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(
-            block_creator.is_builder(),
-            "Block creator should be the builder"
-        );
+        assert!(block_creator.is_builder(), "Block creator should be the builder");
     }
 
     Ok(())
