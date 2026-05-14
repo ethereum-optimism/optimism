@@ -13,6 +13,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 
 // Interfaces
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 /// @title SuperPermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperPermissionedDisputeGame` tests.
@@ -134,14 +135,14 @@ contract SuperPermissionedDisputeGame_Resolve_Test is SuperPermissionedDisputeGa
         gameProxy.resolve();
     }
 
-    function test_resolve_blacklistedGameIsNotClaimValid() public {
+    function test_resolve_blacklistedGameIsNotClaimValid_succeeds() public {
         gameProxy.resolve();
 
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.blacklistDisputeGame(gameProxy);
 
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
-        vm.expectRevert();
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.setAnchorState(gameProxy);
     }
 }

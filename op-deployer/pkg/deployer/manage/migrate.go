@@ -214,9 +214,9 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		}
 		gameArgs, err = abi.Arguments{{Type: addressType}}.Pack(common.HexToAddress(proposerFlag))
 	} else {
-		bytes32Type, err := abi.NewType("bytes32", "", nil)
-		if err != nil {
-			return fmt.Errorf("failed to create bytes32 ABI type: %w", err)
+		bytes32Type, typeErr := abi.NewType("bytes32", "", nil)
+		if typeErr != nil {
+			return fmt.Errorf("failed to create bytes32 ABI type: %w", typeErr)
 		}
 		gameArgs, err = abi.Arguments{{Type: bytes32Type}}.Pack(absolutePrestate)
 	}
