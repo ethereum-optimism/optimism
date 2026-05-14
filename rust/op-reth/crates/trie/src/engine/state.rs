@@ -45,7 +45,7 @@ impl PersistenceState {
         match rx.recv_timeout(Duration::from_secs(DEFAULT_PERSISTENCE_TIMEOUT_SECS)) {
             Ok(Ok(Some(last_persisted))) => {
                 info!(
-                    target: "live-trie::engine",
+                    target: "trie::engine::state",
                     block_number = last_persisted,
                     "Persistence completed (waited), pruning memory"
                 );
@@ -53,13 +53,13 @@ impl PersistenceState {
             }
             Ok(Ok(None)) => {}
             Ok(Err(e)) => {
-                error!(target: "live-trie::engine", ?e, "Persistence save failed while waiting");
+                error!(target: "trie::engine::state", ?e, "Persistence save failed while waiting");
             }
             Err(RecvTimeoutError::Timeout) => {
-                error!(target: "live-trie::engine", "Persistence timeout while waiting");
+                error!(target: "trie::engine::state", "Persistence timeout while waiting");
             }
             Err(RecvTimeoutError::Disconnected) => {
-                error!(target: "live-trie::engine", "Persistence service disconnected while waiting");
+                error!(target: "trie::engine::state", "Persistence service disconnected while waiting");
             }
         }
     }
@@ -76,7 +76,7 @@ impl PersistenceState {
         match result {
             Ok(Ok(Some(last_persisted))) => {
                 info!(
-                    target: "live-trie::engine",
+                    target: "trie::engine::state",
                     block_number = last_persisted,
                     "Background persistence completed, pruning memory"
                 );
@@ -84,10 +84,10 @@ impl PersistenceState {
             }
             Ok(Ok(None)) => {}
             Ok(Err(e)) => {
-                error!(target: "live-trie::engine", ?e, "Background persistence save failed");
+                error!(target: "trie::engine::state", ?e, "Background persistence save failed");
             }
             Err(_) => {
-                error!(target: "live-trie::engine", "Persistence service disconnected unexpectedly");
+                error!(target: "trie::engine::state", "Persistence service disconnected unexpectedly");
             }
         }
     }
@@ -110,7 +110,7 @@ impl PersistenceState {
         }
 
         info!(
-            target: "live-trie::engine",
+            target: "trie::engine::state",
             count = blocks.len(),
             start_block = blocks.first().map(|arc| arc.0.block.number),
             end_block = blocks.last().map(|arc| arc.0.block.number),
@@ -132,7 +132,7 @@ impl PersistenceState {
         memory: &TrieBufferState,
     ) -> Result<(), EngineError> {
         if self.in_flight.is_some() {
-            info!(target: "live-trie::engine", "Unwind waiting for in-flight persistence...");
+            info!(target: "trie::engine::state", "Unwind waiting for in-flight persistence...");
             self.wait(memory);
         }
 

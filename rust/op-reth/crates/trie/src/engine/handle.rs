@@ -92,7 +92,7 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
                         .copied()
                         .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
                         .unwrap_or("unknown");
-                    error!(target: "live-trie::engine", %msg, "Collector engine panicked");
+                    error!(target: "trie::engine::handle", %msg, "Collector engine panicked");
                 }
             })
             .expect("failed to spawn live-trie-collector thread");
