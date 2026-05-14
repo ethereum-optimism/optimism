@@ -178,6 +178,53 @@ async fn trace_extension_transition_state_at_game_timestamp_rejects_mismatched_c
     }
 }
 
+// Mirror of `..._transition_state_at_game_timestamp_accepts_matching_claim` for the
+// `PreState::SuperRoot` arm: `prestate.timestamp == claimed_l2_timestamp` and
+// `claim == prestate_commitment`: must accept (trace extension, `Ok(())`).
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_extension_super_root_at_game_timestamp_accepts_matching_claim() {
+    let t: u64 = 1000;
+    let (preimages, agreed_commit) = setup_interop_preimages(super_root_prestate(t), t, B256::ZERO);
+    let mut preimages = preimages;
+    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+
+    let oracle = MockOracle::from_preimages(preimages);
+    let hints = MockHintWriter::default();
+
+    let result = run(oracle, hints).await;
+    match result {
+        Ok(()) => {}
+        Err(FaultProofProgramError::InvalidClaim(expected, actual)) => {
+            panic!("expected Ok(()); got InvalidClaim(expected={expected}, actual={actual})");
+        }
+        Err(other) => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
+// Mirror of `..._transition_state_at_game_timestamp_rejects_mismatched_claim` for the
+// `PreState::SuperRoot` arm: `prestate.timestamp == claimed_l2_timestamp` but
+// `claim != prestate_commitment`: must reject with `InvalidClaim`.
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_extension_super_root_at_game_timestamp_rejects_mismatched_claim() {
+    let t: u64 = 1000;
+    let mismatched_claim = b256(0xCC);
+    let (preimages, agreed_commit) =
+        setup_interop_preimages(super_root_prestate(t), t, mismatched_claim);
+
+    let oracle = MockOracle::from_preimages(preimages);
+    let hints = MockHintWriter::default();
+
+    let err = run(oracle, hints).await.unwrap_err();
+    match err {
+        FaultProofProgramError::InvalidClaim(expected, actual) => {
+            assert_eq!(expected, agreed_commit);
+            assert_eq!(actual, mismatched_claim);
+            assert_ne!(expected, actual);
+        }
+        other => panic!("unexpected error variant: {other:?}"),
+    }
+}
+
 // `prestate.timestamp > claimed_l2_timestamp`: invariant violation, must panic in
 // `BootInfo::load`. Matches op-program's defensive panic on the same condition.
 #[tokio::test(flavor = "multi_thread")]
