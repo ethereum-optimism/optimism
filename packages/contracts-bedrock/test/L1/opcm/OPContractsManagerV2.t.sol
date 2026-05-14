@@ -149,14 +149,10 @@ contract OPContractsManagerV2_TestInit is CommonTest {
 
         // Expect validator errors if the user provides them.
         if (bytes(_expectedValidatorErrors).length > 0) {
-            vm.expectRevert(
-                bytes(
-                    string.concat(
-                        "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,",
-                        _expectedValidatorErrors
-                    )
-                )
-            );
+            string memory expectedOverrideErrors = deployChallenger == address(0)
+                ? "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,"
+                : "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,";
+            vm.expectRevert(bytes(string.concat(expectedOverrideErrors, _expectedValidatorErrors)));
         }
 
         // Run the StandardValidator checks on the newly deployed chain.
@@ -435,14 +431,10 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
         if (bytes(_expectedValidatorErrors).length > 0) {
-            vm.expectRevert(
-                bytes(
-                    string.concat(
-                        "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,",
-                        _expectedValidatorErrors
-                    )
-                )
-            );
+            string memory expectedOverrideErrors = initialChallenger == address(0)
+                ? "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,"
+                : "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,";
+            vm.expectRevert(bytes(string.concat(expectedOverrideErrors, _expectedValidatorErrors)));
         }
 
         // Run the StandardValidator checks.

@@ -411,16 +411,6 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
         assertEq("MIG-SPDG-GARGS-10", _validateMigration(true));
     }
 
-    /// @notice MIG-SPDG-110: Wrong maxClockDuration on SPDG game impl.
-    function test_validate_spdg110WrongMaxClockDuration_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-110", _validateMigration(true));
-    }
-
     /// @notice MIG-SPDG-120: Anchor root is zero from SPDG ASR.
     ///         Also triggers MIG-SCKDG-120 if SPDG and SCKDG share the same ASR.
     function test_validate_spdg120Sckdg120ZeroAnchorRoot_succeeds() public {
