@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -47,6 +48,13 @@ type SyncDeriver struct {
 	ManagedBySupervisor bool
 
 	StepDeriver StepDeriver
+
+	pendingELSyncPayloads []pendingELSyncPayload
+}
+
+type pendingELSyncPayload struct {
+	envelope *eth.ExecutionPayloadEnvelope
+	ref      eth.L2BlockRef
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -120,13 +128,76 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 		if ref.Number <= s.Engine.UnsafeL2Head().Number {
 			return
 		}
-		s.Log.Info("Inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref); err != nil {
-			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
-		}
+		s.queueELSyncPayload(envelope, ref)
+		s.drainELSyncPayloads()
 		return
 	}
 
+}
+
+func (s *SyncDeriver) queueELSyncPayload(envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) {
+	for _, pending := range s.pendingELSyncPayloads {
+		if pending.ref.Hash == ref.Hash {
+			return
+		}
+	}
+	s.pendingELSyncPayloads = append(s.pendingELSyncPayloads, pendingELSyncPayload{
+		envelope: envelope,
+		ref:      ref,
+	})
+	sort.Slice(s.pendingELSyncPayloads, func(i, j int) bool {
+		return s.pendingELSyncPayloads[i].ref.Number < s.pendingELSyncPayloads[j].ref.Number
+	})
+}
+
+func (s *SyncDeriver) drainELSyncPayloads() {
+	for {
+		unsafeHead := s.Engine.UnsafeL2Head()
+		s.dropStaleELSyncPayloads(unsafeHead)
+
+		next := s.nextELSyncPayload(unsafeHead)
+		if next == -1 {
+			return
+		}
+
+		pending := s.pendingELSyncPayloads[next]
+		s.Log.Info("Inserting unsafe L2 execution payload to drive EL sync", "id", pending.envelope.ExecutionPayload.ID())
+		if err := s.Engine.InsertUnsafePayload(s.Ctx, pending.envelope, pending.ref); err != nil {
+			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", pending.envelope.ExecutionPayload.ID(), "err", err)
+			if errors.Is(err, derive.ErrTemporary) {
+				if s.StepDeriver != nil {
+					s.StepDeriver.RequestStep(s.Ctx, false)
+				}
+				return
+			}
+		}
+		s.removeELSyncPayload(next)
+	}
+}
+
+func (s *SyncDeriver) dropStaleELSyncPayloads(unsafeHead eth.L2BlockRef) {
+	for i := 0; i < len(s.pendingELSyncPayloads); {
+		if s.pendingELSyncPayloads[i].ref.Number <= unsafeHead.Number {
+			s.removeELSyncPayload(i)
+			continue
+		}
+		i++
+	}
+}
+
+func (s *SyncDeriver) nextELSyncPayload(unsafeHead eth.L2BlockRef) int {
+	for i, pending := range s.pendingELSyncPayloads {
+		if pending.ref.Number == unsafeHead.Number+1 && pending.ref.ParentHash == unsafeHead.Hash {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *SyncDeriver) removeELSyncPayload(i int) {
+	copy(s.pendingELSyncPayloads[i:], s.pendingELSyncPayloads[i+1:])
+	s.pendingELSyncPayloads[len(s.pendingELSyncPayloads)-1] = pendingELSyncPayload{}
+	s.pendingELSyncPayloads = s.pendingELSyncPayloads[:len(s.pendingELSyncPayloads)-1]
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
@@ -228,6 +299,7 @@ func (s *SyncDeriver) SyncStep() {
 	s.tryBackupUnsafeReorg()
 
 	if s.Engine.IsEngineInitialELSyncing() {
+		s.drainELSyncPayloads()
 		// The pipeline cannot move forwards if doing initial EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
