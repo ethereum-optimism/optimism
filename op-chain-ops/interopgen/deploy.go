@@ -8,7 +8,6 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -284,15 +283,10 @@ func MigrateInterop(
 	l2ChainID := l2ChainIDs[0]
 	cannonGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeAbsolutePrestate.Bytes(), 32)
 	cannonKonaGameArgs := common.LeftPadBytes(l2Cfgs[l2ChainID].DisputeKonaAbsolutePrestate.Bytes(), 32)
-	superPermissionedGameArgs, err := encodeSuperPermissionedGameArgs(l2Cfgs[l2ChainID].Proposer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode super permissioned game args: %w", err)
-	}
 
 	const (
-		GameTypeCannon            = uint32(0)
-		GameTypeSuperPermissioned = uint32(5)
-		GameTypeSuperCannonKona   = uint32(9)
+		GameTypeCannon          = uint32(0)
+		GameTypeSuperCannonKona = uint32(9)
 	)
 
 	imi := manage.InteropMigrationInput{
@@ -306,12 +300,6 @@ func MigrateInterop(
 					InitBond: new(big.Int).Set(defaultInitBond),
 					GameType: GameTypeCannon,
 					GameArgs: cannonGameArgs,
-				},
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
-					GameType: GameTypeSuperPermissioned,
-					GameArgs: superPermissionedGameArgs,
 				},
 				{
 					Enabled:  true,
@@ -335,14 +323,6 @@ func MigrateInterop(
 	return &InteropDeployment{
 		DisputeGameFactory: output.DisputeGameFactory,
 	}, nil
-}
-
-func encodeSuperPermissionedGameArgs(proposer common.Address) ([]byte, error) {
-	addressType, err := abi.NewType("address", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create address ABI type: %w", err)
-	}
-	return abi.Arguments{{Type: addressType}}.Pack(proposer)
 }
 
 func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {
