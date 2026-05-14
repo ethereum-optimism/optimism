@@ -343,7 +343,7 @@ func TestGetGameVM(t *testing.T) {
 func TestGetGameVMSuperPermissionedHasNoVM(t *testing.T) {
 	rpc, factory := setupDisputeGameFactoryTest(t, factoryVersions[1])
 	gameType := gameTypes.SuperPermissionedGameType
-	gameArgs := gameargs.SuperPermissionedGameArgs{AnchorStateRegistry: common.Address{0xaa}}.Pack()
+	gameArgs := make([]byte, 40)
 	rpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{gameType}, []interface{}{gameArgs})
 
 	vm, err := factory.GetGameVm(context.Background(), gameType)
@@ -394,7 +394,7 @@ func TestGetGamePrestate(t *testing.T) {
 func TestGetGamePrestateSuperPermissionedHasNoPrestate(t *testing.T) {
 	rpc, factory := setupDisputeGameFactoryTest(t, factoryVersions[1])
 	gameType := gameTypes.SuperPermissionedGameType
-	gameArgs := gameargs.SuperPermissionedGameArgs{AnchorStateRegistry: common.Address{0xaa}}.Pack()
+	gameArgs := make([]byte, 40)
 	rpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{gameType}, []interface{}{gameArgs})
 
 	prestate, err := factory.GetGamePrestate(context.Background(), gameType)

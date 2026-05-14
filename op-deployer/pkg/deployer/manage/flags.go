@@ -12,7 +12,6 @@ import (
 // deploy/upgrade allow-list, so `op-deployer manage migrate` rejects it for both
 // --dispute-game-type and --starting-respected-game-type.
 const superCannonGameType uint32 = 4
-const superPermissionedCannonGameType uint32 = 5
 
 // migrateStartingRespectedGameTypeDefault is the default value for --starting-respected-game-type
 // in `op-deployer manage migrate`. SUPER_CANNON_KONA (9) replaces the retired SUPER_CANNON (4).
@@ -56,11 +55,6 @@ var (
 		Usage:   "The absolute prestate hash for the dispute game. Defaults to the standard value.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeProposerFlag = &cli.StringFlag{
-		Name:    "dispute-proposer-address",
-		Usage:   "Proposer address for SUPER_PERMISSIONED_CANNON migration configs.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_PROPOSER_ADDRESS"),
 	}
 	InitialBondFlag = &cli.StringFlag{
 		Name:    "initial-bond",
@@ -144,7 +138,6 @@ var Commands = cli.Commands{
 			MigrateDisputeGameEnabledFlag,
 			DisputeGameTypeFlag,
 			DisputeAbsolutePrestateFlag,
-			DisputeProposerFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
 	},
