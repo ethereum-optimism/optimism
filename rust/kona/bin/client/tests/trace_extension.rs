@@ -2,47 +2,12 @@ use alloy_consensus::Header;
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_client::single::{FaultProofProgramError, run};
-use kona_preimage::{
-    HintWriterClient, PreimageKey, PreimageOracleClient,
-    errors::{PreimageOracleError, PreimageOracleResult},
-};
-use kona_proof::errors::OracleProviderError;
+use kona_preimage::{HintWriterClient, PreimageKey, errors::PreimageOracleResult};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
-#[derive(Clone, Debug, Default)]
-struct MockOracle {
-    preimages: Arc<Mutex<HashMap<PreimageKey, Vec<u8>>>>,
-}
-
-impl MockOracle {
-    fn from_preimages(preimages: HashMap<PreimageKey, Vec<u8>>) -> Self {
-        Self { preimages: Arc::new(Mutex::new(preimages)) }
-    }
-}
-
-#[async_trait]
-impl PreimageOracleClient for MockOracle {
-    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
-        self.preimages.lock().await.get(&key).cloned().ok_or(PreimageOracleError::KeyNotFound)
-    }
-
-    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
-        let data = self.get(key).await?;
-        if data.len() != buf.len() {
-            return Err(PreimageOracleError::BufferLengthMismatch(buf.len(), data.len()));
-        }
-        buf.copy_from_slice(&data);
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl HintWriterClient for MockOracle {
-    async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
-        Ok(())
-    }
-}
+mod common;
+use common::MockOracle;
 
 #[derive(Clone, Debug, Default)]
 struct MockHintWriter {
@@ -155,23 +120,4 @@ async fn does_not_short_circuit_on_root_match_at_different_block() {
     let hints = MockHintWriter::default();
 
     assert!(run(oracle, hints).await.is_err());
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_safe_head_hash_rejects_unknown_output_version() {
-    let agreed_root = b256(0xAA);
-    let mut bad_preimage = [0u8; 128];
-    bad_preimage[0] = 0x01; // non-V0 version word; [96..128] stays zero
-
-    let mut preimages = HashMap::new();
-    preimages.insert(PreimageKey::new_keccak256(*agreed_root), bad_preimage.to_vec());
-    let oracle = MockOracle::from_preimages(preimages);
-
-    let err = kona_client::single::fetch_safe_head_hash(&oracle, agreed_root).await.unwrap_err();
-    match err {
-        OracleProviderError::UnknownOutputVersion(version) => {
-            assert_eq!(version[0], 0x01);
-        }
-        other => panic!("unexpected error: {other:?}"),
-    }
 }

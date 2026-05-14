@@ -21,7 +21,7 @@ use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
 
 pub(crate) mod consolidate;
 pub(crate) mod transition;
-pub(crate) mod util;
+pub mod util;
 
 /// An error that can occur when running the fault proof program.
 #[derive(Error, Debug)]

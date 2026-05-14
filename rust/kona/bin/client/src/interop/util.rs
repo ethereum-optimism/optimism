@@ -24,7 +24,7 @@ where
 }
 
 /// Fetches the block hash that the passed output root commits to.
-pub(crate) async fn fetch_output_block_hash<O>(
+pub async fn fetch_output_block_hash<O>(
     caching_oracle: &O,
     output_root: B256,
     chain_id: u64,
@@ -41,7 +41,14 @@ where
         .await
         .map_err(OracleProviderError::Preimage)?;
 
-    if output_preimage.len() >= 32 && output_preimage[..32] != [0u8; 32] {
+    if output_preimage.len() != 128 {
+        return Err(OracleProviderError::Preimage(PreimageOracleError::BufferLengthMismatch(
+            128,
+            output_preimage.len(),
+        )));
+    }
+
+    if output_preimage[..32] != [0u8; 32] {
         return Err(OracleProviderError::UnknownOutputVersion(B256::from_slice(
             &output_preimage[..32],
         )));
