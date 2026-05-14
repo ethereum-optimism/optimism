@@ -1959,7 +1959,8 @@
               "chain-operators/tutorials/integrating-da-layer",
               "chain-operators/tutorials/migrating-permissionless",
               "chain-operators/tutorials/modifying-predeploys",
-              "chain-operators/tutorials/rewind-op-geth"
+              "chain-operators/tutorials/rewind-op-geth",
+              "chain-operators/tutorials/upgrade-chain-to-super-roots"
             ]
           },
           {
