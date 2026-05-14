@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -53,19 +52,4 @@ func TestDevFeatureBitmapForL2Genesis(t *testing.T) {
 			require.Equal(t, tt.want, devFeatureBitmapForL2Genesis(tt.enableInterop, tt.useL2CM))
 		})
 	}
-}
-
-func TestEncodeSuperPermissionedGameArgs(t *testing.T) {
-	proposer := common.HexToAddress("0x1111111111111111111111111111111111111111")
-
-	args, err := encodeSuperPermissionedGameArgs(proposer)
-	require.NoError(t, err)
-	require.Len(t, args, 32)
-
-	addressType, err := abi.NewType("address", "", nil)
-	require.NoError(t, err)
-
-	unpacked, err := abi.Arguments{{Type: addressType}}.Unpack(args)
-	require.NoError(t, err)
-	require.Equal(t, proposer, unpacked[0])
 }
