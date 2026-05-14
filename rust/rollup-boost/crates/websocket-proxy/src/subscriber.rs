@@ -299,7 +299,7 @@ mod tests {
     use tokio::net::{TcpListener, TcpStream};
     use tokio::sync::broadcast;
     use tokio::time::{sleep, timeout, Duration};
-    use tokio_tungstenite::{accept_async, tungstenite::Message};
+    use tokio_tungstenite::accept_async;
 
     struct MockServer {
         addr: SocketAddr,
