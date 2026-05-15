@@ -359,8 +359,8 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset), cfg.UseL2CM),
-		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopScheduled(cfg.L2GenesisInteropTimeOffset), cfg.UseL2CM),
+		UseInterop:                               multichainDepSet && interopScheduled(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -372,6 +372,16 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 // Using a nil offset means Interop is not scheduled at all.
 func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
 	return interopOffset != nil && *interopOffset == 0
+}
+
+// interopScheduled returns true if the Interop fork is scheduled to activate at any time
+// (at genesis or in the future). A nil offset means Interop is not scheduled at all.
+//
+// This is distinct from [interopAtGenesis]: the L2CM dev feature bitmap controls whether the
+// Interop machinery is provisioned in the L2 from genesis, which is required so that L2CM
+// can apply Interop predeploy upgrades whenever the fork eventually activates.
+func interopScheduled(interopOffset *hexutil.Uint64) bool {
+	return interopOffset != nil
 }
 
 // devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.
