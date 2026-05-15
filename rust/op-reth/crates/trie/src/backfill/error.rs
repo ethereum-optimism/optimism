@@ -2,6 +2,7 @@
 
 use crate::OpProofsStorageError;
 use alloy_primitives::B256;
+use reth_db::DatabaseError;
 use reth_execution_errors::StateRootError;
 use reth_provider::ProviderError;
 
@@ -29,4 +30,10 @@ pub enum BackfillError {
         /// Expected root from reth's block header.
         expected: B256,
     },
+}
+
+impl From<DatabaseError> for BackfillError {
+    fn from(err: DatabaseError) -> Self {
+        Self::Storage(OpProofsStorageError::from(err))
+    }
 }

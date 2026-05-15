@@ -17,15 +17,26 @@ mod metrics;
 mod provider_ro;
 mod provider_rw;
 mod read;
+mod snapshot_init;
+mod snapshot_read;
+mod snapshot_write;
 mod write;
 
-pub use cursor::{V2AccountCursor, V2AccountTrieCursor, V2StorageCursor, V2StorageTrieCursor};
+pub use cursor::{
+    V2AccountCursor, V2AccountTrieCursor, V2AccountTrieSnapshotCursor, V2StorageCursor,
+    V2StorageTrieCursor, V2StorageTrieSnapshotCursor,
+};
 
+#[cfg(test)]
+mod snapshot_tests;
 #[cfg(test)]
 mod tests;
 
 use super::Tables;
-use crate::{OpProofsStorageError, OpProofsStorageResult, api::OpProofsStore};
+use crate::{
+    OpProofsStorageError, OpProofsStorageResult,
+    api::{OpProofsSnapshotStore, OpProofsStore},
+};
 use reth_db::{
     Database, DatabaseEnv, DatabaseError,
     mdbx::{DatabaseArguments, init_db_for},
@@ -73,6 +84,14 @@ impl OpProofsStore for MdbxProofsStorageV2 {
     }
 
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
+        Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
+    }
+}
+
+impl OpProofsSnapshotStore for MdbxProofsStorageV2 {
+    type SnapshotProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+
+    fn snapshot_provider<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProvider<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
 }

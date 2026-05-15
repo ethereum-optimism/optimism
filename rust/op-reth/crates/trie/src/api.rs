@@ -320,3 +320,139 @@ pub trait OpProofsInitProvider: Send + Sync + Debug {
     /// Consumes the provider.
     fn commit(self) -> OpProofsStorageResult<()>;
 }
+
+/// Read access to the trie-state snapshot.
+///
+/// Cursors read the snapshot tables directly (no history-bitmap lookups) and
+/// are only valid at [`Self::snapshot_anchor`].
+#[auto_impl(Arc)]
+pub trait OpProofsSnapshotProviderRO: Send + Sync + Debug {
+    /// Cursor over the snapshot's account trie table.
+    type SnapshotAccountTrieCursor<'tx>: TrieCursor + 'tx
+    where
+        Self: 'tx;
+
+    /// Cursor over the snapshot's storage trie table.
+    type SnapshotStorageTrieCursor<'tx>: TrieStorageCursor + 'tx
+    where
+        Self: 'tx;
+
+    /// Anchor block of a `Ready` snapshot. Errors with
+    /// [`OpProofsStorageError::SnapshotNotReady`](crate::OpProofsStorageError::SnapshotNotReady)
+    /// otherwise.
+    fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash>;
+
+    /// Open a cursor over the snapshot's account trie table.
+    fn snapshot_account_trie_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotAccountTrieCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's storage trie table for `hashed_address`.
+    fn snapshot_storage_trie_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>>;
+}
+
+/// Write access to the trie-state snapshot. Snapshot writes share the
+/// underlying tx with the provider's other writer surfaces, so they commit
+/// atomically.
+pub trait OpProofsSnapshotProviderRW: OpProofsSnapshotProviderRO {
+    /// Wipe both snapshot tables and the meta row.
+    fn clear_snapshot(&self) -> OpProofsStorageResult<()>;
+
+    /// Project `trie_updates` onto the snapshot and advance the anchor to
+    /// `new_anchor` atomically. Direction is implicit in the diff:
+    /// `(path, Some(node))` sets, `(path, None)` deletes.
+    ///
+    /// Requires status `Ready`; errors with
+    /// [`OpProofsStorageError::SnapshotUpdateNotReady`](crate::OpProofsStorageError::SnapshotUpdateNotReady)
+    /// otherwise.
+    fn update_snapshot(
+        &self,
+        new_anchor: BlockNumHash,
+        trie_updates: &TrieUpdatesSorted,
+    ) -> OpProofsStorageResult<u64>;
+
+    /// Commit the transaction. Consumes the provider.
+    fn commit(self) -> OpProofsStorageResult<()>;
+}
+
+/// Lifecycle of the snapshot init job. Mirrors [`InitialStateStatus`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SnapshotInitStatus {
+    /// Init has never run.
+    #[default]
+    NotStarted,
+    /// Init is running; snapshot tables may be partially populated.
+    InProgress,
+    /// Init completed. Use [`OpProofsSnapshotProviderRO::snapshot_anchor`] to read.
+    Completed,
+}
+
+/// Status + anchor block + resume keys for the snapshot init job. Mirrors
+/// [`InitialStateAnchor`]'s shape.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SnapshotInitAnchor {
+    /// Anchor block, or `None` if init has never run.
+    pub block: Option<BlockNumHash>,
+    /// Lifecycle status.
+    pub status: SnapshotInitStatus,
+    /// Last key in [`crate::db::V2AccountsTrieSnapshot`]; resumes the account-trie phase.
+    pub last_account_trie_key: Option<StoredNibbles>,
+    /// Last entry in [`crate::db::V2StoragesTrieSnapshot`]; resumes the storage-trie phase.
+    pub last_storage_trie_key: Option<StorageTrieKey>,
+}
+
+/// Init-time read + write surface for the trie-state snapshot. Mirrors
+/// [`OpProofsInitProvider`]'s role. Driven by [`crate::snapshot::SnapshotInitJob`]
+/// over short chunked rw-tx; meta stays `Building` mid-init so a crash
+/// resumes from [`Self::snapshot_init_anchor`].
+pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
+    /// Read status + anchor block + resume keys in one call.
+    fn snapshot_init_anchor(&self) -> OpProofsStorageResult<SnapshotInitAnchor>;
+
+    /// Plant the meta row at `anchor` with status `Building`. Errors if a
+    /// meta row already exists — call
+    /// [`OpProofsSnapshotProviderRW::clear_snapshot`] first to rebuild.
+    fn set_snapshot_init_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2AccountsTrieSnapshot`]. Entries must
+    /// be sorted and strictly greater than the table's current last key.
+    fn store_account_trie_snapshot_branches(
+        &self,
+        entries: Vec<(StoredNibbles, BranchNodeCompact)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2StoragesTrieSnapshot`]. Entries must
+    /// be sorted and strictly greater than the table's current last entry.
+    fn store_storage_trie_snapshot_branches(
+        &self,
+        hashed_address: B256,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Transition the meta row from `Building` to `Ready`. Errors if no meta
+    /// exists or if it isn't `Building`.
+    fn commit_snapshot(&self) -> OpProofsStorageResult<()>;
+
+    /// Commit the transaction. Consumes the provider.
+    fn commit(self) -> OpProofsStorageResult<()>;
+}
+
+#[auto_impl(Arc)]
+/// Factory extension for stores that maintain a trie-state snapshot. The
+/// returned provider bundles all snapshot writer surfaces (RW + init) plus RO
+/// reads so a single tx can span init + backfill ops.
+pub trait OpProofsSnapshotStore: OpProofsStore {
+    /// Snapshot provider type; bundles RW + init writers and RO reads.
+    type SnapshotProvider<'a>: OpProofsSnapshotProviderRW
+        + OpProofsSnapshotInitProvider
+        + OpProofsProviderRO
+        + 'a
+    where
+        Self: 'a;
+
+    /// Open a snapshot provider.
+    fn snapshot_provider<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProvider<'a>>;
+}

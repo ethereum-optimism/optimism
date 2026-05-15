@@ -19,6 +19,8 @@ mod key;
 pub use key::*;
 mod value;
 pub use value::*;
+mod snapshot;
+pub use snapshot::*;
 
 use alloy_primitives::{B256, BlockNumber};
 use reth_db::{
@@ -234,5 +236,29 @@ tables! {
         type Key = B256;
         type Value = StorageTrieEntry;
         type SubKey = StoredNibblesSubKey;
+    }
+
+    /// Snapshot of [`V2AccountsTrie`] reflecting trie state at block x.
+    ///
+    /// Same schema as [`V2AccountsTrie`]. Populated by `SnapshotInitJob`.
+    table V2AccountsTrieSnapshot {
+        type Key = StoredNibbles;
+        type Value = BranchNodeCompact;
+    }
+
+    /// Snapshot of [`V2StoragesTrie`] reflecting trie state at block x.
+    ///
+    /// Same schema as [`V2StoragesTrie`].
+    table V2StoragesTrieSnapshot {
+        type Key = B256;
+        type Value = StorageTrieEntry;
+        type SubKey = StoredNibblesSubKey;
+    }
+
+    /// Single-row metadata for the snapshot: which block its trie state
+    /// reflects, and whether it's [`SnapshotStatus::Ready`] for reads.
+    table V2SnapshotMeta {
+        type Key = SnapshotMetaKey;
+        type Value = SnapshotMeta;
     }
 }

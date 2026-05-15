@@ -129,9 +129,12 @@ define_simple_cursor_iter!(
 // v1 (legacy) storage trie: 65-byte StoredNibblesSubKey subkeys
 define_dup_cursor_iter!(StoragesTrieInitLegacy, tables::StoragesTrie, B256, StorageTrieEntry);
 
-/// Trait to estimate the progress of a initialization job based on the key.
-trait CompletionEstimatable {
-    // Returns a progress estimate as a percentage (0.0 to 1.0)
+/// Trait to estimate the progress of a chunked job based on a key seen so far.
+///
+/// Used by [`InitializationJob`] for trie-init progress and by
+/// [`crate::snapshot::SnapshotInitJob`] for snapshot-build progress.
+pub(crate) trait CompletionEstimatable {
+    /// Progress estimate as a fraction in `[0.0, 1.0]`.
     fn estimate_progress(&self) -> f64;
 }
 
@@ -170,6 +173,14 @@ impl CompletionEstimatable for StoredNibbles {
             val = (val << 4) | nibble as u64;
         }
         val as f64 / (16u64.pow(progress_nibbles.len() as u32)) as f64
+    }
+}
+
+impl CompletionEstimatable for crate::db::StorageTrieKey {
+    /// Address dominates ordering, so progress along the storage-trie scan
+    /// tracks the hashed address.
+    fn estimate_progress(&self) -> f64 {
+        self.hashed_address.estimate_progress()
     }
 }
 

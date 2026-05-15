@@ -1,5 +1,6 @@
 //! Errors interfacing with [`OpProofsStore`](crate::OpProofsStore) type.
 
+use crate::{api::SnapshotInitStatus, db::SnapshotStatus};
 use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
@@ -142,6 +143,30 @@ pub enum OpProofsStorageError {
          Please clear proofs data and retry initialization."
     )]
     InitializeStorageInconsistentState,
+    /// The snapshot has never been initialized — no init job has run yet.
+    #[error("Snapshot is not initialized")]
+    SnapshotNotInitialized,
+    /// Attempted to commit a snapshot whose meta is not in [`SnapshotStatus::Building`].
+    #[error("Cannot commit snapshot: meta is in status {status:?}, expected Building")]
+    SnapshotCommitInvalidStatus {
+        /// The status the snapshot meta is currently in.
+        status: SnapshotStatus,
+    },
+    /// Attempted to apply an update to a snapshot whose meta is not in [`SnapshotStatus::Ready`].
+    #[error("Cannot update snapshot: meta is in status {status:?}, expected Ready")]
+    SnapshotUpdateNotReady {
+        /// The status the snapshot meta is currently in.
+        status: SnapshotStatus,
+    },
+    /// Snapshot is not in [`SnapshotStatus::Ready`] — either the init job has
+    /// not been run, or it is still building. Reads against the snapshot must
+    /// wait for [`SnapshotStatus::Ready`].
+    #[error("Snapshot is not ready: current init status {status:?}")]
+    SnapshotNotReady {
+        /// Current lifecycle status as reported by
+        /// [`crate::api::OpProofsSnapshotInitProvider::snapshot_init_anchor`].
+        status: SnapshotInitStatus,
+    },
 }
 
 impl From<BlockExecutionError> for OpProofsStorageError {
