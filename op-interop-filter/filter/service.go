@@ -247,10 +247,20 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	)
 
-	// Register supervisor query API (public, no auth)
+	queryFrontend := &QueryFrontend{backend: s.backend}
+
+	server.AddAPI(rpc.API{
+		Namespace:     "interop",
+		Service:       queryFrontend,
+		Authenticated: false,
+	})
+
+	// Deprecated: the "supervisor" namespace is retained for backwards
+	// compatibility with execution clients that pre-date the interop filter
+	// replacing op-supervisor. New callers should use the "interop" namespace.
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
-		Service:       &QueryFrontend{backend: s.backend},
+		Service:       queryFrontend,
 		Authenticated: false,
 	})
 
