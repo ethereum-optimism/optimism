@@ -66,11 +66,6 @@ The example uses environment variables; pass the equivalent `--flag` arguments i
 Fill in the placeholders before starting the binary.
 
 <Info>
-  Some `--vn.<chainID>.*` flags have an environment-variable suffix that doesn't mechanically match the CLI flag name (for example, `--vn.<id>.l2` is set by `OP_SUPERNODE_VN_<id>_L2_ENGINE_RPC`, and `--vn.all.l2.jwt-secret` is set by `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`).
-  The example below uses the correct environment-variable names from `--help`; copy them as shown.
-</Info>
-
-<Info>
   The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
   For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2` pairs for each chain.
 </Info>
@@ -108,6 +103,13 @@ OP_SUPERNODE_METRICS_PORT: "7300"
 For chains that are not in op-node's built-in network registry, replace `--vn.<chainID>.network` with `--vn.<chainID>.rollup.config=<path-to-rollup-config.json>`.
 
 ## All configuration variables
+
+<Info>
+  Environment-variable names don't always derive mechanically from the CLI flag name.
+  Some env-var suffixes keep op-node's source-level spelling even when the CLI flag was renamed (for example, `--vn.<chainID>.l2` is set by `OP_SUPERNODE_VN_<chainID>_L2_ENGINE_RPC`, not `OP_SUPERNODE_VN_<chainID>_L2`).
+  The per-flag entries below show the correct env-var name alongside the CLI form.
+  When in doubt, run `op-supernode --chains=<chainIDs> --help` for the authoritative name of any flag.
+</Info>
 
 ### Dependency set and storage
 
@@ -200,10 +202,7 @@ The supernode reproduces the full op-node flag set under two prefixes so you can
 * **`--vn.all.<flag>`** sets `<flag>` for every chain in the dependency set.
 
 The environment-variable form follows the same prefix rule: `OP_SUPERNODE_VN_<CHAINID>_<SUFFIX>` for one chain and `OP_SUPERNODE_VN_ALL_<SUFFIX>` for every chain.
-The `<SUFFIX>` is the op-node flag's source-level environment-variable suffix — usually but not always derivable from the CLI flag name.
-For example, `--vn.11155420.l2.engine-rpc-timeout` becomes `OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC_TIMEOUT` (CLI name matches the suffix), while `--vn.11155420.l2` becomes `OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC` (the CLI was renamed but the environment-variable suffix kept the original op-node spelling).
-
-Consult `op-supernode --chains=<chainIDs> --help` for the authoritative environment-variable name of any flag. The per-flag entries below list the correct environment-variable form alongside the CLI form.
+The `<SUFFIX>` is the op-node flag's source-level environment-variable name (see the note at the top of [All configuration variables](#all-configuration-variables) for why it doesn't always match the CLI flag).
 
 <Info>
   A few flags are owned by the supernode rather than by individual virtual nodes.
