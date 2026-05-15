@@ -42,7 +42,7 @@ Use the per-chain form only when a chain's execution client requires its own sec
 
 Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints.
 Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
-The shared L1 client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
+The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
 The `--l1.beacon-archiver` alias points at the same flag and is accepted for compatibility with older deployment scripts.
 
 ### Pair op-supernode with a Light CL fleet
@@ -131,7 +131,8 @@ The default value is `./datadir`.
 
 ### Shared L1 access
 
-The supernode runs one L1 client and one beacon client and serves every chain in the dependency set from them.
+The supernode shares one L1 client and one beacon client across every chain in the dependency set.
+These are the supernode's own in-process clients (caching layers in front of remote endpoints), not the remote L1 node and beacon node themselves — the supernode connects to existing endpoints rather than running its own.
 Configure these flags at the top level only — the per-chain namespace also includes `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` (because the supernode mechanically clones every op-node flag into the namespace), but the supernode discards them at startup.
 
 #### l1
