@@ -51,7 +51,7 @@ impl Decode for SnapshotMetaKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum SnapshotStatus {
-    /// Snapshot is being constructed by [`crate::backfill::SnapshotInitJob`].
+    /// Snapshot is being constructed by [`crate::snapshot::SnapshotInitJob`].
     /// Reads must be refused until status transitions to [`Self::Ready`].
     Building = 0,
     /// Snapshot is consistent and reflects trie state at [`SnapshotMeta::earliest`].

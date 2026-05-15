@@ -23,7 +23,7 @@ impl<TX: DbTx> MdbxProofsProviderV2<TX> {
     ///
     /// Internal helper for V2 write paths that need to verify or mutate the
     /// current lifecycle state. External reads go through
-    /// [`OpProofsSnapshotProviderRO::ready_snapshot_anchor`].
+    /// [`OpProofsSnapshotProviderRO::snapshot_anchor`].
     pub(super) fn read_snapshot_meta(&self) -> OpProofsStorageResult<SnapshotMeta> {
         let mut cursor = self.tx.cursor_read::<V2SnapshotMeta>()?;
         cursor

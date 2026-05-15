@@ -1,4 +1,4 @@
-//! [`OpProofsSnapshotProviderRw`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsSnapshotProviderRW`] implementation for [`MdbxProofsProviderV2`].
 //!
 //! Per-iteration backfill writer surface. The init-time writer
 //! ([`OpProofsSnapshotInitProvider`](crate::api::OpProofsSnapshotInitProvider))
