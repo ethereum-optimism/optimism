@@ -4,6 +4,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -256,6 +257,20 @@ func WithInteropFilter() Option {
 		kinds: optionKindInteropFilter,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.UseInteropFilter = true
+		},
+	}
+}
+
+func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
+				Interval:       interval,
+				UnsafeInterval: unsafeInterval,
+				SafeInterval:   safeInterval,
+				MinPeerCount:   0,
+			}
 		},
 	}
 }

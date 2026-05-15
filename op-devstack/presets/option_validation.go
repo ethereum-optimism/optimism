@@ -30,6 +30,7 @@ const (
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
 	optionKindSkipHonestProposer
+	optionKindConductor
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -50,7 +51,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
-	optionKindSkipHonestProposer
+	optionKindSkipHonestProposer |
+	optionKindConductor
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -75,6 +77,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindConductor, label: "conductor options"},
 }
 
 func (k optionKinds) String() string {
@@ -130,7 +133,8 @@ const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindRespectedGameType |
 	optionKindTimeTravel |
 	optionKindAfterBuild |
-	optionKindProofValidation
+	optionKindProofValidation |
+	optionKindConductor
 
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
@@ -155,6 +159,9 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame
+
+const twoL2SupernodeInteropWithConductorsPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
+	optionKindConductor
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder

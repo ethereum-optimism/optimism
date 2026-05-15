@@ -9,10 +9,11 @@ type Conductor struct {
 	name    string
 	chainID eth.ChainID
 
-	serverID          string
-	consensusEndpoint string
-	rpcEndpoint       string
-	service           *opconductor.OpConductor
+	serverID             string
+	consensusEndpoint    string
+	rpcEndpoint          string
+	initialUnsafePayload *eth.ExecutionPayloadEnvelope
+	service              *opconductor.OpConductor
 }
 
 func (c *Conductor) ServerID() string {

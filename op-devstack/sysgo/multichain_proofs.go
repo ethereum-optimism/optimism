@@ -150,7 +150,7 @@ func attachSuperChallengerAndProposer(
 
 func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperProofsDeployerFeature(cfg)
-	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, interopAtGenesis, 0, cfg)
+	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, interopAtGenesis, 0, cfg, false)
 	attachTestSequencerToRuntime(t, runtime, "test-sequencer-2l2")
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }

@@ -260,9 +260,6 @@ func (c *HealthCheckConfig) Check() error {
 	if c.SafeInterval == 0 {
 		return fmt.Errorf("missing safe interval")
 	}
-	if c.MinPeerCount == 0 {
-		return fmt.Errorf("missing minimum peer count")
-	}
 	if c.ExecutionP2pEnabled {
 		if c.ExecutionP2pMinPeerCount == 0 {
 			return fmt.Errorf("missing minimum el p2p peers")

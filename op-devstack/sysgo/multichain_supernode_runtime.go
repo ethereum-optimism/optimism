@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -66,7 +67,7 @@ func NewTwoL2SupernodeInteropRuntime(t devtest.T, delaySeconds uint64) *MultiCha
 }
 
 func NewTwoL2SupernodeInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
-	base, activationTime := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg)
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg, false)
 	chainA := base.Chains["l2a"]
 	chainB := base.Chains["l2b"]
 	t.Require().NotNil(chainA, "missing l2a supernode chain")
@@ -74,6 +75,26 @@ func NewTwoL2SupernodeInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64,
 	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2")
 
 	t.Logger().Info("configured supernode interop runtime",
+		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
+		"activation_time", activationTime,
+		"delay_seconds", delaySeconds,
+	)
+
+	base.DelaySeconds = delaySeconds
+	return base
+}
+
+func NewTwoL2SupernodeInteropWithConductorsRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg, true)
+	chainA := base.Chains["l2a"]
+	chainB := base.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	t.Require().NotNil(chainA.Conductors, "missing l2a conductors")
+	t.Require().NotNil(chainB.Conductors, "missing l2b conductors")
+	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2")
+
+	t.Logger().Info("configured supernode interop runtime with conductors",
 		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
 		"activation_time", activationTime,
 		"delay_seconds", delaySeconds,
@@ -91,11 +112,11 @@ func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64
 }
 
 func newTwoL2SupernodeRuntime(t devtest.T, enableInterop bool, delaySeconds uint64) (*MultiChainRuntime, uint64) {
-	return newTwoL2SupernodeRuntimeWithConfig(t, enableInterop, delaySeconds, PresetConfig{})
+	return newTwoL2SupernodeRuntimeWithConfig(t, enableInterop, delaySeconds, PresetConfig{}, false)
 }
 
 func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
-	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, false, 0, cfg)
+	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, false, 0, cfg, false)
 	return runtime
 }
 
@@ -205,7 +226,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	}
 }
 
-func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig) (*MultiChainRuntime, uint64) {
+func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, enableConductors bool) (*MultiChainRuntime, uint64) {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -279,6 +300,14 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		require.NoError(err, "failed to override message expiry window")
 	}
 
+	var conductorEndpoints map[eth.ChainID]*atomic.Value
+	if enableConductors {
+		conductorEndpoints = map[eth.ChainID]*atomic.Value{
+			l2ANet.ChainID(): newConductorRPCEndpoint(),
+			l2BNet.ChainID(): newConductorRPCEndpoint(),
+		}
+	}
+
 	supernode, l2ACL, l2BCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
@@ -292,7 +321,40 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
+		conductorEndpoints,
 	)
+
+	var l2AConductors map[string]*Conductor
+	var l2BConductors map[string]*Conductor
+	if enableConductors {
+		conductorCfg := conductorConfigFromPreset(cfg)
+		l2AConductor := startConductorForRPC(
+			t,
+			"sequencer",
+			l2ANet,
+			l2ACL.UserRPC(),
+			l2AEL.UserRPC(),
+			true,
+			false,
+			conductorEndpoints[l2ANet.ChainID()],
+			conductorCfg,
+		)
+		l2BConductor := startConductorForRPC(
+			t,
+			"sequencer",
+			l2BNet,
+			l2BCL.UserRPC(),
+			l2BEL.UserRPC(),
+			true,
+			false,
+			conductorEndpoints[l2BNet.ChainID()],
+			conductorCfg,
+		)
+		startConductorCluster(t, l2AConductor, nil)
+		startConductorCluster(t, l2BConductor, nil)
+		l2AConductors = map[string]*Conductor{"sequencer": l2AConductor}
+		l2BConductors = map[string]*Conductor{"sequencer": l2BConductor}
+	}
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL)
@@ -329,20 +391,22 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		L1CL:          l1CL,
 		Chains: map[string]*MultiChainNodeRuntime{
 			"l2a": {
-				Name:     "l2a",
-				Network:  l2ANet,
-				EL:       l2AEL,
-				CL:       l2ACL,
-				Batcher:  l2ABatcher,
-				Proposer: l2AProposer,
+				Name:       "l2a",
+				Network:    l2ANet,
+				EL:         l2AEL,
+				CL:         l2ACL,
+				Batcher:    l2ABatcher,
+				Proposer:   l2AProposer,
+				Conductors: l2AConductors,
 			},
 			"l2b": {
-				Name:     "l2b",
-				Network:  l2BNet,
-				EL:       l2BEL,
-				CL:       l2BCL,
-				Batcher:  l2BBatcher,
-				Proposer: l2BProposer,
+				Name:       "l2b",
+				Network:    l2BNet,
+				EL:         l2BEL,
+				CL:         l2BCL,
+				Batcher:    l2BBatcher,
+				Proposer:   l2BProposer,
+				Conductors: l2BConductors,
 			},
 		},
 		Supernode:     supernode,
@@ -471,6 +535,7 @@ func startTwoL2SharedSupernode(
 	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
+	conductorEndpoints map[eth.ChainID]*atomic.Value,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
@@ -517,6 +582,12 @@ func startTwoL2SharedSupernode(
 			Pprof:                           oppprof.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
 			ExperimentalOPStackAPI:          true,
+		}
+		if conductorRPCEndpoint := conductorEndpoints[l2Net.ChainID()]; conductorRPCEndpoint != nil {
+			cfg.ConductorEnabled = true
+			cfg.ConductorRpcTimeout = 5 * time.Second
+			cfg.ConductorRpc = conductorRPCFromEndpoint(conductorRPCEndpoint)
+			cfg.Driver.SequencerStopped = true
 		}
 		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
 		return cfg

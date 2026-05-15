@@ -258,6 +258,10 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 }
 
 func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error {
+	if hm.minPeerCount == 0 {
+		return nil
+	}
+
 	stats, err := hm.p2p.PeerStats(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get peer stats", "err", err)

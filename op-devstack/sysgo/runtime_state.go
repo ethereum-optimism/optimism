@@ -121,13 +121,14 @@ func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
 }
 
 type MultiChainNodeRuntime struct {
-	Name      string
-	Network   *L2Network
-	EL        L2ELNode
-	CL        L2CLNode
-	Batcher   *L2Batcher
-	Proposer  *L2Proposer
-	Followers map[string]*SingleChainNodeRuntime
+	Name       string
+	Network    *L2Network
+	EL         L2ELNode
+	CL         L2CLNode
+	Batcher    *L2Batcher
+	Proposer   *L2Proposer
+	Followers  map[string]*SingleChainNodeRuntime
+	Conductors map[string]*Conductor
 }
 
 type MultiChainRuntime struct {

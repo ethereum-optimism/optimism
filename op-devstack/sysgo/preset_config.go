@@ -4,6 +4,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -36,6 +37,9 @@ type PresetConfig struct {
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
+	// ConductorHealthCheck overrides the default slow conductor health check
+	// intervals for tests that intentionally exercise health transitions.
+	ConductorHealthCheck *opconductor.HealthCheckConfig
 }
 
 func NewPresetConfig() PresetConfig {
