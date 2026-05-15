@@ -148,19 +148,9 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a super permissioned game implementation
-    function setupSuperPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer, _challenger);
+    function setupSuperPermissionedDisputeGame(address _proposer) internal returns (address gameImpl_) {
+        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
-        (_absolutePrestate);
-        (_challenger);
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
     }
 
     /// @notice Sets up immutable data for fault game implementation
@@ -246,15 +236,11 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for Super PDG implementation
-    function getSuperPermissionedDisputeGameImmutableArgs(
-        address _proposer,
-        address _challenger
-    )
+    function getSuperPermissionedDisputeGameImmutableArgs(address _proposer)
         internal
         view
         returns (bytes memory implArgs_)
     {
-        (_challenger);
         implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 

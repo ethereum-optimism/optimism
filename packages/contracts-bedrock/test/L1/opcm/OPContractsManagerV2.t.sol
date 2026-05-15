@@ -1189,12 +1189,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Builds super root game configs and override instructions onto v2UpgradeInput.
     /// @param _isPermissionless True if the chain is currently in permissionless mode.
     /// @param _proposer The proposer address for the permissioned game.
-    /// @param _challenger The challenger address for the permissioned game.
     /// @return targetGameType_ The expected target game type after upgrade.
     function _setupSuperRootConfigs(
         bool _isPermissionless,
-        address _proposer,
-        address _challenger
+        address _proposer
     )
         internal
         returns (GameType targetGameType_)
@@ -1243,7 +1241,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _proposer }))
             })
         );
-        (_challenger);
         if (_isPermissionless) {
             v2UpgradeInput.disputeGameConfigs.push(
                 IOPContractsManagerUtils.DisputeGameConfig({
@@ -1318,12 +1315,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Determine upgrade path.
         bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
-        // Get proposer/challenger from existing permissioned game.
+        // Get proposer from existing permissioned game.
         address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
-        address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
         // Build super root configs.
-        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer, currentChallenger);
+        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer);
 
         // Run the upgrade. StandardValidator handles super mode — no legacy game errors.
         runCurrentUpgradeV2(chainPAO);
@@ -1397,7 +1393,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         address currentChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
 
         // Build super root configs.
-        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer, currentChallenger);
+        GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer);
 
         // Run superchain upgrade once (may fail if already up to date).
         prankDelegateCall(superchainPAO);
