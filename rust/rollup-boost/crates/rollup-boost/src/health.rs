@@ -54,15 +54,21 @@ impl HealthHandle {
                 // Check L2 client health. If its unhealthy, set the health status to
                 // ServiceUnavailable If in disabled or dry run execution mode, set
                 // the health status to Healthy if the l2 client is healthy
-                match self.l2_client.get_block_by_number(BlockNumberOrTag::Latest, false).await {
+                match self
+                    .l2_client
+                    .get_block_by_number(BlockNumberOrTag::Latest, false)
+                    .await
+                {
                     Ok(block) => {
-                        if t.saturating_sub(block.header.timestamp).gt(&self.max_unsafe_interval) {
+                        if t.saturating_sub(block.header.timestamp)
+                            .gt(&self.max_unsafe_interval)
+                        {
                             warn!(target: "rollup_boost::health", curr_unix = %t, unsafe_unix = %block.header.timestamp, "L2 client - unsafe block timestamp is too old, updating health status to ServiceUnavailable");
                             self.probes.set_health(Health::ServiceUnavailable);
                             sleep_until(Instant::now() + self.health_check_interval).await;
                             continue;
-                        } else if self.execution_mode.lock().is_disabled() ||
-                            self.execution_mode.lock().is_dry_run()
+                        } else if self.execution_mode.lock().is_disabled()
+                            || self.execution_mode.lock().is_dry_run()
                         {
                             self.probes.set_health(Health::Healthy);
                             sleep_until(Instant::now() + self.health_check_interval).await;
@@ -131,10 +137,15 @@ impl Default for MonotonicTimestamp {
 
 impl MonotonicTimestamp {
     pub fn new() -> Self {
-        let last_unix =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let last_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
         let last_instant = Instant::now();
-        Self { last_unix, last_instant }
+        Self {
+            last_unix,
+            last_instant,
+        }
     }
 
     fn tick(&mut self) -> u64 {
@@ -213,7 +224,10 @@ mod tests {
                     }
                 });
 
-                Ok(Self { addr, join_handle: handle })
+                Ok(Self {
+                    addr,
+                    join_handle: handle,
+                })
             }
         }
     }
@@ -250,7 +264,10 @@ mod tests {
 
         let mock_block = Block::<Transaction> {
             header: EthHeader {
-                inner: Header { timestamp: block_timstamp, ..Default::default() },
+                inner: Header {
+                    timestamp: block_timstamp,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             ..Default::default()
@@ -279,8 +296,10 @@ mod tests {
     #[tokio::test]
     async fn test_health_check_healthy() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
 
         let l2 = MockHttpServer::serve(handler, now).await.unwrap();
         let l2_client = Arc::new(RpcClient::new(
@@ -317,8 +336,10 @@ mod tests {
     #[tokio::test]
     async fn test_health_check_builder_exceeds_max_unsafe_interval() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
 
         // L2 healthy
         let l2 = MockHttpServer::serve(handler, now).await.unwrap();
@@ -357,8 +378,10 @@ mod tests {
     #[tokio::test]
     async fn test_health_check_l2_exceeds_max_unsafe_interval() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
 
         // L2 healthy unhealth
         let l2 = MockHttpServer::serve(handler, now - 10).await.unwrap();
@@ -398,8 +421,10 @@ mod tests {
     async fn test_health_check_exceeds_max_unsafe_interval_execution_mode_disabled()
     -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
         // L2 healthy
         let l2 = MockHttpServer::serve(handler, now).await.unwrap();
         let l2_client = Arc::new(RpcClient::new(
@@ -437,8 +462,10 @@ mod tests {
     async fn test_health_check_exceeds_max_unsafe_interval_execution_mode_dryrun()
     -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
         // L2 healthy
         let l2 = MockHttpServer::serve(handler, now).await.unwrap();
         let l2_client = Arc::new(RpcClient::new(
@@ -475,8 +502,10 @@ mod tests {
     #[tokio::test]
     async fn test_health_check_service_builder_unavailable() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
         // L2 healthy
         let l2 = MockHttpServer::serve(handler, now).await.unwrap();
         let l2_client = Arc::new(RpcClient::new(
@@ -513,8 +542,10 @@ mod tests {
     #[tokio::test]
     async fn test_health_check_service_l2_unavailable() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
-        let now =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
 
         // L2 returns an error
         let l2_client = Arc::new(RpcClient::new(
@@ -563,16 +594,20 @@ mod tests {
     #[tokio::test]
     async fn tick_matches_system_clock() {
         let mut ts = MonotonicTimestamp::new();
-        let unix =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
 
         assert_eq!(ts.last_unix, unix);
 
         std::thread::sleep(Duration::from_secs(5));
 
         let t1 = ts.tick();
-        let unix =
-            SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs();
+        let unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
         assert_eq!(t1, unix);
     }
 }

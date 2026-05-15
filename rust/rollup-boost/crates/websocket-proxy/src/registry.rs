@@ -1,10 +1,10 @@
 use crate::{client::ClientConnection, metrics::Metrics};
 use axum::extract::ws::Message;
-use futures::{SinkExt, stream::StreamExt};
+use futures::{stream::StreamExt, SinkExt};
 use std::{sync::Arc, time::Instant};
 use tokio::{
-    sync::broadcast::{Sender, error::RecvError},
-    time::{Duration, interval},
+    sync::broadcast::{error::RecvError, Sender},
+    time::{interval, Duration},
 };
 use tracing::{debug, info, trace, warn};
 
@@ -23,7 +23,12 @@ impl Registry {
         ping_enabled: bool,
         pong_timeout_ms: u64,
     ) -> Self {
-        Self { sender, metrics, ping_enabled, pong_timeout_ms }
+        Self {
+            sender,
+            metrics,
+            ping_enabled,
+            pong_timeout_ms,
+        }
     }
 
     pub async fn subscribe(&self, client: ClientConnection) {

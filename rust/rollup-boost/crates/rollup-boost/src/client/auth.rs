@@ -60,7 +60,9 @@ where
     }
 
     fn call(&mut self, mut request: http::Request<B>) -> Self::Future {
-        request.headers_mut().insert(AUTHORIZATION, secret_to_bearer_header(&self.secret));
+        request
+            .headers_mut()
+            .insert(AUTHORIZATION, secret_to_bearer_header(&self.secret));
         self.inner.call(request)
     }
 }

@@ -48,7 +48,12 @@ impl WebSocketPublisher {
             Arc::clone(&subs),
         ));
 
-        Ok(Self { sent, subs, term, pipe })
+        Ok(Self {
+            sent,
+            subs,
+            term,
+            pipe,
+        })
     }
 
     pub fn publish(&self, payload: &FlashblocksPayloadV1) -> io::Result<()> {
@@ -81,12 +86,16 @@ async fn listener_loop(
     sent: Arc<AtomicUsize>,
     subs: Arc<AtomicUsize>,
 ) {
-    listener.set_nonblocking(true).expect("Failed to set TcpListener socket to non-blocking");
+    listener
+        .set_nonblocking(true)
+        .expect("Failed to set TcpListener socket to non-blocking");
 
     let listener = tokio::net::TcpListener::from_std(listener)
         .expect("Failed to convert TcpListener to tokio TcpListener");
 
-    let listen_addr = listener.local_addr().expect("Failed to get local address of listener");
+    let listen_addr = listener
+        .local_addr()
+        .expect("Failed to get local address of listener");
     tracing::info!("Flashblocks WebSocketPublisher listening on {listen_addr}");
 
     let mut term = term;

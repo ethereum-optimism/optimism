@@ -31,7 +31,10 @@ pub struct ProxyLayer {
 
 impl ProxyLayer {
     pub fn new(l2_client: HttpClient, builder_client: HttpClient) -> Self {
-        ProxyLayer { l2_client, builder_client }
+        ProxyLayer {
+            l2_client,
+            builder_client,
+        }
     }
 }
 
@@ -88,7 +91,9 @@ where
             let body_bytes = buffered.clone().collect().await?.to_bytes();
 
             // Deserialize the bytes to find the method
-            let method = serde_json::from_slice::<RpcRequest>(&body_bytes)?.method.to_string();
+            let method = serde_json::from_slice::<RpcRequest>(&body_bytes)?
+                .method
+                .to_string();
 
             // If the request is an Engine API method, call the inner RollupBoostServer
             if method.starts_with(ENGINE_METHOD) {
@@ -114,7 +119,11 @@ where
             }
 
             // Return the response from the L2 client
-            service.l2_client.forward(buffered, method).await.map(|res| res.map(HttpBody::new))
+            service
+                .l2_client
+                .forward(buffered, method)
+                .await
+                .map(|res| res.map(HttpBody::new))
         };
 
         Box::pin(fut)
@@ -207,7 +216,12 @@ mod tests {
 
             let server_handle = server.start(RpcModule::new(()));
 
-            Ok(Self { builder, l2, server_handle, proxy_client })
+            Ok(Self {
+                builder,
+                l2,
+                server_handle,
+                proxy_client,
+            })
         }
     }
 
@@ -349,8 +363,8 @@ mod tests {
                     "result": format!("{}", B256::from([1; 32])),
                     "id": request_body["id"]
                 }),
-                "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice" |
-                "miner_setExtra" => {
+                "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice"
+                | "miner_setExtra" => {
                     json!({
                         "jsonrpc": "2.0",
                         "result": true,
@@ -381,7 +395,9 @@ mod tests {
     #[cfg(test)]
     #[ctor::ctor]
     fn crypto_ring_init() {
-        rustls::crypto::ring::default_provider().install_default().unwrap();
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .unwrap();
     }
 
     #[tokio::test]
@@ -438,9 +454,13 @@ mod tests {
     async fn send_request(method: &str) -> Result<String, ClientError> {
         let (backend_server, backend_addr) = spawn_server().await;
         let (proxy_server, proxy_addr) = spawn_proxy_server_with_l2(backend_addr).await;
-        let proxy_client = HttpClient::builder().build(format!("http://{}", proxy_addr)).unwrap();
+        let proxy_client = HttpClient::builder()
+            .build(format!("http://{}", proxy_addr))
+            .unwrap();
 
-        let response = proxy_client.request::<String, _>(method, rpc_params![]).await;
+        let response = proxy_client
+            .request::<String, _>(method, rpc_params![])
+            .await;
 
         backend_server.stop().unwrap();
         backend_server.stopped().await;
@@ -458,7 +478,9 @@ mod tests {
 
         // Create a mock rpc module
         let mut module = RpcModule::new(());
-        module.register_method("greet_melkor", |_, _, _| "You are the dark lord").unwrap();
+        module
+            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
+            .unwrap();
 
         (server.start(module), addr)
     }
@@ -494,18 +516,29 @@ mod tests {
 
         // Create a layered server
         let server = ServerBuilder::default()
-            .set_http_middleware(tower::ServiceBuilder::new().layer(probe_layer).layer(proxy_layer))
+            .set_http_middleware(
+                tower::ServiceBuilder::new()
+                    .layer(probe_layer)
+                    .layer(proxy_layer),
+            )
             .build(proxy_addr)
             .await
             .unwrap();
 
         // Create a mock rpc module
         let mut module = RpcModule::new(());
-        module.register_method("engine_method", |_, _, _| "engine response").unwrap();
         module
-            .register_method("eth_sendRawTransaction", |_, _, _| "raw transaction response")
+            .register_method("engine_method", |_, _, _| "engine response")
             .unwrap();
-        module.register_method("non_existent_method", |_, _, _| "no proxy response").unwrap();
+        module
+            .register_method(
+                "eth_sendRawTransaction",
+                |_, _, _| "raw transaction response",
+            )
+            .unwrap();
+        module
+            .register_method("non_existent_method", |_, _, _| "no proxy response")
+            .unwrap();
 
         (server.start(module), proxy_addr)
     }
@@ -818,7 +851,10 @@ mod tests {
         let result = proxy_client
             .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
             .await;
-        assert!(result.is_err(), "Request should fail when L2 server is not running");
+        assert!(
+            result.is_err(),
+            "Request should fail when L2 server is not running"
+        );
         println!("Request failed as expected (no server): {:?}", result);
 
         // Step 4: Start the L2 server
@@ -841,13 +877,21 @@ mod tests {
             let result = proxy_client
                 .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
                 .await;
-            assert!(result.is_ok(), "Request {} should continue to succeed: {:?}", i, result);
+            assert!(
+                result.is_ok(),
+                "Request {} should continue to succeed: {:?}",
+                i,
+                result
+            );
         }
 
         // Verify the server received requests
         {
             let l2_requests = l2.requests.lock().await;
-            assert!(l2_requests.len() >= 1, "L2 server should have received requests");
+            assert!(
+                l2_requests.len() >= 1,
+                "L2 server should have received requests"
+            );
             assert_eq!(l2_requests[0]["method"], "mock_forwardedMethod");
         }
 
@@ -928,7 +972,10 @@ mod tests {
             }
             Err(_other) => {
                 // Transport or other non-Call errors are considered retriable
-                assert!(matches!(_other, ClientError::Transport(_)), "expected transport error");
+                assert!(
+                    matches!(_other, ClientError::Transport(_)),
+                    "expected transport error"
+                );
             }
         }
 
@@ -938,7 +985,11 @@ mod tests {
         let res = proxy_client
             .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
             .await;
-        assert!(res.is_ok(), "request should succeed after L2 restart: {:?}", res);
+        assert!(
+            res.is_ok(),
+            "request should succeed after L2 restart: {:?}",
+            res
+        );
 
         // Cleanup
         server_handle.stop()?;

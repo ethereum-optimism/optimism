@@ -132,7 +132,11 @@ impl RpcClient {
             .request_timeout(Duration::from_millis(timeout))
             .build(auth_rpc.to_string())?;
 
-        Ok(Self { auth_client, auth_rpc, payload_source })
+        Ok(Self {
+            auth_client,
+            auth_rpc,
+            payload_source,
+        })
     }
 
     #[instrument(
@@ -164,10 +168,15 @@ impl RpcClient {
         }
 
         if res.is_invalid() {
-            return Err(RpcClientError::InvalidPayload(res.payload_status.status.to_string()))
-                .set_code();
+            return Err(RpcClientError::InvalidPayload(
+                res.payload_status.status.to_string(),
+            ))
+            .set_code();
         }
-        info!("Successfully sent fork_choice_updated_v3 to {}", self.payload_source);
+        info!(
+            "Successfully sent fork_choice_updated_v3 to {}",
+            self.payload_source
+        );
 
         Ok(res)
     }
@@ -188,7 +197,11 @@ impl RpcClient {
     ) -> ClientResult<OpExecutionPayloadEnvelopeV3> {
         tracing::Span::current().record("payload_id", payload_id.to_string());
         info!("Sending get_payload_v3 to {}", self.payload_source);
-        Ok(self.auth_client.get_payload_v3(payload_id).await.set_code()?)
+        Ok(self
+            .auth_client
+            .get_payload_v3(payload_id)
+            .await
+            .set_code()?)
     }
 
     #[instrument(
@@ -238,7 +251,11 @@ impl RpcClient {
         payload_id: PayloadId,
     ) -> ClientResult<OpExecutionPayloadEnvelopeV4> {
         info!("Sending get_payload_v4 to {}", self.payload_source);
-        Ok(self.auth_client.get_payload_v4(payload_id).await.set_code()?)
+        Ok(self
+            .auth_client
+            .get_payload_v4(payload_id)
+            .await
+            .set_code()?)
     }
 
     pub async fn get_payload(
@@ -278,7 +295,12 @@ impl RpcClient {
 
         let res = self
             .auth_client
-            .new_payload_v4(payload, versioned_hashes, parent_beacon_block_root, execution_requests)
+            .new_payload_v4(
+                payload,
+                versioned_hashes,
+                parent_beacon_block_root,
+                execution_requests,
+            )
             .await
             .set_code()?;
 
@@ -316,7 +338,11 @@ impl RpcClient {
         number: BlockNumberOrTag,
         full: bool,
     ) -> ClientResult<Block> {
-        Ok(self.auth_client.get_block_by_number(number, full).await.set_code()?)
+        Ok(self
+            .auth_client
+            .get_block_by_number(number, full)
+            .await
+            .set_code()?)
     }
 }
 
@@ -327,7 +353,8 @@ impl EngineApiExt for RpcClient {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> ClientResult<ForkchoiceUpdated> {
-        self.fork_choice_updated_v3(fork_choice_state, payload_attributes).await
+        self.fork_choice_updated_v3(fork_choice_state, payload_attributes)
+            .await
     }
 
     async fn new_payload(&self, new_payload: NewPayload) -> ClientResult<PayloadStatus> {
@@ -378,8 +405,13 @@ impl ClientArgs {
     }
 
     pub fn new_rpc_client(&self, payload_source: PayloadSource) -> eyre::Result<RpcClient> {
-        RpcClient::new(self.url.clone(), self.get_auth_jwt()?, self.timeout, payload_source)
-            .map_err(eyre::Report::from)
+        RpcClient::new(
+            self.url.clone(),
+            self.get_auth_jwt()?,
+            self.timeout,
+            payload_source,
+        )
+        .map_err(eyre::Report::from)
     }
 
     pub fn new_http_client(
@@ -483,9 +515,9 @@ pub mod tests {
         let mut cmd = Command::cargo_bin("rollup-boost").unwrap();
         cmd.arg("--invalid-arg");
 
-        cmd.assert()
-            .failure()
-            .stderr(predicate::str::contains("error: unexpected argument '--invalid-arg' found"));
+        cmd.assert().failure().stderr(predicate::str::contains(
+            "error: unexpected argument '--invalid-arg' found",
+        ));
     }
 
     #[tokio::test]
@@ -502,7 +534,9 @@ pub mod tests {
     async fn send_request(client: RpcClientService, port: u16) -> Result<String, ClientError> {
         let server = spawn_server(port).await;
 
-        let response = client.request::<String, _>("greet_melkor", rpc_params![]).await;
+        let response = client
+            .request::<String, _>("greet_melkor", rpc_params![])
+            .await;
 
         server.stop().unwrap();
         server.stopped().await;
@@ -526,7 +560,9 @@ pub mod tests {
 
         // Create a mock rpc module
         let mut module = RpcModule::new(());
-        module.register_method("greet_melkor", |_, _, _| "You are the dark lord").unwrap();
+        module
+            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
+            .unwrap();
 
         server.start(module)
     }

@@ -1,5 +1,5 @@
 use axum::extract::ws::Message;
-use metrics::{Counter, Gauge, counter};
+use metrics::{counter, Counter, Gauge};
 use metrics_derive::Metrics;
 #[derive(Metrics)]
 #[metrics(scope = "websocket_proxy")]

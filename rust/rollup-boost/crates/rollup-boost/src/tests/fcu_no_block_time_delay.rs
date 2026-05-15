@@ -46,7 +46,10 @@ async fn fcu_no_block_time_delay() -> eyre::Result<()> {
 
     for _ in 0..30 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_builder(), "Block creator should be the builder");
+        assert!(
+            block_creator.is_builder(),
+            "Block creator should be the builder"
+        );
     }
 
     Ok(())

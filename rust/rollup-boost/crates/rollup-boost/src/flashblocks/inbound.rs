@@ -59,15 +59,21 @@ impl FlashblocksReceiverService {
         sender: mpsc::Sender<FlashblocksPayloadV1>,
         websocket_config: FlashblocksWebsocketConfig,
     ) -> Self {
-        Self { url, sender, websocket_config, metrics: Default::default() }
+        Self {
+            url,
+            sender,
+            websocket_config,
+            metrics: Default::default(),
+        }
     }
 
     pub async fn run(self) {
         let mut backoff = self.websocket_config.backoff();
         loop {
             if let Err(e) = self.connect_and_handle(&mut backoff).await {
-                let interval =
-                    backoff.next_backoff().expect("max_elapsed_time not set, never None");
+                let interval = backoff
+                    .next_backoff()
+                    .expect("max_elapsed_time not set, never None");
                 error!(
                     "Flashblocks receiver connection error, retrying in {}ms: {}",
                     interval.as_millis(),
@@ -245,7 +251,9 @@ mod tests {
         let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener.set_nonblocking(true).expect("Failed to set TcpListener socket to non-blocking");
+        listener
+            .set_nonblocking(true)
+            .expect("Failed to set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("Failed to convert TcpListener to tokio TcpListener");
@@ -321,7 +329,9 @@ mod tests {
         let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
-        listener.set_nonblocking(true).expect("can set TcpListener socket to non-blocking");
+        listener
+            .set_nonblocking(true)
+            .expect("can set TcpListener socket to non-blocking");
 
         let listener = tokio::net::TcpListener::from_std(listener)
             .expect("can convert TcpListener to tokio TcpListener");

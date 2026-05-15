@@ -51,10 +51,19 @@ mod tests {
         let mut l2_payload = builder_payload.clone();
 
         let gas_used = 1000000000;
-        l2_payload.execution_payload.payload_inner.payload_inner.payload_inner.gas_used = gas_used;
+        l2_payload
+            .execution_payload
+            .payload_inner
+            .payload_inner
+            .payload_inner
+            .gas_used = gas_used;
 
-        builder_payload.execution_payload.payload_inner.payload_inner.payload_inner.gas_used =
-            (gas_used as f64 * 0.09) as u64;
+        builder_payload
+            .execution_payload
+            .payload_inner
+            .payload_inner
+            .payload_inner
+            .gas_used = (gas_used as f64 * 0.09) as u64;
 
         let builder_payload = OpExecutionPayloadEnvelope::V4(builder_payload);
         let l2_payload = OpExecutionPayloadEnvelope::V4(l2_payload);
@@ -74,10 +83,19 @@ mod tests {
         let mut l2_payload = builder_payload.clone();
 
         let gas_used = 1000000000;
-        l2_payload.execution_payload.payload_inner.payload_inner.payload_inner.gas_used = gas_used;
+        l2_payload
+            .execution_payload
+            .payload_inner
+            .payload_inner
+            .payload_inner
+            .gas_used = gas_used;
 
-        builder_payload.execution_payload.payload_inner.payload_inner.payload_inner.gas_used =
-            (gas_used as f64 * 0.1) as u64;
+        builder_payload
+            .execution_payload
+            .payload_inner
+            .payload_inner
+            .payload_inner
+            .gas_used = (gas_used as f64 * 0.1) as u64;
 
         let builder_payload = OpExecutionPayloadEnvelope::V4(builder_payload);
         let l2_payload = OpExecutionPayloadEnvelope::V4(l2_payload);

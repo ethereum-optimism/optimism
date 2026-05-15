@@ -10,7 +10,11 @@ pub struct ClientConnection {
 
 impl ClientConnection {
     pub fn new(client_addr: IpAddr, ticket: Ticket, websocket: WebSocket) -> Self {
-        Self { client_addr, _ticket: ticket, websocket }
+        Self {
+            client_addr,
+            _ticket: ticket,
+            websocket,
+        }
     }
 
     pub fn id(&self) -> String {

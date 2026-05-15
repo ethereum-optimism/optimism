@@ -64,8 +64,11 @@ async fn proxy(
     let stream = TcpStream::connect(config.target_addr).await?;
     let io = TokioIo::new(stream);
 
-    let (mut sender, conn) =
-        Builder::new().preserve_header_case(true).title_case_headers(true).handshake(io).await?;
+    let (mut sender, conn) = Builder::new()
+        .preserve_header_case(true)
+        .title_case_headers(true)
+        .handshake(io)
+        .await?;
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
@@ -80,8 +83,10 @@ async fn proxy(
 
     let json_rpc_response = serde_json::from_slice::<JsonRpcResponse>(&bytes).unwrap();
     let bytes = if let Some(result) = json_rpc_response.clone().result {
-        let value =
-            config.handler.handle(json_rpc_request.method, json_rpc_request.params, result).await;
+        let value = config
+            .handler
+            .handle(json_rpc_request.method, json_rpc_request.params, result)
+            .await;
         if let Some(value) = value {
             // If the handler returns a value, we replace the result with the new value
             // The callback only returns the result of the jsonrpc request so we have to wrap it up
@@ -101,7 +106,8 @@ async fn proxy(
     let mut resp = Response::from_parts(parts, Full::new(bytes).map_err(|_| unreachable!()));
 
     // We have to update the content length to the new bytes length
-    resp.headers_mut().insert(header::CONTENT_LENGTH, bytes_len.into());
+    resp.headers_mut()
+        .insert(header::CONTENT_LENGTH, bytes_len.into());
 
     Ok(resp.map(|b| b.boxed()))
 }
@@ -114,7 +120,10 @@ pub async fn start_proxy_server(
     let listen_addr = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let target_addr = SocketAddr::from(([127, 0, 0, 1], target_port));
 
-    let config = ProxyConfig { target_addr, handler };
+    let config = ProxyConfig {
+        target_addr,
+        handler,
+    };
     let listener = TcpListener::bind(listen_addr).await?;
 
     tokio::spawn(async move {

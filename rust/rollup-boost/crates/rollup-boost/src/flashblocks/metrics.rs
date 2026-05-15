@@ -49,8 +49,11 @@ impl FlashblocksServiceMetrics {
         let reduced_flashblocks = max_flashblocks.saturating_sub(flashblocks_count);
         self.flashblocks_gauge.set(flashblocks_count as f64);
         self.flashblocks_counter.increment(flashblocks_count);
-        self.flashblocks_missing_histogram.record(reduced_flashblocks as f64);
-        self.flashblocks_missing_gauge.set(reduced_flashblocks as f64);
-        self.flashblocks_missing_counter.increment(reduced_flashblocks);
+        self.flashblocks_missing_histogram
+            .record(reduced_flashblocks as f64);
+        self.flashblocks_missing_gauge
+            .set(reduced_flashblocks as f64);
+        self.flashblocks_missing_counter
+            .increment(reduced_flashblocks);
     }
 }

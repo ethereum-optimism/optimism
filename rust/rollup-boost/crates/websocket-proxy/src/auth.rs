@@ -53,7 +53,9 @@ impl TryFrom<Vec<String>> for Authentication {
 
         for arg in args {
             let mut parts = arg.split(":");
-            let app = parts.next().ok_or(MissingApplicationArgument(arg.clone()))?;
+            let app = parts
+                .next()
+                .ok_or(MissingApplicationArgument(arg.clone()))?;
             if app.is_empty() {
                 return Err(MissingApplicationArgument(arg.clone()));
             }
@@ -63,7 +65,9 @@ impl TryFrom<Vec<String>> for Authentication {
                 return Err(MissingAPIKeyArgument(app.to_string()));
             }
 
-            let rate_limit = parts.next().ok_or(MissingRateLimitArgument(app.to_string()))?;
+            let rate_limit = parts
+                .next()
+                .ok_or(MissingRateLimitArgument(app.to_string()))?;
             if rate_limit.is_empty() {
                 return Err(MissingRateLimitArgument(app.to_string()));
             }
@@ -85,13 +89,19 @@ impl TryFrom<Vec<String>> for Authentication {
             app_to_rate_limit.insert(app.to_string(), rate_limit.parse().unwrap());
         }
 
-        Ok(Self { key_to_application, app_to_rate_limit })
+        Ok(Self {
+            key_to_application,
+            app_to_rate_limit,
+        })
     }
 }
 
 impl Authentication {
     pub fn none() -> Self {
-        Self { key_to_application: HashMap::new(), app_to_rate_limit: HashMap::new() }
+        Self {
+            key_to_application: HashMap::new(),
+            app_to_rate_limit: HashMap::new(),
+        }
     }
 
     #[allow(dead_code)]
@@ -99,7 +109,10 @@ impl Authentication {
         api_keys: HashMap<String, String>,
         app_to_rate_limit: HashMap<String, usize>,
     ) -> Self {
-        Self { key_to_application: api_keys, app_to_rate_limit }
+        Self {
+            key_to_application: api_keys,
+            app_to_rate_limit,
+        }
     }
 
     pub fn get_application_for_key(&self, api_key: &String) -> Option<&String> {
@@ -195,7 +208,10 @@ mod tests {
             "app2:key2:10".to_string(),
         ]);
         assert!(auth.is_err());
-        assert_eq!(auth.unwrap_err(), DuplicateApplicationArgument("app1".into()));
+        assert_eq!(
+            auth.unwrap_err(),
+            DuplicateApplicationArgument("app1".into())
+        );
 
         let auth =
             Authentication::try_from(vec!["app1:key1:10".to_string(), "app2:key1:10".to_string()]);

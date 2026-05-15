@@ -32,7 +32,9 @@ impl BuilderProxyHandler for DelayHandler {
 async fn builder_full_delay() -> eyre::Result<()> {
     let delay = Arc::new(Mutex::new(Duration::from_secs(0)));
 
-    let handler = Arc::new(DelayHandler { delay: delay.clone() });
+    let handler = Arc::new(DelayHandler {
+        delay: delay.clone(),
+    });
 
     // This integration test checks that if the builder has a general delay in processing ANY of the
     // requests, rollup-boost does not stop building blocks.
@@ -46,13 +48,19 @@ async fn builder_full_delay() -> eyre::Result<()> {
     // create 3 blocks that are processed by the builder
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_builder(), "Block creator should be the builder");
+        assert!(
+            block_creator.is_builder(),
+            "Block creator should be the builder"
+        );
     }
 
     // create 3 blocks that are processed by the builder
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_builder(), "Block creator should be the builder");
+        assert!(
+            block_creator.is_builder(),
+            "Block creator should be the builder"
+        );
     }
 
     // add the delay

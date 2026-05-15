@@ -185,15 +185,19 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
         let parent_hash = execution_payload.parent_hash();
         info!(message = "received new_payload", "block_hash" = %block_hash, "version" = new_payload.version().as_str());
 
-        if let Some(causes) =
-            self.payload_trace_context.trace_ids_from_parent_hash(&parent_hash).await
+        if let Some(causes) = self
+            .payload_trace_context
+            .trace_ids_from_parent_hash(&parent_hash)
+            .await
         {
             causes.iter().for_each(|cause| {
                 tracing::Span::current().follows_from(cause);
             });
         }
 
-        self.payload_trace_context.remove_by_parent_hash(&parent_hash).await;
+        self.payload_trace_context
+            .remove_by_parent_hash(&parent_hash)
+            .await;
 
         // async call to builder to sync the builder node
         if !self.execution_mode.lock().is_disabled() && !self.should_skip_unhealthy_builder() {
@@ -247,7 +251,11 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
             if let Some(cause) = self.payload_trace_context.trace_id(&payload_id).await {
                 tracing::Span::current().follows_from(cause);
             }
-            if !self.payload_trace_context.has_builder_payload(&payload_id).await {
+            if !self
+                .payload_trace_context
+                .has_builder_payload(&payload_id)
+                .await
+            {
                 info!(message = "builder has no payload, skipping get_payload call to builder");
                 tracing::Span::current().record("builder_has_payload", false);
                 return BuilderResult::Ok(BuilderPayloadResult {
@@ -272,7 +280,10 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
             };
 
             if !self.external_state_root {
-                let _ = self.l2_client.new_payload(NewPayload::from(payload.clone())).await?;
+                let _ = self
+                    .l2_client
+                    .new_payload(NewPayload::from(payload.clone()))
+                    .await?;
 
                 return BuilderResult::Ok(BuilderPayloadResult {
                     payload: Some(payload),
@@ -280,8 +291,9 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
                 });
             }
 
-            let external_payload =
-                self.calculate_external_state_root(payload, payload_id, version).await?;
+            let external_payload = self
+                .calculate_external_state_root(payload, payload_id, version)
+                .await?;
             BuilderResult::Ok(BuilderPayloadResult {
                 payload: external_payload,
                 builder_api_failed: false,
@@ -393,8 +405,10 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
             },
         };
 
-        let l2_result =
-            self.l2_client.fork_choice_updated_v3(fcu_info.0, Some(new_payload_attrs)).await?;
+        let l2_result = self
+            .l2_client
+            .fork_choice_updated_v3(fcu_info.0, Some(new_payload_attrs))
+            .await?;
 
         if let Some(new_payload_id) = l2_result.payload_id {
             debug!(
@@ -502,8 +516,9 @@ impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
         // Send the FCU to the default l2 client
-        let l2_fut =
-            self.l2_client.fork_choice_updated_v3(fork_choice_state, payload_attributes.clone());
+        let l2_fut = self
+            .l2_client
+            .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone());
 
         // If execution mode is disabled, return the l2 client response immediately
         if self.execution_mode.lock().is_disabled() {
@@ -530,7 +545,12 @@ impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
                     );
 
                     self.payload_trace_context
-                        .store(payload_id, fork_choice_state.head_block_hash, false, span.id())
+                        .store(
+                            payload_id,
+                            fork_choice_state.head_block_hash,
+                            false,
+                            span.id(),
+                        )
                         .await;
                 }
 
@@ -580,7 +600,9 @@ impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
                 // It is not critical to wait for the builder response here
                 // During moments of high load, Op-node can send hundreds of FCU requests
                 // and we want to ensure that we don't block the main thread in those scenarios
-                builder_client.fork_choice_updated_v3(fork_choice_state, attrs_clone).await
+                builder_client
+                    .fork_choice_updated_v3(fork_choice_state, attrs_clone)
+                    .await
             });
             let l2_response = l2_fut.await?;
             #[allow(clippy::collapsible_if)]
@@ -842,10 +864,14 @@ pub mod tests {
                 jwt_path: None,
                 timeout: 2000,
             };
-            let builder_rpc_client =
-                Arc::new(builder_client_args.new_rpc_client(PayloadSource::Builder).unwrap());
-            let builder_http_client =
-                builder_client_args.new_http_client(PayloadSource::Builder).unwrap();
+            let builder_rpc_client = Arc::new(
+                builder_client_args
+                    .new_rpc_client(PayloadSource::Builder)
+                    .unwrap(),
+            );
+            let builder_http_client = builder_client_args
+                .new_http_client(PayloadSource::Builder)
+                .unwrap();
 
             let (probe_layer, probes) = ProbeLayer::new();
 
@@ -878,7 +904,9 @@ pub mod tests {
 
             let server = server.start(module);
 
-            let rpc_client = HttpClient::builder().build(format!("http://{server_addr}")).unwrap();
+            let rpc_client = HttpClient::builder()
+                .build(format!("http://{server_addr}"))
+                .unwrap();
             let http_client = reqwest::Client::new();
 
             TestHarness {
@@ -925,7 +953,10 @@ pub mod tests {
             safe_block_hash: FixedBytes::random(),
             finalized_block_hash: FixedBytes::random(),
         };
-        let fcu_response = test_harness.rpc_client.fork_choice_updated_v3(fcu, None).await;
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, None)
+            .await;
         assert!(fcu_response.is_ok());
         let fcu_requests = test_harness.l2_mock.fcu_requests.clone();
         {
@@ -977,8 +1008,10 @@ pub mod tests {
         }
 
         // test get_payload_v3 success
-        let get_payload_response =
-            test_harness.rpc_client.get_payload_v3(PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1])).await;
+        let get_payload_response = test_harness
+            .rpc_client
+            .get_payload_v3(PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]))
+            .await;
         assert!(get_payload_response.is_ok());
         let get_payload_requests = test_harness.l2_mock.get_payload_requests.clone();
         {
@@ -1007,7 +1040,9 @@ pub mod tests {
     async fn builder_payload_err() {
         let mut l2_mock = MockEngineServer::new();
         l2_mock.new_payload_response = l2_mock.new_payload_response.clone().map(|mut status| {
-            status.status = PayloadStatusEnum::Invalid { validation_error: "test".to_string() };
+            status.status = PayloadStatusEnum::Invalid {
+                validation_error: "test".to_string(),
+            };
             status
         });
         l2_mock.get_payload_responses[0] =
@@ -1018,8 +1053,10 @@ pub mod tests {
         let test_harness = TestHarness::new(Some(l2_mock), None).await;
 
         // test get_payload_v3 return l2 payload if builder payload is invalid
-        let get_payload_response =
-            test_harness.rpc_client.get_payload_v3(PayloadId::new([0, 0, 0, 0, 0, 0, 0, 0])).await;
+        let get_payload_response = test_harness
+            .rpc_client
+            .get_payload_v3(PayloadId::new([0, 0, 0, 0, 0, 0, 0, 0]))
+            .await;
         assert!(get_payload_response.is_ok());
         assert_eq!(get_payload_response.unwrap().block_value, U256::from(10));
 
@@ -1062,13 +1099,17 @@ pub mod tests {
                     mock_engine_server.get_payload_responses[response_index].clone()
                 } else {
                     // If we have more calls than responses, use the last response
-                    mock_engine_server.get_payload_responses.last().cloned().unwrap_or_else(|| {
-                        Err(ErrorObject::owned(
-                            INVALID_REQUEST_CODE,
-                            "No response configured",
-                            None::<String>,
-                        ))
-                    })
+                    mock_engine_server
+                        .get_payload_responses
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            Err(ErrorObject::owned(
+                                INVALID_REQUEST_CODE,
+                                "No response configured",
+                                None::<String>,
+                            ))
+                        })
                 }
             })
             .unwrap();
@@ -1091,9 +1132,10 @@ pub mod tests {
         let same_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
 
         let mut l2_mock = MockEngineServer::new();
-        l2_mock.fcu_response =
-            Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid))
-                .with_payload_id(same_id));
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(same_id));
 
         let mut builder_mock = MockEngineServer::new();
         builder_mock.override_payload_id = Some(same_id);
@@ -1107,7 +1149,10 @@ pub mod tests {
             safe_block_hash: FixedBytes::random(),
             finalized_block_hash: FixedBytes::random(),
         };
-        let fcu_response = test_harness.rpc_client.fork_choice_updated_v3(fcu, None).await;
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, None)
+            .await;
         assert!(fcu_response.is_ok());
 
         // wait for builder to observe the FCU call
@@ -1144,9 +1189,10 @@ pub mod tests {
     async fn has_builder_payload() {
         let payload_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
         let mut l2_mock = MockEngineServer::new();
-        l2_mock.fcu_response =
-            Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid))
-                .with_payload_id(payload_id));
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(payload_id));
         l2_mock.get_payload_responses[0] =
             l2_mock.get_payload_responses[0].clone().map(|mut payload| {
                 payload.block_value = U256::from(10);
@@ -1154,14 +1200,17 @@ pub mod tests {
             });
 
         let mut builder_mock = MockEngineServer::new();
-        builder_mock.fcu_response =
-            Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Syncing))
-                .with_payload_id(payload_id));
+        builder_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Syncing,
+        ))
+        .with_payload_id(payload_id));
         builder_mock.get_payload_responses[0] =
-            builder_mock.get_payload_responses[0].clone().map(|mut payload| {
-                payload.block_value = U256::from(15);
-                payload
-            });
+            builder_mock.get_payload_responses[0]
+                .clone()
+                .map(|mut payload| {
+                    payload.block_value = U256::from(15);
+                    payload
+                });
 
         let test_harness = TestHarness::new(Some(l2_mock), Some(builder_mock)).await;
         let fcu = ForkchoiceState {
@@ -1169,8 +1218,10 @@ pub mod tests {
             safe_block_hash: FixedBytes::random(),
             finalized_block_hash: FixedBytes::random(),
         };
-        let mut payload_attributes =
-            OpPayloadAttributes { gas_limit: Some(1000000), ..Default::default() };
+        let mut payload_attributes = OpPayloadAttributes {
+            gas_limit: Some(1000000),
+            ..Default::default()
+        };
         let fcu_response = test_harness
             .rpc_client
             .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
@@ -1183,8 +1234,10 @@ pub mod tests {
         assert_eq!(get_payload_response.unwrap().block_value, U256::from(15));
 
         payload_attributes.no_tx_pool = Some(true);
-        let fcu_response =
-            test_harness.rpc_client.fork_choice_updated_v3(fcu, Some(payload_attributes)).await;
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes))
+            .await;
         assert!(fcu_response.is_ok());
 
         // no tx pool is true so should return the l2 payload
@@ -1213,13 +1266,20 @@ pub mod tests {
             safe_block_hash: FixedBytes::random(),
             finalized_block_hash: FixedBytes::random(),
         };
-        let fcu_response = test_harness.rpc_client.fork_choice_updated_v3(fcu, None).await;
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, None)
+            .await;
         assert!(fcu_response.is_err());
 
-        let payload_attributes =
-            OpPayloadAttributes { gas_limit: Some(1000000), ..Default::default() };
-        let fcu_response =
-            test_harness.rpc_client.fork_choice_updated_v3(fcu, Some(payload_attributes)).await;
+        let payload_attributes = OpPayloadAttributes {
+            gas_limit: Some(1000000),
+            ..Default::default()
+        };
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes))
+            .await;
         assert!(fcu_response.is_err());
     }
 
@@ -1246,7 +1306,10 @@ pub mod tests {
                     safe_block_hash: FixedBytes::random(),
                     finalized_block_hash: FixedBytes::random(),
                 },
-                Some(OpPayloadAttributes { gas_limit: Some(1000000), ..Default::default() }),
+                Some(OpPayloadAttributes {
+                    gas_limit: Some(1000000),
+                    ..Default::default()
+                }),
             )
             .await;
         assert!(response.is_ok());
@@ -1279,8 +1342,11 @@ pub mod tests {
 
             let mut builder_mock = MockEngineServer::new();
             builder_mock.fcu_response = Ok(valid_fcu.clone());
-            builder_mock.get_payload_responses[0] =
-                Err(ErrorObject::owned(INVALID_REQUEST_CODE, "Builder API failed", None::<String>));
+            builder_mock.get_payload_responses[0] = Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Builder API failed",
+                None::<String>,
+            ));
 
             run_health_test_scenario(
                 l2_mock,
@@ -1354,8 +1420,11 @@ pub mod tests {
                 });
 
             let mut builder_mock = MockEngineServer::new();
-            builder_mock.fcu_response =
-                Err(ErrorObject::owned(INVALID_REQUEST_CODE, "Builder FCU failed", None::<String>));
+            builder_mock.fcu_response = Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Builder FCU failed",
+                None::<String>,
+            ));
 
             run_health_test_scenario(
                 l2_mock,

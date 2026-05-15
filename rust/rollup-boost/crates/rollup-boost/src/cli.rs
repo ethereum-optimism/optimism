@@ -143,9 +143,13 @@ impl RollupBoostServiceArgs {
         // Build and start the server
         info!("Starting server on :{}", self.rpc_port);
 
-        let http_middleware = tower::ServiceBuilder::new()
-            .layer(probe_layer)
-            .layer(ProxyLayer::new(l2_http_client.clone(), builder_http_client.clone()));
+        let http_middleware =
+            tower::ServiceBuilder::new()
+                .layer(probe_layer)
+                .layer(ProxyLayer::new(
+                    l2_http_client.clone(),
+                    builder_http_client.clone(),
+                ));
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)

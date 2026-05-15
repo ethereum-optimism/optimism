@@ -64,7 +64,12 @@ pub struct ProbeLayer {
 impl ProbeLayer {
     pub fn new() -> (Self, Arc<Probes>) {
         let probes = Arc::new(Probes::default());
-        (Self { probes: probes.clone() }, probes)
+        (
+            Self {
+                probes: probes.clone(),
+            },
+            probes,
+        )
     }
 }
 
@@ -72,7 +77,10 @@ impl<S> Layer<S> for ProbeLayer {
     type Service = ProbeService<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        ProbeService { inner, probes: self.probes.clone() }
+        ProbeService {
+            inner,
+            probes: self.probes.clone(),
+        }
     }
 }
 

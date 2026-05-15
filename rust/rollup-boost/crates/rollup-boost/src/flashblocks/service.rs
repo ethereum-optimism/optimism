@@ -100,7 +100,10 @@ impl FlashblockBuilder {
         let base = self.base.as_ref().ok_or(FlashblocksError::MissingPayload)?;
 
         // There must be at least one delta
-        let diff = self.flashblocks.last().ok_or(FlashblocksError::MissingDelta)?;
+        let diff = self
+            .flashblocks
+            .last()
+            .ok_or(FlashblocksError::MissingDelta)?;
 
         let (transactions, withdrawals) = self.flashblocks.iter().fold(
             (Vec::new(), Vec::new()),
@@ -138,17 +141,17 @@ impl FlashblockBuilder {
         };
 
         match version {
-            PayloadVersion::V3 => {
-                Ok(OpExecutionPayloadEnvelope::V3(OpExecutionPayloadEnvelopeV3 {
+            PayloadVersion::V3 => Ok(OpExecutionPayloadEnvelope::V3(
+                OpExecutionPayloadEnvelopeV3 {
                     parent_beacon_block_root: base.parent_beacon_block_root,
                     block_value: U256::ZERO,
                     blobs_bundle: BlobsBundleV1::default(),
                     should_override_builder: false,
                     execution_payload,
-                }))
-            }
-            PayloadVersion::V4 => {
-                Ok(OpExecutionPayloadEnvelope::V4(OpExecutionPayloadEnvelopeV4 {
+                },
+            )),
+            PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+                OpExecutionPayloadEnvelopeV4 {
                     parent_beacon_block_root: base.parent_beacon_block_root,
                     block_value: U256::ZERO,
                     blobs_bundle: BlobsBundleV1::default(),
@@ -158,8 +161,8 @@ impl FlashblockBuilder {
                         payload_inner: execution_payload,
                     },
                     execution_requests: vec![],
-                }))
-            }
+                },
+            )),
         }
     }
 }
@@ -222,7 +225,8 @@ impl FlashblocksService {
                 .max_flashblocks
                 .fetch_max(flashblocks_number, Ordering::Relaxed)
                 .max(flashblocks_number);
-            self.metrics.record_flashblocks(flashblocks_number, max_flashblocks);
+            self.metrics
+                .record_flashblocks(flashblocks_number, max_flashblocks);
             tracing::Span::current().record("flashblocks_count", flashblocks_number);
             // Take payload and place new one in its place in one go to avoid double locking
             std::mem::replace(&mut *builder, FlashblockBuilder::new()).into_envelope(version)?
@@ -300,7 +304,8 @@ impl FlashblocksService {
 
     pub async fn run(&mut self, mut stream: mpsc::Receiver<FlashblocksPayloadV1>) {
         while let Some(event) = stream.recv().await {
-            self.on_event(FlashblocksEngineMessage::FlashblocksPayloadV1(event)).await;
+            self.on_event(FlashblocksEngineMessage::FlashblocksPayloadV1(event))
+                .await;
         }
     }
 }
@@ -318,8 +323,10 @@ impl EngineApiExt for FlashblocksService {
             self.set_current_payload_id(payload_id).await;
         }
 
-        let resp =
-            self.client.fork_choice_updated_v3(fork_choice_state, payload_attributes).await?;
+        let resp = self
+            .client
+            .fork_choice_updated_v3(fork_choice_state, payload_attributes)
+            .await?;
 
         if let Some(payload_id) = resp.payload_id {
             let current_payload = *self.current_payload_id.read().await;
@@ -402,14 +409,20 @@ mod tests {
         let jwt_secret = JwtSecret::random();
 
         let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
-        let builder_client =
-            RpcClient::new(builder_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::Builder)?;
+        let builder_client = RpcClient::new(
+            builder_auth_rpc.clone(),
+            jwt_secret,
+            2000,
+            PayloadSource::Builder,
+        )?;
 
         let service =
             FlashblocksService::new(builder_client, "127.0.0.1:8000".parse().unwrap()).unwrap();
 
         // by default, builder_mock returns a valid payload always
-        service.get_payload(PayloadId::default(), PayloadVersion::V3).await?;
+        service
+            .get_payload(PayloadId::default(), PayloadVersion::V3)
+            .await?;
 
         let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
         assert_eq!(get_payload_requests_builder.lock().len(), 1);
@@ -425,8 +438,12 @@ mod tests {
         let jwt_secret = JwtSecret::random();
 
         let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
-        let builder_client =
-            RpcClient::new(builder_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::Builder)?;
+        let builder_client = RpcClient::new(
+            builder_auth_rpc.clone(),
+            jwt_secret,
+            2000,
+            PayloadSource::Builder,
+        )?;
 
         let service =
             FlashblocksService::new(builder_client, "127.0.0.1:8001".parse().unwrap()).unwrap();
@@ -436,7 +453,9 @@ mod tests {
 
         // We ensure that request will skip rollup-boost and serve payload from backup if payload id
         // don't match
-        service.get_payload(PayloadId::default(), PayloadVersion::V3).await?;
+        service
+            .get_payload(PayloadId::default(), PayloadVersion::V3)
+            .await?;
 
         let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
         assert_eq!(get_payload_requests_builder.lock().len(), 1);
@@ -461,7 +480,9 @@ mod tests {
         let result = builder.extend(FlashblocksPayloadV1 {
             payload_id: PayloadId::default(),
             index: 0,
-            base: Some(ExecutionPayloadBaseV1 { ..Default::default() }),
+            base: Some(ExecutionPayloadBaseV1 {
+                ..Default::default()
+            }),
             ..Default::default()
         });
         assert!(result.is_ok());
@@ -470,7 +491,9 @@ mod tests {
         let result = builder.extend(FlashblocksPayloadV1 {
             payload_id: PayloadId::default(),
             index: 1,
-            base: Some(ExecutionPayloadBaseV1 { ..Default::default() }),
+            base: Some(ExecutionPayloadBaseV1 {
+                ..Default::default()
+            }),
             ..Default::default()
         });
         assert!(result.is_err());

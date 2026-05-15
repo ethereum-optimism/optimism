@@ -17,12 +17,12 @@ use server::Server;
 use std::{collections::HashMap, io::Write, net::SocketAddr, sync::Arc, time::Duration};
 use subscriber::{SubscriberOptions, WebsocketSubscriber};
 use tokio::{
-    signal::unix::{SignalKind, signal},
+    signal::unix::{signal, SignalKind},
     sync::broadcast,
     time::interval,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{Level, error, info, trace, warn};
+use tracing::{error, info, trace, warn, Level};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
@@ -134,10 +134,20 @@ struct Args {
     )]
     redis_url: Option<String>,
 
-    #[arg(long, env, default_value = "flashblocks", help = "Prefix for Redis keys")]
+    #[arg(
+        long,
+        env,
+        default_value = "flashblocks",
+        help = "Prefix for Redis keys"
+    )]
     redis_key_prefix: String,
 
-    #[arg(long, env, default_value = "false", help = "Enable ping/pong client health checks")]
+    #[arg(
+        long,
+        env,
+        default_value = "false",
+        help = "Enable ping/pong client health checks"
+    )]
     client_ping_enabled: bool,
 
     #[arg(
@@ -178,7 +188,11 @@ async fn main() {
             .init();
     }
 
-    let api_keys: Vec<String> = args.api_keys.into_iter().filter(|s| !s.is_empty()).collect();
+    let api_keys: Vec<String> = args
+        .api_keys
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect();
     let authentication = if api_keys.is_empty() {
         None
     } else {
@@ -191,7 +205,10 @@ async fn main() {
     };
 
     if args.metrics {
-        info!(message = "starting metrics server", address = args.metrics_addr.to_string());
+        info!(
+            message = "starting metrics server",
+            address = args.metrics_addr.to_string()
+        );
 
         let mut builder = PrometheusBuilder::new().with_http_listener(args.metrics_addr);
 
@@ -207,7 +224,9 @@ async fn main() {
             builder = builder.add_global_label(key, value);
         }
 
-        builder.install().expect("failed to setup Prometheus endpoint")
+        builder
+            .install()
+            .expect("failed to setup Prometheus endpoint")
     }
 
     // Validate that we have at least one upstream URI
@@ -229,7 +248,9 @@ async fn main() {
         // Subtract one from receiver count, as we have to keep one receiver open at all times (see
         // _rec) to avoid the channel being closed. However this is not an active client
         // connection.
-        metrics_clone.active_connections.set((send.receiver_count() - 1) as f64);
+        metrics_clone
+            .active_connections
+            .set((send.receiver_count() - 1) as f64);
 
         let message_data = if args.enable_compression {
             let data_bytes = data.as_slice();
@@ -271,7 +292,11 @@ async fn main() {
             WebsocketSubscriber::new(uri_clone.clone(), listener_clone, metrics_clone, options);
 
         let task = tokio::spawn(async move {
-            info!(message = "starting subscriber", index = index, uri = uri_clone.to_string());
+            info!(
+                message = "starting subscriber",
+                index = index,
+                uri = uri_clone.to_string()
+            );
             subscriber.run(token_clone).await;
         });
 
@@ -285,7 +310,10 @@ async fn main() {
 
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_millis(ping_interval));
-            info!(message = "starting ping sender", interval_ms = ping_interval);
+            info!(
+                message = "starting ping sender",
+                interval_ms = ping_interval
+            );
 
             loop {
                 tokio::select! {
@@ -313,8 +341,11 @@ async fn main() {
         args.client_pong_timeout_ms,
     );
 
-    let app_rate_limits =
-        if let Some(auth) = &authentication { auth.get_rate_limits() } else { HashMap::new() };
+    let app_rate_limits = if let Some(auth) = &authentication {
+        auth.get_rate_limits()
+    } else {
+        HashMap::new()
+    };
 
     let rate_limiter = match &args.redis_url {
         Some(redis_url) => {
@@ -399,10 +430,16 @@ fn parse_global_metrics(metrics: String) -> Vec<(String, String)> {
             continue;
         }
 
-        let parts = metric.splitn(2, '=').map(|s| s.to_string()).collect::<Vec<String>>();
+        let parts = metric
+            .splitn(2, '=')
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
 
         if parts.len() != 2 {
-            warn!(message = "malformed global metric: invalid count", metric = metric);
+            warn!(
+                message = "malformed global metric: invalid count",
+                metric = metric
+            );
             continue;
         }
 
@@ -410,7 +447,10 @@ fn parse_global_metrics(metrics: String) -> Vec<(String, String)> {
         let value = parts[1].to_string();
 
         if label.is_empty() || value.is_empty() {
-            warn!(message = "malformed global metric: empty value", metric = metric);
+            warn!(
+                message = "malformed global metric: empty value",
+                metric = metric
+            );
             continue;
         }
 
@@ -426,13 +466,22 @@ mod test {
 
     #[test]
     fn test_parse_global_metrics() {
-        assert_eq!(parse_global_metrics("".into()), Vec::<(String, String)>::new(),);
+        assert_eq!(
+            parse_global_metrics("".into()),
+            Vec::<(String, String)>::new(),
+        );
 
-        assert_eq!(parse_global_metrics("key=value".into()), vec![("key".into(), "value".into())]);
+        assert_eq!(
+            parse_global_metrics("key=value".into()),
+            vec![("key".into(), "value".into())]
+        );
 
         assert_eq!(
             parse_global_metrics("key=value,key2=value2".into()),
-            vec![("key".into(), "value".into()), ("key2".into(), "value2".into())],
+            vec![
+                ("key".into(), "value".into()),
+                ("key2".into(), "value2".into())
+            ],
         );
 
         assert_eq!(parse_global_metrics("gibberish".into()), Vec::new());

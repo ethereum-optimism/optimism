@@ -95,7 +95,9 @@ impl EngineApi {
             .build(url)
             .context("Failed to create http client")?;
 
-        Ok(Self { engine_api_client: client })
+        Ok(Self {
+            engine_api_client: client,
+        })
     }
 
     pub async fn get_payload(
@@ -161,8 +163,10 @@ impl EngineApi {
     }
 
     pub async fn set_max_da_size(&self, max_da_size: u64, max_da_gas: u64) -> eyre::Result<bool> {
-        Ok(MinerApiClient::set_max_da_size(&self.engine_api_client, max_da_size, max_da_gas)
-            .await?)
+        Ok(
+            MinerApiClient::set_max_da_size(&self.engine_api_client, max_da_size, max_da_gas)
+                .await?,
+        )
     }
 }
 
@@ -279,7 +283,11 @@ impl RollupBoostTestHarnessBuilder {
 
     pub async fn async_log_file(&self, service_name: &str) -> eyre::Result<tokio::fs::File> {
         let file_path = self.file_path(service_name)?;
-        Ok(tokio::fs::OpenOptions::new().append(true).create(true).open(file_path).await?)
+        Ok(tokio::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(file_path)
+            .await?)
     }
 
     pub async fn log_consumer(&self, service_name: &str) -> eyre::Result<LoggingConsumer> {
@@ -316,16 +324,25 @@ impl RollupBoostTestHarnessBuilder {
         let builder_log_consumer = self.log_consumer("builder").await?;
         let rollup_boost_log_file_path = self.file_path("rollup_boost")?;
 
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
-        let genesis =
-            Genesis { timestamp, isthmus_block: self.isthmus_block, block_time: self.block_time };
+        let genesis = Genesis {
+            timestamp,
+            isthmus_block: self.isthmus_block,
+            block_time: self.block_time,
+        };
 
         let genesis_str = genesis.to_string()?;
 
         let l2_p2p_port = get_available_port();
         let l2 = OpRethConfig::default()
-            .set_p2p_secret(Some(PathBuf::from(format!("{}/p2p_secret.hex", *TEST_DATA))))
+            .set_p2p_secret(Some(PathBuf::from(format!(
+                "{}/p2p_secret.hex",
+                *TEST_DATA
+            ))))
             .set_genesis(genesis_str.clone())
             .build()?
             .with_mapped_port(l2_p2p_port, ContainerPort::Tcp(P2P_PORT))
@@ -385,7 +402,12 @@ impl RollupBoostTestHarnessBuilder {
         println!("rollup-boost authrpc: {}", rollup_boost.rpc_endpoint());
         println!("rollup-boost metrics: {}", rollup_boost.metrics_endpoint());
 
-        Ok(RollupBoostTestHarness { l2, builder, rollup_boost, genesis })
+        Ok(RollupBoostTestHarness {
+            l2,
+            builder,
+            rollup_boost,
+            genesis,
+        })
     }
 }
 
@@ -515,8 +537,10 @@ impl SimpleBlockGenerator {
         let payload = self.engine_api.get_payload(version, payload_id).await?;
 
         // Submit the new payload to the node
-        let validation_status =
-            self.engine_api.new_payload(NewPayload::from(payload.clone())).await?;
+        let validation_status = self
+            .engine_api
+            .new_payload(NewPayload::from(payload.clone()))
+            .await?;
 
         if validation_status.status != PayloadStatusEnum::Valid {
             return Err(eyre::eyre!("Invalid payload status"));
@@ -526,7 +550,9 @@ impl SimpleBlockGenerator {
         let new_block_hash = execution_payload.block_hash();
 
         // Update the chain's head
-        self.engine_api.update_forkchoice(self.latest_hash, new_block_hash, None).await?;
+        self.engine_api
+            .update_forkchoice(self.latest_hash, new_block_hash, None)
+            .await?;
 
         // Update internal state
         self.latest_hash = new_block_hash;

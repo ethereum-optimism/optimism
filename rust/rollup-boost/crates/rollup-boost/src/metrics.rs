@@ -20,7 +20,9 @@ pub fn init_metrics(args: &RollupBoostServiceArgs) -> Result<()> {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();
 
-        Stack::new(recorder).push(PrefixLayer::new("rollup-boost")).install()?;
+        Stack::new(recorder)
+            .push(PrefixLayer::new("rollup-boost"))
+            .install()?;
 
         // Start the metrics server
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);

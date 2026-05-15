@@ -50,7 +50,11 @@ impl HttpClient {
             .layer(AuthLayer::new(secret))
             .service(client);
 
-        Self { client, url, target }
+        Self {
+            client,
+            url,
+            target,
+        }
     }
 
     /// Forwards an HTTP request to the `authrpc`, attaching the provided JWT authorization.

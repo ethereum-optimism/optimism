@@ -64,11 +64,17 @@ mod tests {
 
         let genesis: Genesis = serde_json::from_str(include_str!("assets/genesis.json")).unwrap();
         let chain_spec = Arc::new(
-            OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build(),
+            OpChainSpecBuilder::base_mainnet()
+                .genesis(genesis)
+                .ecotone_activated()
+                .build(),
         );
 
         let network_config = NetworkArgs {
-            discovery: DiscoveryArgs { disable_discovery: true, ..DiscoveryArgs::default() },
+            discovery: DiscoveryArgs {
+                disable_discovery: true,
+                ..DiscoveryArgs::default()
+            },
             ..NetworkArgs::default()
         };
 
@@ -84,7 +90,10 @@ mod tests {
         let (sender, mut receiver) =
             mpsc::channel::<(FlashblocksPayloadV1, oneshot::Sender<()>)>(100);
 
-        let NodeHandle { node, node_exit_future } = NodeBuilder::new(node_config.clone())
+        let NodeHandle {
+            node,
+            node_exit_future,
+        } = NodeBuilder::new(node_config.clone())
             .testing_node(exec.clone())
             .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
             .with_components(node.components_builder())
@@ -233,8 +242,9 @@ mod tests {
         assert_eq!(latest_block.number(), 0);
 
         // Querying pending block when it does not exists yet
-        let pending_block =
-            provider.get_block_by_number(alloy_eips::BlockNumberOrTag::Pending).await?;
+        let pending_block = provider
+            .get_block_by_number(alloy_eips::BlockNumberOrTag::Pending)
+            .await?;
         assert_eq!(pending_block.is_none(), true);
 
         let base_payload = create_first_payload();
@@ -292,7 +302,10 @@ mod tests {
 
         node.send_test_payloads().await?;
 
-        let receipt = provider.get_transaction_receipt(TX1_HASH).await?.expect("receipt expected");
+        let receipt = provider
+            .get_transaction_receipt(TX1_HASH)
+            .await?
+            .expect("receipt expected");
         assert_eq!(receipt.gas_used, 21000);
 
         // TODO: Add a new payload and validate that the receipts from the previous payload

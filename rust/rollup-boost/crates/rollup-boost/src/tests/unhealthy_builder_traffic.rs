@@ -34,7 +34,9 @@ impl BuilderProxyHandler for CounterHandler {
 async fn no_traffic_to_unhealthy_builder_when_flag_disabled() -> eyre::Result<()> {
     // Create a counter that tracks Engine API calls to the builder
     let counter = Arc::new(Mutex::new(0));
-    let handler = Arc::new(CounterHandler { counter: counter.clone() });
+    let handler = Arc::new(CounterHandler {
+        counter: counter.clone(),
+    });
 
     // Create test harness with:
     // - ignore_unhealthy_builders=true (key test parameter)
@@ -53,17 +55,26 @@ async fn no_traffic_to_unhealthy_builder_when_flag_disabled() -> eyre::Result<()
     let client = harness.debug_client().await;
 
     // Step 1: Disable execution mode so L2 moves ahead and builder falls behind
-    let response = client.set_execution_mode(ExecutionMode::Disabled).await.unwrap();
+    let response = client
+        .set_execution_mode(ExecutionMode::Disabled)
+        .await
+        .unwrap();
     assert_eq!(response.execution_mode, ExecutionMode::Disabled);
 
     // Step 2: Let L2 move ahead by generating some blocks
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_l2(), "Blocks should be created by L2 when execution disabled");
+        assert!(
+            block_creator.is_l2(),
+            "Blocks should be created by L2 when execution disabled"
+        );
     }
 
     // Step 3: Re-enable execution mode
-    let response = client.set_execution_mode(ExecutionMode::Enabled).await.unwrap();
+    let response = client
+        .set_execution_mode(ExecutionMode::Enabled)
+        .await
+        .unwrap();
     assert_eq!(response.execution_mode, ExecutionMode::Enabled);
 
     // Step 4:Wait for health check to run again and mark builder as unhealthy

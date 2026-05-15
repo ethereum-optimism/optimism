@@ -6,12 +6,17 @@ use super::common::RollupBoostTestHarnessBuilder;
 
 #[tokio::test]
 async fn remote_builder_down() -> eyre::Result<()> {
-    let harness = RollupBoostTestHarnessBuilder::new("remote_builder_down").build().await?;
+    let harness = RollupBoostTestHarnessBuilder::new("remote_builder_down")
+        .build()
+        .await?;
     let mut block_generator = harness.block_generator().await?;
 
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_builder(), "Block creator should be the builder");
+        assert!(
+            block_creator.is_builder(),
+            "Block creator should be the builder"
+        );
     }
 
     // stop the builder
@@ -36,7 +41,10 @@ async fn remote_builder_down() -> eyre::Result<()> {
     // with the previous 3 blocks
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
-        assert!(block_creator.is_builder(), "Block creator should be builder");
+        assert!(
+            block_creator.is_builder(),
+            "Block creator should be builder"
+        );
     }
 
     Ok(())

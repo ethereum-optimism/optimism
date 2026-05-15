@@ -6,12 +6,12 @@ use crate::{
     registry::Registry,
 };
 use axum::{
-    Error, Router,
     body::Body,
     extract::{ConnectInfo, Path, State, WebSocketUpgrade},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{any, get},
+    Error, Router,
 };
 use http::{HeaderMap, HeaderValue};
 use serde_json::json;
@@ -50,7 +50,14 @@ impl Server {
         authentication: Option<Authentication>,
         ip_addr_http_header: String,
     ) -> Self {
-        Self { listen_addr, registry, rate_limiter, metrics, authentication, ip_addr_http_header }
+        Self {
+            listen_addr,
+            registry,
+            rate_limiter,
+            metrics,
+            authentication,
+            ip_addr_http_header,
+        }
     }
 
     pub async fn listen(&self, cancellation_token: CancellationToken) {
@@ -68,18 +75,29 @@ impl Server {
             registry: self.registry.clone(),
             rate_limiter: self.rate_limiter.clone(),
             metrics: self.metrics.clone(),
-            auth: self.authentication.clone().unwrap_or_else(Authentication::none),
+            auth: self
+                .authentication
+                .clone()
+                .unwrap_or_else(Authentication::none),
             ip_addr_http_header: self.ip_addr_http_header.clone(),
         });
 
-        let listener = tokio::net::TcpListener::bind(self.listen_addr).await.unwrap();
-
-        info!(message = "starting server", address = listener.local_addr().unwrap().to_string());
-
-        axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
-            .with_graceful_shutdown(cancellation_token.cancelled_owned())
+        let listener = tokio::net::TcpListener::bind(self.listen_addr)
             .await
-            .unwrap()
+            .unwrap();
+
+        info!(
+            message = "starting server",
+            address = listener.local_addr().unwrap().to_string()
+        );
+
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(cancellation_token.cancelled_owned())
+        .await
+        .unwrap()
     }
 }
 
@@ -102,7 +120,9 @@ async fn authenticated_websocket_handler(
 
             Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
-                .body(Body::from(json!({"message": "Invalid API key"}).to_string()))
+                .body(Body::from(
+                    json!({"message": "Invalid API key"}).to_string(),
+                ))
                 .unwrap()
         }
         Some(app) => {
@@ -168,7 +188,10 @@ fn extract_addr(header: &HeaderValue, fallback: IpAddr) -> IpAddr {
 
     match header.to_str() {
         Ok(header_value) => {
-            let raw_value = header_value.split(',').map(|ip| ip.trim().to_string()).next_back();
+            let raw_value = header_value
+                .split(',')
+                .map(|ip| ip.trim().to_string())
+                .next_back();
 
             if let Some(raw_value) = raw_value {
                 return raw_value.parse::<IpAddr>().unwrap_or(fallback);
@@ -177,7 +200,10 @@ fn extract_addr(header: &HeaderValue, fallback: IpAddr) -> IpAddr {
             fallback
         }
         Err(e) => {
-            warn!(message = "could not get header value", error = e.to_string());
+            warn!(
+                message = "could not get header value",
+                error = e.to_string()
+            );
             fallback
         }
     }
