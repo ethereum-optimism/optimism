@@ -20,6 +20,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -91,9 +92,20 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
+    ///         No-op when the bundle has already been applied to the forked chain.
     function _executeCurrentBundle() internal virtual {
+        if (_isCurrentBundleAlreadyApplied()) return;
         PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
         PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
+    }
+
+    /// @notice Returns true when the current bundle has already been applied to the forked chain.
+    ///         Uses two checks: ConditionalDeployer exists (Karst ran) and this bundle's
+    ///         L2ContractsManager was deployed at its expected address.
+    function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
+        if (Predeploys.CONDITIONAL_DEPLOYER.code.length == 0) return false;
+        address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
+        return l2cm.code.length > 0;
     }
 
     /// @notice Copies the cached current bundle transactions from storage to memory.
@@ -688,6 +700,13 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
+
+        // Skip when the bundle is already applied: Upgraded events are historical and cannot be
+        // replayed via vm.recordLogs() since _executeCurrentBundle() is a no-op in that case.
+        if (_isCurrentBundleAlreadyApplied()) {
+            vm.skip(true);
+            return;
+        }
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
