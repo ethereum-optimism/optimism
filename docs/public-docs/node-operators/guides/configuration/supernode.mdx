@@ -132,7 +132,7 @@ The default value is `./datadir`.
 ### Shared L1 access
 
 The supernode runs one L1 client and one beacon client and serves every chain in the dependency set from them.
-Per-chain `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` settings never take effect — the supernode always uses the top-level `--l1` and `--l1.beacon` values for every chain.
+Configure these flags at the top level only — the per-chain namespace also includes `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` (because the supernode mechanically clones every op-node flag into the namespace), but the supernode discards them at startup.
 
 #### l1
 
