@@ -231,6 +231,9 @@ jobs:
                 elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
                   if is_true docs_changes_detected && ! is_true contracts_changed && ! is_true rust_changes_detected; then
                     run docs_ci
+                    run contracts_feature_tests_short
+                    run rust_ci_gate_short
+                    run rust_e2e_gate_skip
                   else
                     run main
                     run release
