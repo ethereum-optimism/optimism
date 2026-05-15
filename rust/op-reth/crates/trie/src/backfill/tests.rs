@@ -6,11 +6,14 @@
 
 use super::{BackfillError, BackfillJob};
 use crate::{
-    MdbxProofsStorageV2, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
-    api::OpProofsProviderRO, initialize::InitializationJob,
+    BlockStateDiff, MdbxProofsStorageV2, OpProofsStorageError, OpProofsStore,
+    RethTrieStorageLayout,
+    api::{OpProofsProviderRO, OpProofsProviderRw},
+    initialize::InitializationJob,
+    proof::DatabaseStateRoot,
 };
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
-use alloy_eips::NumHash;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
@@ -27,6 +30,7 @@ use reth_provider::{
     providers::ProviderNodeTypes, test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
+use reth_trie::{HashedPostState, StateRoot};
 use secp256k1::{Keypair, Secp256k1, rand::rng};
 use serial_test::serial;
 use std::sync::Arc;
@@ -451,4 +455,122 @@ fn run_extends_window_backward_with_storage_writes() {
     let genesis_hash = reth_provider::BlockHashReader::block_hash(&provider, 0).unwrap().unwrap();
     let ro = storage.provider_ro().unwrap();
     assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
+}
+
+#[test]
+#[serial]
+fn backfill_then_forward_write_preserves_state_roots() {
+    // Exercises the interaction between backfill-created history shards
+    // (concrete-max keys at the front of each logical key's history) and the
+    // sentinel shard that subsequent forward writes append into:
+    //
+    //   1. Build a 5-block reth chain. Init proofs at block 5 → earliest=latest=5.
+    //   2. Backfill earliest from 5 down to 2.
+    //   3. Build + forward-write blocks 6 and 7 via `store_trie_updates`.
+    //   4. Assert state roots at every block in [2, 7] match reth's headers.
+    //
+    // After step 2, V2*History tables hold concrete-max shards for blocks 3..=5.
+    // After step 3, the forward path creates a sentinel shard at (_, u64::MAX) for
+    // the keys block 6 / 7 touched. Reads at any block in [2, 7] must still
+    // reconstruct correctly across this mixed shard layout.
+    let secp = Secp256k1::new();
+    let key_pair = Keypair::new(&secp, &mut rng());
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    let mut last_hash = chain_spec.genesis_hash();
+
+    // 1. Build blocks 1..=5 in reth.
+    for n in 1..=5u64 {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    // 2. Initialize proofs storage at block 5.
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout).run(5, last_hash).unwrap();
+    }
+
+    // 3. Backfill earliest from 5 down to 2.
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run(2).unwrap();
+    }
+    {
+        let window = storage.provider_ro().unwrap().get_proof_window().unwrap();
+        assert_eq!(window.earliest.number, 2);
+        assert_eq!(window.latest.number, 5);
+    }
+
+    // 4. Build + forward-write blocks 6 and 7.
+    for n in 6..=7u64 {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+
+        // Execute the block + compute (state_root, trie_updates) against reth's
+        // current state. Mirrors `execute_block` but also returns the trie
+        // updates + hashed post-state needed to build a `BlockStateDiff`.
+        let (exec, hashed_state, trie_updates) = {
+            let provider = provider_factory.provider().unwrap();
+            let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+            let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
+            let block_executor = evm_config.batch_executor(db);
+            let exec = block_executor.execute(&block).unwrap();
+            let hashed_state =
+                LatestStateProviderRef::new(&provider).hashed_post_state(&exec.state);
+            let (state_root, trie_updates) = LatestStateProviderRef::new(&provider)
+                .state_root_with_updates(hashed_state.clone())
+                .unwrap();
+            block.set_state_root(state_root);
+            (exec, hashed_state, trie_updates)
+        };
+
+        // Advance reth's chain to block n.
+        commit_block_to_database(&block, &exec, &provider_factory);
+
+        // Forward-write block n into the proofs storage.
+        let rw = storage.provider_rw().unwrap();
+        rw.store_trie_updates(
+            BlockWithParent { block: NumHash::new(n, block.hash()), parent: last_hash },
+            BlockStateDiff {
+                sorted_trie_updates: trie_updates.into_sorted(),
+                sorted_post_state: hashed_state.into_sorted(),
+            },
+        )
+        .unwrap();
+        OpProofsProviderRw::commit(rw).unwrap();
+
+        last_hash = block.hash();
+    }
+
+    // Window should now span [2, 7].
+    {
+        let window = storage.provider_ro().unwrap().get_proof_window().unwrap();
+        assert_eq!(window.earliest.number, 2);
+        assert_eq!(window.latest.number, 7);
+    }
+
+    // 5. Validate state roots at every block in [2, 7] against reth's headers.
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    for n in 2..=7u64 {
+        let expected = reth_provider::HeaderProvider::header_by_number(&reth_provider, n)
+            .unwrap()
+            .unwrap()
+            .state_root();
+        let computed =
+            StateRoot::overlay_root(storage.provider_ro().unwrap(), n, HashedPostState::default())
+                .unwrap();
+        assert_eq!(computed, expected, "state root mismatch at block {n}");
+    }
 }
