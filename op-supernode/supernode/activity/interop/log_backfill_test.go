@@ -635,7 +635,7 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 		"main loop resumes at activation when EL finalized is still pre-activation")
 }
 
-func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T) {
+func TestLogBackfill_NoOpWhenFinalizedPreActivation(t *testing.T) {
 	const act = uint64(1000)
 	depth := 60 * time.Second
 
@@ -667,9 +667,74 @@ func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T
 
 	end, err := h.interop.runLogBackfill()
 	require.NoError(t, err)
-	require.Equal(t, uint64(1060), end)
-	require.Positive(t, outputCalls.Load(), "backfill should seal the recent local-safe handoff range")
-	requireFirstVerifiableTimestamp(t, h.interop, 1061)
+	require.Zero(t, end)
+	require.Zero(t, outputCalls.Load(), "pre-activation finalized head should not backfill a local-safe handoff range")
+	requireFirstVerifiableTimestamp(t, h.interop, act)
+	require.Zero(t, h.Mock(10).pauseAndStopVNCalls, "no-op backfill should not pause chains")
+	require.Zero(t, h.Mock(10).resumeCalls, "no-op backfill should not resume chains")
+}
+
+func TestLogBackfill_PausesChainsWhileSealing(t *testing.T) {
+	const act = uint64(100)
+	cl := &callLog{}
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(5*time.Second).
+		WithChain(10, func(m *mockChainContainer) {
+			m.callLog = cl
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 110, Time: 110},
+				SafeL2:      eth.L2BlockRef{Number: 110, Time: 110},
+				LocalSafeL2: eth.L2BlockRef{Number: 110, Time: 110},
+			}
+		}).
+		WithChain(20, func(m *mockChainContainer) {
+			m.callLog = cl
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 110, Time: 110},
+				SafeL2:      eth.L2BlockRef{Number: 110, Time: 110},
+				LocalSafeL2: eth.L2BlockRef{Number: 110, Time: 110},
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, uint64(110), end)
+	require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls)
+	require.Equal(t, 1, h.Mock(20).pauseAndStopVNCalls)
+	require.Equal(t, 1, h.Mock(10).resumeCalls)
+	require.Equal(t, 1, h.Mock(20).resumeCalls)
+
+	entries := cl.snapshot()
+	firstSealIdx := -1
+	firstResumeIdx := -1
+	for i, e := range entries {
+		switch e.method {
+		case "OutputV0AtBlockNumber":
+			if firstSealIdx == -1 {
+				firstSealIdx = i
+			}
+		case "Resume":
+			if firstResumeIdx == -1 {
+				firstResumeIdx = i
+			}
+		}
+	}
+	require.NotEqual(t, -1, firstSealIdx, "backfill should seal blocks")
+	require.NotEqual(t, -1, firstResumeIdx, "backfill should resume chains")
+	for i, e := range entries {
+		if e.method == "PauseAndStopVN" {
+			require.Less(t, i, firstSealIdx, "chains must pause before sealing")
+		}
+		if e.method == "OutputV0AtBlockNumber" {
+			require.Less(t, i, firstResumeIdx, "sealing must finish before resume")
+		}
+	}
 }
 
 // TestLogBackfill_ClampsStartToGenesis asserts that the per-chain start is

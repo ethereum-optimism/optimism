@@ -258,7 +258,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 100,
 		},
 		{
-			name: "EL finalized before activation uses local safe handoff when available",
+			name: "EL finalized before activation ignores local safe handoff",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -276,7 +276,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 					}).
 					Build()
 			},
-			want: 126,
+			want: 100,
 		},
 		{
 			name: "EL finalized at activation returns timestamp after activation",
@@ -2300,6 +2300,9 @@ func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64,
 	return m.invalidateBlockRet, m.invalidateBlockErr
 }
 func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+	if m.callLog != nil {
+		m.callLog.record(m.id, "OutputV0AtBlockNumber")
+	}
 	if m.outputV0Override != nil {
 		return m.outputV0Override(ctx, l2BlockNum)
 	}

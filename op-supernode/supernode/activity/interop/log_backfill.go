@@ -12,9 +12,9 @@ import (
 
 // resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
 // by durable local state: verifiedDB.LastTimestamp+1 when initialized,
-// otherwise the minimum EL finalized head + 1. If finalized is still
-// pre-activation, it falls back to recent local-safe progress before clamping
-// to activation.
+// otherwise the minimum EL finalized head + 1, clamped to activation. If
+// finalized is still pre-activation, there is no interop log history to
+// backfill yet.
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
@@ -29,16 +29,6 @@ func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, 
 		return 0, err
 	}
 	if minELFinalizedTime < i.activationTimestamp {
-		minLocalSafeTime, err := i.minLocalSafeTime(ctx)
-		if err != nil {
-			return 0, err
-		}
-		// Break the cold-start bootstrap cycle where supernode finalized stays at
-		// genesis until the verifier commits, but the verifier cannot start from
-		// activation because SafeDB only contains recent local-safe history.
-		if minLocalSafeTime > i.activationTimestamp {
-			return minLocalSafeTime + 1, nil
-		}
 		return i.activationTimestamp, nil
 	}
 	return minELFinalizedTime + 1, nil
@@ -119,6 +109,12 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	// clamp to the activation timestamp: never backfill before activation.
 	startTime := max(idealStart, i.activationTimestamp)
 
+	resume, err := i.pauseChainsForBackfill(i.ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer resume()
+
 	// backfill every chain in parallel over [startTime, endTime]
 	errCh := make(chan error, len(i.chains))
 	wg := sync.WaitGroup{}
@@ -159,6 +155,28 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 		return 0, err
 	}
 	return endTime, nil
+}
+
+func (i *Interop) pauseChainsForBackfill(ctx context.Context) (func(), error) {
+	paused := make([]cc.ChainContainer, 0, len(i.chains))
+	for _, chain := range i.chains {
+		if err := chain.PauseAndStopVN(ctx); err != nil {
+			for _, p := range paused {
+				if resumeErr := p.Resume(context.Background()); resumeErr != nil {
+					i.log.Error("failed to resume chain after backfill pause failure", "chain", p.ID(), "err", resumeErr)
+				}
+			}
+			return nil, fmt.Errorf("pause chain %s for log backfill: %w", chain.ID(), err)
+		}
+		paused = append(paused, chain)
+	}
+	return func() {
+		for _, chain := range paused {
+			if err := chain.Resume(context.Background()); err != nil {
+				i.log.Error("failed to resume chain after log backfill", "chain", chain.ID(), "err", err)
+			}
+		}
+	}, nil
 }
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
