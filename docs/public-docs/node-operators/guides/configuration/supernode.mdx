@@ -67,7 +67,7 @@ Fill in the placeholders before starting the binary.
 
 <Info>
   The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
-  For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2` pairs for each chain.
+  For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC` pairs for each chain.
 </Info>
 
 ```yaml
@@ -328,7 +328,7 @@ Set this only when activating interop on a custom devnet whose rollup config doe
 Extends initiating-message log ingestion backward from the L2 tip by this duration, clamped to the interop activation timestamp.
 Validation still starts only beyond the local safe head; the backfill pre-ingests logs so they are available when validation needs them.
 Requires the interop activation timestamp to be known, either from the rollup config or via `--interop.activation-timestamp`.
-The default value is `0` (no backfill).
+The default value is `0s` (no backfill).
 
 <Tabs>
   <Tab title="Syntax">`--interop.log-backfill-depth=<value>`</Tab>
