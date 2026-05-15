@@ -45,6 +45,8 @@ Set them up from the start — once a primary beacon prunes a blob the supernode
 The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
 The `--l1.beacon-archiver` alias points at the same flag and is accepted for compatibility with older deployment scripts.
 
+For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+
 ### Pair op-supernode with a Light CL fleet
 
 For operators running more than a handful of nodes, the deployable pattern is to concentrate the expensive multi-chain derivation work on supernodes and run the rest of the fleet as op-node or kona-node instances in Light CL mode.
