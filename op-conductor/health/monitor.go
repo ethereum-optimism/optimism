@@ -24,6 +24,11 @@ var (
 	ErrRollupBoostNotHealthy       = errors.New("rollup boost is not healthy")
 )
 
+const (
+	unhealthyLagMultiplier = 3
+	recoveringWindowSize   = 5
+)
+
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
 type HealthMonitor interface {
 	// Subscribe returns a channel that will be notified for every health check.
@@ -106,6 +111,10 @@ type SequencerHealthMonitor struct {
 	elP2p                                         *ElP2pHealthMonitor
 	rollupBoostPartialHealthinessToleranceLimit   uint64
 	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
+
+	// Recovering state. When pollsInRecovery is zero, the sequencer is not recovering.
+	firstLagInWindow uint64
+	pollsInRecovery  uint64
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -230,17 +239,49 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 		hm.lastSeenUnsafeTime = now
 	}
 
-	curUnsafeTimeDiff := calculateTimeDiff(now, status.UnsafeL2.Time)
-	if curUnsafeTimeDiff > hm.unsafeInterval {
-		hm.log.Error(
-			"unsafe head is falling behind the unsafe interval",
-			"now", now,
-			"unsafe_head_num", status.UnsafeL2.Number,
-			"unsafe_head_time", status.UnsafeL2.Time,
+	curUnsafeLag := calculateTimeDiff(now, status.UnsafeL2.Time)
+	switch {
+	case curUnsafeLag <= hm.unsafeInterval:
+		if hm.pollsInRecovery > 0 {
+			hm.log.Info(
+				"sequencer recovered from unsafe-head lag",
+				"polls_in_recovery", hm.pollsInRecovery,
+				"cur_unsafe_lag", curUnsafeLag,
+			)
+			hm.pollsInRecovery = 0
+			hm.firstLagInWindow = 0
+		}
+	case hm.pollsInRecovery == 0:
+		hm.pollsInRecovery = 1
+		hm.firstLagInWindow = curUnsafeLag
+		hm.log.Info(
+			"sequencer entering unsafe-head recovery",
+			"cur_unsafe_lag", curUnsafeLag,
 			"unsafe_interval", hm.unsafeInterval,
-			"cur_unsafe_time_diff", curUnsafeTimeDiff,
+			"ceiling", unhealthyLagMultiplier*hm.unsafeInterval,
 		)
-		return ErrSequencerNotHealthy
+	default:
+		hm.pollsInRecovery++
+		if hm.pollsInRecovery >= recoveringWindowSize {
+			if curUnsafeLag > unhealthyLagMultiplier*hm.unsafeInterval {
+				hm.log.Error(
+					"unsafe-head lag above unhealthy ceiling",
+					"cur_unsafe_lag", curUnsafeLag,
+					"ceiling", unhealthyLagMultiplier*hm.unsafeInterval,
+					"polls_in_recovery", hm.pollsInRecovery,
+				)
+				return ErrSequencerNotHealthy
+			}
+			if curUnsafeLag >= hm.firstLagInWindow {
+				hm.log.Error(
+					"unsafe-head lag not shrinking across recovery window",
+					"cur_unsafe_lag", curUnsafeLag,
+					"first_lag_in_window", hm.firstLagInWindow,
+					"polls_in_recovery", hm.pollsInRecovery,
+				)
+				return ErrSequencerNotHealthy
+			}
+		}
 	}
 
 	if hm.safeEnabled && calculateTimeDiff(now, status.SafeL2.Time) > hm.safeInterval {

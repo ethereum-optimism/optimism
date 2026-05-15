@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
@@ -145,6 +146,156 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	return monitor
 }
 
+func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64, mockRollupClient *testutils.MockRollupClient) (*SequencerHealthMonitor, *timeProvider) {
+	t.Helper()
+	tp := &timeProvider{now: now}
+	monitor := &SequencerHealthMonitor{
+		log:            testlog.Logger(t, log.LevelDebug),
+		rollupCfg:      &rollup.Config{BlockTime: blockTime},
+		unsafeInterval: unsafeInterval,
+		safeInterval:   safeInterval,
+		safeEnabled:    true,
+		timeProviderFn: tp.Now,
+		node:           mockRollupClient,
+	}
+	return monitor, tp
+}
+
+func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+	}{
+		{now: now, unsafeTime: now - 2, unsafeNum: 5},
+		{now: now + 2, unsafeTime: now, unsafeNum: 6},
+		{now: now + 22, unsafeTime: now + 2, unsafeNum: 7},
+		{now: now + 24, unsafeTime: now + 4, unsafeNum: 8},
+		{now: now + 26, unsafeTime: now + 8, unsafeNum: 9},
+		{now: now + 28, unsafeTime: now + 14, unsafeNum: 10},
+		{now: now + 30, unsafeTime: now + 20, unsafeNum: 11},
+		{now: now + 32, unsafeTime: now + 28, unsafeNum: 12},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
+func TestStoppedSequencerStillMarkedUnhealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now uint64
+		err error
+	}{
+		{now: now},
+		{now: now + 2},
+		{now: now + 22},
+		{now: now + 24},
+		{now: now + 26},
+		{now: now + 28},
+		{now: now + 30, err: ErrSequencerNotHealthy},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(now, 6, poll.now, 6), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
+func TestLagAboveCeilingMarkedUnhealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+		err        error
+	}{
+		{now: now, unsafeTime: now, unsafeNum: 5},
+		{now: now + 2, unsafeTime: now + 2, unsafeNum: 6},
+		{now: now + 202, unsafeTime: now + 2, unsafeNum: 7},
+		{now: now + 204, unsafeTime: now + 14, unsafeNum: 8},
+		{now: now + 206, unsafeTime: now + 26, unsafeNum: 9},
+		{now: now + 208, unsafeTime: now + 38, unsafeNum: 10},
+		{now: now + 210, unsafeTime: now + 50, unsafeNum: 11, err: ErrSequencerNotHealthy},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
+func TestRecoveringWindowFillGateBlocksImmediateStop(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+	}{
+		{now: now, unsafeTime: now, unsafeNum: 5},
+		{now: now + 2, unsafeTime: now + 2, unsafeNum: 6},
+		{now: now + 502, unsafeTime: now + 2, unsafeNum: 7},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
+func TestPollsInRecoveryNotResetOnSecondRegression(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+		err        error
+	}{
+		{now: now, unsafeTime: now, unsafeNum: 5},
+		{now: now + 2, unsafeTime: now + 2, unsafeNum: 6},
+		{now: now + 17, unsafeTime: now + 2, unsafeNum: 7},
+		{now: now + 19, unsafeTime: now + 7, unsafeNum: 8},
+		{now: now + 21, unsafeTime: now + 3, unsafeNum: 9},
+		{now: now + 23, unsafeTime: now + 3, unsafeNum: 9},
+		{now: now + 25, unsafeTime: now + 3, unsafeNum: 9, err: ErrSequencerNotHealthy},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.Equal(t, uint64(recoveringWindowSize), monitor.pollsInRecovery)
+	require.Equal(t, uint64(15), monitor.firstLagInWindow)
+}
+
 func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	s.T().Parallel()
 	now := uint64(time.Now().Unix())
@@ -202,8 +353,8 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 
 	rc := &testutils.MockRollupClient{}
 	ss1 := mockSyncStatus(now, 5, now-8, 1)
-	unsafeBlocksInterval := 10
-	for i := 0; i < unsafeBlocksInterval+2; i++ {
+	unsafeBlocksInterval := uint64(10)
+	for i := uint64(0); i < unsafeBlocksInterval+recoveringWindowSize+1; i++ {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
@@ -213,10 +364,9 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 	monitor := s.SetupMonitor(now, uint64(unsafeBlocksInterval), 60, rc, nil, elP2pClient)
 	healthUpdateCh := monitor.Subscribe()
 
-	// once the unsafe interval is surpassed, we should expect "unsafe head is falling behind the unsafe interval"
-	for i := 0; i < unsafeBlocksInterval+2; i++ {
+	for i := uint64(0); i < unsafeBlocksInterval+recoveringWindowSize+1; i++ {
 		healthFailure := <-healthUpdateCh
-		if i <= unsafeBlocksInterval {
+		if i < unsafeBlocksInterval+recoveringWindowSize {
 			s.Nil(healthFailure)
 			s.Equal(now, monitor.lastSeenUnsafeTime)
 			s.Equal(uint64(5), monitor.lastSeenUnsafeNum)
