@@ -1014,7 +1014,7 @@ jobs:
             PACKAGES="<< parameters.apt_packages >>"
             if [ -n "$PACKAGES" ]; then
               for i in 1 2 3; do
-                if sudo apt-get -o Acquire::Retries=5 update; then
+                if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=5 update; then
                   break
                 fi
                 if [ "$i" = "3" ]; then
@@ -1025,7 +1025,7 @@ jobs:
                 sleep 10
               done
               # shellcheck disable=SC2086
-              sudo apt-get install -y --no-install-recommends $PACKAGES
+              sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends $PACKAGES
             fi
       - run:
           name: Pre-test build (<< parameters.directory >>)
