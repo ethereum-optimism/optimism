@@ -92,8 +92,8 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	require.True(t, has)
 	require.Equal(t, uint64(110), latest.Number)
 
-	// 5 fetches for blocks 106..110 + 1 reconcile probe at block 105.
-	require.Equal(t, int32(6), fetchCount.Load())
+	// 5 fetches for blocks 106..110 + reconcile probes at block 105 and 110.
+	require.Equal(t, int32(7), fetchCount.Load())
 }
 
 func TestLogBackfill_FetchesBlocksConcurrentlyAndWritesInOrder(t *testing.T) {
@@ -142,6 +142,44 @@ func TestLogBackfill_FetchesBlocksConcurrentlyAndWritesInOrder(t *testing.T) {
 	latest, has := h.interop.logsDBs[chain.id].LatestSealedBlock()
 	require.True(t, has)
 	require.Equal(t, uint64(115), latest.Number, "ordered DB writes should seal through the end block")
+}
+
+func TestLogBackfill_PostBackfillReconcileRetriesIfPrefetchedBlocksGoStale(t *testing.T) {
+	const (
+		start       uint64 = 100
+		commonTip   uint64 = 105
+		end         uint64 = 110
+		totalBlocks        = end - start + 1
+	)
+
+	var outputCalls atomic.Int32
+	h := newInteropTestHarness(t).
+		WithActivation(start).
+		WithChain(10, func(m *mockChainContainer) {
+			m.outputV0Override = func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+				call := outputCalls.Add(1)
+				hashNum := l2BlockNum
+				if call > int32(totalBlocks) && l2BlockNum > commonTip {
+					hashNum += 1000
+				}
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(hashNum)),
+				}, nil
+			}
+		}).
+		Build()
+
+	chain := h.Mock(10)
+	h.interop.logBackfillFetchConcurrency = 4
+
+	err := h.interop.backfillChain(context.Background(), chain.id, chain, start, end)
+	require.ErrorContains(t, err, "logsDB tip rewound below backfill end after canonical reconcile")
+
+	latest, has := h.interop.logsDBs[chain.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, commonTip, latest.Number)
 }
 
 func TestLogBackfill_RetriesWhenELFinalizedNotReady(t *testing.T) {
@@ -398,13 +436,14 @@ func TestLogBackfill_AsymmetricMultiChain(t *testing.T) {
 	chain20 := h.Mock(20)
 	chain30 := h.Mock(30)
 
-	// Every chain backfills the same 100..110 window (11 blocks each).
-	require.Equal(t, int32(11), fetchCount[chain10.id].Load(),
-		"chain 10 should backfill blocks 100..110 (11 blocks)")
-	require.Equal(t, int32(11), fetchCount[chain20.id].Load(),
-		"chain 20 should backfill blocks 100..110 (11 blocks)")
-	require.Equal(t, int32(11), fetchCount[chain30.id].Load(),
-		"chain 30 should backfill blocks 100..110 (11 blocks)")
+	// Every chain backfills the same 100..110 window (11 blocks each) and
+	// probes the tip once after backfill to catch stale prefetched blocks.
+	require.Equal(t, int32(12), fetchCount[chain10.id].Load(),
+		"chain 10 should backfill blocks 100..110 and post-reconcile the tip")
+	require.Equal(t, int32(12), fetchCount[chain20.id].Load(),
+		"chain 20 should backfill blocks 100..110 and post-reconcile the tip")
+	require.Equal(t, int32(12), fetchCount[chain30.id].Load(),
+		"chain 30 should backfill blocks 100..110 and post-reconcile the tip")
 
 	latest10, has10 := h.interop.logsDBs[chain10.id].LatestSealedBlock()
 	require.True(t, has10)
@@ -797,8 +836,8 @@ func TestLogBackfill_ClampsStartToGenesis(t *testing.T) {
 			require.True(t, has)
 			require.Equal(t, tc.wantEndBlock, latest.Number)
 
-			require.Equal(t, tc.wantSealedBlocks, outputCalls.Load(),
-				"backfill must seal exactly [genesisBlock, endBlock]")
+			require.Equal(t, tc.wantSealedBlocks+1, outputCalls.Load(),
+				"backfill must seal exactly [genesisBlock, endBlock] plus one post-reconcile tip probe")
 		})
 	}
 }

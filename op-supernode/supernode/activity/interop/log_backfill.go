@@ -232,6 +232,14 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 		progress := float64(num-startNum+1) / float64(totalBlocks)
 		i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
 	}
+	if err := i.reconcileLogsDBTail(ctx, cid, chain, db); err != nil {
+		return err
+	}
+	if latest, has := db.LatestSealedBlock(); !has {
+		return fmt.Errorf("chain %s: logsDB empty after post-backfill canonical reconcile", cid)
+	} else if latest.Number < endNum {
+		return fmt.Errorf("chain %s: logsDB tip rewound below backfill end after canonical reconcile: tip %d, end %d", cid, latest.Number, endNum)
+	}
 	return nil
 }
 
