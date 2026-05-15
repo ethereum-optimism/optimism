@@ -27,7 +27,6 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-
     /// @notice The timestamp at which the game was created.
     Timestamp public createdAt;
 
