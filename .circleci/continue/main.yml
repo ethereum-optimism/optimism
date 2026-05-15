@@ -1876,6 +1876,12 @@ jobs:
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
+            # Redirect temp dirs to the CircleCI ramdisk so test data files
+            # (geth chaindata, op-reth mdbx, etc.) avoid fsync stalls on the
+            # shared overlay disk.
+            mkdir -p /mnt/ramdisk/tmp
+            export TMPDIR=/mnt/ramdisk/tmp
+            export GOTMPDIR=/mnt/ramdisk/tmp
             # set to less than number CPUs (xlarge Docker is 16 CPU) so there's some buffer for things
             # like Geth
             export PARALLEL=12
@@ -2030,6 +2036,12 @@ jobs:
           working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
+            # Redirect temp dirs to the CircleCI ramdisk so devnet state
+            # (op-reth mdbx, op-geth chaindata, supernode logsdb, ...) avoids
+            # fsync stalls on the shared overlay disk.
+            mkdir -p /mnt/ramdisk/tmp
+            export TMPDIR=/mnt/ramdisk/tmp
+            export GOTMPDIR=/mnt/ramdisk/tmp
             LOG_LEVEL=info just acceptance-test
       - run:
           name: Print results (summary)
