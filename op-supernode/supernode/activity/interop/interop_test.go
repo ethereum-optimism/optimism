@@ -502,7 +502,7 @@ func TestStartWithoutBackfillResumesFromVerifiedDBIgnoringELFinalized(t *testing
 		"warm-restart startup must not consult EL finalized when verifiedDB is initialized")
 }
 
-func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
+func TestStartWithBackfillChecksSafeDBBeforeSealing(t *testing.T) {
 	const activation = uint64(100)
 	const safe = uint64(125)
 
@@ -526,24 +526,14 @@ func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
 	select {
 	case err = <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("interop did not halt after post-backfill SafeDB readiness failure")
+		t.Fatal("interop did not halt after SafeDB readiness failure")
 	}
 	require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
 	require.Equal(t, int32(1), h.interop.BackfillAttempts())
-	require.Equal(t, safe, h.interop.BackfillEndTimestamp())
+	require.Zero(t, h.interop.BackfillEndTimestamp())
 
-	first, err := h.interop.FirstSealedBlock(eth.ChainIDFromUInt64(10))
-	require.NoError(t, err)
-	// The first real backfilled block is 120, and the logs DB records its
-	// virtual parent as the first sealed block.
-	require.Equal(t, uint64(119), first.Number)
-	require.Equal(t, uint64(120), first.Timestamp)
-
-	latest, ok, err := h.interop.LatestSealedBlock(eth.ChainIDFromUInt64(10))
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, safe, latest.Number)
-	require.Equal(t, safe, latest.Timestamp)
+	_, err = h.interop.FirstSealedBlock(eth.ChainIDFromUInt64(10))
+	require.Error(t, err, "backfill must not seal logs before SafeDB readiness is proven")
 }
 
 // =============================================================================

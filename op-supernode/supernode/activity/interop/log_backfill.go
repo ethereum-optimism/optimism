@@ -96,10 +96,12 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	firstVerifiable := i.firstVerifiable
 	if !i.firstVerifiableSet {
 		var err error
-		firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
+		firstVerifiable, err = i.readyFirstVerifiableTimestamp(i.ctx)
 		if err != nil {
 			return 0, err
 		}
+		i.firstVerifiable = firstVerifiable
+		i.firstVerifiableSet = true
 	}
 	if firstVerifiable == i.activationTimestamp {
 		return 0, nil
@@ -115,12 +117,6 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	}
 	// clamp to the activation timestamp: never backfill before activation.
 	startTime := max(idealStart, i.activationTimestamp)
-
-	resume, err := i.pauseChainsForBackfill(i.ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer resume()
 
 	// backfill every chain in parallel over [startTime, endTime]
 	errCh := make(chan error, len(i.chains))
@@ -163,28 +159,6 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	}
 	i.backfillStartTimestamp = startTime
 	return endTime, nil
-}
-
-func (i *Interop) pauseChainsForBackfill(ctx context.Context) (func(), error) {
-	paused := make([]cc.ChainContainer, 0, len(i.chains))
-	for _, chain := range i.chains {
-		if err := chain.PauseAndStopVN(ctx); err != nil {
-			for _, p := range paused {
-				if resumeErr := p.Resume(context.Background()); resumeErr != nil {
-					i.log.Error("failed to resume chain after backfill pause failure", "chain", p.ID(), "err", resumeErr)
-				}
-			}
-			return nil, fmt.Errorf("pause chain %s for log backfill: %w", chain.ID(), err)
-		}
-		paused = append(paused, chain)
-	}
-	return func() {
-		for _, chain := range paused {
-			if err := chain.Resume(context.Background()); err != nil {
-				i.log.Error("failed to resume chain after log backfill", "chain", chain.ID(), "err", err)
-			}
-		}
-	}, nil
 }
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {

@@ -336,6 +336,11 @@ func (i *Interop) Start(ctx context.Context) error {
 				i.backfillEndTimestamp = end
 				break
 			}
+			if errors.Is(err, cc.ErrHistoryUnavailable) {
+				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+				return fmt.Errorf("interop halted due to unavailable history: %w", err)
+			}
 			i.log.Warn("log backfill failed, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
 			for cid := range i.chains {
 				i.metrics.LogBackfillRetries.WithLabelValues(cid.String()).Inc()

@@ -671,11 +671,11 @@ func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T
 	require.Equal(t, uint64(1000), h.interop.backfillStartTimestamp)
 	require.Positive(t, outputCalls.Load(), "backfill should seal the local-safe handoff range")
 	requireFirstVerifiableTimestamp(t, h.interop, 1061)
-	require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "backfill should pause chains")
-	require.Equal(t, 1, h.Mock(10).resumeCalls, "backfill should resume chains")
+	require.Zero(t, h.Mock(10).pauseAndStopVNCalls, "backfill must not restart VNs")
+	require.Zero(t, h.Mock(10).resumeCalls, "backfill must not restart VNs")
 }
 
-func TestLogBackfill_PausesChainsWhileSealing(t *testing.T) {
+func TestLogBackfill_DoesNotPauseChainsWhileSealing(t *testing.T) {
 	const act = uint64(100)
 	cl := &callLog{}
 
@@ -706,35 +706,24 @@ func TestLogBackfill_PausesChainsWhileSealing(t *testing.T) {
 	end, err := h.interop.runLogBackfill()
 	require.NoError(t, err)
 	require.Equal(t, uint64(110), end)
-	require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls)
-	require.Equal(t, 1, h.Mock(20).pauseAndStopVNCalls)
-	require.Equal(t, 1, h.Mock(10).resumeCalls)
-	require.Equal(t, 1, h.Mock(20).resumeCalls)
+	require.Zero(t, h.Mock(10).pauseAndStopVNCalls)
+	require.Zero(t, h.Mock(20).pauseAndStopVNCalls)
+	require.Zero(t, h.Mock(10).resumeCalls)
+	require.Zero(t, h.Mock(20).resumeCalls)
 
 	entries := cl.snapshot()
 	firstSealIdx := -1
-	firstResumeIdx := -1
 	for i, e := range entries {
-		switch e.method {
-		case "OutputV0AtBlockNumber":
+		if e.method == "OutputV0AtBlockNumber" {
 			if firstSealIdx == -1 {
 				firstSealIdx = i
-			}
-		case "Resume":
-			if firstResumeIdx == -1 {
-				firstResumeIdx = i
 			}
 		}
 	}
 	require.NotEqual(t, -1, firstSealIdx, "backfill should seal blocks")
-	require.NotEqual(t, -1, firstResumeIdx, "backfill should resume chains")
-	for i, e := range entries {
-		if e.method == "PauseAndStopVN" {
-			require.Less(t, i, firstSealIdx, "chains must pause before sealing")
-		}
-		if e.method == "OutputV0AtBlockNumber" {
-			require.Less(t, i, firstResumeIdx, "sealing must finish before resume")
-		}
+	for _, e := range entries {
+		require.NotEqual(t, "PauseAndStopVN", e.method, "backfill must not restart VNs")
+		require.NotEqual(t, "Resume", e.method, "backfill must not restart VNs")
 	}
 }
 
