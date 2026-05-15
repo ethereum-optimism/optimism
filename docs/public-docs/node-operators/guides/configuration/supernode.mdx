@@ -40,7 +40,8 @@ Use the per-chain form only when a chain's execution client requires its own sec
   Without an archive fallback configured, a supernode that has been offline past the prune window cannot fetch the blobs it needs to derive missed L1 blocks, and chain containers will stall at the gap.
 </Warning>
 
-Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints before running long enough for blob expiry to matter.
+Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints.
+Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
 The shared L1 client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
 The `--l1.beacon-archiver` alias points at the same flag and is accepted for compatibility with older deployment scripts.
 
@@ -131,7 +132,7 @@ The default value is `./datadir`.
 ### Shared L1 access
 
 The supernode runs one L1 client and one beacon client and serves every chain in the dependency set from them.
-Per-chain `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` settings are silently replaced with the top-level values below at startup.
+Per-chain `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` settings never take effect — the supernode always uses the top-level `--l1` and `--l1.beacon` values for every chain.
 
 #### l1
 
