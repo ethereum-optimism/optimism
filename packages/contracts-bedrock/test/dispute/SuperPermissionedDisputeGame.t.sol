@@ -41,7 +41,7 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         rootClaim = Claim.wrap(Hashing.hashSuperRootProof(superRootProof));
         extraData = Encoding.encodeSuperRootProof(superRootProof);
 
-        (address impl,,) = setupSuperPermissionedDisputeGame(Claim.wrap(bytes32(0)), PROPOSER, address(0));
+        address impl = setupSuperPermissionedDisputeGame(PROPOSER);
         gameImpl = ISuperPermissionedDisputeGame(impl);
 
         vm.prank(superchainConfig.guardian());
