@@ -72,6 +72,15 @@ func RunKonaNative(
 	l1chainConfigPath := filepath.Join(workDir, "l1chain.json")
 	writeConfig(t, workDir, "l1chain", l1chainConfig, l1chainConfigPath)
 
+	// Write the dependency set to tempdir if provided. kona-host refuses to start when any
+	// supplied rollup config schedules Interop and --depset-cfg is missing — see
+	// rust/kona/bin/host/src/interop/cfg.rs's InteropWithoutDependencySet error.
+	var depsetConfigPath string
+	if fixtureInputs.DependencySet != nil {
+		depsetConfigPath = filepath.Join(workDir, "depset.json")
+		writeConfig(t, workDir, "depset", fixtureInputs.DependencySet, depsetConfigPath)
+	}
+
 	// Run the fault proof program from the state transition from L2 block L2Blocknumber - 1 -> L2BlockNumber.
 	vmCfg := vm.Config{
 		L1:                l1Rpc,
@@ -79,6 +88,7 @@ func RunKonaNative(
 		L2s:               l2Rpcs,
 		RollupConfigPaths: rollupCfgPaths,
 		L1GenesisPath:     l1chainConfigPath,
+		DepsetConfigPath:  depsetConfigPath,
 		Server:            konaHostPath,
 	}
 	inputs := utils.LocalGameInputs{

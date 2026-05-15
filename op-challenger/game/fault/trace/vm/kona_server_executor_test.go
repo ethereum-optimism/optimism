@@ -45,4 +45,31 @@ func TestKonaFillHostCommand(t *testing.T) {
 	require.True(t, slices.Contains(args, "--claimed-l2-output-root"))
 	require.True(t, slices.Contains(args, "--claimed-l2-block-number"))
 	require.True(t, slices.Contains(args, "--l1-config-path"))
+	require.False(t, slices.Contains(args, "--depset-cfg"))
+}
+
+func TestKonaExecutorWithDepsetConfig(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		L1:               "http://localhost:8888",
+		L1Beacon:         "http://localhost:9000",
+		L2s:              []string{"http://localhost:9999"},
+		Server:           "./bin/mockserver",
+		Networks:         []string{"op-mainnet"},
+		L1GenesisPath:    "mockdir/l1-genesis-1.json",
+		DepsetConfigPath: "mockdir/depset.json",
+	}
+	inputs := utils.LocalGameInputs{
+		L1Head:           common.Hash{0x11},
+		L2Head:           common.Hash{0x22},
+		L2OutputRoot:     common.Hash{0x33},
+		L2Claim:          common.Hash{0x44},
+		L2SequenceNumber: big.NewInt(3333),
+	}
+
+	args, err := NewKonaExecutor().OracleCommand(cfg, "mockdir", inputs)
+	require.NoError(t, err)
+	require.True(t, slices.Contains(args, "--depset-cfg"))
+	idx := slices.Index(args, "--depset-cfg")
+	require.Equal(t, "mockdir/depset.json", args[idx+1])
 }
