@@ -10,8 +10,6 @@ extend-exclude = [
     "op-revm/CHANGELOG.md",
     "op-reth/crates/storage/libmdbx-rs/mdbx-sys/libmdbx",
     "op-reth/testing/ef-tests",
-    "op-rbuilder",
-    "rollup-boost",
 ]
 
 [default]

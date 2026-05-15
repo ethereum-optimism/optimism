@@ -12,7 +12,7 @@ use reth_provider::{
 };
 use reth_revm::database::StateProviderDatabase;
 use std::time::Instant;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub(crate) struct ExecuteBlockTask<Block: reth_primitives_traits::Block> {
     pub(crate) block: RecoveredBlock<Block>,
@@ -93,7 +93,8 @@ where
             // Likely a transient reorg race: reth no longer has state for what we believe is the
             // parent. Skip gracefully; subsequent ChainCommitted/ChainReorged notifications will
             // resync us.
-            debug!(block_number = block.number(),
+            warn!(
+                block_number = block.number(),
                 parent_hash = ?hash,
                 "Parent state not available in reth; skipping execute_block",
             );

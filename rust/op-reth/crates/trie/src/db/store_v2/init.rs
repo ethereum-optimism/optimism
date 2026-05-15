@@ -27,10 +27,10 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
             return Ok(InitialStateAnchor::default());
         };
 
-        let status = match self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock) {
-            Ok(_) => InitialStateStatus::Completed,
-            Err(OpProofsStorageError::NoBlocksFound) => InitialStateStatus::InProgress,
-            Err(err) => return Err(err),
+        let status = if self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.is_some() {
+            InitialStateStatus::Completed
+        } else {
+            InitialStateStatus::InProgress
         };
 
         // Scan the last entry in each current-state table to determine resume
@@ -145,7 +145,6 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
         let anchor =
             self.get_initial_state_anchor_inner()?.ok_or(OpProofsStorageError::NoBlocksFound)?;
         self.set_earliest_block_number_inner(anchor.number, anchor.hash)?;
-        self.set_latest_block_number_inner(anchor.number, anchor.hash)?;
         Ok(anchor)
     }
 

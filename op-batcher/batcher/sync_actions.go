@@ -74,15 +74,13 @@ func computeSyncActions[T channelStatuser](
 	// PART 1: Initial checks on the sync status (on fields which should never be empty)
 	if isZero(safeL2) ||
 		isZero(newSyncStatus.UnsafeL2) ||
-		isZero(newSyncStatus.HeadL1) ||
-		isZero(newSyncStatus.CurrentL1) {
+		isZero(newSyncStatus.HeadL1) {
 		m.Warn("empty BlockRef in sync status")
 		return syncActions{}, true
 	}
 
 	if newSyncStatus.CurrentL1.Number < prevCurrentL1.Number {
-		// This can happen when the sequencer restarts or when there is an L1 reorg
-		// It should eventually catch back up.
+		// This can happen when the sequencer restarts
 		m.Warn("sequencer currentL1 reversed", "prevCurrentL1", prevCurrentL1.TerminalString())
 		return syncActions{}, true
 	}

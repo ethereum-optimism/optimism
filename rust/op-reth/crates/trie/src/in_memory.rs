@@ -4,7 +4,7 @@ use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
     api::{
         InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
-        OpProofsProviderRw, ProofWindowRange, WriteCounts,
+        OpProofsProviderRw, WriteCounts,
     },
     db::{HashedStorageKey, StorageTrieKey},
 };
@@ -57,11 +57,6 @@ struct InMemoryStorageInner {
 
     /// Earliest block number and hash
     earliest_block: Option<(u64, B256)>,
-
-    /// Latest block number and hash. Mirrors `MdbxProofsStorage*`'s explicit `LatestBlock`
-    /// entry — set by `commit_initial_state`, `store_trie_updates`, `unwind_history`,
-    /// `replace_updates`. Left untouched by `prune_earliest_state`.
-    latest_block: Option<(u64, B256)>,
 
     /// The anchor block (initial state) of the store.
     anchor_block: Option<(u64, B256)>,
@@ -570,33 +565,15 @@ impl OpProofsProviderRO for InMemoryProofsProvider {
     type StorageCursor<'tx> = InMemoryStorageCursor;
     type AccountHashedCursor<'tx> = InMemoryAccountCursor;
 
-    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read();
-        inner
-            .earliest_block
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)
+        Ok(inner.earliest_block)
     }
 
-    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read();
-        inner
-            .latest_block
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)
-    }
-
-    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
-        let inner = self.inner.read();
-        let earliest = inner
-            .earliest_block
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)?;
-        let latest = inner
-            .latest_block
-            .map(|(number, hash)| NumHash::new(number, hash))
-            .ok_or(OpProofsStorageError::NoBlocksFound)?;
-        Ok(ProofWindowRange { earliest, latest })
+        let latest_block = inner.trie_updates.keys().max().copied();
+        latest_block.map_or_else(|| Ok(inner.earliest_block), |block| Ok(Some((block, B256::ZERO))))
     }
 
     fn storage_trie_cursor<'tx>(
@@ -645,9 +622,7 @@ impl OpProofsProviderRw for InMemoryProofsProvider {
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut inner = self.inner.write();
-        let counts = inner.store_trie_updates(block_ref.block.number, block_state_diff);
-        inner.latest_block = Some((block_ref.block.number, block_ref.block.hash));
-        Ok(counts)
+        Ok(inner.store_trie_updates(block_ref.block.number, block_state_diff))
     }
 
     fn store_trie_updates_batch(
@@ -656,13 +631,8 @@ impl OpProofsProviderRw for InMemoryProofsProvider {
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut inner = self.inner.write();
         let mut total_write_count = WriteCounts::default();
-        let mut last_block_ref = None;
         for (block_ref, block_state_diff) in updates {
             total_write_count += inner.store_trie_updates(block_ref.block.number, block_state_diff);
-            last_block_ref = Some(block_ref);
-        }
-        if let Some(block_ref) = last_block_ref {
-            inner.latest_block = Some((block_ref.block.number, block_ref.block.hash));
         }
         Ok(total_write_count)
     }
@@ -766,9 +736,6 @@ impl OpProofsProviderRw for InMemoryProofsProvider {
         inner.hashed_accounts.retain(|(block, _), _| *block <= unwind_upto_block_number);
         inner.hashed_storages.retain(|(block, _, _), _| *block <= unwind_upto_block_number);
 
-        // After unwind the new tip is `unwind_upto_block`'s parent.
-        inner.latest_block = Some((unwind_upto_block_number, unwind_upto_block.parent));
-
         Ok(())
     }
 
@@ -788,13 +755,20 @@ impl OpProofsProviderRw for InMemoryProofsProvider {
         inner.hashed_accounts.retain(|(block, _), _| *block <= latest_common_block_number);
         inner.hashed_storages.retain(|(block, _, _), _| *block <= latest_common_block_number);
 
-        let mut new_tip = (latest_common_block.number, latest_common_block.hash);
         for (block, block_state_diff) in blocks_to_add {
             inner.store_trie_updates(block.block.number, block_state_diff);
-            new_tip = (block.block.number, block.block.hash);
         }
-        inner.latest_block = Some(new_tip);
 
+        Ok(())
+    }
+
+    fn set_earliest_block_number(
+        &self,
+        block_number: u64,
+        hash: B256,
+    ) -> OpProofsStorageResult<()> {
+        let mut inner = self.inner.write();
+        inner.earliest_block = Some((block_number, hash));
         Ok(())
     }
 
@@ -891,7 +865,6 @@ impl OpProofsInitProvider for InMemoryProofsProvider {
         let mut inner = self.inner.write();
         let anchor = inner.anchor_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
         inner.earliest_block = Some(anchor);
-        inner.latest_block = Some(anchor);
         Ok(BlockNumHash::new(anchor.0, anchor.1))
     }
 
@@ -912,15 +885,11 @@ mod tests {
     fn test_in_memory_storage_basic_operations() -> Result<(), OpProofsStorageError> {
         let storage = InMemoryProofsStorage::new();
 
-        // Bootstrap the chain anchor via the init flow.
+        // Test setting earliest block
         let block_hash = B256::random();
-        let init = storage.initialization_provider()?;
-        init.set_initial_state_anchor(BlockNumHash { number: 1, hash: block_hash })?;
-        init.commit_initial_state()?;
-        OpProofsInitProvider::commit(init)?;
-
-        let earliest = storage.provider_ro()?.get_earliest_block()?;
-        assert_eq!(earliest, NumHash::new(1, block_hash));
+        storage.provider_rw()?.set_earliest_block_number(1, block_hash)?;
+        let earliest = storage.provider_ro()?.get_earliest_block_number()?;
+        assert_eq!(earliest, Some((1, block_hash)));
 
         // Test storing and retrieving accounts
         let account = Account { nonce: 1, balance: U256::from(100), bytecode_hash: None };

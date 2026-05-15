@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -263,25 +262,7 @@ func WithRetrySubmission(cl TransactionSubmitter, maxAttempts int, strategy retr
 		tx.Submitted.DependOn(&tx.Signed)
 		tx.Submitted.Fn(func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, retry.Do0(ctx, maxAttempts, strategy, func() error {
-				// Re-evaluate the signed tx on each attempt. On the first call
-				// this simply returns the already-evaluated value. On subsequent
-				// retries after a nonce-too-low error (see below) Nonce has been
-				// invalidated, so Eval will re-fetch the pending nonce and
-				// rebuild + re-sign the transaction.
-				signed, err := tx.Signed.Eval(ctx)
-				if err != nil {
-					return fmt.Errorf("re-evaluating signed tx: %w", err)
-				}
-				err = cl.SendTransaction(ctx, signed)
-				// If the nonce is stale (e.g. a deposit tx on L2 advanced the
-				// account nonce before we fetched it), invalidate the Nonce node
-				// so it is re-fetched on the next attempt. Because Nonce is
-				// upstream of Unsigned which is upstream of Signed, invalidating
-				// Nonce cascades through the whole signing pipeline.
-				if errors.Is(err, core.ErrNonceTooLow) {
-					tx.Nonce.Invalidate()
-				}
-				return err
+				return cl.SendTransaction(ctx, tx.Signed.Value())
 			})
 		})
 	}

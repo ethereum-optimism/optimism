@@ -104,13 +104,16 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
         proofs_history_window: u64,
         prune_batch_size: u64,
     ) -> eyre::Result<()> {
-        let window = storage.provider_ro()?.get_proof_window()?;
+        let provider_ro = storage.provider_ro()?;
+        let earliest_block = provider_ro.get_earliest_block_number()?;
+        let latest_block = provider_ro.get_latest_block_number()?;
         info!(
             target: "reth::cli",
-            earliest_block = ?window.earliest,
-            latest_block = ?window.latest,
+            ?earliest_block,
+            ?latest_block,
             "Current proofs storage block range"
         );
+        drop(provider_ro);
 
         let pruner = OpProofStoragePruner::new(storage, block_hash_reader, proofs_history_window)
             .with_batch_size(prune_batch_size);
