@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/params"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
@@ -29,7 +30,10 @@ var (
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
 
-const DefaultLogBackfillDepth = 7 * 24 * time.Hour
+// DefaultLogBackfillDepth matches the interop message expiry window so backfill
+// covers every initiating message that could still be referenced by an
+// executing message.
+const DefaultLogBackfillDepth = time.Duration(params.MessageExpiryTimeSecondsInterop) * time.Second
 
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
