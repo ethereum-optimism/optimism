@@ -96,6 +96,54 @@ func TestLogBackfill_ResumesAfterInterruption(t *testing.T) {
 	require.Equal(t, int32(6), fetchCount.Load())
 }
 
+func TestLogBackfill_FetchesBlocksConcurrentlyAndWritesInOrder(t *testing.T) {
+	const fetchConcurrency = uint64(4)
+
+	var active atomic.Int32
+	var maxActive atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(100).
+		WithChain(10, func(m *mockChainContainer) {
+			m.outputV0Override = func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
+				now := active.Add(1)
+				for {
+					maxSeen := maxActive.Load()
+					if now <= maxSeen || maxActive.CompareAndSwap(maxSeen, now) {
+						break
+					}
+				}
+				defer active.Add(-1)
+
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(20 * time.Millisecond):
+				}
+
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(l2BlockNum)),
+				}, nil
+			}
+		}).
+		Build()
+
+	chain := h.Mock(10)
+	h.interop.logBackfillFetchConcurrency = fetchConcurrency
+
+	err := h.interop.backfillChain(context.Background(), chain.id, chain, 100, 115)
+	require.NoError(t, err)
+
+	require.Greater(t, maxActive.Load(), int32(1), "backfill should fetch more than one block at a time")
+	require.LessOrEqual(t, maxActive.Load(), int32(fetchConcurrency), "backfill must respect the concurrency bound")
+
+	latest, has := h.interop.logsDBs[chain.id].LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, uint64(115), latest.Number, "ordered DB writes should seal through the end block")
+}
+
 func TestLogBackfill_RetriesWhenELFinalizedNotReady(t *testing.T) {
 	const act = uint64(100)
 	depth := 10 * time.Second

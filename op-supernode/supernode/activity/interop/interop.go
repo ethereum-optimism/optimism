@@ -35,6 +35,10 @@ var (
 // executing message.
 const DefaultLogBackfillDepth = time.Duration(params.MessageExpiryTimeSecondsInterop) * time.Second
 
+// DefaultLogBackfillFetchConcurrency matches op-interop-filter's startup
+// ingestion pipeline width. Writes still happen in block-number order.
+const DefaultLogBackfillFetchConcurrency = 64
+
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
@@ -191,7 +195,10 @@ type Interop struct {
 	l1Checker l1ConsistencyChecker
 
 	logBackfillDepth time.Duration
-	metrics          *resources.SupernodeMetrics
+	// logBackfillFetchConcurrency bounds per-chain concurrent block/receipt
+	// fetches during startup backfill. DB writes stay sequential.
+	logBackfillFetchConcurrency uint64
+	metrics                     *resources.SupernodeMetrics
 }
 
 func (i *Interop) Name() string {
@@ -262,15 +269,16 @@ func New(
 		metrics = resources.NewSupernodeMetrics()
 	}
 	i := &Interop{
-		log:                 log,
-		chains:              chains,
-		verifiedDB:          verifiedDB,
-		logsDBs:             logsDBs,
-		dataDir:             dataDir,
-		activationTimestamp: activationTimestamp,
-		messageExpiryWindow: messageExpiryWindow,
-		logBackfillDepth:    logBackfillDepth,
-		metrics:             metrics,
+		log:                         log,
+		chains:                      chains,
+		verifiedDB:                  verifiedDB,
+		logsDBs:                     logsDBs,
+		dataDir:                     dataDir,
+		activationTimestamp:         activationTimestamp,
+		messageExpiryWindow:         messageExpiryWindow,
+		logBackfillDepth:            logBackfillDepth,
+		logBackfillFetchConcurrency: DefaultLogBackfillFetchConcurrency,
+		metrics:                     metrics,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)

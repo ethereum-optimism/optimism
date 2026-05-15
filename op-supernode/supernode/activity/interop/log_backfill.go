@@ -6,9 +6,19 @@ import (
 	"math"
 	"sync"
 
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
+
+type logBackfillFetch struct {
+	blockNum  uint64
+	bid       eth.BlockID
+	blockInfo eth.BlockInfo
+	receipts  gethTypes.Receipts
+	err       error
+}
 
 // resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
 // by durable local state: verifiedDB.LastTimestamp+1 when initialized,
@@ -142,26 +152,85 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
+	if startNum > endNum {
+		i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(1)
+		return nil
+	}
+
 	totalBlocks := endNum - startNum + 1
+	concurrency := i.logBackfillFetchConcurrency
+	if concurrency == 0 {
+		concurrency = 1
+	}
+	if concurrency > totalBlocks {
+		concurrency = totalBlocks
+	}
+
+	rangeCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	slots := make([]chan logBackfillFetch, concurrency)
+	for idx := range slots {
+		slots[idx] = make(chan logBackfillFetch, 1)
+	}
+
+	startFetch := func(num uint64) {
+		slot := slots[num%concurrency]
+		go func() {
+			out, err := chain.OutputV0AtBlockNumber(rangeCtx, num)
+			var bid eth.BlockID
+			var blockInfo eth.BlockInfo
+			var receipts gethTypes.Receipts
+			if err != nil {
+				err = fmt.Errorf("output at block %d: %w", num, err)
+			} else {
+				bid = eth.BlockID{Hash: out.BlockHash, Number: num}
+				blockInfo, receipts, err = chain.FetchReceipts(rangeCtx, bid)
+				if err != nil {
+					err = fmt.Errorf("fetch receipts %d: %w", num, err)
+				}
+			}
+			select {
+			case slot <- logBackfillFetch{blockNum: num, bid: bid, blockInfo: blockInfo, receipts: receipts, err: err}:
+			case <-rangeCtx.Done():
+			}
+		}()
+	}
+
+	nextFetch := startNum
+	for idx := uint64(0); idx < concurrency; idx++ {
+		startFetch(nextFetch)
+		nextFetch++
+	}
+
 	for num := startNum; num <= endNum; num++ {
-		out, err := chain.OutputV0AtBlockNumber(ctx, num)
-		if err != nil {
-			return fmt.Errorf("chain %s: output at block %d: %w", cid, num, err)
-		}
-		bid := eth.BlockID{Hash: out.BlockHash, Number: num}
-		blockInfo, receipts, err := chain.FetchReceipts(ctx, bid)
-		if err != nil {
-			return fmt.Errorf("chain %s: fetch receipts %d: %w", cid, num, err)
+		var fetched logBackfillFetch
+		select {
+		case <-rangeCtx.Done():
+			return rangeCtx.Err()
+		case fetched = <-slots[num%concurrency]:
 		}
 
-		if err := i.sealBlockDataIntoLogsDB(cid, bid, blockInfo, receipts, blockInfo.Time(), true); err != nil {
+		if fetched.blockNum != num {
+			cancel()
+			return fmt.Errorf("chain %s: expected fetched block %d but got %d", cid, num, fetched.blockNum)
+		}
+		if fetched.err != nil {
+			cancel()
+			return fmt.Errorf("chain %s: %w", cid, fetched.err)
+		}
+		if nextFetch <= endNum {
+			startFetch(nextFetch)
+			nextFetch++
+		}
+
+		if err := i.sealBlockDataIntoLogsDB(cid, fetched.bid, fetched.blockInfo, fetched.receipts, fetched.blockInfo.Time(), true); err != nil {
+			cancel()
 			return err
 		}
 
-		if totalBlocks > 0 {
-			progress := float64(num-startNum+1) / float64(totalBlocks)
-			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
-		}
+		progress := float64(num-startNum+1) / float64(totalBlocks)
+		i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
 	}
 	return nil
 }
