@@ -101,13 +101,6 @@ func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.Standar
 	return dsl.NewStandardBridge(s.T, l2Chain, s.L1EL)
 }
 
-// NewSimpleInteropSuperProofs creates a fresh SimpleInterop target for the current test
-// using the default super-root proofs system.
-func NewSimpleInteropSuperProofs(t devtest.T, opts ...Option) *SimpleInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropSuperProofs", opts, simpleInteropSuperProofsPresetSupportedOptionKinds)
-	return simpleInteropFromRuntime(t, sysgo.NewSimpleInteropSuperProofsRuntimeWithConfig(t, presetCfg))
-}
-
 // NewSimpleInteropSupernodeProofs creates a fresh SimpleInterop target for the current
 // test using the super-root proofs system backed by op-supernode.
 func NewSimpleInteropSupernodeProofs(t devtest.T, opts ...Option) *SimpleInterop {
