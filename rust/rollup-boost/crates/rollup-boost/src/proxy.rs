@@ -1,13 +1,10 @@
-use crate::{
-    Request, Response, client::http::HttpClient, from_buffered_request, into_buffered_request,
-};
+use crate::client::http::HttpClient;
+use crate::{Request, Response, from_buffered_request, into_buffered_request};
 use http_body_util::BodyExt as _;
-use jsonrpsee::{core::BoxError, server::HttpBody};
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use jsonrpsee::core::BoxError;
+use jsonrpsee::server::HttpBody;
+use std::task::{Context, Poll};
+use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
 use tracing::info;
 
@@ -132,7 +129,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{ClientArgs, PayloadSource, probe::ProbeLayer};
+    use crate::probe::ProbeLayer;
+    use crate::{ClientArgs, PayloadSource};
 
     use super::*;
     use alloy_primitives::{B256, Bytes, U64, U128, hex};
@@ -141,21 +139,22 @@ mod tests {
     use http::{StatusCode, Uri};
     use http_body_util::{BodyExt, Full};
     use hyper::service::service_fn;
-    use hyper_util::{
-        client::legacy::{Client, connect::HttpConnector},
-        rt::{TokioExecutor, TokioIo},
-    };
+    use hyper_util::client::legacy::Client;
+    use hyper_util::client::legacy::connect::HttpConnector;
+    use hyper_util::rt::{TokioExecutor, TokioIo};
+    use jsonrpsee::server::Server;
+    use jsonrpsee::types::{ErrorCode, ErrorObject};
     use jsonrpsee::{
         RpcModule,
         core::{ClientError, client::ClientT},
         http_client::HttpClient,
         rpc_params,
-        server::{Server, ServerBuilder, ServerHandle},
-        types::{ErrorCode, ErrorObject},
+        server::{ServerBuilder, ServerHandle},
     };
     use serde_json::json;
     use std::{net::SocketAddr, sync::Arc};
-    use tokio::{net::TcpListener, task::JoinHandle};
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
 
     // A JSON-RPC error is retriable if error.code ∉ (-32700, -32600]
     fn is_retriable_code(code: i32) -> bool {

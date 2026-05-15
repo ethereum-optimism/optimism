@@ -1,13 +1,13 @@
 use super::{metrics::FlashblocksWsInboundMetrics, primitives::FlashblocksPayloadV1};
 use crate::FlashblocksWebsocketConfig;
-use backoff::{ExponentialBackoff, backoff::Backoff};
+use backoff::ExponentialBackoff;
+use backoff::backoff::Backoff;
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
-use std::{
-    num::NonZeroUsize,
-    sync::{Arc, Mutex},
-};
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::{sync::mpsc, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
@@ -213,8 +213,7 @@ impl FlashblocksReceiverService {
         cancel_token.cancel();
 
         // Only reset backoff if connection was stable for the max_interval set
-        // This prevents rapid reconnection loops when a proxy accepts and immediately drops
-        // connections
+        // This prevents rapid reconnection loops when a proxy accepts and immediately drops connections
         if connection_start.elapsed() >= backoff.max_interval {
             backoff.reset();
         }
@@ -229,10 +228,8 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Utf8Bytes};
 
     use super::*;
-    use std::{
-        net::{SocketAddr, TcpListener},
-        sync::atomic::{AtomicBool, Ordering},
-    };
+    use std::net::{SocketAddr, TcpListener};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     async fn start(
         addr: SocketAddr,

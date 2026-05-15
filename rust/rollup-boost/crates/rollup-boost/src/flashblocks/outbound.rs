@@ -15,10 +15,9 @@ use tokio::{
         watch,
     },
 };
-use tokio_tungstenite::{
-    WebSocketStream, accept_async,
-    tungstenite::{Message, Utf8Bytes},
-};
+use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::Utf8Bytes;
+use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 /// A WebSockets publisher that accepts connections from client websockets and broadcasts to them
 /// updates about new flashblocks. It maintains a count of sent messages and active subscriptions.

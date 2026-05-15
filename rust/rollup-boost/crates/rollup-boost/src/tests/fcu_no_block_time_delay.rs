@@ -2,7 +2,9 @@ use super::common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 
 use futures::FutureExt;
 use serde_json::Value;
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
 
 // TODO: Use the same implementation as in builder_full_delay.rs
 struct DelayHandler {

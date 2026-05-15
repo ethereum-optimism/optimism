@@ -1,18 +1,14 @@
-use std::{
-    collections::HashMap,
-    net::IpAddr,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::sync::{Arc, Mutex};
 use tracing::{debug, error, warn};
 
 use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use redis::{Client, Commands, RedisError};
-use std::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::{Duration, SystemTime},
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, SystemTime};
 use uuid::Uuid;
 
 #[derive(Error, Debug)]
@@ -633,7 +629,8 @@ impl RateLimit for RedisRateLimit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{str::FromStr, time::Duration};
+    use std::str::FromStr;
+    use std::time::Duration;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::redis::Redis;
 

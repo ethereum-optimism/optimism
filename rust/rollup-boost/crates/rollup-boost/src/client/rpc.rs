@@ -1,10 +1,9 @@
-use crate::{
-    EngineApiExt,
-    client::{auth::AuthLayer, http::HttpClient as RollupBoostHttpClient},
-    payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion},
-    server::EngineApiClient,
-    version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA},
-};
+use crate::EngineApiExt;
+use crate::client::auth::AuthLayer;
+use crate::client::http::HttpClient as RollupBoostHttpClient;
+use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
+use crate::server::EngineApiClient;
+use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret, PayloadId,
@@ -14,18 +13,19 @@ use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use clap::Parser;
 use eyre::bail;
 use http::{HeaderMap, Uri};
-use jsonrpsee::{
-    core::{async_trait, middleware::layer::RpcLogger},
-    http_client::{HttpClient, HttpClientBuilder, RpcService, transport::HttpBackend},
-    types::ErrorObjectOwned,
-};
+use jsonrpsee::core::async_trait;
+use jsonrpsee::core::middleware::layer::RpcLogger;
+use jsonrpsee::http_client::transport::HttpBackend;
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder, RpcService};
+use jsonrpsee::types::ErrorObjectOwned;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
 use opentelemetry::trace::SpanKind;
 use paste::paste;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::{info, instrument};
 
@@ -102,6 +102,7 @@ impl From<RpcClientError> for ErrorObjectOwned {
 /// Client interface for interacting with execution layer node's Engine API.
 ///
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
+///
 #[derive(Clone, Debug)]
 pub struct RpcClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
@@ -113,8 +114,7 @@ pub struct RpcClient {
 }
 
 impl RpcClient {
-    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for
-    /// general execution layer APIs.
+    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general execution layer APIs.
     pub fn new(
         auth_rpc: Uri,
         auth_rpc_jwt_secret: JwtSecret,
@@ -427,8 +427,7 @@ impl ClientArgs {
     }
 }
 
-/// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC
-/// client config via the CLI.
+/// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC client config via the CLI.
 macro_rules! define_client_args {
     ($(($name:ident, $prefix:ident)),*) => {
         $(
@@ -479,20 +478,16 @@ pub mod tests {
 
     use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
-    use jsonrpsee::{
-        RpcModule,
-        core::client::Error as ClientError,
-        rpc_params,
-        server::{ServerBuilder, ServerHandle},
-    };
+    use jsonrpsee::core::client::Error as ClientError;
+    use jsonrpsee::server::{ServerBuilder, ServerHandle};
+    use jsonrpsee::{RpcModule, rpc_params};
     use predicates::prelude::*;
-    use std::{
-        collections::HashSet,
-        net::{SocketAddr, TcpListener},
-        result::Result,
-        str::FromStr,
-        sync::LazyLock,
-    };
+    use std::collections::HashSet;
+    use std::net::SocketAddr;
+    use std::net::TcpListener;
+    use std::result::Result;
+    use std::str::FromStr;
+    use std::sync::LazyLock;
 
     use super::*;
 

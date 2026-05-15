@@ -2,16 +2,15 @@ use crate::metrics::Metrics;
 use axum::http::Uri;
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use futures::{SinkExt, StreamExt};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::{select, sync::oneshot};
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{Error, Error::ConnectionClosed, Message},
-};
-use tokio_util::{bytes, sync::CancellationToken};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::select;
+use tokio::sync::oneshot;
+use tokio_tungstenite::tungstenite::Error::ConnectionClosed;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, tungstenite::Error};
+use tokio_util::bytes;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn};
 
 #[derive(Debug, Clone)]
@@ -295,15 +294,11 @@ mod tests {
     use crate::metrics::Metrics;
     use axum::http::Uri;
     use futures::SinkExt;
-    use std::{
-        net::SocketAddr,
-        sync::{Arc, Mutex},
-    };
-    use tokio::{
-        net::{TcpListener, TcpStream},
-        sync::broadcast,
-        time::{sleep, timeout, Duration},
-    };
+    use std::net::SocketAddr;
+    use std::sync::{Arc, Mutex};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::sync::broadcast;
+    use tokio::time::{sleep, timeout, Duration};
     use tokio_tungstenite::accept_async;
 
     struct MockServer {
@@ -468,8 +463,7 @@ mod tests {
             })
         };
 
-        // This needs to take into account the poll interval, pong deadline and the backoff
-        // interval.
+        // This needs to take into account the poll interval, pong deadline and the backoff interval.
         sleep(Duration::from_secs(1)).await;
 
         let connections = connection_count.load(std::sync::atomic::Ordering::SeqCst);

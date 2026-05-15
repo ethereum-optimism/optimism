@@ -1,6 +1,7 @@
 use clap::Parser;
 use dotenvy::dotenv;
-use rollup_boost::{RollupBoostServiceArgs, init_tracing};
+use rollup_boost::RollupBoostServiceArgs;
+use rollup_boost::init_tracing;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

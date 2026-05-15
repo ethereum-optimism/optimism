@@ -1,7 +1,5 @@
-use crate::{
-    FlashblocksService, FlashblocksWebsocketConfig, RpcClient,
-    flashblocks::inbound::FlashblocksReceiverService,
-};
+use crate::flashblocks::inbound::FlashblocksReceiverService;
+use crate::{FlashblocksService, FlashblocksWebsocketConfig, RpcClient};
 use core::net::SocketAddr;
 use tokio::sync::mpsc;
 use url::Url;

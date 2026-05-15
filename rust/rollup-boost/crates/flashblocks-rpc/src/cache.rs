@@ -1,21 +1,26 @@
-use alloy_consensus::{
-    BlockHeader, Transaction as _, TxReceipt,
-    transaction::{SignerRecoverable, TransactionMeta},
-};
+use alloy_consensus::BlockHeader;
+use alloy_consensus::Transaction as _;
+use alloy_consensus::TxReceipt;
+use alloy_consensus::transaction::SignerRecoverable;
+use alloy_consensus::transaction::TransactionMeta;
 use alloy_primitives::{Address, Sealable, TxHash, U256};
-use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo, Withdrawals};
+use alloy_rpc_types::Withdrawals;
+use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo};
 use arc_swap::ArcSwap;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types::{OpTransactionReceipt, Transaction};
+use op_alloy_rpc_types::OpTransactionReceipt;
+use op_alloy_rpc_types::Transaction;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::extract_l1_info;
-use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
 use reth_optimism_rpc::OpReceiptBuilder;
 use reth_primitives::Recovered;
 use reth_primitives_traits::block::body::BlockBody;
 
-use reth_rpc_eth_api::{RpcBlock, RpcReceipt, transaction::ConvertReceiptInput};
+use reth_rpc_eth_api::transaction::ConvertReceiptInput;
+use reth_rpc_eth_api::{RpcBlock, RpcReceipt};
 use rollup_boost::{
     FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
 };
