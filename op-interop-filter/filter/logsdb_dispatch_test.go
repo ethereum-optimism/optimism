@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -36,7 +35,7 @@ func (f *fakeLogsDB) Contains(types.ContainsQuery) (types.BlockSeal, error) {
 }
 func (f *fakeLogsDB) FindSealedBlock(uint64) (types.BlockSeal, error) { return types.BlockSeal{}, nil }
 func (f *fakeLogsDB) FirstSealedBlock() (types.BlockSeal, error)      { return types.BlockSeal{}, nil }
-func (f *fakeLogsDB) Rewind(reads.Invalidator, eth.BlockID) error     { return nil }
+func (f *fakeLogsDB) Rewind(eth.BlockID) error                        { return nil }
 func (f *fakeLogsDB) OpenBlock(uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
 	return eth.BlockRef{}, 0, nil, nil
 }

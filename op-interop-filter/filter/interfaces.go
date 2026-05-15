@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -23,7 +22,7 @@ type LogsDB interface {
 	OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error)
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
-	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
+	Rewind(newHead eth.BlockID) error
 }
 
 // IncludedMessage wraps an executing message with its inclusion context.
