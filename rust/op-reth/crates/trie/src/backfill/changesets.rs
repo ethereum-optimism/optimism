@@ -1,34 +1,9 @@
-//! Per-block backfill diff computation.
+//! Per-block backfill diff computation. See [`compute_block_backfill_diff`].
 //!
-//! For block N, [`compute_block_backfill_diff`] returns:
-//! - `HashedPostStateSorted` — per-block leaf revert (account & storage values before block N ran).
-//!   Read directly from reth's `AccountChangeSets` / `StorageChangeSets` and reused as
-//!   `BlockStateDiff::sorted_post_state`.
-//! - `TrieUpdatesSorted` — trie-node before-values for paths block N touched. Written into the four
-//!   changeset tables by `prepend_block`.
-//!
-//! # Algorithm
-//!
-//! Conceptually equivalent to
-//! `reth_trie_db::changesets::compute_block_trie_changesets_inner`, but reads
-//! the trie from the **op-reth proofs storage** at `max_block_number = N`
-//! instead of from reth's current-state tables. That swap is what makes the
-//! per-block cost scale with `k_N` (this block's diff) rather than `K_tail`
-//! (every changeset entry between N and the DB tip).
-//!
-//! A single call to `overlay_root_from_nodes_with_updates` does the work:
-//! - **Cursor**: `OpProofsHashedAccountCursorFactory` / `OpProofsTrieCursorFactory` at `max=N` —
-//!   serves state@N.
-//! - **State overlay**: the per-block leaf revert (`individual_state_revert`). Walked together with
-//!   the cursor, this yields state@N-1 for every leaf block N touched.
-//! - **Prefix sets**: only the paths block N's leaf revert covers.
-//!
-//! The returned `TrieUpdates` is the difference between trie@N (cursor view)
-//! and trie@N-1 (after applying the overlay) for those paths — which is
-//! exactly the trie changeset we want:
-//! - branch modified at N → `(path, Some(value_at_N-1))`
-//! - branch destroyed at N (existed at N-1, gone at N) → `(path, Some(value_at_N-1))`
-//! - branch created at N (existed at N, gone at N-1) → `(path, None)` via `removed_nodes`
+//! Equivalent to `reth_trie_db::changesets::compute_block_trie_changesets_inner`,
+//! but reads the trie from the **op-reth proofs storage** at `max_block_number = N`
+//! instead of reth's current-state tables — making per-block cost scale with
+//! the block's diff size, not the tail size of changesets between N and the DB tip.
 
 use crate::{OpProofsProviderRO, backfill::error::BackfillError, proof::DatabaseStateRoot};
 use alloy_primitives::BlockNumber;
@@ -40,14 +15,15 @@ use reth_trie::{StateRoot, TrieInput};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use reth_trie_db::from_reverts_auto;
 
-/// Compute the backfill diff for `block_number`: the trie-node before-values
-/// for the changeset table, and the per-block leaf revert reused as
-/// `BlockStateDiff::sorted_post_state`.
+/// Compute the backfill diff for `block_number`:
+/// - `HashedPostStateSorted` — per-block leaf revert (state before block N ran),
+///   reused as `BlockStateDiff::sorted_post_state`.
+/// - `TrieUpdatesSorted` — trie-node before-values for paths block N touched,
+///   written into the four `V2*TrieChangeSets` tables by `prepend_block`.
 ///
-/// `proofs_provider` must reflect the proofs-storage state *at the start of
-/// this iteration* — i.e. `earliest == block_number`. Callers should open a
-/// fresh RO provider per iteration so it sees writes committed by the
-/// previous `prepend_block`.
+/// `proofs_provider` must reflect proofs-storage state at the start of this
+/// iteration (`earliest == block_number`); callers open a fresh RO provider
+/// per iteration so it sees writes from the previous `prepend_block`.
 pub(super) fn compute_block_backfill_diff<P, R>(
     reth_provider: &P,
     proofs_provider: R,
@@ -81,12 +57,10 @@ where
     R: OpProofsProviderRO + Clone,
 {
     // Apply block N's leaf revert as a state overlay on top of the proofs
-    // cursor at max=N, then walk just the paths block N touched. The returned
-    // `TrieUpdates` describes how trie@N-1 differs from the cursor's view at
-    // max=N — which is exactly the changeset:
-    //   - modified branch  → (path, Some(value_at_N-1))
-    //   - destroyed at N   → (path, Some(value_at_N-1))
-    //   - created at N     → (path, None)   (via `removed_nodes`)
+    // cursor at max=N. The returned `TrieUpdates` describes trie@N-1 relative
+    // to the cursor's view at max=N for the paths block N touched — which is
+    // the changeset we want (`Some` for modified/destroyed, `None` for newly
+    // created branches).
     let input = TrieInput {
         nodes: Default::default(),
         state: individual_state_revert.clone().into(),
