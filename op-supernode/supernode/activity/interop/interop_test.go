@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -189,10 +188,10 @@ func TestInteropActivationTimestampFlagEnvVar(t *testing.T) {
 /*
 Spec: firstVerifiableTimestamp is the common interop startup readiness gate.
 
-  - It returns an error while virtual-node sync status is unavailable or local
-    safe has not advanced.
+  - If verifiedDB is initialized, it returns the first committed timestamp.
+  - It returns an error while the EL finalized head is unavailable or unset.
   - Once ready, it returns activation when there are no chains, or one past the
-    minimum cross-safe timestamp across chains otherwise.
+    minimum EL finalized timestamp across chains otherwise.
   - The no-backfill startup path uses that same timestamp for its first
     verification attempt.
 */
@@ -211,34 +210,41 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 100,
 		},
 		{
-			name: "sync status error blocks startup",
+			name: "EL finalized error blocks startup",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusOverride = func() (*eth.SyncStatus, error) {
-							return nil, errors.New("virtual node not ready")
-						}
+						m.elFinalizedHeadErr = errors.New("EL finalized not ready")
 					}).
 					Build()
 			},
 			wantErr: true,
 		},
 		{
-			name: "zero local-safe blocks startup",
+			name: "empty EL finalized response blocks startup",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 100, Time: 100},
-							LocalSafeL2: eth.L2BlockRef{},
-						}
+						m.elFinalizedHeadSet = true
 					}).
 					Build()
 			},
 			wantErr: true,
 		},
 		{
-			name: "cross-safe before activation returns activation",
+			name: "EL finalized at genesis with a real hash is accepted",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+						m.elFinalizedHead = eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123")}
+						m.elFinalizedHeadSet = true
+					}).
+					Build()
+			},
+			want: 100,
+		},
+		{
+			name: "EL finalized before activation returns activation",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -252,7 +258,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 100,
 		},
 		{
-			name: "cross-safe at activation returns timestamp after activation",
+			name: "EL finalized at activation returns timestamp after activation",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -266,7 +272,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 101,
 		},
 		{
-			name: "returns timestamp after minimum cross-safe across chains",
+			name: "returns timestamp after minimum EL finalized across chains",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -279,6 +285,22 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 						m.syncStatusFull = &eth.SyncStatus{
 							SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
 							LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
+						}
+					}).
+					Build()
+			},
+			want: 126,
+		},
+		{
+			name: "uses EL finalized when sync status safe is stale",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+						m.elFinalizedHead = eth.L2BlockRef{Number: 125, Time: 125}
+						m.elFinalizedHeadSet = true
+						m.syncStatusFull = &eth.SyncStatus{
+							SafeL2:      eth.L2BlockRef{Number: 0, Time: 100},
+							LocalSafeL2: eth.L2BlockRef{Number: 200, Time: 200},
 						}
 					}).
 					Build()
@@ -399,6 +421,64 @@ func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
 	}
 
 	require.ErrorIs(t, <-done, context.Canceled)
+}
+
+// Warm restart with no backfill must resume from verifiedDB without consulting
+// EL finalized.
+func TestStartWithoutBackfillResumesFromVerifiedDBIgnoringELFinalized(t *testing.T) {
+	const (
+		activation   uint64 = 100
+		lastVerified uint64 = 195
+	)
+
+	var elFinalizedCalls atomic.Int32
+	h := newInteropTestHarness(t).
+		WithActivation(activation).
+		WithChain(10, func(m *mockChainContainer) {
+			m.elFinalizedHeadOverride = func() (eth.L2BlockRef, error) {
+				elFinalizedCalls.Add(1)
+				return eth.L2BlockRef{Number: 190, Time: 190}, nil
+			}
+			m.syncStatusFull = &eth.SyncStatus{
+				SafeL2:      eth.L2BlockRef{Number: 200, Time: 200},
+				LocalSafeL2: eth.L2BlockRef{Number: 200, Time: 200},
+			}
+		}).
+		Build()
+
+	chain10 := h.Mock(10)
+	for ts := activation + 1; ts <= lastVerified; ts++ {
+		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   ts,
+			L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0xL1")},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chain10.id: {Number: ts, Hash: common.BigToHash(new(big.Int).SetUint64(ts))}},
+		}))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	verifiedTS := make(chan uint64, 1)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		verifiedTS <- ts
+		cancel()
+		return Result{}, nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- h.interop.Start(ctx) }()
+
+	select {
+	case ts := <-verifiedTS:
+		require.Equal(t, lastVerified+1, ts,
+			"startup must resume verification at verifiedDB.LastTimestamp+1, not gate on EL finalized")
+	case <-time.After(5 * time.Second):
+		t.Fatal("interop did not start verifying despite initialized verifiedDB")
+	}
+
+	require.ErrorIs(t, <-done, context.Canceled)
+	require.Zero(t, elFinalizedCalls.Load(),
+		"warm-restart startup must not consult EL finalized when verifiedDB is initialized")
 }
 
 func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
@@ -766,7 +846,7 @@ func TestProgressInterop(t *testing.T) {
 		run      func(t *testing.T, h *interopTestHarness) // override for complex cases
 	}{
 		{
-			name: "not initialized uses first timestamp after safe head",
+			name: "not initialized uses first timestamp after finalized head",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(5000).WithChain(10, func(m *mockChainContainer) {
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
@@ -1056,7 +1136,7 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 			},
 		},
 		{
-			name: "safe-head handoff timestamps are verified",
+			name: "startup handoff timestamps are verified",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -1130,8 +1210,8 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 				}
 			}).
 			Build()
-		// 126 > activation and >= firstVerifiable (resolves to 101 from
-		// SafeL2.Time=100); no entry yet → ethereum.NotFound.
+			// 126 > activation and >= firstVerifiable (resolves to 101 from
+			// EL finalized time 100); no entry yet -> ethereum.NotFound.
 		_, _, err := h.interop.VerifiedResultAtTimestamp(126)
 		require.ErrorIs(t, err, ethereum.NotFound)
 		require.NotErrorIs(t, err, ErrNotActive)
@@ -1142,7 +1222,7 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithActivation(100).
 			WithChain(10, func(m *mockChainContainer) {
-				// SafeL2.Time=500 → firstVerifiable=501. ts=200 is post
+				// EL finalized time 500 -> firstVerifiable=501. ts=200 is post
 				// activation but below firstVerifiable on this node.
 				m.syncStatusFull = &eth.SyncStatus{
 					SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
@@ -1958,10 +2038,14 @@ type mockChainContainer struct {
 	optimisticAtErr error
 
 	// If set, SyncStatus returns this instead of synthesizing from currentL1 only.
-	syncStatusFull     *eth.SyncStatus
-	syncStatusOverride func() (*eth.SyncStatus, error)
-	defaultSafeTime    uint64
-	defaultSafeSet     bool
+	syncStatusFull          *eth.SyncStatus
+	syncStatusOverride      func() (*eth.SyncStatus, error)
+	defaultSafeTime         uint64
+	defaultSafeSet          bool
+	elFinalizedHead         eth.L2BlockRef
+	elFinalizedHeadSet      bool
+	elFinalizedHeadErr      error
+	elFinalizedHeadOverride func() (eth.L2BlockRef, error)
 
 	// PauseAndStopVN / Resume tracking
 	pauseAndStopVNCalls int
@@ -2025,6 +2109,30 @@ func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknu
 		return m.blockNumberToTimestampOverride(ctx, blocknum)
 	}
 	return 0, nil
+}
+func (m *mockChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.elFinalizedHeadErr != nil {
+		return eth.L2BlockRef{}, m.elFinalizedHeadErr
+	}
+	if m.elFinalizedHeadOverride != nil {
+		return m.elFinalizedHeadOverride()
+	}
+	if m.elFinalizedHeadSet {
+		return m.elFinalizedHead, nil
+	}
+	if m.syncStatusFull != nil {
+		if m.syncStatusFull.FinalizedL2 != (eth.L2BlockRef{}) {
+			return m.syncStatusFull.FinalizedL2, nil
+		}
+		return m.syncStatusFull.SafeL2, nil
+	}
+	safeNum := m.defaultSafeTime
+	if safeNum == 0 {
+		safeNum = 1
+	}
+	return eth.L2BlockRef{Number: safeNum, Time: m.defaultSafeTime}, nil
 }
 func (m *mockChainContainer) PauseAndStopVN(ctx context.Context) error {
 	m.mu.Lock()
@@ -2717,11 +2825,11 @@ func (m *mockLogsDBWithState) AddLog(logHash common.Hash, parentBlock eth.BlockI
 func (m *mockLogsDBWithState) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	return nil
 }
-func (m *mockLogsDBWithState) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+func (m *mockLogsDBWithState) Rewind(newHead eth.BlockID) error {
 	m.rewindCalled = true
 	return nil
 }
-func (m *mockLogsDBWithState) Clear(inv reads.Invalidator) error {
+func (m *mockLogsDBWithState) Clear() error {
 	m.clearCalled++
 	return nil
 }
@@ -2821,11 +2929,11 @@ func (m *mockLogsDBForInterop) SealBlock(parentHash common.Hash, block eth.Block
 	m.sealCalls++
 	return nil
 }
-func (m *mockLogsDBForInterop) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
+func (m *mockLogsDBForInterop) Rewind(newHead eth.BlockID) error {
 	m.rewindCalls = append(m.rewindCalls, newHead)
 	return nil
 }
-func (m *mockLogsDBForInterop) Clear(inv reads.Invalidator) error {
+func (m *mockLogsDBForInterop) Clear() error {
 	m.clearCalls++
 	return nil
 }

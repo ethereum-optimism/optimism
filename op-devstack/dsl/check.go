@@ -89,6 +89,76 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 	}
 }
 
+// MatchedWithProgressFn returns a lambda that waits for baseNode's head at
+// matchLvl to match refNode's head at matchLvl, while requiring baseNode to
+// make progress on progressLvl. It is intended for sync checks where the
+// matchLvl head can stall behind a slow but progressing pipeline — for
+// example the CrossSafe head behind initial EL-sync, where the CL keeps
+// receiving unsafe payloads (progressLvl == LocalUnsafe) but the safe head
+// cannot advance until the EL completes its initial snap-sync.
+//
+// The check polls every 2s and succeeds as soon as the matchLvl heads match.
+// It fails when one of:
+//   - the overall maxWait elapses; or
+//   - baseNode's progressLvl head has not advanced for stallTimeout (i.e.
+//     the underlying gossip / forward sync has truly stalled).
+//
+// Using a stall detector lets the budget be generous without papering over
+// genuinely stuck systems. The first sample of progressLvl is taken on entry
+// and the stall clock resets every time the progressLvl head advances.
+func MatchedWithProgressFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, matchLvl, progressLvl types.SafetyLevel, chainID eth.ChainID, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", matchLvl, "progress_label", progressLvl)
+		initialBase := baseNode.ChainSyncStatus(chainID, matchLvl)
+		initialRef := refNode.ChainSyncStatus(chainID, matchLvl)
+		logger.Info("Expecting node to match with reference (progress-aware)",
+			"base", initialBase.Number, "ref", initialRef.Number,
+			"max_wait", maxWait, "stall_timeout", stallTimeout)
+
+		deadline := time.Now().Add(maxWait)
+		lastProgress := baseNode.ChainSyncStatus(chainID, progressLvl)
+		lastProgressTime := time.Now()
+
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			base := baseNode.ChainSyncStatus(chainID, matchLvl)
+			ref := refNode.ChainSyncStatus(chainID, matchLvl)
+			if ref.Hash == base.Hash && ref.Number == base.Number {
+				logger.Info("Node matched", "ref", ref.Number)
+				return nil
+			}
+
+			progress := baseNode.ChainSyncStatus(chainID, progressLvl)
+			now := time.Now()
+			if progress.Number > lastProgress.Number {
+				lastProgress = progress
+				lastProgressTime = now
+			}
+			stalledFor := now.Sub(lastProgressTime)
+			logger.Info("Node sync status",
+				"base", base.Number, "ref", ref.Number,
+				"progress", progress.Number, "stalled_for", stalledFor)
+
+			if stalledFor >= stallTimeout {
+				return fmt.Errorf("expected head to match: %s: %s stalled at %d for %s",
+					matchLvl, progressLvl, progress.Number, stalledFor)
+			}
+			if now.After(deadline) {
+				return fmt.Errorf("expected head to match: %s: timeout after %s (base=%d ref=%d progress=%d)",
+					matchLvl, maxWait, base.Number, ref.Number, progress.Number)
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+			}
+		}
+	}
+}
+
 // maxInSyncGap is the largest difference (in blocks) between two node heads
 // that InSyncFn will tolerate while still considering the nodes in sync. If
 // the heads are further apart than this the slower node has not caught up yet.

@@ -10,31 +10,49 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
-// resolveFirstVerifiableTimestamp consults all chain sync statuses and returns
-// the first timestamp not already covered by the minimum cross-safe head.
+// resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
+// by durable local state: verifiedDB.LastTimestamp+1 when initialized,
+// otherwise the minimum EL finalized head + 1 (clamped to activation).
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
 	}
-
-	minCrossSafeTime := uint64(math.MaxUint64)
-	for _, chain := range i.chains {
-		syncStatus, err := chain.SyncStatus(ctx)
-		if err != nil {
-			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
+	if i.verifiedDB != nil {
+		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			return lastTS + 1, nil
 		}
-		// local safe should advance even if cross safe has nothing to work from.
-		if syncStatus.LocalSafeL2.Number == 0 {
-			return 0, fmt.Errorf("chain %s: local safe L2 number is 0", chain.ID())
-		}
-		i.log.Debug("first verifiable timestamp: sync status",
-			"chain", chain.ID(), "safe", syncStatus.SafeL2, "localSafe", syncStatus.LocalSafeL2)
-		minCrossSafeTime = min(minCrossSafeTime, syncStatus.SafeL2.Time)
 	}
-	if minCrossSafeTime < i.activationTimestamp {
+	minELFinalizedTime, err := i.minELFinalizedTime(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if minELFinalizedTime < i.activationTimestamp {
 		return i.activationTimestamp, nil
 	}
-	return minCrossSafeTime + 1, nil
+	return minELFinalizedTime + 1, nil
+}
+
+func (i *Interop) minELFinalizedTime(ctx context.Context) (uint64, error) {
+	if len(i.chains) == 0 {
+		return i.activationTimestamp, nil
+	}
+
+	minELFinalizedTime := uint64(math.MaxUint64)
+	for _, chain := range i.chains {
+		elFinalized, err := chain.ELFinalizedHead(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("chain %s: EL finalized head: %w", chain.ID(), err)
+		}
+		// Genesis (Number == 0) with a real hash is a legitimate finalized head;
+		// only reject the zero-value response from an EL that isn't ready yet.
+		if elFinalized == (eth.L2BlockRef{}) {
+			return 0, fmt.Errorf("chain %s: EL finalized head not yet available", chain.ID())
+		}
+		i.log.Debug("first verifiable timestamp: EL finalized head",
+			"chain", chain.ID(), "elFinalized", elFinalized)
+		minELFinalizedTime = min(minELFinalizedTime, elFinalized.Time)
+	}
+	return minELFinalizedTime, nil
 }
 
 func (i *Interop) runLogBackfill() (uint64, error) {
@@ -59,7 +77,7 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	endTime := firstVerifiable - 1
 
 	// naively, end minus depth is the ideal backfill start.
-	// guard the subtraction so a young chain (crossSafe < depth) doesn't wrap.
+	// guard the subtraction so a young chain (EL finalized < depth) doesn't wrap.
 	depthSec := uint64(i.logBackfillDepth.Seconds())
 	var idealStart uint64
 	if endTime >= depthSec {
@@ -188,7 +206,7 @@ func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chai
 		i.log.Warn("rewinding logsDB to last canonical block",
 			"chain", cid, "rewindTo", n, "trimmedTipNumber", latest.Number,
 			"trimmedTipStored", latest.Hash, "trimmedTipCanonical", latestOut.BlockHash)
-		if err := db.Rewind(&noopInvalidator{}, eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
+		if err := db.Rewind(eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
 			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
 		}
 		return nil
@@ -196,7 +214,7 @@ func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chai
 
 	i.log.Warn("entire logsDB diverges from canonical; clearing",
 		"chain", cid, "firstSealed", first.Number, "latestSealed", latest.Number)
-	if err := db.Clear(&noopInvalidator{}); err != nil {
+	if err := db.Clear(); err != nil {
 		return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
 	}
 	return nil

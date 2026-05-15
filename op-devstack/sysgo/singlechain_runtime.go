@@ -165,6 +165,21 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 	})
 }
 
+// NewMinimalNoFaultProofsRuntimeWithConfig returns a minimal single-chain
+// runtime without the proposer or challenger. It is intended for tests that
+// only exercise the sequencer + batcher + derivation loop and do not need
+// fault proofs. Skipping the challenger also avoids requiring cannon prestate
+// artifacts, which are expensive to build locally.
+func NewMinimalNoFaultProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newDefaultSingleChainWorld,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    true,
+		StartProposer:   false,
+		StartChallenger: false,
+	})
+}
+
 func startMinimalBatcher(
 	t devtest.T,
 	keys devkeys.Keys,

@@ -83,8 +83,9 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
-	L2FollowSourceCache *metrics.CacheMetrics
-	FollowSourceErrors  *prometheus.CounterVec
+	L2FollowSourceCache   *metrics.CacheMetrics
+	FollowSourceErrors    *prometheus.CounterVec
+	FollowSourceSuccesses prometheus.Counter
 
 	DerivationIdle prometheus.Gauge
 
@@ -194,6 +195,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Name:      "follow_source_errors_total",
 			Help:      "Count of follow source errors by reason",
 		}, []string{"reason"}),
+		FollowSourceSuccesses: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "follow_source_successes_total",
+			Help:      "Count of successful follow source updates",
+		}),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -485,6 +491,10 @@ func (m *Metrics) RecordFollowSourceError(reason string) {
 	m.FollowSourceErrors.WithLabelValues(reason).Inc()
 }
 
+func (m *Metrics) RecordFollowSourceSuccess() {
+	m.FollowSourceSuccesses.Inc()
+}
+
 func (m *Metrics) RecordSequencerReset() {
 	m.SequencerResets.Record()
 }
@@ -649,6 +659,9 @@ func (n *noopMetricer) RecordPipelineReset() {
 }
 
 func (n *noopMetricer) RecordFollowSourceError(reason string) {
+}
+
+func (n *noopMetricer) RecordFollowSourceSuccess() {
 }
 
 func (n *noopMetricer) RecordSequencingError() {

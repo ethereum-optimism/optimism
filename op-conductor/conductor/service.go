@@ -245,14 +245,6 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 
 	p2p := sources.NewP2PClient(nc)
 
-	var supervisor health.SupervisorHealthAPI
-	if c.cfg.SupervisorRPC != "" {
-		supervisor, err = dial.DialSupervisorClientWithTimeout(ctx, c.log, c.cfg.SupervisorRPC)
-		if err != nil {
-			return fmt.Errorf("failed to dial supervisor: %w", err)
-		}
-	}
-
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
 		c.metrics,
@@ -264,7 +256,6 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
-		supervisor,
 		rollupBoostHealthChecker,
 		elP2p,
 		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,

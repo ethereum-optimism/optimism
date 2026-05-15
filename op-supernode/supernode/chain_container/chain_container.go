@@ -44,6 +44,7 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 
 	ID() eth.ChainID
+	ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error)
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
@@ -405,6 +406,13 @@ func (c *simpleChainContainer) Pause(ctx context.Context) error {
 func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	c.pause.Store(false)
 	return nil
+}
+
+func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 }
 
 func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {

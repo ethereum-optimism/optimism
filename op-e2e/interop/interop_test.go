@@ -8,27 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	gethCore "github.com/ethereum/go-ethereum/core"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	gethCore "github.com/ethereum/go-ethereum/core"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // setupAndRun is a helper function that sets up a SuperSystem
@@ -412,41 +405,4 @@ func TestMultiNode(t *testing.T) {
 		mempoolFiltering: false,
 	}
 	setupAndRun(t, config, test)
-}
-
-func TestProposals(t *testing.T) {
-	t.Parallel()
-	test := func(t *testing.T, s2 SuperSystem) {
-		logger := testlog.Logger(t, log.LvlInfo)
-		ids := s2.L2IDs()
-		chainA := ids[0]
-		proposer := s2.Proposer(chainA)
-		// Start the proposer as it isn't started by default.
-		err := proposer.Start(context.Background())
-		require.NoError(t, err)
-		require.NotNil(t, proposer.DisputeGameFactoryAddr)
-		gameFactoryAddr := *proposer.DisputeGameFactoryAddr
-
-		rpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), logger, s2.L1().UserRPC().RPC())
-		require.NoError(t, err)
-		caller := batching.NewMultiCaller(rpcClient, batching.DefaultBatchSize)
-		factory, err := contracts.NewDisputeGameFactoryContract(context.Background(), metrics.NoopContractMetrics, gameFactoryAddr, caller)
-		require.NoError(t, err)
-		ethClient := ethclient.NewClient(rpcClient)
-		require.Eventually(t, func() bool {
-			head, err := ethClient.BlockByNumber(context.Background(), nil)
-			require.NoError(t, err)
-			count, err := factory.GetGameCount(context.Background(), head.Hash())
-			require.NoError(t, err)
-			t.Logf("Current game count: %v", count)
-			return count > 0
-		}, 5*time.Minute, time.Second)
-
-		head, err := ethClient.BlockByNumber(context.Background(), nil)
-		require.NoError(t, err)
-		game, err := factory.GetGame(context.Background(), 0, rpcblock.ByHash(head.Hash()))
-		require.NoError(t, err)
-		require.Equal(t, uint32(9) /* super cannon kona */, game.GameType)
-	}
-	setupAndRun(t, SuperSystemConfig{}, test)
 }

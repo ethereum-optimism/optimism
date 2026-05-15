@@ -148,16 +148,6 @@ const singleChainInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindAfterBuild |
 	optionKindProofValidation
 
-const simpleInteropSuperProofsPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindBatcher |
-	optionKindProposer |
-	optionKindGlobalL2CL |
-	optionKindL1EL |
-	optionKindTimeTravel |
-	optionKindMaxSequencingWindow |
-	optionKindRequireInteropNotAtGen |
-	optionKindSkipHonestProposer
-
 const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindL1EL |

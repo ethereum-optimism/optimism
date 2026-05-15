@@ -20,9 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -54,7 +53,7 @@ type LogsDBChainIngester struct {
 
 	rpcClient        client.RPC
 	ethClient        EthClient
-	logsDB           *logs.DB
+	logsDB           LogsDB
 	dataDir          string
 	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
@@ -402,23 +401,22 @@ func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 }
 
 func (c *LogsDBChainIngester) initLogsDB() error {
-	var dbPath string
+	var dbDir string
 	if c.dataDir != "" {
-		chainDir := filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
-		if err := os.MkdirAll(chainDir, 0755); err != nil {
+		dbDir = filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			return fmt.Errorf("failed to create chain directory: %w", err)
 		}
-		dbPath = filepath.Join(chainDir, "logs.db")
 	} else {
 		tempDir, err := os.MkdirTemp("", fmt.Sprintf("interop-filter-chain-%s-*", c.chainID))
 		if err != nil {
 			return fmt.Errorf("failed to create temp directory: %w", err)
 		}
-		dbPath = filepath.Join(tempDir, "logs.db")
-		c.log.Warn("Using temporary directory for logs DB", "path", dbPath)
+		dbDir = tempDir
+		c.log.Warn("Using temporary directory for logs DB", "path", dbDir)
 	}
 
-	db, err := logs.NewFromFile(c.log, &logsDBMetrics{m: c.metrics, chainID: c.chainID}, c.chainID, dbPath, true)
+	db, err := raftwallogdb.Open(dbDir, c.chainID)
 	if err != nil {
 		return fmt.Errorf("failed to open logs DB: %w", err)
 	}
@@ -427,7 +425,7 @@ func (c *LogsDBChainIngester) initLogsDB() error {
 	c.logsDB = db
 	c.mu.Unlock()
 
-	c.log.Info("Initialized logs DB", "path", dbPath)
+	c.log.Info("Initialized logs DB", "path", dbDir)
 	return nil
 }
 
@@ -633,7 +631,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
 	}
 
-	if err := c.logsDB.Rewind(reads.NoopRegistry{}, targetID); err != nil {
+	if err := c.logsDB.Rewind(targetID); err != nil {
 		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
 	}
 
@@ -891,16 +889,6 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	return logIndex, nil
 }
-
-// logsDBMetrics implements the logs.Metrics interface
-type logsDBMetrics struct {
-	m       metrics.Metricer
-	chainID eth.ChainID
-}
-
-func (l *logsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
-
-func (l *logsDBMetrics) RecordDBSearchEntriesRead(count int64) {}
 
 // Ensure LogsDBChainIngester implements ChainIngester
 var _ ChainIngester = (*LogsDBChainIngester)(nil)

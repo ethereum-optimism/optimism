@@ -40,6 +40,10 @@ type L2CLConfig struct {
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
+
+	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
+	// the sequencer stalls block production when the gap is exceeded. 0 disables.
+	SequencerMaxSafeLag uint64
 }
 
 func L2CLSequencer() L2CLOption {
@@ -57,6 +61,14 @@ func L2CLIndexing() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
+	})
+}
+
+// L2CLSequencerMaxSafeLag sets the sequencer max-safe-lag. The sequencer stalls
+// block production when the unsafe/safe gap exceeds this value. 0 disables.
+func L2CLSequencerMaxSafeLag(maxSafeLag uint64) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SequencerMaxSafeLag = maxSafeLag
 	})
 }
 

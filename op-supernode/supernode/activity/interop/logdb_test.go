@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -563,8 +562,8 @@ func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timest
 	return m.sealBlockErr
 }
 
-func (m *mockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
-func (m *mockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
-func (m *mockLogsDB) Close() error                                            { return nil }
+func (m *mockLogsDB) Rewind(newHead eth.BlockID) error { return nil }
+func (m *mockLogsDB) Clear() error                     { return nil }
+func (m *mockLogsDB) Close() error                     { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)
