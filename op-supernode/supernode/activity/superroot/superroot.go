@@ -57,21 +57,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 
 	result, verifierL1, vrErr := s.verified.VerifiedResultAtTimestamp(timestamp)
 
-	// Any chain-level error building the optimistic branch must fail the
-	// call: op-challenger reads OptimisticAtTimestamp at step>0 and a silent
-	// partial map would produce permanent InvalidTransition commitments on
-	// chain. The pre-interop regime also relies on this map for Data.
-	optimisticBranch, err := s.buildOptimisticBranch(ctx, timestamp)
-	if err != nil {
-		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("build optimistic branch at %d: %w", timestamp, err)
-	}
-
 	response := eth.SuperRootAtTimestampResponse{
 		CurrentL1:                 aggregate.CurrentL1,
 		CurrentSafeTimestamp:      aggregate.SafeTimestamp,
 		CurrentLocalSafeTimestamp: aggregate.LocalSafeTimestamp,
 		CurrentFinalizedTimestamp: aggregate.FinalizedTimestamp,
-		OptimisticAtTimestamp:     optimisticBranch,
 		ChainIDs:                  aggregate.ChainIDs,
 	}
 
@@ -84,6 +74,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 	// value).
 	switch {
 	case vrErr == nil:
+		optimisticBranch, err := s.buildOptimisticBranch(ctx, timestamp)
+		if err != nil {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("build optimistic branch at %d: %w", timestamp, err)
+		}
+		response.OptimisticAtTimestamp = optimisticBranch
 		if verifierL1.Number < response.CurrentL1.Number {
 			response.CurrentL1 = verifierL1
 		}
@@ -94,6 +89,11 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 		response.Data = data
 		return response, nil
 	case errors.Is(vrErr, ethereum.NotFound):
+		optimisticBranch, err := s.buildOptimisticBranch(ctx, timestamp)
+		if err != nil {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("build optimistic branch at %d: %w", timestamp, err)
+		}
+		response.OptimisticAtTimestamp = optimisticBranch
 		// Interop active at T but no VerifiedResult yet. Leave Data nil;
 		// the verifiedDB write gate guarantees CurrentL1 has not reached
 		// VerifiedRequiredL1(T).
@@ -101,10 +101,20 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (eth.Supe
 			response.CurrentL1 = verifierL1
 		}
 		return response, nil
-	case errors.Is(vrErr, interop.ErrNotActive), errors.Is(vrErr, interop.ErrBeforeVerifiedDB), errors.Is(vrErr, interop.ErrNotStarted):
+	case errors.Is(vrErr, interop.ErrInteropDisabled), errors.Is(vrErr, interop.ErrBeforeVerifiedDB), errors.Is(vrErr, interop.ErrNotStarted):
+		optimisticBranch, err := s.buildOptimisticBranch(ctx, timestamp)
+		if err != nil {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("build optimistic branch at %d: %w", timestamp, err)
+		}
+		response.OptimisticAtTimestamp = optimisticBranch
 		// Optimistic outputs are canonical: pre-interop consensus,
 		// safe-head handoff, or pre-Start retry path.
 		response.Data = composeHandoffDataFromOptimistic(timestamp, s.chains, optimisticBranch)
+		return response, nil
+	case errors.Is(vrErr, interop.ErrNotActive), errors.Is(vrErr, interop.ErrBeforeHandoff):
+		// Do not build an optimistic branch here. These timestamps are outside
+		// this node's interop/backfill coverage, and attempting optimistic
+		// composition would require SafeDB history that may not exist.
 		return response, nil
 	default:
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("read verifiedDB at %d: %w", timestamp, vrErr)

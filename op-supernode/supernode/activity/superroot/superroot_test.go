@@ -41,6 +41,8 @@ type mockCC struct {
 	status         *eth.SyncStatus
 	verifierL1s    []eth.BlockID
 	byHashCalled   int
+	optimisticAt   int
+	optimisticOut  int
 }
 
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
@@ -63,6 +65,7 @@ func (m *mockCC) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return m.status, nil
 }
 func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
+	m.optimisticAt++
 	if m.optimisticErr != nil {
 		return eth.BlockID{}, eth.BlockID{}, m.optimisticErr
 	}
@@ -79,6 +82,7 @@ func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.H
 	return m.byHashFallback, nil
 }
 func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
+	m.optimisticOut++
 	if m.optimisticErr != nil {
 		return nil, m.optimisticErr
 	}
@@ -128,7 +132,8 @@ func (m *mockVerifiedReader) VerifiedResultAtTimestamp(ts uint64) (interop.Verif
 	return m.result, m.currentL1, m.err
 }
 
-// preInteropReader always reports the pre-interop fallback regime.
+// preInteropReader reports that interop is disabled, so superroot should use
+// the pre-interop optimistic-composition fallback.
 func preInteropReader() interop.VerifiedResultReader {
 	return interop.NoopVerifiedResultReader{}
 }
@@ -546,19 +551,23 @@ func TestSuperroot_AtTimestamp_PreInteropFallback_OptimisticMapShort(t *testing.
 func TestSuperroot_AtTimestamp_PreInteropFallback_BelowActivation(t *testing.T) {
 	t.Parallel()
 	chainA := eth.ChainIDFromUInt64(10)
+	chain := &mockCC{
+		optL2:     eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+		optL1:     eth.BlockID{Number: 900},
+		optOutput: &eth.OutputV0{StateRoot: eth.Bytes32{0x01}},
+		status:    &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+	}
 	chains := map[eth.ChainID]cc.ChainContainer{
-		chainA: &mockCC{
-			optL2:     eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
-			optL1:     eth.BlockID{Number: 900},
-			optOutput: &eth.OutputV0{StateRoot: eth.Bytes32{0x01}},
-			status:    &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-		},
+		chainA: chain,
 	}
 	reader := &mockVerifiedReader{err: interop.ErrNotActive}
 	s := newSuperroot(chains, reader)
 	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
-	require.NotNil(t, resp.Data)
+	require.Nil(t, resp.Data)
+	require.Empty(t, resp.OptimisticAtTimestamp)
+	require.Zero(t, chain.optimisticOut)
+	require.Zero(t, chain.optimisticAt)
 }
 
 func TestSuperroot_AtTimestamp_PreInteropFallback_NoSecondFetch(t *testing.T) {
@@ -599,11 +608,45 @@ func TestSuperroot_AtTimestamp_InteropNotStarted_ComposesFromOptimistic(t *testi
 	require.NotNil(t, resp.Data)
 }
 
+func TestSuperroot_AtTimestamp_BeforeActivation_DoesNotBuildOptimistic(t *testing.T) {
+	t.Parallel()
+	chain := &mockCC{
+		optimisticErr: cc.ErrHistoryUnavailable,
+		status:        &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+	}
+	chains := map[eth.ChainID]cc.ChainContainer{eth.ChainIDFromUInt64(10): chain}
+	reader := &mockVerifiedReader{err: interop.ErrNotActive}
+	s := newSuperroot(chains, reader)
+	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, resp.Data)
+	require.Empty(t, resp.OptimisticAtTimestamp)
+	require.Zero(t, chain.optimisticOut)
+	require.Zero(t, chain.optimisticAt)
+}
+
 // ------ Below-verified-db handoff tests ------
 
-// Below firstVerifiable, the safe-head startup handoff guarantees the
-// optimistic outputs are canonical, so Data is composed from them rather
-// than returning an error.
+func TestSuperroot_AtTimestamp_BeforeHandoff_DoesNotBuildOptimistic(t *testing.T) {
+	t.Parallel()
+	chain := &mockCC{
+		optimisticErr: cc.ErrHistoryUnavailable,
+		status:        &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+	}
+	chains := map[eth.ChainID]cc.ChainContainer{eth.ChainIDFromUInt64(10): chain}
+	reader := &mockVerifiedReader{err: interop.ErrBeforeHandoff}
+	s := newSuperroot(chains, reader)
+	resp, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Nil(t, resp.Data)
+	require.Empty(t, resp.OptimisticAtTimestamp)
+	require.Zero(t, chain.optimisticOut)
+	require.Zero(t, chain.optimisticAt)
+}
+
+// Below firstVerifiable but inside the handoff window, startup backfill
+// guarantees the optimistic outputs are canonical, so Data is composed from
+// them rather than returning an error.
 func TestSuperroot_AtTimestamp_BelowVerifiedDB_ComposesFromOptimistic(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{

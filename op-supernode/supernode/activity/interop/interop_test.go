@@ -258,7 +258,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 100,
 		},
 		{
-			name: "EL finalized before activation ignores local safe handoff",
+			name: "EL finalized before activation uses local safe handoff when available",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).
 					WithChain(10, func(m *mockChainContainer) {
@@ -276,7 +276,7 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 					}).
 					Build()
 			},
-			want: 100,
+			want: 126,
 		},
 		{
 			name: "EL finalized at activation returns timestamp after activation",
@@ -1169,6 +1169,8 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 					Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
+				h.interop.backfillStartTimestamp = 120
+				h.interop.backfillEndTimestamp = 125
 				verified, err := h.interop.VerifiedAtTimestamp(125)
 				require.NoError(t, err)
 				require.True(t, verified)
@@ -1239,7 +1241,25 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 		require.NotErrorIs(t, err, ErrBeforeVerifiedDB)
 	})
 
-	t.Run("post-activation but below firstVerifiable returns ErrBeforeVerifiedDB", func(t *testing.T) {
+	t.Run("post-activation but below handoff returns ErrBeforeHandoff", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithActivation(100).
+			WithChain(10, func(m *mockChainContainer) {
+				m.syncStatusFull = &eth.SyncStatus{
+					SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
+					LocalSafeL2: eth.L2BlockRef{Number: 500, Time: 500},
+				}
+			}).
+			Build()
+		h.interop.backfillStartTimestamp = 300
+		_, _, err := h.interop.VerifiedResultAtTimestamp(200)
+		require.ErrorIs(t, err, ErrBeforeHandoff)
+		require.NotErrorIs(t, err, ErrBeforeVerifiedDB)
+		require.NotErrorIs(t, err, ErrNotActive)
+		require.NotErrorIs(t, err, ethereum.NotFound)
+	})
+
+	t.Run("post-activation handoff range below firstVerifiable returns ErrBeforeVerifiedDB", func(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithActivation(100).
 			WithChain(10, func(m *mockChainContainer) {
@@ -1251,8 +1271,10 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 				}
 			}).
 			Build()
+		h.interop.backfillStartTimestamp = 150
 		_, _, err := h.interop.VerifiedResultAtTimestamp(200)
 		require.ErrorIs(t, err, ErrBeforeVerifiedDB)
+		require.NotErrorIs(t, err, ErrBeforeHandoff)
 		require.NotErrorIs(t, err, ErrNotActive)
 		require.NotErrorIs(t, err, ethereum.NotFound)
 	})
@@ -1315,7 +1337,7 @@ func TestNoopVerifiedResultReader(t *testing.T) {
 	var r VerifiedResultReader = NoopVerifiedResultReader{}
 	for _, ts := range []uint64{0, 1, 1000, 1 << 60} {
 		_, _, err := r.VerifiedResultAtTimestamp(ts)
-		require.ErrorIs(t, err, ErrNotActive)
+		require.ErrorIs(t, err, ErrInteropDisabled)
 	}
 }
 
@@ -1347,7 +1369,7 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 
 	verified, err := interop.VerifiedAtTimestamp(125)
 	require.NoError(t, err)
-	require.True(t, verified, "timestamp before first committed result remains covered by the startup handoff")
+	require.False(t, verified, "timestamp before first committed result needs a persisted handoff lower bound")
 
 	verified, err = interop.VerifiedAtTimestamp(150)
 	require.NoError(t, err)

@@ -635,7 +635,7 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 		"main loop resumes at activation when EL finalized is still pre-activation")
 }
 
-func TestLogBackfill_NoOpWhenFinalizedPreActivation(t *testing.T) {
+func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T) {
 	const act = uint64(1000)
 	depth := 60 * time.Second
 
@@ -667,11 +667,12 @@ func TestLogBackfill_NoOpWhenFinalizedPreActivation(t *testing.T) {
 
 	end, err := h.interop.runLogBackfill()
 	require.NoError(t, err)
-	require.Zero(t, end)
-	require.Zero(t, outputCalls.Load(), "pre-activation finalized head should not backfill a local-safe handoff range")
-	requireFirstVerifiableTimestamp(t, h.interop, act)
-	require.Zero(t, h.Mock(10).pauseAndStopVNCalls, "no-op backfill should not pause chains")
-	require.Zero(t, h.Mock(10).resumeCalls, "no-op backfill should not resume chains")
+	require.Equal(t, uint64(1060), end)
+	require.Equal(t, uint64(1000), h.interop.backfillStartTimestamp)
+	require.Positive(t, outputCalls.Load(), "backfill should seal the local-safe handoff range")
+	requireFirstVerifiableTimestamp(t, h.interop, 1061)
+	require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "backfill should pause chains")
+	require.Equal(t, 1, h.Mock(10).resumeCalls, "backfill should resume chains")
 }
 
 func TestLogBackfill_PausesChainsWhileSealing(t *testing.T) {

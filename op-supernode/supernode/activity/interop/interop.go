@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -144,12 +145,17 @@ type Interop struct {
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
 	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
+	// backfillStartTimestamp represents the beginning of that sealed range. It is
+	// the lower bound of the startup handoff window; timestamps below it are not
+	// served as optimistic superroots because this node may not have SafeDB
+	// history for them.
 	// this is used for loop handoff from log backfill to main processing.
 	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
 	// after backfill, or the EL-finalized-derived startup timestamp when backfill was not used.
-	backfillEndTimestamp uint64
-	firstVerifiableSet   bool
-	firstVerifiable      uint64
+	backfillStartTimestamp uint64
+	backfillEndTimestamp   uint64
+	firstVerifiableSet     bool
+	firstVerifiable        uint64
 
 	dataDir string
 
@@ -202,7 +208,7 @@ func (i *Interop) Name() string {
 // to verify. If verification has already committed results, the first committed
 // timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
 // after log backfill, or — on cold start with no committed results and no
-// backfill range — the startup handoff timestamp derived from EL-finalized,
+// backfill range — the startup handoff timestamp derived from EL-finalized
 // or recent local-safe progress when finalized is still pre-activation.
 func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if i.verifiedDB != nil {
@@ -221,6 +227,34 @@ func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) 
 		return i.firstVerifiable, nil
 	}
 	return i.resolveFirstVerifiableTimestamp(ctx)
+}
+
+// handoffStartTimestamp is the lower bound of the startup handoff window. The
+// verifier will not write VerifiedDB entries before firstVerifiableTimestamp;
+// only timestamps in [handoffStartTimestamp, firstVerifiableTimestamp) are safe
+// to serve from optimistic outputs. Older post-activation timestamps would
+// require SafeDB history that this node intentionally did not backfill.
+func (i *Interop) handoffStartTimestamp() (uint64, bool, error) {
+	if i.backfillStartTimestamp != 0 {
+		return i.backfillStartTimestamp, true, nil
+	}
+	if len(i.logsDBs) == 0 {
+		return 0, false, nil
+	}
+	start := i.activationTimestamp
+	for cid, db := range i.logsDBs {
+		first, err := db.FirstSealedBlock()
+		if err != nil {
+			if errors.Is(err, suptypes.ErrFuture) {
+				return 0, false, nil
+			}
+			return 0, false, fmt.Errorf("chain %s: first sealed logs block: %w", cid, err)
+		}
+		if first.Timestamp > start {
+			start = first.Timestamp
+		}
+	}
+	return start, true, nil
 }
 
 // New constructs a new Interop activity.
@@ -1010,7 +1044,11 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 		return false, err
 	}
 	if ts < firstVerifiable {
-		return true, nil
+		handoffStart, ok, err := i.handoffStartTimestamp()
+		if err != nil {
+			return false, err
+		}
+		return ok && ts >= handoffStart, nil
 	}
 	return i.verifiedDB.Has(ts)
 }
@@ -1018,6 +1056,7 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 // VerifiedResultAtTimestamp returns the committed VerifiedResult for ts plus
 // the verifier's CurrentL1 captured atomically with the verifiedDB read.
 //   - ts < activationTimestamp           → ErrNotActive
+//   - ts < handoffStartTimestamp         → ErrBeforeHandoff
 //   - ts < firstVerifiableTimestamp      → ErrBeforeVerifiedDB
 //   - verifiedDB.Get returns ErrNotFound → ethereum.NotFound
 //   - else                               → the stored VerifiedResult
@@ -1045,6 +1084,13 @@ func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.Bloc
 		return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve first verifiable: %w", err)
 	}
 	if ts < firstVerifiable {
+		handoffStart, ok, err := i.handoffStartTimestamp()
+		if err != nil {
+			return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve handoff start: %w", err)
+		}
+		if !ok || ts < handoffStart {
+			return VerifiedResult{}, eth.BlockID{}, ErrBeforeHandoff
+		}
 		return VerifiedResult{}, eth.BlockID{}, ErrBeforeVerifiedDB
 	}
 	i.mu.RLock()

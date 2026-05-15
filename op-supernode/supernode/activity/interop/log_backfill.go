@@ -12,9 +12,9 @@ import (
 
 // resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
 // by durable local state: verifiedDB.LastTimestamp+1 when initialized,
-// otherwise the minimum EL finalized head + 1, clamped to activation. If
-// finalized is still pre-activation, there is no interop log history to
-// backfill yet.
+// otherwise the minimum EL finalized head + 1. If finalized is still
+// pre-activation, it uses recent local-safe progress as the cold-start
+// handoff point. The result is clamped to activation.
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
@@ -29,6 +29,13 @@ func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, 
 		return 0, err
 	}
 	if minELFinalizedTime < i.activationTimestamp {
+		minLocalSafeTime, err := i.minLocalSafeTime(ctx)
+		if err != nil {
+			return 0, err
+		}
+		if minLocalSafeTime > i.activationTimestamp {
+			return minLocalSafeTime + 1, nil
+		}
 		return i.activationTimestamp, nil
 	}
 	return minELFinalizedTime + 1, nil
@@ -154,6 +161,7 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	for err := range errCh {
 		return 0, err
 	}
+	i.backfillStartTimestamp = startTime
 	return endTime, nil
 }
 
