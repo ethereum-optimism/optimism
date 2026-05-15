@@ -500,18 +500,35 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
-			return fmt.Errorf("failed to load finalized head: %w", err)
+			// In ELSync mode the engine has no finalized block until its initial
+			// snap-sync completes and the CL emits a finalized FCU. Treat
+			// NotFound as "no finalized block yet" and continue, mirroring the
+			// eth.Safe branch below. In CLSync mode the engine is expected to
+			// have a finalized block after the initial reset, so propagate
+			// the error as before.
+			if errors.Is(err, ethereum.NotFound) && e.syncCfg.SyncMode == sync.ELSync {
+				e.log.Debug("No finalized L2 block known yet, leaving finalized head unset")
+			} else {
+				return fmt.Errorf("failed to load finalized head: %w", err)
+			}
+		} else {
+			e.SetFinalizedHead(finalizedRef)
+			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
-		e.SetFinalizedHead(finalizedRef)
-		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 	}
 	if e.localSafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
-				// If the engine doesn't have a safe head, then we can use the finalized head
-				e.SetLocalSafeHead(finalizedRef)
-				e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				if finalizedRef == (eth.L2BlockRef{}) {
+					// Neither safe nor finalized are known yet — leave local-safe
+					// unset so the next initializeUnknowns retries.
+					e.log.Debug("No safe or finalized L2 block known yet, leaving local-safe head unset")
+				} else {
+					// If the engine doesn't have a safe head, then we can use the finalized head
+					e.SetLocalSafeHead(finalizedRef)
+					e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				}
 			} else {
 				return fmt.Errorf("failed to load local-safe head: %w", err)
 			}
