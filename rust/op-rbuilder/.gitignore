@@ -1,0 +1,16 @@
+/cargo
+/data
+/mev-test-contract/cache
+/mev-test-contract/out
+/target
+/scripts/benchmark-results.*
+/test/
+/integration_logs
+genesis.json
+/op-reth
+.env
+
+# editors
+.code
+.idea
+.vscode

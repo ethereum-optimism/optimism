@@ -766,6 +766,99 @@ jobs:
           paths:
             - ".circleci-cache/rust-binaries"
 
+  # Build a single Rust binary from a vendored (non-submodule) directory.
+  rust-build-vendored:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      binaries:
+        description: "Space-separated list of binary names to copy from target/release into the cache"
+        type: string
+      build_command:
+        description: "Cargo build command to run"
+        type: string
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Get << parameters.directory >> content HASH
+          command: |
+            mkdir -p .circleci-cache
+            git ls-tree -r HEAD << parameters.directory >> | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
+            echo "Content HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
+            echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
+            echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
+      - restore_cache:
+          name: Restore << parameters.directory >> cache
+          keys:
+            - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+      - run:
+          name: Build << parameters.directory >> (if needed)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_CACHE_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+
+            HIT=true
+            for bin in << parameters.binaries >>; do
+              if [ ! -f "$BIN_CACHE_DIR/$bin" ]; then
+                HIT=false
+                break
+              fi
+            done
+            if [ "$HIT" = "true" ]; then
+              echo "Cache hit - binaries exist"
+              exit 0
+            fi
+
+            echo "Cache miss - will build"
+
+            if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
+              for i in 1 2 3; do
+                if sudo apt-get -o Acquire::Retries=5 update; then
+                  break
+                fi
+                if [ "$i" = "3" ]; then
+                  echo "apt-get update failed after 3 attempts" >&2
+                  exit 1
+                fi
+                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
+                sleep 10
+              done
+              sudo apt-get install -y --no-install-recommends clang
+            fi
+
+            cd << parameters.directory >> && << parameters.build_command >>
+
+            mkdir -p "$BIN_CACHE_DIR"
+            for bin in << parameters.binaries >>; do
+              SRC="$ROOT_DIR/<< parameters.directory >>/target/release/$bin"
+              DST="$BIN_CACHE_DIR/$bin"
+              if [ ! -f "$SRC" ]; then
+                echo "ERROR: expected built binary not found at $SRC" >&2
+                exit 1
+              fi
+              cp "$SRC" "$DST"
+              chmod +x "$DST" || true
+            done
+          no_output_timeout: 30m
+      - save_cache:
+          key: rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+          name: Save << parameters.directory >> cache
+          paths:
+            - ".circleci-cache/rust-binaries"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".circleci-cache/rust-binaries"
+
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2557,6 +2650,8 @@ workflows:
           ignore-dirs: |
             ./packages/contracts-bedrock/lib
             ./docs/public-docs
+            ./rust/op-rbuilder
+            ./rust/rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
@@ -2569,17 +2664,17 @@ workflows:
           rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-op-rbuilder
+      - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
-          directory: op-rbuilder
+          directory: rust/op-rbuilder
           binaries: "op-rbuilder"
           build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
           needs_clang: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-submodule: &rust-build-rollup-boost
+      - rust-build-vendored: &rust-build-rollup-boost
           name: rust-build-rollup-boost
-          directory: rollup-boost
+          directory: rust/rollup-boost
           binaries: "rollup-boost"
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:

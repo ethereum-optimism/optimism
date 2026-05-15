@@ -8,7 +8,7 @@ use super::{
     error::EngineError,
     persistence::{PersistenceHandle, error::PersistenceError},
 };
-use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStorageError, OpProofsStore};
+use crate::{OpProofStoragePruner, OpProofsProviderRO, OpProofsStore};
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, bounded};
 use reth_evm::ConfigureEvm;
@@ -237,11 +237,6 @@ where
             return Ok(tip);
         }
 
-        self.storage
-            .provider_ro()?
-            .get_latest_block_number()?
-            .map(|(n, h)| NumHash::new(n, h))
-            .ok_or(OpProofsStorageError::NoBlocksFound)
-            .map_err(Into::into)
+        Ok(self.storage.provider_ro()?.get_latest_block()?)
     }
 }

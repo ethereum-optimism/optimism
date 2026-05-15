@@ -1,0 +1,28 @@
+[package]
+name = "p2p"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+libp2p = { version = "0.56", features = ["identify", "ping", "noise", "tcp", "autonat", "mdns", "tokio", "cbor", "macros", "yamux"] }
+libp2p-stream = "0.4.0-alpha"
+multiaddr = "0.18"
+
+derive_more = { workspace = true, features = ["from"] }
+eyre = { workspace = true }
+futures = { workspace = true}
+futures-util = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = [ "macros" ] }
+tokio-util = { workspace = true, features = [ "compat", "codec" ]  }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

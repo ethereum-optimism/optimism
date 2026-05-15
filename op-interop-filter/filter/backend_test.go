@@ -275,3 +275,13 @@ func TestBackend_CheckAccessList(t *testing.T) {
 	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
 	require.NoError(t, err)
 }
+
+func TestBackend_CheckAccessList_SupportLegacyCheckAccessListFormat(t *testing.T) {
+	backend, mock := newTestBackendWithMockChain(testChainA)
+	backend.legacyCheckAccessListFormat = true
+	mock.SetReady(true)
+	mock.SetLatestTimestamp(200)
+
+	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(0, 150, 0))
+	require.NoError(t, err)
+}

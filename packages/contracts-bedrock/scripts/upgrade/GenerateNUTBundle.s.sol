@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
@@ -25,7 +24,7 @@ contract GenerateNUTBundle is Script {
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
 
     /// @notice Name of the upgrade.
-    string internal constant UPGRADE_NAME = "karst";
+    string internal constant UPGRADE_NAME = "interop";
 
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
@@ -188,13 +187,7 @@ contract GenerateNUTBundle is Script {
     ///      fork-specific deployment or upgrade logic that must occur prior to the standard
     ///      implementation deployment phase. The rest of the script follows a fixed structure and
     ///      should not be modified.
-    function _preImplementationDeployments() internal {
-        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
-            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
-            // ConditionalDeployer deployment + upgrade
-            _generateConditionalDeployerTxns();
-        }
-    }
+    function _preImplementationDeployments() internal { }
 
     /// @notice Pre-L2CM deployment phase for fork-specific setup.
     /// @dev This function executes AFTER implementations are deployed but BEFORE the L2ContractsManager
@@ -204,58 +197,7 @@ contract GenerateNUTBundle is Script {
     /// @dev IMPORTANT: This is one of only TWO extension points in this script. Do not modify
     ///      the core deployment flow in _generateL2CMDeployment, _generateUpgradeExecution, or other
     ///      fixed phases.
-    function _preL2CMDeployment() internal {
-        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
-            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
-            // L2ProxyAdmin upgrade
-            _generateL2ProxyAdminUpgrade(implementations.proxyAdminImpl);
-        }
-    }
-
-    // ========================================
-    // KARST-ONLY NUTs
-    // ========================================
-
-    /// @notice Generates ConditionalDeployer deployment and upgrade transactions.
-    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
-    function _generateConditionalDeployerTxns() internal {
-        // 1. Deploy ConditionalDeployer implementation
-        bytes memory conditionalDeployerCode =
-            abi.encodePacked(DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"));
-
-        txns.push(
-            NetworkUpgradeTxns.NetworkUpgradeTxn({
-                intent: "ConditionalDeployer Deployment",
-                from: Constants.DEPOSITOR_ACCOUNT,
-                to: Preinstalls.DeterministicDeploymentProxy,
-                gasLimit: gasLimits.conditionalDeployerDeployment,
-                data: abi.encodePacked(SALT, conditionalDeployerCode)
-            })
-        );
-
-        // 2. Upgrade ConditionalDeployer proxy
-        address newConditionalDeployerImpl = UpgradeUtils.computeCreate2Address(conditionalDeployerCode, SALT);
-        txns.push(
-            UpgradeUtils.createUpgradeTxn(
-                "ConditionalDeployer",
-                Predeploys.CONDITIONAL_DEPLOYER,
-                newConditionalDeployerImpl,
-                gasLimits.conditionalDeployerUpgrade
-            )
-        );
-    }
-
-    /// @notice Generates L2ProxyAdmin upgrade transaction.
-    /// @dev    It upgrades the L2ProxyAdmin to add the upgradePredeploys() function.
-    /// @param _proxyAdminImpl Address of the new L2ProxyAdmin implementation.
-    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
-    function _generateL2ProxyAdminUpgrade(address _proxyAdminImpl) internal {
-        txns.push(
-            UpgradeUtils.createUpgradeTxn(
-                "L2ProxyAdmin", Predeploys.PROXY_ADMIN, _proxyAdminImpl, gasLimits.proxyAdminUpgrade
-            )
-        );
-    }
+    function _preL2CMDeployment() internal { }
 
     // ========================================
     // FIXED NUT OPERATIONS
@@ -551,7 +493,7 @@ contract GenerateNUTBundle is Script {
         implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deploymentGasLimit: 116_400,
+            deploymentGasLimit: 580_000,
             implementation: UpgradeUtils.computeCreate2Address(
                 DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
             )

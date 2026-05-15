@@ -1,0 +1,215 @@
+[package]
+name = "op-rbuilder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+default-run = "op-rbuilder"
+
+[lints]
+workspace = true
+
+[dependencies]
+p2p = { path = "../p2p" }
+
+reth.workspace = true
+reth-optimism-node.workspace = true
+reth-optimism-cli.workspace = true
+reth-optimism-chainspec.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-optimism-evm.workspace = true
+reth-optimism-consensus.workspace = true
+reth-optimism-primitives.workspace = true
+reth-optimism-txpool.workspace = true
+reth-cli.workspace = true
+reth-cli-commands.workspace = true
+reth-cli-util.workspace = true
+reth-db.workspace = true
+reth-payload-primitives.workspace = true
+reth-evm.workspace = true
+reth-exex.workspace = true
+reth-chainspec.workspace = true
+reth-primitives.workspace = true
+reth-primitives-traits.workspace = true
+reth-node-api.workspace = true
+reth-rpc-engine-api.workspace = true
+reth-node-core.workspace = true
+reth-basic-payload-builder.workspace = true
+reth-payload-builder.workspace = true
+reth-node-ethereum.workspace = true
+reth-chain-state.workspace = true
+reth-execution-types.workspace = true
+reth-metrics.workspace = true
+reth-provider.workspace = true
+reth-revm.workspace = true
+reth-trie.workspace = true
+reth-rpc-layer.workspace = true
+reth-payload-builder-primitives.workspace = true
+reth-payload-util.workspace = true
+reth-transaction-pool.workspace = true
+reth-network-peers.workspace = true
+reth-testing-utils.workspace = true
+reth-optimism-forks.workspace = true
+reth-node-builder.workspace = true
+reth-storage-api.workspace = true
+reth-rpc-api.workspace = true
+reth-rpc-eth-types.workspace = true
+reth-optimism-rpc.workspace = true
+reth-tasks.workspace = true
+reth-tracing-otlp = { workspace = true, optional = true }
+
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-contract.workspace = true
+alloy-eips.workspace = true
+alloy-evm.workspace = true
+alloy-rpc-types-beacon.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-transport-http.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-client.workspace = true
+alloy-transport.workspace = true
+alloy-network.workspace = true
+alloy-provider.workspace = true
+alloy-serde.workspace = true
+alloy-json-rpc.workspace = true
+alloy-signer-local.workspace = true
+alloy-sol-types.workspace = true
+
+# op
+alloy-op-evm.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-network.workspace = true
+op-alloy-flz.workspace = true
+
+revm.workspace = true
+op-revm.workspace = true
+
+tracing.workspace = true
+eyre.workspace = true
+serde_with.workspace = true
+serde.workspace = true
+secp256k1.workspace = true
+tokio.workspace = true
+jsonrpsee = { workspace = true }
+jsonrpsee-core = { workspace = true }
+jsonrpsee-types = { workspace = true }
+async-trait = { workspace = true }
+clap_builder = { workspace = true }
+clap.workspace = true
+derive_more.workspace = true
+either.workspace = true
+metrics.workspace = true
+serde_json.workspace = true
+tokio-util.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+url.workspace = true
+anyhow = "1"
+opentelemetry = { workspace = true, optional = true }
+dashmap.workspace = true
+hex = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+
+tower = "0.5"
+time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
+chrono = "0.4"
+uuid = { version = "1.6.1", features = ["serde", "v5", "v4"] }
+tokio-tungstenite = "0.26.2"
+rand = "0.9.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+shellexpand = "3.1"
+serde_yaml = { version = "0.9" }
+moka = "0.12"
+http = "1.0"
+sha3 = "0.10"
+reqwest = "0.12.23"
+k256 = "0.13.4"
+
+rollup-boost.workspace = true
+
+nanoid = { version = "0.4", optional = true }
+reth-ipc = { workspace = true, optional = true }
+tar = { version = "0.4", optional = true }
+ctor = { version = "0.4.2", optional = true }
+rlimit = { version = "0.10", optional = true }
+macros = { path = "src/tests/framework/macros", optional = true }
+hyper = { version = "1.7.0", features = ["http1"], optional = true }
+hyper-util = { version = "0.1.11", optional = true }
+http-body-util = { version = "0.1.3", optional = true }
+testcontainers = "0.24.0"
+dirs-next = "2.0.0"
+
+[target.'cfg(unix)'.dependencies]
+tikv-jemallocator = { version = "0.6", optional = true }
+
+[build-dependencies]
+vergen = { workspace = true, features = ["build", "cargo", "emit_and_set"] }
+vergen-git2.workspace = true
+
+[dev-dependencies]
+alloy-provider = { workspace = true, default-features = true, features = [
+    "txpool-api",
+] }
+tempfile = "3.8"
+macros = { path = "src/tests/framework/macros" }
+nanoid = { version = "0.4" }
+reth-ipc = { workspace = true }
+reth-node-builder = { workspace = true, features = ["test-utils"] }
+ctor = "0.4.2"
+rlimit = { version = "0.10" }
+hyper = { version = "1.7.0", features = ["http1"] }
+hyper-util = { version = "0.1.11" }
+http-body-util = { version = "0.1.3" }
+
+[features]
+default = ["jemalloc"]
+
+jemalloc = [
+    "dep:tikv-jemallocator",
+    "reth-cli-util/jemalloc",
+    "reth-optimism-cli/jemalloc",
+]
+jemalloc-prof = [
+    "jemalloc",
+    "tikv-jemallocator?/profiling",
+    "reth/jemalloc-prof",
+    "reth-cli-util/jemalloc-prof",
+]
+
+min-error-logs = ["tracing/release_max_level_error"]
+min-warn-logs = ["tracing/release_max_level_warn"]
+min-info-logs = ["tracing/release_max_level_info"]
+min-debug-logs = ["tracing/release_max_level_debug"]
+min-trace-logs = ["tracing/release_max_level_trace"]
+
+testing = [
+    "nanoid",
+    "reth-ipc",
+    "reth-node-builder/test-utils",
+    "ctor",
+    "macros",
+    "rlimit",
+    "hyper",
+    "hyper-util",
+    "http-body-util",
+]
+
+interop = []
+
+telemetry = ["reth-tracing-otlp", "opentelemetry"]
+
+custom-engine-api = []
+
+[[bin]]
+name = "op-rbuilder"
+path = "src/bin/op-rbuilder/main.rs"
+
+[[bin]]
+name = "tester"
+required-features = ["testing"]
