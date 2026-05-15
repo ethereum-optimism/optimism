@@ -202,7 +202,8 @@ func (i *Interop) Name() string {
 // to verify. If verification has already committed results, the first committed
 // timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
 // after log backfill, or — on cold start with no committed results and no
-// backfill range — the EL-finalized-derived startup timestamp.
+// backfill range — the startup handoff timestamp derived from EL-finalized,
+// or recent local-safe progress when finalized is still pre-activation.
 func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if i.verifiedDB != nil {
 		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {

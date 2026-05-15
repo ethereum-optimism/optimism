@@ -12,7 +12,9 @@ import (
 
 // resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
 // by durable local state: verifiedDB.LastTimestamp+1 when initialized,
-// otherwise the minimum EL finalized head + 1 (clamped to activation).
+// otherwise the minimum EL finalized head + 1. If finalized is still
+// pre-activation, it falls back to recent local-safe progress before clamping
+// to activation.
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
@@ -27,6 +29,16 @@ func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, 
 		return 0, err
 	}
 	if minELFinalizedTime < i.activationTimestamp {
+		minLocalSafeTime, err := i.minLocalSafeTime(ctx)
+		if err != nil {
+			return 0, err
+		}
+		// Break the cold-start bootstrap cycle where supernode finalized stays at
+		// genesis until the verifier commits, but the verifier cannot start from
+		// activation because SafeDB only contains recent local-safe history.
+		if minLocalSafeTime > i.activationTimestamp {
+			return minLocalSafeTime + 1, nil
+		}
 		return i.activationTimestamp, nil
 	}
 	return minELFinalizedTime + 1, nil
@@ -53,6 +65,27 @@ func (i *Interop) minELFinalizedTime(ctx context.Context) (uint64, error) {
 		minELFinalizedTime = min(minELFinalizedTime, elFinalized.Time)
 	}
 	return minELFinalizedTime, nil
+}
+
+func (i *Interop) minLocalSafeTime(ctx context.Context) (uint64, error) {
+	minLocalSafeTime := uint64(math.MaxUint64)
+	for _, chain := range i.chains {
+		status, err := chain.SyncStatus(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
+		}
+		if status == nil {
+			return 0, fmt.Errorf("chain %s: sync status unavailable", chain.ID())
+		}
+		localSafe := status.LocalSafeL2
+		if localSafe == (eth.L2BlockRef{}) {
+			return 0, fmt.Errorf("chain %s: local safe head not yet available", chain.ID())
+		}
+		i.log.Debug("first verifiable timestamp: local safe handoff",
+			"chain", chain.ID(), "localSafe", localSafe)
+		minLocalSafeTime = min(minLocalSafeTime, localSafe.Time)
+	}
+	return minLocalSafeTime, nil
 }
 
 func (i *Interop) runLogBackfill() (uint64, error) {

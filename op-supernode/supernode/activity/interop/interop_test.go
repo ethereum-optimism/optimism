@@ -258,6 +258,27 @@ func TestFirstVerifiableTimestamp(t *testing.T) {
 			want: 100,
 		},
 		{
+			name: "EL finalized before activation uses local safe handoff when available",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				return h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+						m.elFinalizedHead = eth.L2BlockRef{
+							Number: 0,
+							Hash:   common.HexToHash("0xabc123"),
+							Time:   0,
+						}
+						m.elFinalizedHeadSet = true
+						m.syncStatusFull = &eth.SyncStatus{
+							FinalizedL2: eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0},
+							SafeL2:      eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0},
+							LocalSafeL2: eth.L2BlockRef{Number: 125, Hash: common.HexToHash("0xdef456"), Time: 125},
+						}
+					}).
+					Build()
+			},
+			want: 126,
+		},
+		{
 			name: "EL finalized at activation returns timestamp after activation",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithActivation(100).

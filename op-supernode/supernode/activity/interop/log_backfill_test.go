@@ -635,6 +635,43 @@ func TestLogBackfill_ActivationInFuture(t *testing.T) {
 		"main loop resumes at activation when EL finalized is still pre-activation")
 }
 
+func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T) {
+	const act = uint64(1000)
+	depth := 60 * time.Second
+
+	var outputCalls atomic.Int32
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.elFinalizedHead = eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0}
+			m.elFinalizedHeadSet = true
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 1061, Time: 1061},
+				SafeL2:      eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0},
+				LocalSafeL2: eth.L2BlockRef{Number: 1060, Hash: common.HexToHash("0xdef456"), Time: 1060},
+			}
+			m.outputV0Override = func(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+				outputCalls.Add(1)
+				return &eth.OutputV0{
+					StateRoot:                eth.Bytes32(common.HexToHash("0xmockstate")),
+					MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
+					BlockHash:                common.BigToHash(new(big.Int).SetUint64(num)),
+				}, nil
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, uint64(1060), end)
+	require.Positive(t, outputCalls.Load(), "backfill should seal the recent local-safe handoff range")
+	requireFirstVerifiableTimestamp(t, h.interop, 1061)
+}
+
 // TestLogBackfill_ClampsStartToGenesis asserts that the per-chain start is
 // clamped up to the chain's genesis timestamp. Without this clamp,
 // runLogBackfill would ask TimestampToBlockNumber for a pre-genesis timestamp
