@@ -306,11 +306,11 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # kona-build-release builds the whole rust workspace (no binary filter),
+      # rust-workspace-release builds the whole rust workspace (no binary filter),
       # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
       # e2e jobs attach the workspace and consume the binaries directly.
-      - rust-build-binary: &kona-build-release
-          name: kona-build-release
+      - rust-build-binary: &rust-workspace-release
+          name: rust-workspace-release
           directory: rust
           profile: release
           persist_to_workspace: true
@@ -327,25 +327,25 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - kona-build-release
+            - rust-workspace-release
       - op-reth-e2e-sysgo-tests:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - kona-build-release
+            - rust-workspace-release
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - kona-build-release
+            - rust-workspace-release
       # Proof tests - single kind only, interop excluded per original config
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
           requires:
-            - kona-build-release
+            - rust-workspace-release
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -372,7 +372,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-build-binary:
-          name: kona-build-release
+          name: rust-workspace-release
           directory: rust
           profile: release
           persist_to_workspace: true
@@ -383,7 +383,7 @@ workflows:
           name: kona-proof-action-single
           kind: single
           requires:
-            - kona-build-release
+            - rust-workspace-release
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
