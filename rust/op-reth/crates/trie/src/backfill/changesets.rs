@@ -16,10 +16,10 @@ use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use reth_trie_db::from_reverts_auto;
 
 /// Compute the backfill diff for `block_number`:
-/// - `HashedPostStateSorted` — per-block leaf revert (state before block N ran),
-///   reused as `BlockStateDiff::sorted_post_state`.
-/// - `TrieUpdatesSorted` — trie-node before-values for paths block N touched,
-///   written into the four `V2*TrieChangeSets` tables by `prepend_block`.
+/// - `HashedPostStateSorted` — per-block leaf revert (state before block N ran), reused as
+///   `BlockStateDiff::sorted_post_state`.
+/// - `TrieUpdatesSorted` — trie-node before-values for paths block N touched, written into the four
+///   `V2*TrieChangeSets` tables by `prepend_block`.
 ///
 /// `proofs_provider` must reflect proofs-storage state at the start of this
 /// iteration (`earliest == block_number`); callers open a fresh RO provider

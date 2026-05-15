@@ -11,8 +11,8 @@
 //!
 //! - The proofs current-state tables are untouched; only history is written.
 //! - `earliest` decreases by exactly one per successful step.
-//! - Each step commits atomically, so a crash mid-backfill resumes cleanly
-//!   from the current `earliest`.
+//! - Each step commits atomically, so a crash mid-backfill resumes cleanly from the current
+//!   `earliest`.
 
 mod changesets;
 mod error;

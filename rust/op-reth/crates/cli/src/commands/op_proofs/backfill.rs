@@ -94,7 +94,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             + Send,
         S: OpProofsStore + Send,
     {
-       let window = storage.provider_ro()?.get_proof_window()?;
+        let window = storage.provider_ro()?.get_proof_window()?;
         info!(
             target: "reth::cli",
             earliest = ?window.earliest,

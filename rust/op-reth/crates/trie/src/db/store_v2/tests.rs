@@ -24,11 +24,11 @@ use crate::{
     db::{
         ProofWindowKey, V2ProofWindow,
         models::{
-            AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountShardedKey,
-            StorageTrieShardedKey, V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
-            V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
-            V2HashedStorageChangeSets, V2HashedStorages, V2StorageTrieChangeSets, V2StoragesTrie,
-            V2StoragesTrieHistory,
+            AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountBeforeTx,
+            HashedAccountShardedKey, StorageTrieShardedKey, V2AccountTrieChangeSets,
+            V2AccountsTrie, V2AccountsTrieHistory, V2HashedAccountChangeSets, V2HashedAccounts,
+            V2HashedAccountsHistory, V2HashedStorageChangeSets, V2HashedStorages,
+            V2StorageTrieChangeSets, V2StoragesTrie, V2StoragesTrieHistory,
         },
     },
 };
@@ -2055,24 +2055,36 @@ fn prepend_block_hash_mismatch_rejects() {
     );
 }
 
+#[test]
 fn prepend_block_idempotent_when_changeset_exists() {
     let db = setup_db();
 
     let addr = B256::from([0xEE; 32]);
     let block1_hash = B256::repeat_byte(0x01);
 
-    // init at block 0, forward-store block 1 (creates changesets + history for addr).
-    init_state(&db, vec![(addr, Some(Account::default()))]);
-    store_block(&db, make_block_ref(1, block1_hash, B256::ZERO), make_nonce_diff(addr, 1));
-
-    // Simulate a retry scenario: rewind earliest back to (1, block1_hash) and
-    // attempt to prepend block 1 again. The changeset-exists guard should short-circuit.
+    // Init the proof window at (1, block1_hash) — earliest == latest == 1.
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-        provider.set_earliest_block_number_inner(1, block1_hash).expect("rewind earliest");
-        OpProofsProviderRw::commit(provider).expect("commit");
+        provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("seed");
+        provider.set_initial_state_anchor(BlockNumHash::new(1, block1_hash)).expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
     }
 
+    // Plant a block-1 changeset entry directly so the prepend idempotency
+    // guard fires (would normally have been written by a prior forward
+    // `store_trie_updates(block 1)`, but doing that would require init at
+    // block 0 plus an earliest-rewind helper).
+    {
+        let tx = db.tx_mut().expect("rw");
+        let mut cur = tx.cursor_dup_write::<V2HashedAccountChangeSets>().expect("cursor");
+        cur.upsert(1u64, &HashedAccountBeforeTx::new(addr, Some(Account::default())))
+            .expect("plant changeset");
+        tx.commit().expect("commit");
+    }
+
+    // Attempt to prepend block 1 with a would-be value (nonce 42). The guard
+    // sees the planted changeset and short-circuits.
     let counts = {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
         let block_ref = make_block_ref(1, block1_hash, B256::ZERO);
@@ -2088,7 +2100,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
         assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(1, block1_hash));
     }
 
-    // Changeset retains the ORIGINAL forward-write value (nonce: 0), not the
+    // Changeset retains the planted "before" value (nonce: 0), not the
     // would-be-prepended value (nonce: 42).
     let tx = db.tx().expect("ro");
     let mut cur = tx.cursor_dup_read::<V2HashedAccountChangeSets>().expect("cursor");

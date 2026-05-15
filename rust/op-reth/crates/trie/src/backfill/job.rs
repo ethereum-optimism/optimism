@@ -15,7 +15,10 @@ use reth_provider::{
 };
 use reth_trie::StateRoot;
 use reth_trie_common::HashedPostState;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tracing::info;
 
 /// How often to emit a progress line during a long backfill, measured in
@@ -104,7 +107,7 @@ where
         let start = Instant::now();
         let mut phase_totals = PhaseTimings::default();
         info!(
-            target: "reth::op-proofs::backfill",
+            target: "trie::backfill::job",
             from = current_earliest.number,
             to = target_earliest_block,
             total,
@@ -128,7 +131,7 @@ where
                 let progress_pct = (done as f64 / total as f64) * 100.0;
                 let avg = phase_totals.averages(done);
                 info!(
-                    target: "reth::op-proofs::backfill",
+                    target: "trie::backfill::job",
                     done,
                     total,
                     avg_compute = ?avg.compute,
@@ -141,7 +144,7 @@ where
 
         let final_avg = phase_totals.averages(total);
         info!(
-            target: "reth::op-proofs::backfill",
+            target: "trie::backfill::job",
             blocks = total,
             elapsed = ?start.elapsed(),
             avg_compute = ?final_avg.compute,
@@ -161,9 +164,11 @@ where
         let block_ref = self.resolve_block_ref(block_number)?;
         let (diff, compute) = self.compute_diff(block_number)?;
 
-        let bp = self.storage.backfill_provider()?;
+        let bp = Arc::new(self.storage.backfill_provider()?);
         let (_, prepend) = timed(|| bp.prepend_block(block_ref, diff))?;
-        let validate = self.validate_state_root(&bp, block_number)?;
+        let validate = self.validate_state_root(Arc::clone(&bp), block_number)?;
+        let bp = Arc::into_inner(bp)
+            .expect("validate_state_root must release its Arc clone before returning");
         let (_, commit) = timed(|| bp.commit())?;
 
         Ok(PhaseTimings { compute, prepend, validate, commit })
@@ -201,10 +206,7 @@ where
             let proofs_ro = self.storage.provider_ro()?;
             let (trie_updates, post_state) =
                 compute_block_backfill_diff(&self.provider, proofs_ro, block_number)?;
-            Ok(BlockStateDiff {
-                sorted_trie_updates: trie_updates,
-                sorted_post_state: post_state,
-            })
+            Ok(BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state })
         })
     }
 
@@ -213,7 +215,7 @@ where
     /// own uncommitted writes) and comparing to the reth header.
     fn validate_state_root<BP>(
         &self,
-        bp: &BP,
+        bp: Arc<BP>,
         block_number: BlockNumber,
     ) -> Result<Duration, BackfillError>
     where
