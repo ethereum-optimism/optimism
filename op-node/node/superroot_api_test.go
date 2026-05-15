@@ -256,6 +256,19 @@ func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, safedb.ErrL1AtSafeHeadUnavailable)
 }
 
+func TestSuperrootAPI_SafeDBDisabled_Errors(t *testing.T) {
+	// A node started without --safedb.path uses safedb.Disabled. Without an up-front
+	// gate, requests within LocalSafeL2 would surface ErrNotEnabled from the helper
+	// while requests beyond LocalSafeL2 would short-circuit successfully with Data=nil
+	// — operators serving dispute infra would see inconsistent responses. Assert the
+	// handler rejects loudly before doing any work (no SyncStatus / output calls).
+	f := newFixture(t)
+	api := NewSuperrootAPI(f.cfg, f.l2Client, f.dr, safedb.Disabled, testlog.Logger(t, log.LevelError))
+
+	_, err := api.AtTimestamp(context.Background(), hexutil.Uint64(testGenesisL2Ts+10*testBlockTime))
+	require.ErrorContains(t, err, "safedb not enabled")
+}
+
 func TestSuperrootAPI_DriverSyncStatusError(t *testing.T) {
 	f := newFixture(t)
 	// Replace SyncStatus expectation with a failing one.

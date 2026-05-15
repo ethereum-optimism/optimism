@@ -39,6 +39,16 @@ func (s *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint64
 // atTimestamp is the internal implementation. Lowercase first letter so it is not
 // exposed as an RPC method by go-ethereum's reflection-based registration.
 func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
+	// SafeDB is required: the verified branch walks safe-head-at-L1 history to compute
+	// RequiredL1. Without it, requests within LocalSafeL2 would surface as
+	// safedb.ErrNotEnabled from the helper, while requests beyond LocalSafeL2 would
+	// short-circuit successfully with Data=nil — so an operator who forgot --safedb.path
+	// on a node serving dispute infrastructure would see inconsistent responses.
+	// Reject up front instead.
+	if reader, ok := s.safeDB.(interface{ Enabled() bool }); ok && !reader.Enabled() {
+		return eth.SuperRootAtTimestampResponse{}, errors.New("safedb not enabled: --safedb.path is required to serve superroot_atTimestamp")
+	}
+
 	status, err := s.dr.SyncStatus(ctx)
 	if err != nil {
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("syncStatus: %w", err)
