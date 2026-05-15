@@ -210,7 +210,7 @@ The `<SUFFIX>` is the op-node flag's source-level environment-variable name (see
 
   * `--l1` and `--l1.beacon`: the shared L1 plumbing replaces any per-chain L1 setting at startup.
   * `--l1.http-poll-interval`: the shared L1 client owns the polling cadence; the supernode logs a warning if a per-chain value is set.
-  * `--log.*` and `--metrics.*`: passed down from the top-level flags; per-chain log and metrics settings may not be respected.
+  * `--log.*`: the supernode and every virtual node share one logger; top-level `--log.*` configures it. Per-chain `--vn.*.log.*` flags appear in the namespace but are silently ignored. (`--metrics.*` is different: top-level configures the supernode's own metrics service, but per-chain `--vn.*.metrics.*` configures each virtual node's own metrics, which are fanned into the same endpoint with per-chain Prometheus labels.)
   * P2P listen ports: see the [P2P](#p2p) section.
 </Info>
 
@@ -380,8 +380,8 @@ Enable this only on endpoints that are not exposed to untrusted networks.
 
 ### Logging
 
-Logging is configured at the top level for every chain.
-Per-chain log settings under the `--vn.*` namespace may not be respected.
+Logging is configured at the top level.
+The supernode and every virtual node share one logger; per-chain `--vn.*.log.*` flags appear in the namespace but are silently ignored.
 
 #### log.level
 
@@ -398,8 +398,9 @@ The default value is `info`.
 #### log.format
 
 Log output format.
-Valid values are `text`, `terminal`, `logfmt`, `json`, `json-pretty`.
+Valid values are `text`, `terminal`, `logfmt`, `logfmtms`, `json`, `jsonms` (the `*ms` variants append millisecond timestamps).
 The default value is `text`.
+Set `logfmt` or `json` when ingesting logs into a structured-log pipeline; the default `text` is for hand-reading.
 
 <Tabs>
   <Tab title="Syntax">`--log.format=<value>`</Tab>
