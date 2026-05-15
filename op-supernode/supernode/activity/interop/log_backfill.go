@@ -13,8 +13,10 @@ import (
 // resolveFirstVerifiableTimestamp returns the first timestamp not yet covered
 // by durable local state: verifiedDB.LastTimestamp+1 when initialized,
 // otherwise the minimum EL finalized head + 1. If finalized is still
-// pre-activation, it uses recent local-safe progress as the cold-start
-// handoff point. The result is clamped to activation.
+// pre-activation, it uses the newest local-safe progress as the cold-start
+// handoff point, then the caller waits until every chain can serve it. This
+// avoids selecting a timestamp below a chain's first SafeDB entry after an
+// execution-layer sync reset. The result is clamped to activation.
 func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if len(i.chains) == 0 {
 		return i.activationTimestamp, nil
@@ -29,12 +31,12 @@ func (i *Interop) resolveFirstVerifiableTimestamp(ctx context.Context) (uint64, 
 		return 0, err
 	}
 	if minELFinalizedTime < i.activationTimestamp {
-		minLocalSafeTime, err := i.minLocalSafeTime(ctx)
+		maxLocalSafeTime, err := i.maxLocalSafeTime(ctx)
 		if err != nil {
 			return 0, err
 		}
-		if minLocalSafeTime > i.activationTimestamp {
-			return minLocalSafeTime + 1, nil
+		if maxLocalSafeTime > i.activationTimestamp {
+			return maxLocalSafeTime + 1, nil
 		}
 		return i.activationTimestamp, nil
 	}
@@ -64,8 +66,8 @@ func (i *Interop) minELFinalizedTime(ctx context.Context) (uint64, error) {
 	return minELFinalizedTime, nil
 }
 
-func (i *Interop) minLocalSafeTime(ctx context.Context) (uint64, error) {
-	minLocalSafeTime := uint64(math.MaxUint64)
+func (i *Interop) maxLocalSafeTime(ctx context.Context) (uint64, error) {
+	maxLocalSafeTime := uint64(0)
 	for _, chain := range i.chains {
 		status, err := chain.SyncStatus(ctx)
 		if err != nil {
@@ -80,9 +82,9 @@ func (i *Interop) minLocalSafeTime(ctx context.Context) (uint64, error) {
 		}
 		i.log.Debug("first verifiable timestamp: local safe handoff",
 			"chain", chain.ID(), "localSafe", localSafe)
-		minLocalSafeTime = min(minLocalSafeTime, localSafe.Time)
+		maxLocalSafeTime = max(maxLocalSafeTime, localSafe.Time)
 	}
-	return minLocalSafeTime, nil
+	return maxLocalSafeTime, nil
 }
 
 func (i *Interop) runLogBackfill() (uint64, error) {
