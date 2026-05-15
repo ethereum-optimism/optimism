@@ -306,30 +306,14 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary: &cannon-kona-host
-          name: cannon-kona-host
-          directory: rust
-          profile: release
-          binary: "kona-host"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       # kona-build-release builds the whole rust workspace (no binary filter),
-      # so it produces kona-host, kona-node, op-reth, and the rest. It is the
-      # sole persister of release binaries — cannon-kona-host and op-reth-build
-      # still build in parallel to prime caches, but their outputs overlap with
-      # this job's persist glob and would conflict if persisted concurrently.
+      # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
+      # e2e jobs attach the workspace and consume the binaries directly.
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
           profile: release
           persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: op-reth-build
-          directory: rust
-          profile: release
-          binary: "op-reth"
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-e2e-sysgo-tests:
@@ -343,21 +327,18 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-kona-host
             - kona-build-release
-            - op-reth-build
       - op-reth-e2e-sysgo-tests:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - op-reth-build
+            - kona-build-release
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-kona-host
             - kona-build-release
       # Proof tests - single kind only, interop excluded per original config
       - kona-proof-action-tests:
