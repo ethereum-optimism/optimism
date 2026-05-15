@@ -29,7 +29,7 @@ The following options are from the `--help` in [op-supernode/v0.2.2-rc.8](https:
   When every chain in the dependency set uses the same secret, set it once at the supernode level and let every virtual node inherit it.
 </Info>
 
-To share a single JWT secret across every virtual node, set `--vn.all.l2.jwt-secret=<path>` (or `OP_SUPERNODE_VN_ALL_L2_JWT_SECRET`) at the supernode level.
+To share a single JWT secret across every virtual node, set `--vn.all.l2.jwt-secret=<path>` (or `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`) at the supernode level.
 This avoids repeating the per-chain `--vn.<chainID>.l2.jwt-secret` line for every chain in `--chains`.
 Use the per-chain form only when a chain's execution client requires its own secret.
 
@@ -66,6 +66,11 @@ The example uses environment variables; pass the equivalent `--flag` arguments i
 Fill in the placeholders before starting the binary.
 
 <Info>
+  Some `--vn.<chainID>.*` flags have an environment-variable suffix that doesn't mechanically match the CLI flag name (for example, `--vn.<id>.l2` is set by `OP_SUPERNODE_VN_<id>_L2_ENGINE_RPC`, and `--vn.all.l2.jwt-secret` is set by `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`).
+  The example below uses the correct environment-variable names from `--help`; copy them as shown.
+</Info>
+
+<Info>
   The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
   For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2` pairs for each chain.
 </Info>
@@ -81,13 +86,13 @@ OP_SUPERNODE_L1_BEACON: <your-l1-beacon-rpc>
 OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-l1-beacon-archiver-rpc>
 
 # Shared JWT secret for every virtual node's engine connection
-OP_SUPERNODE_VN_ALL_L2_JWT_SECRET: /etc/op/jwt-secret.txt
+OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
 
 # Per-chain: chain identity and engine RPC
 OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
-OP_SUPERNODE_VN_11155420_L2: <op-sepolia-engine-rpc>
+OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: <op-sepolia-engine-rpc>
 OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
-OP_SUPERNODE_VN_1301_L2: <unichain-sepolia-engine-rpc>
+OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: <unichain-sepolia-engine-rpc>
 
 # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
 OP_SUPERNODE_RPC_ADDR: 0.0.0.0
@@ -194,9 +199,11 @@ The supernode reproduces the full op-node flag set under two prefixes so you can
 * **`--vn.<chainID>.<flag>`** sets `<flag>` for one specific chain.
 * **`--vn.all.<flag>`** sets `<flag>` for every chain in the dependency set.
 
-The environment-variable form follows the same prefix rule: `OP_SUPERNODE_VN_<CHAINID>_<FLAG>` for one chain and `OP_SUPERNODE_VN_ALL_<FLAG>` for every chain.
-`<FLAG>` is the op-node flag name with hyphens and dots converted to underscores and uppercased.
-For example, `--vn.11155420.l2.engine-rpc-timeout` is equivalent to `OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC_TIMEOUT`.
+The environment-variable form follows the same prefix rule: `OP_SUPERNODE_VN_<CHAINID>_<SUFFIX>` for one chain and `OP_SUPERNODE_VN_ALL_<SUFFIX>` for every chain.
+The `<SUFFIX>` is the op-node flag's source-level environment-variable suffix — usually but not always derivable from the CLI flag name.
+For example, `--vn.11155420.l2.engine-rpc-timeout` becomes `OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC_TIMEOUT` (CLI name matches the suffix), while `--vn.11155420.l2` becomes `OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC` (the CLI was renamed but the environment-variable suffix kept the original op-node spelling).
+
+Consult `op-supernode --chains=<chainIDs> --help` for the authoritative environment-variable name of any flag. The per-flag entries below list the correct environment-variable form alongside the CLI form.
 
 <Info>
   A few flags are owned by the supernode rather than by individual virtual nodes.
@@ -241,7 +248,7 @@ Each chain needs its own execution client; one execution client cannot back two 
 <Tabs>
   <Tab title="Syntax">`--vn.<chainID>.l2=<value>`</Tab>
   <Tab title="Example">`--vn.11155420.l2=http://op-sepolia-geth:8551`</Tab>
-  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2=`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC=`</Tab>
 </Tabs>
 
 #### vn.all.l2.jwt-secret
@@ -253,7 +260,7 @@ Use the per-chain `--vn.<chainID>.l2.jwt-secret` form only when a chain's execut
 <Tabs>
   <Tab title="Syntax">`--vn.all.l2.jwt-secret=<value>`</Tab>
   <Tab title="Example">`--vn.all.l2.jwt-secret=/etc/op/jwt-secret.txt`</Tab>
-  <Tab title="Environment Variable">`OP_SUPERNODE_VN_ALL_L2_JWT_SECRET=`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH=`</Tab>
 </Tabs>
 
 #### vn.&lt;chainID&gt;.l2.enginekind
@@ -266,7 +273,7 @@ The default value is `geth`.
 <Tabs>
   <Tab title="Syntax">`--vn.<chainID>.l2.enginekind=<value>`</Tab>
   <Tab title="Example">`--vn.11155420.l2.enginekind=reth`</Tab>
-  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINEKIND=`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_KIND=`</Tab>
 </Tabs>
 
 ### P2P
