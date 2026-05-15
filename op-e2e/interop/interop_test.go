@@ -15,12 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	gethCore "github.com/ethereum/go-ethereum/core"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	gethCore "github.com/ethereum/go-ethereum/core"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // setupAndRun is a helper function that sets up a SuperSystem
@@ -405,4 +406,3 @@ func TestMultiNode(t *testing.T) {
 	}
 	setupAndRun(t, config, test)
 }
-
