@@ -311,9 +311,13 @@ workflows:
           directory: rust
           profile: release
           binary: "kona-host"
-          persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # kona-build-release builds the whole rust workspace (no binary filter),
+      # so it produces kona-host, kona-node, op-reth, and the rest. It is the
+      # sole persister of release binaries — cannon-kona-host and op-reth-build
+      # still build in parallel to prime caches, but their outputs overlap with
+      # this job's persist glob and would conflict if persisted concurrently.
       - rust-build-binary: &kona-build-release
           name: kona-build-release
           directory: rust
@@ -326,7 +330,6 @@ workflows:
           directory: rust
           profile: release
           binary: "op-reth"
-          persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-e2e-sysgo-tests:
