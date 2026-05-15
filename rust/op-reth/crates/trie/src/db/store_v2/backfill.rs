@@ -32,12 +32,15 @@ use tracing::debug;
 ///
 /// Backfill prepends blocks in descending order, so `block_number` is always strictly
 /// less than every value already stored for this key. The existing
-/// [`super::write::append_history_indices_batched`] function only touches the last/sentinel
+/// `append_history_indices_batched` (in `super::write`) only touches the last/sentinel
 /// shard; this function instead seeks the **first** shard and prepends there.
 ///
-/// If the first shard would exceed [`NUM_OF_INDICES_IN_SHARD`] entries after the insert,
-/// it is split: the new earlier portion gets a fresh shard key keyed by its maximum
-/// block number, and the remainder stays under the original shard key.
+/// When the first shard is already at [`NUM_OF_INDICES_IN_SHARD`] entries, a fresh
+/// singleton shard is created at key `(_, block_number)`. Subsequent prepends fill that
+/// singleton in place until it too reaches capacity, at which point the same branch
+/// fires again. This amortises to ~1 upsert per prepend plus one shard-creation
+/// every `NUM_OF_INDICES_IN_SHARD` prepends — replacing an earlier scheme that
+/// rewrote the full shard on every overflow.
 fn prepend_history_index_for_key<T>(
     cursor: &mut (impl DbCursorRO<T> + DbCursorRW<T>),
     block_number: BlockNumber,
@@ -52,28 +55,29 @@ where
 {
     match cursor.seek(first_shard_key)? {
         Some((old_key, existing)) if same_logical_key(&old_key) => {
-            // Build the merged sequence: [block_number, ...existing...].
-            // block_number < all existing values (prepend invariant), so the result is sorted.
-            let mut all_values: Vec<u64> =
-                std::iter::once(block_number).chain(existing.iter()).collect();
-
-            if all_values.len() <= NUM_OF_INDICES_IN_SHARD {
-                // Fits — update shard in-place (its max value, i.e. key, is unchanged).
+            // `block_number` is strictly less than every value in `existing` by
+            // the prepend invariant (we walk blocks in descending order).
+            let existing_len = existing.iter().count();
+            if existing_len < NUM_OF_INDICES_IN_SHARD {
+                // Fits — prepend in place. The shard's max (= its key) is
+                // unchanged since `block_number` is smaller than all entries.
+                let all_values: Vec<u64> =
+                    std::iter::once(block_number).chain(existing.iter()).collect();
                 let new_list = BlockNumberList::new_pre_sorted(all_values);
                 cursor.upsert(old_key, &new_list)?;
             } else {
-                // Overflow — split into two shards:
-                //   first_chunk: [block_number, ..., a_{N-1}]  →  new key = a_{N-1}
-                //   rest:        [a_N, ..., a_K]               →  keep old_key (max unchanged)
-                let rest: Vec<u64> = all_values.split_off(NUM_OF_INDICES_IN_SHARD);
-                let first_chunk_max = *all_values.last().expect("non-empty");
-                let new_first_key = make_shard_key(first_chunk_max);
-                let first_list = BlockNumberList::new_pre_sorted(all_values);
-                let rest_list = BlockNumberList::new_pre_sorted(rest);
-                // Keep the existing shard key for the upper portion.
-                cursor.upsert(old_key, &rest_list)?;
-                // Insert the new lower shard.
-                cursor.upsert(new_first_key, &first_list)?;
+                // The current front shard is full. Start a fresh singleton
+                // shard at `block_number` and leave the full one alone.
+                // Subsequent prepends fill the new singleton in place until
+                // it too hits the cap, at which point this branch fires
+                // again. Amortises to ~1 upsert per prepend plus one
+                // shard-creation every `NUM_OF_INDICES_IN_SHARD` prepends.
+                debug_assert!(
+                    existing_len <= NUM_OF_INDICES_IN_SHARD,
+                    "history shard exceeded NUM_OF_INDICES_IN_SHARD: {existing_len}"
+                );
+                let new_list = BlockNumberList::new_pre_sorted([block_number]);
+                cursor.upsert(make_shard_key(block_number), &new_list)?;
             }
         }
         _ => {

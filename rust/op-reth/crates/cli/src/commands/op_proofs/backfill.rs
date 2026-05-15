@@ -7,10 +7,7 @@ use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{
-    BackfillJob, OpProofsProviderRO, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
-};
+use reth_optimism_trie::{BackfillJob, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorageV2};
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
     HeaderProvider, StageCheckpointReader, StorageChangeSetReader, StorageSettingsCache,
@@ -58,11 +55,10 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
 
         match self.storage_version {
             ProofsStorageVersion::V1 => {
-                let storage: Arc<MdbxProofsStorage> = Arc::new(
-                    MdbxProofsStorage::new(&self.storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-                );
-                Self::run_backfill(&provider_factory, storage, self.target_earliest_block)?;
+                return Err(eyre::eyre!(
+                    "Backfill is not supported for V1 proofs storage. \
+                     Re-run with --proofs-history.storage-version v2."
+                ));
             }
             ProofsStorageVersion::V2 => {
                 let storage: Arc<MdbxProofsStorageV2> = Arc::new(

@@ -912,6 +912,16 @@ impl OpProofsBackfillProvider for InMemoryProofsProvider {
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut inner = self.inner.write();
+        let (earliest_number, earliest_hash) =
+            inner.earliest_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
+        if block_ref.block.hash != earliest_hash {
+            return Err(OpProofsStorageError::PrependOutOfOrder {
+                block_number: block_ref.block.number,
+                block_hash: block_ref.block.hash,
+                earliest_block_number: earliest_number,
+                earliest_block_hash: earliest_hash,
+            });
+        }
         let counts = inner.store_trie_updates(block_ref.block.number, diff);
         inner.earliest_block = Some((block_ref.block.number - 1, block_ref.parent));
         Ok(counts)

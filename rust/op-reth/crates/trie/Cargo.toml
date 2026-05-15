@@ -93,7 +93,8 @@ test-utils = [
 	"reth-revm/test-utils",
 	"reth-tasks/test-utils",
 	"reth-trie/test-utils",
-	"reth-trie-common/test-utils"
+	"reth-trie-common/test-utils",
+	"reth-trie-db/test-utils"
 ]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",
@@ -105,6 +106,7 @@ serde-bincode-compat = [
 ]
 metrics = [
 	"reth-trie/metrics",
+	"reth-trie-db/metrics",
 	"dep:reth-metrics",
 	"dep:metrics",
 	"dep:eyre",
