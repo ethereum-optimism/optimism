@@ -1994,6 +1994,12 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge+
     steps:
+      - run:
+          name: Install eatmydata and disable fsync for all subprocesses
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends eatmydata
+            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
