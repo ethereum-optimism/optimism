@@ -266,6 +266,33 @@ func TestRecoveringWindowFillGateBlocksImmediateStop(t *testing.T) {
 	}
 }
 
+func TestTransientSyncStatusFailureAfterHealthyPollStaysHealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	syncErr := errors.New("optimism_syncStatus unavailable")
+
+	rc.ExpectSyncStatus(mockSyncStatus(now, 5, now, 5), nil)
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, syncErr)
+	}
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
+}
+
+func TestInitialSyncStatusFailureStillUnhealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	rc.ExpectSyncStatus(nil, errors.New("optimism_syncStatus unavailable"))
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
+}
+
 func TestPollsInRecoveryNotResetOnSecondRegression(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}

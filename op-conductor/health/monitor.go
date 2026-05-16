@@ -102,6 +102,8 @@ type SequencerHealthMonitor struct {
 	healthUpdateCh     chan error
 	lastSeenUnsafeNum  uint64
 	lastSeenUnsafeTime uint64
+	seenSyncStatus     bool
+	syncStatusFailures uint64
 
 	timeProviderFn func() uint64
 
@@ -228,9 +230,26 @@ func (hm *SequencerHealthMonitor) checkNode(ctx context.Context) error {
 func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
-		hm.log.Error("health monitor failed to get sync status", "err", err)
+		hm.syncStatusFailures++
+		if hm.seenSyncStatus && hm.syncStatusFailures < recoveringWindowSize {
+			hm.log.Warn(
+				"health monitor temporarily failed to get sync status",
+				"err", err,
+				"consecutive_failures", hm.syncStatusFailures,
+				"failure_limit", recoveringWindowSize,
+			)
+			return nil
+		}
+		hm.log.Error(
+			"health monitor failed to get sync status",
+			"err", err,
+			"consecutive_failures", hm.syncStatusFailures,
+			"failure_limit", recoveringWindowSize,
+		)
 		return ErrSequencerConnectionDown
 	}
+	hm.seenSyncStatus = true
+	hm.syncStatusFailures = 0
 
 	now := hm.timeProviderFn()
 
