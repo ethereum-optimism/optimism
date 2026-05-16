@@ -60,7 +60,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
-    Duration disputeMaxClockDuration = Duration.wrap(3.5 days);
+    Duration disputeMaxClockDuration = Duration.wrap(6.5 days);
     address opcmAddr;
     ISuperchainConfig superchainConfig;
     bool useCustomGasToken = false;
@@ -94,7 +94,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 faultGameV2MaxGameDepth: 73,
                 faultGameV2SplitDepth: 30,
                 faultGameV2ClockExtension: 10800,
-                faultGameV2MaxClockDuration: 302400,
+                faultGameV2MaxClockDuration: 561600,
                 superchainConfigProxy: dso.superchainConfigProxy,
                 superchainProxyAdmin: dso.superchainProxyAdmin,
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),

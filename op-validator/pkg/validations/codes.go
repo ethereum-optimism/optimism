@@ -91,7 +91,7 @@ var descriptions = map[string]string{
 	"PDDG-80":  "Permissioned dispute game clock extension not set to 10800",
 	"PDDG-90":  "Permissioned dispute game split depth not set to 30",
 	"PDDG-100": "Permissioned dispute game max game depth not set to 73",
-	"PDDG-110": "Permissioned dispute game max clock duration not set to 302400",
+	"PDDG-110": "Permissioned dispute game max clock duration not set to 561600",
 	"PDDG-120": "Permissioned dispute game challenger address mismatch",
 	"PDDG-130": "Permissioned dispute game challenger address mismatch (from game implementation)",
 	"PDDG-140": "Permissioned dispute game proposer address mismatch",
@@ -107,7 +107,7 @@ var descriptions = map[string]string{
 	"PLDG-80":  "Permissionless dispute game clock extension not set to 10800",
 	"PLDG-90":  "Permissionless dispute game split depth not set to 30",
 	"PLDG-100": "Permissionless dispute game max game depth not set to 73",
-	"PLDG-110": "Permissionless dispute game max clock duration not set to 302400",
+	"PLDG-110": "Permissionless dispute game max clock duration not set to 561600",
 
 	// Delayed WETH validations (for both PDDG and PLDG)
 	"PDDG-DWETH-10": "Permissioned dispute game delayed WETH version mismatch",
@@ -158,7 +158,7 @@ var descriptions = map[string]string{
 	"CKDG-80":         "Cannon Kona dispute game clock extension not set to 10800",
 	"CKDG-90":         "Cannon Kona dispute game split depth not set to 30",
 	"CKDG-100":        "Cannon Kona dispute game max game depth not set to 73",
-	"CKDG-110":        "Cannon Kona dispute game max clock duration not set to 302400",
+	"CKDG-110":        "Cannon Kona dispute game max clock duration not set to 561600",
 	"CKDG-120":        "Cannon Kona dispute game challenger address mismatch",
 	"CKDG-VM-10":      "Cannon Kona dispute game VM version mismatch",
 	"CKDG-VM-20":      "Cannon Kona dispute game VM implementation address mismatch",

@@ -59,7 +59,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			FaultGameV2MaxGameDepth:         big.NewInt(73),
 			FaultGameV2SplitDepth:           big.NewInt(30),
 			FaultGameV2ClockExtension:       big.NewInt(10800),
-			FaultGameV2MaxClockDuration:     big.NewInt(302400),
+			FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(standard.DisputeMaxClockDuration),
 			SuperchainConfigProxy:           proxyAddress,
 			SuperchainProxyAdmin:            proxyAdminAddress,
 			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),

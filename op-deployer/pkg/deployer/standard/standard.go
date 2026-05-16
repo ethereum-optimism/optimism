@@ -21,14 +21,14 @@ const (
 	WithdrawalDelaySeconds          uint64 = 302400
 	MinProposalSizeBytes            uint64 = 126000
 	ChallengePeriodSeconds          uint64 = 86400
-	ProofMaturityDelaySeconds       uint64 = 604800
-	DisputeGameFinalityDelaySeconds uint64 = 302400
+	ProofMaturityDelaySeconds       uint64 = 43200
+	DisputeGameFinalityDelaySeconds uint64 = 43200
 	MIPSVersion                     uint64 = 8
 	DisputeGameType                 uint32 = 1 // PERMISSIONED game type
 	DisputeMaxGameDepth             uint64 = 73
 	DisputeSplitDepth               uint64 = 30
 	DisputeClockExtension           uint64 = 10800
-	DisputeMaxClockDuration         uint64 = 302400
+	DisputeMaxClockDuration         uint64 = 561600
 	Eip1559DenominatorCanyon        uint64 = 250
 	Eip1559Denominator              uint64 = 50
 	Eip1559Elasticity               uint64 = 6

@@ -298,7 +298,7 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 		DisputeMaxGameDepth:         73,
 		DisputeSplitDepth:           30,
 		DisputeClockExtension:       10800,  // 3 hours (input in seconds)
-		DisputeMaxClockDuration:     302400, // 3.5 days (input in seconds)
+		DisputeMaxClockDuration:     561600, // 6.5 days (input in seconds)
 		UseL2CM:                     r.UseL2CM,
 	}
 

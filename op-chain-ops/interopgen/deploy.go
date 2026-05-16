@@ -194,7 +194,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		FaultGameV2MaxGameDepth:         big.NewInt(73),
 		FaultGameV2SplitDepth:           big.NewInt(30),
 		FaultGameV2ClockExtension:       big.NewInt(10800),
-		FaultGameV2MaxClockDuration:     big.NewInt(302400),
+		FaultGameV2MaxClockDuration:     big.NewInt(561600),
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,

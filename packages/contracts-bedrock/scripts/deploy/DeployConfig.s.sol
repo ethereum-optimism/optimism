@@ -198,7 +198,7 @@ contract DeployConfig is Script {
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
-        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
+        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(561600));
 
         zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(1 ether));
         zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", uint256(0)));
@@ -364,13 +364,13 @@ contract DeployConfig is Script {
         faultGameMaxDepth = 73;
         faultGameSplitDepth = 30;
         faultGameClockExtension = 10800;
-        faultGameMaxClockDuration = 302400;
+        faultGameMaxClockDuration = 561600;
         faultGameWithdrawalDelay = 302400;
         preimageOracleMinProposalSize = 126000;
         preimageOracleChallengePeriod = 86400;
         systemConfigStartBlock = 0;
-        proofMaturityDelaySeconds = 604800;
-        disputeGameFinalityDelaySeconds = 302400;
+        proofMaturityDelaySeconds = 43200;
+        disputeGameFinalityDelaySeconds = 43200;
         respectedGameType = 0;
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";
@@ -386,7 +386,7 @@ contract DeployConfig is Script {
         faultGameV2MaxGameDepth = 73;
         faultGameV2SplitDepth = 30;
         faultGameV2ClockExtension = 10800;
-        faultGameV2MaxClockDuration = 302400;
+        faultGameV2MaxClockDuration = 561600;
         zkDisputeGameInitBond = 1 ether;
         zkDisputeGameMaxChallengeDuration = 604800;
         zkDisputeGameMaxProveDuration = 259200;

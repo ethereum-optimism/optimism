@@ -1337,7 +1337,7 @@ contract VerifyOPCM is Script {
     /// @return True if delay values match expected.
     function _verifyPortalDelays(IOptimismPortal2 _portal) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        uint256 expectedDelay = vm.envOr("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", uint256(604800));
+        uint256 expectedDelay = vm.envOr("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", uint256(43200));
         uint256 actualDelay = _portal.proofMaturityDelaySeconds();
 
         console.log("  Verifying PROOF_MATURITY_DELAY_SECONDS...");
@@ -1357,7 +1357,7 @@ contract VerifyOPCM is Script {
     /// @return True if delay values match expected.
     function _verifyAnchorStateRegistryDelays(IAnchorStateRegistry _asr) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        uint256 expectedDelay = vm.envOr("EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(302400));
+        uint256 expectedDelay = vm.envOr("EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS", uint256(43200));
         uint256 actualDelay = _asr.disputeGameFinalityDelaySeconds();
 
         console.log("  Verifying DISPUTE_GAME_FINALITY_DELAY_SECONDS...");

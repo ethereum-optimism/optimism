@@ -61,7 +61,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(output.faultDisputeGameImpl.splitDepth(), 30, "FaultDisputeGame splitDepth incorrect");
         assertEq(output.faultDisputeGameImpl.clockExtension().raw(), 10800, "FaultDisputeGame clockExtension incorrect");
         assertEq(
-            output.faultDisputeGameImpl.maxClockDuration().raw(), 302400, "FaultDisputeGame maxClockDuration incorrect"
+            output.faultDisputeGameImpl.maxClockDuration().raw(), 561600, "FaultDisputeGame maxClockDuration incorrect"
         );
 
         // Validate constructor args for PermissionedDisputeGame
@@ -76,7 +76,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         );
         assertEq(
             output.permissionedDisputeGameImpl.maxClockDuration().raw(),
-            302400,
+            561600,
             "PermissionedDisputeGame maxClockDuration incorrect"
         );
 
@@ -106,7 +106,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             );
             assertEq(
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
-                302400,
+                561600,
                 "SuperFaultDisputeGame maxClockDuration incorrect"
             );
 
@@ -128,7 +128,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             );
             assertEq(
                 output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                302400,
+                561600,
                 "SuperPermissionedDisputeGame maxClockDuration incorrect"
             );
         } else {
@@ -528,7 +528,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             73, // faultGameV2MaxGameDepth
             30, // faultGameV2SplitDepth
             10800, // faultGameV2ClockExtension
-            302400, // faultGameV2MaxClockDuration
+            561600, // faultGameV2MaxClockDuration
             superchainConfigProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
