@@ -29,6 +29,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
 
     error ReinitializableBase_ZeroInitVersion();
     error SystemConfig_InvalidFeatureState();
+    error SystemConfig_RenounceOwnershipDisallowed();
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);

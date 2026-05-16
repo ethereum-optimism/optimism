@@ -310,6 +310,25 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
 
 /// @title SystemConfig_SetUnsafeBlockSigner_Test
 /// @notice Test contract for SystemConfig `setUnsafeBlockSigner` function.
+contract SystemConfig_RenounceOwnership_Test is SystemConfig_TestInit {
+    /// @notice Tests that `renounceOwnership` reverts for the owner.
+    function test_renounceOwnership_reverts() external {
+        address owner_ = systemConfig.owner();
+
+        vm.expectRevert(ISystemConfig.SystemConfig_RenounceOwnershipDisallowed.selector);
+        vm.prank(owner_);
+        systemConfig.renounceOwnership();
+    }
+
+    /// @notice Tests that `renounceOwnership` still respects ownership checks.
+    function test_renounceOwnership_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.renounceOwnership();
+    }
+}
+
+/// @title SystemConfig_SetUnsafeBlockSigner_Test
+/// @notice Test contract for SystemConfig `setUnsafeBlockSigner` function.
 contract SystemConfig_SetUnsafeBlockSigner_Test is SystemConfig_TestInit {
     /// @notice Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
     function test_setUnsafeBlockSigner_notOwner_reverts() external {

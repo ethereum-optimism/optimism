@@ -173,6 +173,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         respectively.
     error SystemConfig_InvalidFeatureState();
 
+    /// @notice Thrown when attempting to renounce ownership.
+    error SystemConfig_RenounceOwnershipDisallowed();
+
     /// @notice Semantic version.
     /// @custom:semver 3.14.2
     function version() public pure virtual returns (string memory) {
@@ -339,6 +342,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Getter for the StartBlock number.
     function startBlock() external view returns (uint256 startBlock_) {
         startBlock_ = Storage.getUint(START_BLOCK_SLOT);
+    }
+
+    /// @notice Ownership of SystemConfig cannot be renounced because standard OPCM upgrades replay
+    ///         the current owner into `initialize`, which requires a non-zero owner.
+    function renounceOwnership() public view override onlyOwner {
+        revert SystemConfig_RenounceOwnershipDisallowed();
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
