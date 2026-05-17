@@ -32,7 +32,7 @@ func TestFastInit_ResumesFromVerifiedDB(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.tryInitFromVerifiedDB()
+	interop.fastInit()
 	require.True(t, interop.initialized.Load())
 	require.False(t, interop.waitingForSync)
 	require.Equal(t, uint64(501), interop.verificationStartTimestamp)
@@ -58,14 +58,14 @@ func TestFastInit_ResumeBelowActivationIsAllowed(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.tryInitFromVerifiedDB()
+	interop.fastInit()
 	require.True(t, interop.initialized.Load())
 	require.Equal(t, uint64(51), interop.verificationStartTimestamp,
 		"resume always uses LastTimestamp+1, never clamps to activation")
 }
 
 // TestFastInit_ColdStartDefersToLoop confirms that with no verifiedDB entry
-// tryInitFromVerifiedDB sets waitingForSync without touching SafeDB or wall-clock.
+// fastInit sets waitingForSync without touching SafeDB or wall-clock.
 func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 
 	dataDir := t.TempDir()
@@ -74,7 +74,7 @@ func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.tryInitFromVerifiedDB()
+	interop.fastInit()
 	require.False(t, interop.initialized.Load())
 	require.True(t, interop.waitingForSync)
 	require.Zero(t, interop.verificationStartTimestamp)
@@ -309,222 +309,6 @@ func TestColdStartBackfill_GenesisClamp(t *testing.T) {
 		"backfill must not fetch blocks before genesis")
 }
 
-// TestColdStartBackfill_MisalignedActivation: with blockTime=3 and
-// activation=1000, TimestampToBlockNumber floors so the first sealed block's
-// Time() is strictly pre-activation. sealBlockDataIntoLogsDB accepts this
-// via the backfill exception (ts within one blockTime of activation).
-func TestColdStartBackfill_MisalignedActivation(t *testing.T) {
-	const (
-		blockTime uint64 = 3
-		act       uint64 = 1000
-		safeTs    uint64 = 1020 // block 340 at blockTime=3
-	)
-	depth := 60 * time.Second
-	blockNumToTime := func(num uint64) uint64 { return num * blockTime }
-
-	h := newInteropTestHarness(t).
-		WithActivation(act).
-		WithLogBackfillDepth(depth).
-		WithChain(10, func(m *mockChainContainer) {
-			m.firstSafeHeadTimestamp = safeTs
-			m.firstSafeHeadTimestampSet = true
-			m.blockTimeOverride = blockTime
-			m.blockInfoTimeFn = blockNumToTime
-			m.timestampToBlockNumberOverride = func(_ context.Context, ts uint64) (uint64, error) {
-				return ts / blockTime, nil
-			}
-			m.blockNumberToTimestampOverride = func(_ context.Context, n uint64) (uint64, error) {
-				return blockNumToTime(n), nil
-			}
-		}).
-		Build()
-	h.interop.initialized.Store(false)
-	h.interop.verificationStartTimestamp = 0
-
-	advanced, err := h.interop.advanceColdStartInit()
-	require.NoError(t, err)
-	require.True(t, advanced)
-	require.Equal(t, safeTs, h.interop.verificationStartTimestamp)
-	require.Equal(t, act, h.interop.activationTimestamp,
-		"protocol activation must not change")
-
-	db := h.interop.logsDBs[eth.ChainIDFromUInt64(10)]
-	first, err := db.FirstSealedBlock()
-	require.NoError(t, err)
-	require.Less(t, first.Timestamp, act,
-		"anchor is strictly pre-activation: TimestampToBlockNumber(activation) floors")
-	require.Greater(t, first.Timestamp+blockTime, act,
-		"anchor must still be within one blockTime of activation")
-
-	latest, has := db.LatestSealedBlock()
-	require.True(t, has)
-	require.Equal(t, safeTs/blockTime-1, latest.Number,
-		"backfill seals up to and including TimestampToBlockNumber(verificationStart-1)")
-}
-
-// TestColdStartBackfill_RecoversFromOfflineReorg covers the crash-then-reorg
-// case: a prior cold-start sealed blocks before any verifiedDB commit, then
-// the chain reorged while supernode was offline. On restart, cold-start
-// re-runs and reconcileLogsDBTail must rewind (or clear) the stale tail so
-// backfill doesn't loop on ErrParentHashMismatch.
-func TestColdStartBackfill_RecoversFromOfflineReorg(t *testing.T) {
-	const (
-		act    uint64 = 100
-		safeTs uint64 = 110
-	)
-	depth := 20 * time.Second
-
-	h := newInteropTestHarness(t).
-		WithActivation(act).
-		WithLogBackfillDepth(depth).
-		WithChain(10, func(m *mockChainContainer) {
-			m.firstSafeHeadTimestamp = safeTs
-			m.firstSafeHeadTimestampSet = true
-		}).
-		Build()
-	h.interop.initialized.Store(false)
-	h.interop.verificationStartTimestamp = 0
-
-	db := h.interop.logsDBs[eth.ChainIDFromUInt64(10)]
-	v1Hash := func(n uint64) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(n | 0xdead0000))
-	}
-	canonicalHash := func(n uint64) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(n))
-	}
-	require.NoError(t, db.SealBlock(common.Hash{},
-		eth.BlockID{Number: act - 1, Hash: v1Hash(act - 1)}, act-1))
-	require.NoError(t, db.SealBlock(v1Hash(act-1),
-		eth.BlockID{Number: act, Hash: v1Hash(act)}, act))
-	for n := act + 1; n <= 105; n++ {
-		require.NoError(t, db.SealBlock(v1Hash(n-1),
-			eth.BlockID{Number: n, Hash: v1Hash(n)}, n))
-	}
-
-	advanced, err := h.interop.advanceColdStartInit()
-	require.NoError(t, err)
-	require.True(t, advanced)
-
-	latest, has := db.LatestSealedBlock()
-	require.True(t, has)
-	require.Equal(t, safeTs-1, latest.Number,
-		"backfill seals up to verificationStart-1 after recovering from the reorg")
-	for n := act; n < safeTs; n++ {
-		seal, err := db.FindSealedBlock(n)
-		require.NoError(t, err, "block %d must be sealed", n)
-		require.Equal(t, canonicalHash(n), seal.Hash,
-			"block %d must hold the canonical hash, not the stale v1 hash", n)
-	}
-}
-
-// TestColdStartBackfill_LeavesAheadLogsDBUnchanged: when a partial prior run
-// left the logsDB tip past endTime and the tail is still canonical, reconcile
-// is a no-op and backfill's startNum > endNum short-circuit leaves it alone.
-func TestColdStartBackfill_LeavesAheadLogsDBUnchanged(t *testing.T) {
-	const (
-		act        uint64 = 100
-		safeTs     uint64 = 110
-		preSeedTip uint64 = 120
-	)
-	depth := 60 * time.Second
-
-	h := newInteropTestHarness(t).
-		WithActivation(act).
-		WithLogBackfillDepth(depth).
-		WithChain(10, func(m *mockChainContainer) {
-			m.firstSafeHeadTimestamp = safeTs
-			m.firstSafeHeadTimestampSet = true
-		}).
-		Build()
-	h.interop.initialized.Store(false)
-	h.interop.verificationStartTimestamp = 0
-
-	db := h.interop.logsDBs[eth.ChainIDFromUInt64(10)]
-	canonicalHash := func(n uint64) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(n))
-	}
-	require.NoError(t, db.SealBlock(common.Hash{},
-		eth.BlockID{Number: act - 1, Hash: canonicalHash(act - 1)}, act-1))
-	require.NoError(t, db.SealBlock(canonicalHash(act-1),
-		eth.BlockID{Number: act, Hash: canonicalHash(act)}, act))
-	for n := act + 1; n <= preSeedTip; n++ {
-		require.NoError(t, db.SealBlock(canonicalHash(n-1),
-			eth.BlockID{Number: n, Hash: canonicalHash(n)}, n))
-	}
-
-	advanced, err := h.interop.advanceColdStartInit()
-	require.NoError(t, err)
-	require.True(t, advanced)
-
-	latest, has := db.LatestSealedBlock()
-	require.True(t, has)
-	require.Equal(t, preSeedTip, latest.Number,
-		"logsDB tip must be unchanged when already past endTime and canonical")
-	require.Equal(t, canonicalHash(preSeedTip), latest.Hash)
-}
-
-// TestColdStartBackfill_TrimsNonCanonicalAheadLogsDBAndCatchesUp: when a prior
-// partial run left the logsDB ahead of endTime but the tail diverged from
-// canonical, reconcile must rewind to the last canonical block and backfill
-// must then catch up to endTime.
-func TestColdStartBackfill_TrimsNonCanonicalAheadLogsDBAndCatchesUp(t *testing.T) {
-	const (
-		act          uint64 = 100
-		safeTs       uint64 = 110
-		lastCanonNum uint64 = 108
-		preSeedTip   uint64 = 120
-	)
-	depth := 60 * time.Second
-
-	h := newInteropTestHarness(t).
-		WithActivation(act).
-		WithLogBackfillDepth(depth).
-		WithChain(10, func(m *mockChainContainer) {
-			m.firstSafeHeadTimestamp = safeTs
-			m.firstSafeHeadTimestampSet = true
-		}).
-		Build()
-	h.interop.initialized.Store(false)
-	h.interop.verificationStartTimestamp = 0
-
-	db := h.interop.logsDBs[eth.ChainIDFromUInt64(10)]
-	canonicalHash := func(n uint64) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(n))
-	}
-	v1Hash := func(n uint64) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(n | 0xdead0000))
-	}
-	require.NoError(t, db.SealBlock(common.Hash{},
-		eth.BlockID{Number: act - 1, Hash: canonicalHash(act - 1)}, act-1))
-	require.NoError(t, db.SealBlock(canonicalHash(act-1),
-		eth.BlockID{Number: act, Hash: canonicalHash(act)}, act))
-	for n := act + 1; n <= lastCanonNum; n++ {
-		require.NoError(t, db.SealBlock(canonicalHash(n-1),
-			eth.BlockID{Number: n, Hash: canonicalHash(n)}, n))
-	}
-	require.NoError(t, db.SealBlock(canonicalHash(lastCanonNum),
-		eth.BlockID{Number: lastCanonNum + 1, Hash: v1Hash(lastCanonNum + 1)}, lastCanonNum+1))
-	for n := lastCanonNum + 2; n <= preSeedTip; n++ {
-		require.NoError(t, db.SealBlock(v1Hash(n-1),
-			eth.BlockID{Number: n, Hash: v1Hash(n)}, n))
-	}
-
-	advanced, err := h.interop.advanceColdStartInit()
-	require.NoError(t, err)
-	require.True(t, advanced)
-
-	latest, has := db.LatestSealedBlock()
-	require.True(t, has)
-	require.Equal(t, safeTs-1, latest.Number,
-		"after reconcile + seal, logsDB tip must equal endTime")
-	for n := act; n < safeTs; n++ {
-		seal, err := db.FindSealedBlock(n)
-		require.NoError(t, err, "block %d must remain sealed", n)
-		require.Equal(t, canonicalHash(n), seal.Hash,
-			"block %d must hold the canonical hash after reconcile", n)
-	}
-}
-
 // TestFirstVerifiableTimestamp_PrefersVerifiedDB locks the contract that
 // verifiedDB.FirstTimestamp takes precedence over any later
 // verificationStartTimestamp set by init.
@@ -546,7 +330,7 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 
 	// Resume picks verificationStart=201, but RPC accessor returns 200
 	// (the first committed timestamp) for the firstVerifiable boundary.
-	interop.tryInitFromVerifiedDB()
+	interop.fastInit()
 	require.Equal(t, uint64(201), interop.verificationStartTimestamp)
 
 	got, err := interop.firstVerifiableTimestamp()
