@@ -42,6 +42,9 @@ type VirtualNode interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
 	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
 	L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error)
+	// FirstSafeHeadEntry returns the lowest recorded (L1, L2 safe head) pair from SafeDB.
+	// Returns safedb.ErrNotFound when SafeDB has no entries yet.
+	FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 }
 
@@ -209,6 +212,20 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
 	return db.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
+func (v *simpleVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	db := inner.SafeDB()
+	if db == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	return db.FirstEntry(ctx)
 }
 
 // Re-exported from safedb for callers that still reference these via virtual_node.

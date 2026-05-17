@@ -353,3 +353,12 @@ func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64)
 func (m *mockSafeDBReader) ExpectL1AtSafeHead(targetL2Num uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	m.Mock.On("L1AtSafeHead", targetL2Num).Return(l1, safeHead, &err)
 }
+
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("FirstEntry")
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectFirstEntry(l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("FirstEntry").Return(l1, safeHead, &err)
+}

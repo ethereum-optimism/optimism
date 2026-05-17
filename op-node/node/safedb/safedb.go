@@ -177,6 +177,30 @@ func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {
 	}
 }
 
+func (d *SafeDB) FirstEntry(ctx context.Context) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+	if d.closed {
+		err = ErrClosed
+		return
+	}
+	iter, err := d.db.NewIterWithContext(ctx, safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return
+	}
+	defer iter.Close()
+	if valid := iter.First(); !valid {
+		err = ErrNotFound
+		return
+	}
+	val, err := iter.ValueAndErr()
+	if err != nil {
+		return
+	}
+	l1Block, safeHead, err = decodeSafeByL1BlockNum(iter.Key(), val)
+	return
+}
+
 func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
