@@ -144,10 +144,15 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 
 func (s *SyncDeriver) OnELSyncStarted() {
 	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
-	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
-	s.Log.Warn("Clearing safe head db because EL sync started")
+	// which means the safe head db will miss entries. Preserve entries up to the current
+	// pending safe head and remove anything after it to avoid returning data for the EL-sync gap.
+	resetSafeHead := eth.L2BlockRef{}
+	if s.Engine != nil {
+		resetSafeHead = s.Engine.PendingSafeL2Head()
+	}
+	s.Log.Warn("Truncating safe head db because EL sync started", "safe", resetSafeHead.ID())
 	if s.SafeHeadNotifs != nil {
-		if err := s.SafeHeadNotifs.SafeHeadReset(eth.L2BlockRef{}); err != nil {
+		if err := s.SafeHeadNotifs.SafeHeadReset(resetSafeHead); err != nil {
 			s.Log.Error("Failed to notify safe-head reset when optimistically syncing")
 		}
 	}

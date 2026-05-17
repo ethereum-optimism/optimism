@@ -98,12 +98,10 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	firstVerifiable := i.firstVerifiable
 	if !i.firstVerifiableSet {
 		var err error
-		firstVerifiable, err = i.readyFirstVerifiableTimestamp(i.ctx)
+		firstVerifiable, err = i.resolveFirstVerifiableTimestamp(i.ctx)
 		if err != nil {
 			return 0, err
 		}
-		i.firstVerifiable = firstVerifiable
-		i.firstVerifiableSet = true
 	}
 	if firstVerifiable == i.activationTimestamp {
 		return 0, nil
@@ -119,6 +117,17 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	}
 	// clamp to the activation timestamp: never backfill before activation.
 	startTime := max(idealStart, i.activationTimestamp)
+
+	if _, err := i.checkChainsReady(startTime); err != nil {
+		return 0, err
+	}
+	if endTime != startTime {
+		if _, err := i.checkChainsReady(endTime); err != nil {
+			return 0, err
+		}
+	}
+	i.firstVerifiable = firstVerifiable
+	i.firstVerifiableSet = true
 
 	// backfill every chain in parallel over [startTime, endTime]
 	errCh := make(chan error, len(i.chains))

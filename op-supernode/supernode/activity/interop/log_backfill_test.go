@@ -675,6 +675,33 @@ func TestLogBackfill_UsesLocalSafeHandoffWhenFinalizedPreActivation(t *testing.T
 	require.Zero(t, h.Mock(10).resumeCalls, "backfill must not restart VNs")
 }
 
+func TestLogBackfill_ReadinessChecksBackfillWindowNotFirstVerifiable(t *testing.T) {
+	const act = uint64(1000)
+	depth := 60 * time.Second
+
+	h := newInteropTestHarness(t).
+		WithActivation(act).
+		WithLogBackfillDepth(depth).
+		WithChain(10, func(m *mockChainContainer) {
+			m.elFinalizedHead = eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0}
+			m.elFinalizedHeadSet = true
+			m.syncStatusFull = &eth.SyncStatus{
+				CurrentL1:   eth.L1BlockRef{Number: 1, Hash: common.HexToHash("0xL1")},
+				UnsafeL2:    eth.L2BlockRef{Number: 1061, Time: 1061},
+				SafeL2:      eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123"), Time: 0},
+				LocalSafeL2: eth.L2BlockRef{Number: 1060, Hash: common.HexToHash("0xdef456"), Time: 1060},
+			}
+		}).
+		Build()
+	h.interop.ctx = context.Background()
+
+	end, err := h.interop.runLogBackfill()
+	require.NoError(t, err)
+	require.Equal(t, uint64(1060), end)
+	require.Equal(t, uint64(1060), h.Mock(10).lastRequestedTimestamp,
+		"backfill readiness must stop at endTime; firstVerifiable is intentionally one past local safe")
+}
+
 func TestLogBackfill_DoesNotPauseChainsWhileSealing(t *testing.T) {
 	const act = uint64(100)
 	cl := &callLog{}
