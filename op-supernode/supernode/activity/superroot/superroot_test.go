@@ -109,6 +109,9 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
 }
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBEmpty
+}
 func (m *mockCC) Generation() uint64 { return 0 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)

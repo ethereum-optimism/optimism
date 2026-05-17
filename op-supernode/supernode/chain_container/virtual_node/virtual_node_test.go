@@ -111,6 +111,22 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 	return entry.l1, entry.l2, nil
 }
 
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	var lowest uint64
+	first := true
+	for num := range m.entries {
+		if first || num < lowest {
+			lowest = num
+			first = false
+		}
+	}
+	entry := m.entries[lowest]
+	return entry.l1, entry.l2, nil
+}
+
 // Test helpers
 func createTestConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{

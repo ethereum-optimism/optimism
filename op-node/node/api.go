@@ -44,6 +44,9 @@ type driverClient interface {
 
 type SafeDBReader interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// FirstEntry returns the lowest recorded (L1, L2 safe head) pair.
+	// Returns ErrNotFound when no entries exist yet.
+	FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {
