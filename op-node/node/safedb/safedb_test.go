@@ -83,6 +83,64 @@ func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestFirstEntry_EmptyDatabase(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+	_, _, err = db.FirstEntry(context.Background())
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestFirstEntry_ReturnsLowestL1(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l2a := eth.L2BlockRef{Hash: common.Hash{0x02, 0xaa}, Number: 20}
+	l2b := eth.L2BlockRef{Hash: common.Hash{0x02, 0xbb}, Number: 25}
+	l1a := eth.BlockID{Hash: common.Hash{0x01, 0xaa}, Number: 100}
+	l1b := eth.BlockID{Hash: common.Hash{0x01, 0xbb}, Number: 150}
+
+	// Insert out of order to confirm we return the lowest L1 block, not the
+	// first-inserted entry.
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+
+	actualL1, actualL2, err := db.FirstEntry(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, l1a, actualL1)
+	require.Equal(t, l2a.ID(), actualL2)
+}
+
+func TestFirstEntry_StableAfterResetAhead(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l1a := eth.BlockID{Hash: common.Hash{0x01, 0xaa}, Number: 100}
+	l1b := eth.BlockID{Hash: common.Hash{0x01, 0xbb}, Number: 150}
+	l2a := eth.L2BlockRef{Hash: common.Hash{0x02, 0xaa}, Number: 20, L1Origin: l1a}
+	l2b := eth.L2BlockRef{Hash: common.Hash{0x02, 0xbb}, Number: 25, L1Origin: l1b}
+
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
+
+	// Reset to l2b truncates entries at or after l2b; the l2a entry remains
+	// and must still be the first.
+	require.NoError(t, db.SafeHeadReset(l2b))
+
+	actualL1, actualL2, err := db.FirstEntry(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, l1a, actualL1)
+	require.Equal(t, l2a.ID(), actualL2)
+}
+
 func TestTruncateOnSafeHeadReset(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	dir := t.TempDir()

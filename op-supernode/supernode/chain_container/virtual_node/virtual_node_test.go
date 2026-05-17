@@ -116,7 +116,6 @@ func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64)
 	if len(m.entries) == 0 {
 		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
 	}
-	// Find the earliest L1 (smallest L1 num) whose recorded L2 >= target.
 	type rec struct {
 		l1Num uint64
 		l1    eth.BlockID
@@ -141,6 +140,22 @@ func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64)
 		}
 	}
 	return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+}
+
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	var lowest uint64
+	first := true
+	for num := range m.entries {
+		if first || num < lowest {
+			lowest = num
+			first = false
+		}
+	}
+	entry := m.entries[lowest]
+	return entry.l1, entry.l2, nil
 }
 
 // Test helpers

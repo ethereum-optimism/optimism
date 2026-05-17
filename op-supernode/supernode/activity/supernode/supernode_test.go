@@ -114,6 +114,10 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 	return 0, nil
 }
 
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBEmpty
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSupernode_SyncStatus_Succeeds(t *testing.T) {

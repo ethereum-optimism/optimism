@@ -103,6 +103,18 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
+		// Tests in this harness exercise progressAndRecord / verify paths
+		// directly. Fake cold-start init completion so synchronous accessors
+		// don't return ErrNotStarted. With chains configured the harness
+		// matches the legacy default (one past the default safe time, =
+		// activation+1); with no chains the activation itself is the start.
+		// Dedicated cold-start-init tests bypass the harness.
+		if len(chains) > 0 {
+			h.interop.verificationStartTimestamp = h.activationTime + 1
+		} else {
+			h.interop.verificationStartTimestamp = h.activationTime
+		}
+		h.interop.initialized.Store(true)
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
 	}
 	return h
@@ -183,346 +195,6 @@ func TestInteropActivationTimestampFlagEnvVar(t *testing.T) {
 	t.Parallel()
 
 	require.Contains(t, InteropActivationTimestampFlag.GetEnvVars(), "OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP")
-}
-
-/*
-Spec: firstVerifiableTimestamp is the common interop startup readiness gate.
-
-  - If verifiedDB is initialized, it returns the first committed timestamp.
-  - It returns an error while the EL finalized head is unavailable or unset.
-  - Once ready, it returns activation when there are no chains, or one past the
-    minimum EL finalized timestamp across chains otherwise.
-  - The no-backfill startup path uses that same timestamp for its first
-    verification attempt.
-*/
-func TestFirstVerifiableTimestamp(t *testing.T) {
-	tests := []struct {
-		name    string
-		setup   func(*interopTestHarness) *interopTestHarness
-		want    uint64
-		wantErr bool
-	}{
-		{
-			name: "no chains returns activation",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).Build()
-			},
-			want: 100,
-		},
-		{
-			name: "EL finalized error blocks startup",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.elFinalizedHeadErr = errors.New("EL finalized not ready")
-					}).
-					Build()
-			},
-			wantErr: true,
-		},
-		{
-			name: "empty EL finalized response blocks startup",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.elFinalizedHeadSet = true
-					}).
-					Build()
-			},
-			wantErr: true,
-		},
-		{
-			name: "EL finalized at genesis with a real hash is accepted",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.elFinalizedHead = eth.L2BlockRef{Number: 0, Hash: common.HexToHash("0xabc123")}
-						m.elFinalizedHeadSet = true
-					}).
-					Build()
-			},
-			want: 100,
-		},
-		{
-			name: "EL finalized before activation returns activation",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 99, Time: 99},
-							LocalSafeL2: eth.L2BlockRef{Number: 99, Time: 99},
-						}
-					}).
-					Build()
-			},
-			want: 100,
-		},
-		{
-			name: "EL finalized at activation returns timestamp after activation",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 100, Time: 100},
-							LocalSafeL2: eth.L2BlockRef{Number: 100, Time: 100},
-						}
-					}).
-					Build()
-			},
-			want: 101,
-		},
-		{
-			name: "returns timestamp after minimum EL finalized across chains",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 140, Time: 140},
-							LocalSafeL2: eth.L2BlockRef{Number: 140, Time: 140},
-						}
-					}).
-					WithChain(20, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
-							LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
-						}
-					}).
-					Build()
-			},
-			want: 126,
-		},
-		{
-			name: "uses EL finalized when sync status safe is stale",
-			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.elFinalizedHead = eth.L2BlockRef{Number: 125, Time: 125}
-						m.elFinalizedHeadSet = true
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 0, Time: 100},
-							LocalSafeL2: eth.L2BlockRef{Number: 200, Time: 200},
-						}
-					}).
-					Build()
-			},
-			want: 126,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropTestHarness(t)
-			tc.setup(h)
-
-			got, err := h.interop.firstVerifiableTimestamp(context.Background())
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
-func TestReadyFirstVerifiableTimestamp(t *testing.T) {
-	tests := []struct {
-		name      string
-		configure func(*mockChainContainer)
-		want      uint64
-		wantErr   error
-	}{
-		{
-			name: "probes optimistic data at selected timestamp",
-			configure: func(m *mockChainContainer) {
-				m.syncStatusFull = &eth.SyncStatus{
-					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
-					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
-				}
-			},
-			want: 126,
-		},
-		{
-			name: "optimistic not found leaves startup unresolved",
-			configure: func(m *mockChainContainer) {
-				m.syncStatusFull = &eth.SyncStatus{
-					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
-					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
-				}
-				m.optimisticAtErr = ethereum.NotFound
-			},
-			wantErr: ethereum.NotFound,
-		},
-		{
-			name: "history unavailable surfaces permanent gap",
-			configure: func(m *mockChainContainer) {
-				m.syncStatusFull = &eth.SyncStatus{
-					SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
-					LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
-				}
-				m.optimisticAtErr = cc.ErrHistoryUnavailable
-			},
-			wantErr: cc.ErrHistoryUnavailable,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newInteropTestHarness(t).
-				WithActivation(100).
-				WithChain(10, tc.configure).
-				Build()
-
-			got, err := h.interop.readyFirstVerifiableTimestamp(context.Background())
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
-			require.Equal(t, int32(1), h.Mock(10).callsCompleted.Load())
-			require.Equal(t, tc.want, h.Mock(10).lastRequestedTimestamp)
-		})
-	}
-}
-
-func TestStartWithoutBackfillUsesFirstVerifiableTimestamp(t *testing.T) {
-	const activation = uint64(100)
-	const safe = uint64(125)
-
-	h := newInteropTestHarness(t).
-		WithActivation(activation).
-		WithChain(10, func(m *mockChainContainer) {
-			m.syncStatusFull = &eth.SyncStatus{
-				SafeL2:      eth.L2BlockRef{Number: safe, Time: safe},
-				LocalSafeL2: eth.L2BlockRef{Number: safe, Time: safe},
-			}
-		}).
-		Build()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	verifiedTS := make(chan uint64, 1)
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
-		verifiedTS <- ts
-		cancel()
-		return Result{}, nil
-	}
-
-	done := make(chan error, 1)
-	go func() { done <- h.interop.Start(ctx) }()
-
-	select {
-	case ts := <-verifiedTS:
-		require.Equal(t, safe+1, ts)
-	case <-time.After(5 * time.Second):
-		t.Fatal("interop did not attempt verification")
-	}
-
-	require.ErrorIs(t, <-done, context.Canceled)
-}
-
-// Warm restart with no backfill must resume from verifiedDB without consulting
-// EL finalized.
-func TestStartWithoutBackfillResumesFromVerifiedDBIgnoringELFinalized(t *testing.T) {
-	const (
-		activation   uint64 = 100
-		lastVerified uint64 = 195
-	)
-
-	var elFinalizedCalls atomic.Int32
-	h := newInteropTestHarness(t).
-		WithActivation(activation).
-		WithChain(10, func(m *mockChainContainer) {
-			m.elFinalizedHeadOverride = func() (eth.L2BlockRef, error) {
-				elFinalizedCalls.Add(1)
-				return eth.L2BlockRef{Number: 190, Time: 190}, nil
-			}
-			m.syncStatusFull = &eth.SyncStatus{
-				SafeL2:      eth.L2BlockRef{Number: 200, Time: 200},
-				LocalSafeL2: eth.L2BlockRef{Number: 200, Time: 200},
-			}
-		}).
-		Build()
-
-	chain10 := h.Mock(10)
-	for ts := activation + 1; ts <= lastVerified; ts++ {
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
-			Timestamp:   ts,
-			L1Inclusion: eth.BlockID{Number: 1, Hash: common.HexToHash("0xL1")},
-			L2Heads:     map[eth.ChainID]eth.BlockID{chain10.id: {Number: ts, Hash: common.BigToHash(new(big.Int).SetUint64(ts))}},
-		}))
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	verifiedTS := make(chan uint64, 1)
-	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
-		verifiedTS <- ts
-		cancel()
-		return Result{}, nil
-	}
-
-	done := make(chan error, 1)
-	go func() { done <- h.interop.Start(ctx) }()
-
-	select {
-	case ts := <-verifiedTS:
-		require.Equal(t, lastVerified+1, ts,
-			"startup must resume verification at verifiedDB.LastTimestamp+1, not gate on EL finalized")
-	case <-time.After(5 * time.Second):
-		t.Fatal("interop did not start verifying despite initialized verifiedDB")
-	}
-
-	require.ErrorIs(t, <-done, context.Canceled)
-	require.Zero(t, elFinalizedCalls.Load(),
-		"warm-restart startup must not consult EL finalized when verifiedDB is initialized")
-}
-
-func TestStartWithBackfillRunsBeforeSafeDBReadyCheck(t *testing.T) {
-	const activation = uint64(100)
-	const safe = uint64(125)
-
-	h := newInteropTestHarness(t).
-		WithActivation(activation).
-		WithLogBackfillDepth(5*time.Second).
-		WithChain(10, func(m *mockChainContainer) {
-			m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-			m.syncStatusFull = &eth.SyncStatus{
-				SafeL2:      eth.L2BlockRef{Number: safe, Time: safe},
-				LocalSafeL2: eth.L2BlockRef{Number: safe, Time: safe},
-			}
-			m.optimisticAtErr = cc.ErrHistoryUnavailable
-		}).
-		Build()
-
-	done := make(chan error, 1)
-	go func() { done <- h.interop.Start(context.Background()) }()
-
-	var err error
-	select {
-	case err = <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("interop did not halt after post-backfill SafeDB readiness failure")
-	}
-	require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
-	require.Equal(t, int32(1), h.interop.BackfillAttempts())
-	require.Equal(t, safe, h.interop.BackfillEndTimestamp())
-
-	first, err := h.interop.FirstSealedBlock(eth.ChainIDFromUInt64(10))
-	require.NoError(t, err)
-	// The first real backfilled block is 120, and the logs DB records its
-	// virtual parent as the first sealed block.
-	require.Equal(t, uint64(119), first.Number)
-	require.Equal(t, uint64(120), first.Timestamp)
-
-	latest, ok, err := h.interop.LatestSealedBlock(eth.ChainIDFromUInt64(10))
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, safe, latest.Number)
-	require.Equal(t, safe, latest.Timestamp)
 }
 
 // =============================================================================
@@ -633,11 +305,16 @@ func TestStartStop(t *testing.T) {
 		},
 		{
 			// Permanent SafeDB gap must halt Start cleanly (no retry loop).
+			// Cold-start init completes (first safe head timestamp available),
+			// then progressAndRecord sees ErrHistoryUnavailable from
+			// OptimisticAt and halts immediately.
 			name: "Start halts when a chain reports ErrHistoryUnavailable",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
 					m.currentL1 = eth.BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 					m.blockAtTimestamp = eth.L2BlockRef{Number: 50}
+					m.firstSafeHeadTimestamp = h.activationTime
+					m.firstSafeHeadTimestampSet = true
 					m.optimisticAtErr = cc.ErrHistoryUnavailable
 				}).Build()
 			},
@@ -1138,14 +815,11 @@ func TestVerifiedAtTimestamp(t *testing.T) {
 		{
 			name: "startup handoff timestamps are verified",
 			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithActivation(100).
-					WithChain(10, func(m *mockChainContainer) {
-						m.syncStatusFull = &eth.SyncStatus{
-							SafeL2:      eth.L2BlockRef{Number: 125, Time: 125},
-							LocalSafeL2: eth.L2BlockRef{Number: 125, Time: 125},
-						}
-					}).
+				h.WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {}).
 					Build()
+				h.interop.verificationStartTimestamp = 126
+				return h
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				verified, err := h.interop.VerifiedAtTimestamp(125)
@@ -1221,15 +895,11 @@ func TestVerifiedResultAtTimestamp(t *testing.T) {
 	t.Run("post-activation but below firstVerifiable returns ErrBeforeVerifiedDB", func(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithActivation(100).
-			WithChain(10, func(m *mockChainContainer) {
-				// EL finalized time 500 -> firstVerifiable=501. ts=200 is post
-				// activation but below firstVerifiable on this node.
-				m.syncStatusFull = &eth.SyncStatus{
-					SafeL2:      eth.L2BlockRef{Number: 500, Time: 500},
-					LocalSafeL2: eth.L2BlockRef{Number: 500, Time: 500},
-				}
-			}).
+			WithChain(10, func(m *mockChainContainer) {}).
 			Build()
+		// Cold start would have picked verificationStart >= 501 once the first
+		// SafeDB entry was at L2 time 500; ts=200 is post-activation but below.
+		h.interop.verificationStartTimestamp = 501
 		_, _, err := h.interop.VerifiedResultAtTimestamp(200)
 		require.ErrorIs(t, err, ErrBeforeVerifiedDB)
 		require.NotErrorIs(t, err, ErrNotActive)
@@ -1315,14 +985,15 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	first, err := interop.firstVerifiableTimestamp(context.Background())
+	first, err := interop.firstVerifiableTimestamp()
 	require.NoError(t, err)
 	require.Equal(t, uint64(126), first)
 
-	interop.backfillEndTimestamp = 200
-	first, err = interop.firstVerifiableTimestamp(context.Background())
+	interop.verificationStartTimestamp = 201
+	interop.initialized.Store(true)
+	first, err = interop.firstVerifiableTimestamp()
 	require.NoError(t, err)
-	require.Equal(t, uint64(126), first, "persisted verifier lower bound takes precedence over restart backfill")
+	require.Equal(t, uint64(126), first, "persisted verifier lower bound takes precedence over restart resume point")
 
 	verified, err := interop.VerifiedAtTimestamp(125)
 	require.NoError(t, err)
@@ -1731,6 +1402,8 @@ func TestInterop_FullCycle(t *testing.T) {
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
+	interop.verificationStartTimestamp = 101
+	interop.initialized.Store(true)
 
 	// Verify logsDB is empty initially
 	_, hasBlocks := interop.logsDBs[mock.id].LatestSealedBlock()
@@ -2077,6 +1750,13 @@ type mockChainContainer struct {
 	// time (and per-block timestamps) through BlockNumberToTimestamp. Used
 	// by tests that exercise the genesis-clamp path in runLogBackfill.
 	blockNumberToTimestampOverride func(ctx context.Context, blocknum uint64) (uint64, error)
+
+	// firstSafeHeadTimestamp lets tests stub FirstSafeHeadTimestamp.
+	// firstSafeHeadTimestampErr defaults to chain_container.ErrSafeDBEmpty
+	// when neither field is set so the cold-start init loop keeps waiting.
+	firstSafeHeadTimestamp    uint64
+	firstSafeHeadTimestampSet bool
+	firstSafeHeadTimestampErr error
 }
 
 type invalidateBlockCall struct {
@@ -2109,6 +1789,17 @@ func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknu
 		return m.blockNumberToTimestampOverride(ctx, blocknum)
 	}
 	return 0, nil
+}
+func (m *mockChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.firstSafeHeadTimestampErr != nil {
+		return 0, m.firstSafeHeadTimestampErr
+	}
+	if m.firstSafeHeadTimestampSet {
+		return m.firstSafeHeadTimestamp, nil
+	}
+	return 0, cc.ErrSafeDBEmpty
 }
 func (m *mockChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
 	m.mu.Lock()
