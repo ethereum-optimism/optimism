@@ -187,7 +187,7 @@ func (s *Supernode) AwaitBackfillCompleted() {
 //     (the first seal is at most one block before activation; when activation
 //     is not aligned to a block boundary, the block representing the chain
 //     state as of activation is the correct pairing anchor and is sealed).
-//  2. firstSealed.Timestamp <  BackfillEndTimestamp()+1
+//  2. firstSealed.Timestamp <  FirstVerifiableTimestamp()
 //     (the post-backfill handoff happens strictly after the backfilled range)
 //  3. firstSealed.Timestamp <= max(ActivationTimestamp, latestSealed.Timestamp - depth)
 //     + blockTime                         (backfill reached ~depth back,
@@ -202,9 +202,6 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 
 	activation := ia.ActivationTimestamp()
 	backfillHandoff := ia.FirstVerifiableTimestamp()
-	if backfillEnd := ia.BackfillEndTimestamp(); backfillEnd != 0 {
-		backfillHandoff = backfillEnd + 1
-	}
 	depthSec := uint64(depth / time.Second)
 
 	for _, chainID := range chains {
