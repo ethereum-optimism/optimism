@@ -8,6 +8,7 @@ import (
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -16,22 +17,20 @@ import (
 // NewTwoL2SupernodeInteropPeerELRuntimeWithConfig builds a two-L2 interop
 // runtime where, per chain, the sequencer is a sibling op-node + op-geth pair
 // independent of the supernode, and the supernode's virtual node drives a
-// separate op-geth that catches up via consensus-layer reqresp sync from the
-// sibling sequencer CL.
+// separate op-geth that snap/full-syncs via devp2p directly from the sibling
+// sequencer EL.
 //
-// In production, the equivalent topology would have the supernode VN running
-// execution-layer sync against a sibling EL over devp2p. The in-process
-// devstack op-geth used here does not run a real EL sync protocol between
-// sibling instances, so block transport flows through the CL: the supernode
-// VN fetches unsafe payloads from the sibling sequencer CL via P2P reqresp
-// and inserts them into its EL via the engine API. The supernode VN
-// re-derives its own safeDB from L1.
+// Supernode VN configuration: NonSequencer + Sync.SyncMode = ELSync,
+// reqresp disabled, discovery disabled. The supernode does not gossip block
+// data over the CL layer; all block transport into the supernode-fronted EL
+// flows through execution-layer devp2p from the sibling sequencer EL. The
+// CL only drives the engine API with forkchoice updates.
 //
 // This topology lets a test wipe the supernode's data dir together with the
 // supernode-fronted EL while the sibling sequencer keeps producing blocks:
-// on restart, the wiped EL rebuilds chain state from the sibling via the
-// supernode VN's CL reqresp + engine-API path, and the supernode VN
-// cold-starts on top of the recovered engine.
+// on restart, the wiped EL recovers chain state from the sibling EL via
+// devp2p (after an explicit admin_addPeer), and the supernode VN cold-starts
+// on top of the recovered engine.
 //
 // Returned MultiChainRuntime convention:
 //   - Chains[<key>].EL / Chains[<key>].CL are the **sibling sequencer** pair
@@ -73,16 +72,16 @@ func NewTwoL2SupernodeInteropPeerELRuntimeWithConfig(t devtest.T, delaySeconds u
 
 	// Per chain, start two ELs with distinct P2P identities so they can
 	// devp2p-peer each other: a sequencer EL driven by the sibling CL, and
-	// a supernode-fronted EL driven by the supernode VN. The supernode EL
-	// is the one wiped by the cold-start tests; it recovers by syncing from
-	// the sibling EL.
+	// a supernode-fronted EL driven by the supernode VN.
 	sequencerELA := startL2ELForKey(t, l2ANet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 	supernodeELA := startL2ELForKey(t, l2ANet, jwtPath, jwtSecret, "supernode-el", NewELNodeIdentity(0))
 	sequencerELB := startL2ELForKey(t, l2BNet, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 	supernodeELB := startL2ELForKey(t, l2BNet, jwtPath, jwtSecret, "supernode-el", NewELNodeIdentity(0))
 
-	connectL2ELPeers(t, t.Logger(), sequencerELA.UserRPC(), supernodeELA.UserRPC(), true)
-	connectL2ELPeers(t, t.Logger(), sequencerELB.UserRPC(), supernodeELB.UserRPC(), true)
+	// Explicit devp2p peering — discovery is disabled and we only have two
+	// nodes per chain, so we rely on admin_addPeer.
+	connectL2ELPeersBidi(t, t.Logger(), sequencerELA, supernodeELA, true)
+	connectL2ELPeersBidi(t, t.Logger(), sequencerELB, supernodeELB, true)
 
 	// Sibling sequencer CLs: independent of the supernode, drive block
 	// production for their chain, batcher and proposer hook into these.
@@ -103,10 +102,12 @@ func NewTwoL2SupernodeInteropPeerELRuntimeWithConfig(t devtest.T, delaySeconds u
 		DependencySet: depSet,
 	})
 
-	// Supernode VNs configured as execution-layer-sync followers of the
-	// sibling sequencer CLs. The VN drives the supernode-fronted EL via
-	// the engine API while the EL itself snap/full-syncs over devp2p from
-	// the sibling sequencer EL.
+	// Supernode VN runs as a non-sequencer execution-layer-sync follower
+	// with reqresp and discovery disabled. CL gossip pubsub between the
+	// supernode VN and the sibling sequencer CL is left enabled so the VN
+	// learns about new heads and issues FCU/newPayload to its EL; the EL
+	// itself backfills block data over execution-layer devp2p from the
+	// sibling sequencer EL (the only EL peer).
 	supernode, l2ACLProxy, l2BCLProxy := startTwoL2SharedSupernodeWithMode(
 		t,
 		l1Net,
@@ -114,18 +115,18 @@ func NewTwoL2SupernodeInteropPeerELRuntimeWithConfig(t devtest.T, delaySeconds u
 		l1CL,
 		l2ANet,
 		supernodeELA,
-		supernodeVNMode{PeerCLSyncFollowSourceRPC: sequencerCLA.UserRPC()},
+		supernodeVNMode{NonSequencer: true, SyncMode: nodeSync.ELSync, DisableReqRespSync: true, NoDiscovery: true},
 		l2BNet,
 		supernodeELB,
-		supernodeVNMode{PeerCLSyncFollowSourceRPC: sequencerCLB.UserRPC()},
+		supernodeVNMode{NonSequencer: true, SyncMode: nodeSync.ELSync, DisableReqRespSync: true, NoDiscovery: true},
 		depSet,
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 	)
 
-	// CL P2P-peer the supernode VNs to the sibling sequencer CLs so block
-	// gossip flows promptly even before EL sync catches up.
+	// CL pubsub peering — discovery is off on the supernode VNs so we add
+	// the sibling sequencer CL as an explicit peer for block gossip.
 	connectL2CLPeers(t, t.Logger(), sequencerCLA, l2ACLProxy)
 	connectL2CLPeers(t, t.Logger(), sequencerCLB, l2BCLProxy)
 

@@ -460,27 +460,18 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 
 // supernodeVNMode configures a single supernode virtual node. The zero value
 // produces the default in-process devstack VN: a sequencer with consensus-layer
-// sync deriving directly from L1.
+// sync deriving from L1, reqresp enabled, discovery enabled.
 //
-// PeerCLSyncFollowSourceRPC switches the VN to non-sequencer mode while
-// keeping consensus-layer sync with reqresp enabled. Derivation is still
-// driven from L1, but the VN can fetch missing unsafe payloads from a peer
-// CL via P2P reqresp. This is the mode used by the peer-EL preset for the
-// startup-rework cold-start tests: when the supernode-fronted EL is wiped
-// alongside the data dir, payloads flow back into it from the surviving
-// sibling sequencer pair through the CL-layer reqresp gossip path, while
-// the supernode VN re-derives its safeDB from L1.
-//
-// True execution-layer-sync (snap/full devp2p between two ELs) is not used
-// because in-memory devstack op-geth does not run a real EL sync protocol
-// between sibling instances — block transport between the wiped EL and its
-// peer must go through the CL.
+// Setting NonSequencer (and the related toggles) lets a preset run the VN as
+// a follower for tests that need a separate sequencer pair. The peer-EL
+// preset uses NonSequencer + SyncMode=ELSync + DisableReqRespSync +
+// NoDiscovery so block transport into the supernode-fronted EL flows
+// exclusively through execution-layer devp2p from a sibling sequencer EL.
 type supernodeVNMode struct {
-	PeerCLSyncFollowSourceRPC string
-}
-
-func (m supernodeVNMode) isPeerCLSyncFollower() bool {
-	return m.PeerCLSyncFollowSourceRPC != ""
+	NonSequencer       bool
+	SyncMode           nodeSync.Mode
+	DisableReqRespSync bool
+	NoDiscovery        bool
 }
 
 func startTwoL2SharedSupernode(
@@ -522,18 +513,30 @@ func startTwoL2SharedSupernodeWithMode(
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode, mode supernodeVNMode) *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		sequencerEnabled := !mode.NonSequencer
+		enableReqRespSync := !mode.DisableReqRespSync
+		sequencerKeyHex := ""
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
-			false,
-			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			mode.NoDiscovery,
+			enableReqRespSync,
+			sequencerKeyHex,
 		)
-		sequencerEnabled := !mode.isPeerCLSyncFollower()
-		syncCfg := nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true}
+		syncMode := mode.SyncMode
+		if syncMode == 0 {
+			syncMode = nodeSync.CLSync
+		}
+		syncCfg := nodeSync.Config{
+			SyncMode:        syncMode,
+			SyncModeReqResp: enableReqRespSync,
+		}
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),

@@ -107,6 +107,13 @@ func twoL2SupernodeInteropPeerELFromRuntime(t devtest.T, runtime *sysgo.MultiCha
 	supCLADSL := dsl.NewL2CLNode(supCLA)
 	supCLBDSL := dsl.NewL2CLNode(supCLB)
 
+	// Sibling sequencer pair (kept alive across the wipe) — exposed so the
+	// test can explicitly re-peer the wiped EL after restart.
+	seqELADSL := dsl.NewL2ELNode(seqELA)
+	seqELBDSL := dsl.NewL2ELNode(seqELB)
+	seqCLADSL := dsl.NewL2CLNode(seqCLA)
+	seqCLBDSL := dsl.NewL2CLNode(seqCLB)
+
 	supernode := newSupernodeFrontend(t, "supernode-two-l2-peer-el", runtime.Supernode.UserRPC())
 	testSequencer := newTestSequencerFrontend(
 		t,
@@ -144,8 +151,10 @@ func twoL2SupernodeInteropPeerELFromRuntime(t devtest.T, runtime *sysgo.MultiCha
 			DelaySeconds:          runtime.DelaySeconds,
 			timeTravel:            runtime.TimeTravel,
 		},
-		SupernodeL2AEL: supELADSL,
-		SupernodeL2BEL: supELBDSL,
+		SequencerL2AEL: seqELADSL,
+		SequencerL2BEL: seqELBDSL,
+		SequencerL2ACL: seqCLADSL,
+		SequencerL2BCL: seqCLBDSL,
 	}
 	// Funders use the supernode-fronted ELs so that tx submission goes
 	// through the same EL the tests wipe — keeps Funder semantics aligned

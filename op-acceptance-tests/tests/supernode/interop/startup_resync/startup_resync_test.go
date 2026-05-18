@@ -80,7 +80,15 @@ func TestSupernodeResyncResumesAtActivation_PostActivation_ELWiped(gt *testing.T
 	)
 
 	activation := sys.Supernode.ActivationTimestamp()
-	sys.Supernode.RestartWithFreshDataDirAndELs(sys.SupernodeL2AEL, sys.SupernodeL2BEL)
+	sys.Supernode.RestartWithFreshDataDirAndELs(sys.L2ELA, sys.L2ELB)
+	// Discovery is off and the wipe resets every peer table — re-add the
+	// sibling sequencer pair explicitly so the supernode VN learns about
+	// new heads (CL pubsub) and its EL can backfill via execution-layer
+	// devp2p.
+	sys.L2ACL.ConnectPeer(sys.SequencerL2ACL)
+	sys.L2BCL.ConnectPeer(sys.SequencerL2BCL)
+	sys.L2ELA.PeerWith(sys.SequencerL2AEL)
+	sys.L2ELB.PeerWith(sys.SequencerL2BEL)
 	sys.Supernode.AwaitVerificationStartsAtOrAfter(activation)
 
 	dsl.CheckAll(t,
@@ -145,7 +153,11 @@ func TestSupernodeResyncSchedulesAtActivation_PreActivation_ELWiped(gt *testing.
 		sys.L2BCL.AdvancedFn(types.LocalSafe, 2, 60),
 	)
 
-	sys.Supernode.RestartWithFreshDataDirAndELs(sys.SupernodeL2AEL, sys.SupernodeL2BEL)
+	sys.Supernode.RestartWithFreshDataDirAndELs(sys.L2ELA, sys.L2ELB)
+	sys.L2ACL.ConnectPeer(sys.SequencerL2ACL)
+	sys.L2BCL.ConnectPeer(sys.SequencerL2BCL)
+	sys.L2ELA.PeerWith(sys.SequencerL2AEL)
+	sys.L2ELB.PeerWith(sys.SequencerL2BEL)
 	sys.Supernode.AwaitVerificationStartsAt(activation)
 
 	dsl.CheckAll(t,
