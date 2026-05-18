@@ -50,7 +50,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
 
     fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
         match self.read_snapshot_meta() {
-            Ok(SnapshotMeta { earliest, status: SnapshotStatus::Ready }) => Ok(earliest),
+            Ok(SnapshotMeta { anchor, status: SnapshotStatus::Ready }) => Ok(anchor),
             Ok(SnapshotMeta { status: SnapshotStatus::Building, .. }) => {
                 Err(OpProofsStorageError::SnapshotNotReady {
                     status: SnapshotInitStatus::InProgress,

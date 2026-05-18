@@ -28,11 +28,11 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotInitPro
 {
     fn snapshot_init_anchor(&self) -> OpProofsStorageResult<SnapshotInitAnchor> {
         let (block, status) = match self.read_snapshot_meta() {
-            Ok(SnapshotMeta { earliest, status: SnapshotStatus::Building }) => {
-                (Some(earliest), SnapshotInitStatus::InProgress)
+            Ok(SnapshotMeta { anchor, status: SnapshotStatus::Building }) => {
+                (Some(anchor), SnapshotInitStatus::InProgress)
             }
-            Ok(SnapshotMeta { earliest, status: SnapshotStatus::Ready }) => {
-                (Some(earliest), SnapshotInitStatus::Completed)
+            Ok(SnapshotMeta { anchor, status: SnapshotStatus::Ready }) => {
+                (Some(anchor), SnapshotInitStatus::Completed)
             }
             Err(OpProofsStorageError::SnapshotNotInitialized) => {
                 (None, SnapshotInitStatus::NotStarted)
@@ -96,11 +96,11 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotInitPro
     }
 
     fn commit_snapshot(&self) -> OpProofsStorageResult<()> {
-        let SnapshotMeta { earliest, status } = self.read_snapshot_meta()?;
+        let SnapshotMeta { anchor, status } = self.read_snapshot_meta()?;
         if status != SnapshotStatus::Building {
             return Err(OpProofsStorageError::SnapshotCommitInvalidStatus { status });
         }
-        self.write_snapshot_meta(SnapshotMeta::new(earliest, SnapshotStatus::Ready))
+        self.write_snapshot_meta(SnapshotMeta::new(anchor, SnapshotStatus::Ready))
     }
 
     fn commit(self) -> OpProofsStorageResult<()> {

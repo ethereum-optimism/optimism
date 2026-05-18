@@ -64,7 +64,7 @@ pub enum SnapshotStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotMeta {
     /// The block (number + hash) the snapshot's trie state corresponds to.
-    pub earliest: BlockNumHash,
+    pub anchor: BlockNumHash,
     /// Current lifecycle state.
     pub status: SnapshotStatus,
 }
@@ -74,8 +74,8 @@ impl SnapshotMeta {
     pub const ENCODED_LEN: usize = 1 + 8 + 32;
 
     /// Convenience constructor.
-    pub const fn new(earliest: BlockNumHash, status: SnapshotStatus) -> Self {
-        Self { earliest, status }
+    pub const fn new(anchor: BlockNumHash, status: SnapshotStatus) -> Self {
+        Self { anchor, status }
     }
 }
 
@@ -84,8 +84,8 @@ impl Compress for SnapshotMeta {
 
     fn compress_to_buf<B: BufMut + AsMut<[u8]>>(&self, buf: &mut B) {
         buf.put_u8(self.status as u8);
-        buf.put_u64(self.earliest.number);
-        buf.put_slice(self.earliest.hash.as_slice());
+        buf.put_u64(self.anchor.number);
+        buf.put_slice(self.anchor.hash.as_slice());
     }
 }
 
@@ -103,7 +103,7 @@ impl Decompress for SnapshotMeta {
             value[1..9].try_into().map_err(|_| DecompressError::new(DatabaseError::Decode))?,
         );
         let hash = B256::from_slice(&value[9..41]);
-        Ok(Self { earliest: BlockNumHash::new(number, hash), status })
+        Ok(Self { anchor: BlockNumHash::new(number, hash), status })
     }
 }
 
