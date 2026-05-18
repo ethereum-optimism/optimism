@@ -167,6 +167,8 @@ Configure the new shared instance with the flags below.
 | `--network` (`OP_CHALLENGER_NETWORK`) | `<chainA-network>,<chainB-network>` (the registry chain names; the challenger loads the depset from `superchain-registry` the same way `op-supernode` does) |
 | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | The prestate server URL validated in the preconditions |
 
+If either chain is not in `superchain-registry`, omit `--network` and instead pass each chain's rollup config and L2 genesis as comma-separated paths via `--rollup-config` (`OP_CHALLENGER_ROLLUP_CONFIG`) and `--l2-genesis` (`OP_CHALLENGER_L2_GENESIS`), plus the shared depset via `--depset-config` (`OP_CHALLENGER_DEPSET_CONFIG`).
+
 The shared instance's `--game-factory-address` is the new shared factory, which only exists once `migrate` has been broadcast. Stage the deployment now with every other flag set; the address is filled in and the process is started in [Start the Shared op-challenger and op-dispute-mon](#start-the-shared-op-challenger-and-op-dispute-mon) after the migration is verified on-chain.
 
 Leave the per-chain `op-challenger` instances unchanged for the duration of the drain window.
