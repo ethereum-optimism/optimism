@@ -46,9 +46,9 @@ type VirtualNode interface {
 	// FirstSafeHeadEntry returns the lowest recorded (L1, L2 safe head) pair from SafeDB.
 	// Returns safedb.ErrNotFound when SafeDB has no entries yet.
 	FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
-	// FirstProvableSafeHeadEntry returns the earliest recorded SafeDB pair
-	// whose L2 safe head can be resolved by L1AtSafeHead from retained history.
-	FirstProvableSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
+	// FirstProvableSafeHeadNumber returns the lowest L2 block number whose
+	// safety transition can be resolved by L1AtSafeHead from retained history.
+	FirstProvableSafeHeadNumber(ctx context.Context) (eth.BlockID, uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	IsEngineInitialELSyncing() bool
 }
@@ -234,34 +234,28 @@ func (v *simpleVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID
 	return db.FirstEntry(ctx)
 }
 
-func (v *simpleVirtualNode) FirstProvableSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+func (v *simpleVirtualNode) FirstProvableSafeHeadNumber(ctx context.Context) (eth.BlockID, uint64, error) {
 	v.mu.Lock()
 	inner := v.inner
 	v.mu.Unlock()
 	if inner == nil {
-		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+		return eth.BlockID{}, 0, ErrVirtualNodeNotRunning
 	}
 	db := inner.SafeDB()
 	if db == nil {
-		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+		return eth.BlockID{}, 0, ErrVirtualNodeNotRunning
 	}
 
-	l1, _, err := db.FirstEntry(ctx)
+	_, firstL2, err := db.FirstEntry(ctx)
 	if err != nil {
-		return eth.BlockID{}, eth.BlockID{}, err
+		return eth.BlockID{}, 0, err
 	}
-	for {
-		nextL1, nextL2, err := db.NextEntryAfter(ctx, l1.Number)
-		if err != nil {
-			return eth.BlockID{}, eth.BlockID{}, err
-		}
-		if _, err := v.L1AtSafeHead(ctx, nextL2); err == nil {
-			return nextL1, nextL2, nil
-		} else if !errors.Is(err, ErrL1AtSafeHeadNotFound) && !errors.Is(err, ErrL1AtSafeHeadUnavailable) {
-			return eth.BlockID{}, eth.BlockID{}, err
-		}
-		l1 = nextL1
+	targetNum := firstL2.Number + 1
+	l1, err := v.L1AtSafeHead(ctx, eth.BlockID{Number: targetNum})
+	if err != nil {
+		return eth.BlockID{}, 0, err
 	}
+	return l1, targetNum, nil
 }
 
 // ErrL1AtSafeHeadNotFound: transient — SafeDB hasn't observed the answer yet

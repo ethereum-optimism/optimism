@@ -450,14 +450,14 @@ func (c *simpleChainContainer) FirstProvableSafeHeadTimestamp(ctx context.Contex
 	if vn == nil {
 		return 0, virtual_node.ErrVirtualNodeNotRunning
 	}
-	_, l2, err := vn.FirstProvableSafeHeadEntry(ctx)
+	_, l2Num, err := vn.FirstProvableSafeHeadNumber(ctx)
 	if err != nil {
 		if errors.Is(err, safedb.ErrNotFound) || errors.Is(err, virtual_node.ErrL1AtSafeHeadNotFound) {
 			return 0, ErrSafeDBEmpty
 		}
 		return 0, fmt.Errorf("first provable safedb entry: %w", err)
 	}
-	return c.BlockNumberToTimestamp(ctx, l2.Number)
+	return c.BlockNumberToTimestamp(ctx, l2Num)
 }
 
 func (c *simpleChainContainer) IsEngineInitialELSyncing() bool {

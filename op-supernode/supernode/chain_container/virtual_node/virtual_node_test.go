@@ -679,7 +679,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 	})
 }
 
-func TestVirtualNode_FirstProvableSafeHeadEntry(t *testing.T) {
+func TestVirtualNode_FirstProvableSafeHeadNumber(t *testing.T) {
 	cfg := createTestConfigWithGenesis()
 	log := createTestLogger()
 	vn := NewVirtualNode(cfg, log, nil, "test")
@@ -694,27 +694,28 @@ func TestVirtualNode_FirstProvableSafeHeadEntry(t *testing.T) {
 	vn.inner = mock
 	vn.state = VNStateRunning
 
-	l1, l2, err := vn.FirstProvableSafeHeadEntry(context.Background())
+	l1, l2Num, err := vn.FirstProvableSafeHeadNumber(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(501), l1.Number)
-	require.Equal(t, uint64(110), l2.Number)
+	require.Equal(t, uint64(101), l2Num)
 }
 
-func TestVirtualNode_FirstProvableSafeHeadEntry_WaitsForSecondEntry(t *testing.T) {
+func TestVirtualNode_FirstProvableSafeHeadNumber_WaitsForSafeHeadAdvance(t *testing.T) {
 	cfg := createTestConfigWithGenesis()
 	log := createTestLogger()
 	vn := NewVirtualNode(cfg, log, nil, "test")
 
 	mockDB := newMockSafeDBReader()
 	mockDB.addEntry(500, [32]byte{0x10}, [32]byte{0x11}, 100)
+	mockDB.addEntry(501, [32]byte{0x12}, [32]byte{0x13}, 100)
 
 	mock := newMockInnerNode()
 	mock.db = mockDB
 	vn.inner = mock
 	vn.state = VNStateRunning
 
-	_, _, err := vn.FirstProvableSafeHeadEntry(context.Background())
-	require.ErrorIs(t, err, safedb.ErrNotFound)
+	_, _, err := vn.FirstProvableSafeHeadNumber(context.Background())
+	require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 }
 
 // blockingStopMock wraps mockInnerNode but blocks Stop() until explicitly released.
