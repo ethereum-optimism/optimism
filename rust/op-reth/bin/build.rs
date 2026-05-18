@@ -1,5 +1,47 @@
-// Adapted from reth [https://github.com/paradigmxyz/reth/blob/main/crates/node/core/build.rs]
-// and op-rbuilder [https://github.com/flashbots/op-rbuilder/blob/main/crates/op-rbuilder/build.rs]
+//! Build script for the `op-reth` binary crate.
+//!
+//! Adapted from [reth](https://github.com/paradigmxyz/reth/blob/main/crates/node/core/build.rs)
+//! and [op-rbuilder](https://github.com/flashbots/op-rbuilder/blob/main/crates/op-rbuilder/build.rs).
+//!
+//! This script performs three jobs at compile time:
+//!
+//! ## 1. Version override (`OP_RETH_VERSION`)
+//!
+//! If the `OP_RETH_VERSION` environment variable is set (e.g. injected as a
+//! Docker `--build-arg` during a release build), its value is used as
+//! `CARGO_PKG_VERSION` for the entire build unit.  This ensures that the
+//! version string reported by `op-reth --version` matches the published git
+//! tag (e.g. `v1.14.0`) rather than whatever semver is written in
+//! `Cargo.toml`.
+//!
+//! ## 2. Build-time metadata via `vergen`
+//!
+//! [`vergen`] is used to emit a set of `cargo:rustc-env` variables that are
+//! available to the binary at runtime through `env!(...)`:
+//!
+//! | Variable | Content |
+//! |---|---|
+//! | `VERGEN_BUILD_TIMESTAMP` | RFC 3339 timestamp of the build |
+//! | `VERGEN_CARGO_FEATURES` | Comma-separated list of active Cargo features |
+//! | `VERGEN_CARGO_TARGET_TRIPLE` | Target triple (e.g. `x86_64-unknown-linux-gnu`) |
+//! | `VERGEN_GIT_SHA` | Full 40-character commit SHA |
+//! | `VERGEN_GIT_SHA_SHORT` | First 8 characters of the commit SHA |
+//! | `VERGEN_GIT_DIRTY` | `true` when the working tree has uncommitted changes |
+//! | `VERGEN_GIT_DESCRIBE` | Output of `git describe --always --tags` |
+//!
+//! ## 3. Short version string (`RETH_SHORT_VERSION`)
+//!
+//! A human-readable short version string is assembled and exposed as
+//! `RETH_SHORT_VERSION`, for example:
+//!
+//! ```text
+//! v1.14.0 (1939939)
+//! v1.14.0-dev (1939939)
+//! ```
+//!
+//! A `-dev` suffix is appended when the working tree is dirty **or** when the
+//! current commit is not directly on a tag, unless `OP_RETH_VERSION` was
+//! explicitly provided (release builds are always treated as "on tag").
 
 use std::{env, error::Error};
 use vergen::{BuildBuilder, CargoBuilder, Emitter};
