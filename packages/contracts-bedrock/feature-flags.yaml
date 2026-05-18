@@ -1,0 +1,47 @@
+version: 1
+
+features:
+  - name: OPTIMISM_PORTAL_INTEROP
+    type: dev
+    lifecycle: active
+  - name: CANNON_KONA
+    type: dev
+    lifecycle: hardcoded-on
+  - name: DEPLOY_V2_DISPUTE_GAMES
+    type: dev
+    lifecycle: legacy
+  - name: L2CM
+    type: dev
+    lifecycle: hardcoded-on
+  - name: ZK_DISPUTE_GAME
+    type: dev
+    lifecycle: active
+  - name: SUPER_ROOT_GAMES_MIGRATION
+    type: dev
+    lifecycle: active
+  - name: ETH_LOCKBOX
+    type: sys
+    lifecycle: active
+  - name: CUSTOM_GAS_TOKEN
+    type: sys
+    lifecycle: active
+  - name: INTEROP
+    type: sys
+    lifecycle: active
+
+combinations:
+  matrix:
+    - []
+    - [CUSTOM_GAS_TOKEN]
+    - [ETH_LOCKBOX]
+    - [OPTIMISM_PORTAL_INTEROP]
+    - [OPTIMISM_PORTAL_INTEROP, ETH_LOCKBOX, INTEROP]
+    - [ZK_DISPUTE_GAME]
+    - [SUPER_ROOT_GAMES_MIGRATION]
+
+  requires:
+    CUSTOM_GAS_TOKEN: [L2CM]
+    INTEROP: [ETH_LOCKBOX, OPTIMISM_PORTAL_INTEROP]
+
+  excludes:
+    - [CUSTOM_GAS_TOKEN, INTEROP]
