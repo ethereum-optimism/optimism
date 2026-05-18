@@ -200,8 +200,6 @@ func (g *SuperCannonGameHelper) createSuperTraceProvider(ctx context.Context) su
 	prestateTimestamp, poststateTimestamp, err := g.Game.GetGameRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	prestateProvider := super.NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
-	_, err = super.NewRollupConfigsFromParsed(g.System.RollupCfgs()...)
-	require.NoError(g.T, err, "failed to create rollup configs")
 	return super.NewSuperNodeTraceProvider(logger, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 }
 

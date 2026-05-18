@@ -273,7 +273,7 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	extraData := h.createSuperGameExtraData(ctx, rootProvider, timestamp, cfg)
 	rootClaim := crypto.Keccak256Hash(extraData)
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
 	bond, err := h.Factory.InitBonds(nil, gameType)
@@ -285,24 +285,22 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 		return h.Factory.Create(opts, gameType, rootClaim, extraData)
 	})
 	h.Require.NoErrorf(err, "create fault dispute game at timestamp %v. extraData: %x", timestamp, extraData)
-	rcpt, err := wait.ForReceiptOK(ctx, h.Client, tx.Hash())
+	rcpt, err := wait.ForReceiptOK(timedCtx, h.Client, tx.Hash())
 	h.Require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
 	h.Require.NoError(err)
-	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
+	game, err := contracts.NewFaultDisputeGameContract(timedCtx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateTimestamp, poststateTimestamp, err := game.GetGameRange(ctx)
+	prestateTimestamp, poststateTimestamp, err := game.GetGameRange(timedCtx)
 	h.Require.NoError(err, "Failed to load starting block number")
-	splitDepth, err := game.GetSplitDepth(ctx)
+	splitDepth, err := game.GetSplitDepth(timedCtx)
 	h.Require.NoError(err, "Failed to load split depth")
-	l1Head := h.GetL1Head(ctx, game)
+	l1Head := h.GetL1Head(timedCtx, game)
 	h.waitForSupernodePastL1(ctx, l1Head)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
-	_, err = super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
-	require.NoError(h.T, err, "failed to create rollup configs")
 	provider := super.NewSuperNodeTraceProvider(logger, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 
 	return NewSuperCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
