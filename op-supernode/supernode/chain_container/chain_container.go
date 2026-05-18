@@ -150,10 +150,7 @@ type simpleChainContainer struct {
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
-	// verifiersMu guards writes and reads of the verifiers slice. Concurrent
-	// readers (VerifiedAt, VerifierCurrentL1s) can race with the test-only
-	// ReplaceVerifier path used by RestartInteropActivity, which swaps a
-	// verifier while the chain container is still running.
+	// verifiersMu guards writes and reads of the verifiers slice.
 	verifiersMu sync.RWMutex
 	verifiers   []activity.VerificationActivity
 	onReset     ResetCallback // Called when chain resets to notify activities
@@ -232,23 +229,6 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 	c.verifiersMu.Lock()
 	defer c.verifiersMu.Unlock()
 	c.verifiers = append(c.verifiers, v)
-}
-
-// ReplaceVerifier swaps a previously-registered verifier for a new one by
-// pointer identity. Returns true if a replacement occurred. Intended for
-// integration-test orchestration that restarts a single activity while the
-// chain container keeps running. Not part of the ChainContainer interface
-// because production code has no reason to replace verifiers.
-func (c *simpleChainContainer) ReplaceVerifier(old, new activity.VerificationActivity) bool {
-	c.verifiersMu.Lock()
-	defer c.verifiersMu.Unlock()
-	for i, v := range c.verifiers {
-		if v == old {
-			c.verifiers[i] = new
-			return true
-		}
-	}
-	return false
 }
 
 func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {

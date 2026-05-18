@@ -357,6 +357,16 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
 	}
 }
 
+// WithUniformL2BlockTimes sets the same L2 block time (in seconds) on every
+// configured L2 chain.
+func WithUniformL2BlockTimes(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithBlockTime(seconds)
+		}
+	}
+}
+
 // WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
 func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {

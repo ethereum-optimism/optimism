@@ -289,6 +289,12 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
 	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
 }
 
+// WithUniformL2BlockTimes configures the same L2 block time (in seconds) on
+// every configured L2 chain via the deployer.
+func WithUniformL2BlockTimes(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithUniformL2BlockTimes(seconds))
+}
+
 // WithInteropLogBackfillDepth configures the supernode to pre-ingest
 // initiating-message logs backward from the tip by the given duration at
 // startup. Zero disables backfill (the default).
