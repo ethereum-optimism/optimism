@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -85,6 +86,10 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	}
 	// clamp to the activation timestamp: never backfill before activation.
 	startTime := max(idealStart, i.activationTimestamp)
+	i.log.Info("log backfill starting",
+		"verification_start", firstVerifiable, "activation", i.activationTimestamp,
+		"depth", i.logBackfillDepth, "start_time", startTime, "end_time", endTime,
+		"chains", len(i.chains))
 
 	// backfill every chain in parallel over [startTime, endTime]
 	errCh := make(chan error, len(i.chains))
@@ -102,7 +107,7 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 			}
 			startNum, err := chain.TimestampToBlockNumber(i.ctx, chainStartTime)
 			if err != nil {
-				errCh <- fmt.Errorf("chain %s: timestamp to block number for start %d: %w", chain.ID(), startTime, err)
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for start %d: %w", chain.ID(), chainStartTime, err)
 				i.log.Error("log backfill: timestamp to block number for start", "chain", chain.ID(), "err", err)
 				return
 			}
@@ -112,8 +117,10 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 				i.log.Error("log backfill: timestamp to block number for end", "chain", chain.ID(), "err", err)
 				return
 			}
-			i.log.Info("log backfill: sealing logs",
-				"chain", chain.ID(), "from", startNum, "to", endNum)
+			i.log.Info("log backfill started for chain",
+				"chain", chain.ID(), "from", startNum, "to", endNum,
+				"start_time", chainStartTime, "end_time", endTime,
+				"depth", i.logBackfillDepth)
 			if err := i.backfillChain(i.ctx, chain.ID(), chain, startNum, endNum); err != nil {
 				errCh <- fmt.Errorf("chain %s: backfill: %w", chain.ID(), err)
 				return
@@ -125,10 +132,15 @@ func (i *Interop) runLogBackfill() (uint64, error) {
 	for err := range errCh {
 		return 0, err
 	}
+	i.log.Info("log backfill completed",
+		"verification_start", firstVerifiable, "start_time", startTime, "end_time", endTime,
+		"chains", len(i.chains))
 	return endTime, nil
 }
 
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
+	requestedStart := startNum
+	startedAt := time.Now()
 	db := i.logsDBs[cid]
 	// This is a startup best-effort repair for pre-existing logsDB reorg drift,
 	// separate from the normal interop observation/apply loop. It does not close
@@ -142,7 +154,17 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
+	if startNum > endNum {
+		i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(1)
+		i.log.Info("log backfill complete for chain",
+			"chain", cid, "from", requestedStart, "to", endNum,
+			"sealed", 0, "elapsed", time.Since(startedAt),
+			"already_complete", true)
+		return nil
+	}
 	totalBlocks := endNum - startNum + 1
+	nextProgressLog := 0.05
+	lastProgressLog := startedAt
 	for num := startNum; num <= endNum; num++ {
 		out, err := chain.OutputV0AtBlockNumber(ctx, num)
 		if err != nil {
@@ -161,8 +183,23 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 		if totalBlocks > 0 {
 			progress := float64(num-startNum+1) / float64(totalBlocks)
 			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
+			if progress >= nextProgressLog || progress >= 1 || time.Since(lastProgressLog) >= 30*time.Second {
+				i.log.Info("log backfill progress",
+					"chain", cid, "progress", progress,
+					"current", num, "from", startNum, "to", endNum,
+					"sealed", num-startNum+1, "total", totalBlocks,
+					"elapsed", time.Since(startedAt))
+				for nextProgressLog <= progress {
+					nextProgressLog += 0.05
+				}
+				lastProgressLog = time.Now()
+			}
 		}
 	}
+	i.log.Info("log backfill complete for chain",
+		"chain", cid, "from", startNum, "to", endNum,
+		"sealed", totalBlocks, "elapsed", time.Since(startedAt),
+		"already_complete", false)
 	return nil
 }
 
