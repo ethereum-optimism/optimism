@@ -458,6 +458,31 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	return node
 }
 
+// supernodeVNMode configures a single supernode virtual node. The zero value
+// produces the default in-process devstack VN: a sequencer with consensus-layer
+// sync deriving directly from L1.
+//
+// PeerCLSyncFollowSourceRPC switches the VN to non-sequencer mode while
+// keeping consensus-layer sync with reqresp enabled. Derivation is still
+// driven from L1, but the VN can fetch missing unsafe payloads from a peer
+// CL via P2P reqresp. This is the mode used by the peer-EL preset for the
+// startup-rework cold-start tests: when the supernode-fronted EL is wiped
+// alongside the data dir, payloads flow back into it from the surviving
+// sibling sequencer pair through the CL-layer reqresp gossip path, while
+// the supernode VN re-derives its safeDB from L1.
+//
+// True execution-layer-sync (snap/full devp2p between two ELs) is not used
+// because in-memory devstack op-geth does not run a real EL sync protocol
+// between sibling instances — block transport between the wiped EL and its
+// peer must go through the CL.
+type supernodeVNMode struct {
+	PeerCLSyncFollowSourceRPC string
+}
+
+func (m supernodeVNMode) isPeerCLSyncFollower() bool {
+	return m.PeerCLSyncFollowSourceRPC != ""
+}
+
 func startTwoL2SharedSupernode(
 	t devtest.T,
 	l1Net *L1Network,
@@ -472,9 +497,31 @@ func startTwoL2SharedSupernode(
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
+	return startTwoL2SharedSupernodeWithMode(t, l1Net, l1EL, l1CL,
+		l2ANet, l2AEL, supernodeVNMode{},
+		l2BNet, l2BEL, supernodeVNMode{},
+		depSet, interopActivationTimestamp, interopLogBackfillDepth, jwtSecret)
+}
+
+func startTwoL2SharedSupernodeWithMode(
+	t devtest.T,
+	l1Net *L1Network,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	l2ANet *L2Network,
+	l2AEL L2ELNode,
+	l2AMode supernodeVNMode,
+	l2BNet *L2Network,
+	l2BEL L2ELNode,
+	l2BMode supernodeVNMode,
+	depSet *depset.StaticConfigDependencySet,
+	interopActivationTimestamp *uint64,
+	interopLogBackfillDepth time.Duration,
+	jwtSecret [32]byte,
+) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
-	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
+	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode, mode supernodeVNMode) *opnodeconfig.Config {
 		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
 		require.NoError(err, "need p2p key for supernode virtual sequencer")
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
@@ -485,6 +532,8 @@ func startTwoL2SharedSupernode(
 			true,
 			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
 		)
+		sequencerEnabled := !mode.isPeerCLSyncFollower()
+		syncCfg := nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true}
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),
@@ -503,7 +552,7 @@ func startTwoL2SharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
@@ -511,7 +560,7 @@ func startTwoL2SharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            syncCfg,
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -523,8 +572,8 @@ func startTwoL2SharedSupernode(
 	}
 
 	vnCfgs := map[eth.ChainID]*opnodeconfig.Config{
-		l2ANet.ChainID(): makeNodeCfg(l2ANet, l2AEL),
-		l2BNet.ChainID(): makeNodeCfg(l2BNet, l2BEL),
+		l2ANet.ChainID(): makeNodeCfg(l2ANet, l2AEL, l2AMode),
+		l2BNet.ChainID(): makeNodeCfg(l2BNet, l2BEL, l2BMode),
 	}
 	chainIDs := []uint64{eth.EvilChainIDToUInt64(l2ANet.ChainID()), eth.EvilChainIDToUInt64(l2BNet.ChainID())}
 
