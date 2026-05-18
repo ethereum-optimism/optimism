@@ -43,12 +43,11 @@ func (i *Interop) BackfillAttempts() int32 {
 	return i.backfillAttempts.Load()
 }
 
-// BackfillCompleted reports whether cold-start initialization has finished
-// successfully (or was never needed because resume or future-activation
-// initialization fired). Integration tests gate assertions on downstream
-// state until this is true.
+// BackfillCompleted reports whether cold-start init has finished (backfill
+// ran, or resume skipped it). Integration tests gate downstream assertions
+// on this.
 func (i *Interop) BackfillCompleted() bool {
-	return i.backfillCompleted.Load() || (i.initialized.Load() && !i.waitingForSync)
+	return i.backfillCompleted.Load()
 }
 
 // ---------------------------------------------------------------------------
