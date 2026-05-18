@@ -193,12 +193,7 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block e
 		err = ErrNotFound
 		return
 	}
-	// Found an entry at or before the requested L1 block
-	val, err := iter.ValueAndErr()
-	if err != nil {
-		return
-	}
-	l1Block, safeHead, err = decodeSafeByL1BlockNum(iter.Key(), val)
+	l1Block, safeHead, err = decodeEntry(iter)
 	return
 }
 
