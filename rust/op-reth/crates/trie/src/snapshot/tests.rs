@@ -46,7 +46,7 @@ fn count_source_account_trie(storage: &Arc<MdbxProofsStorageV2>, target_block: u
 /// Count rows in the destination `V2AccountsTrieSnapshot` table via the
 /// snapshot reader cursor.
 fn count_snapshot_account_trie(storage: &Arc<MdbxProofsStorageV2>) -> usize {
-    let sp = storage.snapshot_provider().expect("rw");
+    let sp = storage.snapshot_provider_ro().expect("ro");
     let mut cursor = sp.snapshot_account_trie_cursor().expect("cursor");
     let mut n = 0usize;
     let mut entry = cursor.seek(Nibbles::default()).expect("seek");
@@ -87,7 +87,7 @@ fn snapshot_init_at_latest_completes_and_anchor_matches() {
     assert_eq!(dest_count, source_count, "snapshot table doesn't match source");
 
     // After completion the snapshot is Ready at `target`.
-    let sp = storage.snapshot_provider().unwrap();
+    let sp = storage.snapshot_provider_ro().unwrap();
     let anchor = sp.snapshot_anchor().expect("ready");
     assert_eq!(anchor, target);
 }
@@ -150,7 +150,7 @@ fn snapshot_init_drift_detection_aborts_run() {
     // it can't possibly match the target the job derives for `latest_num`).
     let planted_anchor = BlockNumHash::new(99, B256::repeat_byte(0xFE));
     {
-        let sp = storage.snapshot_provider().expect("rw");
+        let sp = storage.snapshot_initialization_provider().expect("init");
         sp.set_snapshot_init_anchor(planted_anchor).expect("plant");
         OpProofsSnapshotInitProvider::commit(sp).expect("commit");
     }
@@ -201,7 +201,7 @@ fn snapshot_init_clear_then_rebuild_succeeds() {
     // Drop the snapshot — status reverts to NotStarted as far as the init
     // anchor is concerned.
     {
-        let sp = storage.snapshot_provider().expect("rw");
+        let sp = storage.snapshot_provider_rw().expect("rw");
         sp.clear_snapshot().expect("clear");
         OpProofsSnapshotProviderRW::commit(sp).expect("commit");
     }

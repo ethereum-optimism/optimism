@@ -42,7 +42,7 @@ impl Decode for SnapshotMetaKey {
 /// Lifecycle status of the trie snapshot.
 ///
 /// A snapshot's invariant is that it reflects trie state at
-/// [`SnapshotMeta::earliest`]. Either it's being built and not yet
+/// [`SnapshotMeta::anchor`]. Either it's being built and not yet
 /// trustworthy ([`Self::Building`]), or it's done and reflects that block
 /// exactly ([`Self::Ready`]). If a snapshot ever falls out of sync it is
 /// dropped via
@@ -54,7 +54,7 @@ pub enum SnapshotStatus {
     /// Snapshot is being constructed by [`crate::snapshot::SnapshotInitJob`].
     /// Reads must be refused until status transitions to [`Self::Ready`].
     Building = 0,
-    /// Snapshot is consistent and reflects trie state at [`SnapshotMeta::earliest`].
+    /// Snapshot is consistent and reflects trie state at [`SnapshotMeta::anchor`].
     Ready = 1,
 }
 

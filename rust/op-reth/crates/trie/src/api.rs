@@ -440,19 +440,41 @@ pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
     fn commit(self) -> OpProofsStorageResult<()>;
 }
 
+/// Factory extension for stores that maintain a trie-state snapshot.
+///
+/// Mirrors [`OpProofsStore`]'s tx-shape pattern: three assoc-type / method
+/// pairs for the three usage modes (RO reads, per-iteration backfill writes,
+/// init-time bulk writes). The RW provider also implements
+/// [`OpProofsBackfillProvider`] so per-block `prepend_block` +
+/// `update_snapshot` share one tx.
 #[auto_impl(Arc)]
-/// Factory extension for stores that maintain a trie-state snapshot. The
-/// returned provider bundles all snapshot writer surfaces (RW + init) plus RO
-/// reads so a single tx can span init + backfill ops.
 pub trait OpProofsSnapshotStore: OpProofsStore {
-    /// Snapshot provider type; bundles RW + init writers and RO reads.
-    type SnapshotProvider<'a>: OpProofsSnapshotProviderRW
-        + OpProofsSnapshotInitProvider
-        + OpProofsProviderRO
-        + 'a
+    /// RO snapshot reader. Also implements [`OpProofsProviderRO`] so the
+    /// caller can build a hashed-leaf cursor (which reads from
+    /// `V2HashedAccounts*`, not the snapshot tables) against the same tx.
+    type SnapshotProviderRO<'a>: OpProofsSnapshotProviderRO + OpProofsProviderRO + Clone + 'a
     where
         Self: 'a;
 
-    /// Open a snapshot provider.
-    fn snapshot_provider<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProvider<'a>>;
+    /// RW per-iteration writer; pairs `update_snapshot` with the proofs-window
+    /// `prepend_block` so both commit in the same tx.
+    type SnapshotProviderRw<'a>: OpProofsSnapshotProviderRW + 'a
+    where
+        Self: 'a;
+
+    /// Init-time bulk writer (used by [`crate::snapshot::SnapshotInitJob`]).
+    type SnapshotInitializer<'a>: OpProofsSnapshotInitProvider + 'a
+    where
+        Self: 'a;
+
+    /// Open a RO snapshot provider.
+    fn snapshot_provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRO<'a>>;
+
+    /// Open a RW snapshot provider (also implements [`OpProofsBackfillProvider`]).
+    fn snapshot_provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRw<'a>>;
+
+    /// Open an init-time snapshot provider.
+    fn snapshot_initialization_provider<'a>(
+        &'a self,
+    ) -> OpProofsStorageResult<Self::SnapshotInitializer<'a>>;
 }

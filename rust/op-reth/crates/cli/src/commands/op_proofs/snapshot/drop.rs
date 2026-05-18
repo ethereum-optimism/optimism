@@ -58,7 +58,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotDropCommand<C> {
                 let storage = MdbxProofsStorageV2::new(&self.storage_path)
                     .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?;
 
-                let sp = storage.snapshot_provider()?;
+                let sp = storage.snapshot_provider_rw()?;
                 sp.clear_snapshot()?;
                 OpProofsSnapshotProviderRW::commit(sp)?;
 

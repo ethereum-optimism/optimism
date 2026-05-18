@@ -16,7 +16,7 @@ use reth_trie::{
     hashed_cursor::{HashedCursor, HashedPostStateCursorFactory},
     trie_cursor::TrieCursor,
 };
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 use tracing::info;
 
 /// Rows copied per chunked init transaction.
@@ -71,7 +71,8 @@ where
         let target = self.prepare_anchor(target_block)?;
         // Read the init anchor once: lifecycle classification uses status/block,
         // and the drain phases use the destination-table resume keys.
-        let init_anchor = self.storage.snapshot_provider()?.snapshot_init_anchor()?;
+        let init_anchor =
+            self.storage.snapshot_initialization_provider()?.snapshot_init_anchor()?;
         self.start_or_resume(target, &init_anchor)?;
 
         let expected_root = self.expected_state_root(target_block)?;
@@ -160,8 +161,9 @@ where
                 });
             }
         };
+
         if !resume {
-            let sp = self.storage.snapshot_provider()?;
+            let sp = self.storage.snapshot_initialization_provider()?;
             sp.set_snapshot_init_anchor(target)?;
             OpProofsSnapshotInitProvider::commit(sp)?;
         }
@@ -212,7 +214,7 @@ where
             }
             let n = chunk.len() as u64;
             let last_key = chunk.last().expect("non-empty").0.clone();
-            let sp = self.storage.snapshot_provider()?;
+            let sp = self.storage.snapshot_initialization_provider()?;
             sp.store_account_trie_snapshot_branches(chunk)?;
             OpProofsSnapshotInitProvider::commit(sp)?;
             copied += n;
@@ -260,7 +262,7 @@ where
                 *last_addr,
                 StoredNibbles(last_path_group.last().expect("non-empty group").0),
             );
-            let sp = self.storage.snapshot_provider()?;
+            let sp = self.storage.snapshot_initialization_provider()?;
             for (addr, nodes) in chunk {
                 sp.store_storage_trie_snapshot_branches(addr, nodes)?;
             }
@@ -282,10 +284,7 @@ where
         target_block: BlockNumber,
         expected_root: B256,
     ) -> Result<(), SnapshotError> {
-        // Both cursor factories take their provider by value, and the provider
-        // traits only `auto_impl(Arc)` (no `&T` blanket), so we share `sp` via
-        // `Arc::clone` rather than borrowing.
-        let sp = Arc::new(self.storage.snapshot_provider()?);
+        let sp = self.storage.snapshot_provider_ro()?;
         let state_sorted = HashedPostState::default().into_sorted();
         let computed_root = StateRoot::new(
             SnapshotTrieCursorFactory::new(sp.clone()),
@@ -308,7 +307,7 @@ where
 
     /// Flip status to `Ready` and commit in a final rw-tx.
     fn finalize_ready(&self) -> Result<(), SnapshotError> {
-        let sp = self.storage.snapshot_provider()?;
+        let sp = self.storage.snapshot_initialization_provider()?;
         sp.commit_snapshot()?;
         OpProofsSnapshotInitProvider::commit(sp)?;
         Ok(())

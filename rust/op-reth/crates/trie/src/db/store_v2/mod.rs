@@ -89,9 +89,21 @@ impl OpProofsStore for MdbxProofsStorageV2 {
 }
 
 impl OpProofsSnapshotStore for MdbxProofsStorageV2 {
-    type SnapshotProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+    type SnapshotProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
+    type SnapshotProviderRw<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+    type SnapshotInitializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
-    fn snapshot_provider<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProvider<'a>> {
+    fn snapshot_provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRO<'a>> {
+        Ok(Arc::new(MdbxProofsProviderV2::new(self.env.tx()?)))
+    }
+
+    fn snapshot_provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRw<'a>> {
+        Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
+    }
+
+    fn snapshot_initialization_provider<'a>(
+        &'a self,
+    ) -> OpProofsStorageResult<Self::SnapshotInitializer<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
 }
