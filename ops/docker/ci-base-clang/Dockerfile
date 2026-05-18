@@ -18,7 +18,7 @@ RUN apt-get update \
       libclang-dev \
       libsqlite3-dev \
       libtss2-dev \
-      pkg-config
+      pkg-config \
  && rm -rf /var/lib/apt/lists/*
 
 USER circleci
