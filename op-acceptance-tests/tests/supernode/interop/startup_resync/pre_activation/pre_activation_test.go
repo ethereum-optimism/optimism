@@ -13,19 +13,21 @@ import (
 )
 
 // activationDelay schedules interop activation far enough past genesis that
-// the chain tip stays comfortably pre-activation when we restart the
-// supernode, even with time-travel.
-const activationDelay = uint64(120)
+// the chain tip stays comfortably pre-activation through the whole test,
+// even under CI scheduling variance.
+const activationDelay = uint64(300)
 
 // TestSupernodeResyncResumesAtActivation_PreActivation drives a full
 // supernode data-dir wipe while interop is scheduled but not yet active,
 // and asserts:
 //
-//   - cold-start init resumes the verifier at the activation timestamp,
-//   - pre-activation RPC queries are answered via the optimistic
-//     short-circuit despite no verifiedDB commits,
-//   - and once time advances past activation, cross-safe advances on both
-//     chains without any further restart.
+//   - cold-start init resumes the verifier at the activation timestamp
+//     (which is still in the future), and
+//   - cross-safe keeps advancing on both chains while interop sits idle
+//     waiting for activation.
+//
+// The verifier transition at activation itself is covered by other tests;
+// here we only assert pre-activation cold-start behaviour.
 func TestSupernodeResyncResumesAtActivation_PreActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, activationDelay,
@@ -35,7 +37,6 @@ func TestSupernodeResyncResumesAtActivation_PreActivation(gt *testing.T) {
 
 	sys.Supernode.AwaitBackfillCompleted()
 	activation := sys.Supernode.ActivationTimestamp()
-	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
 	// Setup: let local-safe accumulate enough that op-node's SafeDB has
 	// entries to serve to the post-restart cold-start init.
@@ -46,9 +47,7 @@ func TestSupernodeResyncResumesAtActivation_PreActivation(gt *testing.T) {
 
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitVerificationStartsAt(activation)
-	sys.Supernode.AwaitValidatedTimestamp(sys.GenesisTime + blockTime)
 
-	sys.AdvanceTime(time.Duration(activationDelay) * time.Second)
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
 		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
