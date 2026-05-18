@@ -52,7 +52,6 @@ type Supernode struct {
 	supernodeMetrics *resources.SupernodeMetrics
 	// cached address when available
 	rpcAddr string
-
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
