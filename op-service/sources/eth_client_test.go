@@ -63,6 +63,37 @@ func randHash() (out common.Hash) {
 	return out
 }
 
+func TestEthClient_CallAtHash(t *testing.T) {
+	m := new(mockRPC)
+	ctx := context.Background()
+	blockHash := randHash()
+	to := common.HexToAddress("0x1234")
+	msg := ethereum.CallMsg{To: &to, Data: []byte{0xab, 0xcd}}
+	expected := hexutil.Bytes{0x01}
+
+	m.On("CallContext", ctx, mock.Anything, "eth_call", mock.MatchedBy(func(args []any) bool {
+		if len(args) != 2 {
+			return false
+		}
+		block, ok := args[1].(rpc.BlockNumberOrHash)
+		if !ok {
+			return false
+		}
+		hash, ok := block.Hash()
+		return ok && hash == blockHash
+	})).Run(func(args mock.Arguments) {
+		out := args[1].(*hexutil.Bytes)
+		*out = expected
+	}).Return([]error{nil})
+
+	s, err := NewEthClient(m, nil, nil, testEthClientConfig)
+	require.NoError(t, err)
+	out, err := s.CallAtHash(ctx, msg, blockHash)
+	require.NoError(t, err)
+	require.Equal(t, []byte(expected), out)
+	m.Mock.AssertExpectations(t)
+}
+
 func randHeader() (*types.Header, *RPCHeader) {
 	hdr := &types.Header{
 		ParentHash:  randHash(),

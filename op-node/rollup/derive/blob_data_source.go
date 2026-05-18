@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/batchconsensus"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -86,7 +87,7 @@ func (ds *BlobDataSource) open(ctx context.Context) ([]blobOrCalldata, error) {
 		return nil, NewTemporaryError(fmt.Errorf("failed to open blob data source: %w", err))
 	}
 
-	data, hashes := dataAndHashesFromTxs(txs, &ds.dsCfg, ds.batcherAddr, ds.log)
+	data, hashes := dataAndHashesFromTxs(ctx, txs, &ds.dsCfg, ds.ref.Hash, ds.batcherAddr, ds.log)
 
 	if len(hashes) == 0 {
 		// there are no blobs to fetch so we can return immediately
@@ -115,7 +116,7 @@ func (ds *BlobDataSource) open(ctx context.Context) ([]blobOrCalldata, error) {
 // dataAndHashesFromTxs extracts calldata and datahashes from the input transactions and returns them. It
 // creates a placeholder blobOrCalldata element for each returned blob hash that must be populated
 // by fillBlobPointers after blob bodies are retrieved.
-func dataAndHashesFromTxs(txs types.Transactions, config *DataSourceConfig, batcherAddr common.Address, logger log.Logger) ([]blobOrCalldata, []common.Hash) {
+func dataAndHashesFromTxs(ctx context.Context, txs types.Transactions, config *DataSourceConfig, l1BlockHash common.Hash, batcherAddr common.Address, logger log.Logger) ([]blobOrCalldata, []common.Hash) {
 	data := []blobOrCalldata{}
 	var hashes []common.Hash
 	for _, tx := range txs {
@@ -129,9 +130,12 @@ func dataAndHashesFromTxs(txs types.Transactions, config *DataSourceConfig, batc
 			data = append(data, blobOrCalldata{nil, &calldata})
 			continue
 		}
-		// handle blob batcher transactions by extracting their blob hashes, ignoring any calldata.
-		if len(tx.Data()) > 0 {
-			log.Warn("blob tx has calldata, which will be ignored", "txhash", tx.Hash())
+		if config.batchConsensusVerifierAddress != (common.Address{}) {
+			if !verifyBlobBatchConsensus(ctx, config, l1BlockHash, batcherAddr, tx, logger) {
+				continue
+			}
+		} else if len(tx.Data()) > 0 {
+			logger.Warn("blob tx has calldata, which will be ignored", "txhash", tx.Hash())
 		}
 		for _, h := range tx.BlobHashes() {
 			hashes = append(hashes, h)
@@ -139,6 +143,44 @@ func dataAndHashesFromTxs(txs types.Transactions, config *DataSourceConfig, batc
 		}
 	}
 	return data, hashes
+}
+
+func verifyBlobBatchConsensus(ctx context.Context, config *DataSourceConfig, l1BlockHash common.Hash, batcherAddr common.Address, tx *types.Transaction, logger log.Logger) bool {
+	record := func(result string) {
+		if config.metrics != nil {
+			config.metrics.RecordBatchConsensusProof(result)
+		}
+	}
+	if len(tx.Data()) == 0 {
+		logger.Warn("ignoring blob batcher tx with missing batch consensus proof", "txhash", tx.Hash(), "block", l1BlockHash)
+		record("missing")
+		return false
+	}
+	msg := ethereum.CallMsg{
+		From: batcherAddr,
+		To:   &config.batchConsensusVerifierAddress,
+		Data: tx.Data(),
+	}
+	out, err := config.batchConsensusVerificationCall.CallAtHash(ctx, msg, l1BlockHash)
+	if err != nil {
+		logger.Warn("ignoring blob batcher tx with rejected batch consensus proof", "txhash", tx.Hash(), "block", l1BlockHash, "err", err)
+		record("rejected")
+		return false
+	}
+	ok, err := batchconsensus.DecodeVerifyResult(out)
+	if err != nil {
+		logger.Warn("ignoring blob batcher tx with invalid batch consensus verifier result", "txhash", tx.Hash(), "block", l1BlockHash, "err", err)
+		record("invalid_result")
+		return false
+	}
+	if !ok {
+		logger.Warn("ignoring blob batcher tx with false batch consensus verifier result", "txhash", tx.Hash(), "block", l1BlockHash)
+		record("false")
+		return false
+	}
+	logger.Debug("accepted blob batcher tx with batch consensus proof", "txhash", tx.Hash(), "block", l1BlockHash, "blob_hashes", len(tx.BlobHashes()))
+	record("accepted")
+	return true
 }
 
 // fillBlobPointers goes back through the data array and fills in the pointers to the fetched blob

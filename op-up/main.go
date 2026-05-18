@@ -17,10 +17,13 @@ import (
 	"syscall"
 	"time"
 
+	batcher "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -69,6 +72,11 @@ var (
 		Usage:   "start a 2-chain interop devnet backed by op-supernode.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "INTEROP"),
 	}
+	batcherConsensusPOCFlag = &cli.BoolFlag{
+		Name:    "batcher-consensus-poc",
+		Usage:   "start a single-chain blob-mode devnet with the batcher consensus POC mock verifier enabled.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "BATCHER_CONSENSUS_POC"),
+	}
 )
 
 func main() {
@@ -87,7 +95,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag, batcherConsensusPOCFlag})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -98,15 +106,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name), cliCtx.Bool(batcherConsensusPOCFlag.Name))
 	}
 	app.Commands = []*cli.Command{
 		smokeCommand(),
+		batcherConsensusSmokeCommand(),
 	}
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool) error {
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool, batcherConsensusPOC bool) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
@@ -121,6 +130,9 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 	t := newTestingT(ctx, stderr, tempRoot)
 	defer t.doCleanup()
 
+	if interop && batcherConsensusPOC {
+		return fmt.Errorf("--%s cannot be combined with --%s", interopFlag.Name, batcherConsensusPOCFlag.Name)
+	}
 	if interop {
 		sys, err := newSupernodeInteropSystem(t)
 		if err != nil {
@@ -130,9 +142,12 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 			return err
 		}
 	} else {
-		sys, err := newMinimalSystem(t)
+		sys, err := newMinimalSystem(t, batcherConsensusPOC)
 		if err != nil {
 			return err
+		}
+		if batcherConsensusPOC {
+			fmt.Fprintf(stderr, "Batcher consensus POC verifier: %s\n", sysgo.DefaultBatchConsensusMockVerifierAddress)
 		}
 		if err := runSystem(ctx, stderr, sys); err != nil {
 			return err
@@ -153,7 +168,7 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	return logger
 }
 
-func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
+func newMinimalSystem(t *testingT, batcherConsensusPOC bool) (sys *presets.Minimal, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			var failure testingFailure
@@ -164,6 +179,16 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 			panic(recovered)
 		}
 	}()
+	if batcherConsensusPOC {
+		return presets.NewMinimal(t,
+			presets.WithDeployerOptions(sysgo.WithEcotoneAtGenesis),
+			presets.WithBatchConsensusMockVerifier(sysgo.DefaultBatchConsensusMockVerifierAddress),
+			presets.WithBatchConsensusCommonwareSidecar(),
+			presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
+				cfg.DataAvailabilityType = batcherFlags.BlobsType
+			}),
+		), nil
+	}
 	return presets.NewMinimal(t), nil
 }
 

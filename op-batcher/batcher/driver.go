@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/batchconsensus"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -1027,10 +1028,72 @@ func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error
 	l.Log.Info("Building Blob transaction candidate",
 		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
 	l.Metr.RecordBlobUsedBytes(lastSize)
+	txCalldata, err := l.batchConsensusCalldata(blobs)
+	if err != nil {
+		return nil, err
+	}
 	return &txmgr.TxCandidate{
-		To:    &l.RollupConfig.BatchInboxAddress,
-		Blobs: blobs,
+		To:     &l.RollupConfig.BatchInboxAddress,
+		TxData: txCalldata,
+		Blobs:  blobs,
 	}, nil
+}
+
+func (l *BatchSubmitter) batchConsensusCalldata(blobs []*eth.Blob) ([]byte, error) {
+	if l.RollupConfig.BatchConsensusVerifierAddress == (common.Address{}) {
+		return nil, nil
+	}
+	blobHashes := make([]common.Hash, 0, len(blobs))
+	for i, blob := range blobs {
+		commitment, err := blob.ComputeKZGCommitment()
+		if err != nil {
+			return nil, fmt.Errorf("computing KZG commitment for consensus proof blob %d: %w", i, err)
+		}
+		blobHashes = append(blobHashes, eth.KZGToVersionedHash(commitment))
+	}
+	batcherAddr := l.RollupConfig.Genesis.SystemConfig.BatcherAddr
+	if l.Txmgr != nil {
+		batcherAddr = l.Txmgr.From()
+	}
+	if l.Config.BatchConsensusProofEndpoint != "" {
+		req, err := batchconsensus.NewProofRequest(
+			l.RollupConfig.L1ChainID,
+			l.RollupConfig.L2ChainID,
+			l.RollupConfig.BatchInboxAddress,
+			batcherAddr,
+			blobHashes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("building batch consensus proof request: %w", err)
+		}
+		ctx := l.shutdownCtx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		var cancel context.CancelFunc
+		if l.Config.NetworkTimeout > 0 {
+			ctx, cancel = context.WithTimeout(ctx, l.Config.NetworkTimeout)
+			defer cancel()
+		}
+		proof, err := batchconsensus.FetchProof(ctx, l.Config.BatchConsensusProofEndpoint, req)
+		if err != nil {
+			return nil, fmt.Errorf("fetching batch consensus proof calldata: %w", err)
+		}
+		l.Log.Info("Attached sidecar batch consensus proof calldata to blob transaction", "proof_size", len(proof.Calldata), "certificate_size", len(proof.Certificate), "provider", proof.Provider, "num_blobs", len(blobHashes), "endpoint", l.Config.BatchConsensusProofEndpoint, "verifier", l.RollupConfig.BatchConsensusVerifierAddress)
+		return proof.Calldata, nil
+	}
+	calldata, err := batchconsensus.BuildMockVerifyCalldata(
+		l.RollupConfig.L1ChainID,
+		l.RollupConfig.L2ChainID,
+		l.RollupConfig.BatchInboxAddress,
+		batcherAddr,
+		blobHashes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("building batch consensus proof calldata: %w", err)
+	}
+	l.Log.Info("Attached batch consensus proof calldata to blob transaction", "proof_size", len(calldata), "num_blobs", len(blobHashes), "verifier", l.RollupConfig.BatchConsensusVerifierAddress)
+	return calldata, nil
 }
 
 func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {

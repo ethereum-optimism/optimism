@@ -61,6 +61,7 @@ func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2
 
 func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
 	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	applyBatchConsensusMockVerifier(cfg, l1Net, l2Net)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,
@@ -107,7 +108,25 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Batcher *L2Batcher
 	if spec.StartBatcher {
-		l2Batcher = startMinimalBatcher(t, keys, world.L2Network, l1EL, primary.CL, primary.EL, cfg.BatcherOptions...)
+		batcherOpts := cfg.BatcherOptions
+		if cfg.BatchConsensusMockProofSidecar && cfg.BatchConsensusCommonwareSidecar {
+			require.FailNow("batch consensus proof sidecars are mutually exclusive")
+		}
+		if cfg.BatchConsensusMockProofSidecar {
+			endpoint := startBatchConsensusMockProofSidecar(t, cfg.BatchConsensusMockProofValid)
+			batcherOpts = append([]BatcherOption{}, batcherOpts...)
+			batcherOpts = append(batcherOpts, func(_ ComponentTarget, cfg *bss.CLIConfig) {
+				cfg.BatchConsensusProofEndpoint = endpoint
+			})
+		}
+		if cfg.BatchConsensusCommonwareSidecar {
+			endpoint := startBatchConsensusCommonwareProofSidecar(t, cfg.BatchConsensusCommonwareValid)
+			batcherOpts = append([]BatcherOption{}, batcherOpts...)
+			batcherOpts = append(batcherOpts, func(_ ComponentTarget, cfg *bss.CLIConfig) {
+				cfg.BatchConsensusProofEndpoint = endpoint
+			})
+		}
+		l2Batcher = startMinimalBatcher(t, keys, world.L2Network, l1EL, primary.CL, primary.EL, batcherOpts...)
 	}
 
 	var l2Proposer *L2Proposer

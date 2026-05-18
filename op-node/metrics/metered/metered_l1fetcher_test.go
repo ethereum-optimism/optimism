@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -93,6 +94,18 @@ func TestDurationRecorded(t *testing.T) {
 				actualInfo, actualRcpts, err := fetcher.FetchReceipts(context.Background(), hash)
 				require.Equal(t, info, actualInfo)
 				require.Equal(t, rcpts, actualRcpts)
+				require.Equal(t, expectedErr, err)
+			},
+		},
+		{
+			method: "CallAtHash",
+			call: func(t *testing.T, fetcher *MeteredL1Fetcher, inner *testutils.MockL1Source) {
+				msg := ethereum.CallMsg{Data: []byte{0x01}}
+				expectedOut := []byte{0x02}
+				inner.ExpectCallAtHash(msg, hash, expectedOut, expectedErr)
+
+				actualOut, err := fetcher.CallAtHash(context.Background(), msg, hash)
+				require.Equal(t, expectedOut, actualOut)
 				require.Equal(t, expectedErr, err)
 			},
 		},

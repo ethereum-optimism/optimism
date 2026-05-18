@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,12 +17,15 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/batchconsensus"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,6 +186,100 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 
 	expectedFloorDataGas := uint64(21_000 + 12*10)
 	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
+}
+
+func TestBatchSubmitter_BlobTxCandidateBatchConsensusCalldata(t *testing.T) {
+	batchInbox := testutils.RandomAddress(rand.New(rand.NewSource(1)))
+	verifier := testutils.RandomAddress(rand.New(rand.NewSource(2)))
+	batcherAddr := testutils.RandomAddress(rand.New(rand.NewSource(3)))
+	bs := NewBatchSubmitter(DriverSetup{
+		Log:  testlog.Logger(t, log.LevelDebug),
+		Metr: metrics.NoopMetrics,
+		RollupConfig: &rollup.Config{
+			Genesis: rollup.Genesis{
+				SystemConfig: eth.SystemConfig{BatcherAddr: batcherAddr},
+			},
+			L1ChainID:                     big.NewInt(1),
+			L2ChainID:                     big.NewInt(2),
+			BatchInboxAddress:             batchInbox,
+			BatchConsensusVerifierAddress: verifier,
+		},
+		ChannelConfig: defaultTestChannelConfig(),
+	})
+	txdata := txData{
+		asBlob: true,
+		frames: []frameData{{
+			data: []byte{0x01, 0x02, 0x03},
+		}},
+	}
+
+	candidate, err := bs.blobTxCandidate(txdata)
+	require.NoError(t, err)
+	require.Equal(t, &batchInbox, candidate.To)
+	require.Len(t, candidate.Blobs, 1)
+	require.NotEmpty(t, candidate.TxData)
+
+	blobHashes := make([]common.Hash, 0, len(candidate.Blobs))
+	for _, blob := range candidate.Blobs {
+		commitment, err := blob.ComputeKZGCommitment()
+		require.NoError(t, err)
+		blobHashes = append(blobHashes, eth.KZGToVersionedHash(commitment))
+	}
+	expected, err := batchconsensus.BuildMockVerifyCalldata(big.NewInt(1), big.NewInt(2), batchInbox, batcherAddr, blobHashes)
+	require.NoError(t, err)
+	require.Equal(t, expected, candidate.TxData)
+}
+
+func TestBatchSubmitter_BlobTxCandidateBatchConsensusSidecar(t *testing.T) {
+	batchInbox := testutils.RandomAddress(rand.New(rand.NewSource(4)))
+	verifier := testutils.RandomAddress(rand.New(rand.NewSource(5)))
+	batcherAddr := testutils.RandomAddress(rand.New(rand.NewSource(6)))
+	expectedCalldata := []byte{0xab, 0xcd}
+	var gotReq batchconsensus.ProofRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&gotReq))
+		w.Header().Set("content-type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(batchconsensus.ProofResponse{
+			Provider:    batchconsensus.ProviderCommonwarePOC,
+			Certificate: expectedCalldata,
+			Calldata:    expectedCalldata,
+		}))
+	}))
+	defer server.Close()
+	bs := NewBatchSubmitter(DriverSetup{
+		Log:  testlog.Logger(t, log.LevelDebug),
+		Metr: metrics.NoopMetrics,
+		RollupConfig: &rollup.Config{
+			Genesis: rollup.Genesis{
+				SystemConfig: eth.SystemConfig{BatcherAddr: batcherAddr},
+			},
+			L1ChainID:                     big.NewInt(11),
+			L2ChainID:                     big.NewInt(22),
+			BatchInboxAddress:             batchInbox,
+			BatchConsensusVerifierAddress: verifier,
+		},
+		Config: BatcherConfig{
+			BatchConsensusProofEndpoint: server.URL,
+			NetworkTimeout:              time.Second,
+		},
+		ChannelConfig: defaultTestChannelConfig(),
+	})
+	txdata := txData{
+		asBlob: true,
+		frames: []frameData{{
+			data: []byte{0x04, 0x05, 0x06},
+		}},
+	}
+
+	candidate, err := bs.blobTxCandidate(txdata)
+	require.NoError(t, err)
+	require.Equal(t, expectedCalldata, candidate.TxData)
+	require.Equal(t, "11", gotReq.L1ChainID)
+	require.Equal(t, "22", gotReq.L2ChainID)
+	require.Equal(t, batchInbox, gotReq.BatchInbox)
+	require.Equal(t, batcherAddr, gotReq.Batcher)
+	require.Len(t, gotReq.BlobVersionedHashes, 1)
 }
 
 type handlerFailureMode string

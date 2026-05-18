@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -21,6 +22,7 @@ type L1Fetcher interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error)
 }
 
 type MeteredL1Fetcher struct {
@@ -66,6 +68,11 @@ func (m *MeteredL1Fetcher) InfoAndTxsByHash(ctx context.Context, hash common.Has
 func (m *MeteredL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	defer m.recordTime("FetchReceipts")()
 	return m.inner.FetchReceipts(ctx, blockHash)
+}
+
+func (m *MeteredL1Fetcher) CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error) {
+	defer m.recordTime("CallAtHash")()
+	return m.inner.CallAtHash(ctx, msg, blockHash)
 }
 
 func (m *MeteredL1Fetcher) recordTime(method string) func() {

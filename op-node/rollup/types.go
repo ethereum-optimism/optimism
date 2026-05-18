@@ -142,6 +142,8 @@ type Config struct {
 
 	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
+	// Optional L1 verifier contract for blob batcher consensus proofs.
+	BatchConsensusVerifierAddress common.Address `json:"batch_consensus_verifier_address,omitempty"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address

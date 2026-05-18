@@ -1,17 +1,21 @@
 package derive
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-service/batchconsensus"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -45,7 +49,7 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	}
 	calldataTx, _ := types.SignNewTx(privateKey, signer, txData)
 	txs := types.Transactions{calldataTx}
-	data, blobHashes := dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes := dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 1, len(data))
 	require.Equal(t, 0, len(blobHashes))
 
@@ -60,14 +64,14 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	}
 	blobTx, _ := types.SignNewTx(privateKey, signer, blobTxData)
 	txs = types.Transactions{blobTx}
-	data, blobHashes = dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes = dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 1, len(data))
 	require.Equal(t, 1, len(blobHashes))
 	require.Nil(t, data[0].calldata)
 
 	// try again with both the blob & calldata transactions and make sure both are picked up
 	txs = types.Transactions{blobTx, calldataTx}
-	data, blobHashes = dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes = dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 2, len(data))
 	require.Equal(t, 1, len(blobHashes))
 	require.NotNil(t, data[1].calldata)
@@ -75,7 +79,7 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	// make sure blob tx to the batch inbox is ignored if not signed by the batcher
 	blobTx, _ = types.SignNewTx(testutils.RandomKey(), signer, blobTxData)
 	txs = types.Transactions{blobTx}
-	data, blobHashes = dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes = dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 0, len(data))
 	require.Equal(t, 0, len(blobHashes))
 
@@ -84,7 +88,7 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	blobTxData.To = testutils.RandomAddress(rng)
 	blobTx, _ = types.SignNewTx(privateKey, signer, blobTxData)
 	txs = types.Transactions{blobTx}
-	data, blobHashes = dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes = dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 0, len(data))
 	require.Equal(t, 0, len(blobHashes))
 
@@ -98,9 +102,119 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	setCodeTx, err := types.SignNewTx(privateKey, signer, setCodeTxData)
 	require.NoError(t, err)
 	txs = types.Transactions{setCodeTx}
-	data, blobHashes = dataAndHashesFromTxs(txs, &config, batcherAddr, logger)
+	data, blobHashes = dataAndHashesFromTxs(context.Background(), txs, &config, common.Hash{}, batcherAddr, logger)
 	require.Equal(t, 0, len(data))
 	require.Equal(t, 0, len(blobHashes))
+}
+
+type mockBatchConsensusCaller struct {
+	out       []byte
+	err       error
+	calls     int
+	lastMsg   ethereum.CallMsg
+	lastBlock common.Hash
+}
+
+func (m *mockBatchConsensusCaller) CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error) {
+	m.calls++
+	m.lastMsg = msg
+	m.lastBlock = blockHash
+	return m.out, m.err
+}
+
+func TestDataAndHashesFromTxsBatchConsensusVerifier(t *testing.T) {
+	rng := rand.New(rand.NewSource(54321))
+	privateKey := testutils.InsecureRandomKey(rng)
+	publicKey, _ := privateKey.Public().(*ecdsa.PublicKey)
+	batcherAddr := crypto.PubkeyToAddress(*publicKey)
+	batchInboxAddr := testutils.RandomAddress(rng)
+	verifierAddr := testutils.RandomAddress(rng)
+	l1BlockHash := testutils.RandomHash(rng)
+	blobHash := testutils.RandomHash(rng)
+	logger := testlog.Logger(t, log.LvlInfo)
+	signer := types.NewPragueSigner(big.NewInt(100))
+
+	calldata, err := batchconsensus.BuildMockVerifyCalldata(big.NewInt(1), big.NewInt(2), batchInboxAddr, batcherAddr, []common.Hash{blobHash})
+	require.NoError(t, err)
+	blobTx, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
+		Nonce:      rng.Uint64(),
+		Gas:        2_000_000,
+		To:         batchInboxAddr,
+		Data:       calldata,
+		BlobHashes: []common.Hash{blobHash},
+	})
+	require.NoError(t, err)
+
+	abiTrue := common.LeftPadBytes([]byte{1}, 32)
+	abiFalse := make([]byte, 32)
+
+	results := []struct {
+		name           string
+		callOut        []byte
+		callErr        error
+		tx             *types.Transaction
+		expectedResult string
+		expectedHashes int
+	}{
+		{name: "accepted", callOut: abiTrue, tx: blobTx, expectedResult: "accepted", expectedHashes: 1},
+		{name: "false", callOut: abiFalse, tx: blobTx, expectedResult: "false"},
+		{name: "rejected", callErr: errors.New("execution reverted"), tx: blobTx, expectedResult: "rejected"},
+		{name: "invalid-result", callOut: []byte{0x01}, tx: blobTx, expectedResult: "invalid_result"},
+	}
+	for _, tt := range results {
+		t.Run(tt.name, func(t *testing.T) {
+			caller := &mockBatchConsensusCaller{out: tt.callOut, err: tt.callErr}
+			var metricResult string
+			config := DataSourceConfig{
+				l1Signer:                       signer,
+				batchInboxAddress:              batchInboxAddr,
+				batchConsensusVerifierAddress:  verifierAddr,
+				batchConsensusVerificationCall: caller,
+				metrics: &testutils.TestDerivationMetrics{
+					FnRecordBatchConsensusProof: func(result string) {
+						metricResult = result
+					},
+				},
+			}
+
+			data, blobHashes := dataAndHashesFromTxs(context.Background(), types.Transactions{tt.tx}, &config, l1BlockHash, batcherAddr, logger)
+			require.Equal(t, tt.expectedHashes, len(blobHashes))
+			require.Equal(t, tt.expectedHashes, len(data))
+			require.Equal(t, 1, caller.calls)
+			require.Equal(t, verifierAddr, *caller.lastMsg.To)
+			require.Equal(t, calldata, caller.lastMsg.Data)
+			require.Equal(t, l1BlockHash, caller.lastBlock)
+			require.Equal(t, tt.expectedResult, metricResult)
+		})
+	}
+
+	t.Run("missing proof", func(t *testing.T) {
+		blobTxNoData, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
+			Nonce:      rng.Uint64(),
+			Gas:        2_000_000,
+			To:         batchInboxAddr,
+			BlobHashes: []common.Hash{blobHash},
+		})
+		require.NoError(t, err)
+		caller := &mockBatchConsensusCaller{out: abiTrue}
+		var metricResult string
+		config := DataSourceConfig{
+			l1Signer:                       signer,
+			batchInboxAddress:              batchInboxAddr,
+			batchConsensusVerifierAddress:  verifierAddr,
+			batchConsensusVerificationCall: caller,
+			metrics: &testutils.TestDerivationMetrics{
+				FnRecordBatchConsensusProof: func(result string) {
+					metricResult = result
+				},
+			},
+		}
+		data, blobHashes := dataAndHashesFromTxs(context.Background(), types.Transactions{blobTxNoData}, &config, l1BlockHash, batcherAddr, logger)
+		require.Empty(t, data)
+		require.Empty(t, blobHashes)
+		require.Zero(t, caller.calls)
+		require.Equal(t, "missing", metricResult)
+	})
 }
 
 func TestFillBlobPointers(t *testing.T) {

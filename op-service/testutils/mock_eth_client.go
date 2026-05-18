@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -146,6 +147,15 @@ func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash
 
 func (m *MockEthClient) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {
 	m.Mock.On("FetchReceipts", hash).Once().Return(&info, receipts, err)
+}
+
+func (m *MockEthClient) CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error) {
+	out := m.Mock.Called(msg, blockHash)
+	return out.Get(0).([]byte), out.Error(1)
+}
+
+func (m *MockEthClient) ExpectCallAtHash(msg ethereum.CallMsg, blockHash common.Hash, out []byte, err error) {
+	m.Mock.On("CallAtHash", msg, blockHash).Once().Return(out, err)
 }
 
 func (m *MockEthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {

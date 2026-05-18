@@ -138,6 +138,11 @@ var (
 		}(),
 		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
 	}
+	BatchConsensusProofEndpointFlag = &cli.StringFlag{
+		Name:    "batch-consensus-proof-endpoint",
+		Usage:   "HTTP endpoint that returns verifier calldata for blob batch consensus proofs. If empty, the POC mock proof is used when the rollup verifier address is configured.",
+		EnvVars: prefixEnvVars("BATCH_CONSENSUS_PROOF_ENDPOINT"),
+	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
 		Usage:   "The duration between checks to determine the active sequencer endpoint.",
@@ -185,6 +190,7 @@ var optionalFlags = []cli.Flag{
 	SequencerHDPathFlag,
 	BatchTypeFlag,
 	DataAvailabilityTypeFlag,
+	BatchConsensusProofEndpointFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,6 +27,10 @@ type L1BlobsFetcher interface {
 	GetBlobsByHash(ctx context.Context, time uint64, hashes []common.Hash) ([]*eth.Blob, error)
 }
 
+type L1BatchConsensusCaller interface {
+	CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error)
+}
+
 type AltDAInputFetcher interface {
 	// GetInput fetches the input for the given commitment at the given block number from the DA storage service.
 	GetInput(ctx context.Context, l1 altda.L1Fetcher, c altda.CommitmentData, blockId eth.L1BlockRef) (eth.Data, error)
@@ -45,13 +50,23 @@ type DataSourceFactory struct {
 	blobsFetcher L1BlobsFetcher
 	altDAFetcher AltDAInputFetcher
 	ecotoneTime  *uint64
+	metrics      Metrics
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, altDAFetcher AltDAInputFetcher) *DataSourceFactory {
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, altDAFetcher AltDAInputFetcher, metrics Metrics) *DataSourceFactory {
+	var batchConsensusCaller L1BatchConsensusCaller
+	if cfg.BatchConsensusVerifierAddress != (common.Address{}) {
+		if caller, ok := fetcher.(L1BatchConsensusCaller); ok {
+			batchConsensusCaller = caller
+		}
+	}
 	config := DataSourceConfig{
-		l1Signer:          cfg.L1Signer(),
-		batchInboxAddress: cfg.BatchInboxAddress,
-		altDAEnabled:      cfg.AltDAEnabled(),
+		l1Signer:                       cfg.L1Signer(),
+		batchInboxAddress:              cfg.BatchInboxAddress,
+		batchConsensusVerifierAddress:  cfg.BatchConsensusVerifierAddress,
+		batchConsensusVerificationCall: batchConsensusCaller,
+		metrics:                        metrics,
+		altDAEnabled:                   cfg.AltDAEnabled(),
 	}
 	return &DataSourceFactory{
 		log:          log,
@@ -60,6 +75,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher,
 		blobsFetcher: blobsFetcher,
 		altDAFetcher: altDAFetcher,
 		ecotoneTime:  cfg.EcotoneTime,
+		metrics:      metrics,
 	}
 }
 
@@ -71,6 +87,9 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 	if ds.ecotoneTime != nil && ref.Time >= *ds.ecotoneTime {
 		if ds.blobsFetcher == nil {
 			return nil, NewCriticalError(fmt.Errorf("ecotone upgrade active but beacon endpoint not configured"))
+		}
+		if ds.dsCfg.batchConsensusVerifierAddress != (common.Address{}) && ds.dsCfg.batchConsensusVerificationCall == nil {
+			return nil, NewCriticalError(fmt.Errorf("batch consensus verifier configured but L1 fetcher does not support block-hash eth_call"))
 		}
 		src = NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr)
 	} else {
@@ -85,9 +104,12 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 
 // DataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
 type DataSourceConfig struct {
-	l1Signer          types.Signer
-	batchInboxAddress common.Address
-	altDAEnabled      bool
+	l1Signer                       types.Signer
+	batchInboxAddress              common.Address
+	batchConsensusVerifierAddress  common.Address
+	batchConsensusVerificationCall L1BatchConsensusCaller
+	metrics                        Metrics
+	altDAEnabled                   bool
 }
 
 // isValidBatchTx returns true if:

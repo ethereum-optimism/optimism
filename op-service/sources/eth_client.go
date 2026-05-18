@@ -593,6 +593,17 @@ func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber 
 	return hex, nil
 }
 
+// CallAtHash executes a message call transaction against the state at the given block hash.
+func (s *EthClient) CallAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash) ([]byte, error) {
+	var hex hexutil.Bytes
+	block := rpc.BlockNumberOrHashWithHash(blockHash, false)
+	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), block)
+	if err != nil {
+		return nil, err
+	}
+	return hex, nil
+}
+
 // EstimateGas tries to estimate the gas needed to execute a specific transaction.
 func (s *EthClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
 	var hex hexutil.Uint64

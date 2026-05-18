@@ -6,6 +6,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type Option interface {
@@ -99,6 +100,60 @@ func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
 		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.DeployerOptions = append(cfg.DeployerOptions, opts...)
+		},
+	}
+}
+
+// WithBatchConsensusMockVerifier configures the sysgo world with an L1 verifier
+// contract for the batcher consensus POC.
+func WithBatchConsensusMockVerifier(addr common.Address) Option {
+	return WithBatchConsensusMockVerifierResult(addr, true)
+}
+
+// WithBatchConsensusMockVerifierResult configures the sysgo world with a mock L1
+// verifier contract that can accept or reject proofs.
+func WithBatchConsensusMockVerifierResult(addr common.Address, accept bool) Option {
+	return option{
+		kinds: optionKindDeployer,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.BatchConsensusMockVerifierAddress = &addr
+			cfg.BatchConsensusMockVerifierAccept = accept
+		},
+	}
+}
+
+// WithBatchConsensusMockProofSidecar starts a devstack-local proof sidecar using
+// the same HTTP protocol expected by op-batcher.
+func WithBatchConsensusMockProofSidecar() Option {
+	return WithBatchConsensusMockProofSidecarResult(true)
+}
+
+// WithBatchConsensusMockProofSidecarResult starts a devstack-local proof sidecar
+// that can deliberately return invalid signature-shaped proof calldata.
+func WithBatchConsensusMockProofSidecarResult(valid bool) Option {
+	return option{
+		kinds: optionKindBatcher,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.BatchConsensusMockProofSidecar = true
+			cfg.BatchConsensusMockProofValid = valid
+		},
+	}
+}
+
+// WithBatchConsensusCommonwareSidecar starts the Rust Commonware-backed proof
+// sidecar and points op-batcher at its HTTP endpoint.
+func WithBatchConsensusCommonwareSidecar() Option {
+	return WithBatchConsensusCommonwareSidecarResult(true)
+}
+
+// WithBatchConsensusCommonwareSidecarResult starts the Rust Commonware-backed
+// proof sidecar and can deliberately return invalid verifier calldata.
+func WithBatchConsensusCommonwareSidecarResult(valid bool) Option {
+	return option{
+		kinds: optionKindBatcher,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.BatchConsensusCommonwareSidecar = true
+			cfg.BatchConsensusCommonwareValid = valid
 		},
 	}
 }

@@ -45,6 +45,7 @@ type Metricer interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordDerivedBatches(batchType string)
+	RecordBatchConsensusProof(result string)
 	CountSequencedTxsInBlock(txns int, deposits int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
@@ -98,7 +99,8 @@ type Metrics struct {
 
 	*event.EventMetricsTracker
 
-	DerivedBatches metrics.EventVec
+	DerivedBatches       metrics.EventVec
+	BatchConsensusProofs metrics.EventVec
 
 	P2PReqDurationSeconds *prometheus.HistogramVec
 	P2PReqTotal           *prometheus.CounterVec
@@ -219,7 +221,8 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		}),
 		EventMetricsTracker: event.NewMetricsTracker(ns, factory),
 
-		DerivedBatches: metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
+		DerivedBatches:       metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
+		BatchConsensusProofs: metrics.NewEventVec(factory, ns, "", "batch_consensus_proofs", "batch consensus proof verification results", []string{"result"}),
 
 		SequencerInconsistentL1Origin: metrics.NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
 		SequencerResets:               metrics.NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
@@ -472,6 +475,10 @@ func (m *Metrics) RecordDerivedBatches(batchType string) {
 	m.DerivedBatches.Record(batchType)
 }
 
+func (m *Metrics) RecordBatchConsensusProof(result string) {
+	m.BatchConsensusProofs.Record(result)
+}
+
 func (m *Metrics) CountSequencedTxsInBlock(txns int, deposits int) {
 	m.TransactionsSequencedTotal.WithLabelValues("deposits").Add(float64(deposits))
 	m.TransactionsSequencedTotal.WithLabelValues("txns").Add(float64(txns - deposits))
@@ -689,6 +696,9 @@ func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64,
 }
 
 func (n *noopMetricer) RecordDerivedBatches(batchType string) {
+}
+
+func (n *noopMetricer) RecordBatchConsensusProof(result string) {
 }
 
 func (n *noopMetricer) CountSequencedTxsInBlock(txns int, deposits int) {

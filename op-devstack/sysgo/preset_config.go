@@ -5,6 +5,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type PreGenesisSuperGameConfig struct {
@@ -36,6 +37,14 @@ type PresetConfig struct {
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
+	// BatchConsensusMockVerifierAddress, if set, installs a mock verifier into L1
+	// genesis and configures L2 rollup config to require it for blob batches.
+	BatchConsensusMockVerifierAddress *common.Address
+	BatchConsensusMockVerifierAccept  bool
+	BatchConsensusMockProofSidecar    bool
+	BatchConsensusMockProofValid      bool
+	BatchConsensusCommonwareSidecar   bool
+	BatchConsensusCommonwareValid     bool
 }
 
 func NewPresetConfig() PresetConfig {

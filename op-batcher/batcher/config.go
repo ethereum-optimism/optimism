@@ -137,6 +137,10 @@ type CLIConfig struct {
 	// for choosing the most economic type dynamically at the start of each channel.
 	DataAvailabilityType flags.DataAvailabilityType
 
+	// BatchConsensusProofEndpoint is an optional HTTP endpoint that returns verifier calldata
+	// for blob batch consensus proofs.
+	BatchConsensusProofEndpoint string
+
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
@@ -241,6 +245,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		BatchConsensusProofEndpoint:  ctx.String(flags.BatchConsensusProofEndpointFlag.Name),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		LogConfig:                    oplog.ReadCLIConfig(ctx),

@@ -25,6 +25,7 @@ type Metrics interface {
 	RecordChannelTimedOut()
 	RecordFrame()
 	RecordDerivedBatches(batchType string)
+	RecordBatchConsensusProof(result string)
 	SetDerivationIdle(idle bool)
 	RecordPipelineReset()
 }
@@ -35,6 +36,7 @@ type L1Fetcher interface {
 	L1BlockRefByHashFetcher
 	L1ReceiptsFetcher
 	L1TransactionFetcher
+	L1BatchConsensusCaller
 }
 
 type ResettableStage interface {
@@ -109,7 +111,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet Depe
 	} else {
 		l1Traversal = NewL1Traversal(log, rollupCfg, l1Fetcher)
 	}
-	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA, metrics) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, rollupCfg, l1Src)
 	channelMux := NewChannelMux(log, spec, frameQueue, metrics)

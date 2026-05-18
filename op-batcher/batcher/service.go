@@ -50,6 +50,8 @@ type BatcherConfig struct {
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
 	ThrottleParams config.ThrottleParams
+
+	BatchConsensusProofEndpoint string
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -109,6 +111,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
+	bs.BatchConsensusProofEndpoint = cfg.BatchConsensusProofEndpoint
 
 	bs.ThrottleParams = config.ThrottleParams{
 		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,

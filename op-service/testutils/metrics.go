@@ -9,12 +9,13 @@ import (
 // TestDerivationMetrics implements the metrics used in the derivation pipeline as no-op operations.
 // Optionally a test may hook into the metrics
 type TestDerivationMetrics struct {
-	FnRecordL1ReorgDepth      func(d uint64)
-	FnRecordL1Ref             func(name string, ref eth.L1BlockRef)
-	FnRecordL2Ref             func(name string, ref eth.L2BlockRef)
-	FnRecordUnsafePayloads    func(length uint64, memSize uint64, next eth.BlockID)
-	FnRecordChannelInputBytes func(inputCompressedBytes int)
-	FnRecordChannelTimedOut   func()
+	FnRecordL1ReorgDepth        func(d uint64)
+	FnRecordL1Ref               func(name string, ref eth.L1BlockRef)
+	FnRecordL2Ref               func(name string, ref eth.L2BlockRef)
+	FnRecordUnsafePayloads      func(length uint64, memSize uint64, next eth.BlockID)
+	FnRecordChannelInputBytes   func(inputCompressedBytes int)
+	FnRecordChannelTimedOut     func()
+	FnRecordBatchConsensusProof func(result string)
 }
 
 func (t *TestDerivationMetrics) CountSequencedTxsInBlock(txns int, deposits int) {
@@ -69,6 +70,12 @@ func (t *TestDerivationMetrics) RecordFrame() {
 }
 
 func (n *TestDerivationMetrics) RecordDerivedBatches(batchType string) {
+}
+
+func (n *TestDerivationMetrics) RecordBatchConsensusProof(result string) {
+	if n.FnRecordBatchConsensusProof != nil {
+		n.FnRecordBatchConsensusProof(result)
+	}
 }
 
 func (t *TestDerivationMetrics) SetDerivationIdle(idle bool) {}
