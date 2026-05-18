@@ -3,9 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -14,6 +18,7 @@ import (
 const (
 	registryPath        = "feature-flags.yaml"
 	devFeaturesSolPath  = "src/libraries/DevFeatures.sol"
+	devFeaturesGoPath   = "../../op-core/devfeatures/devfeatures.go"
 	featuresSolPath     = "src/libraries/Features.sol"
 	configSolPath       = "scripts/libraries/Config.sol"
 	featureFlagsSolPath = "test/setup/FeatureFlags.sol"
@@ -62,6 +67,12 @@ type DevFeatureConst struct {
 	Hex  string // 64 character lowercase hex without the 0x prefix
 }
 
+// GoDevFeatureConst is a common.Hash variable from op-core/devfeatures/devfeatures.go.
+type GoDevFeatureConst struct {
+	Name string
+	Hex  string // 64 character lowercase hex without the 0x prefix
+}
+
 // SysFeatureConst is a bytes32 constant from Features.sol.
 type SysFeatureConst struct {
 	Name    string
@@ -103,7 +114,11 @@ func run() error {
 		return fmt.Errorf("feature-flags: %w", err)
 	}
 
-	devConsts, err := readDevFeaturesSol(devFeaturesSolPath)
+	devConsts, solHardcoded, err := readDevFeaturesSol(devFeaturesSolPath)
+	if err != nil {
+		return fmt.Errorf("feature-flags: %w", err)
+	}
+	goConsts, goHardcoded, err := readDevFeaturesGo(devFeaturesGoPath)
 	if err != nil {
 		return fmt.Errorf("feature-flags: %w", err)
 	}
@@ -127,6 +142,7 @@ func run() error {
 	var errs []string
 	errs = append(errs, validateRegistry(registry)...)
 	errs = append(errs, validateDefinitions(registry, devConsts, sysConsts)...)
+	errs = append(errs, validateGoParity(registry, devConsts, goConsts, solHardcoded, goHardcoded)...)
 	errs = append(errs, validateWiring(registry, readers, ff, sysSetup)...)
 
 	if len(errs) > 0 {
@@ -148,12 +164,29 @@ func loadRegistry(path string) (Registry, error) {
 	return parseRegistry(data)
 }
 
-func readDevFeaturesSol(path string) ([]DevFeatureConst, error) {
+func readDevFeaturesSol(path string) ([]DevFeatureConst, []string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	return parseDevFeaturesSol(string(data)), nil
+	consts := parseDevFeaturesSol(string(data))
+	hardcoded, err := parseHardcodedDevFeaturesSol(string(data))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return consts, hardcoded, nil
+}
+
+func readDevFeaturesGo(path string) ([]GoDevFeatureConst, []string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	consts, hardcoded, err := parseDevFeaturesGo(string(data))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return consts, hardcoded, nil
 }
 
 func readFeaturesSol(path string) ([]SysFeatureConst, error) {
@@ -226,6 +259,11 @@ var (
 	// DevFeatures.sol constants may use single line or multiline declarations.
 	devFeatureConstRe = regexp.MustCompile(`(?s)bytes32\s+public\s+constant\s+(\w+)\s*=\s*bytes32\(\s*(0x[0-9a-fA-F]+)\s*\)\s*;`)
 
+	devFeatureEnabledFuncRe = regexp.MustCompile(`function\s+isDevFeatureEnabled\s*\(`)
+	hardcodedSolIfRe        = regexp.MustCompile(`(?s)if\s*\((.*?)\)\s*(?:\{\s*return\s+true\s*;\s*\}|return\s+true\s*;)`)
+	solHasFlagFeatureRe     = regexp.MustCompile(`(?s)^hasFlag\s*\(\s*_feature\s*,\s*(?:DevFeatures\.)?(\w+)\s*\)$`)
+	solFeatureEqRe          = regexp.MustCompile(`(?s)^(?:_feature\s*==\s*(?:DevFeatures\.)?(\w+)|(?:DevFeatures\.)?(\w+)\s*==\s*_feature)$`)
+
 	// Features.sol constants use an internal bytes32 name and string literal.
 	sysFeatureConstRe = regexp.MustCompile(`bytes32\s+internal\s+constant\s+(\w+)\s*=\s*"([^"]+)"\s*;`)
 
@@ -251,6 +289,253 @@ func parseDevFeaturesSol(content string) []DevFeatureConst {
 		out = append(out, DevFeatureConst{Name: m[1], Hex: normalizeHex(m[2])})
 	}
 	return out
+}
+
+func parseHardcodedDevFeaturesSol(content string) ([]string, error) {
+	content = stripComments(content)
+	funcMatch := devFeatureEnabledFuncRe.FindStringIndex(content)
+	if funcMatch == nil {
+		return nil, fmt.Errorf("missing isDevFeatureEnabled function")
+	}
+	openBrace := strings.IndexByte(content[funcMatch[1]:], '{')
+	if openBrace < 0 {
+		return nil, fmt.Errorf("isDevFeatureEnabled missing function body")
+	}
+	body, ok := extractBraceBody(content, funcMatch[1]+openBrace)
+	if !ok {
+		return nil, fmt.Errorf("could not parse isDevFeatureEnabled function body")
+	}
+
+	var out []string
+	for _, m := range hardcodedSolIfRe.FindAllStringSubmatch(body, -1) {
+		feature, ok := solHardcodedFeatureFromCondition(m[1])
+		if ok {
+			out = append(out, feature)
+		}
+	}
+	return out, nil
+}
+
+func solHardcodedFeatureFromCondition(condition string) (string, bool) {
+	condition = strings.TrimSpace(condition)
+	if m := solHasFlagFeatureRe.FindStringSubmatch(condition); m != nil {
+		return m[1], true
+	}
+	if m := solFeatureEqRe.FindStringSubmatch(condition); m != nil {
+		if m[1] != "" {
+			return m[1], true
+		}
+		return m[2], true
+	}
+	return "", false
+}
+
+func parseDevFeaturesGo(content string) ([]GoDevFeatureConst, []string, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "devfeatures.go", content, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	consts, err := parseDevFeaturesGoConsts(fset, file)
+	if err != nil {
+		return nil, nil, err
+	}
+	hardcoded, err := parseHardcodedDevFeaturesGo(fset, file)
+	if err != nil {
+		return nil, nil, err
+	}
+	return consts, hardcoded, nil
+}
+
+func parseDevFeaturesGoConsts(fset *token.FileSet, file *ast.File) ([]GoDevFeatureConst, error) {
+	var out []GoDevFeatureConst
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, name := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+				hex, ok, err := goHexToHashLiteral(valueSpec.Values[i])
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", fset.Position(valueSpec.Values[i].Pos()), err)
+				}
+				if !ok {
+					continue
+				}
+				out = append(out, GoDevFeatureConst{Name: name.Name, Hex: normalizeHex(hex)})
+			}
+		}
+	}
+	return out, nil
+}
+
+func goHexToHashLiteral(expr ast.Expr) (string, bool, error) {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return "", false, nil
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "HexToHash" {
+		return "", false, nil
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "common" {
+		return "", false, nil
+	}
+	if len(call.Args) != 1 {
+		return "", true, fmt.Errorf("common.HexToHash must have exactly one argument")
+	}
+	arg, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || arg.Kind != token.STRING {
+		return "", true, fmt.Errorf("common.HexToHash argument must be a string literal")
+	}
+	hex, err := strconv.Unquote(arg.Value)
+	if err != nil {
+		return "", true, fmt.Errorf("parse common.HexToHash string literal: %w", err)
+	}
+	if err := validateGoHexLiteral(hex); err != nil {
+		return "", true, err
+	}
+	return hex, true, nil
+}
+
+func validateGoHexLiteral(hex string) error {
+	raw := strings.TrimPrefix(strings.ToLower(hex), "0x")
+	if raw == "" {
+		return fmt.Errorf("common.HexToHash literal %q is empty", hex)
+	}
+	if len(raw) > 64 {
+		return fmt.Errorf("common.HexToHash literal %q is longer than 32 bytes", hex)
+	}
+	for _, r := range raw {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			continue
+		}
+		return fmt.Errorf("common.HexToHash literal %q is not valid hex", hex)
+	}
+	return nil
+}
+
+func parseHardcodedDevFeaturesGo(fset *token.FileSet, file *ast.File) ([]string, error) {
+	var out []string
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "IsDevFeatureEnabled" || fn.Body == nil {
+			continue
+		}
+		featureParam, err := secondParamName(fn)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", fset.Position(fn.Pos()), err)
+		}
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			ifStmt, ok := node.(*ast.IfStmt)
+			if !ok {
+				return true
+			}
+			if !ifBodyReturnsTrue(ifStmt.Body) {
+				return true
+			}
+			feature, ok := goHardcodedFeatureFromCondition(ifStmt.Cond, featureParam)
+			if ok {
+				out = append(out, feature)
+			}
+			return true
+		})
+		return out, nil
+	}
+	return nil, fmt.Errorf("missing IsDevFeatureEnabled function")
+}
+
+func secondParamName(fn *ast.FuncDecl) (string, error) {
+	if fn.Type.Params == nil {
+		return "", fmt.Errorf("IsDevFeatureEnabled missing second parameter")
+	}
+	paramIndex := 0
+	for _, field := range fn.Type.Params.List {
+		for _, name := range field.Names {
+			paramIndex++
+			if paramIndex == 2 {
+				return name.Name, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("IsDevFeatureEnabled missing second parameter")
+}
+
+func ifBodyReturnsTrue(body *ast.BlockStmt) bool {
+	if body == nil || len(body.List) != 1 {
+		return false
+	}
+	ret, ok := body.List[0].(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 1 {
+		return false
+	}
+	result, ok := ret.Results[0].(*ast.Ident)
+	return ok && result.Name == "true"
+}
+
+func goHardcodedFeatureFromCondition(expr ast.Expr, featureParam string) (string, bool) {
+	switch expr := unwrapParenExpr(expr).(type) {
+	case *ast.CallExpr:
+		if !isIdentNamed(expr.Fun, "hasFlag") || len(expr.Args) != 2 {
+			return "", false
+		}
+		if exprName(expr.Args[0]) != featureParam {
+			return "", false
+		}
+		feature := exprName(expr.Args[1])
+		return feature, feature != ""
+	case *ast.BinaryExpr:
+		if expr.Op != token.EQL {
+			return "", false
+		}
+		left := exprName(expr.X)
+		right := exprName(expr.Y)
+		switch {
+		case left == featureParam && right != "":
+			return right, true
+		case right == featureParam && left != "":
+			return left, true
+		default:
+			return "", false
+		}
+	default:
+		return "", false
+	}
+}
+
+func unwrapParenExpr(expr ast.Expr) ast.Expr {
+	for {
+		paren, ok := expr.(*ast.ParenExpr)
+		if !ok {
+			return expr
+		}
+		expr = paren.X
+	}
+}
+
+func isIdentNamed(expr ast.Expr, name string) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == name
+}
+
+func exprName(expr ast.Expr) string {
+	switch expr := unwrapParenExpr(expr).(type) {
+	case *ast.Ident:
+		return expr.Name
+	case *ast.SelectorExpr:
+		return expr.Sel.Name
+	default:
+		return ""
+	}
 }
 
 func parseFeaturesSol(content string) []SysFeatureConst {
@@ -330,7 +615,7 @@ func extractBraceBody(content string, openBrace int) (string, bool) {
 
 // normalizeHex returns a 64 character lowercase hex string with no 0x prefix.
 func normalizeHex(s string) string {
-	s = strings.ToLower(strings.TrimPrefix(s, "0x"))
+	s = strings.TrimPrefix(strings.ToLower(s), "0x")
 	if len(s) >= 64 {
 		return s
 	}
@@ -592,6 +877,155 @@ func validateDefinitions(r Registry, devConsts []DevFeatureConst, sysConsts []Sy
 	}
 
 	return errs
+}
+
+func validateGoParity(
+	r Registry,
+	solConsts []DevFeatureConst,
+	goConsts []GoDevFeatureConst,
+	solHardcoded []string,
+	goHardcoded []string,
+) []string {
+	var errs []string
+
+	solHexByName := map[string]string{}
+	solNameByHex := map[string]string{}
+	for _, c := range solConsts {
+		solHexByName[c.Name] = c.Hex
+		if _, ok := solNameByHex[c.Hex]; !ok {
+			solNameByHex[c.Hex] = c.Name
+		}
+	}
+
+	goHexByName := map[string]string{}
+	goNameByHex := map[string]string{}
+	for _, c := range goConsts {
+		goHexByName[c.Name] = c.Hex
+		if other, dup := goNameByHex[c.Hex]; dup {
+			errs = append(errs, fmt.Sprintf("devfeatures.go duplicate hex 0x%s for constants %s and %s", c.Hex, other, c.Name))
+		}
+		goNameByHex[c.Hex] = c.Name
+	}
+
+	for _, name := range sortedKeys(solHexByName) {
+		hex := solHexByName[name]
+		if _, ok := goNameByHex[hex]; !ok {
+			errs = append(errs, fmt.Sprintf("devfeatures.go missing constant matching DevFeatures.%s (hex 0x%s)", name, hex))
+		}
+	}
+	for _, hex := range sortedKeys(goNameByHex) {
+		goName := goNameByHex[hex]
+		if _, ok := solNameByHex[hex]; !ok {
+			errs = append(errs, fmt.Sprintf("devfeatures.go has extra constant %s (hex 0x%s) not in Solidity", goName, hex))
+		}
+	}
+
+	solHardcodedByHex, solHardcodedErrs := resolveHardcodedFeatures(solHardcoded, solHexByName, "DevFeatures.sol isDevFeatureEnabled", "DevFeatures.")
+	errs = append(errs, solHardcodedErrs...)
+	goHardcodedByHex, goHardcodedErrs := resolveHardcodedFeatures(goHardcoded, goHexByName, "devfeatures.go IsDevFeatureEnabled", "devfeatures.")
+	errs = append(errs, goHardcodedErrs...)
+
+	featureByName := map[string]Feature{}
+	for _, f := range r.Features {
+		featureByName[f.Name] = f
+	}
+	expectedHardcodedByHex, expectedErrs := expectedHardcodedFeatures(r, solHexByName)
+	errs = append(errs, expectedErrs...)
+	errs = append(errs, validateExpectedHardcoded("DevFeatures.sol isDevFeatureEnabled", expectedHardcodedByHex, solHardcodedByHex)...)
+	errs = append(errs, validateExpectedHardcoded("devfeatures.go IsDevFeatureEnabled", expectedHardcodedByHex, goHardcodedByHex)...)
+	errs = append(errs, validateHardcodedLifecycle("DevFeatures.sol isDevFeatureEnabled", "DevFeatures.", solHardcodedByHex, solNameByHex, featureByName)...)
+	errs = append(errs, validateHardcodedLifecycle("devfeatures.go IsDevFeatureEnabled", "devfeatures.", goHardcodedByHex, solNameByHex, featureByName)...)
+
+	sort.Strings(errs)
+	return errs
+}
+
+func expectedHardcodedFeatures(r Registry, solHexByName map[string]string) (map[string]string, []string) {
+	expectedByHex := map[string]string{}
+	var errs []string
+	for _, f := range r.Features {
+		if f.Lifecycle != lifecycleHardcodedOn {
+			continue
+		}
+		if f.Type != typeDev {
+			errs = append(errs, fmt.Sprintf("feature-flags.yaml marks %s as hardcoded-on, but type is %q (expected dev)", f.Name, f.Type))
+			continue
+		}
+		hex, ok := solHexByName[f.Name]
+		if !ok {
+			errs = append(errs, fmt.Sprintf("feature-flags.yaml marks %s as hardcoded-on, but DevFeatures.sol has no matching constant", f.Name))
+			continue
+		}
+		expectedByHex[hex] = f.Name
+	}
+	return expectedByHex, errs
+}
+
+func validateExpectedHardcoded(source string, expectedByHex map[string]string, actualByHex map[string]string) []string {
+	var errs []string
+	for _, hex := range sortedKeys(expectedByHex) {
+		name := expectedByHex[hex]
+		if _, ok := actualByHex[hex]; !ok {
+			errs = append(errs, fmt.Sprintf("%s missing hardcoded true branch for feature-flags.yaml hardcoded-on DevFeatures.%s (hex 0x%s)", source, name, hex))
+		}
+	}
+	return errs
+}
+
+func resolveHardcodedFeatures(names []string, hexByName map[string]string, source string, namePrefix string) (map[string]string, []string) {
+	hardcodedByHex := map[string]string{}
+	var errs []string
+	for _, name := range names {
+		hex, ok := hexByName[name]
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s hardcodes unknown constant %s%s", source, namePrefix, name))
+			continue
+		}
+		if _, seen := hardcodedByHex[hex]; !seen {
+			hardcodedByHex[hex] = name
+		}
+	}
+	return hardcodedByHex, errs
+}
+
+func validateHardcodedLifecycle(
+	source string,
+	namePrefix string,
+	hardcodedByHex map[string]string,
+	solNameByHex map[string]string,
+	featureByName map[string]Feature,
+) []string {
+	var errs []string
+	for _, hex := range sortedKeys(hardcodedByHex) {
+		branchName := hardcodedByHex[hex]
+		solName, ok := solNameByHex[hex]
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s hardcodes %s%s (hex 0x%s), but DevFeatures.sol does not define that hex", source, namePrefix, branchName, hex))
+			continue
+		}
+		feature, ok := featureByName[solName]
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s hardcodes %s%s (hex 0x%s), matching DevFeatures.%s, but feature-flags.yaml does not list it", source, namePrefix, branchName, hex, solName))
+			continue
+		}
+		if feature.Type != typeDev {
+			errs = append(errs, fmt.Sprintf("%s hardcodes %s%s (hex 0x%s), matching %s, but feature-flags.yaml type is %q (expected dev)", source, namePrefix, branchName, hex, solName, feature.Type))
+			continue
+		}
+		if feature.Lifecycle != lifecycleHardcodedOn {
+			errs = append(errs, fmt.Sprintf("%s hardcodes %s%s (hex 0x%s), matching DevFeatures.%s, but feature-flags.yaml lifecycle is %q (expected hardcoded-on)", source, namePrefix, branchName, hex, solName, feature.Lifecycle))
+		}
+	}
+	return errs
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func validateWiring(

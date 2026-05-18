@@ -24,6 +24,89 @@ func TestParseDevFeaturesSol_MultiLineConstant(t *testing.T) {
 	require.Equal(t, strings.Repeat("0", 62)+"10", got[1].Hex)
 }
 
+func TestParseDevFeaturesGo(t *testing.T) {
+	src := `
+		package devfeatures
+
+		import "github.com/ethereum/go-ethereum/common"
+
+		var (
+			OptimismPortalInteropFlag = common.HexToHash("0x01")
+			CannonKonaFlag = common.HexToHash("0x02")
+			L2CMFlag = common.HexToHash("0x10")
+		)
+
+		func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
+			if hasFlag(flag, L2CMFlag) {
+				return true
+			}
+			if flag == CannonKonaFlag {
+				return true
+			}
+			return false
+		}
+	`
+	consts, hardcoded, err := parseDevFeaturesGo(src)
+	require.NoError(t, err)
+	require.Equal(t, []GoDevFeatureConst{
+		{Name: "OptimismPortalInteropFlag", Hex: strings.Repeat("0", 63) + "1"},
+		{Name: "CannonKonaFlag", Hex: strings.Repeat("0", 63) + "2"},
+		{Name: "L2CMFlag", Hex: strings.Repeat("0", 62) + "10"},
+	}, consts)
+	require.Equal(t, []string{"L2CMFlag", "CannonKonaFlag"}, hardcoded)
+}
+
+func TestParseHardcodedDevFeaturesSol(t *testing.T) {
+	src := `
+		library DevFeatures {
+			function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
+				if (hasFlag(_feature, L2CM)) return true;
+				if (_feature == DevFeatures.CANNON_KONA) {
+					return true;
+				}
+				if (hasFlag(_bitmap, _feature)) return true;
+				return _feature != 0 && hasFlag(_bitmap, _feature);
+			}
+		}
+	`
+	got, err := parseHardcodedDevFeaturesSol(src)
+	require.NoError(t, err)
+	require.Equal(t, []string{"L2CM", "CANNON_KONA"}, got)
+}
+
+func TestParseHardcodedDevFeaturesSol_MissingFunctionFails(t *testing.T) {
+	_, err := parseHardcodedDevFeaturesSol(`library DevFeatures {}`)
+	require.ErrorContains(t, err, "missing isDevFeatureEnabled function")
+}
+
+func TestParseDevFeaturesGo_MissingFunctionFails(t *testing.T) {
+	src := `
+		package devfeatures
+
+		import "github.com/ethereum/go-ethereum/common"
+
+		var L2CMFlag = common.HexToHash("0x10")
+	`
+	_, _, err := parseDevFeaturesGo(src)
+	require.ErrorContains(t, err, "missing IsDevFeatureEnabled function")
+}
+
+func TestParseDevFeaturesGo_InvalidHexLiteralFails(t *testing.T) {
+	src := `
+		package devfeatures
+
+		import "github.com/ethereum/go-ethereum/common"
+
+		var L2CMFlag = common.HexToHash("0xzz")
+
+		func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
+			return false
+		}
+	`
+	_, _, err := parseDevFeaturesGo(src)
+	require.ErrorContains(t, err, `common.HexToHash literal "0xzz" is not valid hex`)
+}
+
 func TestParseConfigSol_EnvVarStringIsCanonical(t *testing.T) {
 	// The checker uses the environment variable string as canonical because
 	// reader function names can differ from feature names.
@@ -292,6 +375,103 @@ func TestValidateDefinitions_SysLiteralMustMatch(t *testing.T) {
 	sys := []SysFeatureConst{{Name: "FOO", Literal: "Foo"}}
 	errs := validateDefinitions(r, nil, sys)
 	require.Contains(t, joinErrs(errs), `string literal "Foo"`)
+}
+
+func TestValidateGoParity_HexMismatch(t *testing.T) {
+	solConsts := []DevFeatureConst{
+		{Name: "L2CM", Hex: strings.Repeat("0", 62) + "10"},
+	}
+	goConsts := []GoDevFeatureConst{
+		{Name: "L2CMFlag", Hex: strings.Repeat("0", 61) + "100"},
+	}
+	errs := validateGoParity(Registry{}, solConsts, goConsts, nil, nil)
+	joined := joinErrs(errs)
+	require.Contains(t, joined, "devfeatures.go missing constant matching DevFeatures.L2CM")
+	require.Contains(t, joined, "hex 0x"+strings.Repeat("0", 62)+"10")
+	require.Contains(t, joined, "devfeatures.go has extra constant L2CMFlag")
+	require.Contains(t, joined, "hex 0x"+strings.Repeat("0", 61)+"100")
+}
+
+func TestValidateGoParity_MissingInGo(t *testing.T) {
+	solConsts := []DevFeatureConst{
+		{Name: "L2CM", Hex: strings.Repeat("0", 62) + "10"},
+	}
+	errs := validateGoParity(Registry{}, solConsts, nil, nil, nil)
+	require.Contains(t, joinErrs(errs), "devfeatures.go missing constant matching DevFeatures.L2CM (hex 0x"+strings.Repeat("0", 62)+"10)")
+}
+
+func TestValidateGoParity_ExtraInGo(t *testing.T) {
+	goConsts := []GoDevFeatureConst{
+		{Name: "L2CMFlag", Hex: strings.Repeat("0", 62) + "10"},
+	}
+	errs := validateGoParity(Registry{}, nil, goConsts, nil, nil)
+	require.Contains(t, joinErrs(errs), "devfeatures.go has extra constant L2CMFlag (hex 0x"+strings.Repeat("0", 62)+"10) not in Solidity")
+}
+
+func TestValidateGoParity_HardcodedOnMustBeHardcodedOnBothSides(t *testing.T) {
+	r := Registry{
+		Features: []Feature{
+			{Name: "L2CM", Type: "dev", Lifecycle: "hardcoded-on"},
+		},
+	}
+	hex := strings.Repeat("0", 62) + "10"
+	solConsts := []DevFeatureConst{{Name: "L2CM", Hex: hex}}
+	goConsts := []GoDevFeatureConst{{Name: "L2CMFlag", Hex: hex}}
+	errs := validateGoParity(r, solConsts, goConsts, nil, nil)
+	joined := joinErrs(errs)
+	require.Contains(t, joined, "DevFeatures.sol isDevFeatureEnabled missing hardcoded true branch for feature-flags.yaml hardcoded-on DevFeatures.L2CM")
+	require.Contains(t, joined, "devfeatures.go IsDevFeatureEnabled missing hardcoded true branch for feature-flags.yaml hardcoded-on DevFeatures.L2CM")
+}
+
+func TestValidateGoParity_HardcodedOnMissingInGo(t *testing.T) {
+	r := Registry{
+		Features: []Feature{
+			{Name: "L2CM", Type: "dev", Lifecycle: "hardcoded-on"},
+		},
+	}
+	hex := strings.Repeat("0", 62) + "10"
+	solConsts := []DevFeatureConst{{Name: "L2CM", Hex: hex}}
+	goConsts := []GoDevFeatureConst{{Name: "L2CMFlag", Hex: hex}}
+	errs := validateGoParity(r, solConsts, goConsts, []string{"L2CM"}, nil)
+	require.Contains(t, joinErrs(errs), "devfeatures.go IsDevFeatureEnabled missing hardcoded true branch for feature-flags.yaml hardcoded-on DevFeatures.L2CM")
+}
+
+func TestValidateGoParity_HardcodedOnMissingInSolidity(t *testing.T) {
+	r := Registry{
+		Features: []Feature{
+			{Name: "L2CM", Type: "dev", Lifecycle: "hardcoded-on"},
+		},
+	}
+	hex := strings.Repeat("0", 62) + "10"
+	solConsts := []DevFeatureConst{{Name: "L2CM", Hex: hex}}
+	goConsts := []GoDevFeatureConst{{Name: "L2CMFlag", Hex: hex}}
+	errs := validateGoParity(r, solConsts, goConsts, nil, []string{"L2CMFlag"})
+	require.Contains(t, joinErrs(errs), "DevFeatures.sol isDevFeatureEnabled missing hardcoded true branch for feature-flags.yaml hardcoded-on DevFeatures.L2CM")
+}
+
+func TestValidateGoParity_SpuriousHardcodedFeature(t *testing.T) {
+	r := Registry{
+		Features: []Feature{
+			{Name: "OPTIMISM_PORTAL_INTEROP", Type: "dev", Lifecycle: "active"},
+		},
+	}
+	solConsts := []DevFeatureConst{
+		{Name: "OPTIMISM_PORTAL_INTEROP", Hex: strings.Repeat("0", 63) + "1"},
+	}
+	goConsts := []GoDevFeatureConst{
+		{Name: "OptimismPortalInteropFlag", Hex: strings.Repeat("0", 63) + "1"},
+	}
+	errs := validateGoParity(
+		r,
+		solConsts,
+		goConsts,
+		[]string{"OPTIMISM_PORTAL_INTEROP"},
+		[]string{"OptimismPortalInteropFlag"},
+	)
+	joined := joinErrs(errs)
+	require.Contains(t, joined, "DevFeatures.sol isDevFeatureEnabled hardcodes DevFeatures.OPTIMISM_PORTAL_INTEROP")
+	require.Contains(t, joined, `feature-flags.yaml lifecycle is "active" (expected hardcoded-on)`)
+	require.Contains(t, joined, "devfeatures.go IsDevFeatureEnabled hardcodes devfeatures.OptimismPortalInteropFlag")
 }
 
 func wiredFixture() (Registry, []ConfigReader, FeatureFlagsSol, SysFeatureSetup) {
