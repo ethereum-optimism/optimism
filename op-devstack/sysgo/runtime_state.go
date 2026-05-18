@@ -62,7 +62,6 @@ type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
 	FullConfigSet depset.FullConfigSetMerged
 	DependencySet depset.DependencySet
-	Supervisor    Supervisor
 }
 
 type SingleChainRuntime struct {
@@ -143,8 +142,7 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor Supervisor
-	Supernode         *SuperNode
+	Supernode *SuperNode
 
 	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock

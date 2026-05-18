@@ -36,7 +36,6 @@ type ChainBlockProvider interface {
 }
 
 var _ SyncStatusProvider = (*L2CLNode)(nil)
-var _ SyncStatusProvider = (*Supervisor)(nil)
 
 // LaggedFn returns a lambda that checks the baseNode head with given safety level is lagged with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel
