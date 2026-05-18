@@ -190,9 +190,9 @@ type Interop struct {
 	// recent Start. Read by integration tests to confirm the retry loop has
 	// engaged.
 	backfillAttempts atomic.Int32
-	// backfillCompleted is set true once advanceColdStartInit finishes
-	// successfully. Read by integration tests to gate on cold-start init
-	// finishing.
+	// backfillCompleted is set true once cold-start init finishes — either
+	// backfill ran to completion or resume skipped it. Read by integration
+	// tests to gate on cold-start init finishing.
 	backfillCompleted atomic.Bool
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
@@ -312,6 +312,7 @@ func (i *Interop) tryInitFromVerifiedDB() {
 	if lastTS, ok := i.verifiedDB.LastTimestamp(); ok {
 		i.verificationStartTimestamp = lastTS + 1
 		i.initialized.Store(true)
+		i.backfillCompleted.Store(true) // resume skips backfill
 		i.log.Info("interop resuming from verifiedDB",
 			"verificationStartTimestamp", i.verificationStartTimestamp,
 			"activationTimestamp", i.activationTimestamp)
