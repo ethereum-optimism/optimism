@@ -207,7 +207,7 @@ func newMinimalSystem(t *testingT, batcherConsensusPOC bool, batcherConsensusPOC
 		}
 	}()
 	if batcherConsensusPOC {
-		return presets.NewMinimal(t,
+		return presets.NewMinimalNoFaultProofs(t,
 			presets.WithDeployerOptions(sysgo.WithEcotoneAtGenesis),
 			presets.WithBatchConsensusMockVerifier(sysgo.DefaultBatchConsensusMockVerifierAddress),
 			presets.WithBatchConsensusCommonwareSidecarResult(!batcherConsensusPOCInvalid),
