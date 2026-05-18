@@ -444,9 +444,7 @@ pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
 ///
 /// Mirrors [`OpProofsStore`]'s tx-shape pattern: three assoc-type / method
 /// pairs for the three usage modes (RO reads, per-iteration backfill writes,
-/// init-time bulk writes). The RW provider also implements
-/// [`OpProofsBackfillProvider`] so per-block `prepend_block` +
-/// `update_snapshot` share one tx.
+/// init-time bulk writes).
 #[auto_impl(Arc)]
 pub trait OpProofsSnapshotStore: OpProofsStore {
     /// RO snapshot reader. Also implements [`OpProofsProviderRO`] so the
@@ -456,8 +454,7 @@ pub trait OpProofsSnapshotStore: OpProofsStore {
     where
         Self: 'a;
 
-    /// RW per-iteration writer; pairs `update_snapshot` with the proofs-window
-    /// `prepend_block` so both commit in the same tx.
+    /// RW snapshot writer
     type SnapshotProviderRw<'a>: OpProofsSnapshotProviderRW + 'a
     where
         Self: 'a;
