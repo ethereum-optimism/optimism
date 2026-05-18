@@ -43,6 +43,23 @@ const EVM_SIGNING_KEY: [u8; 32] = [
     0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
     0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
 ];
+const EVM_VALIDATOR_KEYS: [[u8; 32]; 3] = [
+    [
+        0x11, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x11, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd,
+        0xef, 0x11, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x11, 0x23, 0x45, 0x67, 0x89, 0xab,
+        0xcd, 0xef,
+    ],
+    [
+        0x21, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x21, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd,
+        0xef, 0x21, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x21, 0x23, 0x45, 0x67, 0x89, 0xab,
+        0xcd, 0xef,
+    ],
+    [
+        0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd,
+        0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab,
+        0xcd, 0xef,
+    ],
+];
 
 #[derive(Debug, Deserialize)]
 struct ProofRequest {
@@ -159,7 +176,7 @@ fn build_simplex_response(digest: &[u8; 32], valid: bool) -> Result<ProofRespons
     let mut calldata = evm_commonware_calldata(digest, &certificate)?;
     if !valid {
         let last = calldata
-            .get_mut(SIMPLEX_PROOF_PREFIX.len() + 32 + 65)
+            .get_mut(SIMPLEX_PROOF_PREFIX.len() + 32)
             .ok_or_else(|| anyhow!("empty calldata"))?;
         *last = 0;
     }
@@ -472,7 +489,21 @@ fn evm_commonware_calldata(digest: &[u8; 32], certificate: &[u8]) -> Result<Vec<
     if certificate.is_empty() {
         return Err(anyhow!("empty Commonware certificate"));
     }
-    evm_calldata_with_prefix(SIMPLEX_PROOF_PREFIX, digest, Some(certificate))
+    let mut out =
+        Vec::with_capacity(SIMPLEX_PROOF_PREFIX.len() + 32 + 1 + 65 * 3 + certificate.len());
+    out.extend_from_slice(SIMPLEX_PROOF_PREFIX);
+    out.extend_from_slice(digest);
+    out.push(1);
+    for key in EVM_VALIDATOR_KEYS {
+        let signing_key = SigningKey::from_slice(&key).context("load EVM validator signing key")?;
+        let (sig, recid): (Signature, RecoveryId) = signing_key
+            .sign_prehash_recoverable(digest)
+            .context("sign EVM validator digest")?;
+        out.extend_from_slice(&sig.to_bytes());
+        out.push(recid.to_byte());
+    }
+    out.extend_from_slice(certificate);
+    Ok(out)
 }
 
 fn evm_calldata_with_prefix(
@@ -542,11 +573,11 @@ mod tests {
         assert!(calldata.starts_with(SIMPLEX_PROOF_PREFIX));
         assert_eq!(
             calldata.len(),
-            SIMPLEX_PROOF_PREFIX.len() + 32 + 65 + 1 + certificate.len()
+            SIMPLEX_PROOF_PREFIX.len() + 32 + 1 + (65 * 3) + certificate.len()
         );
-        assert_eq!(calldata[SIMPLEX_PROOF_PREFIX.len() + 32 + 65], 1);
+        assert_eq!(calldata[SIMPLEX_PROOF_PREFIX.len() + 32], 1);
         assert_eq!(
-            &calldata[SIMPLEX_PROOF_PREFIX.len() + 32 + 65 + 1..],
+            &calldata[SIMPLEX_PROOF_PREFIX.len() + 32 + 1 + (65 * 3)..],
             certificate
         );
     }

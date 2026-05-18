@@ -2,6 +2,7 @@ package batchconsensus
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
 
@@ -45,7 +46,11 @@ func TestBuildSignedProofCalldataRecoverSigner(t *testing.T) {
 }
 
 func TestBuildCommonwareSimplexProofCalldata(t *testing.T) {
-	key, err := crypto.GenerateKey()
+	key1, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	key2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	key3, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	req := ProofRequest{
 		L1ChainID:           "1",
@@ -56,13 +61,14 @@ func TestBuildCommonwareSimplexProofCalldata(t *testing.T) {
 	}
 	certificate := []byte("CWSIMPLX1-finalization")
 
-	calldata, err := BuildCommonwareSimplexProofCalldata(req, certificate, key, true)
+	signers := []*ecdsa.PrivateKey{key1, key2, key3}
+	calldata, err := BuildCommonwareSimplexProofCalldata(req, certificate, signers, true)
 	require.NoError(t, err)
 	require.True(t, bytes.HasPrefix(calldata, commonwareSimplexProofPrefix))
-	require.Equal(t, byte(1), calldata[len(commonwareSimplexProofPrefix)+32+65])
-	require.Equal(t, certificate, calldata[len(commonwareSimplexProofPrefix)+32+65+1:])
+	require.Equal(t, byte(1), calldata[len(commonwareSimplexProofPrefix)+32])
+	require.Equal(t, certificate, calldata[len(commonwareSimplexProofPrefix)+32+1+(65*len(signers)):])
 
-	invalid, err := BuildCommonwareSimplexProofCalldata(req, certificate, key, false)
+	invalid, err := BuildCommonwareSimplexProofCalldata(req, certificate, signers, false)
 	require.NoError(t, err)
-	require.Equal(t, byte(0), invalid[len(commonwareSimplexProofPrefix)+32+65])
+	require.Equal(t, byte(0), invalid[len(commonwareSimplexProofPrefix)+32])
 }

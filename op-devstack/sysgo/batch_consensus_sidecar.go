@@ -19,6 +19,12 @@ import (
 
 const batchConsensusMockProofSignerKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
+var batchConsensusCommonwareProofSignerKeys = []string{
+	"1123456789abcdef1123456789abcdef1123456789abcdef1123456789abcdef",
+	"2123456789abcdef2123456789abcdef2123456789abcdef2123456789abcdef",
+	"3123456789abcdef3123456789abcdef3123456789abcdef3123456789abcdef",
+}
+
 func startBatchConsensusMockProofSidecar(t devtest.T, valid bool) string {
 	signer, err := batchConsensusMockProofSigner()
 	t.Require().NoError(err)
@@ -84,6 +90,30 @@ func batchConsensusMockProofSignerAddress() common.Address {
 		panic(err)
 	}
 	return crypto.PubkeyToAddress(key.PublicKey)
+}
+
+func batchConsensusCommonwareProofSigners() ([]*ecdsa.PrivateKey, error) {
+	out := make([]*ecdsa.PrivateKey, 0, len(batchConsensusCommonwareProofSignerKeys))
+	for _, raw := range batchConsensusCommonwareProofSignerKeys {
+		key, err := crypto.HexToECDSA(raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, key)
+	}
+	return out, nil
+}
+
+func batchConsensusCommonwareProofSignerAddresses() []common.Address {
+	signers, err := batchConsensusCommonwareProofSigners()
+	if err != nil {
+		panic(err)
+	}
+	out := make([]common.Address, 0, len(signers))
+	for _, signer := range signers {
+		out = append(out, crypto.PubkeyToAddress(signer.PublicKey))
+	}
+	return out
 }
 
 func startBatchConsensusCommonwareProofSidecar(t devtest.T, valid bool) string {

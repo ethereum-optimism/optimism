@@ -67,29 +67,34 @@ func BuildSignedProofResponse(req ProofRequest, signer *ecdsa.PrivateKey, valid 
 // BuildCommonwareSimplexProofCalldata creates verifier calldata that carries a
 // Commonware Simplex finalization certificate after the EVM-verifiable proof
 // envelope used by the DevStack POC verifier.
-func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, signer *ecdsa.PrivateKey, valid bool) ([]byte, error) {
+func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, signers []*ecdsa.PrivateKey, valid bool) ([]byte, error) {
 	if len(certificate) == 0 {
 		return nil, fmt.Errorf("missing Commonware certificate")
 	}
-	if signer == nil {
-		return nil, fmt.Errorf("missing signer")
+	if len(signers) == 0 {
+		return nil, fmt.Errorf("missing signers")
 	}
 	digest := Digest(req)
-	sig, err := crypto.Sign(digest[:], signer)
-	if err != nil {
-		return nil, fmt.Errorf("sign proof digest: %w", err)
-	}
-	if !valid {
-		sig[0] ^= 0x01
-	}
-	out := make([]byte, 0, len(commonwareSimplexProofPrefix)+len(digest)+len(sig)+1+len(certificate))
+	out := make([]byte, 0, len(commonwareSimplexProofPrefix)+len(digest)+1+(65*len(signers))+len(certificate))
 	out = append(out, commonwareSimplexProofPrefix...)
 	out = append(out, digest[:]...)
-	out = append(out, sig...)
 	if valid {
 		out = append(out, 0x01)
 	} else {
 		out = append(out, 0x00)
+	}
+	for i, signer := range signers {
+		if signer == nil {
+			return nil, fmt.Errorf("missing signer %d", i)
+		}
+		sig, err := crypto.Sign(digest[:], signer)
+		if err != nil {
+			return nil, fmt.Errorf("sign proof digest %d: %w", i, err)
+		}
+		if !valid && i == 0 {
+			sig[0] ^= 0x01
+		}
+		out = append(out, sig...)
 	}
 	out = append(out, certificate...)
 	return out, nil
