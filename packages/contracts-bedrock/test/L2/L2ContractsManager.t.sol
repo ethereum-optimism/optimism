@@ -780,6 +780,29 @@ contract L2ContractsManager_Upgrade_XLayerCGT_Test is L2ContractsManager_Upgrade
         vm.prank(_minter);
         ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).mint(address(this), 1 ether);
     }
+
+    /// @notice Tests that mint() reverts when called by a non-authorized minter after upgrade.
+    function testFuzz_mint_whenNonMinterWasNotAuthorizedBeforeXLayerUpgrade_reverts(
+        address _minter,
+        address _nonMinter,
+        uint256 _amount
+    )
+        public
+    {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        vm.assume(_minter != _nonMinter);
+        _amount = bound(_amount, 1, address(nativeAssetLiquidity).balance);
+
+        _authorizeXLayerMinter(_minter);
+        _simulateXLayerLiquidityController();
+
+        _executeUpgrade();
+        vm.clearMockedCalls();
+
+        vm.prank(_nonMinter);
+        vm.expectRevert(abi.encodeWithSelector(ILiquidityController.LiquidityController_Unauthorized.selector));
+        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).mint(address(this), _amount);
+    }
 }
 
 /// @title L2ContractsManager_Upgrade_DowngradePrevention_Test
