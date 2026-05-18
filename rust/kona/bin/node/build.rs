@@ -9,6 +9,20 @@ use vergen::{BuildBuilder, CargoBuilder, Emitter};
 use vergen_git2::Git2Builder;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // If KONA_NODE_VERSION is set at Docker build time (injected via --build-arg),
+    // use it as the canonical version so the reported version matches the git tag
+    // (e.g. "kona-node/v1.2.3" -> "v1.2.3"). Otherwise fall back to the semver
+    // string in Cargo.toml.
+    println!("cargo:rerun-if-env-changed=KONA_NODE_VERSION");
+    let pkg_version = env::var("KONA_NODE_VERSION")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_owned());
+
+    // Override CARGO_PKG_VERSION so any downstream crate calling env!("CARGO_PKG_VERSION")
+    // in this build unit also picks up the injected tag.
+    println!("cargo:rustc-env=CARGO_PKG_VERSION={pkg_version}");
+
     let mut emitter = Emitter::default();
 
     let build_builder = BuildBuilder::default().build_timestamp(true).build()?;
@@ -36,7 +50,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     // if not on a tag: v0.2.0-beta.3-82-g1939939b
     // if on a tag: v0.2.0-beta.3
     let not_on_tag = env::var("VERGEN_GIT_DESCRIBE")?.ends_with(&format!("-g{sha_short}"));
-    let version_suffix = if is_dirty || not_on_tag { "-dev" } else { "" };
+    // When KONA_NODE_VERSION is explicitly provided (i.e. a release build), treat the
+    // binary as "on tag" regardless of what git describe says about the monorepo.
+    let version_suffix = if env::var("KONA_NODE_VERSION").ok().filter(|v| !v.is_empty()).is_some() {
+        ""
+    } else if is_dirty || not_on_tag {
+        "-dev"
+    } else {
+        ""
+    };
     println!("cargo:rustc-env=KONA_NODE_VERSION_SUFFIX={version_suffix}");
 
     // Set short SHA
@@ -47,8 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
     println!("cargo:rustc-env=KONA_NODE_BUILD_PROFILE={profile}");
 
-    // Set formatted version strings
-    let pkg_version = env!("CARGO_PKG_VERSION");
+    // Set formatted version strings — use the version resolved at the top of main().
 
     // The short version information for kona-node.
     // - The latest version from Cargo.toml

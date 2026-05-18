@@ -93,6 +93,10 @@ variable "OP_RETH_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "KONA_NODE_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_FAUCET_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -345,6 +349,7 @@ target "kona-node" {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-node"
     BUILD_PROFILE = "release"
+    KONA_NODE_VERSION = "${KONA_NODE_VERSION}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-node:${tag}"]

@@ -80,6 +80,12 @@ FROM build-entrypoint AS builder
 # Since we only copy recipe.json, if the dependencies don't change, this step and the next one will be cached.
 COPY --from=planner /app/recipe.json recipe.json
 
+# Version override: allows CI to inject the git tag (e.g. kona-node/v1.2.3 -> v1.2.3)
+# so that reported metrics/CLI versions match the release tag, just like Go services do
+# via ldflags. Each kona binary has its own ARG name to avoid cross-contamination.
+ARG KONA_NODE_VERSION=""
+ENV KONA_NODE_VERSION=$KONA_NODE_VERSION
+
 # Build dependencies - this is the caching Docker layer!
 RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --profile "${BUILD_PROFILE}" --recipe-path recipe.json
 
