@@ -145,17 +145,17 @@ type Interop struct {
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
 	// verificationStartTimestamp is the first L2 timestamp the main loop
-	// attempts to verify. Set exactly once during fastInit (resume or
-	// future-activation paths) or by advanceColdStartInit, then immutable.
+	// attempts to verify. Set exactly once during tryInitFromVerifiedDB
+	// (resume path) or by advanceColdStartInit, then immutable.
 	verificationStartTimestamp uint64
 
 	// initialized is set true once verificationStartTimestamp has been
 	// chosen. RPC accessors return ErrNotStarted while false.
 	initialized atomic.Bool
 
-	// waitingForSync is true between fastInit deferring cold-start origin
-	// selection and the loop iteration that completes it. Only read/written
-	// by the main loop goroutine; no mutex needed.
+	// waitingForSync is true between tryInitFromVerifiedDB deferring
+	// cold-start origin selection and the loop iteration that completes it.
+	// Only read/written by the main loop goroutine; no mutex needed.
 	waitingForSync bool
 
 	dataDir string
@@ -299,16 +299,16 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.started = true
 	i.mu.Unlock()
 
-	i.fastInit()
+	i.tryInitFromVerifiedDB()
 	return i.runLoop()
 }
 
-// fastInit selects verificationStartTimestamp from verifiedDB if any commit
-// exists. Otherwise it defers to the cold-start loop, which waits for every
-// chain to record a first SafeDB entry before picking an origin. Wall-clock
-// time is not consulted: chain derivation progress is the only authoritative
-// signal for "where we are" relative to activation.
-func (i *Interop) fastInit() {
+// tryInitFromVerifiedDB selects verificationStartTimestamp from verifiedDB if
+// any commit exists. Otherwise it defers to the cold-start loop, which waits
+// for every chain to record a first SafeDB entry before picking an origin.
+// Wall-clock time is not consulted: chain derivation progress is the only
+// authoritative signal for "where we are" relative to activation.
+func (i *Interop) tryInitFromVerifiedDB() {
 	if lastTS, ok := i.verifiedDB.LastTimestamp(); ok {
 		i.verificationStartTimestamp = lastTS + 1
 		i.initialized.Store(true)
@@ -322,56 +322,82 @@ func (i *Interop) fastInit() {
 		"activationTimestamp", i.activationTimestamp)
 }
 
-// runLoop drives initialization and verification. When waitingForSync is
-// true the loop calls advanceColdStartInit each iteration until the cold
-// start completes; otherwise it calls progressAndRecord.
+// runLoop drives initialization and verification. Each iteration performs
+// exactly one of two actions and then sleeps for the duration the action
+// chose: waitForColdStartInit while cold-start initialization is in
+// progress, otherwise progress to verify the next round.
 func (i *Interop) runLoop() error {
 	for {
-		select {
-		case <-i.ctx.Done():
-			return i.ctx.Err()
-		default:
-		}
-
+		var (
+			sleep time.Duration
+			err   error
+		)
 		if i.waitingForSync {
-			advanced, err := i.advanceColdStartInit()
-			if err != nil {
-				i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
-				i.log.Error("interop cold start failed", "err", err)
-				return fmt.Errorf("interop cold start init: %w", err)
-			}
-			if !advanced {
-				select {
-				case <-i.ctx.Done():
-					return i.ctx.Err()
-				case <-time.After(backoffPeriod):
-				}
-				continue
-			}
-			i.waitingForSync = false
-			i.initialized.Store(true)
-			i.log.Info("interop cold start complete",
-				"activationTimestamp", i.activationTimestamp,
-				"verificationStartTimestamp", i.verificationStartTimestamp)
+			sleep, err = i.waitForColdStartInit()
+		} else {
+			sleep, err = i.progress()
 		}
-
-		madeProgress, err := i.progressAndRecord()
 		if err != nil {
-			if errors.Is(err, cc.ErrHistoryUnavailable) {
-				i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
-				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-				return fmt.Errorf("interop halted due to unavailable history: %w", err)
-			}
-			i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
-			i.log.Error("failed to progress and record interop", "err", err)
-			time.Sleep(errorBackoffPeriod)
-			continue
+			return err
 		}
-		if !madeProgress {
-			time.Sleep(backoffPeriod)
+		if sleep > 0 {
+			if err := i.clock.SleepCtx(i.ctx, sleep); err != nil {
+				return err
+			}
 		}
 	}
+}
+
+// waitForColdStartInit runs one cold-start initialization step. Returns
+// (0, nil) if the step advanced (so the loop runs again immediately to either
+// finish initialization or start progressing), (backoffPeriod, nil) if no
+// progress was made yet, or (errorBackoffPeriod, nil) on any error.
+//
+// Cold-start init runs concurrently with chain-container startup, so every
+// failure mode here (VN not yet attached, transient RPC errors, EL not
+// ready) is expected during the startup window and must not kill the
+// activity. Cold-start has no path to a permanent failure: none of the calls
+// it makes return ErrHistoryUnavailable, and any real corruption surfaces in
+// the verification loop once initialization completes.
+func (i *Interop) waitForColdStartInit() (time.Duration, error) {
+	advanced, err := i.advanceColdStartInit()
+	if err != nil {
+		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
+		i.log.Warn("interop cold start step failed, will retry", "err", err)
+		return errorBackoffPeriod, nil
+	}
+	if !advanced {
+		return backoffPeriod, nil
+	}
+	i.waitingForSync = false
+	i.initialized.Store(true)
+	i.log.Info("interop cold start complete",
+		"activationTimestamp", i.activationTimestamp,
+		"verificationStartTimestamp", i.verificationStartTimestamp)
+	return 0, nil
+}
+
+// progress runs one verification step. Returns (0, nil) when forward progress
+// was made (so the loop runs again immediately), (backoffPeriod, nil) when
+// the round was a no-op, (errorBackoffPeriod, nil) on a recoverable error,
+// or a non-nil error to terminate the loop.
+func (i *Interop) progress() (time.Duration, error) {
+	madeProgress, err := i.progressAndRecord()
+	if err != nil {
+		if errors.Is(err, cc.ErrHistoryUnavailable) {
+			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
+			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
+		}
+		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
+		i.log.Error("failed to progress and record interop", "err", err)
+		return errorBackoffPeriod, nil
+	}
+	if !madeProgress {
+		return backoffPeriod, nil
+	}
+	return 0, nil
 }
 
 // Stop stops the Interop activity.
