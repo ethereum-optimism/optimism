@@ -71,24 +71,6 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 	s.require.NoError(err, "Expected sync status not found")
 }
 
-func (s *Supervisor) AwaitMinL1(minL1 uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		return s.FetchSyncStatus().MinSyncedL1.Number >= minL1, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
-}
-
-func (s *Supervisor) AwaitMinCrossSafeTimestamp(timestamp uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		return s.FetchSyncStatus().SafeTimestamp >= timestamp, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
-}
-
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
@@ -199,10 +181,6 @@ func (s *Supervisor) WaitForUnsafeHeadToAdvance(chainID eth.ChainID, delta uint6
 	s.WaitForL2HeadToAdvance(chainID, delta, types.LocalUnsafe, attempts)
 }
 
-func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
-	s.WaitForL2HeadToAdvance(chainID, delta, types.CrossSafe, attempts)
-}
-
 func (s *Supervisor) FetchSuperRootAtTimestamp(timestamp uint64) eth.SuperRootResponse {
 	response, err := s.inner.QueryAPI().SuperRootAtTimestamp(s.ctx, hexutil.Uint64(timestamp))
 	s.require.NoError(err, "Unable to fetch super root at timestamp")
@@ -221,8 +199,3 @@ func (s *Supervisor) Stop() {
 	lifecycle.Stop()
 }
 
-func (s *Supervisor) AddManagedL2CL(cl *L2CLNode) {
-	interopEndpoint, secret := cl.inner.InteropRPC()
-	err := s.inner.AdminAPI().AddL2RPC(s.ctx, interopEndpoint, secret)
-	s.require.NoError(err, "failed to connect L2CL to supervisor")
-}
