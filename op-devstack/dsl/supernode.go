@@ -141,39 +141,21 @@ func (s *Supernode) RestartWithFreshDataDir() {
 	s.require.NoError(err, "failed to restart supernode with fresh data dir")
 }
 
-// RestartWithFreshDataDirAndELs stops the supernode, stops each of the
-// supplied ELs, then brings them back up fresh together with a wiped
-// supernode data dir. For the in-memory devstack op-geth, Stop()+Start()
-// discards all chain data, exercising the cold-start path with a fully
-// empty EL on both sides — the scenario covered by tests 2 and 4 of the
-// interop startup-rework acceptance plan.
-//
-// Sequencing matters: the supernode must be stopped first so its virtual
-// node releases the engine connection before the EL is torn down, and the
-// EL must be brought back up before the supernode is restarted so the VN
-// can immediately dial a fresh engine. Requires NewSupernodeWithTestControl.
+// RestartWithFreshDataDirAndELs wipes the supernode data dir and the
+// supplied ELs together. Order: stop supernode → stop+wipe ELs → start ELs
+// → start supernode. Requires NewSupernodeWithTestControl.
 func (s *Supernode) RestartWithFreshDataDirAndELs(els ...*L2ELNode) {
-	s.require.NotNil(s.testControl,
-		"RestartWithFreshDataDirAndELs requires test control; use NewSupernodeWithTestControl")
-	s.require.NotEmpty(els, "RestartWithFreshDataDirAndELs requires at least one EL")
-
-	s.log.Info("stopping supernode for combined supernode+EL fresh restart",
-		"el_count", len(els))
-	err := s.testControl.StopForExternalWipe()
-	s.require.NoError(err, "failed to stop supernode before EL wipe")
-
+	s.require.NotNil(s.testControl, "RestartWithFreshDataDirAndELs requires test control")
+	s.require.NotEmpty(els, "at least one EL required")
+	s.require.NoError(s.testControl.StopForExternalWipe(), "stop supernode")
 	for _, el := range els {
-		s.log.Info("stopping EL for fresh restart", "el", el.Escape().Name())
 		el.Stop()
+		el.WipeOnDiskState()
 	}
 	for _, el := range els {
-		s.log.Info("starting fresh EL", "el", el.Escape().Name())
 		el.Start()
 	}
-
-	s.log.Info("starting supernode with fresh data dir after EL wipe")
-	err = s.testControl.StartWithFreshDataDir()
-	s.require.NoError(err, "failed to start supernode with fresh data dir")
+	s.require.NoError(s.testControl.StartWithFreshDataDir(), "start supernode fresh")
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the
@@ -223,12 +205,9 @@ func (s *Supernode) VerificationStartTimestamp() uint64 {
 	return s.interopActivity().VerificationStartTimestamp()
 }
 
-// AwaitVerificationStartsAtOrAfter blocks until cold-start init completes,
-// then asserts VerificationStartTimestamp is >= minExpected. Used when the
-// exact start timestamp depends on when the first SafeDB entry happens to
-// be derived (e.g. tests that wipe the EL and force a re-derivation from
-// L1 before any cold-start handoff can occur). Requires
-// NewSupernodeWithTestControl.
+// AwaitVerificationStartsAtOrAfter is the >= variant of
+// AwaitVerificationStartsAt, for cases where the exact handoff timestamp
+// depends on which safeDB entry is recorded first after a cold start.
 func (s *Supernode) AwaitVerificationStartsAtOrAfter(minExpected uint64) {
 	ia := s.interopActivity()
 	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
@@ -241,8 +220,6 @@ func (s *Supernode) AwaitVerificationStartsAtOrAfter(minExpected uint64) {
 	s.require.GreaterOrEqualf(actual, minExpected,
 		"verificationStartTimestamp must be >= %d after cold-start init, got %d",
 		minExpected, actual)
-	s.log.Info("verification start timestamp confirmed >= expected",
-		"min_expected", minExpected, "actual", actual)
 }
 
 // AwaitVerificationStartsAt blocks until cold-start init completes, then

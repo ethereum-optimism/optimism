@@ -3,6 +3,8 @@ package sysgo
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -93,6 +95,12 @@ type OpReth struct {
 	args     []string
 	// Each entry is of the form "key=value".
 	env []string
+
+	// On-disk state — tracked so tests can wipe and re-init before restart.
+	dataDirPath     string
+	chainConfigPath string
+	proofHistoryDir string
+	proofStorageVer string
 
 	p devtest.T
 
@@ -188,14 +196,56 @@ func (n *OpReth) Start() {
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
 }
 
-// Stop stops the op-reth node.
-// warning: no restarts supported yet, since the RPC port is not remembered.
+// Stop stops the op-reth node. The user/auth RPC proxy addresses survive so
+// Start may be called again to bring the process back up.
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if n.sub == nil {
+		return
+	}
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+// WipeOnDiskState removes and re-initialises the op-reth data dir and
+// proof-history dir. Callers must Stop the node first.
+func (n *OpReth) WipeOnDiskState() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub != nil {
+		return fmt.Errorf("op-reth %s: cannot wipe while running", n.name)
+	}
+	if n.dataDirPath == "" || n.chainConfigPath == "" {
+		return fmt.Errorf("op-reth %s: data dir not tracked", n.name)
+	}
+	if err := os.RemoveAll(n.dataDirPath); err != nil {
+		return fmt.Errorf("op-reth %s: remove datadir: %w", n.name, err)
+	}
+	if err := os.MkdirAll(n.dataDirPath, 0o755); err != nil {
+		return fmt.Errorf("op-reth %s: recreate datadir: %w", n.name, err)
+	}
+	if n.proofHistoryDir != "" {
+		if err := os.RemoveAll(n.proofHistoryDir); err != nil {
+			return fmt.Errorf("op-reth %s: remove proof history: %w", n.name, err)
+		}
+	}
+	if out, err := exec.Command(n.execPath, "init", "--datadir="+n.dataDirPath, "--chain="+n.chainConfigPath).CombinedOutput(); err != nil {
+		return fmt.Errorf("op-reth %s: init: %w: %s", n.name, err, string(out))
+	}
+	if n.proofHistoryDir != "" && n.proofStorageVer != "" {
+		out, err := exec.Command(n.execPath, "proofs", "init",
+			"--datadir="+n.dataDirPath,
+			"--chain="+n.chainConfigPath,
+			"--proofs-history.storage-path="+n.proofHistoryDir,
+			"--proofs-history.storage-version="+n.proofStorageVer,
+		).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("op-reth %s: proofs init: %w: %s", n.name, err, string(out))
+		}
+	}
+	return nil
 }
 
 func (n *OpReth) UserRPC() string {

@@ -236,12 +236,8 @@ func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC 
 	ConnectP2P(t.Ctx(), require, rpc1, rpc2, trusted)
 }
 
-// connectL2ELPeersBidi performs admin_addPeer in both directions between two
-// L2 ELs, then verifies the peer connection from each side. Discovery is
-// unreliable with only two nodes per network, so callers wiring small static
-// EL-sync topologies use this to make the link symmetric: even if one side's
-// dial fails (e.g. NAT/timing), the other side's add still establishes the
-// connection.
+// connectL2ELPeersBidi calls admin_addPeer in both directions so small static
+// EL-sync topologies don't depend on discovery.
 func connectL2ELPeersBidi(t devtest.T, logger log.Logger, a, b L2ELNode, trusted bool) {
 	connectL2ELPeers(t, logger, a.UserRPC(), b.UserRPC(), trusted)
 	connectL2ELPeers(t, logger, b.UserRPC(), a.UserRPC(), trusted)

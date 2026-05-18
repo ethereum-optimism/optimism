@@ -389,6 +389,10 @@ func buildMixedOpRethNode(
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
+		dataDirPath:        dataDirPath,
+		chainConfigPath:    chainConfigPath,
+		proofHistoryDir:    proofHistoryDir,
+		proofStorageVer:    storageVersion,
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}

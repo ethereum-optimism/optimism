@@ -25,12 +25,11 @@ type SupernodeTestControl interface {
 	RestartWithFreshDataDir() error
 
 	// StopForExternalWipe stops the supernode without touching its data
-	// directory, so tests can wipe sibling components (e.g. EL data) before
-	// bringing the supernode back up via StartWithFreshDataDir.
+	// dir so the caller can wipe sibling components (e.g. EL state)
+	// between Stop and StartWithFreshDataDir.
 	StopForExternalWipe() error
 
-	// StartWithFreshDataDir wipes the supernode's data directory and starts
-	// a fresh supernode against the same chain containers, virtual nodes,
-	// and externally-visible RPC address. Pairs with StopForExternalWipe.
+	// StartWithFreshDataDir wipes the supernode's data dir and starts it
+	// against the same VNs and RPC address. Pairs with StopForExternalWipe.
 	StartWithFreshDataDir() error
 }

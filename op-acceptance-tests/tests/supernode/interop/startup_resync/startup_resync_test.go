@@ -1,7 +1,5 @@
 // Package startup_resync contains acceptance tests for the op-supernode
-// interop startup rework's cold-start resync path: stopping the supernode,
-// deleting its on-disk data dir, and starting a fresh supernode against the
-// same chain containers and virtual nodes.
+// interop startup rework's cold-start resync path.
 package startup_resync
 
 import (
@@ -18,150 +16,154 @@ const (
 	l2BlockTime         = uint64(1)
 	backfillDepth       = 3 * time.Second
 	preRestartFinalized = uint64(5)
+	preActivationDelay  = uint64(60 * 60)
 )
 
-// TestSupernodeResyncResumesAtActivation_PostActivation drives a full
-// supernode data-dir wipe after the chain has crossed activation, and
-// asserts that cross-safe keeps advancing post-restart and that the
-// cold-start backfill restored history into the logs DB.
+// TestSupernodeResyncResumesAtActivation_PostActivation wipes the supernode
+// data dir after the chain has crossed activation and asserts cross-safe
+// resumes. The "EL data wiped" subtest additionally wipes the supernode-
+// fronted EL so it must execution-layer-sync from a sibling sequencer EL.
 func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0,
-		presets.WithUniformL2BlockTimes(l2BlockTime),
-		presets.WithInteropLogBackfillDepth(backfillDepth),
-	)
-
-	sys.Supernode.AwaitBackfillCompleted()
-
-	// Setup: let L2 finalized advance several blocks on both chains. On
-	// restart, op-node may drop back as part of its safe start process,
-	// but won't go past the finalized head. With finalized well past
-	// genesis the post-restart cold-start backfill has a real window to
-	// populate, instead of collapsing to empty against a re-recorded
-	// genesis SafeDB entry.
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-		sys.L2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-	)
-
-	sys.Supernode.RestartWithFreshDataDir()
-	sys.Supernode.AwaitBackfillCompleted()
-
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
-	)
-
-	// Verify the cold-start backfill repopulated the logs DB.
-	sys.Supernode.AssertBackfillCovers(backfillDepth, l2BlockTime,
-		sys.L2A.ChainID(), sys.L2B.ChainID())
+	for _, tc := range []struct {
+		name   string
+		wipeEL bool
+	}{
+		{"EL data intact", false},
+		{"EL data wiped", true},
+	} {
+		gt.Run(tc.name, func(gt *testing.T) {
+			runPostActivationResync(gt, tc.wipeEL)
+		})
+	}
 }
 
-// TestSupernodeResyncResumesAtActivation_PostActivation_ELWiped is the
-// EL-also-wiped variant of TestSupernodeResyncResumesAtActivation_PostActivation:
-// the supernode is stopped and its data dir wiped *and* each chain's
-// supernode-fronted EL is stopped+restarted (discarding the in-memory
-// devstack EL state), while a sibling sequencer EL+CL pair per chain keeps
-// producing blocks throughout. On restart, the wiped supernode-fronted EL
-// recovers via execution-layer peer-to-peer sync from its sibling EL, and
-// the supernode VN cold-starts on top of the synced engine.
-func TestSupernodeResyncResumesAtActivation_PostActivation_ELWiped(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInteropPeerEL(t, 0,
-		presets.WithUniformL2BlockTimes(l2BlockTime),
-		presets.WithInteropLogBackfillDepth(backfillDepth),
-	)
-
-	sys.Supernode.AwaitBackfillCompleted()
-
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-		sys.L2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-	)
-
-	activation := sys.Supernode.ActivationTimestamp()
-	sys.Supernode.RestartWithFreshDataDirAndELs(sys.L2ELA, sys.L2ELB)
-	// Discovery is off and the wipe resets every peer table — re-add the
-	// sibling sequencer pair explicitly so the supernode VN learns about
-	// new heads (CL pubsub) and its EL can backfill via execution-layer
-	// devp2p.
-	sys.L2ACL.ConnectPeer(sys.SequencerL2ACL)
-	sys.L2BCL.ConnectPeer(sys.SequencerL2BCL)
-	sys.L2ELA.PeerWith(sys.SequencerL2AEL)
-	sys.L2ELB.PeerWith(sys.SequencerL2BEL)
-	sys.Supernode.AwaitVerificationStartsAtOrAfter(activation)
-
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 240),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 240),
-	)
-}
-
-// TestSupernodeResyncSchedulesAtActivation_PreActivation drives a full
-// supernode data-dir wipe while interop is scheduled but not yet active,
-// and asserts that cold-start init parks the verifier at the (future)
-// activation timestamp while cross-safe keeps advancing on both chains.
+// TestSupernodeResyncSchedulesAtActivation_PreActivation wipes the supernode
+// data dir while interop is still scheduled and asserts cold-start parks the
+// verifier at activation. The "EL data wiped" subtest additionally wipes the
+// supernode-fronted EL.
 func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		wipeEL bool
+	}{
+		{"EL data intact", false},
+		{"EL data wiped", true},
+	} {
+		gt.Run(tc.name, func(gt *testing.T) {
+			runPreActivationResync(gt, tc.wipeEL)
+		})
+	}
+}
+
+func runPostActivationResync(gt *testing.T, wipeEL bool) {
 	t := devtest.SerialT(gt)
-	// 60-minute delay: ensures the chain never approaches activation during
-	// the test, so we always exercise the genuine pre-activation cold-start
-	// path regardless of CI scheduling variance.
-	sys := presets.NewTwoL2SupernodeInterop(t, 60*60,
-		presets.WithUniformL2BlockTimes(l2BlockTime),
-		presets.WithInteropLogBackfillDepth(backfillDepth),
-	)
-
-	sys.Supernode.AwaitBackfillCompleted()
-	activation := sys.Supernode.ActivationTimestamp()
-
-	// Setup: let local-safe accumulate enough that op-node's SafeDB has
-	// entries to serve to the post-restart cold-start init.
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.LocalSafe, 2, 30),
-		sys.L2BCL.AdvancedFn(types.LocalSafe, 2, 30),
-	)
-
-	sys.Supernode.RestartWithFreshDataDir()
-	sys.Supernode.AwaitVerificationStartsAt(activation)
+	sys := newResyncSystem(t, 0, wipeEL)
+	sys.supernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.l2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
+		sys.l2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
+	)
+
+	activation := sys.supernode.ActivationTimestamp()
+	sys.wipeAndRestart()
+	if wipeEL {
+		// Cold-start hands off at whichever safeDB timestamp first appears
+		// post-restart, which sits at or after activation.
+		sys.supernode.AwaitVerificationStartsAtOrAfter(activation)
+	} else {
+		sys.supernode.AwaitBackfillCompleted()
+	}
+
+	dsl.CheckAll(t,
+		sys.l2ACL.AdvancedFn(types.CrossSafe, 1, 240),
+		sys.l2BCL.AdvancedFn(types.CrossSafe, 1, 240),
+	)
+
+	if !wipeEL {
+		sys.supernode.AssertBackfillCovers(backfillDepth, l2BlockTime,
+			sys.l2A.ChainID(), sys.l2B.ChainID())
+	}
+}
+
+func runPreActivationResync(gt *testing.T, wipeEL bool) {
+	t := devtest.SerialT(gt)
+	// preActivationDelay keeps the chain well below activation throughout
+	// the test, so cold-start always parks at the future activation
+	// timestamp regardless of CI scheduling variance.
+	sys := newResyncSystem(t, preActivationDelay, wipeEL)
+	sys.supernode.AwaitBackfillCompleted()
+	activation := sys.supernode.ActivationTimestamp()
+
+	dsl.CheckAll(t,
+		sys.l2ACL.AdvancedFn(types.LocalSafe, 2, 60),
+		sys.l2BCL.AdvancedFn(types.LocalSafe, 2, 60),
+	)
+
+	sys.wipeAndRestart()
+	sys.supernode.AwaitVerificationStartsAt(activation)
+
+	dsl.CheckAll(t,
+		sys.l2ACL.AdvancedFn(types.CrossSafe, 1, 240),
+		sys.l2BCL.AdvancedFn(types.CrossSafe, 1, 240),
 	)
 }
 
-// TestSupernodeResyncSchedulesAtActivation_PreActivation_ELWiped is the
-// EL-also-wiped variant of TestSupernodeResyncSchedulesAtActivation_PreActivation:
-// while interop is still scheduled but not yet active, the supernode is
-// stopped and its data dir wiped *and* each chain's supernode-fronted EL is
-// stopped+restarted, while a sibling sequencer EL+CL pair per chain keeps
-// producing blocks. On restart, the wiped EL recovers via execution-layer
-// peer-to-peer sync from its sibling EL, and cold-start init parks the
-// verifier at the (future) activation timestamp while cross-safe advances.
-func TestSupernodeResyncSchedulesAtActivation_PreActivation_ELWiped(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInteropPeerEL(t, 60*60,
+// resyncSystem hides the EL-intact vs EL-wiped preset choice and exposes a
+// single wipeAndRestart action that does the right thing for each variant.
+type resyncSystem struct {
+	wipeEL    bool
+	supernode *dsl.Supernode
+	l2A       *dsl.L2Network
+	l2B       *dsl.L2Network
+	l2ACL     *dsl.L2CLNode
+	l2BCL     *dsl.L2CLNode
+	l2ELA     *dsl.L2ELNode
+	l2ELB     *dsl.L2ELNode
+	// Sibling sequencer pair — only populated when wipeEL is true.
+	seqELA *dsl.L2ELNode
+	seqELB *dsl.L2ELNode
+	seqCLA *dsl.L2CLNode
+	seqCLB *dsl.L2CLNode
+}
+
+func newResyncSystem(t devtest.T, delaySeconds uint64, wipeEL bool) *resyncSystem {
+	opts := []presets.Option{
 		presets.WithUniformL2BlockTimes(l2BlockTime),
 		presets.WithInteropLogBackfillDepth(backfillDepth),
-	)
+	}
+	if !wipeEL {
+		base := presets.NewTwoL2SupernodeInterop(t, delaySeconds, opts...)
+		return &resyncSystem{
+			supernode: base.Supernode,
+			l2A:       base.L2A, l2B: base.L2B,
+			l2ACL: base.L2ACL, l2BCL: base.L2BCL,
+			l2ELA: base.L2ELA, l2ELB: base.L2ELB,
+		}
+	}
+	peer := presets.NewTwoL2SupernodeInteropPeerEL(t, delaySeconds, opts...)
+	return &resyncSystem{
+		wipeEL:    true,
+		supernode: peer.Supernode,
+		l2A:       peer.L2A, l2B: peer.L2B,
+		l2ACL: peer.L2ACL, l2BCL: peer.L2BCL,
+		l2ELA: peer.L2ELA, l2ELB: peer.L2ELB,
+		seqELA: peer.SequencerL2AEL, seqELB: peer.SequencerL2BEL,
+		seqCLA: peer.SequencerL2ACL, seqCLB: peer.SequencerL2BCL,
+	}
+}
 
-	sys.Supernode.AwaitBackfillCompleted()
-	activation := sys.Supernode.ActivationTimestamp()
-
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.LocalSafe, 2, 60),
-		sys.L2BCL.AdvancedFn(types.LocalSafe, 2, 60),
-	)
-
-	sys.Supernode.RestartWithFreshDataDirAndELs(sys.L2ELA, sys.L2ELB)
-	sys.L2ACL.ConnectPeer(sys.SequencerL2ACL)
-	sys.L2BCL.ConnectPeer(sys.SequencerL2BCL)
-	sys.L2ELA.PeerWith(sys.SequencerL2AEL)
-	sys.L2ELB.PeerWith(sys.SequencerL2BEL)
-	sys.Supernode.AwaitVerificationStartsAt(activation)
-
-	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 240),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 240),
-	)
+func (s *resyncSystem) wipeAndRestart() {
+	if !s.wipeEL {
+		s.supernode.RestartWithFreshDataDir()
+		return
+	}
+	s.supernode.RestartWithFreshDataDirAndELs(s.l2ELA, s.l2ELB)
+	// Discovery is off and the wipe resets every peer table — re-add the
+	// sibling sequencer pair so the VN learns about new heads (CL pubsub)
+	// and the EL can backfill via execution-layer devp2p.
+	s.l2ACL.ConnectPeer(s.seqCLA)
+	s.l2BCL.ConnectPeer(s.seqCLB)
+	s.l2ELA.PeerWith(s.seqELA)
+	s.l2ELB.PeerWith(s.seqELB)
 }

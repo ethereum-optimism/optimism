@@ -359,6 +359,18 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+// WipeOnDiskState wipes any persistent state belonging to the EL between a
+// Stop and Start. No-op for in-memory ELs.
+func (el *L2ELNode) WipeOnDiskState() {
+	wiper, ok := el.inner.(stack.OnDiskStateWiper)
+	if !ok {
+		return
+	}
+	el.log.Info("Wiping on-disk state", "name", el.inner.Name())
+	err := wiper.WipeOnDiskState()
+	el.require.NoErrorf(err, "failed to wipe on-disk state for %s", el.inner.Name())
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
 }

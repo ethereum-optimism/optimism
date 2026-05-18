@@ -36,6 +36,12 @@ type PresetConfig struct {
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
+	// SupernodeVNMode overrides the per-VN sequencing/sync configuration.
+	// Zero value = default (sequencer, CL-sync, reqresp, discovery).
+	SupernodeVNMode supernodeVNMode
+	// SkipBatcherProposer leaves batcher/proposer unwired; the caller
+	// (e.g. the peer-EL runtime) attaches them to a sibling sequencer.
+	SkipBatcherProposer bool
 }
 
 func NewPresetConfig() PresetConfig {
