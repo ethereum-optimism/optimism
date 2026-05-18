@@ -7,6 +7,10 @@ This page documents the configuration options for the **historical proof store (
 
 When enabled, op-reth maintains a separate storage database for versioned trie data used to serve `eth_getProof` for historical blocks. This is critical for historical state access (for example, fault proof workloads) without requiring full archive-style behavior from the execution database.
 
+<Warning>
+op-reth **v2.2.3 or later** is required to enable historical proofs v2. Earlier versions do not support the `--proofs-history.storage-version=v2` flag.
+</Warning>
+
 <Info>
 Use the **historical proofs storage format v2** by setting `--proofs-history.storage-version=v2`.
 </Info>
