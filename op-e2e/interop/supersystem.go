@@ -54,7 +54,10 @@ import (
 
 // SuperSystem is an interface for the system (collection of connected resources)
 // it provides a way to get the resources for a network by network ID
-// and provides a way to get the list of network IDs.
+// and provides a way to get the list of network IDs
+// this is useful for testing multiple network backends,
+// for example, interopE2ESystem is the default implementation, but a shim to
+// kurtosis or another testing framework could be implemented
 type SuperSystem interface {
 	L1() *geth.GethInstance
 	L1GethClient() *ethclient.Client
@@ -97,6 +100,7 @@ type SuperSystem interface {
 		msgHash [32]byte,
 		expectedError error,
 	) (*types.Receipt, error)
+	// Access a contract on a network by name
 }
 
 type SuperSystemConfig struct {
@@ -111,7 +115,10 @@ func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w WorldRe
 	return s2
 }
 
-// interopE2ESystem implements the SuperSystem interface.
+// interopE2ESystem implements the SuperSystem interface
+// it prepares network resources and provides access to them
+// the functionality is broken down into smaller functions so that
+// the system can be prepared iteratively if desired
 type interopE2ESystem struct {
 	t               *testing.T
 	recipe          *interopgen.InteropDevRecipe
@@ -123,11 +130,12 @@ type interopE2ESystem struct {
 	beacon          *fakebeacon.FakeBeacon
 	l1              *geth.GethInstance
 	l2s             map[string]l2Net
-	l1GethClient    *ethclient.Client
-	supernode       *supernode.Supernode
-	supernodeURL    string
-	snClient        *sources.SuperNodeClient
-	config          *SuperSystemConfig
+	// supernode and L1 clients should be singletons, so they are cached
+	l1GethClient *ethclient.Client
+	supernode    *supernode.Supernode
+	supernodeURL string
+	snClient     *sources.SuperNodeClient
+	config       *SuperSystemConfig
 }
 
 func (s *interopE2ESystem) L1() *geth.GethInstance {
@@ -147,6 +155,7 @@ func (s *interopE2ESystem) DisputeGameFactoryAddr() common.Address {
 	return s.worldDeployment.Interop.DisputeGameFactory
 }
 
+// prepareHDWallet creates a new HD wallet to derive keys from
 func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(s.t, err)
@@ -158,7 +167,9 @@ type WorldResourcePaths struct {
 	SourceMap        string
 }
 
+// prepareWorld creates the world configuration from the recipe and deploys it
 func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
+	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
 
@@ -167,19 +178,24 @@ func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.World
 		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting jovian fork to be enabled for interop deployments")
 	}
 
+	// create a logger for the world configuration
 	logger := s.logger.New("role", "world")
 	require.NoError(s.t, worldCfg.Check(logger))
 
+	// create the foundry artifacts and source map
 	foundryArtifacts := foundry.OpenArtifactsDir(w.FoundryArtifacts)
 	sourceMap := foundry.NewSourceMapFS(os.DirFS(w.SourceMap))
 
+	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
 	require.NoError(s.t, err)
 
 	return worldDeployment, worldOutput
 }
 
+// prepareL1 creates the L1 chain resources
 func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
+	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	genesisTimestampL1 := s.worldOutput.L1.Genesis.Timestamp
 	blockTimeL1 := uint64(6)
 	blobPath := s.t.TempDir()
@@ -198,6 +214,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 		s.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		l1Clock = s.timeTravelClock
 	}
+	// Start the L1 chain
 	l1Geth, _, err := geth.InitL1(
 		blockTimeL1,
 		l1FinalizedDistance,
@@ -215,20 +232,27 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	return bcn, l1Geth
 }
 
+// newOperatorKeysForL2 creates the operator keys for an L2 chain
+// it uses an L2Output to determine the chain ID and configuration,
+// and then makes a key for each operator role [SequencerP2PRole, ProposerRole, BatcherRole]
 func (s *interopE2ESystem) newOperatorKeysForL2(l2Out *interopgen.L2Output) map[devkeys.ChainOperatorRole]ecdsa.PrivateKey {
+	// Create operatorKeys for the L2 chain actors
 	operatorKeys := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
+	// create the sequencer P2P secret
 	seqP2PSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.SequencerP2PRole,
 	})
 	require.NoError(s.t, err)
 	operatorKeys[devkeys.SequencerP2PRole] = *seqP2PSecret
+	// create the proposer secret
 	proposerSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.ProposerRole,
 	})
 	require.NoError(s.t, err)
 	operatorKeys[devkeys.ProposerRole] = *proposerSecret
+	// create the batcher secret
 	batcherSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.BatcherRole,
@@ -323,7 +347,9 @@ func (s *interopE2ESystem) SupernodeEndpoint() endpoint.RPC {
 	return endpoint.URL(s.supernodeURL)
 }
 
-// prepare sets up the system for testing.
+// prepare sets up the system for testing
+// components are built iteratively, so that they can be reused or modified
+// their creation can't be safely skipped or reordered at this time
 func (s *interopE2ESystem) prepare(t *testing.T, w WorldResourcePaths) {
 	s.t = t
 	s.logger = testlog.Logger(s.t, log.LevelDebug)
@@ -348,6 +374,12 @@ func (s *interopE2ESystem) prepare(t *testing.T, w WorldResourcePaths) {
 	s.prepareContracts()
 }
 
+// AddUser adds a user to the system by creating a user key for each L2.
+// each user key is stored in the L2's userKeys map.
+// because all user maps start empty, a users index should be the same for all L2s,
+// but if in the future these maps can diverge, the indexes for username would also diverge
+// NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
+// see: op-chain-ops/interopgen/recipe.go
 func (s *interopE2ESystem) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)
@@ -361,16 +393,19 @@ func (s *interopE2ESystem) AddUser(username string) {
 	}
 }
 
+// UserKey returns the user key for a user on an L2
 func (s *interopE2ESystem) UserKey(id, username string) ecdsa.PrivateKey {
 	return s.l2s[id].userKeys[username]
 }
 
+// Address returns the address for a user on an L2
 func (s *interopE2ESystem) Address(id, username string) common.Address {
 	secret := s.UserKey(id, username)
 	require.NotNil(s.t, secret, "no secret found for user %s", username)
 	return crypto.PubkeyToAddress(secret.PublicKey)
 }
 
+// prepareL2s creates the L2s for the system, returning a map of L2s
 func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	l2s := make(map[string]l2Net)
 	for id, l2Out := range s.worldOutput.L2s {
@@ -379,7 +414,9 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	return l2s
 }
 
+// prepareContracts prepares contract-bindings for the L2s
 func (s *interopE2ESystem) prepareContracts() {
+	// Add bindings to common contracts for each L2
 	for id := range s.worldDeployment.L2s {
 		{
 			contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, s.L2GethClient(id, "sequencer"))
@@ -404,6 +441,7 @@ func (s *interopE2ESystem) L1GethClient() *ethclient.Client {
 			return cl
 		})
 	nodeClient := ethclient.NewClient(rpcCl)
+	// register the client so it can be reused
 	s.l1GethClient = nodeClient
 	return nodeClient
 }
@@ -422,6 +460,7 @@ func (s *interopE2ESystem) L1Genesis() *core.Genesis {
 	return s.worldOutput.L1.Genesis
 }
 
+// L2IDs returns the list of L2 IDs, which are the keys of the L2s map
 func (s *interopE2ESystem) L2IDs() []string {
 	ids := make([]string, 0, len(s.l2s))
 	for id := range s.l2s {
@@ -431,6 +470,9 @@ func (s *interopE2ESystem) L2IDs() []string {
 	return ids
 }
 
+// SendL2Tx sends an L2 transaction to the L2 with the given ID.
+// it acts as a wrapper around op-e2e.SendL2TxWithID
+// and uses the L2's chain ID, username key, and geth client.
 func (s *interopE2ESystem) SendL2Tx(
 	id string,
 	node string,
@@ -453,6 +495,10 @@ func (s *interopE2ESystem) SendL2Tx(
 		newApply)
 }
 
+// ValidateMessage calls the CrossL2Inbox ValidateMessage function
+// it uses the L2's chain ID, username key, and geth client.
+// expectedError represents the error returned by `ValidateMessage` if it is expected.
+// the returned err is related to `WaitMined`
 func (s *interopE2ESystem) ValidateMessage(
 	ctx context.Context,
 	id string,
@@ -497,6 +543,8 @@ func (s *interopE2ESystem) ValidateMessage(
 	return bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx)
 }
 
+// DeployEmitterContract deploys the Emitter contract on the L2
+// it uses the sequencer node to deploy the contract
 func (s *interopE2ESystem) DeployEmitterContract(
 	ctx context.Context,
 	id string,
@@ -553,6 +601,7 @@ func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
 var testingJWTSecret = [32]byte{123}
 
 func writeDefaultJWT(t testing.TB) string {
+	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
 	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
@@ -569,6 +618,7 @@ func worldToDepSet(world *interopgen.WorldOutput) (*depset.StaticConfigDependenc
 	eth.SortChainID(ids)
 	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
 
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
 	for _, l2Out := range world.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
 		depSet[chainID] = &depset.StaticConfigDependency{}
