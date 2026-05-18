@@ -678,9 +678,8 @@ func TestVirtualNode_FirstProvableSafeHeadNumber(t *testing.T) {
 	vn.inner = mock
 	vn.state = VNStateRunning
 
-	l1, l2Num, err := vn.FirstProvableSafeHeadNumber(context.Background())
+	l2Num, err := vn.FirstProvableSafeHeadNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(501), l1.Number)
 	require.Equal(t, uint64(101), l2Num)
 }
 
@@ -698,7 +697,7 @@ func TestVirtualNode_FirstProvableSafeHeadNumber_WaitsForSafeHeadAdvance(t *test
 	vn.inner = mock
 	vn.state = VNStateRunning
 
-	_, _, err := vn.FirstProvableSafeHeadNumber(context.Background())
+	_, err := vn.FirstProvableSafeHeadNumber(context.Background())
 	require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 }
 
