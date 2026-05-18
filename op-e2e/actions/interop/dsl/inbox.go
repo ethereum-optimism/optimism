@@ -1,8 +1,6 @@
 package dsl
 
 import (
-	"math/big"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -32,45 +30,6 @@ type ExecuteOpts struct {
 	Identifier *inbox.Identifier
 	Payload    *[]byte
 	GasLimit   uint64
-}
-
-func WithIdentifier(ident inbox.Identifier) func(opts *ExecuteOpts) {
-	return func(opts *ExecuteOpts) {
-		opts.Identifier = &ident
-	}
-}
-
-func WithPayload(payload []byte) func(opts *ExecuteOpts) {
-	return func(opts *ExecuteOpts) {
-		opts.Payload = &payload
-	}
-}
-
-func WithFixedGasLimit() func(opts *ExecuteOpts) {
-	return func(opts *ExecuteOpts) {
-		opts.GasLimit = 1_000_000 // Overly large to ensure the tx doesn't OOG.
-	}
-}
-
-func WithPendingMessage(emitter *EmitterContract, chain *Chain, number uint64, logIndex int, msg string) func(opts *ExecuteOpts) {
-	return func(opts *ExecuteOpts) {
-		blockTime := chain.RollupCfg.TimestampForBlock(number)
-		id := inbox.Identifier{
-			Origin:      emitter.Address(chain),
-			BlockNumber: big.NewInt(int64(number)),
-			LogIndex:    big.NewInt(int64(logIndex)),
-			Timestamp:   big.NewInt(int64(blockTime)),
-			ChainId:     chain.RollupCfg.L2ChainID,
-		}
-		opts.Identifier = &id
-
-		topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
-		var payload []byte
-		payload = append(payload, topic.Bytes()...)
-		msgHash := crypto.Keccak256Hash([]byte(msg))
-		payload = append(payload, msgHash.Bytes()...)
-		opts.Payload = &payload
-	}
 }
 
 func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, args ...func(opts *ExecuteOpts)) TransactionCreator {
@@ -120,7 +79,3 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 	}
 }
 
-func (i *InboxContract) LastTransaction() *GeneratedTransaction {
-	require.NotZero(i.t, i.Transactions, "no transactions created")
-	return i.Transactions[len(i.Transactions)-1]
-}

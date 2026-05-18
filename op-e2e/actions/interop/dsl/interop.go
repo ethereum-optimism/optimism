@@ -115,29 +115,11 @@ const messageExpiryTime = 120 // 2 minutes
 
 type setupOption func(*interopgen.InteropDevRecipe)
 
-func SetMessageExpiryTime(expiryTime uint64) setupOption {
-	return func(recipe *interopgen.InteropDevRecipe) {
-		recipe.ExpiryTime = expiryTime
-	}
-}
-
 func SetInteropOffsetForAllL2s(offset uint64) setupOption {
 	return func(recipe *interopgen.InteropDevRecipe) {
 		for i, l2 := range recipe.L2s {
 			l2.InteropOffset = offset
 			recipe.L2s[i] = l2
-		}
-	}
-}
-
-func SetInteropForkScheduledButInactive() setupOption {
-	return func(recipe *interopgen.InteropDevRecipe) {
-		// Update in place to avoid making a copy and losing the change.
-		// Set to a year in the future. Far enough tests won't hit it
-		// but not so far it will overflow when added to current time.
-		val := uint64(365 * 24 * 60 * 60)
-		for key := range recipe.L2s {
-			recipe.L2s[key].InteropOffset = val
 		}
 	}
 }
@@ -230,10 +212,6 @@ func (sa *SupervisorActor) SignalLatestL1(t helpers.Testing) {
 
 func (sa *SupervisorActor) SignalFinalizedL1(t helpers.Testing) {
 	require.NoError(t, sa.backend.PullFinalizedL1())
-}
-
-func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
-	return sa.backend.Rewind(context.Background(), chain, block)
 }
 
 // RecipeToDepSet converts a recipe into a dependency-set for the supervisor.
@@ -345,12 +323,6 @@ func WithMarkFinal() batchAndMineOption {
 	}
 }
 
-func WithMarkSafe() batchAndMineOption {
-	return func(cfg *batchAndMineConfig) {
-		cfg.shouldMarkSafe = true
-	}
-}
-
 // Creates a new L2 block, submits it to L1, and mines the L1 block.
 func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, opts ...batchAndMineOption) {
 	cfg := &batchAndMineConfig{}
@@ -403,11 +375,3 @@ func WithLatestSignal() actSyncSupernodeOption {
 	}
 }
 
-func (actors *InteropActors) SyncStatuses(t helpers.Testing, chain *Chain) (*eth.SyncStatus, *eth.SupervisorChainSyncStatus) {
-	seqSyncStatus := chain.Sequencer.SyncStatus()
-	supSyncStatus, err := actors.Supervisor.SyncStatus(t.Ctx())
-	require.NoError(t, err)
-	supChainStatus, ok := supSyncStatus.Chains[chain.ChainID]
-	require.True(t, ok, "supervisor should have chain status for chain id: %s", chain.ChainID)
-	return seqSyncStatus, supChainStatus
-}

@@ -280,15 +280,6 @@ func WithCrossUnsafeAdvancesTo(expectedCrossUnsafeNumber uint64) func(cfg *updat
 	}
 }
 
-func WithCrossUnsafeAdvancesBy(advancesBy uint64) func(cfg *updateExpectedConfig) {
-	return func(cfg *updateExpectedConfig) {
-		cfg.crossUnsafeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
-			result := assert.Greater(t, nextSyncStatus.CrossUnsafeL2.Number, prevSyncStatus.CrossUnsafeL2.Number, "cross unsafe did not advance")
-			return result && assert.Equal(t, prevSyncStatus.CrossUnsafeL2.Number+advancesBy, nextSyncStatus.CrossUnsafeL2.Number, "cross unsafe number did not advance as expected")
-		}
-	}
-}
-
 func WithCrossUnsafeEquals(expectedCrossUnsafeNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.crossUnsafeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
@@ -303,16 +294,6 @@ func WithLocalSafeAdvancesTo(expectedLocalSafeNumber uint64) func(cfg *updateExp
 		cfg.localSafeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
 			result := assert.Greater(t, nextSyncStatus.LocalSafeL2.Number, prevSyncStatus.LocalSafeL2.Number, "local safe did not advance")
 			return result && assert.Equal(t, expectedLocalSafeNumber, nextSyncStatus.LocalSafeL2.Number, "local safe number did not match expectations")
-		}
-	}
-}
-
-// WithLocalSafeAdvancesBy returns an assertionOption asserting that LocalSafe advances by the given amount.
-func WithLocalSafeAdvancesBy(advancesBy uint64) func(cfg *updateExpectedConfig) {
-	return func(cfg *updateExpectedConfig) {
-		cfg.localSafeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
-			result := assert.Greater(t, nextSyncStatus.LocalSafeL2.Number, prevSyncStatus.LocalSafeL2.Number, "local safe did not advance")
-			return result && assert.Equal(t, prevSyncStatus.LocalSafeL2.Number+advancesBy, nextSyncStatus.LocalSafeL2.Number, "local safe number did not advance as expected")
 		}
 	}
 }
@@ -335,15 +316,6 @@ func WithSafeAdvancesTo(expectedSafeNumber uint64) func(cfg *updateExpectedConfi
 	}
 }
 
-func WithSafeAdvancesBy(advancesBy uint64) func(cfg *updateExpectedConfig) {
-	return func(cfg *updateExpectedConfig) {
-		cfg.safeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
-			result := assert.Greater(t, nextSyncStatus.SafeL2.Number, prevSyncStatus.SafeL2.Number, "safe did not advance")
-			return result && assert.Equal(t, prevSyncStatus.SafeL2.Number+advancesBy, nextSyncStatus.SafeL2.Number, "safe number did not advance as expected")
-		}
-	}
-}
-
 func WithSafeEquals(expectedSafeNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.safeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
@@ -358,15 +330,6 @@ func WithFinalizedAdvancesTo(expectedFinalizedNumber uint64) func(cfg *updateExp
 		cfg.finalizedAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
 			result := assert.Greater(t, nextSyncStatus.FinalizedL2.Number, prevSyncStatus.FinalizedL2.Number, "finalized did not advance")
 			return result && assert.Equal(t, expectedFinalizedNumber, nextSyncStatus.FinalizedL2.Number, "finalized number did not match expectations")
-		}
-	}
-}
-
-func WithFinalizedAdvancesBy(advancesBy uint64) func(cfg *updateExpectedConfig) {
-	return func(cfg *updateExpectedConfig) {
-		cfg.finalizedAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
-			result := assert.Greater(t, nextSyncStatus.FinalizedL2.Number, prevSyncStatus.FinalizedL2.Number, "finalized did not advance")
-			return result && assert.Equal(t, prevSyncStatus.FinalizedL2.Number+advancesBy, nextSyncStatus.FinalizedL2.Number, "finalized number did not advance as expected")
 		}
 	}
 }

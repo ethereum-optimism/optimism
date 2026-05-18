@@ -33,11 +33,6 @@ func (d *Outputs) OutputRootAtTimestamp(chain *Chain, timestamp uint64) *eth.Out
 	return output
 }
 
-func (d *Outputs) OptimisticBlockAtTimestamp(chain *Chain, timestamp uint64) types.OptimisticBlock {
-	root := d.OutputRootAtTimestamp(chain, timestamp)
-	return types.OptimisticBlock{BlockHash: root.BlockRef.Hash, OutputRoot: root.OutputRoot}
-}
-
 func (d *Outputs) TransitionState(timestamp uint64, step uint64, pendingProgress ...types.OptimisticBlock) *types.TransitionState {
 	return &types.TransitionState{
 		SuperRoot:       d.SuperRoot(timestamp).Marshal(),

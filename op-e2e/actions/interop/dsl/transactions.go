@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -41,13 +40,6 @@ func (m *GeneratedTransaction) Include() {
 	rcpt, err := m.chain.SequencerEngine.EngineApi.IncludeTx(m.tx, m.from)
 	require.NoError(m.t, err)
 	m.rcpt = rcpt
-}
-
-func (m *GeneratedTransaction) IncludeOK() {
-	rcpt, err := m.chain.SequencerEngine.EngineApi.IncludeTx(m.tx, m.from)
-	require.NoError(m.t, err)
-	m.rcpt = rcpt
-	require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status)
 }
 
 // IncludeDepositOK includes the GeneratedTransaction via a user deposit transaction.
@@ -90,45 +82,3 @@ func (m *GeneratedTransaction) MessagePayload() []byte {
 	return stypes.LogToMessagePayload(m.rcpt.Logs[0])
 }
 
-type CheckIncludedOpts struct {
-	ExpectRevert bool
-}
-
-func WithRevertExpected() func(*CheckIncludedOpts) {
-	return func(opts *CheckIncludedOpts) {
-		opts.ExpectRevert = true
-	}
-}
-
-func (m *GeneratedTransaction) CheckIncluded(args ...func(opts *CheckIncludedOpts)) {
-	opts := CheckIncludedOpts{}
-	for _, arg := range args {
-		arg(&opts)
-	}
-	rcpt, err := m.chain.SequencerEngine.EthClient().TransactionReceipt(m.t.Ctx(), m.tx.Hash())
-	require.NoError(m.t, err, "Transaction should have been included")
-	require.NotNil(m.t, rcpt, "No receipt found")
-	if opts.ExpectRevert {
-		require.Equal(m.t, types.ReceiptStatusFailed, rcpt.Status, "Expected tx to revert")
-	} else {
-		require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status, "Expected tx to be successful")
-	}
-}
-
-func (m *GeneratedTransaction) CheckNotIncluded() {
-	rcpt, err := m.chain.SequencerEngine.EthClient().TransactionReceipt(m.t.Ctx(), m.tx.Hash())
-	require.ErrorIs(m.t, err, ethereum.NotFound)
-	require.Nil(m.t, rcpt)
-}
-
-func (m *GeneratedTransaction) PendingIdentifier(chain *Chain, logIndex int) inbox.Identifier {
-	head := chain.Sequencer.L2Unsafe()
-	blockTime := chain.RollupCfg.TimestampForBlock(head.Number)
-	return inbox.Identifier{
-		Origin:      *m.tx.To(),
-		BlockNumber: big.NewInt(int64(head.Number + 1)),
-		LogIndex:    big.NewInt(int64(logIndex)),
-		Timestamp:   big.NewInt(int64(blockTime)),
-		ChainId:     chain.RollupCfg.L2ChainID,
-	}
-}

@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,10 +15,6 @@ type ChainOpts struct {
 
 func (c *ChainOpts) SetChains(chains ...*Chain) {
 	c.Chains = chains
-}
-
-func (c *ChainOpts) AddChain(chain *Chain) {
-	c.Chains = append(c.Chains, chain)
 }
 
 // InteropDSL provides a high-level API to drive interop action tests so that the actual test reads more declaratively
@@ -92,10 +87,6 @@ func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 	}
 }
 
-func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
-	return d.setup.CfgSet.DependencySet.(*depset.StaticConfigDependencySet)
-}
-
 func (d *InteropDSL) defaultChainOpts() ChainOpts {
 	return ChainOpts{
 		// Defensive copy to make sure the original slice isn't modified
@@ -124,12 +115,6 @@ type AddL2BlockOpts struct {
 func WithL2BlockTransactions(mkTxs ...TransactionCreator) func(*AddL2BlockOpts) {
 	return func(o *AddL2BlockOpts) {
 		o.TransactionCreators = mkTxs
-	}
-}
-
-func WithL1BlockCrossUnsafe() func(*AddL2BlockOpts) {
-	return func(o *AddL2BlockOpts) {
-		o.BlockIsNotCrossUnsafe = true
 	}
 }
 
@@ -173,12 +158,6 @@ func (d *InteropDSL) AddL2Block(chain *Chain, optionalArgs ...func(*AddL2BlockOp
 type SubmitBatchDataOpts struct {
 	ChainOpts
 	SkipCrossSafeUpdate bool
-}
-
-func WithSkipCrossSafeUpdate() func(*SubmitBatchDataOpts) {
-	return func(o *SubmitBatchDataOpts) {
-		o.SkipCrossSafeUpdate = true
-	}
 }
 
 // SubmitBatchData submits batch data to L1 and processes the new L1 blocks, advancing the safe heads.
