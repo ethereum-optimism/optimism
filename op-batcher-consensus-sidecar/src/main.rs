@@ -1,14 +1,17 @@
 use anyhow::{anyhow, Context, Result};
 use commonware_actor::Feedback;
-use commonware_codec::Encode;
+use commonware_codec::{Encode, ReadExt};
 use commonware_consensus::{
     simplex::{self, elector::RoundRobin, types::Activity, Engine, ForwardingPolicy, Plan},
     types::{Epoch, ViewDelta},
     Automaton, CertifiableAutomaton, Relay, Reporter,
 };
 use commonware_cryptography::{
-    certificate::Scheme as _, ed25519, secp256r1, sha256::Digest as Sha256Digest, Hasher, Sha256,
-    Signer,
+    certificate::Scheme as _,
+    ed25519,
+    secp256r1::{self, standard as p256},
+    sha256::Digest as Sha256Digest,
+    Hasher, Sha256, Signer,
 };
 use commonware_p2p::simulated::{Config as SimulatedNetworkConfig, Link, Network};
 use commonware_parallel::Sequential;
@@ -17,7 +20,7 @@ use commonware_runtime::{
 };
 use commonware_utils::{
     channel::{mpsc, oneshot},
-    ordered::Set,
+    ordered::{BiMap, Set},
     sync::Mutex,
     TryCollect,
 };
@@ -34,7 +37,7 @@ use std::{
 };
 
 const PROVIDER: &str = "commonware-p2pft-poc-secp256r1";
-const SIMPLEX_PROVIDER: &str = "commonware-simplex-poc-ed25519";
+const SIMPLEX_PROVIDER: &str = "commonware-simplex-poc-secp256r1";
 const COMMONWARE_NAMESPACE: &[u8] = b"op-batcher-consensus-poc/commonware";
 const SIMPLEX_NAMESPACE: &[u8] = b"op-batcher-consensus-poc/simplex";
 const EVM_PREFIX: &[u8] = b"BCSIG1";
@@ -57,6 +60,16 @@ const EVM_VALIDATOR_KEYS: [[u8; 32]; 3] = [
     [
         0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd,
         0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x31, 0x23, 0x45, 0x67, 0x89, 0xab,
+        0xcd, 0xef,
+    ],
+];
+const SIMPLEX_P256_VALIDATOR_KEYS: [[u8; 32]; 4] = [
+    EVM_VALIDATOR_KEYS[0],
+    EVM_VALIDATOR_KEYS[1],
+    EVM_VALIDATOR_KEYS[2],
+    [
+        0x41, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x41, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd,
+        0xef, 0x41, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x41, 0x23, 0x45, 0x67, 0x89, 0xab,
         0xcd, 0xef,
     ],
 ];
@@ -187,7 +200,7 @@ fn build_simplex_response(digest: &[u8; 32], valid: bool) -> Result<ProofRespons
     })
 }
 
-type SimplexScheme = simplex::scheme::ed25519::Scheme;
+type SimplexScheme = simplex::scheme::secp256r1::Scheme<ed25519::PublicKey>;
 type SimplexFinalization = simplex::types::Finalization<SimplexScheme, Sha256Digest>;
 
 #[derive(Clone)]
@@ -342,20 +355,34 @@ fn run_simplex_consensus(digest: [u8; 32]) -> Result<Vec<u8>> {
     let target = Sha256Digest::from(digest);
     let runner = deterministic::Runner::default();
     runner.start(|context| async move {
-        let signers = (0..4)
+        let identity_signers = (0..4)
             .map(|i| ed25519::PrivateKey::from_seed(i + 1))
             .collect::<Vec<_>>();
-        let participants: Set<_> = signers
+        let consensus_signers = SIMPLEX_P256_VALIDATOR_KEYS
+            .iter()
+            .map(simplex_p256_private_key)
+            .collect::<Result<Vec<_>>>()?;
+        let participants: Set<_> = identity_signers
             .iter()
             .map(|signer| signer.public_key())
             .try_collect()
             .map_err(|_| anyhow!("duplicate Commonware Simplex participants"))?;
+        let consensus_participants: BiMap<_, _> = identity_signers
+            .iter()
+            .zip(consensus_signers.iter())
+            .map(|(identity, consensus)| (identity.public_key(), consensus.public_key()))
+            .try_collect()
+            .map_err(|_| anyhow!("duplicate Commonware Simplex consensus participants"))?;
 
-        let schemes = signers
+        let schemes = consensus_signers
             .iter()
             .map(|signer| {
-                SimplexScheme::signer(SIMPLEX_NAMESPACE, participants.clone(), signer.clone())
-                    .ok_or_else(|| anyhow!("simplex signer not in participants"))
+                SimplexScheme::signer(
+                    SIMPLEX_NAMESPACE,
+                    consensus_participants.clone(),
+                    signer.clone(),
+                )
+                .ok_or_else(|| anyhow!("simplex signer not in participants"))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -389,8 +416,8 @@ fn run_simplex_consensus(digest: [u8; 32]) -> Result<Vec<u8>> {
         }
 
         let finalization = Arc::new(Mutex::new(None));
-        for (idx, signer) in signers.iter().enumerate() {
-            let public_key = signer.public_key();
+        for (idx, identity) in identity_signers.iter().enumerate() {
+            let public_key = identity.public_key();
             let control = oracle.control(public_key.clone());
             let vote = control
                 .register(0, Quota::per_second(NonZeroU32::MAX))
@@ -465,6 +492,10 @@ fn run_simplex_consensus(digest: [u8; 32]) -> Result<Vec<u8>> {
             "timed out waiting for Commonware Simplex finalization"
         ))
     })
+}
+
+fn simplex_p256_private_key(raw: &[u8; 32]) -> Result<p256::PrivateKey> {
+    p256::PrivateKey::read(&mut &raw[..]).context("decode Simplex P256 validator key")
 }
 
 fn proof_digest(req: &ProofRequest) -> Result<[u8; 32]> {

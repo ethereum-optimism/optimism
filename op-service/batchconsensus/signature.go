@@ -65,8 +65,8 @@ func BuildSignedProofResponse(req ProofRequest, signer *ecdsa.PrivateKey, valid 
 }
 
 // BuildCommonwareSimplexProofCalldata creates verifier calldata that carries a
-// Commonware Simplex finalization certificate after the EVM-verifiable proof
-// envelope used by the DevStack POC verifier.
+// Commonware Simplex finalization certificate after the fixed POC envelope used
+// by the DevStack verifier.
 func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, signers []*ecdsa.PrivateKey, valid bool) ([]byte, error) {
 	if len(certificate) == 0 {
 		return nil, fmt.Errorf("missing Commonware certificate")

@@ -28,7 +28,7 @@ type ProofResponse struct {
 
 const (
 	ProviderCommonwarePOC        = "commonware-poc-secp256k1"
-	ProviderCommonwareSimplexPOC = "commonware-simplex-poc-ed25519"
+	ProviderCommonwareSimplexPOC = "commonware-simplex-poc-secp256r1"
 )
 
 func NewProofRequest(l1ChainID, l2ChainID *big.Int, batchInbox common.Address, batcher common.Address, blobHashes []common.Hash) (ProofRequest, error) {
