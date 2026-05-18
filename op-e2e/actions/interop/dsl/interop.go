@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 	"github.com/ethereum/go-ethereum/common"
-	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -114,15 +113,6 @@ func (actors *InteropActors) PrepareAndVerifyInitialState(t helpers.Testing) {
 const messageExpiryTime = 120 // 2 minutes
 
 type setupOption func(*interopgen.InteropDevRecipe)
-
-func SetInteropOffsetForAllL2s(offset uint64) setupOption {
-	return func(recipe *interopgen.InteropDevRecipe) {
-		for i, l2 := range recipe.L2s {
-			l2.InteropOffset = offset
-			recipe.L2s[i] = l2
-		}
-	}
-}
 
 // SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
 func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
@@ -305,72 +295,5 @@ func createL2Services(
 		Sequencer:       seq,
 		SequencerEngine: eng,
 		Batcher:         batcher,
-	}
-}
-
-type batchAndMineOption func(*batchAndMineConfig)
-
-type batchAndMineConfig struct {
-	shouldMarkSafe  bool
-	shouldMarkFinal bool
-}
-
-// WithMarkFinal marks the L1 block with L2 batches as safe and finalized.
-// Necessary for doing this is creating a second L1 block so that the final head can be be promoted.
-func WithMarkFinal() batchAndMineOption {
-	return func(cfg *batchAndMineConfig) {
-		cfg.shouldMarkFinal = true
-	}
-}
-
-// Creates a new L2 block, submits it to L1, and mines the L1 block.
-func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, opts ...batchAndMineOption) {
-	cfg := &batchAndMineConfig{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-	var batches []*gethTypes.Transaction
-	for _, c := range []*Chain{actors.ChainA, actors.ChainB} {
-		c.Batcher.ActSubmitAll(t)
-		batches = append(batches, c.Batcher.LastSubmitted)
-	}
-	actors.L1Miner.ActL1StartBlock(12)(t)
-	for _, b := range batches {
-		actors.L1Miner.ActL1IncludeTxByHash(b.Hash())(t)
-	}
-	actors.L1Miner.ActL1EndBlock(t)
-
-	if cfg.shouldMarkSafe || cfg.shouldMarkFinal {
-		actors.L1Miner.ActL1SafeNext(t)
-	}
-	if cfg.shouldMarkFinal {
-		actors.L1Miner.ActEmptyBlock(t)
-		actors.L1Miner.ActL1FinalizeNext(t)
-	}
-}
-
-type actSyncSupernodeOption func(*actSyncSupernodeConfig)
-
-type actSyncSupernodeConfig struct {
-	ChainOpts
-	shouldSendL1FinalizedSignal bool
-	shouldSendL1LatestSignal    bool
-}
-
-func WithChains(chains ...*Chain) actSyncSupernodeOption {
-	return func(cfg *actSyncSupernodeConfig) {
-		cfg.Chains = chains
-	}
-}
-
-func WithFinalizedSignal() actSyncSupernodeOption {
-	return func(cfg *actSyncSupernodeConfig) {
-		cfg.shouldSendL1FinalizedSignal = true
-	}
-}
-
-func WithLatestSignal() actSyncSupernodeOption {
-	return func(cfg *actSyncSupernodeConfig) {
-		cfg.shouldSendL1LatestSignal = true
 	}
 }
