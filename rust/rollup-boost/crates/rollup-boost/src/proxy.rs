@@ -547,7 +547,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_forward_set_max_da_size() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let max_tx_size = U64::MAX;
@@ -588,7 +587,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -623,7 +621,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -663,7 +660,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_forward_miner_set_extra() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let extra = Bytes::default();
@@ -769,7 +765,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_direct_forward_mock_request() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let mock_data = U128::ZERO;
@@ -801,7 +796,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_l2_server_recovery() -> eyre::Result<()> {
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
         // Step 1: Reserve a port for L2 by binding and then releasing it
         let temp_listener = TcpListener::bind("127.0.0.1:0").await?;
