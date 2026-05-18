@@ -24,11 +24,13 @@ func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	)
 
 	sys.Supernode.AwaitBackfillCompleted()
-	activation := sys.Supernode.ActivationTimestamp()
-	blockTime := sys.L2A.Escape().RollupConfig().BlockTime
 
-	// Setup: prove the initial supernode is committing past activation.
-	sys.Supernode.AwaitValidatedTimestamp(activation + 5*blockTime)
+	// Setup: prove the initial supernode is producing committed cross-safe
+	// entries on both chains.
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(types.CrossSafe, 5, 60),
+		sys.L2BCL.AdvancedFn(types.CrossSafe, 5, 60),
+	)
 
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitBackfillCompleted()
