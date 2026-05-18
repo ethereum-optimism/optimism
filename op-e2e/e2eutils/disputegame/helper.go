@@ -298,6 +298,7 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
 	l1Head := h.GetL1Head(ctx, game)
+	h.waitForSupernodePastL1(ctx, l1Head)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
 	_, err = super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
@@ -312,18 +313,11 @@ func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDispu
 	h.Require.NoError(err, "Failed to load L1 head")
 	l1Header, err := h.Client.HeaderByHash(ctx, l1HeadHash)
 	h.Require.NoError(err, "Failed to load L1 header")
-	l1Head := eth.HeaderBlockID(l1Header)
-	if h.System.IsSupersystem() {
-		h.waitForSupernodePastL1(ctx, l1Head)
-	}
-	return l1Head
+	return eth.HeaderBlockID(l1Header)
 }
 
-// waitForSupernodePastL1 blocks until the supernode has processed past the supplied L1 block.
-// The supernode's super-root and trace providers require CurrentL1 > game.l1Head; right after
-// game creation the supernode may still be a block or two behind, so callers that immediately
-// invoke the trace provider can race the sync. Centralising the wait here means every super-game
-// path picks it up without scattering retries through individual call sites.
+// waitForSupernodePastL1 blocks until the supernode's CurrentL1 has advanced past l1Head, so
+// the trace provider can return data instead of ErrNotInSync.
 func (h *FactoryHelper) waitForSupernodePastL1(ctx context.Context, l1Head eth.BlockID) {
 	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
