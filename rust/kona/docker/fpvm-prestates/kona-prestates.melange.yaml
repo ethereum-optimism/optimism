@@ -1,0 +1,52 @@
+package:
+  name: kona-prestates
+  version: 0.0.1
+  epoch: 0
+  description: Reproducible kona-client cannon prestate artifacts (composed from cannon + kona-client-elf)
+
+# Composed package: depends on cannon (Go) and kona-client-elf (Rust nightly
+# MIPS64) APKs built as separate melange packages. The pipeline here is the
+# minimum it has to be: invoking cannon over the installed ELFs. There is no
+# language compilation in this package, hence no stock pipeline applies.
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - bash
+      - busybox
+      - cannon
+      - kona-client-elf
+
+vars:
+  variants: ${KONA_PRESTATE_VARIANTS}
+
+pipeline:
+  - name: Generate prestate artifacts for each variant
+    runs: |
+      set -euo pipefail
+
+      for variant in $(printf '%s' "${{vars.variants}}" | tr ',' ' '); do
+        elf="/usr/share/kona-prestate-elfs/${variant}"
+        out="${{targets.destdir}}/usr/share/kona-prestates/${variant}"
+        mkdir -p "${out}"
+
+        /usr/bin/cannon load-elf \
+          --path="${elf}" \
+          --out="${out}/prestate.bin.gz" \
+          --meta="${out}/meta.json" \
+          --type multithreaded64-5
+
+        /usr/bin/cannon run \
+          --proof-at "=0" \
+          --stop-at "=1" \
+          --input "${out}/prestate.bin.gz" \
+          --meta "${out}/meta.json" \
+          --proof-fmt "${out}/%d.json" \
+          --output ""
+
+        mv "${out}/0.json" "${out}/prestate-proof.json"
+        install -Dm755 "${elf}" "${out}/kona-client-elf"
+      done

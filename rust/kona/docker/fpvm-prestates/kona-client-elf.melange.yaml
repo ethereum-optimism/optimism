@@ -1,0 +1,56 @@
+package:
+  name: kona-client-elf
+  version: 0.0.1
+  epoch: 0
+  description: kona-client MIPS64 ELF binaries for cannon prestate generation
+  dependencies:
+    runtime:
+      - rust-nightly-2026-02-20
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - bash
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - clang-18
+      - cmake
+      - libclang-cpp-18
+      - openssl-dev
+      - perl
+      - pkgconf
+      - rust-nightly-2026-02-20
+  environment:
+    CARGO_NET_OFFLINE: "false"
+    # Force cargo to pick up our pinned nightly even when invoked without
+    # `cargo +nightly` (stock cargo/build pipeline shells out to `cargo`).
+    # Our rust-nightly package installs cargo/rustc at /usr/bin which
+    # supersedes rustup proxies.
+    RUST_BACKTRACE: "1"
+
+pipeline:
+  # Build kona-client (cannon variant) for MIPS64.
+  - uses: cargo/build-no-auditable
+    with:
+      modroot: rust
+      output: kona-client
+      output-dir: target/mips64-unknown-none/release-client-lto
+      install-dir: share/kona-prestate-elfs
+      rustflags: -Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division
+      opts: --target kona/docker/cannon/mips64-unknown-none.json -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client --locked --profile release-client-lto
+
+  # Build kona-client-int (interop cannon variant) for MIPS64.
+  # Reuses the cargo build cache from the previous step.
+  - uses: cargo/build-no-auditable
+    with:
+      modroot: rust
+      output: kona-client-int
+      output-dir: target/mips64-unknown-none/release-client-lto
+      install-dir: share/kona-prestate-elfs
+      rustflags: -Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division
+      opts: --target kona/docker/cannon/mips64-unknown-none.json -Zbuild-std=core,alloc -Zjson-target-spec -p kona-client --bin kona-client-int --locked --profile release-client-lto

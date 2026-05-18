@@ -1,0 +1,52 @@
+package:
+  name: rust-nightly-2026-02-20
+  version: 1.99.0_alpha20260220
+  epoch: 0
+  description: Pinned Rust nightly toolchain (2026-02-20) for reproducible MIPS64 prestate builds
+  # Satisfies `needs.packages: rust` in stock melange cargo/build pipeline,
+  # so downstream packages can use `uses: cargo/build` without depending on
+  # the moving Wolfi stable `rust-N.NN` package.
+  dependencies:
+    provides:
+      - rust=1.99.0-r0
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - bash
+      - busybox
+      - xz
+
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://static.rust-lang.org/dist/2026-02-20/rust-nightly-x86_64-unknown-linux-gnu.tar.gz
+      expected-sha256: bda49d109c835651724b4180262bc868af7cbca4ff30bdf241dff6231f0c73ac
+      strip-components: 1
+
+  - name: Install rustc, cargo, host rust-std
+    runs: |
+      ./install.sh \
+        --prefix=${{targets.destdir}}/usr \
+        --components=rustc,cargo,rust-std-x86_64-unknown-linux-gnu \
+        --disable-ldconfig
+      mkdir -p rust-src-staging
+
+  - uses: fetch
+    with:
+      uri: https://static.rust-lang.org/dist/2026-02-20/rust-src-nightly.tar.gz
+      expected-sha256: e5c216b3c0619fac01d966660e798d38bf5f86e0551e1d38a441ec02f55d0247
+      strip-components: 1
+      directory: rust-src-staging
+
+  - name: Install rust-src component
+    runs: |
+      cd rust-src-staging
+      ./install.sh \
+        --prefix=${{targets.destdir}}/usr \
+        --components=rust-src \
+        --disable-ldconfig

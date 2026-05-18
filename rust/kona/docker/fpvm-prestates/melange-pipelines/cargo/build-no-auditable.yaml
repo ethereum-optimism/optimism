@@ -1,0 +1,89 @@
+name: Compile a rust binary with Cargo (without cargo-auditable wrapping)
+
+# Vendored from the stock melange `cargo/build` pipeline, with the
+# `cargo auditable build` invocation replaced by plain `cargo build`.
+#
+# cargo-auditable panics on `.json` target specs (it shells out to
+# `cargo metadata` which does not inherit `-Zjson-target-spec`). The
+# kona-client MIPS64 prestate build uses a custom JSON target spec, so
+# the stock pipeline fails. The resulting binary is a bare-metal no_std
+# ELF that `rust-audit-info` could not parse anyway, so dropping the
+# auditable section here loses nothing in practice.
+#
+# Every other behaviour (output paths, install step, flags) matches the
+# stock pipeline byte-for-byte so future stock-pipeline changes can be
+# rebased onto this file by diff.
+
+needs:
+  packages:
+    - build-base
+    - busybox
+    - rust
+
+inputs:
+  output:
+    description: |
+      Filename to use when writing the binary. The final install location inside
+      the apk will be in prefix / install-dir / output
+
+  opts:
+    default: --release
+    description: |
+      Options to pass to cargo build. Defaults to release
+
+  modroot:
+    default: "."
+    required: false
+    description: |
+      Top directory of the rust package, this is where the target package lives.
+      Before building, the cargo pipeline wil cd into this directory. Defaults
+      to current working directory
+
+  rustflags:
+    default: ""
+    required: false
+    description: |
+      Rustc flags to be passed to pass to all compiler invocations that Cargo performs.
+      In contrast with cargo rustc, this is useful for passing a flag to all compiler instances.
+      This string is split by whitespace.
+
+  prefix:
+    default: usr
+    description: |
+      Installation prefix. Defaults to usr
+
+  install-dir:
+    description: |
+      Directory where binaries will be installed
+    default: bin
+
+  output-dir:
+    description: |
+      Directory where the binaris will be placed after building. Defaults to target/release
+    default: target/release
+
+  jobs:
+    description: |
+      Override the number of parallel jobs. It defaults to the number of CPUs.
+
+pipeline:
+  - runs: |
+      # Installation directory should always be bin as we are producing a binary
+      INSTALL_PATH="${{targets.contextdir}}/${{inputs.prefix}}/${{inputs.install-dir}}"
+      OUTPUT_PATH="${{inputs.output-dir}}"
+
+      # Enter target package directory
+      cd "${{inputs.modroot}}"
+
+      jobs_flag=""
+      if [[ ! -z "${{inputs.jobs}}" ]]; then
+        jobs_flag="--jobs ${{inputs.jobs}}"
+      fi
+
+      # Build and install package(s)
+      RUSTFLAGS="${{inputs.rustflags}}" cargo build --target-dir target ${{inputs.opts}} $jobs_flag
+      if [[ ! -z "${{inputs.output}}" ]]; then
+        install -Dm755 "${OUTPUT_PATH}/${{inputs.output}}" "${INSTALL_PATH}/${{inputs.output}}"
+      else
+        install -Dm755 "${OUTPUT_PATH}"/* -t "${INSTALL_PATH}"
+      fi

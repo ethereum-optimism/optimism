@@ -1,0 +1,50 @@
+package:
+  name: cannon
+  version: 0.0.1
+  epoch: 0
+  description: MIPS64 fault proof VM emulator (multicannon dispatcher with cannon64-impl embedded)
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - go-1.24
+
+# Reproducibility: the source tree is staged without `.git`, so the justfile's
+# `git rev-parse HEAD` / `git show -s` resolve empty and VERSION resolves to
+# "untagged". We reproduce that here via static ldflags so the build is
+# deterministic without invoking the justfile.
+pipeline:
+  - uses: go/build
+    with:
+      go-package: go-1.24
+      modroot: .
+      packages: ./cannon
+      output: cannon64-impl
+      install-dir: lib/cannon
+      ldflags: -X main.GitCommit= -X main.GitDate= -X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Version=untagged -X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Meta=
+
+  # Stage cannon64-impl into the multicannon embeds directory so the second
+  # build picks it up via go:embed. This is a single file-movement step; no
+  # network, no fetched code, no privilege beyond moving a freshly built
+  # artifact between known paths in the sandbox.
+  - name: Embed cannon64-impl into multicannon
+    runs: |
+      install -Dm755 \
+        "${{targets.contextdir}}/usr/lib/cannon/cannon64-impl" \
+        "${{package.srcdir}}/cannon/multicannon/embeds/cannon-8"
+      rm -rf "${{targets.contextdir}}/usr/lib/cannon"
+
+  - uses: go/build
+    with:
+      go-package: go-1.24
+      modroot: .
+      packages: ./cannon/multicannon
+      output: cannon
+      ldflags: -X main.GitCommit= -X main.GitDate= -X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Version=untagged -X github.com/ethereum-optimism/optimism/cannon/multicannon/version.Meta=
