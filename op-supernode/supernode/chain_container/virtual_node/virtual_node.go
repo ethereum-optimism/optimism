@@ -47,6 +47,7 @@ type VirtualNode interface {
 	// Returns safedb.ErrNotFound when SafeDB has no entries yet.
 	FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
+	IsEngineInitialELSyncing() bool
 }
 
 type innerNode interface {
@@ -54,6 +55,7 @@ type innerNode interface {
 	Stop(ctx context.Context) error
 	SafeDB() rollupNode.SafeDBReader
 	SyncStatus() *eth.SyncStatus
+	IsEngineInitialELSyncing() bool
 }
 
 type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
@@ -349,4 +351,14 @@ func (v *simpleVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, er
 	st := inner.SyncStatus()
 	cpy := *st
 	return &cpy, nil
+}
+
+func (v *simpleVirtualNode) IsEngineInitialELSyncing() bool {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return false
+	}
+	return inner.IsEngineInitialELSyncing()
 }

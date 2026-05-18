@@ -59,6 +59,9 @@ type ChainContainer interface {
 	// entry in this chain's SafeDB. Returns ErrSafeDBEmpty when the chain
 	// has not yet derived a safe head.
 	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
+	// IsEngineInitialELSyncing reports whether the embedded op-node is still
+	// in initial execution-layer sync.
+	IsEngineInitialELSyncing() bool
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
@@ -455,6 +458,14 @@ func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint
 		return 0, fmt.Errorf("first safedb entry: %w", err)
 	}
 	return c.BlockNumberToTimestamp(ctx, l2.Number)
+}
+
+func (c *simpleChainContainer) IsEngineInitialELSyncing() bool {
+	vn := c.getVN()
+	if vn == nil {
+		return false
+	}
+	return vn.IsEngineInitialELSyncing()
 }
 
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,

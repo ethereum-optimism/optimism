@@ -1001,3 +1001,10 @@ func (n *OpNode) SyncStatus() *eth.SyncStatus {
 	}
 	return n.l2Driver.StatusTracker.SyncStatus()
 }
+
+func (n *OpNode) IsEngineInitialELSyncing() bool {
+	if n.l2Driver == nil || n.l2Driver.SyncDeriver == nil || n.l2Driver.SyncDeriver.Engine == nil {
+		return false
+	}
+	return n.l2Driver.SyncDeriver.Engine.IsEngineInitialELSyncing()
+}

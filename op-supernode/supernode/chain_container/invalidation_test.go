@@ -353,6 +353,7 @@ func (m *mockVNForInvalidation) FirstSafeHeadEntry(ctx context.Context) (eth.Blo
 func (m *mockVNForInvalidation) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
 }
+func (m *mockVNForInvalidation) IsEngineInitialELSyncing() bool { return false }
 
 var _ virtual_node.VirtualNode = (*mockVNForInvalidation)(nil)
 

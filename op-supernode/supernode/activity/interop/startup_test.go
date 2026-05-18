@@ -106,6 +106,31 @@ func TestAdvanceColdStartInit_WaitsWhenAnyChainEmpty(t *testing.T) {
 	require.False(t, h.interop.initialized.Load())
 }
 
+func TestAdvanceColdStartInit_WaitsWhenAnyChainInitialELSyncing(t *testing.T) {
+	var syncingChain *mockChainContainer
+	h := newInteropTestHarness(t).
+		WithActivation(1000).
+		WithChain(10, func(m *mockChainContainer) {
+			m.firstSafeHeadTimestamp = 1234
+			m.firstSafeHeadTimestampSet = true
+		}).
+		WithChain(20, func(m *mockChainContainer) {
+			m.initialELSyncing = true
+			m.firstSafeHeadTimestamp = 1500
+			m.firstSafeHeadTimestampSet = true
+			syncingChain = m
+		}).
+		Build()
+	h.interop.initialized.Store(false)
+	h.interop.verificationStartTimestamp = 0
+
+	advanced, err := h.interop.advanceColdStartInit()
+	require.NoError(t, err)
+	require.False(t, advanced, "must wait when any chain is still initial EL syncing")
+	require.False(t, h.interop.initialized.Load())
+	require.Zero(t, syncingChain.firstSafeHeadTimestampCalls, "must not use SafeDB history while EL sync may clear it")
+}
+
 // TestAdvanceColdStartInit_PicksMaxClampedToActivation: with all chains
 // reporting first SafeDB entries, verificationStartTimestamp is the max of
 // (activation, T_c).

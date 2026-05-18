@@ -14,8 +14,8 @@ import (
 // it collects every chain's first SafeDB entry timestamp, picks
 // verificationStartTimestamp = max(activation, max_c T_c), runs backfill, and
 // signals advance=true on success. Returns advance=false when any chain's
-// SafeDB is still empty (caller backs off and retries). Errors from the
-// backfill phase are fatal.
+// SafeDB is still empty or any VN is still in initial EL sync (caller backs
+// off and retries). Errors from the backfill phase are fatal.
 func (i *Interop) advanceColdStartInit() (bool, error) {
 	i.backfillAttempts.Add(1)
 
@@ -49,29 +49,39 @@ func (i *Interop) advanceColdStartInit() (bool, error) {
 
 // collectFirstSafeHeadTimestamps queries every chain's SafeDB for its first
 // entry timestamp in parallel. Returns ready=false (without error) if any
-// chain has no entries yet; the caller backs off and retries. Other errors
-// are reported as-is.
+// chain is still initial EL syncing or has no SafeDB entries yet; the caller
+// backs off and retries. Other errors are reported as-is.
 func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool, error) {
 	type res struct {
-		id  eth.ChainID
-		ts  uint64
-		err error
+		id               eth.ChainID
+		ts               uint64
+		initialELSyncing bool
+		err              error
 	}
 	results := make(chan res, len(i.chains))
 	for _, chain := range i.chains {
 		go func(c cc.ChainContainer) {
+			if c.IsEngineInitialELSyncing() {
+				results <- res{id: c.ID(), initialELSyncing: true}
+				return
+			}
 			ts, err := c.FirstSafeHeadTimestamp(i.ctx)
 			results <- res{id: c.ID(), ts: ts, err: err}
 		}(chain)
 	}
 	out := make(map[eth.ChainID]uint64, len(i.chains))
 	var firstErr error
-	emptyAny := false
+	waitAny := false
 	for range i.chains {
 		r := <-results
+		if r.initialELSyncing {
+			waitAny = true
+			i.log.Debug("interop cold start: chain is initial EL syncing, waiting", "chain", r.id)
+			continue
+		}
 		if r.err != nil {
 			if errors.Is(r.err, cc.ErrSafeDBEmpty) {
-				emptyAny = true
+				waitAny = true
 				i.log.Debug("interop cold start: chain SafeDB empty, waiting", "chain", r.id)
 				continue
 			}
@@ -85,7 +95,7 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 	if firstErr != nil {
 		return nil, false, firstErr
 	}
-	if emptyAny {
+	if waitAny {
 		return nil, false, nil
 	}
 	return out, true, nil

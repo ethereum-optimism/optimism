@@ -117,6 +117,7 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	return 0, cc.ErrSafeDBEmpty
 }
+func (m *mockCC) IsEngineInitialELSyncing() bool { return false }
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 

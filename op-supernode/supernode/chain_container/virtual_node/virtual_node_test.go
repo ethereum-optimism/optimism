@@ -64,7 +64,8 @@ func (m *mockInnerNode) SafeL2Timestamp() (uint64, bool) {
 // SafeDB implements innerNode interface method used by VirtualNode
 func (m *mockInnerNode) SafeDB() rollupNode.SafeDBReader { return m.db }
 
-func (m *mockInnerNode) SyncStatus() *eth.SyncStatus { return &eth.SyncStatus{} }
+func (m *mockInnerNode) SyncStatus() *eth.SyncStatus    { return &eth.SyncStatus{} }
+func (m *mockInnerNode) IsEngineInitialELSyncing() bool { return false }
 
 // mockSafeDBReader is a mock implementation of SafeDBReader for testing L1AtSafeHead
 type mockSafeDBReader struct {

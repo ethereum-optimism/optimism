@@ -1754,9 +1754,11 @@ type mockChainContainer struct {
 	// firstSafeHeadTimestamp lets tests stub FirstSafeHeadTimestamp.
 	// firstSafeHeadTimestampErr defaults to chain_container.ErrSafeDBEmpty
 	// when neither field is set so the cold-start init loop keeps waiting.
-	firstSafeHeadTimestamp    uint64
-	firstSafeHeadTimestampSet bool
-	firstSafeHeadTimestampErr error
+	firstSafeHeadTimestamp      uint64
+	firstSafeHeadTimestampSet   bool
+	firstSafeHeadTimestampErr   error
+	firstSafeHeadTimestampCalls int
+	initialELSyncing            bool
 }
 
 type invalidateBlockCall struct {
@@ -1793,6 +1795,7 @@ func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknu
 func (m *mockChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.firstSafeHeadTimestampCalls++
 	if m.firstSafeHeadTimestampErr != nil {
 		return 0, m.firstSafeHeadTimestampErr
 	}
@@ -1800,6 +1803,11 @@ func (m *mockChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64
 		return m.firstSafeHeadTimestamp, nil
 	}
 	return 0, cc.ErrSafeDBEmpty
+}
+func (m *mockChainContainer) IsEngineInitialELSyncing() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.initialELSyncing
 }
 func (m *mockChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
 	m.mu.Lock()

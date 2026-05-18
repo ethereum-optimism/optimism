@@ -136,6 +136,8 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 	}, nil
 }
 
+func (m *mockVirtualNode) IsEngineInitialELSyncing() bool { return false }
+
 // SafeDB is not required by VirtualNode in these tests
 
 // mockEngineController is a mock implementation of engine_controller.EngineController
@@ -1061,6 +1063,7 @@ func (m *mockVNForL1AtSafeHeadError) FirstSafeHeadEntry(ctx context.Context) (et
 func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return m.syncStatusResult, nil
 }
+func (m *mockVNForL1AtSafeHeadError) IsEngineInitialELSyncing() bool { return false }
 
 var _ virtual_node.VirtualNode = (*mockVNForL1AtSafeHeadError)(nil)
 
