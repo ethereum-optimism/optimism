@@ -32,7 +32,7 @@ func TestFastInit_ResumesFromVerifiedDB(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.fastInit()
+	interop.tryInitFromVerifiedDB()
 	require.True(t, interop.initialized.Load())
 	require.False(t, interop.waitingForSync)
 	require.Equal(t, uint64(501), interop.verificationStartTimestamp)
@@ -58,14 +58,14 @@ func TestFastInit_ResumeBelowActivationIsAllowed(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.fastInit()
+	interop.tryInitFromVerifiedDB()
 	require.True(t, interop.initialized.Load())
 	require.Equal(t, uint64(51), interop.verificationStartTimestamp,
 		"resume always uses LastTimestamp+1, never clamps to activation")
 }
 
 // TestFastInit_ColdStartDefersToLoop confirms that with no verifiedDB entry
-// fastInit sets waitingForSync without touching SafeDB or wall-clock.
+// tryInitFromVerifiedDB sets waitingForSync without touching SafeDB or wall-clock.
 func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 
 	dataDir := t.TempDir()
@@ -74,7 +74,7 @@ func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
-	interop.fastInit()
+	interop.tryInitFromVerifiedDB()
 	require.False(t, interop.initialized.Load())
 	require.True(t, interop.waitingForSync)
 	require.Zero(t, interop.verificationStartTimestamp)
@@ -330,7 +330,7 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 
 	// Resume picks verificationStart=201, but RPC accessor returns 200
 	// (the first committed timestamp) for the firstVerifiable boundary.
-	interop.fastInit()
+	interop.tryInitFromVerifiedDB()
 	require.Equal(t, uint64(201), interop.verificationStartTimestamp)
 
 	got, err := interop.firstVerifiableTimestamp()
