@@ -11,11 +11,11 @@ import (
 )
 
 // advanceColdStartInit runs one best-effort pass at cold-start initialization:
-// it collects every chain's first SafeDB entry timestamp, picks
+// it collects every chain's first provable SafeDB entry timestamp, picks
 // verificationStartTimestamp = max(activation, max_c T_c), runs backfill, and
 // signals advance=true on success. Returns advance=false when any chain's
-// SafeDB is still empty or any VN is still in initial EL sync (caller backs
-// off and retries). Errors from the backfill phase are fatal.
+// SafeDB is still missing a provable boundary or any VN is still in initial EL
+// sync (caller backs off and retries). Errors from the backfill phase are fatal.
 func (i *Interop) advanceColdStartInit() (bool, error) {
 	i.backfillAttempts.Add(1)
 
@@ -48,9 +48,9 @@ func (i *Interop) advanceColdStartInit() (bool, error) {
 }
 
 // collectFirstSafeHeadTimestamps queries every chain's SafeDB for its first
-// entry timestamp in parallel. Returns ready=false (without error) if any
-// chain is still initial EL syncing or has no SafeDB entries yet; the caller
-// backs off and retries. Other errors are reported as-is.
+// provable entry timestamp in parallel. Returns ready=false (without error) if
+// any chain is still initial EL syncing or has no provable SafeDB boundary yet;
+// the caller backs off and retries. Other errors are reported as-is.
 func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool, error) {
 	type res struct {
 		id               eth.ChainID
@@ -65,7 +65,7 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 				results <- res{id: c.ID(), initialELSyncing: true}
 				return
 			}
-			ts, err := c.FirstSafeHeadTimestamp(i.ctx)
+			ts, err := c.FirstProvableSafeHeadTimestamp(i.ctx)
 			results <- res{id: c.ID(), ts: ts, err: err}
 		}(chain)
 	}
@@ -82,11 +82,11 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 		if r.err != nil {
 			if errors.Is(r.err, cc.ErrSafeDBEmpty) {
 				waitAny = true
-				i.log.Debug("interop cold start: chain SafeDB empty, waiting", "chain", r.id)
+				i.log.Debug("interop cold start: chain SafeDB boundary not provable, waiting", "chain", r.id)
 				continue
 			}
 			if firstErr == nil {
-				firstErr = fmt.Errorf("chain %s: first safe head timestamp: %w", r.id, r.err)
+				firstErr = fmt.Errorf("chain %s: first provable safe head timestamp: %w", r.id, r.err)
 			}
 			continue
 		}

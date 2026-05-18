@@ -116,6 +116,11 @@ func (m *mockVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, 
 	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
 }
 
+// FirstProvableSafeHeadEntry implements virtual_node.VirtualNode FirstProvableSafeHeadEntry
+func (m *mockVirtualNode) FirstProvableSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
 // LastL1 implements virtual_node.VirtualNode LastL1
 func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
@@ -1058,6 +1063,9 @@ func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target et
 	return eth.BlockID{}, m.l1AtSafeHeadErr
 }
 func (m *mockVNForL1AtSafeHeadError) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+func (m *mockVNForL1AtSafeHeadError) FirstProvableSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {

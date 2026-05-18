@@ -175,7 +175,7 @@ func TestAdvanceColdStartInit_PicksMaxClampedToActivation(t *testing.T) {
 }
 
 // TestAdvanceColdStartInit_PropagatesNonEmptyErrors confirms that
-// FirstSafeHeadTimestamp errors other than ErrSafeDBEmpty are fatal.
+// FirstProvableSafeHeadTimestamp errors other than ErrSafeDBEmpty are fatal.
 func TestAdvanceColdStartInit_PropagatesNonEmptyErrors(t *testing.T) {
 
 	fault := errors.New("vn not running")

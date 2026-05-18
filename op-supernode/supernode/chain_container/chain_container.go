@@ -38,9 +38,9 @@ const virtualNodeVersion = "0.1.0"
 // retrying; recovery requires operator intervention.
 var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node")
 
-// ErrSafeDBEmpty is returned by FirstSafeHeadTimestamp when SafeDB has no
-// entries yet. This is a transient condition during cold start while the VN
-// derives its first safe head; callers should back off and retry.
+// ErrSafeDBEmpty is returned by FirstProvableSafeHeadTimestamp when SafeDB has
+// no provable entries yet. This is a transient condition during cold start
+// while the VN derives safe heads; callers should back off and retry.
 var ErrSafeDBEmpty = errors.New("safedb has no entries yet")
 
 type ChainContainer interface {
@@ -55,10 +55,10 @@ type ChainContainer interface {
 	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
-	// FirstSafeHeadTimestamp returns the L2 block timestamp of the first
-	// entry in this chain's SafeDB. Returns ErrSafeDBEmpty when the chain
-	// has not yet derived a safe head.
-	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
+	// FirstProvableSafeHeadTimestamp returns the L2 block timestamp of the
+	// first SafeDB entry whose safe-head boundary can be resolved from retained
+	// SafeDB history. Returns ErrSafeDBEmpty until that boundary is available.
+	FirstProvableSafeHeadTimestamp(ctx context.Context) (uint64, error)
 	// IsEngineInitialELSyncing reports whether the embedded op-node is still
 	// in initial execution-layer sync.
 	IsEngineInitialELSyncing() bool
@@ -445,17 +445,17 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
 }
 
-func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+func (c *simpleChainContainer) FirstProvableSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	vn := c.getVN()
 	if vn == nil {
 		return 0, virtual_node.ErrVirtualNodeNotRunning
 	}
-	_, l2, err := vn.FirstSafeHeadEntry(ctx)
+	_, l2, err := vn.FirstProvableSafeHeadEntry(ctx)
 	if err != nil {
-		if errors.Is(err, safedb.ErrNotFound) {
+		if errors.Is(err, safedb.ErrNotFound) || errors.Is(err, virtual_node.ErrL1AtSafeHeadNotFound) {
 			return 0, ErrSafeDBEmpty
 		}
-		return 0, fmt.Errorf("first safedb entry: %w", err)
+		return 0, fmt.Errorf("first provable safedb entry: %w", err)
 	}
 	return c.BlockNumberToTimestamp(ctx, l2.Number)
 }

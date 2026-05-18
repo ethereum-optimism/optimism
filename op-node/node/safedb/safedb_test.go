@@ -116,6 +116,43 @@ func TestFirstEntry_ReturnsLowestL1(t *testing.T) {
 	require.Equal(t, l2a.ID(), actualL2)
 }
 
+func TestNextEntryAfter(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l2a := eth.L2BlockRef{Hash: common.Hash{0x02, 0xaa}, Number: 20}
+	l2b := eth.L2BlockRef{Hash: common.Hash{0x02, 0xbb}, Number: 25}
+	l2c := eth.L2BlockRef{Hash: common.Hash{0x02, 0xcc}, Number: 30}
+	l1a := eth.BlockID{Hash: common.Hash{0x01, 0xaa}, Number: 100}
+	l1b := eth.BlockID{Hash: common.Hash{0x01, 0xbb}, Number: 150}
+	l1c := eth.BlockID{Hash: common.Hash{0x01, 0xcc}, Number: 200}
+
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
+	require.NoError(t, db.SafeHeadUpdated(l2c, l1c))
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+
+	actualL1, actualL2, err := db.NextEntryAfter(context.Background(), 0)
+	require.NoError(t, err)
+	require.Equal(t, l1a, actualL1)
+	require.Equal(t, l2a.ID(), actualL2)
+
+	actualL1, actualL2, err = db.NextEntryAfter(context.Background(), l1a.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1b, actualL1)
+	require.Equal(t, l2b.ID(), actualL2)
+
+	actualL1, actualL2, err = db.NextEntryAfter(context.Background(), l1a.Number+1)
+	require.NoError(t, err)
+	require.Equal(t, l1b, actualL1)
+	require.Equal(t, l2b.ID(), actualL2)
+
+	_, _, err = db.NextEntryAfter(context.Background(), l1c.Number)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestFirstEntry_StableAfterResetAhead(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	dir := t.TempDir()

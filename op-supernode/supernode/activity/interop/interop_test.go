@@ -1751,7 +1751,7 @@ type mockChainContainer struct {
 	// by tests that exercise the genesis-clamp path in runLogBackfill.
 	blockNumberToTimestampOverride func(ctx context.Context, blocknum uint64) (uint64, error)
 
-	// firstSafeHeadTimestamp lets tests stub FirstSafeHeadTimestamp.
+	// firstSafeHeadTimestamp lets tests stub FirstProvableSafeHeadTimestamp.
 	// firstSafeHeadTimestampErr defaults to chain_container.ErrSafeDBEmpty
 	// when neither field is set so the cold-start init loop keeps waiting.
 	firstSafeHeadTimestamp      uint64
@@ -1792,7 +1792,7 @@ func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknu
 	}
 	return 0, nil
 }
-func (m *mockChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+func (m *mockChainContainer) FirstProvableSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.firstSafeHeadTimestampCalls++

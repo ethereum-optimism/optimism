@@ -128,11 +128,39 @@ func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.Blo
 	return entry.l1, entry.l2, nil
 }
 
+func (m *mockSafeDBReader) NextEntryAfter(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	var lowest uint64
+	found := false
+	for num := range m.entries {
+		if num > l1BlockNum && (!found || num < lowest) {
+			lowest = num
+			found = true
+		}
+	}
+	if !found {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	entry := m.entries[lowest]
+	return entry.l1, entry.l2, nil
+}
+
 // Test helpers
 func createTestConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
 		Rollup: rollup.Config{
 			L2ChainID: big.NewInt(420),
+		},
+	}
+}
+
+func createTestConfigWithGenesis() *opnodecfg.Config {
+	return &opnodecfg.Config{
+		Rollup: rollup.Config{
+			L2ChainID: big.NewInt(420),
+			Genesis: rollup.Genesis{
+				L1: eth.BlockID{Number: 100, Hash: [32]byte{0x01}},
+				L2: eth.BlockID{Number: 0, Hash: [32]byte{0x02}},
+			},
 		},
 	}
 }
@@ -649,6 +677,44 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		_, err := vn.L1AtSafeHead(context.Background(), target)
 		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
 	})
+}
+
+func TestVirtualNode_FirstProvableSafeHeadEntry(t *testing.T) {
+	cfg := createTestConfigWithGenesis()
+	log := createTestLogger()
+	vn := NewVirtualNode(cfg, log, nil, "test")
+
+	mockDB := newMockSafeDBReader()
+	mockDB.addEntry(500, [32]byte{0x10}, [32]byte{0x11}, 100)
+	mockDB.addEntry(501, [32]byte{0x12}, [32]byte{0x13}, 110)
+	mockDB.addEntry(502, [32]byte{0x14}, [32]byte{0x15}, 120)
+
+	mock := newMockInnerNode()
+	mock.db = mockDB
+	vn.inner = mock
+	vn.state = VNStateRunning
+
+	l1, l2, err := vn.FirstProvableSafeHeadEntry(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(501), l1.Number)
+	require.Equal(t, uint64(110), l2.Number)
+}
+
+func TestVirtualNode_FirstProvableSafeHeadEntry_WaitsForSecondEntry(t *testing.T) {
+	cfg := createTestConfigWithGenesis()
+	log := createTestLogger()
+	vn := NewVirtualNode(cfg, log, nil, "test")
+
+	mockDB := newMockSafeDBReader()
+	mockDB.addEntry(500, [32]byte{0x10}, [32]byte{0x11}, 100)
+
+	mock := newMockInnerNode()
+	mock.db = mockDB
+	vn.inner = mock
+	vn.state = VNStateRunning
+
+	_, _, err := vn.FirstProvableSafeHeadEntry(context.Background())
+	require.ErrorIs(t, err, safedb.ErrNotFound)
 }
 
 // blockingStopMock wraps mockInnerNode but blocks Stop() until explicitly released.

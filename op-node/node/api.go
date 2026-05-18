@@ -47,6 +47,10 @@ type SafeDBReader interface {
 	// FirstEntry returns the lowest recorded (L1, L2 safe head) pair.
 	// Returns ErrNotFound when no entries exist yet.
 	FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// NextEntryAfter returns the lowest recorded (L1, L2 safe head) pair with
+	// L1 number greater than l1BlockNum. Returns ErrNotFound when no later
+	// entry exists yet.
+	NextEntryAfter(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {

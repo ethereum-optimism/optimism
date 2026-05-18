@@ -350,6 +350,9 @@ func (m *mockVNForInvalidation) L1AtSafeHead(ctx context.Context, target eth.Blo
 func (m *mockVNForInvalidation) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
+func (m *mockVNForInvalidation) FirstProvableSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
 func (m *mockVNForInvalidation) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
 }

@@ -1073,7 +1073,7 @@ type algoMockChain struct {
 func (m *algoMockChain) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
 }
-func (m *algoMockChain) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+func (m *algoMockChain) FirstProvableSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	return 0, cc.ErrSafeDBEmpty
 }
 func (m *algoMockChain) IsEngineInitialELSyncing() bool                   { return false }
