@@ -22,8 +22,8 @@ type SuperDisputeSystem struct {
 	opts *e2esys.SystemConfigOpts
 }
 
-func (s *SuperDisputeSystem) SupervisorClient() *sources.SupervisorClient {
-	return s.sys.SupervisorClient()
+func (s *SuperDisputeSystem) SupernodeClient() *sources.SuperNodeClient {
+	return s.sys.SupernodeClient()
 }
 
 func NewSuperDisputeSystem(sys interop.SuperSystem, opts *e2esys.SystemConfigOpts) *SuperDisputeSystem {
@@ -60,8 +60,8 @@ func (s *SuperDisputeSystem) L2NodeEndpoints() []endpoint.RPC {
 	return endpoints
 }
 
-func (s *SuperDisputeSystem) SupervisorEndpoint() endpoint.RPC {
-	return endpoint.URL(s.sys.Supervisor().RPC())
+func (s *SuperDisputeSystem) SupernodeEndpoint() endpoint.RPC {
+	return s.sys.SupernodeEndpoint()
 }
 
 func (s *SuperDisputeSystem) NodeClient(name string) *ethclient.Client {

@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -94,12 +93,12 @@ func WithSuper(super eth.Super) GameOpt {
 
 type DisputeSystem interface {
 	L1BeaconEndpoint() endpoint.RestHTTP
-	SupervisorClient() *sources.SupervisorClient
+	SupernodeClient() *sources.SuperNodeClient
 	NodeEndpoint(name string) endpoint.RPC
 	L2NodeEndpoints() []endpoint.RPC
 	NodeClient(name string) *ethclient.Client
 	RollupEndpoint(name string) endpoint.RPC
-	SupervisorEndpoint() endpoint.RPC
+	SupernodeEndpoint() endpoint.RPC
 	RollupClient(name string) *sources.RollupClient
 	IsSupersystem() bool
 	DisputeGameFactoryAddr() common.Address
@@ -269,7 +268,7 @@ func (h *FactoryHelper) StartSuperCannonGameAtTimestamp(ctx context.Context, tim
 func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestamp uint64, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "CannonGameHelper")
-	rootProvider := h.System.SupervisorClient()
+	rootProvider := h.System.SupernodeClient()
 
 	extraData := h.createSuperGameExtraData(ctx, rootProvider, timestamp, cfg)
 	rootClaim := crypto.Keccak256Hash(extraData)
@@ -300,10 +299,10 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	h.Require.NoError(err, "Failed to load split depth")
 	l1Head := h.GetL1Head(ctx, game)
 
-	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
-	rollupCfgs, err := super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
+	prestateProvider := super.NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
+	_, err = super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
 	require.NoError(h.T, err, "failed to create rollup configs")
-	provider := super.NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	provider := super.NewSuperNodeTraceProvider(logger, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 
 	return NewSuperCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
 }
@@ -370,12 +369,12 @@ func (h *FactoryHelper) CreateBisectionGameExtraData(l2Node string, l2BlockNumbe
 	return extraData
 }
 
-func (h *FactoryHelper) createSuperGameExtraData(ctx context.Context, supervisor *sources.SupervisorClient, timestamp uint64, cfg *GameCfg) []byte {
+func (h *FactoryHelper) createSuperGameExtraData(ctx context.Context, sn *sources.SuperNodeClient, timestamp uint64, cfg *GameCfg) []byte {
 	if !cfg.allowFuture {
 		timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		err := wait.For(timedCtx, time.Second, func() (bool, error) {
-			status, err := supervisor.SyncStatus(ctx)
+			status, err := sn.SyncStatus(ctx)
 			if err != nil {
 				return false, err
 			}
@@ -387,10 +386,10 @@ func (h *FactoryHelper) createSuperGameExtraData(ctx context.Context, supervisor
 	super := cfg.super
 	if super == nil {
 		h.T.Logf("Creating game with l2 timestamp: %v", timestamp)
-		superResponse, err := h.System.SupervisorClient().SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
+		superResponse, err := h.System.SupernodeClient().SuperRootAtTimestamp(ctx, uint64(timestamp))
 		h.Require.NoErrorf(err, "Failed to get super root at timestamp %v", timestamp)
-		super, err = superResponse.ToSuper()
-		h.Require.NoErrorf(err, "Failed to parse super at timestamp %v", timestamp)
+		h.Require.NotNilf(superResponse.Data, "supernode returned no super root data at timestamp %v", timestamp)
+		super = superResponse.Data.Super
 	}
 
 	superV1, ok := super.(*eth.SuperV1)
@@ -427,7 +426,7 @@ func (h *FactoryHelper) WaitForSuperTimestamp(l2Timestamp uint64, cfg *GameCfg) 
 		return
 	}
 
-	client := h.System.SupervisorClient()
+	client := h.System.SupernodeClient()
 	absoluteTimeout := 5 * time.Minute
 	ctx, cancel := context.WithTimeout(context.Background(), absoluteTimeout)
 	defer cancel()
@@ -444,7 +443,7 @@ func (h *FactoryHelper) WaitForSuperTimestamp(l2Timestamp uint64, cfg *GameCfg) 
 			if cfg.allowUnsafe {
 				localUnsafeAtTimestamp := true
 				for _, chain := range status.Chains {
-					if chain.LocalUnsafe.Time < l2Timestamp {
+					if chain.UnsafeL2.Time < l2Timestamp {
 						localUnsafeAtTimestamp = false
 						break
 					}
