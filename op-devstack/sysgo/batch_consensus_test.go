@@ -69,6 +69,14 @@ func TestBatchConsensusMockVerifierCommonwareProofCode(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
+	wrongCertificate := append([]byte(nil), valid...)
+	wrongCertificate[len(wrongCertificate)-1] ^= 0x01
+	out, _, err = runtime.Execute(code, wrongCertificate, nil)
+	require.NoError(t, err)
+	ok, err = batchconsensus.DecodeVerifyResult(out)
+	require.NoError(t, err)
+	require.False(t, ok)
+
 	invalid, err := batchconsensus.BuildCommonwareSimplexProofCalldata(req, certificate, signers, false)
 	require.NoError(t, err)
 	out, _, err = runtime.Execute(code, invalid, nil)

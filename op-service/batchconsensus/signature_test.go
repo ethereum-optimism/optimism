@@ -67,6 +67,9 @@ func TestBuildCommonwareSimplexProofCalldata(t *testing.T) {
 	require.True(t, bytes.HasPrefix(calldata, commonwareSimplexProofPrefix))
 	require.Equal(t, byte(1), calldata[len(commonwareSimplexProofPrefix)+32])
 	require.Equal(t, certificate, calldata[len(commonwareSimplexProofPrefix)+32+1+(65*len(signers)):])
+	wrongCertificate := append([]byte(nil), certificate...)
+	wrongCertificate[len(wrongCertificate)-1] ^= 0x01
+	require.NotEqual(t, commonwareSimplexSigningDigest(Digest(req), certificate), commonwareSimplexSigningDigest(Digest(req), wrongCertificate))
 
 	invalid, err := BuildCommonwareSimplexProofCalldata(req, certificate, signers, false)
 	require.NoError(t, err)

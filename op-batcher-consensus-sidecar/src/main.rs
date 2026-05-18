@@ -494,16 +494,26 @@ fn evm_commonware_calldata(digest: &[u8; 32], certificate: &[u8]) -> Result<Vec<
     out.extend_from_slice(SIMPLEX_PROOF_PREFIX);
     out.extend_from_slice(digest);
     out.push(1);
+    let signing_digest = commonware_evm_signing_digest(digest, certificate);
     for key in EVM_VALIDATOR_KEYS {
         let signing_key = SigningKey::from_slice(&key).context("load EVM validator signing key")?;
         let (sig, recid): (Signature, RecoveryId) = signing_key
-            .sign_prehash_recoverable(digest)
+            .sign_prehash_recoverable(&signing_digest)
             .context("sign EVM validator digest")?;
         out.extend_from_slice(&sig.to_bytes());
         out.push(recid.to_byte());
     }
     out.extend_from_slice(certificate);
     Ok(out)
+}
+
+fn commonware_evm_signing_digest(digest: &[u8; 32], certificate: &[u8]) -> [u8; 32] {
+    let mut hasher = Keccak256::new();
+    hasher.update(SIMPLEX_PROOF_PREFIX);
+    hasher.update(digest);
+    hasher.update([1u8]);
+    hasher.update(certificate);
+    hasher.finalize().into()
 }
 
 fn evm_calldata_with_prefix(

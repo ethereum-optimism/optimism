@@ -57,10 +57,11 @@ func batchConsensusMockVerifierCommonwareProofCode(signers []common.Address) []b
 	return batchConsensusMockVerifierSignatureProofCode(signatureProofLayout{
 		signers:      signers,
 		prefix:       []byte("CWSIMPLX1"),
-		minSize:      0xee,
+		minSize:      0xed,
 		digestOffset: 0x09,
 		markerOffset: 0x29,
 		sigOffset:    0x2a,
+		certOffset:   0xed,
 	})
 }
 
@@ -76,6 +77,7 @@ type signatureProofLayout struct {
 	sOffset      byte
 	vOffset      byte
 	sigOffset    byte
+	certOffset   byte
 }
 
 func batchConsensusMockVerifierSignatureProofCode(layout signatureProofLayout) []byte {
@@ -138,6 +140,30 @@ func batchConsensusMockVerifierSignatureProofCode(layout signatureProofLayout) [
 	emit(0x57) // JUMPI
 	falseJumps = append(falseJumps, falseJump2)
 
+	if layout.certOffset != 0 {
+		// The Commonware verifier signs keccak256(prefix || digest || marker || certificate),
+		// binding the EVM-checkable quorum proof to the exact certificate payload carried in calldata.
+		push1(layout.sigOffset)
+		push1(0x00)
+		push1(0x00)
+		emit(0x37) // CALLDATACOPY
+
+		push1(layout.certOffset)
+		emit(0x36, 0x03) // CALLDATASIZE SUB
+		push1(layout.certOffset)
+		push1(layout.sigOffset)
+		emit(0x37) // CALLDATACOPY
+
+		push1(layout.certOffset)
+		emit(0x36, 0x03) // CALLDATASIZE SUB
+		push1(layout.sigOffset)
+		emit(0x01) // ADD
+		push1(0x00)
+		emit(0x20) // SHA3
+		push1(0x00)
+		emit(0x52)
+	}
+
 	for i, signer := range signers {
 		rOffset := layout.rOffset
 		sOffset := layout.sOffset
@@ -150,10 +176,12 @@ func batchConsensusMockVerifierSignatureProofCode(layout signatureProofLayout) [
 		}
 
 		// ecrecover input: digest, v, r, s.
-		push1(layout.digestOffset)
-		emit(0x35)
-		push1(0x00)
-		emit(0x52)
+		if layout.certOffset == 0 {
+			push1(layout.digestOffset)
+			emit(0x35)
+			push1(0x00)
+			emit(0x52)
+		}
 
 		push1(0x1b)
 		push1(vOffset)

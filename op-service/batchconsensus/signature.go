@@ -83,11 +83,12 @@ func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, s
 	} else {
 		out = append(out, 0x00)
 	}
+	signingDigest := commonwareSimplexSigningDigest(digest, certificate)
 	for i, signer := range signers {
 		if signer == nil {
 			return nil, fmt.Errorf("missing signer %d", i)
 		}
-		sig, err := crypto.Sign(digest[:], signer)
+		sig, err := crypto.Sign(signingDigest[:], signer)
 		if err != nil {
 			return nil, fmt.Errorf("sign proof digest %d: %w", i, err)
 		}
@@ -98,6 +99,15 @@ func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, s
 	}
 	out = append(out, certificate...)
 	return out, nil
+}
+
+func commonwareSimplexSigningDigest(digest common.Hash, certificate []byte) common.Hash {
+	payload := make([]byte, 0, len(commonwareSimplexProofPrefix)+len(digest)+1+len(certificate))
+	payload = append(payload, commonwareSimplexProofPrefix...)
+	payload = append(payload, digest[:]...)
+	payload = append(payload, 0x01)
+	payload = append(payload, certificate...)
+	return crypto.Keccak256Hash(payload)
 }
 
 func RecoverSigner(req ProofRequest, calldata []byte) (common.Address, bool) {
