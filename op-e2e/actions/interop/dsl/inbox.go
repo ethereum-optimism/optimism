@@ -78,4 +78,3 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 		return genTx
 	}
 }
-

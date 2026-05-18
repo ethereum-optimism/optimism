@@ -374,4 +374,3 @@ func WithLatestSignal() actSyncSupernodeOption {
 		cfg.shouldSendL1LatestSignal = true
 	}
 }
-

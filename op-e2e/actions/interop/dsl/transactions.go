@@ -81,4 +81,3 @@ func (m *GeneratedTransaction) MessagePayload() []byte {
 	require.NotZero(m.t, len(m.rcpt.Logs), "Transaction did not include any logs to reference")
 	return stypes.LogToMessagePayload(m.rcpt.Logs[0])
 }
-
