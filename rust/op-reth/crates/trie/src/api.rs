@@ -189,7 +189,7 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
 /// bp.prepend_block(block_ref, diff)?;
 /// bp.commit()?;
 /// ```
-pub trait OpProofsBackfillProvider: OpProofsProviderRO {
+pub trait OpProofsBackfillProvider: OpProofsSnapshotProviderRW {
     /// Write historical changeset and history-bitmap entries for `block_ref`, and move the
     /// `earliest` marker to `block_ref.parent`.
     ///
@@ -199,15 +199,13 @@ pub trait OpProofsBackfillProvider: OpProofsProviderRO {
     /// - `sorted_post_state`: account / storage **before-values** for the same block.
     ///
     /// The implementation must **not** update the `latest` marker and must **not**
-    /// validate `diff` against the current `latest` block.
+    /// validate `diff` against the current `latest` block. `commit` is inherited
+    /// from [`OpProofsSnapshotProviderRW`].
     fn prepend_block(
         &self,
         block_ref: BlockWithParent,
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts>;
-
-    /// Commit the transaction. Consumes the provider.
-    fn commit(self) -> OpProofsStorageResult<()>;
 }
 
 /// Factory trait for creating providers to interact with the proofs storage.
@@ -326,7 +324,7 @@ pub trait OpProofsInitProvider: Send + Sync + Debug {
 /// Cursors read the snapshot tables directly (no history-bitmap lookups) and
 /// are only valid at [`Self::snapshot_anchor`].
 #[auto_impl(Arc)]
-pub trait OpProofsSnapshotProviderRO: Send + Sync + Debug {
+pub trait OpProofsSnapshotProviderRO: OpProofsProviderRO {
     /// Cursor over the snapshot's account trie table.
     type SnapshotAccountTrieCursor<'tx>: TrieCursor + 'tx
     where
@@ -447,10 +445,8 @@ pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
 /// init-time bulk writes).
 #[auto_impl(Arc)]
 pub trait OpProofsSnapshotStore: OpProofsStore {
-    /// RO snapshot reader. Also implements [`OpProofsProviderRO`] so the
-    /// caller can build a hashed-leaf cursor (which reads from
-    /// `V2HashedAccounts*`, not the snapshot tables) against the same tx.
-    type SnapshotProviderRO<'a>: OpProofsSnapshotProviderRO + OpProofsProviderRO + Clone + 'a
+    /// RO snapshot reader.
+    type SnapshotProviderRO<'a>: OpProofsSnapshotProviderRO + Clone + 'a
     where
         Self: 'a;
 

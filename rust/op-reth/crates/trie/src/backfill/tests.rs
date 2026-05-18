@@ -5,7 +5,9 @@
 
 use super::{BackfillError, BackfillJob};
 use crate::{
-    BlockStateDiff, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
+    BlockStateDiff, OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO,
+    OpProofsSnapshotStore, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
+    SnapshotInitJob, SnapshotInitStatus,
     api::{OpProofsProviderRO, OpProofsProviderRw},
     initialize::InitializationJob,
     proof::DatabaseStateRoot,
@@ -16,7 +18,7 @@ use crate::{
     },
 };
 use alloy_consensus::BlockHeader;
-use alloy_eips::{NumHash, eip1898::BlockWithParent};
+use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::Address;
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
@@ -271,4 +273,162 @@ fn backfill_then_forward_write_preserves_state_roots() {
                 .unwrap();
         assert_eq!(computed, expected, "state root mismatch at block {n}");
     }
+}
+
+// ============================ Snapshot-accelerated tests ============================
+
+#[test]
+#[serial]
+fn run_with_snapshot_is_noop_when_target_at_or_above_earliest() {
+    // Build 3-block chain; storage init at block 3 (earliest = 3).
+    // `run_with_snapshot` must short-circuit before touching the snapshot,
+    // so no snapshot is bootstrapped.
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_and_initialize_storage(3);
+
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run_with_snapshot(latest_num).unwrap();
+    }
+
+    // Earliest unchanged.
+    let ro = storage.provider_ro().unwrap();
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(latest_num, latest_hash));
+
+    // Snapshot was never bootstrapped — init anchor still NotStarted.
+    let init_anchor =
+        storage.snapshot_initialization_provider().unwrap().snapshot_init_anchor().unwrap();
+    assert_eq!(init_anchor.status, SnapshotInitStatus::NotStarted);
+    assert_eq!(init_anchor.block, None);
+}
+
+#[test]
+#[serial]
+fn run_with_snapshot_bootstraps_snapshot_when_missing() {
+    // 5-block chain; no snapshot exists. `run_with_snapshot` must bootstrap
+    // the snapshot at the current `earliest` and then backfill down to 0.
+    // After backfill the snapshot anchor must track the new `earliest`.
+    let (provider_factory, storage, _, _) = build_chain_and_initialize_storage(5);
+
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run_with_snapshot(0).unwrap();
+    }
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let genesis_hash =
+        reth_provider::BlockHashReader::block_hash(&reth_provider, 0).unwrap().unwrap();
+
+    // Earliest reached genesis.
+    let ro = storage.provider_ro().unwrap();
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
+
+    let init_anchor =
+        storage.snapshot_initialization_provider().unwrap().snapshot_init_anchor().unwrap();
+    assert_eq!(init_anchor.status, SnapshotInitStatus::Completed);
+    assert_eq!(init_anchor.block, Some(BlockNumHash::new(0, genesis_hash)));
+
+    let sp = storage.snapshot_provider_ro().unwrap();
+    assert_eq!(sp.snapshot_anchor().unwrap(), BlockNumHash::new(0, genesis_hash));
+}
+
+#[test]
+#[serial]
+fn run_with_snapshot_uses_existing_ready_snapshot() {
+    // Pre-initialize the snapshot at `earliest`, then run snapshot-accelerated
+    // backfill. The job must reuse the existing snapshot (no re-init) and
+    // still drive earliest to the target.
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_and_initialize_storage(4);
+
+    // Pre-init snapshot at the current earliest.
+    {
+        let reth_provider = provider_factory.database_provider_ro().unwrap();
+        SnapshotInitJob::new(reth_provider, storage.clone()).run(latest_num).unwrap();
+    }
+    // Sanity: snapshot is Completed at (latest_num, latest_hash).
+    {
+        let init_anchor =
+            storage.snapshot_initialization_provider().unwrap().snapshot_init_anchor().unwrap();
+        assert_eq!(init_anchor.status, SnapshotInitStatus::Completed);
+        assert_eq!(init_anchor.block, Some(BlockNumHash::new(latest_num, latest_hash)));
+    }
+
+    // Snapshot-accelerated backfill all the way to genesis.
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run_with_snapshot(0).unwrap();
+    }
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let genesis_hash =
+        reth_provider::BlockHashReader::block_hash(&reth_provider, 0).unwrap().unwrap();
+
+    let ro = storage.provider_ro().unwrap();
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
+
+    let sp = storage.snapshot_provider_ro().unwrap();
+    assert_eq!(sp.snapshot_anchor().unwrap(), BlockNumHash::new(0, genesis_hash));
+}
+
+#[test]
+#[serial]
+fn run_with_snapshot_errors_on_anchor_mismatch() {
+    // Plant a `Completed` snapshot at the initial `earliest`, then advance
+    // the proofs window via plain (non-snapshot) backfill so `earliest`
+    // diverges from the snapshot anchor. A subsequent `run_with_snapshot`
+    // call must refuse rather than silently corrupting the snapshot.
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_and_initialize_storage(5);
+
+    // Snapshot at (5, hash5).
+    {
+        let reth_provider = provider_factory.database_provider_ro().unwrap();
+        SnapshotInitJob::new(reth_provider, storage.clone()).run(latest_num).unwrap();
+    }
+
+    // Plain backfill from 5 down to 3 — leaves the snapshot anchor at (5, _)
+    // while earliest moves to (3, hash3).
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run(3).unwrap();
+    }
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let hash3 = reth_provider::BlockHashReader::block_hash(&reth_provider, 3).unwrap().unwrap();
+
+    // Snapshot-accelerated backfill must detect the mismatch.
+    let err = BackfillJob::new(reth_provider, storage).run_with_snapshot(0).unwrap_err();
+    match err {
+        BackfillError::SnapshotAnchorMismatch { expected, found } => {
+            assert_eq!(expected, BlockNumHash::new(3, hash3));
+            assert_eq!(found, BlockNumHash::new(latest_num, latest_hash));
+        }
+        other => panic!("expected SnapshotAnchorMismatch, got {other:?}"),
+    }
+}
+
+#[test]
+#[serial]
+fn run_with_snapshot_extends_window_backward_with_storage_writes() {
+    // Every block touches a storage slot, so each iteration drives the
+    // storage-trie codepaths inside the snapshot writer (`update_snapshot`)
+    // and the snapshot storage cursors used by `validate_state_root_with_snapshot`.
+    let (provider_factory, storage, _latest_num, _latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+
+    {
+        let provider = provider_factory.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage.clone()).run_with_snapshot(0).unwrap();
+    }
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let genesis_hash =
+        reth_provider::BlockHashReader::block_hash(&reth_provider, 0).unwrap().unwrap();
+
+    let ro = storage.provider_ro().unwrap();
+    assert_eq!(ro.get_earliest_block().unwrap(), NumHash::new(0, genesis_hash));
+
+    let sp = storage.snapshot_provider_ro().unwrap();
+    assert_eq!(sp.snapshot_anchor().unwrap(), BlockNumHash::new(0, genesis_hash));
 }

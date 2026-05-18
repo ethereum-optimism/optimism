@@ -357,9 +357,4 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvide
         self.set_earliest_block_number_inner(block_number - 1, block_ref.parent)?;
         Ok(counts)
     }
-
-    fn commit(self) -> OpProofsStorageResult<()> {
-        self.tx.commit()?;
-        Ok(())
-    }
 }

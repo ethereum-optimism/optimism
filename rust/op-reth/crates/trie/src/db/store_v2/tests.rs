@@ -19,7 +19,7 @@ use crate::{
     BlockStateDiff, OpProofsStorageError,
     api::{
         OpProofsBackfillProvider, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        WriteCounts,
+        OpProofsSnapshotProviderRW, WriteCounts,
     },
     db::{
         ProofWindowKey, V2ProofWindow,
@@ -1997,7 +1997,7 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
         };
         let block_ref = make_block_ref(5, block5_hash, block4_hash);
         let counts = provider.prepend_block(block_ref, diff).expect("prepend");
-        OpProofsBackfillProvider::commit(provider).expect("commit");
+        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
         counts
     };
     assert_eq!(counts.hashed_accounts_written_total, 1);
@@ -2089,7 +2089,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
         let block_ref = make_block_ref(1, block1_hash, B256::ZERO);
         let counts = provider.prepend_block(block_ref, make_nonce_diff(addr, 42)).expect("prepend");
-        OpProofsBackfillProvider::commit(provider).expect("commit");
+        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
         counts
     };
 
@@ -2133,7 +2133,7 @@ fn prepend_block_descending_chain_accumulates_history() {
         let block_ref =
             make_block_ref(block_num, hashes[block_num as usize], hashes[(block_num - 1) as usize]);
         provider.prepend_block(block_ref, make_nonce_diff(addr, block_num)).expect("prepend");
-        OpProofsBackfillProvider::commit(provider).expect("commit");
+        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
     }
 
     // earliest now at (0, hash_0).
