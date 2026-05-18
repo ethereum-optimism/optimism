@@ -186,11 +186,13 @@ type Interop struct {
 	// if the next timestamp to process is >= this value.
 	pauseAtTimestamp atomic.Uint64
 
-	// backfillAttempts counts the number of times runLogBackfill was invoked
-	// since Start. Read by integration tests to confirm the retry loop is engaged.
+	// backfillAttempts counts cold-start init iterations since the most
+	// recent Start. Read by integration tests to confirm the retry loop has
+	// engaged.
 	backfillAttempts atomic.Int32
-	// backfillCompleted is set to true once runLogBackfill returns nil (or was skipped
-	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
+	// backfillCompleted is set true once advanceColdStartInit finishes
+	// successfully. Read by integration tests to gate on cold-start init
+	// finishing.
 	backfillCompleted atomic.Bool
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
