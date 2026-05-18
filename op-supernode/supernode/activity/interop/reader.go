@@ -12,7 +12,7 @@ var ErrNotActive = errors.New("interop not active for timestamp")
 
 // ErrBeforeVerifiedDB signals that ts is post-activation but below the
 // verifier's first verifiable timestamp on this node. The timestamp is
-// already covered by the safe-head startup handoff: no VerifiedResult will
+// already covered by the startup handoff: no VerifiedResult will
 // be produced here, but callers can treat optimistic outputs as canonical.
 var ErrBeforeVerifiedDB = errors.New("timestamp below verified-db start")
 

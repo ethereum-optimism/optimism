@@ -25,6 +25,6 @@ impl SyncToTask {
         Store: OpProofsStore + Clone + 'static,
     {
         state.update_sync_target(self.target);
-        debug!(target: "live-trie::engine", sync_target = self.target, "Sync target updated");
+        debug!(target: "trie::engine::task", sync_target = self.target, "Sync target updated");
     }
 }

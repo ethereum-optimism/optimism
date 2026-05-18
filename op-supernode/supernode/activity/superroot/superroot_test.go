@@ -43,11 +43,14 @@ type mockCC struct {
 	byHashCalled   int
 }
 
-func (m *mockCC) Start(ctx context.Context) error                  { return nil }
-func (m *mockCC) Stop(ctx context.Context) error                   { return nil }
-func (m *mockCC) Pause(ctx context.Context) error                  { return nil }
-func (m *mockCC) Resume(ctx context.Context) error                 { return nil }
-func (m *mockCC) PauseAndStopVN(ctx context.Context) error         { return nil }
+func (m *mockCC) Start(ctx context.Context) error          { return nil }
+func (m *mockCC) Stop(ctx context.Context) error           { return nil }
+func (m *mockCC) Pause(ctx context.Context) error          { return nil }
+func (m *mockCC) Resume(ctx context.Context) error         { return nil }
+func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *mockCC) VerifierCurrentL1s() []eth.BlockID                { return m.verifierL1s }
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {

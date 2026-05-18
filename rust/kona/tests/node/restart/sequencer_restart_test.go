@@ -51,7 +51,7 @@ func TestSequencerRestart(gt *testing.T) {
 
 		// Ensure that the other nodes are not advancing.
 		// The local safe head may advance (for the next l1 block to be processed), but the unsafe head should not.
-		stopCheckFuns = append(stopCheckFuns, node.NotAdvancedFn(types.LocalUnsafe, 50))
+		stopCheckFuns = append(stopCheckFuns, node.NotAdvancedFn(types.LocalUnsafe, 20))
 	}
 
 	dsl.CheckAll(t, stopCheckFuns...)

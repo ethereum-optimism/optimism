@@ -577,5 +577,6 @@ func (s *Driver) followUpstream() {
 		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
 	}
 	// Only reach this point if all L1 checks passed
+	s.metrics.RecordFollowSourceSuccess()
 	s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
 }

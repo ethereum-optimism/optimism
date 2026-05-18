@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
@@ -42,7 +43,9 @@ func TestMain(m *testing.M) {
 		sharedRestartRuntime = node_utils.NewSharedMixedOpKonaRuntimeForConfig(pkg, node_utils.L2NodeConfig{
 			KonaSequencerNodesWithGeth: 1,
 			KonaNodesWithGeth:          1,
-		})
+		}, sysgo.WithL2BlockTimes(map[eth.ChainID]uint64{
+			sysgo.DefaultL2AID: 1,
+		}))
 		code = m.Run()
 	}()
 

@@ -28,7 +28,6 @@ func TestSyncTesterELSync(gt *testing.T) {
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
-	ctx := t.Ctx()
 
 	startDelta := uint64(5)
 	attempts := 30
@@ -40,13 +39,12 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// Stop L2CL2 attached to Sync Tester EL Endpoint
 	sys.L2CL2.Stop()
 
-	// Reset Sync Tester EL
+	// Reset Sync Tester EL. SimpleWithSyncTester wires one SyncTesterEL → one session.
 	sessionIDs := sys.SyncTester.ListSessions()
-	require.GreaterOrEqual(len(sessionIDs), 1, "at least one session")
+	require.Len(sessionIDs, 1, "preset creates exactly one session")
 	sessionID := sessionIDs[0]
 	logger.Info("SyncTester EL", "sessionID", sessionID)
-	syncTesterClient := sys.SyncTester.Escape().APIWithSession(sessionID)
-	require.NoError(syncTesterClient.ResetSession(ctx))
+	sys.SyncTester.ResetSession(sessionID)
 
 	// Reseted and L2CL2 not connected to sync tester session so unsafe head will not advance
 	require.Equal(uint64(0), sys.SyncTesterL2EL.BlockRefByLabel(eth.Unsafe).Number)
@@ -56,8 +54,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 	sys.L2CL.Advanced(types.LocalUnsafe, startDelta+delta, attempts)
 
 	// EL Sync active
-	session, err := syncTesterClient.GetSession(ctx)
-	require.NoError(err)
+	session := sys.SyncTester.GetSession(sessionID)
 	require.True(session.ELSyncActive)
 
 	// Restarting will trigger EL sync since unsafe head payload will arrive to L2CL2 via P2P

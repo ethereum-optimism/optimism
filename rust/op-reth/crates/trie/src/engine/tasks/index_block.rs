@@ -58,6 +58,7 @@ where
 
     if block.block.number <= tip.number {
         debug!(
+            target: "trie::engine::task",
             block_number = block.block.number,
             tip_number = tip.number,
             "Block already covered by tip, skipping store_block_updates",
@@ -67,6 +68,7 @@ where
 
     if block.block.number > tip.number.saturating_add(1) {
         debug!(
+            target: "trie::engine::task",
             block_number = block.block.number,
             tip_number = tip.number,
             "Gap detected, updating sync target",
@@ -91,6 +93,7 @@ where
     state.metrics.index_block_duration_seconds.record(start.elapsed());
 
     info!(
+        target: "trie::engine::task",
         block_number = block.block.number,
         total_duration = ?start.elapsed(),
         "Trie updates buffered successfully",

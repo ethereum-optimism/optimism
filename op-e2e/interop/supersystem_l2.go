@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -55,9 +54,8 @@ type l2Net struct {
 	contracts    map[string]interface{}
 	userKeys     map[string]ecdsa.PrivateKey
 
-	proposer *l2os.ProposerService
-	batcher  *bss.BatcherService
-	nodes    map[string]*l2Node
+	batcher *bss.BatcherService
+	nodes   map[string]*l2Node
 }
 
 func (s *interopE2ESystem) L2GethEndpoint(id string, name string) endpoint.RPC {
@@ -115,14 +113,12 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output, depSet d
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
 	opNode := s.newNodeForL2(id, "sequencer", l2Out, depSet, operatorKeys, l2Geth, true, s.l1.Backend.BlockChain().Config())
-	proposer := s.newProposerForL2(id, operatorKeys)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
 	return l2Net{
 		l2Out:        l2Out,
 		chainID:      l2Out.Genesis.Config.ChainID,
 		nodes:        map[string]*l2Node{"sequencer": {name: "sequencer", opNode: opNode, l2Geth: l2Geth}},
-		proposer:     proposer,
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
@@ -232,37 +228,6 @@ func (s *interopE2ESystem) newGethForL2(id string, node string, l2Out *interopge
 		s.t.Logf("Closed L2 geth of chain %s: %v", id, closeErr)
 	})
 	return l2Geth
-}
-
-func (s *interopE2ESystem) newProposerForL2(
-	id string, operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey) *l2os.ProposerService {
-	key := operatorKeys[devkeys.ProposerRole]
-	logger := s.logger.New("role", "proposer"+id)
-	proposerCLIConfig := &l2os.CLIConfig{
-		L1EthRpc:          s.l1.UserRPC().RPC(),
-		SupervisorRpcs:    []string{s.Supervisor().RPC()},
-		DGFAddress:        s.worldDeployment.Interop.DisputeGameFactory.Hex(),
-		ProposalInterval:  6 * time.Second,
-		DisputeGameType:   9, // Super Cannon Kona game type
-		PollInterval:      500 * time.Millisecond,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(s.L1().UserRPC(), &key),
-		AllowNonFinalized: true,
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
-			Format: oplog.FormatText,
-		},
-	}
-	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, logger)
-	require.NoError(s.t, err)
-	s.t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-quit
-		s.t.Logf("Closing proposer of chain %s", id)
-		require.NoError(s.t, proposer.Stop(ctx))
-		s.t.Logf("Closed proposer of chain %s", id)
-	})
-	// Note that proposers are not started by default.
-	return proposer
 }
 
 // newBatcherForL2 creates a new Batcher for an L2 chain

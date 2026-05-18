@@ -441,8 +441,15 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 	w.require.Equal(withdrawalHash[:], ev.WithdrawalHash[:], "computed withdrawal hash incorrectly")
 	slot := withdrawals.StorageSlotOfWithdrawalHash(withdrawalHash)
 
-	p, err := w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, hexutil.Uint64(l2Header.NumberU64()).String())
-	w.require.NoErrorf(err, "failed to fetch proof for withdrawal %v", ev)
+	// op-reth persists state asynchronously, so eth_getProof can briefly fail
+	// after the dispute game for the block exists. Retry until it succeeds.
+	blockTag := hexutil.Uint64(l2Header.NumberU64()).String()
+	var p *eth.AccountResult
+	w.require.Eventuallyf(func() bool {
+		var err error
+		p, err = w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, blockTag)
+		return err == nil
+	}, 60*time.Second, 500*time.Millisecond, "failed to fetch proof for withdrawal at block %d: %v", l2Header.NumberU64(), ev)
 	w.require.Len(p.StorageProof, 1, "invalid amount of storage proofs")
 
 	err = verifyProof(l2Header.Root(), p)

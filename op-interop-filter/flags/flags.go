@@ -121,6 +121,11 @@ var (
 		EnvVars: prefixEnvVars("FETCH_CONCURRENCY"),
 		Value:   DefaultFetchConcurrency,
 	}
+	SupportLegacyCheckAccessListFormatFlag = &cli.BoolFlag{
+		Name:    "support-legacy-check-access-list-format",
+		Usage:   "Support legacy supervisor_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
+		EnvVars: prefixEnvVars("SUPPORT_LEGACY_CHECK_ACCESS_LIST_FORMAT"),
+	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
 		Name:    "dangerously-enable-passthrough",
 		Usage:   "Allow all transactions through without interop filtering. DANGEROUS: disables all executing message validation.",
@@ -148,6 +153,7 @@ var optionalFlags = []cli.Flag{
 	ReorgRecoveryEnabledFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
+	SupportLegacyCheckAccessListFormatFlag,
 	DangerouslyEnablePassthroughFlag,
 }
 

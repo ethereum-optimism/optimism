@@ -86,7 +86,7 @@ where
         if self.state.memory.len() as u64 >= self.persistence_threshold &&
             let Err(e) = self.state.advance_persistence()
         {
-            error!(target: "live-trie::engine", ?e, "Failed to start persistence save");
+            error!(target: "trie::engine::runner", ?e, "Failed to start persistence save");
         }
     }
 
@@ -155,10 +155,10 @@ where
             },
             recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
             recv(sync_rx) -> _ => if let Err(err) = self.advance_sync() {
-                error!(target: "live-trie::engine", ?err, "Sync step failed");
+                error!(target: "trie::engine::runner", ?err, "Sync step failed");
             },
             recv(idle_flush_rx) -> _ => if let Err(e) = self.state.advance_persistence() {
-                error!(target: "live-trie::engine", ?e, "Idle flush failed");
+                error!(target: "trie::engine::runner", ?e, "Idle flush failed");
             },
         }
         ControlFlow::Continue(())
@@ -172,7 +172,7 @@ where
             self.backpressure_threshold,
             self.persistence_threshold,
         );
-        debug!(target: "live-trie::engine", "Collector engine started");
+        debug!(target: "trie::engine::runner", "Collector engine started");
 
         loop {
             match self.process_next_event() {
@@ -182,8 +182,8 @@ where
             self.maybe_start_save();
         }
 
-        debug!(target: "live-trie::engine", "Collector engine shutting down, draining in-flight persist");
+        debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");
         self.state.drain_persistence();
-        debug!(target: "live-trie::engine", "Collector engine stopped");
+        debug!(target: "trie::engine::runner", "Collector engine stopped");
     }
 }

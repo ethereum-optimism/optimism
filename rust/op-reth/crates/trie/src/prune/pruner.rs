@@ -68,7 +68,7 @@ where
         drop(provider_ro);
 
         info!(
-            target: "trie::pruner",
+            target: "trie::prune::pruner",
             from_block = earliest_block,
             to_block = target_earliest_block,
             "Starting pruning proof storage",
@@ -108,12 +108,12 @@ where
         let Some((earliest_block, target_earliest_block, mut prune_output)) =
             self.resolve_prune_range(provider_rw)?
         else {
-            debug!(target: "trie::pruner", "Nothing to prune in the given range");
+            debug!(target: "trie::prune::pruner", "Nothing to prune in the given range");
             return Ok(PrunerOutput::default());
         };
 
         info!(
-            target: "trie::pruner",
+            target: "trie::prune::pruner",
             from_block = earliest_block,
             to_block = target_earliest_block,
             "Starting pruning proof storage (in-tx)",
@@ -144,14 +144,14 @@ where
         let window = match provider.get_proof_window() {
             Ok(w) => w,
             Err(OpProofsStorageError::NoBlocksFound) => {
-                trace!(target: "trie::pruner", "Proof storage is empty");
+                trace!(target: "trie::prune::pruner", "Proof storage is empty");
                 return Ok(None);
             }
             Err(err) => return Err(err.into()),
         };
         let (latest_block, earliest_block) = (window.latest.number, window.earliest.number);
         if latest_block.saturating_sub(earliest_block) <= self.min_block_interval {
-            trace!(target: "trie::pruner", "Nothing to prune");
+            trace!(target: "trie::prune::pruner", "Nothing to prune");
             return Ok(None);
         }
         let target_earliest_block = latest_block - self.min_block_interval;
@@ -177,7 +177,7 @@ where
             .block_hash(end_block)
             .inspect_err(|err| {
                 error!(
-                    target: "trie::pruner",
+                    target: "trie::prune::pruner",
                     block = end_block,
                     ?err,
                     "Failed to fetch block hash for new earliest block during pruning"
@@ -191,7 +191,7 @@ where
             .block_hash(parent_block_num)
             .inspect_err(|err| {
                 error!(
-                    target: "trie::pruner",
+                    target: "trie::prune::pruner",
                     block = parent_block_num,
                     ?err,
                     "Failed to fetch block hash for parent block during pruning"
@@ -213,7 +213,7 @@ where
         self.metrics.record_prune_result(batch_output.clone());
 
         info!(
-            target: "trie::pruner",
+            target: "trie::prune::pruner",
             ?batch_output,
             "Finished pruning batch of proof storage",
         );
@@ -224,10 +224,10 @@ where
     pub fn run(&self) {
         let res = self.run_inner();
         if let Err(e) = res {
-            error!(target: "trie::pruner", err=%e, "Pruner failed");
+            error!(target: "trie::prune::pruner", err=%e, "Pruner failed");
             return;
         }
-        info!(target: "trie::pruner", result = %res.unwrap(), "Finished pruning proof storage");
+        info!(target: "trie::prune::pruner", result = %res.unwrap(), "Finished pruning proof storage");
     }
 }
 

@@ -68,6 +68,9 @@ func Main(version string) cliapp.LifecycleAction {
 		if cfg.Passthrough {
 			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
 		}
+		if cfg.LegacyCheckAccessListFormat {
+			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: supervisor_checkAccessList will not reject missing executing chain IDs")
+		}
 
 		if !cfg.MessageExpiryWindowExplicit {
 			l.Debug("Using default message expiry window", "window", DefaultMessageExpiryWindow)
@@ -221,11 +224,12 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	)
 
 	s.backend = NewBackend(ctx, BackendParams{
-		Logger:         s.log,
-		Metrics:        s.metrics,
-		Chains:         chains,
-		CrossValidator: crossValidator,
-		Passthrough:    cfg.Passthrough,
+		Logger:                      s.log,
+		Metrics:                     s.metrics,
+		Chains:                      chains,
+		CrossValidator:              crossValidator,
+		Passthrough:                 cfg.Passthrough,
+		LegacyCheckAccessListFormat: cfg.LegacyCheckAccessListFormat,
 
 		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
 	})

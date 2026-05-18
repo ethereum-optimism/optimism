@@ -151,6 +151,10 @@ func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint6
 	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
 
+func (m *mockEngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }

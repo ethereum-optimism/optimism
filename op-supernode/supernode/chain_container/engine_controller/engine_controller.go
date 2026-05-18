@@ -18,6 +18,8 @@ import (
 
 // EngineController abstracts access to the L2 execution layer
 type EngineController interface {
+	// L2BlockRefByLabel returns the L2 block reference for the given block label.
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	// L2BlockRefByNumber returns the L2 block reference for the given block number.
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
@@ -128,6 +130,10 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 
 func (e *simpleEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return e.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (e *simpleEngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return e.l2.L2BlockRefByLabel(ctx, label)
 }
 
 func (e *simpleEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {

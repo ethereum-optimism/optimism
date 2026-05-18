@@ -34,7 +34,7 @@ where
     /// Run forever (until `cancel`), executing one prune pass per `task_run_interval`.
     pub async fn run(self, mut signal: GracefulShutdown) {
         info!(
-            target: "trie::pruner_task",
+            target: "trie::prune::task",
             min_block_interval = self.min_block_interval,
             interval_secs = self.task_run_interval.as_secs(),
             "Starting pruner task"
@@ -47,7 +47,7 @@ where
         loop {
             tokio::select! {
                 _ = &mut signal => {
-                    info!(target: "trie::pruner_task", "Pruner task cancelled; exiting");
+                    info!(target: "trie::prune::task", "Pruner task cancelled; exiting");
                     break;
                 }
                 _ = interval.tick() => {
@@ -56,6 +56,6 @@ where
             }
         }
 
-        info!(target: "trie::pruner_task", "Pruner task stopped");
+        info!(target: "trie::prune::task", "Pruner task stopped");
     }
 }

@@ -1,0 +1,3 @@
+[submodule "mev-test-contract/lib/forge-std"]
+	path = mev-test-contract/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std.git

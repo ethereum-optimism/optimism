@@ -392,8 +392,9 @@ func startL2CLNode(
 			BeaconAddr: l1CL.beaconHTTPAddr,
 		},
 		Driver: driver.Config{
-			SequencerEnabled:   cfg.IsSequencer,
-			SequencerConfDepth: 2,
+			SequencerEnabled:    cfg.IsSequencer,
+			SequencerConfDepth:  2,
+			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
 		Rollup:            *l2Net.rollupCfg,
 		DependencySet:     startCfg.DependencySet,

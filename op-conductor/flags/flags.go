@@ -91,11 +91,6 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
-	SupervisorRPC = &cli.StringFlag{
-		Name:    "supervisor.rpc",
-		Usage:   "HTTP provider URL for supervisor",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "SUPERVISOR_RPC"),
-	}
 	RollupBoostEnabled = &cli.BoolFlag{
 		Name:    "rollup-boost.enabled",
 		Usage:   "Enable the rollup-boost healthcheck that uses HTTP status codes (200/206/503). Healthchecks are performed against execution.rpc + '/healthz' (path appended automatically). Mutually exclusive with rollup-boost.next-enabled.",
@@ -241,7 +236,6 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
-	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
 	RollupBoostNextEnabled,

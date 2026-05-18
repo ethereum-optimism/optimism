@@ -36,7 +36,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -70,7 +69,6 @@ type SuperSystem interface {
 	L2IDs() []string
 	Supervisor() *supervisor.SupervisorService
 	Batcher(network string) *bss.BatcherService
-	Proposer(network string) *l2os.ProposerService
 	AddUser(username string)
 	SupervisorClient() *sources.SupervisorClient
 	DependencySet() *depset.StaticConfigDependencySet
@@ -444,7 +442,6 @@ func (s *interopE2ESystem) L1GethClient() *ethclient.Client {
 
 func (s *interopE2ESystem) Supervisor() *supervisor.SupervisorService { return s.supervisor }
 func (s *interopE2ESystem) Batcher(id string) *bss.BatcherService     { return s.l2s[id].batcher }
-func (s *interopE2ESystem) Proposer(id string) *l2os.ProposerService  { return s.l2s[id].proposer }
 func (s *interopE2ESystem) L2OperatorKey(id string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey {
 	return s.l2s[id].operatorKeys[role]
 }

@@ -1,7 +1,8 @@
 version: 2.1
 
 # Setup Configuration for CircleCI Dynamic Configuration
-# Uses path-filtering to detect changes and continuation orb to merge configs.
+# Uses a custom compute-changes job to detect changed paths with full shell
+# flexibility, then merges continuation configs and continues the pipeline.
 # See: https://circleci.com/docs/using-dynamic-configuration/
 
 setup: true
@@ -82,66 +83,270 @@ parameters:
     default: "v0.0"
 
 orbs:
-  path-filtering: circleci/path-filtering@3.0.0
+  continuation: circleci/continuation@2.0.1
+
+jobs:
+  # --------------------------------------------------------------------------
+  # This job prepares the dynamic continuation pipeline in 6 steps:
+  #
+  #   1. Install yq (YAML processor for merging configs)
+  #   2. Store string pipeline params  → /tmp/pipeline-parameters.json
+  #   3. Store boolean pipeline params → /tmp/pipeline-parameters.json
+  #   4. Detect file-tree changes     → /tmp/pipeline-parameters.json
+  #   5. Decision tree: read the JSON, enable c-run_* workflow flags, strip
+  #      intermediate params, write final JSON
+  #   6. Merge continuation YAML configs → /tmp/merged-config.yml
+  #   7. Call CircleCI continuation API with merged config + JSON params
+  #
+  # The result: only workflows whose c-run_* flag is true will execute.
+  # --------------------------------------------------------------------------
+  prepare-continuation-config:
+    docker:
+      - image: << pipeline.parameters.default_docker_image >>
+    environment:
+      BASE_REVISION: devlop
+    steps:
+      - checkout
+      # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
+      # Keep version in sync with mise.toml.
+      - run:
+          name: Install yq
+          command: |
+            YQ_VERSION="4.44.5"
+            wget -qO /usr/local/bin/yq \
+              "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+            chmod +x /usr/local/bin/yq
+            echo "yq version: $(yq --version)"
+      # Validates the decision tree logic against known scenarios.
+      # Fails fast if a refactor breaks expected workflow activation.
+      - run:
+          name: Test decision tree
+          command: .circleci/scripts/test-decision-tree.sh
+      # Forward string pipeline parameters to /tmp/pipeline-parameters.json.
+      # collect-params.sh picks up all env vars starting with "c-" and writes them as JSON strings.
+      # Add a line here when a new string value needs to reach continuation config jobs
+      # (e.g., a new docker image, event payload, or cache version).
+      - run:
+          name: Store string pipeline parameters in JSON file
+          command: .circleci/scripts/collect-params.sh str
+          environment:
+            c-default_docker_image: << pipeline.parameters.default_docker_image >>
+            c-rust_base_image: << pipeline.parameters.rust_base_image >>
+            c-base_image: << pipeline.parameters.base_image >>
+            c-github-event-type: << pipeline.parameters.github-event-type >>
+            c-github-event-action: << pipeline.parameters.github-event-action >>
+            c-github-event-base64: << pipeline.parameters.github-event-base64 >>
+            c-go-cache-version: << pipeline.parameters.go-cache-version >>
+      # Same as above but for booleans. Separate step because CircleCI renders
+      # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
+      # normalizes them to JSON true/false.
+      # These dispatch flags are consumed only by the decision tree below;
+      # they do NOT reach continuation configs.
+      - run:
+          name: Store boolean pipeline parameters in JSON file
+          command: .circleci/scripts/collect-params.sh bool
+          environment:
+            c-main_dispatch: << pipeline.parameters.main_dispatch >>
+            c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
+            c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>
+            c-kontrol_dispatch: << pipeline.parameters.kontrol_dispatch >>
+            c-cannon_full_test_dispatch: << pipeline.parameters.cannon_full_test_dispatch >>
+            c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
+            c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
+            c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
+            c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
+            c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
+            c-ai_contracts_test_dispatch: << pipeline.parameters.ai_contracts_test_dispatch >>
+            c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
+            c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
+            c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
+      # Each env var value is a POSIX Extended Regular Expression (ERE, like grep -E).
+      # Matched line-by-line against `git diff --name-only origin/develop...HEAD`.
+      # Result: the c-* key is set to true/false in the JSON.
+      #
+      # Test a pattern locally:
+      #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
+      #
+      # When to add: you need path-based workflow gating. Also add a corresponding
+      # is_true/run call in the decision tree below.
+      - run:
+          name: Detect file tree changes and store in JSON file
+          command: .circleci/scripts/collect-params.sh detect
+          environment:
+            c-rust_files_changed: "^rust/"
+            c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+            c-docs_changes_detected: "^docs/public-docs/"
+            c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+      # Decision tree: determines which workflows to enable based on trigger, branch, and params.
+      #
+      # Helpers (defined in workflow-helpers.sh):
+      #   run foo      → sets c-run_foo: true in JSON (maps 1:1 to
+      #                   "when: << pipeline.parameters.c-run_foo >>" in a continuation config)
+      #   is_true x   → checks if c-x is true in JSON (set by earlier steps)
+      #   param x     → reads raw value of c-x from JSON
+      #   finalize    → strips intermediate params, keeps only the listed whitelist + all c-run_* flags
+      #
+      # How to add a new workflow:
+      #   1. Add "c-run_your_workflow: {type: boolean, default: false}" in the relevant continuation config
+      #   2. Add "run your_workflow" in the appropriate branch below
+      - run:
+          name: Compute workflow conditions from pipeline parameters and store in JSON file
+          environment:
+            BRANCH: << pipeline.git.branch >>
+            TRIGGER_SOURCE: << pipeline.trigger_source >>
+            TAG: << pipeline.git.tag >>
+            SCHEDULE_NAME: << pipeline.schedule.name >>
+          command: |
+            set -euo pipefail
+            source .circleci/scripts/workflow-helpers.sh
+            init_json
+
+            case "${TRIGGER_SOURCE}" in
+
+              # Scheduled pipelines: map schedule name → workflows
+              scheduled_pipeline)
+                case "${SCHEDULE_NAME}" in
+                  build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
+                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
+                  build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
+                  build_mon_thu)    run ai_contracts_test ;;
+                esac
+                ;;
+
+              # Webhook (push events)
+              webhook)
+                # --- Tag push ---
+                if [[ -n "${TAG}" ]]; then
+                  run release
+
+                # =========================================================
+                #  Three mutually exclusive lifecycle stages:
+                # =========================================================
+
+                # 1. PR (feature branch push)
+                #    Runs on every push to a feature branch.
+                #    Path-based gating: only changed areas are tested.
+                #    Docs-only changes skip main/release entirely.
+                # ---------------------------------------------------------
+                elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
+                  if is_true docs_changes_detected && ! is_true contracts_changed && ! is_true rust_changes_detected; then
+                    run docs_ci
+                    run contracts_feature_tests_short
+                    run rust_ci_gate_short
+                    run rust_e2e_gate_skip
+                  else
+                    run main
+                    run release
+                    if is_true contracts_changed; then
+                      run contracts_feature_tests
+                    else
+                      run contracts_feature_tests_short
+                    fi
+                    if is_true rust_changes_detected; then
+                      run rust_ci
+                      run rust_e2e_ci
+                    else
+                      run rust_ci_gate_short
+                      run rust_e2e_gate_skip
+                    fi
+                    if is_true docs_changes_detected; then
+                      run docs_ci
+                    fi
+                  fi
+
+                # 2. Merge queue (pre-merge validation)
+                #    Runs when GitHub merge queue picks up the PR.
+                #    Full contract tests, path-gated rust/docs.
+                # ---------------------------------------------------------
+                elif [[ "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
+                  run main
+                  run release
+                  run contracts_feature_tests
+                  if is_true rust_changes_detected; then
+                    run rust_ci
+                    run rust_e2e_ci
+                  else
+                    run rust_ci_gate_short
+                    run rust_e2e_gate_skip
+                  fi
+                  if is_true docs_changes_detected; then
+                    run docs_ci
+                  fi
+
+                # 3. After merge (develop push)
+                #    Runs after the merge queue completes and pushes to develop.
+                #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
+                # ---------------------------------------------------------
+                elif [[ "${BRANCH}" == "develop" ]]; then
+                  run main
+                  run release
+                  run develop_fault_proofs
+                  run develop_kontrol_tests
+                  run contracts_feature_tests
+                  if is_true rust_changes_detected; then
+                    run rust_ci
+                    run rust_e2e_ci
+                    run kona_publish_prestates
+                  else
+                    run rust_ci_gate_short
+                    run rust_e2e_gate_skip
+                  fi
+                  if is_true docs_changes_detected; then
+                    run docs_ci
+                  fi
+                fi
+                ;;
+
+              # API triggers: dispatch flags select workflows
+              api)
+                run release
+                if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
+                  run main contracts_feature_tests
+                fi
+                if is_true fault_proofs_dispatch;     then run develop_fault_proofs; fi
+                if is_true kontrol_dispatch;          then run develop_kontrol_tests; fi
+                if is_true cannon_full_test_dispatch; then run scheduled_cannon_full_tests; fi
+                if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
+                if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
+                if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
+                if is_true ai_contracts_test_dispatch; then run ai_contracts_test; fi
+                if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
+                if is_true rust_ci_dispatch;          then run rust_ci; fi
+                if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
+                if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
+                  run close_issue
+                fi
+                ;;
+            esac
+
+            # Params to forward to continuation configs (everything else is stripped)
+            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
+      # Deep-merges the 4 continuation YAML configs (main, docs-ci, rust-ci, rust-e2e)
+      # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
+      # explode(.) resolves YAML anchors/aliases so the output is self-contained.
+      - run:
+          name: Merge continuation configs
+          command: .circleci/scripts/merge-configs.sh
+      # Calls the CircleCI continuation API with the merged config + JSON params.
+      # This triggers the actual CI pipeline where only workflows with their
+      # c-run_* flag set to true will execute.
+      - continuation/continue:
+          configuration_path: /tmp/merged-config.yml
+          parameters: /tmp/pipeline-parameters.json
 
 workflows:
   setup:
     when:
       equal: ["", << pipeline.git.tag >>]
     jobs:
-      - path-filtering/filter: &path_filter
-          base-revision: develop
-          config-path: .circleci/continue/main.yml
-          mapping: |
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/main.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/main.yml
-            .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/main.yml
-            .* c-main_dispatch << pipeline.parameters.main_dispatch >> .circleci/continue/main.yml
-            .* c-fault_proofs_dispatch << pipeline.parameters.fault_proofs_dispatch >> .circleci/continue/main.yml
-            .* c-reproducibility_dispatch << pipeline.parameters.reproducibility_dispatch >> .circleci/continue/main.yml
-            .* c-kontrol_dispatch << pipeline.parameters.kontrol_dispatch >> .circleci/continue/main.yml
-            .* c-cannon_full_test_dispatch << pipeline.parameters.cannon_full_test_dispatch >> .circleci/continue/main.yml
-            .* c-sdk_dispatch << pipeline.parameters.sdk_dispatch >> .circleci/continue/main.yml
-            .* c-publish_contract_artifacts_dispatch << pipeline.parameters.publish_contract_artifacts_dispatch >> .circleci/continue/main.yml
-            .* c-stale_check_dispatch << pipeline.parameters.stale_check_dispatch >> .circleci/continue/main.yml
-            .* c-contracts_coverage_dispatch << pipeline.parameters.contracts_coverage_dispatch >> .circleci/continue/main.yml
-            .* c-heavy_fuzz_dispatch << pipeline.parameters.heavy_fuzz_dispatch >> .circleci/continue/main.yml
-            .* c-ai_contracts_test_dispatch << pipeline.parameters.ai_contracts_test_dispatch >> .circleci/continue/main.yml
-            .* c-l2_fork_test_dispatch << pipeline.parameters.l2_fork_test_dispatch >> .circleci/continue/main.yml
-            .* c-github-event-type << pipeline.parameters.github-event-type >> .circleci/continue/main.yml
-            .* c-github-event-action << pipeline.parameters.github-event-action >> .circleci/continue/main.yml
-            .* c-github-event-base64 << pipeline.parameters.github-event-base64 >> .circleci/continue/main.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/main.yml
-            rust/.* c-rust_files_changed true .circleci/continue/main.yml
-            (packages/contracts-bedrock|\.circleci|\.github|ops/check-changed)/.* c-contracts_changed true .circleci/continue/main.yml
-            ^(package\.json|mise\.toml)$ c-contracts_changed true .circleci/continue/main.yml
-
-            # Docs CI — trigger on docs/public-docs/ changes
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/docs-ci.yml
-            docs/public-docs/.* c-docs_changes_detected true .circleci/continue/docs-ci.yml
-
-            # Rust CI — always include config, gate jobs via c-rust_changes_detected
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-ci.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-ci.yml
-            .* c-base_image << pipeline.parameters.base_image >> .circleci/continue/rust-ci.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-ci.yml
-            .* c-rust_ci_dispatch << pipeline.parameters.rust_ci_dispatch >> .circleci/continue/rust-ci.yml
-            (rust|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-ci.yml
-
-            # Rust E2E — always include config, gate jobs via c-rust_changes_detected
-            .* c-default_docker_image << pipeline.parameters.default_docker_image >> .circleci/continue/rust-e2e.yml
-            .* c-rust_base_image << pipeline.parameters.rust_base_image >> .circleci/continue/rust-e2e.yml
-            .* c-go-cache-version << pipeline.parameters.go-cache-version >> .circleci/continue/rust-e2e.yml
-            .* c-rust_e2e_dispatch << pipeline.parameters.rust_e2e_dispatch >> .circleci/continue/rust-e2e.yml
-            (rust|op-e2e|\.circleci)/.* c-rust_changes_detected true .circleci/continue/rust-e2e.yml
+      - prepare-continuation-config
 
   setup-tag:
     when:
       not:
         equal: ["", << pipeline.git.tag >>]
     jobs:
-      - path-filtering/filter:
-          <<: *path_filter
+      - prepare-continuation-config:
           filters:
             tags:
               only: /.*/

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/params"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
@@ -29,6 +30,11 @@ var (
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
 )
 
+// DefaultLogBackfillDepth matches the interop message expiry window so backfill
+// covers every initiating message that could still be referenced by an
+// executing message.
+const DefaultLogBackfillDepth = time.Duration(params.MessageExpiryTimeSecondsInterop) * time.Second
+
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
@@ -37,12 +43,12 @@ var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Value:   0,
 }
 
-// InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the L2 tip by this duration (clamped to activation). Validation still starts only beyond the local safe head.
+// InteropLogBackfillDepthFlag extends initiating-message log ingestion backward from the startup boundary by this duration (clamped to activation).
 var InteropLogBackfillDepthFlag = &cli.DurationFlag{
 	Name:    "interop.log-backfill-depth",
-	Usage:   "Duration to pre-ingest logs behind the tip before interop validation (e.g. 168h). Never loads logs before interop.activation-timestamp. Requires interop.activation-timestamp.",
+	Usage:   "Duration to pre-ingest logs behind the tip before interop validation. Never loads logs before interop.activation-timestamp. Set to 0 to disable.",
 	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "INTEROP_LOG_BACKFILL_DEPTH"),
-	Value:   0,
+	Value:   DefaultLogBackfillDepth,
 }
 
 func init() {
@@ -140,7 +146,7 @@ type Interop struct {
 	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
 	// this is used for loop handoff from log backfill to main processing.
 	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
-	// after backfill, or the safe-head-derived startup timestamp when backfill was not used.
+	// after backfill, or the EL-finalized-derived startup timestamp when backfill was not used.
 	backfillEndTimestamp uint64
 	firstVerifiableSet   bool
 	firstVerifiable      uint64
@@ -195,7 +201,8 @@ func (i *Interop) Name() string {
 // firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
 // to verify. If verification has already committed results, the first committed
 // timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
-// after log backfill, or the safe-head-derived startup timestamp.
+// after log backfill, or — on cold start with no committed results and no
+// backfill range — the EL-finalized-derived startup timestamp.
 func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
 	if i.verifiedDB != nil {
 		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
@@ -294,7 +301,7 @@ func (i *Interop) Start(ctx context.Context) error {
 				i.backfillEndTimestamp = end
 				break
 			}
-			i.log.Warn("log backfill failed, retrying (virtual nodes may not be ready yet)", "err", err)
+			i.log.Warn("log backfill failed, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
 			for cid := range i.chains {
 				i.metrics.LogBackfillRetries.WithLabelValues(cid.String()).Inc()
 			}
@@ -315,6 +322,7 @@ func (i *Interop) Start(ctx context.Context) error {
 			firstVerifiableLog = i.activationTimestamp
 		}
 	} else if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+		// Resume from the last commit to keep verifiedDB gap-free.
 		firstVerifiableLog = lastTS + 1
 	} else {
 		for {
@@ -332,7 +340,7 @@ func (i *Interop) Start(ctx context.Context) error {
 					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 				return fmt.Errorf("interop halted due to unavailable history: %w", err)
 			}
-			i.log.Warn("first verifiable timestamp unavailable, retrying (virtual nodes may not be ready yet)", "err", err)
+			i.log.Warn("first verifiable timestamp unavailable, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
 			select {
 			case <-i.ctx.Done():
 				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
@@ -852,7 +860,7 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 
 	if plan.TargetHeads == nil {
 		for chainID, db := range i.logsDBs {
-			if err := db.Clear(&noopInvalidator{}); err != nil {
+			if err := db.Clear(); err != nil {
 				i.log.Error("failed to clear logsDB on full rewind", "chain", chainID, "err", err)
 				recordErr(fmt.Errorf("chain %s: clear logsDB on full rewind: %w", chainID, err))
 			}
@@ -874,7 +882,7 @@ func (i *Interop) applyRewindPlan(plan RewindPlan) error {
 		}
 		i.log.Info("rewinding logsDB to previous verified head",
 			"chain", chainID, "from", latestBlock, "to", expectedHead)
-		if err := db.Rewind(&noopInvalidator{}, expectedHead); err != nil {
+		if err := db.Rewind(expectedHead); err != nil {
 			i.log.Error("failed to rewind logsDB, transition preserved for retry",
 				"chain", chainID, "err", err)
 			recordErr(fmt.Errorf("chain %s: rewind logsDB to previous verified head: %w", chainID, err))
@@ -991,7 +999,7 @@ func (i *Interop) CurrentL1() eth.BlockID {
 
 // VerifiedAtTimestamp returns whether the data is verified at the given timestamp.
 // Timestamps before the first verifiable timestamp are already covered by
-// pre-activation consensus or by the safe-head startup handoff.
+// pre-activation consensus or by the startup handoff.
 func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	if ts < i.activationTimestamp {
 		return true, nil
