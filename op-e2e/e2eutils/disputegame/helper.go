@@ -313,7 +313,28 @@ func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDispu
 	l1Header, err := h.Client.HeaderByHash(ctx, l1HeadHash)
 	h.Require.NoError(err, "Failed to load L1 header")
 	l1Head := eth.HeaderBlockID(l1Header)
+	if h.System.IsSupersystem() {
+		h.waitForSupernodePastL1(ctx, l1Head)
+	}
 	return l1Head
+}
+
+// waitForSupernodePastL1 blocks until the supernode has processed past the supplied L1 block.
+// The supernode's super-root and trace providers require CurrentL1 > game.l1Head; right after
+// game creation the supernode may still be a block or two behind, so callers that immediately
+// invoke the trace provider can race the sync. Centralising the wait here means every super-game
+// path picks it up without scattering retries through individual call sites.
+func (h *FactoryHelper) waitForSupernodePastL1(ctx context.Context, l1Head eth.BlockID) {
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	err := wait.For(timedCtx, 500*time.Millisecond, func() (bool, error) {
+		status, statusErr := h.System.SupernodeClient().SyncStatus(ctx)
+		if statusErr != nil {
+			return false, statusErr
+		}
+		return status.CurrentL1.Number > l1Head.Number, nil
+	})
+	h.Require.NoErrorf(err, "supernode did not advance past game L1 head %d", l1Head.Number)
 }
 
 func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {

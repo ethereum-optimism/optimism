@@ -550,14 +550,6 @@ func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
 	return stDepSet
 }
 
-func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
-	return func(v string) *rpc.Client {
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
-		require.NoError(t, err, "failed to dial")
-		return cl
-	}
-}
-
 var testingJWTSecret = [32]byte{123}
 
 func writeDefaultJWT(t testing.TB) string {
