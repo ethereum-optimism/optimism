@@ -137,11 +137,42 @@ func (n *SuperNode) RestartWithFreshDataDir() error {
 	if n.sn == nil {
 		return errSupernodeNotRunning
 	}
-	if n.snCfg == nil || n.snCfg.DataDir == "" {
-		return errors.New("sysgo: RestartWithFreshDataDir requires a configured supernode DataDir")
-	}
-	n.logger.Info("restarting supernode with fresh data dir", "data_dir", n.snCfg.DataDir)
 	n.stopLocked()
+	return n.wipeDataDirAndStartLocked()
+}
+
+// StopForExternalWipe stops the supernode without touching its data
+// directory, so callers can wipe sibling components (e.g. EL data) before
+// bringing the supernode back up via StartWithFreshDataDir. Test-only.
+func (n *SuperNode) StopForExternalWipe() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn == nil {
+		return errSupernodeNotRunning
+	}
+	n.logger.Info("stopping supernode for external wipe")
+	n.stopLocked()
+	return nil
+}
+
+// StartWithFreshDataDir wipes the supernode's data directory and starts a
+// fresh supernode. Pairs with StopForExternalWipe. Test-only.
+func (n *SuperNode) StartWithFreshDataDir() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn != nil {
+		return errors.New("sysgo: StartWithFreshDataDir called while supernode is still running")
+	}
+	return n.wipeDataDirAndStartLocked()
+}
+
+// wipeDataDirAndStartLocked deletes and recreates the configured data dir,
+// then starts the supernode. Caller must hold n.mu and ensure n.sn is nil.
+func (n *SuperNode) wipeDataDirAndStartLocked() error {
+	if n.snCfg == nil || n.snCfg.DataDir == "" {
+		return errors.New("sysgo: fresh data dir restart requires a configured supernode DataDir")
+	}
+	n.logger.Info("wiping supernode data dir", "data_dir", n.snCfg.DataDir)
 	if err := os.RemoveAll(n.snCfg.DataDir); err != nil {
 		return fmt.Errorf("sysgo: wipe supernode data dir %s: %w", n.snCfg.DataDir, err)
 	}
