@@ -2,7 +2,7 @@
 
 use super::MdbxProofsProviderV2;
 use crate::{
-    OpProofsStorageError,
+    BlockStateDiff, OpProofsStorageError,
     api::{
         OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO, OpProofsSnapshotProviderRW,
         SnapshotInitStatus,
@@ -21,7 +21,7 @@ use reth_db::{
     transaction::DbTx,
 };
 use reth_trie::{
-    BranchNodeCompact, Nibbles, StoredNibbles, StoredNibblesSubKey,
+    BranchNodeCompact, HashedPostStateSorted, Nibbles, StoredNibbles, StoredNibblesSubKey,
     updates::{StorageTrieUpdates, TrieUpdates},
 };
 use tempfile::TempDir;
@@ -316,10 +316,16 @@ fn write_update_snapshot_applies_diff_and_advances_anchor() {
         let mut st = StorageTrieUpdates::default();
         st.storage_nodes.insert(stor_path, stor_node.clone());
         updates.storage_tries.insert(addr, st);
-        let sorted = updates.into_sorted();
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
 
-        let n = provider.update_snapshot(new_anchor, &sorted).expect("update");
-        assert_eq!(n, 2, "account + storage node = 2");
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.account_trie_updates_written_total, 1);
+        assert_eq!(counts.storage_trie_updates_written_total, 1);
+        assert_eq!(counts.hashed_accounts_written_total, 0);
+        assert_eq!(counts.hashed_storages_written_total, 0);
         OpProofsSnapshotProviderRW::commit(provider).expect("commit");
     }
 
@@ -368,8 +374,11 @@ fn write_update_snapshot_handles_removals() {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         updates.removed_nodes.insert(acc_path);
-        let sorted = updates.into_sorted();
-        provider.update_snapshot(new_anchor, &sorted).expect("update");
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
+        provider.update_snapshot(new_anchor, &diff).expect("update");
         OpProofsSnapshotProviderRW::commit(provider).expect("commit");
     }
 
@@ -392,8 +401,11 @@ fn write_update_snapshot_errors_when_building() {
     }
 
     let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-    let sorted = TrieUpdates::default().into_sorted();
-    let err = provider.update_snapshot(anchor(9, 0x09), &sorted).unwrap_err();
+    let diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdates::default().into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
+    };
+    let err = provider.update_snapshot(anchor(9, 0x09), &diff).unwrap_err();
     match err {
         OpProofsStorageError::SnapshotUpdateNotReady { status } => {
             assert_eq!(status, SnapshotStatus::Building);
@@ -406,7 +418,10 @@ fn write_update_snapshot_errors_when_building() {
 fn write_update_snapshot_errors_when_missing() {
     let db = setup_db();
     let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-    let sorted = TrieUpdates::default().into_sorted();
-    let err = provider.update_snapshot(anchor(9, 0x09), &sorted).unwrap_err();
+    let diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdates::default().into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
+    };
+    let err = provider.update_snapshot(anchor(9, 0x09), &diff).unwrap_err();
     assert!(matches!(err, OpProofsStorageError::SnapshotNotInitialized), "got {err:?}");
 }

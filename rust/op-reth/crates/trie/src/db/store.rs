@@ -977,6 +977,16 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
     where
         Self: 'tx,
         TX: 'tx;
+    type SnapshotHashedAccountCursor<'tx>
+        = MdbxAccountCursor<TX::DupCursor<HashedAccountHistory>>
+    where
+        Self: 'tx,
+        TX: 'tx;
+    type SnapshotHashedStorageCursor<'tx>
+        = MdbxStorageCursor<TX::DupCursor<HashedStorageHistory>>
+    where
+        Self: 'tx,
+        TX: 'tx;
 
     fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
         unimplemented!("Not supported in V1 storage")
@@ -994,6 +1004,19 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
     ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>> {
         unimplemented!("Not supported in V1 storage")
     }
+
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>> {
+        unimplemented!("Not supported in V1 storage")
+    }
+
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        _hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>> {
+        unimplemented!("Not supported in V1 storage")
+    }
 }
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRW
@@ -1006,8 +1029,8 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProvide
     fn update_snapshot(
         &self,
         _new_anchor: BlockNumHash,
-        _trie_updates: &reth_trie_common::updates::TrieUpdatesSorted,
-    ) -> OpProofsStorageResult<u64> {
+        _diff: &BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts> {
         unimplemented!("Not supported in V1 storage")
     }
 

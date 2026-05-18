@@ -23,7 +23,8 @@ mod snapshot_write;
 mod write;
 
 pub use cursor::{
-    V2AccountCursor, V2AccountTrieCursor, V2AccountTrieSnapshotCursor, V2StorageCursor,
+    V2AccountCursor, V2AccountTrieCursor, V2AccountTrieSnapshotCursor,
+    V2HashedAccountSnapshotCursor, V2HashedStorageSnapshotCursor, V2StorageCursor,
     V2StorageTrieCursor, V2StorageTrieSnapshotCursor,
 };
 

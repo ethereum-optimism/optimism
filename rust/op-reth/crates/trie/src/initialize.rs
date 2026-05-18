@@ -184,6 +184,14 @@ impl CompletionEstimatable for crate::db::StorageTrieKey {
     }
 }
 
+impl CompletionEstimatable for crate::db::HashedStorageKey {
+    /// Address dominates ordering, so progress along the hashed-storage scan
+    /// tracks the hashed address.
+    fn estimate_progress(&self) -> f64 {
+        self.hashed_address.estimate_progress()
+    }
+}
+
 impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
     /// Initialize a table from a source iterator to a storage function. Handles batching and
     /// logging.

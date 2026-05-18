@@ -68,7 +68,8 @@ pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpPro
 
 pub mod cursor_factory;
 pub use cursor_factory::{
-    OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory, SnapshotTrieCursorFactory,
+    OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory, SnapshotHashedCursorFactory,
+    SnapshotTrieCursorFactory,
 };
 
 pub mod error;

@@ -915,6 +915,14 @@ impl OpProofsSnapshotProviderRO for InMemoryProofsProvider {
         = InMemoryTrieCursor
     where
         Self: 'tx;
+    type SnapshotHashedAccountCursor<'tx>
+        = InMemoryAccountCursor
+    where
+        Self: 'tx;
+    type SnapshotHashedStorageCursor<'tx>
+        = InMemoryStorageCursor
+    where
+        Self: 'tx;
 
     fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
         unimplemented!("Not supported in Inmemory storage")
@@ -932,6 +940,19 @@ impl OpProofsSnapshotProviderRO for InMemoryProofsProvider {
     ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>> {
         unimplemented!("Not supported in Inmemory storage")
     }
+
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>> {
+        unimplemented!("Not supported in Inmemory storage")
+    }
+
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        _hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>> {
+        unimplemented!("Not supported in Inmemory storage")
+    }
 }
 
 impl OpProofsSnapshotProviderRW for InMemoryProofsProvider {
@@ -942,8 +963,8 @@ impl OpProofsSnapshotProviderRW for InMemoryProofsProvider {
     fn update_snapshot(
         &self,
         _new_anchor: BlockNumHash,
-        _trie_updates: &TrieUpdatesSorted,
-    ) -> OpProofsStorageResult<u64> {
+        _diff: &BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts> {
         unimplemented!("Not supported in Inmemory storage")
     }
 

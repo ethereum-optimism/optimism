@@ -255,6 +255,21 @@ tables! {
         type SubKey = StoredNibblesSubKey;
     }
 
+    /// Snapshot of [`V2HashedAccounts`] reflecting hashed-account leaves at the
+    /// snapshot anchor block.
+    table V2HashedAccountsSnapshot {
+        type Key = B256;
+        type Value = Account;
+    }
+
+    /// Snapshot of [`V2HashedStorages`] reflecting hashed-storage leaves at the
+    /// snapshot anchor block. Same shape as [`V2HashedStorages`].
+    table V2HashedStoragesSnapshot {
+        type Key = B256;
+        type Value = StorageEntry;
+        type SubKey = B256;
+    }
+
     /// Single-row metadata for the snapshot: which block its trie state
     /// reflects, and whether it's [`SnapshotStatus::Ready`] for reads.
     table V2SnapshotMeta {

@@ -149,3 +149,48 @@ where
         ))
     }
 }
+
+/// Factory for creating hashed leaf cursors backed by the snapshot tables.
+///
+/// Mirrors [`SnapshotTrieCursorFactory`]'s role for hashed leaves: reads
+/// directly from [`crate::db::V2HashedAccountsSnapshot`] and
+/// [`crate::db::V2HashedStoragesSnapshot`] without history merges. Valid only
+/// when the snapshot is `Ready` at the anchor the caller is reading.
+#[derive(Debug, Clone)]
+pub struct SnapshotHashedCursorFactory<P> {
+    reader: P,
+}
+
+impl<P: OpProofsSnapshotProviderRO> SnapshotHashedCursorFactory<P> {
+    /// Create a new snapshot-backed hashed cursor factory.
+    pub const fn new(reader: P) -> Self {
+        Self { reader }
+    }
+}
+
+impl<P> HashedCursorFactory for SnapshotHashedCursorFactory<P>
+where
+    P: OpProofsSnapshotProviderRO,
+{
+    type AccountCursor<'a>
+        = P::SnapshotHashedAccountCursor<'a>
+    where
+        Self: 'a;
+    type StorageCursor<'a>
+        = P::SnapshotHashedStorageCursor<'a>
+    where
+        Self: 'a;
+
+    fn hashed_account_cursor(&self) -> Result<Self::AccountCursor<'_>, DatabaseError> {
+        self.reader.snapshot_hashed_account_cursor().map_err(Into::<DatabaseError>::into)
+    }
+
+    fn hashed_storage_cursor(
+        &self,
+        hashed_address: B256,
+    ) -> Result<Self::StorageCursor<'_>, DatabaseError> {
+        self.reader
+            .snapshot_hashed_storage_cursor(hashed_address)
+            .map_err(Into::<DatabaseError>::into)
+    }
+}
