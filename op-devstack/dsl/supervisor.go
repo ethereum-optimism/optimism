@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
@@ -34,41 +33,6 @@ func (s *Supervisor) String() string {
 
 func (s *Supervisor) Escape() stack.Supervisor {
 	return s.inner
-}
-
-type VerifySyncStatusConfig struct {
-	AllUnsafeHeadsAdvance uint64
-}
-
-// WithAllLocalUnsafeHeadsAdvancedBy verifies that the local unsafe head of every chain advances by at least the
-// specified number of blocks compared to the value when VerifySyncStatus is called.
-func WithAllLocalUnsafeHeadsAdvancedBy(blocks uint64) func(cfg *VerifySyncStatusConfig) {
-	return func(cfg *VerifySyncStatusConfig) {
-		cfg.AllUnsafeHeadsAdvance = blocks
-	}
-}
-
-// VerifySyncStatus performs assertions based on the supervisor's SyncStatus endpoint.
-func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfig)) {
-	cfg := applyOpts(VerifySyncStatusConfig{}, opts...)
-	initial := s.FetchSyncStatus()
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		status := s.FetchSyncStatus()
-		s.require.Equalf(len(initial.Chains), len(status.Chains), "Expected %d chains in status but got %d", len(initial.Chains), len(status.Chains))
-		for chID, chStatus := range status.Chains {
-			chInitial := initial.Chains[chID]
-			required := chInitial.LocalUnsafe.Number + cfg.AllUnsafeHeadsAdvance
-			if chStatus.LocalUnsafe.Number < required {
-				s.log.Info("Required sync status not reached. Chain local unsafe has not advanced enough",
-					"chain", chID, "initialUnsafe", chInitial.LocalUnsafe, "currentUnsafe", chStatus.LocalUnsafe, "minRequired", required)
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
 }
 
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
