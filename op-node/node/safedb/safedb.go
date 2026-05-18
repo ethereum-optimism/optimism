@@ -195,34 +195,6 @@ func (d *SafeDB) FirstEntry(ctx context.Context) (l1Block eth.BlockID, safeHead 
 	return
 }
 
-func (d *SafeDB) NextEntryAfter(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
-	d.m.RLock()
-	defer d.m.RUnlock()
-	if d.closed {
-		err = ErrClosed
-		return
-	}
-	if l1BlockNum == math.MaxUint64 {
-		err = ErrNotFound
-		return
-	}
-	iter, err := d.db.NewIterWithContext(ctx, safeByL1BlockNumKey.IterRange())
-	if err != nil {
-		return
-	}
-	defer iter.Close()
-	if valid := iter.SeekGE(safeByL1BlockNumKey.Of(l1BlockNum + 1)); !valid {
-		err = ErrNotFound
-		return
-	}
-	val, err := iter.ValueAndErr()
-	if err != nil {
-		return
-	}
-	l1Block, safeHead, err = decodeSafeByL1BlockNum(iter.Key(), val)
-	return
-}
-
 func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()

@@ -128,22 +128,6 @@ func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.Blo
 	return entry.l1, entry.l2, nil
 }
 
-func (m *mockSafeDBReader) NextEntryAfter(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
-	var lowest uint64
-	found := false
-	for num := range m.entries {
-		if num > l1BlockNum && (!found || num < lowest) {
-			lowest = num
-			found = true
-		}
-	}
-	if !found {
-		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
-	}
-	entry := m.entries[lowest]
-	return entry.l1, entry.l2, nil
-}
-
 // Test helpers
 func createTestConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{
