@@ -35,9 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// l2Node holds per-chain resources for a single L2 node. With the supernode setup, op-e2e no
-// longer runs a standalone op-node — the chain's op-node lives inside the supernode and is
-// reached via a supernode-prefixed CL URL.
+// l2Node holds per-chain resources for a single L2 node. The chain's op-node lives inside the
+// supernode and is reached via a supernode-prefixed CL URL.
 type l2Node struct {
 	name         string
 	l2Geth       *geth.GethInstance
@@ -81,9 +80,9 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 	return node.gethClient
 }
 
-// L2RollupEndpoint returns the chain's CL RPC endpoint. With the supernode setup, this is the
-// supernode-routed URL <supernode-base>/<chainID>. The `name` argument is retained for interface
-// compatibility but every chain currently has a single supernode-owned op-node.
+// L2RollupEndpoint returns the chain's CL RPC endpoint, served by the supernode at
+// <supernode-base>/<chainID>. The name argument is unused — every chain has a single
+// supernode-owned op-node.
 func (s *interopE2ESystem) L2RollupEndpoint(id string, name string) endpoint.RPC {
 	return endpoint.URL(s.chainURL(s.l2s[id].chainID))
 }
@@ -105,8 +104,8 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 }
 
 // newL2 sets up the per-chain state needed before the supernode boots: keys, the L2 EL (op-geth),
-// and an empty node map. The op-node lives inside the supernode and is configured via
-// newSupernodeNodeConfig. The batcher is started after the supernode is up.
+// and an empty node map. The op-node is configured via newSupernodeNodeConfig and started by
+// the supernode; the batcher is started after the supernode is up.
 func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
@@ -120,8 +119,8 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 	}
 }
 
-// newSupernodeNodeConfig builds the per-chain op-node configuration that the supernode will use
-// to run the chain's virtual op-node. Modeled on op-devstack/sysgo/multichain_supernode_runtime.go.
+// newSupernodeNodeConfig builds the per-chain op-node configuration that the supernode runs
+// internally as the chain's virtual op-node.
 func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.DependencySet) *opnodeconfig.Config {
 	p2pKey := l2.operatorKeys[devkeys.SequencerP2PRole]
 	p2pSigner := &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(&p2pKey)}
@@ -169,9 +168,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 	return cfg
 }
 
-// newGethForL2 creates a new Geth instance for an L2 chain. With the supernode setup, the L2 EL
-// does not need an interop message RPC: cross-chain message validation is supplied by the
-// supernode-internal op-node, and the op-e2e super_test paths do not exercise mempool filtering.
+// newGethForL2 creates a new Geth instance for an L2 chain.
 func (s *interopE2ESystem) newGethForL2(id string, node string, l2Out *interopgen.L2Output) *geth.GethInstance {
 	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id + "-" + node
