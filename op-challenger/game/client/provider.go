@@ -24,7 +24,6 @@ type Provider struct {
 	l2EL               *ethclient.Client
 	rollupClient       *sources.RollupClient
 	syncValidator      *RollupSyncStatusValidator
-	supervisorClient   *sources.SupervisorClient
 	superSyncValidator types.SyncValidator
 	superNodeClient    *sources.SuperNodeClient
 	toClose            []func()
@@ -97,26 +96,16 @@ func (c *Provider) RollupClients() (*sources.RollupClient, *RollupSyncStatusVali
 	return rollupClient, c.syncValidator, nil
 }
 
-func (c *Provider) SuperchainClients() (*sources.SupervisorClient, *sources.SuperNodeClient, types.SyncValidator, error) {
-	if c.supervisorClient != nil || c.superNodeClient != nil {
-		return c.supervisorClient, c.superNodeClient, c.superSyncValidator, nil
+func (c *Provider) SuperchainClients() (*sources.SuperNodeClient, types.SyncValidator, error) {
+	if c.superNodeClient != nil {
+		return c.superNodeClient, c.superSyncValidator, nil
 	}
-	if c.cfg.UseSuperNode {
-		superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to dial supernode: %w", err)
-		}
-		c.superNodeClient = superNodeClient
-		c.superSyncValidator = &NoopSyncStatusValidator{}
-		c.toClose = append(c.toClose, superNodeClient.Close)
-	} else {
-		supervisorClient, err := dial.DialSupervisorClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to dial supervisor: %w", err)
-		}
-		c.supervisorClient = supervisorClient
-		c.superSyncValidator = NewSupervisorSyncValidator(supervisorClient)
-		c.toClose = append(c.toClose, supervisorClient.Close)
+	superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to dial supernode: %w", err)
 	}
-	return c.supervisorClient, c.superNodeClient, c.superSyncValidator, nil
+	c.superNodeClient = superNodeClient
+	c.superSyncValidator = &NoopSyncStatusValidator{}
+	c.toClose = append(c.toClose, superNodeClient.Close)
+	return c.superNodeClient, c.superSyncValidator, nil
 }

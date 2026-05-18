@@ -198,7 +198,6 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 			l2Endpoints = append(l2Endpoints, l2Node.RPC())
 		}
 		cfg = config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, sys.SupernodeEndpoint().RPC(), l2Endpoints, t.TempDir())
-		cfg.UseSuperNode = true
 	} else {
 		cfg = config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
 	}
