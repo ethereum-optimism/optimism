@@ -56,10 +56,10 @@ func (n *SuperNode) Start() {
 	n.startLocked()
 }
 
-// startLocked brings up the supernode against the stored configs and points
-// the long-lived httpProxy at its freshly-bound RPC port. Caller must hold
-// n.mu. The proxy is created on first start and reused across restarts so
-// external callers see a stable URL.
+// startLocked brings up the supernode and points the long-lived httpProxy
+// at its newly-bound RPC port. The proxy is created on first start and
+// reused so external callers see a stable URL across restarts. Caller must
+// hold n.mu.
 func (n *SuperNode) startLocked() {
 	if n.sn != nil {
 		n.logger.Warn("Supernode already started")
@@ -99,9 +99,8 @@ func (n *SuperNode) Stop() {
 	n.stopLocked()
 }
 
-// stopLocked tears down the running supernode instance but leaves the
-// httpProxy in place so a later restartLocked can repoint it. Caller must
-// hold n.mu.
+// stopLocked tears down the supernode instance, leaving httpProxy in place
+// so a later startLocked can repoint it. Caller must hold n.mu.
 func (n *SuperNode) stopLocked() {
 	if n.sn == nil {
 		n.logger.Warn("Supernode already stopped")
@@ -117,11 +116,9 @@ func (n *SuperNode) stopLocked() {
 	n.sn = nil
 }
 
-// InteropActivity returns the interop activity running inside the supernode,
-// or nil if the supernode is stopped or has no interop activity. Callers must
-// not cache the returned pointer across RestartWithFreshDataDir, which tears
-// the supernode down and brings up a fresh instance. For integration test
-// control only.
+// InteropActivity returns the interop activity, or nil if the supernode is
+// stopped or has no interop activity. The pointer is bound to the current
+// instance; do not cache across RestartWithFreshDataDir. Test-only.
 func (n *SuperNode) InteropActivity() *interop.Interop {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -132,11 +129,8 @@ func (n *SuperNode) InteropActivity() *interop.Interop {
 }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
-// directory in full, and starts a fresh supernode against the same chain
-// containers, virtual nodes, and externally-visible RPC address. The next
-// startup goes through fastInit / cold-start init with no prior verifiedDB
-// commits and no prior logsDB / safe_db state. For integration test control
-// only.
+// directory, and starts a fresh supernode against the same chain
+// containers, virtual nodes, and externally-visible RPC address. Test-only.
 func (n *SuperNode) RestartWithFreshDataDir() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()

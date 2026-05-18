@@ -131,11 +131,8 @@ func (s *Supernode) ResumeInterop() {
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
 // directory in full, and starts a fresh supernode against the same chain
-// containers, virtual nodes, and externally-visible RPC address. The next
-// startup goes through fastInit / cold-start init with no prior verifiedDB
-// commits and no prior logsDB / safe_db state — the primary primitive for
-// exercising the cold-start resync path in tests.
-// Requires the Supernode to be created with NewSupernodeWithTestControl.
+// containers, virtual nodes, and externally-visible RPC address.
+// Requires NewSupernodeWithTestControl.
 func (s *Supernode) RestartWithFreshDataDir() {
 	s.require.NotNil(s.testControl,
 		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
@@ -178,28 +175,22 @@ func (s *Supernode) AwaitBackfillCompleted() {
 	s.require.NoError(err, "backfill did not complete in time")
 }
 
-// ActivationTimestamp returns the immutable protocol-defined interop
-// activation timestamp configured on the running interop activity.
-// Requires the Supernode to be created with NewSupernodeWithTestControl.
+// ActivationTimestamp returns the configured interop activation timestamp.
+// Requires NewSupernodeWithTestControl.
 func (s *Supernode) ActivationTimestamp() uint64 {
 	return s.interopActivity().ActivationTimestamp()
 }
 
-// VerificationStartTimestamp returns the L2 timestamp at which the current
-// interop activity began verifying on its most recent start. Returns 0
-// before cold-start initialization completes; use AwaitBackfillCompleted or
-// AwaitVerificationStartsAt before reading.
-// Requires the Supernode to be created with NewSupernodeWithTestControl.
+// VerificationStartTimestamp returns the L2 timestamp the current interop
+// activity began verifying at. Returns 0 before cold-start init completes.
+// Requires NewSupernodeWithTestControl.
 func (s *Supernode) VerificationStartTimestamp() uint64 {
 	return s.interopActivity().VerificationStartTimestamp()
 }
 
-// AwaitVerificationStartsAt blocks until cold-start initialization completes
-// and then asserts that VerificationStartTimestamp equals the expected value.
-// Use this to verify that, after a fresh cold start (no verifiedDB commits),
-// the verifier resumes at max(activationTimestamp, max per-chain first-SafeDB
-// entry).
-// Requires the Supernode to be created with NewSupernodeWithTestControl.
+// AwaitVerificationStartsAt blocks until cold-start init completes, then
+// asserts VerificationStartTimestamp equals expected.
+// Requires NewSupernodeWithTestControl.
 func (s *Supernode) AwaitVerificationStartsAt(expected uint64) {
 	ia := s.interopActivity()
 	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
