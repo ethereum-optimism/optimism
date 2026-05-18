@@ -302,6 +302,80 @@ func TestTruncateOnSafeHeadReset_AfterLastEntry(t *testing.T) {
 	verifySafeHeads()
 }
 
+func TestL1AtSafeHead(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	l1a := eth.BlockID{Hash: common.Hash{0x01, 0xaa}, Number: 100}
+	l1b := eth.BlockID{Hash: common.Hash{0x01, 0xbb}, Number: 110}
+	l1c := eth.BlockID{Hash: common.Hash{0x01, 0xcc}, Number: 120}
+	l2a := eth.L2BlockRef{Hash: common.Hash{0x02, 0xaa}, Number: 500}
+	l2b := eth.L2BlockRef{Hash: common.Hash{0x02, 0xbb}, Number: 510}
+	l2c := eth.L2BlockRef{Hash: common.Hash{0x02, 0xcc}, Number: 520}
+
+	t.Run("EmptyDB", func(t *testing.T) {
+		_, _, err := db.L1AtSafeHead(context.Background(), 500)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
+	})
+
+	require.NoError(t, db.SafeHeadUpdated(l2a, l1a))
+	require.NoError(t, db.SafeHeadUpdated(l2b, l1b))
+	require.NoError(t, db.SafeHeadUpdated(l2c, l1c))
+
+	t.Run("TargetEqualsFirstL2", func(t *testing.T) {
+		// SafeDB only records real (L1 source -> new L2 safe head) transitions,
+		// so the first entry's L1 is the L1 at which firstL2 became safe.
+		// This is the case the previous walkback algorithm could not answer
+		// without a +1 hack on the caller side.
+		l1, l2, err := db.L1AtSafeHead(context.Background(), l2a.Number)
+		require.NoError(t, err)
+		require.Equal(t, l1a, l1)
+		require.Equal(t, l2a.ID(), l2)
+	})
+
+	t.Run("TargetBetweenEntries", func(t *testing.T) {
+		// The first L1 at which L2 >= 505 became safe is l1b (where L2 jumped from 500 to 510).
+		l1, l2, err := db.L1AtSafeHead(context.Background(), 505)
+		require.NoError(t, err)
+		require.Equal(t, l1b, l1)
+		require.Equal(t, l2b.ID(), l2)
+	})
+
+	t.Run("TargetEqualsRecordedL2", func(t *testing.T) {
+		l1, l2, err := db.L1AtSafeHead(context.Background(), l2b.Number)
+		require.NoError(t, err)
+		require.Equal(t, l1b, l1)
+		require.Equal(t, l2b.ID(), l2)
+	})
+
+	t.Run("TargetEqualsLatestL2", func(t *testing.T) {
+		l1, l2, err := db.L1AtSafeHead(context.Background(), l2c.Number)
+		require.NoError(t, err)
+		require.Equal(t, l1c, l1)
+		require.Equal(t, l2c.ID(), l2)
+	})
+
+	t.Run("TargetAboveLatest", func(t *testing.T) {
+		_, _, err := db.L1AtSafeHead(context.Background(), l2c.Number+1)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadNotFound)
+	})
+
+	t.Run("TargetBelowFirst", func(t *testing.T) {
+		// The transition into this L2 number predates SafeDB's records and
+		// cannot be recovered by waiting.
+		_, _, err := db.L1AtSafeHead(context.Background(), l2a.Number-1)
+		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
+	})
+}
+
+func TestL1AtSafeHead_Disabled(t *testing.T) {
+	_, _, err := Disabled.L1AtSafeHead(context.Background(), 500)
+	require.ErrorIs(t, err, ErrNotEnabled)
+}
+
 func TestKeysFollowNaturalByteOrdering(t *testing.T) {
 	vals := []uint64{0, 1, math.MaxUint32 - 1, math.MaxUint32, math.MaxUint32 + 1, math.MaxUint64 - 1, math.MaxUint64}
 	for i := 1; i < len(vals); i++ {

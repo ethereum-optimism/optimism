@@ -44,6 +44,10 @@ type driverClient interface {
 
 type SafeDBReader interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe
+	// head reached at least targetL2Num. See safedb.L1AtSafeHead for the full
+	// contract and error semantics.
+	L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error)
 }
 
 type adminAPI struct {

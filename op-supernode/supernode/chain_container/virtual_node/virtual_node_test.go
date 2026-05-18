@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -109,6 +110,37 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 	}
 	entry := m.entries[best]
 	return entry.l1, entry.l2, nil
+}
+
+func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	// Find the earliest L1 (smallest L1 num) whose recorded L2 >= target.
+	type rec struct {
+		l1Num uint64
+		l1    eth.BlockID
+		l2    eth.BlockID
+	}
+	var sorted []rec
+	for num, e := range m.entries {
+		sorted = append(sorted, rec{l1Num: num, l1: e.l1, l2: e.l2})
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].l1Num < sorted[j].l1Num })
+	first := sorted[0]
+	last := sorted[len(sorted)-1]
+	if targetL2Num > last.l2.Number {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	if targetL2Num < first.l2.Number {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadUnavailable
+	}
+	for _, r := range sorted {
+		if r.l2.Number >= targetL2Num {
+			return r.l1, r.l2, nil
+		}
+	}
+	return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
 }
 
 // Test helpers

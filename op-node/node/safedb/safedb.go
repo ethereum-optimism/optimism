@@ -18,6 +18,16 @@ var (
 	ErrNotFound     = errors.New("not found")
 	ErrInvalidEntry = errors.New("invalid db entry")
 	ErrClosed       = errors.New("safe db closed")
+
+	// ErrL1AtSafeHeadNotFound is transient: SafeDB hasn't observed the target
+	// yet (DB empty, or target above the latest recorded L2 safe head).
+	// Callers should back off and retry.
+	ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
+
+	// ErrL1AtSafeHeadUnavailable is permanent on this node: the transition
+	// into the requested L2 safe head predates the first recorded entry, so
+	// it cannot be recovered by retrying.
+	ErrL1AtSafeHeadUnavailable = errors.New("l1 at safe head history unavailable")
 )
 
 const (
@@ -194,6 +204,70 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block e
 	}
 	l1Block, safeHead, err = decodeSafeByL1BlockNum(iter.Key(), val)
 	return
+}
+
+// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe head
+// reached at least targetL2Num, along with the L2 safe head recorded at that L1.
+//
+// SafeDB records (L1 source, L2 safe head) pairs only when the deriver actually
+// advances the safe head, so an entry's L1 is the canonical L1 at which that L2
+// became safe. This method walks the recorded entries (latest -> earliest) using
+// a single Pebble iterator and stops as soon as a strictly-lower predecessor is
+// found, which proves the cursor's L1 is the first to meet target.
+//
+// Returns ErrL1AtSafeHeadNotFound when the DB is empty or target is ahead of the
+// latest recorded entry (transient — retry). Returns ErrL1AtSafeHeadUnavailable
+// when target is below the first recorded entry (permanent on this node — the
+// transition predates available history).
+func (d *SafeDB) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+	if d.closed {
+		err = ErrClosed
+		return
+	}
+	iter, err := d.db.NewIterWithContext(ctx, safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return
+	}
+	defer iter.Close()
+
+	if valid := iter.Last(); !valid {
+		err = ErrL1AtSafeHeadNotFound
+		return
+	}
+	cursorL1, cursorL2, err := decodeEntry(iter)
+	if err != nil {
+		return
+	}
+	if targetL2Num > cursorL2.Number {
+		err = ErrL1AtSafeHeadNotFound
+		return
+	}
+	for iter.Prev() {
+		prevL1, prevL2, derr := decodeEntry(iter)
+		if derr != nil {
+			err = derr
+			return
+		}
+		if prevL2.Number < targetL2Num {
+			return cursorL1, cursorL2, nil
+		}
+		cursorL1, cursorL2 = prevL1, prevL2
+	}
+	if cursorL2.Number == targetL2Num {
+		return cursorL1, cursorL2, nil
+	}
+	err = ErrL1AtSafeHeadUnavailable
+	return
+}
+
+func decodeEntry(iter *pebble.Iterator) (eth.BlockID, eth.BlockID, error) {
+	val, err := iter.ValueAndErr()
+	if err != nil {
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+	return decodeSafeByL1BlockNum(iter.Key(), val)
 }
 
 func (d *SafeDB) Close() error {
