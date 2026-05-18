@@ -211,17 +211,14 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 	return db.SafeHeadAtL1(ctx, l1BlockNum)
 }
 
-// ErrL1AtSafeHeadNotFound is re-exported from the safedb package: transient,
-// SafeDB hasn't observed the target yet. Retry.
-var ErrL1AtSafeHeadNotFound = safedb.ErrL1AtSafeHeadNotFound
-
-// ErrL1AtSafeHeadUnavailable is re-exported from the safedb package: permanent
-// on this node, the crossing predates SafeDB history. Operator must intervene.
-var ErrL1AtSafeHeadUnavailable = safedb.ErrL1AtSafeHeadUnavailable
+// Re-exported from safedb for callers that still reference these via virtual_node.
+var (
+	ErrL1AtSafeHeadNotFound    = safedb.ErrL1AtSafeHeadNotFound
+	ErrL1AtSafeHeadUnavailable = safedb.ErrL1AtSafeHeadUnavailable
+)
 
 // L1AtSafeHead returns the earliest L1 block at which the provided L2 block
-// became local-safe. The lookup is delegated to SafeDB, which can iterate its
-// recorded entries directly with a Pebble cursor.
+// became local-safe, delegating the lookup to SafeDB.
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
 	inner := v.inner
@@ -234,11 +231,9 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		return eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
 
-	// Special case: genesis L2 block is trivially safe at L1 block 0.
-	// SafeDB doesn't know about the rollup genesis, so handle it here.
-	// Note: We use L1 block 0 (not cfg.Genesis.L1) because contracts may have
-	// been deployed earlier than cfg.Genesis.L1, allowing dispute games with
-	// L1 heads prior to cfg.Genesis.L1.
+	// Genesis L2 is trivially safe at L1 block 0. Use 0 rather than
+	// cfg.Genesis.L1 because contracts may pre-date cfg.Genesis.L1, allowing
+	// dispute games anchored to earlier L1 heads.
 	if target == v.cfg.Rollup.Genesis.L2 {
 		return eth.BlockID{Number: 0}, nil
 	}

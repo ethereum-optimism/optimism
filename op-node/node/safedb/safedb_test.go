@@ -326,10 +326,8 @@ func TestL1AtSafeHead(t *testing.T) {
 	require.NoError(t, db.SafeHeadUpdated(l2c, l1c))
 
 	t.Run("TargetEqualsFirstL2", func(t *testing.T) {
-		// SafeDB only records real (L1 source -> new L2 safe head) transitions,
-		// so the first entry's L1 is the L1 at which firstL2 became safe.
-		// This is the case the previous walkback algorithm could not answer
-		// without a +1 hack on the caller side.
+		// The first entry's L1 is a real recorded transition, so target ==
+		// firstL2 must resolve to firstL1 without a +1 workaround.
 		l1, l2, err := db.L1AtSafeHead(context.Background(), l2a.Number)
 		require.NoError(t, err)
 		require.Equal(t, l1a, l1)
@@ -337,7 +335,6 @@ func TestL1AtSafeHead(t *testing.T) {
 	})
 
 	t.Run("TargetBetweenEntries", func(t *testing.T) {
-		// The first L1 at which L2 >= 505 became safe is l1b (where L2 jumped from 500 to 510).
 		l1, l2, err := db.L1AtSafeHead(context.Background(), 505)
 		require.NoError(t, err)
 		require.Equal(t, l1b, l1)
@@ -364,8 +361,6 @@ func TestL1AtSafeHead(t *testing.T) {
 	})
 
 	t.Run("TargetBelowFirst", func(t *testing.T) {
-		// The transition into this L2 number predates SafeDB's records and
-		// cannot be recovered by waiting.
 		_, _, err := db.L1AtSafeHead(context.Background(), l2a.Number-1)
 		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
 	})

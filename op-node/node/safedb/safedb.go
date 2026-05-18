@@ -19,14 +19,10 @@ var (
 	ErrInvalidEntry = errors.New("invalid db entry")
 	ErrClosed       = errors.New("safe db closed")
 
-	// ErrL1AtSafeHeadNotFound is transient: SafeDB hasn't observed the target
-	// yet (DB empty, or target above the latest recorded L2 safe head).
-	// Callers should back off and retry.
+	// ErrL1AtSafeHeadNotFound is transient: target above latest, or DB empty.
 	ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
 
-	// ErrL1AtSafeHeadUnavailable is permanent on this node: the transition
-	// into the requested L2 safe head predates the first recorded entry, so
-	// it cannot be recovered by retrying.
+	// ErrL1AtSafeHeadUnavailable is permanent: target predates recorded history.
 	ErrL1AtSafeHeadUnavailable = errors.New("l1 at safe head history unavailable")
 )
 
@@ -206,19 +202,10 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block e
 	return
 }
 
-// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe head
-// reached at least targetL2Num, along with the L2 safe head recorded at that L1.
-//
-// SafeDB records (L1 source, L2 safe head) pairs only when the deriver actually
-// advances the safe head, so an entry's L1 is the canonical L1 at which that L2
-// became safe. This method walks the recorded entries (latest -> earliest) using
-// a single Pebble iterator and stops as soon as a strictly-lower predecessor is
-// found, which proves the cursor's L1 is the first to meet target.
-//
-// Returns ErrL1AtSafeHeadNotFound when the DB is empty or target is ahead of the
-// latest recorded entry (transient — retry). Returns ErrL1AtSafeHeadUnavailable
-// when target is below the first recorded entry (permanent on this node — the
-// transition predates available history).
+// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe
+// head reached at least targetL2Num, along with the L2 safe head recorded at
+// that L1. Each SafeDB entry records a real deriver-emitted transition, so
+// the answer is exact when target is within recorded history.
 func (d *SafeDB) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
