@@ -10,6 +10,7 @@ import (
 )
 
 var signedProofPrefix = []byte("BCSIG1")
+var commonwareSimplexProofPrefix = []byte("CWSIMPLX1")
 
 func Digest(req ProofRequest) common.Hash {
 	var buf bytes.Buffer
@@ -61,6 +62,37 @@ func BuildSignedProofResponse(req ProofRequest, signer *ecdsa.PrivateKey, valid 
 		Certificate: calldata,
 		Calldata:    calldata,
 	}, nil
+}
+
+// BuildCommonwareSimplexProofCalldata creates verifier calldata that carries a
+// Commonware Simplex finalization certificate after the EVM-verifiable proof
+// envelope used by the DevStack POC verifier.
+func BuildCommonwareSimplexProofCalldata(req ProofRequest, certificate []byte, signer *ecdsa.PrivateKey, valid bool) ([]byte, error) {
+	if len(certificate) == 0 {
+		return nil, fmt.Errorf("missing Commonware certificate")
+	}
+	if signer == nil {
+		return nil, fmt.Errorf("missing signer")
+	}
+	digest := Digest(req)
+	sig, err := crypto.Sign(digest[:], signer)
+	if err != nil {
+		return nil, fmt.Errorf("sign proof digest: %w", err)
+	}
+	if !valid {
+		sig[0] ^= 0x01
+	}
+	out := make([]byte, 0, len(commonwareSimplexProofPrefix)+len(digest)+len(sig)+1+len(certificate))
+	out = append(out, commonwareSimplexProofPrefix...)
+	out = append(out, digest[:]...)
+	out = append(out, sig...)
+	if valid {
+		out = append(out, 0x01)
+	} else {
+		out = append(out, 0x00)
+	}
+	out = append(out, certificate...)
+	return out, nil
 }
 
 func RecoverSigner(req ProofRequest, calldata []byte) (common.Address, bool) {

@@ -26,7 +26,10 @@ type ProofResponse struct {
 	Calldata    hexutil.Bytes `json:"calldata"`
 }
 
-const ProviderCommonwarePOC = "commonware-poc-secp256k1"
+const (
+	ProviderCommonwarePOC        = "commonware-poc-secp256k1"
+	ProviderCommonwareSimplexPOC = "commonware-simplex-poc-ed25519"
+)
 
 func NewProofRequest(l1ChainID, l2ChainID *big.Int, batchInbox common.Address, batcher common.Address, blobHashes []common.Hash) (ProofRequest, error) {
 	if l1ChainID == nil {

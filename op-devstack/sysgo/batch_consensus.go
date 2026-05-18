@@ -24,7 +24,9 @@ func applyBatchConsensusMockVerifier(cfg PresetConfig, l1Net *L1Network, l2Nets 
 	code := batchConsensusMockVerifierFalseCode
 	if cfg.BatchConsensusMockVerifierAccept {
 		code = batchConsensusMockVerifierTrueCode
-		if cfg.BatchConsensusMockProofSidecar || cfg.BatchConsensusCommonwareSidecar {
+		if cfg.BatchConsensusCommonwareSidecar {
+			code = batchConsensusMockVerifierCommonwareProofCode(batchConsensusMockProofSignerAddress())
+		} else if cfg.BatchConsensusMockProofSidecar {
 			code = batchConsensusMockVerifierProofCode(batchConsensusMockProofSignerAddress())
 		}
 	}
@@ -40,6 +42,43 @@ func applyBatchConsensusMockVerifier(cfg PresetConfig, l1Net *L1Network, l2Nets 
 }
 
 func batchConsensusMockVerifierProofCode(signer common.Address) []byte {
+	return batchConsensusMockVerifierSignatureProofCode(signatureProofLayout{
+		signer:       signer,
+		exactSize:    0x68,
+		digestOffset: 0x06,
+		rOffset:      0x26,
+		sOffset:      0x46,
+		vOffset:      0x66,
+		markerOffset: 0x67,
+	})
+}
+
+func batchConsensusMockVerifierCommonwareProofCode(signer common.Address) []byte {
+	return batchConsensusMockVerifierSignatureProofCode(signatureProofLayout{
+		signer:       signer,
+		prefix:       []byte("CWSIMPLX1"),
+		minSize:      0x6b,
+		digestOffset: 0x09,
+		rOffset:      0x29,
+		sOffset:      0x49,
+		vOffset:      0x69,
+		markerOffset: 0x6a,
+	})
+}
+
+type signatureProofLayout struct {
+	signer       common.Address
+	prefix       []byte
+	exactSize    byte
+	minSize      byte
+	digestOffset byte
+	rOffset      byte
+	sOffset      byte
+	vOffset      byte
+	markerOffset byte
+}
+
+func batchConsensusMockVerifierSignatureProofCode(layout signatureProofLayout) []byte {
 	var code []byte
 	emit := func(op ...byte) {
 		code = append(code, op...)
@@ -47,44 +86,73 @@ func batchConsensusMockVerifierProofCode(signer common.Address) []byte {
 	push1 := func(v byte) {
 		emit(0x60, v)
 	}
+	pushBytes := func(v []byte) {
+		if len(v) == 0 || len(v) > 32 {
+			panic("invalid push size")
+		}
+		emit(byte(0x5f + len(v)))
+		code = append(code, v...)
+	}
+	var falseJumps []int
 
-	// Calldata length must be 104 bytes: "BCSIG1" || digest || 65-byte signature || valid marker.
-	push1(0x68)
-	emit(0x36, 0x14, 0x15) // CALLDATASIZE EQ ISZERO
+	// Calldata length must match the selected proof envelope. The Commonware
+	// envelope must also include at least one byte of certificate payload after
+	// the signature-shaped EVM bridge proof.
+	if layout.exactSize != 0 {
+		push1(layout.exactSize)
+		emit(0x36, 0x14, 0x15) // CALLDATASIZE EQ ISZERO
+	} else {
+		push1(layout.minSize)
+		emit(0x36, 0x11, 0x15) // CALLDATASIZE GT ISZERO
+	}
 	push1(0x00)
 	falseJump := len(code) - 1
 	emit(0x57) // JUMPI
+	falseJumps = append(falseJumps, falseJump)
+
+	if len(layout.prefix) > 0 {
+		pushBytes(layout.prefix)
+		push1(0x00)
+		emit(0x35) // CALLDATALOAD
+		push1(byte(8 * (32 - len(layout.prefix))))
+		emit(0x1c, 0x14, 0x15) // SHR EQ ISZERO
+		push1(0x00)
+		falseJumpPrefix := len(code) - 1
+		emit(0x57) // JUMPI
+		falseJumps = append(falseJumps, falseJumpPrefix)
+	}
 
 	// Valid marker must be 0x01.
 	push1(0x01)
-	push1(0x67)
+	push1(layout.markerOffset)
 	emit(0x35) // CALLDATALOAD
 	push1(0xf8)
 	emit(0x1c, 0x14, 0x15) // SHR EQ ISZERO
 	push1(0x00)
 	falseJump2 := len(code) - 1
 	emit(0x57) // JUMPI
+	falseJumps = append(falseJumps, falseJump2)
 
 	// ecrecover input: digest, v, r, s.
-	push1(0x06)
+	push1(layout.digestOffset)
 	emit(0x35)
 	push1(0x00)
 	emit(0x52)
 
 	push1(0x1b)
-	push1(0x66)
+	push1(layout.vOffset)
 	emit(0x35)
 	push1(0xf8)
 	emit(0x1c, 0x01) // SHR ADD
 	push1(0x20)
 	emit(0x52)
 
-	push1(0x26)
+	push1(layout.rOffset)
 	emit(0x35)
 	push1(0x40)
 	emit(0x52)
 
-	push1(0x46)
+	push1(layout.sOffset)
 	emit(0x35)
 	push1(0x60)
 	emit(0x52)
@@ -98,9 +166,10 @@ func batchConsensusMockVerifierProofCode(signer common.Address) []byte {
 	push1(0x00)
 	falseJump3 := len(code) - 1
 	emit(0x57) // JUMPI
+	falseJumps = append(falseJumps, falseJump3)
 
 	emit(0x73)
-	code = append(code, signer.Bytes()...)
+	code = append(code, layout.signer.Bytes()...)
 	push1(0x80)
 	emit(0x51, 0x14) // MLOAD EQ
 	push1(0x00)
@@ -118,8 +187,8 @@ func batchConsensusMockVerifierProofCode(signer common.Address) []byte {
 	push1(0x00)
 	emit(0xf3)
 
-	code[falseJump] = byte(falseLabel)
-	code[falseJump2] = byte(falseLabel)
-	code[falseJump3] = byte(falseLabel)
+	for _, jump := range falseJumps {
+		code[jump] = byte(falseLabel)
+	}
 	return code
 }

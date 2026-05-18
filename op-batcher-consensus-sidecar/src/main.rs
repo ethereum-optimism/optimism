@@ -38,6 +38,7 @@ const SIMPLEX_PROVIDER: &str = "commonware-simplex-poc-ed25519";
 const COMMONWARE_NAMESPACE: &[u8] = b"op-batcher-consensus-poc/commonware";
 const SIMPLEX_NAMESPACE: &[u8] = b"op-batcher-consensus-poc/simplex";
 const EVM_PREFIX: &[u8] = b"BCSIG1";
+const SIMPLEX_PROOF_PREFIX: &[u8] = b"CWSIMPLX1";
 const EVM_SIGNING_KEY: [u8; 32] = [
     0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
     0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
@@ -154,12 +155,11 @@ fn build_response(req: &ProofRequest, valid: bool, simplex: bool) -> Result<Proo
 }
 
 fn build_simplex_response(digest: &[u8; 32], valid: bool) -> Result<ProofResponse> {
-    let mut certificate = run_simplex_consensus(*digest)?;
-    let mut calldata = evm_calldata(digest)?;
+    let certificate = run_simplex_consensus(*digest)?;
+    let mut calldata = evm_commonware_calldata(digest, &certificate)?;
     if !valid {
-        certificate.push(0);
         let last = calldata
-            .last_mut()
+            .get_mut(SIMPLEX_PROOF_PREFIX.len() + 32 + 65)
             .ok_or_else(|| anyhow!("empty calldata"))?;
         *last = 0;
     }
@@ -465,16 +465,35 @@ fn proof_digest(req: &ProofRequest) -> Result<[u8; 32]> {
 }
 
 fn evm_calldata(digest: &[u8; 32]) -> Result<Vec<u8>> {
+    evm_calldata_with_prefix(EVM_PREFIX, digest, None)
+}
+
+fn evm_commonware_calldata(digest: &[u8; 32], certificate: &[u8]) -> Result<Vec<u8>> {
+    if certificate.is_empty() {
+        return Err(anyhow!("empty Commonware certificate"));
+    }
+    evm_calldata_with_prefix(SIMPLEX_PROOF_PREFIX, digest, Some(certificate))
+}
+
+fn evm_calldata_with_prefix(
+    prefix: &[u8],
+    digest: &[u8; 32],
+    certificate: Option<&[u8]>,
+) -> Result<Vec<u8>> {
     let signing_key = SigningKey::from_slice(&EVM_SIGNING_KEY).context("load EVM signing key")?;
     let (sig, recid): (Signature, RecoveryId) = signing_key
         .sign_prehash_recoverable(digest)
         .context("sign EVM digest")?;
-    let mut out = Vec::with_capacity(EVM_PREFIX.len() + 32 + 65 + 1);
-    out.extend_from_slice(EVM_PREFIX);
+    let certificate_len = certificate.map_or(0, <[u8]>::len);
+    let mut out = Vec::with_capacity(prefix.len() + 32 + 65 + 1 + certificate_len);
+    out.extend_from_slice(prefix);
     out.extend_from_slice(digest);
     out.extend_from_slice(&sig.to_bytes());
     out.push(recid.to_byte());
     out.push(1);
+    if let Some(certificate) = certificate {
+        out.extend_from_slice(certificate);
+    }
     Ok(out)
 }
 
@@ -520,8 +539,15 @@ mod tests {
 
         assert_eq!(resp.provider, SIMPLEX_PROVIDER);
         assert!(certificate.starts_with(b"CWSIMPLX1"));
-        assert_eq!(calldata.len(), EVM_PREFIX.len() + 32 + 65 + 1);
-        assert_eq!(&calldata[..EVM_PREFIX.len()], EVM_PREFIX);
-        assert_eq!(*calldata.last().unwrap(), 1);
+        assert!(calldata.starts_with(SIMPLEX_PROOF_PREFIX));
+        assert_eq!(
+            calldata.len(),
+            SIMPLEX_PROOF_PREFIX.len() + 32 + 65 + 1 + certificate.len()
+        );
+        assert_eq!(calldata[SIMPLEX_PROOF_PREFIX.len() + 32 + 65], 1);
+        assert_eq!(
+            &calldata[SIMPLEX_PROOF_PREFIX.len() + 32 + 65 + 1..],
+            certificate
+        );
     }
 }

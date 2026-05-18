@@ -29,9 +29,48 @@ func TestBatchConsensusMockVerifierProofCode(t *testing.T) {
 	require.NoError(t, err)
 	ok, err := batchconsensus.DecodeVerifyResult(out)
 	require.NoError(t, err)
+	t.Logf("commonware verifier code_len=%d calldata_len=%d out=%x", len(code), len(valid), out)
 	require.True(t, ok)
 
 	invalid, err := batchconsensus.BuildSignedProofCalldata(req, signer, false)
+	require.NoError(t, err)
+	out, _, err = runtime.Execute(code, invalid, nil)
+	require.NoError(t, err)
+	ok, err = batchconsensus.DecodeVerifyResult(out)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestBatchConsensusMockVerifierCommonwareProofCode(t *testing.T) {
+	signer, err := batchConsensusMockProofSigner()
+	require.NoError(t, err)
+	req, err := batchconsensus.NewProofRequest(
+		big.NewInt(1),
+		big.NewInt(2),
+		common.HexToAddress("0x1111"),
+		common.HexToAddress("0x2222"),
+		[]common.Hash{common.HexToHash("0x3333")},
+	)
+	require.NoError(t, err)
+	code := batchConsensusMockVerifierCommonwareProofCode(batchConsensusMockProofSignerAddress())
+	certificate := []byte("CWSIMPLX1-finalization")
+
+	valid, err := batchconsensus.BuildCommonwareSimplexProofCalldata(req, certificate, signer, true)
+	require.NoError(t, err)
+	out, _, err := runtime.Execute(code, valid, nil)
+	require.NoError(t, err)
+	ok, err := batchconsensus.DecodeVerifyResult(out)
+	require.NoError(t, err)
+	require.Truef(t, ok, "code_len=%d calldata_len=%d code=%x out=%x", len(code), len(valid), code, out)
+
+	withoutCertificate := valid[:len(valid)-len(certificate)]
+	out, _, err = runtime.Execute(code, withoutCertificate, nil)
+	require.NoError(t, err)
+	ok, err = batchconsensus.DecodeVerifyResult(out)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	invalid, err := batchconsensus.BuildCommonwareSimplexProofCalldata(req, certificate, signer, false)
 	require.NoError(t, err)
 	out, _, err = runtime.Execute(code, invalid, nil)
 	require.NoError(t, err)

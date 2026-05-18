@@ -19,6 +19,8 @@ var batcherConsensusSmokeL2URLFlag = &cli.StringFlag{
 	Value:   "http://localhost:8545",
 }
 
+const batcherConsensusRejectTimeout = 20 * time.Second
+
 type batcherConsensusSmokeEnv struct {
 	ctx    context.Context
 	stderr io.Writer
@@ -46,6 +48,14 @@ func batcherConsensusSmokeCommand() *cli.Command {
 				Flags: smokeFlags,
 				Action: func(cliCtx *cli.Context) error {
 					return withBatcherConsensusSmokeEnv(cliCtx, "Batcher Consensus Safe Advance", smokeBatcherConsensusSafeAdvance)
+				},
+			},
+			{
+				Name:  "invalid-rejection",
+				Usage: "send an L2 transfer and verify invalid consensus proofs keep it out of the safe head",
+				Flags: smokeFlags,
+				Action: func(cliCtx *cli.Context) error {
+					return withBatcherConsensusSmokeEnv(cliCtx, "Batcher Consensus Invalid Rejection", smokeBatcherConsensusInvalidRejection)
 				},
 			},
 		},
@@ -108,4 +118,33 @@ func smokeBatcherConsensusSafeAdvance(env *batcherConsensusSmokeEnv) error {
 		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("safe head did not reach L2 block %d before timeout", targetSafe)
+}
+
+func smokeBatcherConsensusInvalidRejection(env *batcherConsensusSmokeEnv) error {
+	startSafe, err := env.chain.ethClient.BlockRefByLabel(env.ctx, eth.Safe)
+	if err != nil {
+		return fmt.Errorf("read starting safe head: %w", err)
+	}
+	recipient := randomAddress()
+	tx, err := env.user.transfer(env.ctx, recipient, eth.OneWei)
+	if err != nil {
+		return fmt.Errorf("send L2 transfer: %w", err)
+	}
+	receipt, err := tx.Included.Eval(env.ctx)
+	if err != nil {
+		return fmt.Errorf("wait for L2 transfer inclusion: %w", err)
+	}
+	targetSafe := receipt.BlockNumber.Uint64()
+	fmt.Fprintf(env.stderr, "    Starting safe head: L2 block %d\n", startSafe.Number)
+	fmt.Fprintf(env.stderr, "    Included transfer in unsafe L2 block %d, checking it is not marked safe\n", targetSafe)
+	deadline := time.Now().Add(batcherConsensusRejectTimeout)
+	for time.Now().Before(deadline) {
+		safe, err := env.chain.ethClient.BlockRefByLabel(env.ctx, eth.Safe)
+		if err == nil && safe.Number >= targetSafe {
+			return fmt.Errorf("safe head unexpectedly reached L2 block %d with invalid consensus proofs", safe.Number)
+		}
+		time.Sleep(time.Second)
+	}
+	fmt.Fprintf(env.stderr, "    Safe head stayed below L2 block %d for %s\n", targetSafe, batcherConsensusRejectTimeout)
+	return nil
 }
