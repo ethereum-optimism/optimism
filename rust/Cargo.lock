@@ -7836,6 +7836,8 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-rpc",
  "tracing",
+ "vergen",
+ "vergen-git2",
 ]
 
 [[package]]

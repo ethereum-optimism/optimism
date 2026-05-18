@@ -89,6 +89,10 @@ variable "OP_DRIPPER_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_RETH_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_FAUCET_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -382,6 +386,7 @@ target "op-reth" {
   args = {
     BUILD_PROFILE = "maxperf"
     FEATURES = ""
+    OP_RETH_VERSION = "${OP_RETH_VERSION}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]

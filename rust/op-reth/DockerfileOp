@@ -24,6 +24,9 @@ ENV RUSTFLAGS="$RUSTFLAGS"
 ARG FEATURES=""
 ENV FEATURES=$FEATURES
 
+ARG OP_RETH_VERSION=""
+ENV OP_RETH_VERSION=$OP_RETH_VERSION
+
 # Allow cook to fail on patched crates (op-alloy-network) whose crates.io
 # version conflicts with alloy 1.8.  All other dependencies are still cached.
 # The real build below uses the workspace [patch.crates-io] sources.
