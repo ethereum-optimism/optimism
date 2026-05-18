@@ -7,7 +7,39 @@ the async pipeline is deleted in phase 6b it can be removed.
 See `plans/2026-05-06-refactor-kona-pure-derivation-plan.md` in op-claude
 for the full plan.
 
-## Phase 1 state (this PR)
+## Phase 4 status (current PR)
+
+kona-node migrated to `NodeDeriver` wrapping `kona_derive::Deriver`:
+
+- `crates/node/service/src/actors/derivation/deriver.rs` — new async driver
+  owning `AlloyChainProvider` + `AlloyL2ChainProvider` +
+  `OnlineBlobProvider`. Translates `DeriveTrace` → `tracing::*`.
+- `crates/node/service/src/actors/derivation/actor.rs` — `DerivationActor`
+  no longer generic over `Pipeline + SignalReceiver`; takes a concrete
+  `NodeDeriver`. The `Signal::Activation` activation site collapsed to a
+  no-op (Holocene+ strict ordering subsumes it).
+- `crates/node/service/src/actors/derivation/state_machine.rs` — collapsed
+  the `Signal*` state-machine arms (`AwaitingSignal`,
+  `AwaitingUpdateAfterSignal`, `SignalNeeded`, `SignalProcessed`). The
+  remaining 4 states (`AwaitingELSyncCompletion` / `AwaitingL1Data` /
+  `AwaitingSafeHeadConfirmation` / `Deriving`) are still required for
+  EL-sync gating and attribute-confirmation flow.
+- `crates/providers/providers-alloy/src/pipeline.rs` — **DELETED.**
+  No remaining in-tree caller of `OnlinePipeline`.
+- `crates/providers/providers-alloy/src/blob_decode.rs` — new module,
+  lifted from `kona_derive::sources::blob_data`. Phase 5's blob/calldata
+  helper requirement satisfied early since kona-node also needs it.
+- `crates/providers/providers-alloy/src/l1_data.rs` — new helper
+  `fetch_l1_block_data` that produces ready-to-feed `Vec<L1TxView>` for
+  `kona_derive::extract_l1_input`.
+- `crates/providers/providers-alloy/src/chain_provider.rs` — exposes
+  `block_info_by_number` as an inherent method on `AlloyChainProvider`;
+  the `ChainProvider` trait impl delegates to it. Lets `p2p.rs` drop
+  the `kona_derive::ChainProvider` trait import.
+- `bin/node/src/flags/p2p.rs` — uses concrete `AlloyChainProvider` now;
+  trait import removed.
+
+## Phase 1 state (initial gating)
 
 `kona-derive` now exposes two compile modes:
 

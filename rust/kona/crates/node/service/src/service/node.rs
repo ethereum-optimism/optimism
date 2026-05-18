@@ -3,10 +3,10 @@ use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationDelegateClient, DerivationError, EngineActor, EngineActorRequest, EngineConfig,
     EngineProcessor, EngineRpcProcessor, InteropMode, L1OriginSelector, L1WatcherActor,
-    NetworkActor, NetworkBuilder, NetworkConfig, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
-    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcContext, SequencerActor, SequencerConfig,
+    NetworkActor, NetworkBuilder, NetworkConfig, NodeActor, NodeDeriver, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedEngineRpcClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
+    QueuedSequencerEngineClient, RpcActor, RpcContext, SequencerActor, SequencerConfig,
     actors::{BlockStream, NetworkInboundData, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
@@ -18,7 +18,6 @@ use kona_interop::DependencySet;
 use kona_protocol::L2BlockInfo;
 use kona_providers_alloy::{
     AlloyChainProvider, AlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider,
-    OnlinePipeline,
 };
 use kona_rpc::RpcBuilder;
 use op_alloy_network::Optimism;
@@ -82,7 +81,7 @@ pub struct RollupNode {
 /// `RollupNode` wiring logic.
 enum ConfiguredDerivationActor {
     Delegate(Box<DelegateDerivationActor<QueuedDerivationEngineClient>>),
-    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+    Normal(Box<DerivationActor<QueuedDerivationEngineClient>>),
 }
 
 #[async_trait::async_trait]
@@ -90,7 +89,7 @@ impl NodeActor for ConfiguredDerivationActor
 where
     DelegateDerivationActor<QueuedDerivationEngineClient>:
         NodeActor<StartData = (), Error = DerivationError>,
-    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+    DerivationActor<QueuedDerivationEngineClient>:
         NodeActor<StartData = (), Error = DerivationError>,
 {
     type StartData = ();
@@ -150,7 +149,7 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> OnlinePipeline {
+    async fn create_deriver(&self) -> NodeDeriver {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -163,25 +162,23 @@ impl RollupNode {
             DERIVATION_PROVIDER_CACHE_SIZE,
             self.l2_trust_rpc,
         );
+        let blob_provider = OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await;
 
+        // Phase 4 collapses the Polled/Indexed `InteropMode` switch: the pure deriver pulls L1
+        // data itself on demand, so there is no separate indexed-traversal mode to wire here.
+        // The CLI surface still accepts both for compatibility; both map to the same backend.
         match self.interop_mode {
-            InteropMode::Polled => OnlinePipeline::new_polled(
-                self.config.clone(),
-                self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-                l1_derivation_provider,
-                l2_derivation_provider,
-                self.dependency_set.clone(),
-            ),
-            InteropMode::Indexed => OnlinePipeline::new_indexed(
-                self.config.clone(),
-                self.l1_config.chain_config.clone(),
-                OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
-                l1_derivation_provider,
-                l2_derivation_provider,
-                self.dependency_set.clone(),
-            ),
+            InteropMode::Polled | InteropMode::Indexed => {}
         }
+
+        NodeDeriver::new(
+            self.config.clone(),
+            self.l1_config.chain_config.clone(),
+            l1_derivation_provider,
+            l2_derivation_provider,
+            blob_provider,
+            self.dependency_set.clone(),
+        )
     }
 
     /// Helper function to assemble the [`EngineActor`] since there are many structs created that
@@ -272,33 +269,32 @@ impl RollupNode {
 
         // Select the concrete derivation actor implementation based on
         // RollupNode configuration.
-        let derivation: ConfiguredDerivationActor = if let Some(provider) =
-            self.derivation_delegate_provider.clone()
-        {
-            // L1 Provider for sanity checking Derivation Delegation
-            let l1_provider = AlloyChainProvider::new(
-                self.l1_config.engine_provider.clone(),
-                DERIVATION_PROVIDER_CACHE_SIZE,
-            );
-            ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::<_>::new(
-                QueuedDerivationEngineClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
-                cancellation.clone(),
-                derivation_actor_request_rx,
-                provider,
-                l1_provider,
-            )))
-        } else {
-            ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
-                QueuedDerivationEngineClient {
-                    engine_actor_request_tx: engine_actor_request_tx.clone(),
-                },
-                cancellation.clone(),
-                derivation_actor_request_rx,
-                self.create_pipeline().await,
-            )))
-        };
+        let derivation: ConfiguredDerivationActor =
+            if let Some(provider) = self.derivation_delegate_provider.clone() {
+                // L1 Provider for sanity checking Derivation Delegation
+                let l1_provider = AlloyChainProvider::new(
+                    self.l1_config.engine_provider.clone(),
+                    DERIVATION_PROVIDER_CACHE_SIZE,
+                );
+                ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::<_>::new(
+                    QueuedDerivationEngineClient {
+                        engine_actor_request_tx: engine_actor_request_tx.clone(),
+                    },
+                    cancellation.clone(),
+                    derivation_actor_request_rx,
+                    provider,
+                    l1_provider,
+                )))
+            } else {
+                ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_>::new(
+                    QueuedDerivationEngineClient {
+                        engine_actor_request_tx: engine_actor_request_tx.clone(),
+                    },
+                    cancellation.clone(),
+                    derivation_actor_request_rx,
+                    self.create_deriver().await,
+                )))
+            };
 
         // Create the p2p actor.
         let (

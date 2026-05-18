@@ -28,13 +28,13 @@ pub use actors::{
     L1OriginSelector, L1OriginSelectorError, L1OriginSelectorProvider, L1WatcherActor,
     L1WatcherActorError, L1WatcherDerivationClient, NetworkActor, NetworkActorError,
     NetworkBuilder, NetworkBuilderError, NetworkConfig, NetworkDriver, NetworkDriverError,
-    NetworkEngineClient, NetworkHandler, NetworkInboundData, NodeActor, OriginSelector,
-    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedEngineRpcClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
-    QueuedSequencerEngineClient, QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor,
-    RpcActorError, RpcContext, SealRequest, SequencerActor, SequencerActorError,
-    SequencerAdminQuery, SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    NetworkEngineClient, NetworkHandler, NetworkInboundData, NodeActor, NodeDeriver,
+    NodeDeriverError, NodeStep, OriginSelector, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
+    QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor, RpcActorError, RpcContext,
+    SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
+    SequencerEngineClient, UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

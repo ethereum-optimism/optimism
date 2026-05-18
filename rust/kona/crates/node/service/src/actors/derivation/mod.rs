@@ -1,6 +1,9 @@
 mod actor;
 pub use actor::{DerivationActor, DerivationError};
 
+mod deriver;
+pub use deriver::{NodeDeriver, NodeDeriverError, NodeStep};
+
 mod delegated;
 pub use delegated::{
     DelegateDerivationActor, DerivationDelegateClient, DerivationDelegateClientError,

@@ -104,8 +104,6 @@ where
         l1_block_number: u64,
         expected_hash: BlockHash,
     ) -> Result<(), DerivationDelegationError> {
-        use kona_derive::ChainProvider;
-
         let block = self
             .l1_provider
             .block_info_by_number(l1_block_number)

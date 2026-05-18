@@ -1,15 +1,20 @@
 //! [`NodeActor`] implementation for the derivation sub-routine.
+//!
+//! Phase 4 of the pure-derivation migration replaced the inner `OnlinePipeline`
+//! with [`NodeDeriver`], an async driver around the IO-free `kona_derive::Deriver`.
+//! The actor's job here is purely cross-actor coordination: it relays the L1
+//! head + safe-head + flush/reset signals coming from neighbouring actors into
+//! `NodeDeriver` method calls, and it forwards built attributes back to the
+//! engine actor.
 
 use crate::{
     CancellableContext, DerivationActorRequest, DerivationEngineClient, DerivationState,
     DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate, Metrics,
-    NodeActor, actors::derivation::L2Finalizer,
+    NodeActor,
+    actors::derivation::{L2Finalizer, NodeDeriver, NodeDeriverError, NodeStep},
 };
 use async_trait::async_trait;
-use kona_derive::{
-    ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
-    SignalReceiver, StepResult,
-};
+use kona_derive::Signal;
 use kona_protocol::OpAttributesWithParent;
 use thiserror::Error;
 use tokio::{select, sync::mpsc};
@@ -17,15 +22,11 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 /// The [`NodeActor`] for the derivation sub-routine.
 ///
-/// This actor is responsible for receiving messages from [`NodeActor`]s and stepping the
-/// derivation pipeline forward to produce new payload attributes. The actor then sends the payload
-/// to the [`NodeActor`] responsible for the execution sub-routine.
+/// Receives messages from neighbour actors and drives [`NodeDeriver`] forward
+/// to produce the next safe payload. Forwards built attributes to the engine
+/// actor through `engine_client`.
 #[derive(Debug)]
-pub struct DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
-where
-    DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver,
-{
+pub struct DerivationActor<DerivationEngineClient_> {
     /// The cancellation token, shared between all tasks.
     cancellation_token: CancellationToken,
     /// The channel on which all inbound requests are received by the [`DerivationActor`].
@@ -33,41 +34,37 @@ where
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// The derivation pipeline.
-    pipeline: PipelineSignalReceiver,
+    /// The async wrapper around the pure derivation engine.
+    deriver: NodeDeriver,
     /// The state machine controlling when derivation can occur.
     derivation_state_machine: DerivationStateMachine,
     /// The [`L2Finalizer`] tracks derived L2 blocks awaiting finalization.
     pub(crate) finalizer: L2Finalizer,
 }
 
-impl<DerivationEngineClient_, PipelineSignalReceiver> CancellableContext
-    for DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
+impl<DerivationEngineClient_> CancellableContext for DerivationActor<DerivationEngineClient_>
 where
     DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync,
 {
     fn cancelled(&self) -> WaitForCancellationFuture<'_> {
         self.cancellation_token.cancelled()
     }
 }
 
-impl<DerivationEngineClient_, PipelineSignalReceiver>
-    DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
+impl<DerivationEngineClient_> DerivationActor<DerivationEngineClient_>
 where
     DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver,
 {
     /// Creates a new instance of the [`DerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
         cancellation_token: CancellationToken,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        pipeline: PipelineSignalReceiver,
+        deriver: NodeDeriver,
     ) -> Self {
         Self {
             cancellation_token,
-            pipeline,
+            deriver,
             inbound_request_rx,
             engine_client,
             derivation_state_machine: DerivationStateMachine::default(),
@@ -75,103 +72,65 @@ where
         }
     }
 
-    /// Handles a [`Signal`] received over the derivation signal receiver channel.
-    async fn signal(&mut self, signal: Signal) {
-        if matches!(signal, Signal::Reset(_)) {
-            // Clear the finalization queue on reset.
-            self.finalizer.clear();
-        }
-
-        match self.pipeline.signal(signal).await {
-            Ok(_) => info!(target: "derivation", ?signal, "[SIGNAL] Executed Successfully"),
-            Err(e) => {
-                error!(target: "derivation", ?e, ?signal, "Failed to signal derivation pipeline")
+    /// Handles a [`Signal`] received over the derivation request channel.
+    ///
+    /// The engine actor sends [`Signal::Reset`] and [`Signal::FlushChannel`]
+    /// here when an L2 reorg or invalid-payload condition is detected. The
+    /// pure deriver collapses both into the same shape — re-anchor at the
+    /// safe head — so this method's only fanout is logging.
+    async fn handle_signal(&mut self, signal: Signal) -> Result<(), DerivationError> {
+        match signal {
+            Signal::Reset(reset) => {
+                info!(target: "derivation", safe_head = ?reset.l2_safe_head, "Handling Signal::Reset");
+                // Clear the finalization queue on reset.
+                self.finalizer.clear();
+                self.deriver.reset(reset.l2_safe_head).await.map_err(DerivationError::Deriver)?;
+            }
+            Signal::FlushChannel => {
+                let safe_head = self.derivation_state_machine.last_confirmed_safe_head();
+                info!(target: "derivation", safe_head = ?safe_head, "Handling Signal::FlushChannel");
+                self.deriver.flush_channel(safe_head).await.map_err(DerivationError::Deriver)?;
+            }
+            Signal::Activation(_) => {
+                // Holocene+ subsumes the soft-reset activation path. The pure deriver
+                // never produces a `ResetError::HoloceneActivation`, and the engine
+                // actor never sends `Signal::Activation` on this code path. If it
+                // ever arrives anyway, treat it as a no-op rather than reaching for
+                // a behavior that no longer exists.
+                debug!(target: "derivation", "Ignoring Signal::Activation (Holocene+ subsumes soft reset)");
+            }
+            Signal::ProvideBlock(_) => {
+                // The async indexed-traversal pipeline uses `ProvideBlock` to push L1 blocks
+                // through the stage chain. With the pure deriver, the actor fetches L1 data
+                // itself in `NodeDeriver::step` based on the L1 head height; there's no
+                // out-of-band block-push surface that produces this signal here.
+                debug!(
+                    target: "derivation",
+                    "Ignoring Signal::ProvideBlock (handled internally by NodeDeriver)"
+                );
             }
         }
+        Ok(())
     }
 
-    /// Attempts to step the derivation pipeline forward as much as possible in order to produce the
-    /// next safe payload.
+    /// Drive [`NodeDeriver`] forward until it either produces attributes or
+    /// signals that it needs more L1 data (which the caller will reschedule
+    /// via the next [`DerivationActorRequest::ProcessL1HeadUpdateRequest`]).
     async fn produce_next_attributes(&mut self) -> Result<OpAttributesWithParent, DerivationError> {
-        // As we start the safe head at the disputed block's parent, we step the pipeline until the
-        // first attributes are produced. All batches at and before the safe head will be
-        // dropped, so the first payload will always be the disputed one.
-        loop {
-            match self.pipeline.step(self.derivation_state_machine.last_confirmed_safe_head()).await
-            {
-                StepResult::PreparedAttributes => { /* continue; attributes will be sent off. */ }
-                StepResult::AdvancedOrigin => {
-                    let origin =
-                        self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?.number;
-
-                    kona_macros::set!(counter, Metrics::DERIVATION_L1_ORIGIN, origin);
-                    debug!(target: "derivation", l1_block = origin, "Advanced L1 origin");
-                }
-                StepResult::OriginAdvanceErr(e) | StepResult::StepFailed(e) => {
-                    match e {
-                        PipelineErrorKind::Temporary(e) => {
-                            // NotEnoughData is transient, and doesn't imply we need to wait for
-                            // more data. We can continue stepping until we receive an Eof.
-                            if matches!(e, PipelineError::NotEnoughData) {
-                                continue;
-                            }
-
-                            debug!(
-                                target: "derivation",
-                                "Exhausted data source for now; Yielding until the chain has extended."
-                            );
-                            return Err(DerivationError::Yield);
-                        }
-                        PipelineErrorKind::Reset(e) => {
-                            warn!(target: "derivation", "Derivation pipeline is being reset: {e}");
-
-                            if matches!(e, ResetError::HoloceneActivation) {
-                                self.pipeline
-                                    .signal(Signal::Activation(ActivationSignal {
-                                        l2_safe_head: self
-                                            .derivation_state_machine
-                                            .last_confirmed_safe_head(),
-                                    }))
-                                    .await?;
-                            } else {
-                                if let ResetError::ReorgDetected(expected, new) = e {
-                                    warn!(
-                                        target: "derivation",
-                                        "L1 reorg detected! Expected: {expected} | New: {new}"
-                                    );
-
-                                    kona_macros::inc!(counter, Metrics::L1_REORG_COUNT);
-                                }
-                                // send the `reset` signal to the engine actor only when interop is
-                                // not active.
-                                if !self.pipeline.rollup_config().is_interop_active(
-                                    self.derivation_state_machine
-                                        .last_confirmed_safe_head()
-                                        .block_info
-                                        .timestamp,
-                                ) {
-                                    self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
-                                        error!(target: "derivation", ?e, "Failed to send reset request");
-                                        DerivationError::Sender(Box::new(e))
-                                    })?;
-                                }
-                                self.derivation_state_machine
-                                    .update(&DerivationStateUpdate::SignalNeeded)?;
-                                return Err(DerivationError::Yield);
-                            }
-                        }
-                        PipelineErrorKind::Critical(_) => {
-                            error!(target: "derivation", "Critical derivation error: {e}");
-                            kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
-                            return Err(e.into());
-                        }
-                    }
-                }
-            }
-
-            // If there are any new attributes, send them to the execution actor.
-            if let Some(attrs) = self.pipeline.next() {
-                return Ok(attrs);
+        let safe_head = self.derivation_state_machine.last_confirmed_safe_head();
+        match self.deriver.step(safe_head).await {
+            NodeStep::Attributes(attrs) => Ok(*attrs),
+            NodeStep::Yield => Err(DerivationError::Yield),
+            NodeStep::NeedsReset(err) => {
+                error!(target: "derivation", ?err, "Derivation reported critical error — requesting reset");
+                kona_macros::inc!(counter, Metrics::DERIVATION_CRITICAL_ERROR);
+                // Tell the engine actor to reset; on success it'll send us a `Signal::Reset`
+                // back through the inbound channel.
+                self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
+                    error!(target: "derivation", ?e, "Failed to send reset request");
+                    DerivationError::Sender(Box::new(e))
+                })?;
+                Err(DerivationError::Yield)
             }
         }
     }
@@ -182,8 +141,7 @@ where
     ) -> Result<(), DerivationError> {
         match request_type {
             DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
-                self.signal(*signal).await;
-                self.derivation_state_machine.update(&DerivationStateUpdate::SignalProcessed)?;
+                self.handle_signal(*signal).await?;
             }
             DerivationActorRequest::ProcessFinalizedL1Block(finalized_l1_block) => {
                 // Attempt to finalize the block. If successful, notify engine.
@@ -198,6 +156,7 @@ where
             DerivationActorRequest::ProcessL1HeadUpdateRequest(l1_head) => {
                 info!(target: "derivation", l1_head = ?*l1_head, "Processing l1 head update");
 
+                self.deriver.set_l1_head(*l1_head);
                 self.derivation_state_machine.update(&DerivationStateUpdate::L1DataReceived)?;
 
                 self.attempt_derivation().await?;
@@ -230,8 +189,6 @@ where
 
         info!(target: "derivation", derivation_state=?self.derivation_state_machine, "Attempting derivation.");
 
-        // Advance the pipeline as much as possible, new data may be available or there still may be
-        // payloads in the attributes queue.
         let payload_attributes = match self.produce_next_attributes().await {
             Ok(attrs) => attrs,
             Err(DerivationError::Yield) => {
@@ -263,11 +220,9 @@ where
 }
 
 #[async_trait]
-impl<DerivationEngineClient_, PipelineSignalReceiver> NodeActor
-    for DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
+impl<DerivationEngineClient_> NodeActor for DerivationActor<DerivationEngineClient_>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
-    PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
 {
     type Error = DerivationError;
     type StartData = ();
@@ -302,9 +257,9 @@ where
 /// An error from the [`DerivationActor`].
 #[derive(Error, Debug)]
 pub enum DerivationError {
-    /// An error originating from the derivation pipeline.
+    /// An error originating from the derivation engine wrapper.
     #[error(transparent)]
-    Pipeline(#[from] PipelineErrorKind),
+    Deriver(#[from] NodeDeriverError),
     /// Waiting for more data to be available.
     #[error("Waiting for more data to be available")]
     Yield,

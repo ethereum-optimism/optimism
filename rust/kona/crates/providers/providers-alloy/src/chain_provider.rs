@@ -80,6 +80,35 @@ impl AlloyChainProvider {
         self.inner.get_chain_id().await
     }
 
+    /// Returns the [`BlockInfo`] for the given L1 block number.
+    ///
+    /// Inherent method so consumers like the p2p flag helper can fetch L1
+    /// block metadata without dragging in the `kona_derive::ChainProvider`
+    /// trait. The `ChainProvider` trait impl below delegates here.
+    pub async fn block_info_by_number(
+        &mut self,
+        number: u64,
+    ) -> Result<BlockInfo, AlloyChainProviderError> {
+        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_number");
+
+        let block = self
+            .inner
+            .get_block_by_number(number.into())
+            .await
+            .inspect_err(|_e| {
+                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_number");
+            })?
+            .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
+        let header = block.header.into_consensus();
+
+        Ok(BlockInfo {
+            hash: header.hash_slow(),
+            number,
+            parent_hash: header.parent_hash,
+            timestamp: header.timestamp,
+        })
+    }
+
     /// Verifies that a header's hash matches the expected hash when `trust_rpc` is false.
     fn verify_header_hash(
         &self,
@@ -183,25 +212,9 @@ impl ChainProvider for AlloyChainProvider {
     }
 
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error> {
-        kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_CALLS, "method" => "block_by_number");
-
-        let block = self
-            .inner
-            .get_block_by_number(number.into())
-            .await
-            .inspect_err(|_e| {
-                kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "block_by_number");
-            })?
-            .ok_or(AlloyChainProviderError::BlockNotFound(number.into()))?;
-        let header = block.header.into_consensus();
-
-        let block_info = BlockInfo {
-            hash: header.hash_slow(),
-            number,
-            parent_hash: header.parent_hash,
-            timestamp: header.timestamp,
-        };
-        Ok(block_info)
+        // Delegate to the inherent method; the trait impl exists so the soon-to-be-removed
+        // async surface still compiles.
+        Self::block_info_by_number(self, number).await
     }
 
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error> {

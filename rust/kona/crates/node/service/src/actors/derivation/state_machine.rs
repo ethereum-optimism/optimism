@@ -1,3 +1,22 @@
+//! Coordination state for [`crate::DerivationActor`].
+//!
+//! Phase 4 of the pure-derivation migration collapsed the previous `Signal*`
+//! state machine. With the pure deriver, in-flight derivation state lives
+//! inside `kona_derive::Deriver`; the actor's coordination needs are reduced
+//! to three observable conditions:
+//!
+//! - EL sync hasn't completed yet — defer all derivation.
+//! - Attributes were sent to the engine — wait for the engine to confirm them before starting the
+//!   next batch.
+//! - Otherwise we may derive.
+//!
+//! `AwaitingSignal` / `AwaitingUpdateAfterSignal` / `SignalNeeded` /
+//! `SignalProcessed` from the previous state machine are gone:
+//! `NodeDeriver::reset` / `NodeDeriver::flush_channel` are synchronous
+//! operations the actor invokes directly when a `Signal::Reset` /
+//! `Signal::FlushChannel` arrives from the engine, with no separate "waiting
+//! for signal processing" state required.
+
 use derive_more::PartialEq;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use thiserror::Error;
@@ -16,12 +35,6 @@ pub enum DerivationState {
     /// [`crate::DerivationActor`] is waiting for confirmation that they were processed into a safe
     /// head.
     AwaitingSafeHeadConfirmation,
-    /// A reorg or some other inconsistency was detected, necessitating a [`kona_derive::Signal`]
-    /// to be processed before continuing derivation.
-    AwaitingSignal,
-    /// After receiving a [`kona_derive::Signal`], we need an update of L1 data or a new engine
-    /// safe head to start deriving again. This represents the state waiting for one of the two.
-    AwaitingUpdateAfterSignal,
     /// The [`crate::DerivationActor`] is actively attempting derivation.
     Deriving,
 }
@@ -42,11 +55,6 @@ pub enum DerivationStateUpdate {
     /// The EL has confirmed the derived [`kona_protocol::OpAttributesWithParent`] as the new safe
     /// head.
     NewAttributesConfirmed(Box<L2BlockInfo>),
-    /// A [`kona_derive::Signal`] is necessary to update the derivation pipeline in order to
-    /// continue.
-    SignalNeeded,
-    /// A [`kona_derive::Signal`] has been received and processed.
-    SignalProcessed,
 }
 
 /// An error processing a [`DerivationStateMachine`] state transition.
@@ -72,7 +80,6 @@ fn transition(
         DerivationState::AwaitingELSyncCompletion => match update {
             DerivationStateUpdate::ELSyncCompleted(_) => Ok(DerivationState::Deriving),
             DerivationStateUpdate::NewAttributesConfirmed(_) |
-            DerivationStateUpdate::SignalProcessed |
             DerivationStateUpdate::L1DataReceived => Ok(DerivationState::AwaitingELSyncCompletion),
             _ => Err(DerivationStateTransitionError::InvalidTransition {
                 state: *state,
@@ -81,9 +88,6 @@ fn transition(
         },
         DerivationState::AwaitingL1Data => match update {
             DerivationStateUpdate::L1DataReceived => Ok(DerivationState::Deriving),
-            DerivationStateUpdate::SignalProcessed => {
-                Ok(DerivationState::AwaitingUpdateAfterSignal)
-            }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
                 state: *state,
                 update: update.clone(),
@@ -91,34 +95,8 @@ fn transition(
         },
         DerivationState::AwaitingSafeHeadConfirmation => match update {
             DerivationStateUpdate::NewAttributesConfirmed(_) => Ok(DerivationState::Deriving),
-            DerivationStateUpdate::SignalProcessed => {
-                Ok(DerivationState::AwaitingUpdateAfterSignal)
-            }
             DerivationStateUpdate::L1DataReceived => {
                 Ok(DerivationState::AwaitingSafeHeadConfirmation)
-            }
-            _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
-                update: update.clone(),
-            }),
-        },
-        DerivationState::AwaitingSignal => match update {
-            DerivationStateUpdate::SignalProcessed => {
-                Ok(DerivationState::AwaitingUpdateAfterSignal)
-            }
-            DerivationStateUpdate::L1DataReceived | DerivationStateUpdate::MoreDataNeeded => {
-                Ok(DerivationState::AwaitingSignal)
-            }
-            _ => Err(DerivationStateTransitionError::InvalidTransition {
-                state: *state,
-                update: update.clone(),
-            }),
-        },
-        DerivationState::AwaitingUpdateAfterSignal => match update {
-            DerivationStateUpdate::L1DataReceived |
-            DerivationStateUpdate::NewAttributesConfirmed(_) => Ok(DerivationState::Deriving),
-            DerivationStateUpdate::SignalProcessed => {
-                Ok(DerivationState::AwaitingUpdateAfterSignal)
             }
             _ => Err(DerivationStateTransitionError::InvalidTransition {
                 state: *state,
@@ -129,7 +107,6 @@ fn transition(
             DerivationStateUpdate::NewAttributesDerived(_) => {
                 Ok(DerivationState::AwaitingSafeHeadConfirmation)
             }
-            DerivationStateUpdate::SignalNeeded => Ok(DerivationState::AwaitingSignal),
             DerivationStateUpdate::MoreDataNeeded => Ok(DerivationState::AwaitingL1Data),
             _ => Err(DerivationStateTransitionError::InvalidTransition {
                 state: *state,
@@ -151,12 +128,6 @@ fn transition(
 /// and the EL must confirm them by creating a new L2 safe head from them prior to further
 /// derivation. There will be at most one [`kona_protocol::OpAttributesWithParent`] awaiting
 /// confirmation at any given time.
-///
-/// ## Signal handling
-/// Certain conditions require a [`kona_derive::Signal`] to be processed by the
-/// [`kona_derive::Pipeline`], updating derivation state before continuing derivation. This struct
-/// allows a caller to register that it is waiting on a signal as well as mark that it was
-/// processed.
 #[derive(Debug)]
 pub struct DerivationStateMachine {
     confirmed_safe_head: L2BlockInfo,
@@ -263,26 +234,14 @@ mod tests {
     // AwaitingELSyncCompletion valid transitions
     #[case(AwaitingELSyncCompletion, ELSyncCompleted(block()), Deriving)]
     #[case(AwaitingELSyncCompletion, NewAttributesConfirmed(block()), AwaitingELSyncCompletion)]
-    #[case(AwaitingELSyncCompletion, SignalProcessed, AwaitingELSyncCompletion)]
     #[case(AwaitingELSyncCompletion, L1DataReceived, AwaitingELSyncCompletion)]
     // AwaitingL1Data valid transitions
     #[case(AwaitingL1Data, L1DataReceived, Deriving)]
-    #[case(AwaitingL1Data, SignalProcessed, AwaitingUpdateAfterSignal)]
     // AwaitingSafeHeadConfirmation valid transitions
     #[case(AwaitingSafeHeadConfirmation, NewAttributesConfirmed(block()), Deriving)]
-    #[case(AwaitingSafeHeadConfirmation, SignalProcessed, AwaitingUpdateAfterSignal)]
     #[case(AwaitingSafeHeadConfirmation, L1DataReceived, AwaitingSafeHeadConfirmation)]
-    // AwaitingSignal valid transitions
-    #[case(AwaitingSignal, SignalProcessed, AwaitingUpdateAfterSignal)]
-    #[case(AwaitingSignal, L1DataReceived, AwaitingSignal)]
-    #[case(AwaitingSignal, MoreDataNeeded, AwaitingSignal)]
-    // AwaitingUpdateAfterSignal valid transitions
-    #[case(AwaitingUpdateAfterSignal, L1DataReceived, Deriving)]
-    #[case(AwaitingUpdateAfterSignal, NewAttributesConfirmed(block()), Deriving)]
-    #[case(AwaitingUpdateAfterSignal, SignalProcessed, AwaitingUpdateAfterSignal)]
     // Deriving valid transitions
     #[case(Deriving, NewAttributesDerived(attrs()), AwaitingSafeHeadConfirmation)]
-    #[case(Deriving, SignalNeeded, AwaitingSignal)]
     #[case(Deriving, MoreDataNeeded, AwaitingL1Data)]
     fn test_valid_transitions(
         #[case] state: super::DerivationState,
@@ -302,33 +261,19 @@ mod tests {
     // AwaitingELSyncCompletion invalid transitions
     #[case(AwaitingELSyncCompletion, MoreDataNeeded)]
     #[case(AwaitingELSyncCompletion, NewAttributesDerived(attrs()))]
-    #[case(AwaitingELSyncCompletion, SignalNeeded)]
     // AwaitingL1Data invalid transitions
     #[case(AwaitingL1Data, ELSyncCompleted(block()))]
     #[case(AwaitingL1Data, MoreDataNeeded)]
     #[case(AwaitingL1Data, NewAttributesDerived(attrs()))]
     #[case(AwaitingL1Data, NewAttributesConfirmed(block()))]
-    #[case(AwaitingL1Data, SignalNeeded)]
     // AwaitingSafeHeadConfirmation invalid transitions
     #[case(AwaitingSafeHeadConfirmation, ELSyncCompleted(block()))]
     #[case(AwaitingSafeHeadConfirmation, MoreDataNeeded)]
     #[case(AwaitingSafeHeadConfirmation, NewAttributesDerived(attrs()))]
-    #[case(AwaitingSafeHeadConfirmation, SignalNeeded)]
-    // AwaitingSignal invalid transitions
-    #[case(AwaitingSignal, ELSyncCompleted(block()))]
-    #[case(AwaitingSignal, NewAttributesDerived(attrs()))]
-    #[case(AwaitingSignal, NewAttributesConfirmed(block()))]
-    #[case(AwaitingSignal, SignalNeeded)]
-    // AwaitingUpdateAfterSignal invalid transitions
-    #[case(AwaitingUpdateAfterSignal, ELSyncCompleted(block()))]
-    #[case(AwaitingUpdateAfterSignal, MoreDataNeeded)]
-    #[case(AwaitingUpdateAfterSignal, NewAttributesDerived(attrs()))]
-    #[case(AwaitingUpdateAfterSignal, SignalNeeded)]
     // Deriving invalid transitions
     #[case(Deriving, ELSyncCompleted(block()))]
     #[case(Deriving, L1DataReceived)]
     #[case(Deriving, NewAttributesConfirmed(block()))]
-    #[case(Deriving, SignalProcessed)]
     fn test_invalid_transitions(
         #[case] state: super::DerivationState,
         #[case] update: super::DerivationStateUpdate,

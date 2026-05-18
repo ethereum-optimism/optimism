@@ -23,7 +23,8 @@ pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
     DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
     DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
+    DerivationStateTransitionError, DerivationStateUpdate, NodeDeriver, NodeDeriverError, NodeStep,
+    QueuedDerivationEngineClient,
 };
 
 mod l1_watcher;

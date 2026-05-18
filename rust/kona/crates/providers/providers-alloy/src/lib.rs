@@ -19,11 +19,14 @@ pub use beacon_client::{
 mod blobs;
 pub use blobs::{BlobWithCommitmentAndProof, BoxedBlob, OnlineBlobProvider};
 
+mod blob_decode;
+pub use blob_decode::decode_blob;
+
 mod chain_provider;
 pub use chain_provider::{AlloyChainProvider, AlloyChainProviderError};
 
+mod l1_data;
+pub use l1_data::{L1BlockData, L1FetchError, fetch_l1_block_data};
+
 mod l2_chain_provider;
 pub use l2_chain_provider::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
-
-mod pipeline;
-pub use pipeline::OnlinePipeline;
