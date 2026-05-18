@@ -289,9 +289,9 @@ library Config {
         return vm.envOr("L2_FORK_TEST", false);
     }
 
-    /// @notice Returns true if this is a Karst betanet L2 fork test.
-    function karstBetanetL2ForkTest() internal view returns (bool) {
-        return vm.envOr("KARST_BETANET_L2_FORK_TEST", false);
+    /// @notice Returns true if this is a L2CM activation test.
+    function l2CMActivationTest() internal view returns (bool) {
+        return vm.envOr("L2CM_ACTIVATION_TEST", false);
     }
 
     /// @notice Returns the L2 RPC URL for forking.
@@ -299,13 +299,17 @@ library Config {
         return vm.envString("L2_FORK_RPC_URL");
     }
 
-    /// @notice Returns the Karst betanet L2 RPC URL for forking.
-    function karstBetanetL2ForkRpcUrl() internal view returns (string memory) {
-        return vm.envString("KARST_BETANET_L2_FORK_RPC_URL");
+    /// @notice Returns the L2 block after the fork.
+    function l2BlockAfterFork() internal view returns (uint256) {
+        return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
     }
 
     /// @notice Returns the L2 block number to fork at. Defaults to 0 (latest).
+    ///         If L2CM activation test is enabled, returns the block before the fork.
     function l2ForkBlockNumber() internal view returns (uint256) {
+        if (l2CMActivationTest()) {
+            return vm.envUint("L2_BLOCK_BEFORE_FORK");
+        }
         return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
     }
 

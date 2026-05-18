@@ -10,6 +10,7 @@ import { console } from "forge-std/console.sol";
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
@@ -97,6 +98,17 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_isCurrentBundleAlreadyApplied()) return;
         PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
         PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
+    }
+
+    /// @notice Executes the current generated NUT bundle with any fork-specific wrappers, or
+    ///         switches to the fork after the fork if L2CM activation test is enabled.
+    function _executeCurrentBundleOrSwitchFork() internal {
+        if (isL2CMActivationTest()) {
+            vm.createSelectFork(Config.l2ForkRpcUrl(), Config.l2BlockAfterFork());
+            console.log("Setup: L2 fork switched to after the fork!");
+            return;
+        }
+        _executeCurrentBundle();
     }
 
     /// @notice Returns true when the current bundle has already been applied to the forked chain.
@@ -190,7 +202,7 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
         // Execute bundle on forked L2
-        _executeCurrentBundle();
+        _executeCurrentBundleOrSwitchFork();
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -295,7 +307,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
-        _executeCurrentBundle();
+        _executeCurrentBundleOrSwitchFork();
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -650,7 +662,7 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         skipIfUnoptimized();
 
         // Execute bundle on forked L2
-        _executeCurrentBundle();
+        _executeCurrentBundleOrSwitchFork();
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
@@ -702,7 +714,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         skipIfUnoptimized();
 
         // Skip when the bundle is already applied: Upgraded events are historical and cannot be
-        // replayed via vm.recordLogs() since _executeCurrentBundle() is a no-op in that case.
+        // replayed via vm.recordLogs()
         if (_isCurrentBundleAlreadyApplied()) {
             vm.skip(true);
             return;
@@ -711,14 +723,29 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         // Get StorageSetter implementation to filter out intermediate upgrade events
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 
-        // Start recording logs
-        vm.recordLogs();
-
+        Vm.Log[] memory logs;
+        if (!isL2CMActivationTest()) {
+            // Start recording logs
+            vm.recordLogs();
+        }
         // Execute upgrade bundle
-        _executeCurrentBundle();
+        _executeCurrentBundleOrSwitchFork();
 
         // Get all recorded logs
-        Vm.Log[] memory logs = vm.getRecordedLogs();
+        if (!isL2CMActivationTest()) {
+            logs = vm.getRecordedLogs();
+        } else {
+            bytes32[] memory topics = new bytes32[](1);
+            uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
+            topics[0] = UPGRADED_EVENT_TOPIC;
+            Vm.EthGetLogs[] memory ethLogs = vm.eth_getLogs(
+                activationBlockNumber,
+                activationBlockNumber,
+                address(0),
+                topics
+            );
+            logs = _ethGetLogsToLogs(ethLogs);
+        }
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
@@ -768,6 +795,18 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
             // Verify the event was found
             assertTrue(foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy)));
+        }
+    }
+
+    /// @notice Converts RPC logs from `vm.eth_getLogs` into the shape returned by `vm.getRecordedLogs`.
+    /// @param _ethLogs The RPC logs from `vm.eth_getLogs`.
+    /// @return logs The logs in the shape returned by `vm.getRecordedLogs`.
+    function _ethGetLogsToLogs(Vm.EthGetLogs[] memory _ethLogs) internal pure returns (Vm.Log[] memory logs) {
+        logs = new Vm.Log[](_ethLogs.length);
+        for (uint256 i = 0; i < _ethLogs.length; i++) {
+            logs[i].topics = _ethLogs[i].topics;
+            logs[i].data = _ethLogs[i].data;
+            logs[i].emitter = _ethLogs[i].emitter;
         }
     }
 }

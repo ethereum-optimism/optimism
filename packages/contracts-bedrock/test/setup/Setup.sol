@@ -174,8 +174,8 @@ abstract contract Setup is FeatureFlags {
     }
 
     /// @notice Indicates whether a test is running against a Karst betanet L2 fork test.
-    function isKarstBetanetL2ForkTest() public view returns (bool) {
-        return Config.karstBetanetL2ForkTest();
+    function isL2CMActivationTest() public view returns (bool) {
+        return Config.l2CMActivationTest();
     }
 
     /// @dev Deploys either the Deploy.s.sol or Fork.s.sol contract, by fetching the bytecode dynamically using
@@ -191,18 +191,10 @@ abstract contract Setup is FeatureFlags {
         // Handle L2 fork test (takes precedence over L1 fork)
         if (isL2ForkTest()) {
             uint256 l2ForkBlock = Config.l2ForkBlockNumber();
-            if (isKarstBetanetL2ForkTest()) {
-                if (l2ForkBlock == 0) {
-                    vm.createSelectFork(Config.karstBetanetL2ForkRpcUrl());
-                } else {
-                    vm.createSelectFork(Config.karstBetanetL2ForkRpcUrl(), l2ForkBlock);
-                }
+            if (l2ForkBlock == 0) {
+                vm.createSelectFork(Config.l2ForkRpcUrl());
             } else {
-                if (l2ForkBlock == 0) {
-                    vm.createSelectFork(Config.l2ForkRpcUrl());
-                } else {
-                    vm.createSelectFork(Config.l2ForkRpcUrl(), l2ForkBlock);
-                }
+                vm.createSelectFork(Config.l2ForkRpcUrl(), l2ForkBlock);
             }
             console.log("Setup: L2 fork selected!");
         } else if (isL1ForkTest()) {
