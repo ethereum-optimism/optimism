@@ -257,7 +257,7 @@ commands:
       system_features:
         description: "Registry of system features (others treated as dev features)"
         type: string
-        default: "CUSTOM_GAS_TOKEN"
+        default: "CUSTOM_GAS_TOKEN ETH_LOCKBOX INTEROP"
     steps:
       - run:
           name: Set feature environment variables
@@ -3036,7 +3036,9 @@ workflows:
               features: &features_matrix
                 - main
                 - CUSTOM_GAS_TOKEN
+                - ETH_LOCKBOX
                 - OPTIMISM_PORTAL_INTEROP
+                - OPTIMISM_PORTAL_INTEROP,ETH_LOCKBOX,INTEROP
                 - ZK_DISPUTE_GAME
                 - SUPER_ROOT_GAMES_MIGRATION
                  # TODO(#20084): Remove these commented out jobs when removing the L2CM and CANNON_KONA feature toggles.
