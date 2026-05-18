@@ -18,6 +18,18 @@ var batcherConsensusSmokeL2URLFlag = &cli.StringFlag{
 	EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BATCHER_CONSENSUS_L2_RPC"),
 	Value:   "http://localhost:8545",
 }
+var batcherConsensusSmokeValidL2URLFlag = &cli.StringFlag{
+	Name:    "valid-l2-rpc",
+	Usage:   "RPC URL for the consensus-enabled L2 with valid Commonware proofs.",
+	EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BATCHER_CONSENSUS_VALID_L2_RPC"),
+	Value:   "http://localhost:8545",
+}
+var batcherConsensusSmokeInvalidL2URLFlag = &cli.StringFlag{
+	Name:    "invalid-l2-rpc",
+	Usage:   "RPC URL for the consensus-enabled L2 with invalid Commonware proofs.",
+	EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BATCHER_CONSENSUS_INVALID_L2_RPC"),
+	Value:   "http://localhost:8546",
+}
 
 const batcherConsensusRejectTimeout = 20 * time.Second
 
@@ -30,16 +42,21 @@ type batcherConsensusSmokeEnv struct {
 
 func batcherConsensusSmokeCommand() *cli.Command {
 	smokeFlags := cliapp.ProtectFlags([]cli.Flag{batcherConsensusSmokeL2URLFlag, smokePrivateKeyFlag})
+	smokeAllFlags := cliapp.ProtectFlags([]cli.Flag{
+		batcherConsensusSmokeValidL2URLFlag,
+		batcherConsensusSmokeInvalidL2URLFlag,
+		smokePrivateKeyFlag,
+	})
 	return &cli.Command{
 		Name:  "smoke-batcher-consensus",
 		Usage: "run batcher consensus smoke tests against a remote chain RPC",
 		Subcommands: []*cli.Command{
 			{
 				Name:  "all",
-				Usage: "run all batcher consensus smoke tests sequentially",
-				Flags: smokeFlags,
+				Usage: "run valid and invalid batcher consensus smoke tests sequentially",
+				Flags: smokeAllFlags,
 				Action: func(cliCtx *cli.Context) error {
-					return withBatcherConsensusSmokeEnv(cliCtx, "Batcher Consensus", smokeBatcherConsensusAll)
+					return smokeBatcherConsensusAll(cliCtx)
 				},
 			},
 			{
@@ -62,18 +79,16 @@ func batcherConsensusSmokeCommand() *cli.Command {
 	}
 }
 
-func withBatcherConsensusSmokeEnv(cliCtx *cli.Context, name string, fn func(env *batcherConsensusSmokeEnv) error) error {
-	ctx := cliCtx.Context
-	stderr := cliCtx.App.ErrWriter
+func newBatcherConsensusSmokeEnv(ctx context.Context, stderr io.Writer, name, url, privateKey string) (*batcherConsensusSmokeEnv, func(), error) {
 	logger := newLogger(ctx, stderr)
-	chain, err := connectRemoteChain(ctx, logger, "L2", cliCtx.String(batcherConsensusSmokeL2URLFlag.Name))
+	chain, err := connectRemoteChain(ctx, logger, name, url)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer chain.ethClient.Close()
-	privKey, address, err := resolveSmokeKey(cliCtx.String(smokePrivateKeyFlag.Name))
+	privKey, address, err := resolveSmokeKey(privateKey)
 	if err != nil {
-		return err
+		chain.ethClient.Close()
+		return nil, nil, err
 	}
 	env := &batcherConsensusSmokeEnv{
 		ctx:    ctx,
@@ -81,9 +96,29 @@ func withBatcherConsensusSmokeEnv(cliCtx *cli.Context, name string, fn func(env 
 		chain:  chain,
 		user:   &remoteUser{chain: chain, privKey: privKey, address: address},
 	}
+	cleanup := func() {
+		chain.ethClient.Close()
+	}
+	return env, cleanup, nil
+}
+
+func withBatcherConsensusSmokeEnv(cliCtx *cli.Context, name string, fn func(env *batcherConsensusSmokeEnv) error) error {
+	ctx := cliCtx.Context
+	stderr := cliCtx.App.ErrWriter
+	env, cleanup, err := newBatcherConsensusSmokeEnv(
+		ctx,
+		stderr,
+		"L2",
+		cliCtx.String(batcherConsensusSmokeL2URLFlag.Name),
+		cliCtx.String(smokePrivateKeyFlag.Name),
+	)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	fmt.Fprintf(stderr, "\n=== %s ===\n", name)
-	fmt.Fprintf(stderr, "L2 RPC: %s (chain ID %s)\n", chain.url, chain.chainID)
-	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", address)
+	fmt.Fprintf(stderr, "%s RPC: %s (chain ID %s)\n", env.chain.name, env.chain.url, env.chain.chainID)
+	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", env.user.address)
 	if err := fn(env); err != nil {
 		fmt.Fprintf(stderr, "\nFAIL: %s (%v)\n", name, err)
 		return err
@@ -92,8 +127,48 @@ func withBatcherConsensusSmokeEnv(cliCtx *cli.Context, name string, fn func(env 
 	return nil
 }
 
-func smokeBatcherConsensusAll(env *batcherConsensusSmokeEnv) error {
-	return smokeBatcherConsensusSafeAdvance(env)
+func smokeBatcherConsensusAll(cliCtx *cli.Context) error {
+	ctx := cliCtx.Context
+	stderr := cliCtx.App.ErrWriter
+	validEnv, validCleanup, err := newBatcherConsensusSmokeEnv(
+		ctx,
+		stderr,
+		"Valid L2",
+		cliCtx.String(batcherConsensusSmokeValidL2URLFlag.Name),
+		cliCtx.String(smokePrivateKeyFlag.Name),
+	)
+	if err != nil {
+		return err
+	}
+	defer validCleanup()
+
+	invalidEnv, invalidCleanup, err := newBatcherConsensusSmokeEnv(
+		ctx,
+		stderr,
+		"Invalid L2",
+		cliCtx.String(batcherConsensusSmokeInvalidL2URLFlag.Name),
+		cliCtx.String(smokePrivateKeyFlag.Name),
+	)
+	if err != nil {
+		return err
+	}
+	defer invalidCleanup()
+
+	fmt.Fprintf(stderr, "\n=== Batcher Consensus All ===\n")
+	fmt.Fprintf(stderr, "Valid L2 RPC: %s (chain ID %s)\n", validEnv.chain.url, validEnv.chain.chainID)
+	fmt.Fprintf(stderr, "Invalid L2 RPC: %s (chain ID %s)\n", invalidEnv.chain.url, invalidEnv.chain.chainID)
+	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", validEnv.user.address)
+
+	if err := smokeBatcherConsensusSafeAdvance(validEnv); err != nil {
+		fmt.Fprintf(stderr, "\nFAIL: Batcher Consensus Safe Advance (%v)\n", err)
+		return err
+	}
+	if err := smokeBatcherConsensusInvalidRejection(invalidEnv); err != nil {
+		fmt.Fprintf(stderr, "\nFAIL: Batcher Consensus Invalid Rejection (%v)\n", err)
+		return err
+	}
+	fmt.Fprintf(stderr, "\nPASS: Batcher Consensus All\n")
+	return nil
 }
 
 func smokeBatcherConsensusSafeAdvance(env *batcherConsensusSmokeEnv) error {
