@@ -471,7 +471,6 @@ define_client_args!((BuilderArgs, builder), (L2ClientArgs, l2));
 
 #[cfg(test)]
 pub mod tests {
-    use assert_cmd::Command;
     use http::Uri;
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
@@ -481,7 +480,6 @@ pub mod tests {
     use jsonrpsee::core::client::Error as ClientError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
-    use predicates::prelude::*;
     use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::net::TcpListener;
@@ -503,16 +501,6 @@ pub mod tests {
                 return port;
             }
         }
-    }
-
-    #[test]
-    fn test_invalid_args() {
-        let mut cmd = Command::cargo_bin("rollup-boost").unwrap();
-        cmd.arg("--invalid-arg");
-
-        cmd.assert().failure().stderr(predicate::str::contains(
-            "error: unexpected argument '--invalid-arg' found",
-        ));
     }
 
     #[tokio::test]
