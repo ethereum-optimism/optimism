@@ -92,10 +92,10 @@ func startBatchConsensusCommonwareProofSidecar(t devtest.T, valid bool) string {
 	endpoint := "http://127.0.0.1:" + port
 
 	stdOut := logpipe.LogCallback(func(line []byte) {
-		t.Logger().Info("Batch consensus Commonware sidecar stdout", "line", string(line))
+		t.Logger().Info("Batch consensus Commonware Simplex sidecar stdout", "line", string(line))
 	})
 	stdErr := logpipe.LogCallback(func(line []byte) {
-		t.Logger().Info("Batch consensus Commonware sidecar stderr", "line", string(line))
+		t.Logger().Info("Batch consensus Commonware Simplex sidecar stderr", "line", string(line))
 	})
 	sub := NewSubProcess(t, stdOut, stdErr)
 
@@ -104,15 +104,15 @@ func startBatchConsensusCommonwareProofSidecar(t devtest.T, valid bool) string {
 		Package: "op-batcher-consensus-sidecar",
 		Binary:  "op-batcher-consensus-sidecar",
 	}.EnsureExists(t.Ctx(), t.Logger())
-	t.Require().NoError(err, "prepare batch consensus Commonware sidecar binary")
+	t.Require().NoError(err, "prepare batch consensus Commonware Simplex sidecar binary")
 
-	args := []string{"--listen", "127.0.0.1:" + port}
+	args := []string{"--listen", "127.0.0.1:" + port, "--commonware-simplex"}
 	if !valid {
 		args = append(args, "--invalid")
 	}
-	t.Require().NoError(sub.Start(execPath, args, nil), "start batch consensus Commonware sidecar")
+	t.Require().NoError(sub.Start(execPath, args, nil), "start batch consensus Commonware Simplex sidecar")
 	waitTCPReady(t, endpoint, 10*time.Second)
 
-	t.Logger().Info("Started batch consensus Commonware proof sidecar", "endpoint", endpoint, "valid", valid)
+	t.Logger().Info("Started batch consensus Commonware Simplex proof sidecar", "endpoint", endpoint, "valid", valid)
 	return endpoint
 }

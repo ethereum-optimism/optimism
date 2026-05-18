@@ -140,14 +140,15 @@ func WithBatchConsensusMockProofSidecarResult(valid bool) Option {
 	}
 }
 
-// WithBatchConsensusCommonwareSidecar starts the Rust Commonware-backed proof
-// sidecar and points op-batcher at its HTTP endpoint.
+// WithBatchConsensusCommonwareSidecar starts the Rust Commonware Simplex-backed
+// proof sidecar and points op-batcher at its HTTP endpoint.
 func WithBatchConsensusCommonwareSidecar() Option {
 	return WithBatchConsensusCommonwareSidecarResult(true)
 }
 
-// WithBatchConsensusCommonwareSidecarResult starts the Rust Commonware-backed
-// proof sidecar and can deliberately return invalid verifier calldata.
+// WithBatchConsensusCommonwareSidecarResult starts the Rust Commonware
+// Simplex-backed proof sidecar and can deliberately return invalid verifier
+// calldata after consensus finalization.
 func WithBatchConsensusCommonwareSidecarResult(valid bool) Option {
 	return option{
 		kinds: optionKindBatcher,

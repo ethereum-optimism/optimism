@@ -74,7 +74,7 @@ var (
 	}
 	batcherConsensusPOCFlag = &cli.BoolFlag{
 		Name:    "batcher-consensus-poc",
-		Usage:   "start a single-chain blob-mode devnet with the batcher consensus POC mock verifier enabled.",
+		Usage:   "start a single-chain blob-mode devnet with the batcher consensus POC verifier and Commonware Simplex sidecar enabled.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "BATCHER_CONSENSUS_POC"),
 	}
 )
@@ -148,6 +148,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 		}
 		if batcherConsensusPOC {
 			fmt.Fprintf(stderr, "Batcher consensus POC verifier: %s\n", sysgo.DefaultBatchConsensusMockVerifierAddress)
+			fmt.Fprintln(stderr, "Batcher consensus POC sidecar: Commonware Simplex finalization")
 		}
 		if err := runSystem(ctx, stderr, sys); err != nil {
 			return err

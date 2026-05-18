@@ -10,7 +10,14 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", package = "commonware-cryptography", features = ["std"] }
+commonware-actor = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-actor" }
+commonware-codec = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-codec" }
+commonware-consensus = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-consensus" }
+commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-cryptography", features = ["std"] }
+commonware-p2p = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-p2p" }
+commonware-parallel = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-parallel", features = ["std"] }
+commonware-runtime = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-runtime" }
+commonware-utils = { git = "https://github.com/commonwarexyz/monorepo", rev = "468b7a9a40d531bf1cb6f2536bc25abb917ab850", package = "commonware-utils" }
 hex = "0.4"
 k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 serde = { version = "1", features = ["derive"] }
