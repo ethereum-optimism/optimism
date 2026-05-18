@@ -12,17 +12,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-// activationDelay schedules interop activation shortly after genesis so the
-// test crosses activation quickly without bloating runtime.
-const activationDelay = uint64(20)
-
 // TestSupernodeResyncResumesAtActivation_PostActivation drives a full
 // supernode data-dir wipe after the chain has crossed activation, and
 // asserts cross-safe advances post-restart — proving the sequencer is still
 // producing blocks and the supernode is validating them.
 func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, activationDelay,
+	sys := presets.NewTwoL2SupernodeInterop(t, 0,
 		presets.WithTimeTravelEnabled(),
 		presets.WithInteropLogBackfillDepth(60*time.Second),
 	)
