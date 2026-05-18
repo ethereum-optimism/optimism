@@ -143,9 +143,8 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor   Supervisor
-	SecondarySupervisor Supervisor
-	Supernode           *SuperNode
+	PrimarySupervisor Supervisor
+	Supernode         *SuperNode
 
 	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock
