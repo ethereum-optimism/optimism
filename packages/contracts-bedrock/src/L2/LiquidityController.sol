@@ -17,7 +17,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title LiquidityControllerStorage
 /// @dev Data variables are declared before OwnableUpgradeable in the inheritance chain so that
 ///      their storage slots (minters = 1, gasPayingTokenName = 2, gasPayingTokenSymbol = 3) match
-///      CGT forks that removed OwnableUpgradeable and placed data directly after Initializable.
+///      CGT forks that removed OwnableUpgradeable and placed data directly after Initializable (e.g. OKX XLayer).
 ///      DO NOT reorder or insert variables before `minters`. The slot positions must remain stable
 ///      across upgrades so that existing proxy state is valid under the new implementation.
 abstract contract LiquidityControllerStorage is Initializable {
