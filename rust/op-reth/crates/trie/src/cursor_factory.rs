@@ -62,8 +62,8 @@ where
 /// tables. It carries no block-number context: the snapshot already reflects
 /// trie state at a fixed anchor block. The caller is responsible for first
 /// resolving that anchor via
-/// [`crate::api::OpProofsSnapshotProviderRO::ready_snapshot_anchor`] and
-/// ensuring the block being queried matches it.
+/// [`crate::api::OpProofsSnapshotProviderRO::snapshot_anchor`] and ensuring
+/// the block being queried matches it.
 #[derive(Debug, Clone)]
 pub struct SnapshotTrieCursorFactory<P> {
     reader: P,

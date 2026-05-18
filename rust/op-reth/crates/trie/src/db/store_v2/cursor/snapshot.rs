@@ -28,12 +28,16 @@ use crate::db::models::{V2AccountsTrieSnapshot, V2StoragesTrieSnapshot};
 pub struct V2AccountTrieSnapshotCursor<C> {
     cursor: C,
     last_key: Option<StoredNibbles>,
+    /// Whether `seek*` has positioned the underlying cursor at least once
+    /// since construction / `reset`. Guards `next` against undefined mdbx
+    /// behavior when called on an unpositioned cursor.
+    seeked: bool,
 }
 
 impl<C> V2AccountTrieSnapshotCursor<C> {
     /// Create a new snapshot cursor wrapping `cursor`.
     pub const fn new(cursor: C) -> Self {
-        Self { cursor, last_key: None }
+        Self { cursor, last_key: None, seeked: false }
     }
 }
 
@@ -45,6 +49,7 @@ where
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.seeked = true;
         let entry = self.cursor.seek_exact(StoredNibbles(key))?;
         if let Some((ref k, _)) = entry {
             self.last_key = Some(k.clone());
@@ -56,6 +61,7 @@ where
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.seeked = true;
         let entry = self.cursor.seek(StoredNibbles(key))?;
         if let Some((ref k, _)) = entry {
             self.last_key = Some(k.clone());
@@ -64,6 +70,9 @@ where
     }
 
     fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        if !self.seeked {
+            return self.seek(Nibbles::default());
+        }
         let entry = self.cursor.next()?;
         if let Some((ref k, _)) = entry {
             self.last_key = Some(k.clone());
@@ -77,6 +86,7 @@ where
 
     fn reset(&mut self) {
         self.last_key = None;
+        self.seeked = false;
     }
 }
 
@@ -86,12 +96,16 @@ pub struct V2StorageTrieSnapshotCursor<C> {
     cursor: C,
     hashed_address: B256,
     last_key: Option<StoredNibbles>,
+    /// Whether `seek*` has positioned the underlying cursor at least once
+    /// for the current `hashed_address`. Guards `next` against undefined
+    /// mdbx behavior when called on an unpositioned cursor.
+    seeked: bool,
 }
 
 impl<C> V2StorageTrieSnapshotCursor<C> {
     /// Create a new snapshot cursor wrapping `cursor`, scoped to `hashed_address`.
     pub const fn new(cursor: C, hashed_address: B256) -> Self {
-        Self { cursor, hashed_address, last_key: None }
+        Self { cursor, hashed_address, last_key: None, seeked: false }
     }
 }
 
@@ -103,6 +117,7 @@ where
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.seeked = true;
         let subkey = StoredNibblesSubKey(key);
         let entry = self
             .cursor
@@ -118,6 +133,7 @@ where
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.seeked = true;
         let entry =
             self.cursor.seek_by_key_subkey(self.hashed_address, StoredNibblesSubKey(key))?;
         if let Some(ref e) = entry {
@@ -127,6 +143,9 @@ where
     }
 
     fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        if !self.seeked {
+            return self.seek(Nibbles::default());
+        }
         let entry = self.cursor.next_dup()?.map(|(_, v)| v);
         if let Some(ref e) = entry {
             self.last_key = Some(StoredNibbles(e.nibbles.0));
@@ -140,6 +159,7 @@ where
 
     fn reset(&mut self) {
         self.last_key = None;
+        self.seeked = false;
     }
 }
 
@@ -150,5 +170,6 @@ where
     fn set_hashed_address(&mut self, hashed_address: B256) {
         self.hashed_address = hashed_address;
         self.last_key = None;
+        self.seeked = false;
     }
 }
