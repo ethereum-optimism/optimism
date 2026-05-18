@@ -81,7 +81,8 @@ func (d *InteropDSL) SubmitBatchData(optionalArgs ...func(*SubmitBatchDataOpts))
 		chain.Batcher.ActSubmitAll(d.t)
 		txInclusion = append(txInclusion, d.Actors.L1Miner.ActL1IncludeTx(chain.BatcherAddr))
 	}
-	d.advanceL1(opts.Chains, txInclusion)
+	// Always sync the new L1 block to all chains, even if only a subset submitted batches.
+	d.advanceL1(d.allChains, txInclusion)
 
 	// Verify the local safe head advanced on each chain
 	for _, chain := range opts.Chains {
