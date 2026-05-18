@@ -353,16 +353,19 @@ func (i *Interop) runLoop() error {
 // finish initialization or start progressing), (backoffPeriod, nil) if no
 // progress was made yet, or (errorBackoffPeriod, nil) on any error.
 //
-// Cold-start init runs concurrently with chain-container startup, so every
-// failure mode here (VN not yet attached, transient RPC errors, EL not
-// ready) is expected during the startup window and must not kill the
-// activity. Cold-start has no path to a permanent failure: none of the calls
-// it makes return ErrHistoryUnavailable, and any real corruption surfaces in
-// the verification loop once initialization completes.
+// Cold-start init runs concurrently with chain-container startup, so
+// pre-backfill readiness failures (VN not yet attached, transient RPC errors,
+// EL not ready) are expected during the startup window and must not kill the
+// activity. Once the SafeDB handoff has been selected and backfill starts,
+// backfill range failures are fatal: retrying cannot make unavailable history
+// appear without operator intervention.
 func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	advanced, err := i.advanceColdStartInit()
 	if err != nil {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
+		if errors.Is(err, errColdStartBackfill) {
+			return 0, err
+		}
 		i.log.Warn("interop cold start step failed, will retry", "err", err)
 		return errorBackoffPeriod, nil
 	}

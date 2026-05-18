@@ -309,6 +309,38 @@ func TestColdStartBackfill_GenesisClamp(t *testing.T) {
 		"backfill must not fetch blocks before genesis")
 }
 
+// TestColdStartBackfill_FailureHaltsStart confirms that once cold-start has
+// selected a SafeDB handoff and started backfilling the configured history
+// range, failures to fetch that range are fatal rather than retried forever.
+func TestColdStartBackfill_FailureHaltsStart(t *testing.T) {
+
+	backfillErr := errors.New("historical block unavailable")
+	h := newInteropTestHarness(t).
+		WithActivation(100).
+		WithLogBackfillDepth(10*time.Second).
+		WithChain(10, func(m *mockChainContainer) {
+			m.firstSafeHeadTimestamp = 120
+			m.firstSafeHeadTimestampSet = true
+			m.outputV0Override = func(_ context.Context, _ uint64) (*eth.OutputV0, error) {
+				return nil, backfillErr
+			}
+		}).
+		Build()
+	h.interop.initialized.Store(false)
+	h.interop.verificationStartTimestamp = 0
+
+	done := make(chan error, 1)
+	go func() { done <- h.interop.Start(context.Background()) }()
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, errColdStartBackfill)
+		require.ErrorIs(t, err, backfillErr)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start retried backfill failure instead of halting")
+	}
+}
+
 // TestFirstVerifiableTimestamp_PrefersVerifiedDB locks the contract that
 // verifiedDB.FirstTimestamp takes precedence over any later
 // verificationStartTimestamp set by init.

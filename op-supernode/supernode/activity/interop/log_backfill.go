@@ -10,6 +10,8 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
+var errColdStartBackfill = errors.New("cold-start backfill failed")
+
 // advanceColdStartInit runs one best-effort pass at cold-start initialization:
 // it collects every chain's first SafeDB entry timestamp, picks
 // verificationStartTimestamp = max(activation, max_c T_c), runs backfill, and
@@ -41,7 +43,7 @@ func (i *Interop) advanceColdStartInit() (bool, error) {
 	i.initialized.Store(true)
 
 	if err := i.runColdStartBackfill(verificationStart); err != nil {
-		return false, fmt.Errorf("backfill: %w", err)
+		return false, fmt.Errorf("%w: %w", errColdStartBackfill, err)
 	}
 	i.backfillCompleted.Store(true)
 	return true, nil
