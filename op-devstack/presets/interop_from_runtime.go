@@ -144,4 +144,3 @@ func simpleInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *Si
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
 	return out
 }
-

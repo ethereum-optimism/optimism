@@ -198,4 +198,3 @@ func (s *Supervisor) Stop() {
 	s.require.Truef(ok, "supervisor %s is not lifecycle-controllable", s.inner.Name())
 	lifecycle.Stop()
 }
-
