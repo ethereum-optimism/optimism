@@ -82,6 +82,12 @@ var (
 		Usage:   "run the batcher consensus POC sidecar in invalid-proof mode to demo rejection.",
 		EnvVars: opservice.PrefixEnvVar(envPrefix, "BATCHER_CONSENSUS_POC_INVALID"),
 	}
+	l2RPCPortFlag = &cli.StringFlag{
+		Name:    "l2-rpc-port",
+		Usage:   "the localhost port used to expose the single-chain L2 EL RPC.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "L2_RPC_PORT"),
+		Value:   "8545",
+	}
 )
 
 func main() {
@@ -100,7 +106,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag, batcherConsensusPOCFlag, batcherConsensusPOCInvalidFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, interopFlag, batcherConsensusPOCFlag, batcherConsensusPOCInvalidFlag, l2RPCPortFlag})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -111,7 +117,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name), cliCtx.Bool(batcherConsensusPOCFlag.Name), cliCtx.Bool(batcherConsensusPOCInvalidFlag.Name))
+		return runOpUp(
+			cliCtx.Context,
+			cliCtx.App.ErrWriter,
+			cliCtx.String(dirFlag.Name),
+			cliCtx.Bool(interopFlag.Name),
+			cliCtx.Bool(batcherConsensusPOCFlag.Name),
+			cliCtx.Bool(batcherConsensusPOCInvalidFlag.Name),
+			cliCtx.String(l2RPCPortFlag.Name),
+		)
 	}
 	app.Commands = []*cli.Command{
 		smokeCommand(),
@@ -120,7 +134,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool, batcherConsensusPOC bool, batcherConsensusPOCInvalid bool) error {
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool, batcherConsensusPOC bool, batcherConsensusPOCInvalid bool, l2RPCPort string) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
@@ -162,7 +176,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 			}
 			fmt.Fprintf(stderr, "Batcher consensus POC sidecar: Commonware Simplex finalization (%s proofs)\n", mode)
 		}
-		if err := runSystem(ctx, stderr, sys); err != nil {
+		if err := runSystem(ctx, stderr, sys, l2RPCPort); err != nil {
 			return err
 		}
 	}
@@ -224,18 +238,19 @@ func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop,
 	), nil
 }
 
-func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal) error {
+func runSystem(ctx context.Context, stderr io.Writer, sys *presets.Minimal, l2RPCPort string) error {
 	if err := printAccountInfo(stderr); err != nil {
 		return err
 	}
-	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
+	elNodeURL := "http://localhost:" + l2RPCPort
+	fmt.Fprintf(stderr, "EL Node URL: %s\n", elNodeURL)
 
 	elNode := sys.L2EL
 	go logBlocks(ctx, stderr, "L2", elNode)
 
 	// Proxy L2 EL requests.
 	go func() {
-		if err := proxyEL(ctx, stderr, "localhost:8545", elNode.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := proxyEL(ctx, stderr, "localhost:"+l2RPCPort, elNode.Escape().L2EthClient().RPC()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Fprintf(stderr, "error: %v", err)
 		}
 	}()
