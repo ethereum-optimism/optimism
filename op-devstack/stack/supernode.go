@@ -10,14 +10,10 @@ type Supernode interface {
 	QueryAPI() apis.SupernodeQueryAPI
 }
 
-// InteropTestControl is the narrow integration-test surface on a running
-// supernode. Tests get direct access to the interop activity via
-// InteropActivity; see op-supernode/supernode/activity/interop for the
-// methods available on the returned pointer (PauseAt, Resume,
-// BackfillAttempts, BackfillCompleted, ActivationTimestamp,
-// VerificationStartTimestamp, FirstVerifiableTimestamp, FirstSealedBlock,
-// LatestSealedBlock, ...).
-type InteropTestControl interface {
+// SupernodeTestControl is the integration-test surface on a running
+// supernode. See op-supernode/supernode/activity/interop for the methods
+// available on the InteropActivity pointer.
+type SupernodeTestControl interface {
 	// InteropActivity returns the current interop activity, or nil if the
 	// supernode is stopped or interop is not configured. Do not cache the
 	// pointer across RestartWithFreshDataDir.
