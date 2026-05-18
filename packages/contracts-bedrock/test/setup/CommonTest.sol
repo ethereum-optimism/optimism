@@ -6,6 +6,7 @@ import { Test } from "test/setup/Test.sol";
 import { Setup } from "test/setup/Setup.sol";
 import { Events } from "test/setup/Events.sol";
 import { FFIInterface } from "test/setup/FFIInterface.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -17,6 +18,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { console } from "forge-std/console.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IOptimismMintableERC20Full } from "interfaces/universal/IOptimismMintableERC20Full.sol";
@@ -25,6 +27,8 @@ import { ILegacyMintableERC20Full } from "interfaces/legacy/ILegacyMintableERC20
 /// @title CommonTest
 /// @dev An extension to `Test` that sets up the optimism smart contracts.
 abstract contract CommonTest is Test, Setup, Events {
+    using stdStorage for StdStorage;
+
     address alice;
     address bob;
 
@@ -125,6 +129,28 @@ abstract contract CommonTest is Test, Setup, Events {
         }
 
         Setup.L1();
+
+        // Apply sys-feature env overrides post-deployment. Deploy.s.sol does not currently wire
+        // these features end-to-end, so we activate them here against the freshly-deployed system.
+        // Guarded with isFeatureEnabled checks so L1 fork tests against chains that already have
+        // these features active are idempotent.
+        if (Config.sysFeatureEthLockbox()) {
+            console.log("CommonTest: enabling ETH_LOCKBOX");
+            if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                vm.prank(address(proxyAdmin));
+                systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
+            // OptimismPortal2 treats ETH_LOCKBOX=true with a zero ethLockbox() as invalid state,
+            // so install the already-deployed lockbox proxy into the portal in lockstep.
+            stdstore.target(address(optimismPortal2)).sig("ethLockbox()").checked_write(address(ethLockbox));
+        }
+        if (Config.sysFeatureInterop()) {
+            console.log("CommonTest: enabling INTEROP");
+            if (!systemConfig.isFeatureEnabled(Features.INTEROP)) {
+                vm.prank(address(proxyAdmin));
+                systemConfig.setFeature(Features.INTEROP, true);
+            }
+        }
 
         if (!isL1ForkTest()) {
             Setup.L2();

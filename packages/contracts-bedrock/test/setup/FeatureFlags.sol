@@ -77,6 +77,8 @@ abstract contract FeatureFlags {
             return "SYS_FEATURE__CUSTOM_GAS_TOKEN";
         } else if (_feature == Features.ETH_LOCKBOX) {
             return "SYS_FEATURE__ETH_LOCKBOX";
+        } else if (_feature == Features.INTEROP) {
+            return "SYS_FEATURE__INTEROP";
         } else {
             // NOTE: We error out here so that developers remember to actually name their features
             //       above. Solidity doesn't have anything like reflection that could do this.

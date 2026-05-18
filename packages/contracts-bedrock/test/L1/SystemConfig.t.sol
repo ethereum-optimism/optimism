@@ -100,9 +100,11 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
     }
 
-    function test_initialize_interopFlag_succeeds() external view {
+    function test_initialize_interopFlag_succeeds() external {
         // The dev feature only makes interop code available. Runtime INTEROP activation is handled
         // by OPContractsManagerMigrator so initialization does not enable the SystemConfig feature.
+        // Skip when env-driven sys-INTEROP is active — CommonTest activates the feature post-init.
+        skipIfSysFeatureEnabled(Features.INTEROP);
         assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 

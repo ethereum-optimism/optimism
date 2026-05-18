@@ -334,6 +334,16 @@ library Config {
         return vm.envOr("SYS_FEATURE__CUSTOM_GAS_TOKEN", false);
     }
 
+    /// @notice Returns true if the system feature eth_lockbox is enabled.
+    function sysFeatureEthLockbox() internal view returns (bool) {
+        return vm.envOr("SYS_FEATURE__ETH_LOCKBOX", false);
+    }
+
+    /// @notice Returns true if the system feature interop is enabled.
+    function sysFeatureInterop() internal view returns (bool) {
+        return vm.envOr("SYS_FEATURE__INTEROP", false);
+    }
+
     /// @notice Returns true if running in kontrol context.
     function isKontrolContext() internal view returns (bool) {
         return vm.envOr("KONTROL_CONTEXT", false);
