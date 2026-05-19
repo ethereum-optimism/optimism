@@ -148,7 +148,7 @@
         "type": "uint8"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -276,11 +276,6 @@
   {
     "inputs": [],
     "name": "Encoding_InvalidSuperRootVersion",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "GameNotInProgress",
     "type": "error"
   },
   {
