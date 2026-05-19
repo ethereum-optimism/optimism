@@ -2,6 +2,7 @@ package super
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -14,6 +15,28 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var (
+	ErrGetStepData = errors.New("GetStepData not supported")
+	ErrIndexTooBig = errors.New("trace index is greater than max uint64")
+
+	InvalidTransition     = []byte("invalid")
+	InvalidTransitionHash = crypto.Keccak256Hash(InvalidTransition)
+)
+
+const (
+	StepsPerTimestamp = 128
+)
+
+type PreimagePrestateProvider interface {
+	types.PrestateProvider
+	AbsolutePreState(ctx context.Context) (eth.Super, error)
+}
+
+type SuperTraceProvider interface {
+	types.TraceProvider
+	PreimageTraceProvider
+}
 
 type SuperNodeRootProvider interface {
 	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
@@ -167,3 +190,4 @@ func (s *SuperNodeTraceProvider) GetL2BlockNumberChallenge(_ context.Context) (*
 }
 
 var _ types.TraceProvider = (*SuperNodeTraceProvider)(nil)
+var _ SuperTraceProvider = (*SuperNodeTraceProvider)(nil)
