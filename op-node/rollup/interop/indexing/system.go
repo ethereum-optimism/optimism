@@ -21,6 +21,8 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // indexingEventStream abstracts the event stream functionality for testing
@@ -312,7 +314,7 @@ func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	return nil
 }
 
-func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes.BlockSeal) error {
+func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal messages.BlockSeal) error {
 	m.log.Info("Invalidating block", "block", seal)
 
 	// Fetch the block we invalidate, so we can re-use the attributes that stay.

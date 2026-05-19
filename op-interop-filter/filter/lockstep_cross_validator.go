@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // LockstepCrossValidator validates cross-chain executing messages and tracks
@@ -184,9 +186,9 @@ func validateMessageTiming(
 
 // ValidateAccessEntry validates a single access list entry against all message validity rules.
 func (v *LockstepCrossValidator) ValidateAccessEntry(
-	access types.Access,
+	access messages.Access,
 	minSafety types.SafetyLevel,
-	execDescriptor types.ExecutingDescriptor,
+	execDescriptor messages.ExecutingDescriptor,
 ) error {
 	// Check that we have ingested data for the requested timestamp
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
@@ -225,7 +227,7 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 		return fmt.Errorf("source chain %s: %w", access.ChainID, types.ErrUnknownChain)
 	}
 
-	query := types.ContainsQuery{
+	query := messages.ContainsQuery{
 		Timestamp: access.Timestamp,
 		BlockNum:  access.BlockNumber,
 		LogIdx:    access.LogIndex,
@@ -236,7 +238,7 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 }
 
 func (v *LockstepCrossValidator) validateExecutingMessage(
-	execMsg *types.ExecutingMessage,
+	execMsg *messages.ExecutingMessage,
 	inclusionTimestamp uint64,
 ) error {
 	ingester, ok := v.chains[execMsg.ChainID]
@@ -254,7 +256,7 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 		return err
 	}
 
-	query := types.ContainsQuery{
+	query := messages.ContainsQuery{
 		Timestamp: execMsg.Timestamp,
 		BlockNum:  execMsg.BlockNum,
 		LogIdx:    execMsg.LogIdx,

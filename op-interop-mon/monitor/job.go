@@ -7,9 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -69,7 +69,7 @@ type Job struct {
 	executingLogIndex uint
 	executingPayload  common.Hash
 
-	initiating     *supervisortypes.Identifier
+	initiating     *messages.Identifier
 	initiatingHash []common.Hash
 
 	// track each status seen over time

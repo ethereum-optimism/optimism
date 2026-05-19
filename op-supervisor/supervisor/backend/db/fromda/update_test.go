@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type testCase struct {
@@ -131,7 +133,7 @@ func TestBadUpdates(t *testing.T) {
 			name: "add on conflicting source, same height. And new derived value",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
-					toRef(types.BlockSeal{
+					toRef(messages.BlockSeal{
 						Hash:      common.Hash{0xba, 0xd},
 						Number:    dSource.Number,
 						Timestamp: dSource.Timestamp,
@@ -196,7 +198,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),
-					toRef(types.BlockSeal{
+					toRef(messages.BlockSeal{
 						Hash:      common.Hash{0x42},
 						Number:    dDerived.Number,
 						Timestamp: dDerived.Timestamp,

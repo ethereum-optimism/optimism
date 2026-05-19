@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // Note: Test helpers (newTestCrossValidator, makeAccess, makeExecDescriptor) and
@@ -23,8 +25,8 @@ import (
 
 func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -50,9 +52,9 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 
 func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
-	mock.AddLog(101, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
+	mock.AddLog(101, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(100)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -82,8 +84,8 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 
 func TestCrossValidator_KnownChain(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -109,7 +111,7 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 
 	// Access from chain 902 which is not registered
 	unknownChainID := uint64(902)
-	access := makeAccess(unknownChainID, 100, 10, 0, types.MessageChecksum{0x01})
+	access := makeAccess(unknownChainID, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
 	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
@@ -128,7 +130,7 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Valid chain, valid timing, but log doesn't exist
-	access := makeAccess(testChainA, 100, 10, 0, types.MessageChecksum{0x01})
+	access := makeAccess(testChainA, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
 	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
@@ -145,20 +147,20 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 	mockA := newMockChainIngester()
 	mockB := newMockChainIngester()
 
-	checksumA := types.MessageChecksum{0x01}
+	checksumA := messages.MessageChecksum{0x01}
 
 	// Add valid log on chain A
-	mockA.AddLog(100, 10, 0, checksumA, types.BlockSeal{})
+	mockA.AddLog(100, 10, 0, checksumA, messages.BlockSeal{})
 	mockA.SetLatestTimestamp(101)
 
 	// Add INVALID executing message on chain B that references a non-existent log
 	mockB.AddExecMsg(IncludedMessage{
-		ExecutingMessage: &types.ExecutingMessage{
+		ExecutingMessage: &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(testChainA), // References chain A
 			BlockNum:  999,                               // Non-existent block
 			LogIdx:    0,
-			Timestamp: 50,                          // Init timestamp
-			Checksum:  types.MessageChecksum{0xFF}, // Non-existent checksum
+			Timestamp: 50,                             // Init timestamp
+			Checksum:  messages.MessageChecksum{0xFF}, // Non-existent checksum
 		},
 		InclusionBlockNum:  11,
 		InclusionTimestamp: 101,
@@ -194,12 +196,12 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 	// Update the invalid exec msg to have inclusionTimestamp=102
 	mockB.ClearExecMsgs()
 	mockB.AddExecMsg(IncludedMessage{
-		ExecutingMessage: &types.ExecutingMessage{
+		ExecutingMessage: &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(testChainA),
 			BlockNum:  999,
 			LogIdx:    0,
 			Timestamp: 50,
-			Checksum:  types.MessageChecksum{0xFF},
+			Checksum:  messages.MessageChecksum{0xFF},
 		},
 		InclusionBlockNum:  12,
 		InclusionTimestamp: 102,
@@ -252,8 +254,8 @@ func TestCrossValidator_StartTimestampZeroStillAdvances(t *testing.T) {
 
 func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(100) // Only ingested up to 100
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -277,8 +279,8 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 
 func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -298,8 +300,8 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 
 func TestValidateExecMsg_MessageExpired(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(300)
 
 	chains := map[eth.ChainID]ChainIngester{

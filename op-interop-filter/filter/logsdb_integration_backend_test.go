@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func TestIntegration_Backend_NoChains_FailsafeOn(t *testing.T) {
@@ -29,7 +31,7 @@ func TestIntegration_Backend_NoChains_FailsafeOn(t *testing.T) {
 	})
 
 	require.False(t, bk.Ready(), "empty chain map -> Backend.Ready() is false")
-	err := bk.CheckAccessList(ctx, nil, types.LocalUnsafe, types.ExecutingDescriptor{ChainID: executingChain()})
+	err := bk.CheckAccessList(ctx, nil, types.LocalUnsafe, messages.ExecutingDescriptor{ChainID: executingChain()})
 	require.ErrorIs(t, err, types.ErrUninitialized)
 }
 
@@ -84,7 +86,7 @@ func TestIntegration_Backend_UnsupportedSafetyLevel_Rejected(t *testing.T) {
 
 	bk := twoChainBackend(t, 1)
 	err := bk.CheckAccessList(context.Background(), nil, types.Finalized,
-		types.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
+		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported safety level")
 }
@@ -94,7 +96,7 @@ func TestIntegration_Backend_EmptyAccessList_LocalUnsafe_Accepted(t *testing.T) 
 
 	bk := twoChainBackend(t, 1)
 	require.NoError(t, bk.CheckAccessList(context.Background(), nil, types.LocalUnsafe,
-		types.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs}))
+		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs}))
 }
 
 func TestIntegration_Backend_Ready_FalseUntilAllChainsReady(t *testing.T) {
@@ -113,7 +115,7 @@ func TestIntegration_Backend_Ready_FalseUntilAllChainsReady(t *testing.T) {
 	require.False(t, bk.Ready(), "Backend.Ready requires all ingesters Ready")
 
 	err := bk.CheckAccessList(context.Background(), nil, types.LocalUnsafe,
-		types.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
+		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, types.ErrUninitialized) || errors.Is(err, types.ErrFailsafeEnabled),
 		"expected ErrUninitialized or ErrFailsafeEnabled, got %v", err)

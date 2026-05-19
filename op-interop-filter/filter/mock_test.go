@@ -14,6 +14,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // mockChainIngester is an in-memory implementation of ChainIngester for testing.
@@ -22,7 +24,7 @@ type mockChainIngester struct {
 	mu sync.RWMutex
 
 	// Logs stored by their identifying query
-	logs map[logKey]types.BlockSeal
+	logs map[logKey]messages.BlockSeal
 
 	// Blocks keyed by block number
 	blocks map[uint64]eth.BlockID
@@ -46,13 +48,13 @@ type logKey struct {
 	Timestamp uint64
 	BlockNum  uint64
 	LogIdx    uint32
-	Checksum  types.MessageChecksum
+	Checksum  messages.MessageChecksum
 }
 
 // newMockChainIngester creates a new in-memory chain ingester.
 func newMockChainIngester() *mockChainIngester {
 	return &mockChainIngester{
-		logs:     make(map[logKey]types.BlockSeal),
+		logs:     make(map[logKey]messages.BlockSeal),
 		blocks:   make(map[uint64]eth.BlockID),
 		execMsgs: make([]IncludedMessage, 0),
 		ready:    true, // Default to ready for simple tests
@@ -66,7 +68,7 @@ func (m *mockChainIngester) Start() error { return nil }
 func (m *mockChainIngester) Stop() error { return nil }
 
 // AddLog adds a log entry to the ingester.
-func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, checksum types.MessageChecksum, seal types.BlockSeal) {
+func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, checksum messages.MessageChecksum, seal messages.BlockSeal) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -125,7 +127,7 @@ func (m *mockChainIngester) SetReady(ready bool) {
 }
 
 // Contains implements ChainIngester.
-func (m *mockChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (m *mockChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -138,7 +140,7 @@ func (m *mockChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal
 
 	seal, ok := m.logs[key]
 	if !ok {
-		return types.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, types.ErrConflict
 	}
 	return seal, nil
 }
@@ -264,7 +266,7 @@ type mockCrossValidator struct {
 
 func (m *mockCrossValidator) Start() error { return nil }
 func (m *mockCrossValidator) Stop() error  { return nil }
-func (m *mockCrossValidator) ValidateAccessEntry(access types.Access, minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety types.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error {
 	return m.validateErr
 }
 func (m *mockCrossValidator) CrossValidatedTimestamp() (uint64, bool) { return 0, false }

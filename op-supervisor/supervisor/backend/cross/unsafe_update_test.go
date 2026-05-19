@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
@@ -18,8 +19,8 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
-			return types.BlockSeal{}, errors.New("some error")
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
+			return messages.BlockSeal{}, errors.New("some error")
 		}
 		// when an error is returned by CrossUnsafe,
 		// the error is returned
@@ -30,8 +31,8 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
-			return types.BlockSeal{}, types.ErrFuture
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
+			return messages.BlockSeal{}, types.ErrFuture
 		}
 		// when a ErrFuture is returned by CrossUnsafe,
 		// no error is returned
@@ -42,7 +43,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 			return eth.BlockRef{}, 0, nil, errors.New("some error")
 		}
 		// when an error is returned by OpenBlock,
@@ -54,12 +55,12 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		crossUnsafe := types.BlockSeal{Hash: common.Hash{0x11}}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
+		crossUnsafe := messages.BlockSeal{Hash: common.Hash{0x11}}
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		bl := eth.BlockRef{ParentHash: common.Hash{0x01}}
-		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 			return bl, 0, nil, nil
 		}
 		// when the parent hash of the opened block does not match the cross-unsafe block,
@@ -71,18 +72,18 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		crossUnsafe := types.BlockSeal{Hash: common.Hash{0x01}}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
+		crossUnsafe := messages.BlockSeal{Hash: common.Hash{0x01}}
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		bl := eth.BlockRef{ParentHash: common.Hash{0x01}}
-		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 			// include one executing message to trigger the CanExecuteAt check
-			return bl, 0, map[uint32]*types.ExecutingMessage{1: {}}, nil
+			return bl, 0, map[uint32]*messages.ExecutingMessage{1: {}}, nil
 		}
 		// make CrossSafeHazards return an error by setting Contains to return an error
-		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
-			return types.BlockSeal{}, errors.New("some error")
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum messages.MessageChecksum) (messages.BlockSeal, error) {
+			return messages.BlockSeal{}, errors.New("some error")
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
@@ -93,18 +94,18 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		crossUnsafe := types.BlockSeal{Hash: common.Hash{0x01}}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
+		crossUnsafe := messages.BlockSeal{Hash: common.Hash{0x01}}
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		bl := eth.BlockRef{ParentHash: common.Hash{0x01}, Number: 1, Time: 1}
-		em1 := &types.ExecutingMessage{ChainID: chainID, Timestamp: 1, LogIdx: 2}
-		em2 := &types.ExecutingMessage{ChainID: chainID, Timestamp: 1, LogIdx: 1}
-		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
-			return bl, 3, map[uint32]*types.ExecutingMessage{1: em1, 2: em2}, nil
+		em1 := &messages.ExecutingMessage{ChainID: chainID, Timestamp: 1, LogIdx: 2}
+		em2 := &messages.ExecutingMessage{ChainID: chainID, Timestamp: 1, LogIdx: 1}
+		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
+			return bl, 3, map[uint32]*messages.ExecutingMessage{1: em1, 2: em2}, nil
 		}
-		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
-			return types.BlockSeal{Number: 1, Timestamp: 1}, nil
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum messages.MessageChecksum) (messages.BlockSeal, error) {
+			return messages.BlockSeal{Number: 1, Timestamp: 1}, nil
 		}
 
 		// HazardCycleChecks returns an error with appropriate wrapping
@@ -116,27 +117,27 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
-		crossUnsafe := types.BlockSeal{Hash: common.Hash{0x01}}
-		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
+		crossUnsafe := messages.BlockSeal{Hash: common.Hash{0x01}}
+		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		bl := eth.BlockRef{ParentHash: common.Hash{0x01}, Time: 1, Number: 1}
-		em1 := &types.ExecutingMessage{Timestamp: 1}
-		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+		em1 := &messages.ExecutingMessage{Timestamp: 1}
+		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 			// include one executing message to ensure one hazard is returned
 			if blockNum == 1 {
-				return bl, 2, map[uint32]*types.ExecutingMessage{1: em1}, nil
+				return bl, 2, map[uint32]*messages.ExecutingMessage{1: em1}, nil
 			}
 			return eth.BlockRef{
 				Hash: crossUnsafe.Hash,
 			}, 0, nil, nil
 		}
-		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum messages.MessageChecksum) (messages.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		var updatingChainID eth.ChainID
-		var updatingBlock types.BlockSeal
-		usd.updateCrossUnsafeFn = func(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
+		var updatingBlock messages.BlockSeal
+		usd.updateCrossUnsafeFn = func(chain eth.ChainID, crossUnsafe messages.BlockSeal) error {
 			updatingChainID = chain
 			updatingBlock = crossUnsafe
 			return nil
@@ -146,17 +147,17 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.NoError(t, err)
 		require.Equal(t, chainID, updatingChainID)
-		require.Equal(t, types.BlockSealFromRef(bl), updatingBlock)
+		require.Equal(t, messages.BlockSealFromRef(bl), updatingBlock)
 	})
 }
 
 type mockCrossUnsafeDeps struct {
 	acquireHandleFn     func() reads.Handle
 	messageExpiryWindow uint64
-	crossUnsafeFn       func(chainID eth.ChainID) (types.BlockSeal, error)
-	openBlockFn         func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
-	updateCrossUnsafeFn func(chain eth.ChainID, crossUnsafe types.BlockSeal) error
-	checkFn             func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error)
+	crossUnsafeFn       func(chainID eth.ChainID) (messages.BlockSeal, error)
+	openBlockFn         func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
+	updateCrossUnsafeFn func(chain eth.ChainID, crossUnsafe messages.BlockSeal) error
+	checkFn             func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum messages.MessageChecksum) (messages.BlockSeal, error)
 }
 
 func (m *mockCrossUnsafeDeps) AcquireHandle() reads.Handle {
@@ -166,32 +167,32 @@ func (m *mockCrossUnsafeDeps) AcquireHandle() reads.Handle {
 	return reads.NoopHandle{}
 }
 
-func (m *mockCrossUnsafeDeps) CrossUnsafe(chainID eth.ChainID) (derived types.BlockSeal, err error) {
+func (m *mockCrossUnsafeDeps) CrossUnsafe(chainID eth.ChainID) (derived messages.BlockSeal, err error) {
 	if m.crossUnsafeFn != nil {
 		return m.crossUnsafeFn(chainID)
 	}
-	return types.BlockSeal{}, nil
+	return messages.BlockSeal{}, nil
 }
 
 func (m *mockCrossUnsafeDeps) MessageExpiryWindow() uint64 {
 	return m.messageExpiryWindow
 }
 
-func (m *mockCrossUnsafeDeps) Contains(chainID eth.ChainID, q types.ContainsQuery) (types.BlockSeal, error) {
+func (m *mockCrossUnsafeDeps) Contains(chainID eth.ChainID, q messages.ContainsQuery) (messages.BlockSeal, error) {
 	if m.checkFn != nil {
 		return m.checkFn(chainID, q.BlockNum, q.Timestamp, q.LogIdx, q.Checksum)
 	}
-	return types.BlockSeal{}, nil
+	return messages.BlockSeal{}, nil
 }
 
-func (m *mockCrossUnsafeDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+func (m *mockCrossUnsafeDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 	if m.openBlockFn != nil {
 		return m.openBlockFn(chainID, blockNum)
 	}
 	return eth.BlockRef{}, 0, nil, nil
 }
 
-func (m *mockCrossUnsafeDeps) UpdateCrossUnsafe(chain eth.ChainID, block types.BlockSeal) error {
+func (m *mockCrossUnsafeDeps) UpdateCrossUnsafe(chain eth.ChainID, block messages.BlockSeal) error {
 	if m.updateCrossUnsafeFn != nil {
 		return m.updateCrossUnsafeFn(chain, block)
 	}

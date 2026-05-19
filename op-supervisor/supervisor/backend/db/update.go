@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func (db *ChainsDB) AddLog(
@@ -16,7 +18,7 @@ func (db *ChainsDB) AddLog(
 	logHash common.Hash,
 	parentBlock eth.BlockID,
 	logIdx uint32,
-	execMsg *types.ExecutingMessage,
+	execMsg *messages.ExecutingMessage,
 ) error {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
@@ -48,7 +50,7 @@ func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit boo
 		ChainID:        chain,
 		NewLocalUnsafe: block,
 	})
-	db.m.RecordLocalUnsafe(chain, types.BlockSealFromRef(block))
+	db.m.RecordLocalUnsafe(chain, messages.BlockSealFromRef(block))
 	return nil
 }
 
@@ -123,18 +125,18 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 		return
 	}
 	logger.Info("Updated local safe DB")
-	derived := types.BlockSealFromRef(lastDerived)
+	derived := messages.BlockSealFromRef(lastDerived)
 	db.emitter.Emit(db.rootCtx, superevents.LocalSafeUpdateEvent{
 		ChainID: chain,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source:  types.BlockSealFromRef(source),
+			Source:  messages.BlockSealFromRef(source),
 			Derived: derived,
 		},
 	})
 	db.m.RecordLocalSafe(chain, derived)
 }
 
-func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
+func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe messages.BlockSeal) error {
 	v, ok := db.crossUnsafe.Get(chain)
 	if !ok {
 		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", types.ErrUnknownChain, chain)
@@ -177,11 +179,11 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 		return err
 	}
 	db.logger.Info("Updated cross-safe", "chain", chain, "l1View", l1View, "lastCrossDerived", lastCrossDerived)
-	lastCrossDerivedBlockSeal := types.BlockSealFromRef(lastCrossDerived)
+	lastCrossDerivedBlockSeal := messages.BlockSealFromRef(lastCrossDerived)
 	db.emitter.Emit(db.rootCtx, superevents.CrossSafeUpdateEvent{
 		ChainID: chain,
 		NewCrossSafe: types.DerivedBlockSealPair{
-			Source:  types.BlockSealFromRef(l1View),
+			Source:  messages.BlockSealFromRef(l1View),
 			Derived: lastCrossDerivedBlockSeal,
 		},
 	})
@@ -200,7 +202,7 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 	// if cross-unsafe block number is same or smaller than new cross-safe, make sure to update cross-unsafe to new cross-safe
 	if crossUnsafe.Hash.Cmp(lastCrossDerived.Hash) != 0 {
 		db.logger.Warn("Updated cross-unsafe due to cross-safe update", "chain", chain, "new cross-safe", lastCrossDerived, "current cross-unsafe", crossUnsafe)
-		err := db.UpdateCrossUnsafe(chain, types.BlockSealFromRef(lastCrossDerived))
+		err := db.UpdateCrossUnsafe(chain, messages.BlockSealFromRef(lastCrossDerived))
 		if err != nil {
 			return fmt.Errorf("failed to update cross-unsafe after processing a new cross-safe block: %w", err)
 		}
@@ -311,7 +313,7 @@ func (db *ChainsDB) RewindCrossSafeSource(chainID eth.ChainID, source eth.BlockI
 	return nil
 }
 
-func (db *ChainsDB) RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) error {
+func (db *ChainsDB) RewindLogs(chainID eth.ChainID, newHead messages.BlockSeal) error {
 	eventsDB, ok := db.logDBs.Get(chainID)
 	if !ok {
 		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)

@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type LogStorage interface {
@@ -27,19 +29,19 @@ type LogStorage interface {
 	IsEmpty() bool
 
 	AddLog(logHash common.Hash, parentBlock eth.BlockID,
-		logIdx uint32, execMsg *types.ExecutingMessage) error
+		logIdx uint32, execMsg *messages.ExecutingMessage) error
 
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 
 	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
 
-	// FirstSealedBlock() (block types.BlockSeal, err error)
+	// FirstSealedBlock() (block messages.BlockSeal, err error)
 	LatestSealedBlock() (id eth.BlockID, ok bool)
 
 	// FindSealedBlock finds the requested block by number, to check if it exists,
 	// returning the block seal if it was found.
 	// returns ErrFuture if the block is too new to be able to tell.
-	FindSealedBlock(number uint64) (block types.BlockSeal, err error)
+	FindSealedBlock(number uint64) (block messages.BlockSeal, err error)
 
 	// Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
 	// If the log is out of reach, then ErrFuture is returned.
@@ -48,12 +50,12 @@ type LogStorage interface {
 	// This can be used to check the validity of cross-chain interop events.
 	// The block-seal of the blockNum block, that the log was included in, is returned.
 	// This seal may be fully zeroed, without error, if the block isn't fully known yet.
-	Contains(query types.ContainsQuery) (includedIn types.BlockSeal, err error)
+	Contains(query messages.ContainsQuery) (includedIn messages.BlockSeal, err error)
 
 	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
 
 	// OpenBlock accumulates the ExecutingMessage events for a block and returns them
-	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 }
 
 type DerivationStorage interface {
@@ -62,18 +64,18 @@ type DerivationStorage interface {
 	Last() (pair types.DerivedBlockSealPair, err error)
 
 	// mapping from source<>derived
-	DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source types.BlockSeal, err error)
-	SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error)
+	DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source messages.BlockSeal, err error)
+	SourceToLastDerived(source eth.BlockID) (derived messages.BlockSeal, err error)
 
 	// traversal
-	NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error)
+	NextSource(source eth.BlockID) (nextSource messages.BlockSeal, err error)
 
 	Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error)
 
-	PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error)
+	PreviousSource(source eth.BlockID) (prevSource messages.BlockSeal, err error)
 
 	// Warning: only safe to use on cross-DB
-	PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error)
+	PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived messages.BlockSeal, err error)
 
 	// type-specific
 	Invalidated() (pair types.DerivedBlockSealPair, err error)
@@ -103,10 +105,10 @@ var _ DerivationStorage = (*fromda.DB)(nil)
 var _ LogStorage = (*logs.DB)(nil)
 
 type Metrics interface {
-	RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal)
-	RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal)
-	RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal)
-	RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordCrossUnsafe(chainID eth.ChainID, seal messages.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, seal messages.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, seal messages.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, seal messages.BlockSeal)
 }
 
 // ChainsDB is a database that stores logs and derived-from data for multiple chains.
@@ -121,7 +123,7 @@ type ChainsDB struct {
 
 	// cross-unsafe: how far we have processed the unsafe data.
 	// If present but set to a zeroed value the cross-unsafe will fallback to cross-safe.
-	crossUnsafe locks.RWMap[eth.ChainID, *locks.RWValue[types.BlockSeal]]
+	crossUnsafe locks.RWMap[eth.ChainID, *locks.RWValue[messages.BlockSeal]]
 
 	// local-safe: index of what we optimistically know about L2 blocks being derived from L1
 	localDBs locks.RWMap[eth.ChainID, DerivationStorage]
@@ -256,7 +258,7 @@ func (db *ChainsDB) AddCrossUnsafeTracker(chainID eth.ChainID) {
 	if db.crossUnsafe.Has(chainID) {
 		db.logger.Warn("overwriting existing cross-unsafe tracker for chain", "chain", chainID)
 	}
-	db.crossUnsafe.Set(chainID, &locks.RWValue[types.BlockSeal]{})
+	db.crossUnsafe.Set(chainID, &locks.RWValue[messages.BlockSeal]{})
 }
 
 // ResumeFromLastSealedBlock prepares the chains db to resume recording events after a restart.

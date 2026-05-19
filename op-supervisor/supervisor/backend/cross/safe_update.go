@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type CrossSafeDeps interface {
@@ -25,9 +27,9 @@ type CrossSafeDeps interface {
 
 	CandidateCrossSafe(chain eth.ChainID) (candidate types.DerivedBlockRefPair, err error)
 	NextSource(chain eth.ChainID, source eth.BlockID) (after eth.BlockRef, err error)
-	PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error)
+	PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived messages.BlockSeal, err error)
 
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 
 	UpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error
 
@@ -115,7 +117,7 @@ func scopedCrossSafeUpdate(h reads.Handle, logger log.Logger, chainID eth.ChainI
 	h.DependOnDerivedTime(candidate.Derived.Time)
 	logger.Debug("Candidate cross-safe", "scope", candidate.Source, "candidate", candidate.Derived)
 
-	hazards, err := CrossSafeHazards(d, linker, logger, chainID, candidate.Source.ID(), types.BlockSealFromRef(candidate.Derived))
+	hazards, err := CrossSafeHazards(d, linker, logger, chainID, candidate.Source.ID(), messages.BlockSealFromRef(candidate.Derived))
 	if err != nil {
 		return candidate, fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate.Derived, err)
 	}

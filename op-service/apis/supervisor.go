@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type SupervisorAPI interface {
@@ -26,7 +28,7 @@ type SupervisorAdminAPI interface {
 
 type SupervisorQueryAPI interface {
 	CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-		minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error
+		minSafety types.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error
 	CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
 	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
 	LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error)

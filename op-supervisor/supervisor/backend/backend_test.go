@@ -29,6 +29,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 const testChainIDOffset = 900
@@ -69,7 +71,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	}
 
 	rollupCfgSet[chainA].Genesis = depset.Genesis{
-		L2: types.BlockSealFromRef(anchor),
+		L2: messages.BlockSealFromRef(anchor),
 	}
 
 	cfg := &config.Config{
@@ -149,7 +151,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	require.Equal(t, anchor.ID(), xsafe.Derived)
 
 	// Revert cross-unafe back to block X
-	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSealFromRef(blockX.BlockRef()))
+	err = b.chainDBs.UpdateCrossUnsafe(chainA, messages.BlockSealFromRef(blockX.BlockRef()))
 	require.NoError(t, err)
 
 	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
@@ -203,7 +205,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	rollupCfgSet[chainA].InteropTime = &blockX.Time
 	rollupCfgSet[chainA].Genesis = depset.Genesis{
-		L2: types.BlockSealFromRef(block0),
+		L2: messages.BlockSealFromRef(block0),
 	}
 
 	cfg := &config.Config{
@@ -334,10 +336,10 @@ func TestBackendCallsMetrics(t *testing.T) {
 
 	// Set up mock metrics
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
-	mockMetrics.Mock.On("RecordCrossUnsafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordCrossSafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordLocalSafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordLocalUnsafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossUnsafe", chainA, mock.MatchedBy(func(_ messages.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossSafe", chainA, mock.MatchedBy(func(_ messages.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalSafe", chainA, mock.MatchedBy(func(_ messages.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalUnsafe", chainA, mock.MatchedBy(func(_ messages.BlockSeal) bool { return true })).Return()
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
@@ -385,16 +387,16 @@ func TestBackendCallsMetrics(t *testing.T) {
 		ChainID: chainA,
 	})
 	// Assert that metrics are called on safety level updates
-	mockMetrics.Mock.AssertCalled(t, "RecordLocalUnsafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalUnsafe", chainA, mock.MatchedBy(func(ref messages.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafe", chainA, mock.MatchedBy(func(ref messages.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafe", chainA, mock.MatchedBy(func(ref messages.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafe", chainA, mock.MatchedBy(func(ref messages.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
 	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "cross_derived", int64(1))
@@ -423,19 +425,19 @@ func (m *MockMetrics) CacheGet(chainID eth.ChainID, label string, hit bool) {
 	m.Mock.Called(chainID, label, hit)
 }
 
-func (m *MockMetrics) RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+func (m *MockMetrics) RecordCrossUnsafe(chainID eth.ChainID, seal messages.BlockSeal) {
 	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal) {
+func (m *MockMetrics) RecordCrossSafe(chainID eth.ChainID, seal messages.BlockSeal) {
 	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal) {
+func (m *MockMetrics) RecordLocalSafe(chainID eth.ChainID, seal messages.BlockSeal) {
 	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+func (m *MockMetrics) RecordLocalUnsafe(chainID eth.ChainID, seal messages.BlockSeal) {
 	m.Mock.Called(chainID, seal)
 }
 
@@ -478,11 +480,11 @@ func (m *MockProcessorSource) ExpectL2BlockRefByNumber(num uint64, ref eth.L2Blo
 // fakeSyncSource implements syncnode.SyncSource for testing asyncVerifyAccessWithRPC.
 type fakeSyncSource struct {
 	chainID eth.ChainID
-	seal    types.BlockSeal
+	seal    messages.BlockSeal
 	err     error
 }
 
-func (f *fakeSyncSource) Contains(_ context.Context, _ types.ContainsQuery) (types.BlockSeal, error) {
+func (f *fakeSyncSource) Contains(_ context.Context, _ messages.ContainsQuery) (messages.BlockSeal, error) {
 	return f.seal, f.err
 }
 
@@ -556,10 +558,10 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare the access object (only ChainID matters for metrics)
-	acc := types.Access{ChainID: chainID}
+	acc := messages.Access{ChainID: chainID}
 
 	// Helper to run a scenario and assert metrics calls
-	runScenario := func(name string, stubSeal types.BlockSeal, stubErr error, dbBlock eth.BlockID) {
+	runScenario := func(name string, stubSeal messages.BlockSeal, stubErr error, dbBlock eth.BlockID) {
 		t.Run(name, func(t *testing.T) {
 			// Reset recorded calls
 			mockMetrics.Mock = mock.Mock{}
@@ -592,9 +594,9 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	}
 
 	// Define a couple of block seals for match vs mismatch
-	sealA := types.BlockSeal{Hash: common.HexToHash("0x1"), Number: 10, Timestamp: 100}
+	sealA := messages.BlockSeal{Hash: common.HexToHash("0x1"), Number: 10, Timestamp: 100}
 	idA := sealA.ID()
-	sealB := types.BlockSeal{Hash: common.HexToHash("0x2"), Number: 20, Timestamp: 200}
+	sealB := messages.BlockSeal{Hash: common.HexToHash("0x2"), Number: 20, Timestamp: 200}
 	idB := sealB.ID()
 
 	// ErrConflict + mismatch => 2 failures (checksum + mismatch)
@@ -632,7 +634,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.False(t, enabled, "failsafe should be disabled by default")
 
 	// Test that CheckAccessList works normally in initial state
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 
 	// Test setting failsafe to true
@@ -643,7 +645,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.True(t, enabled, "failsafe should be enabled after setting to true")
 
 	// Test that CheckAccessList returns ErrFailsafeEnabled when failsafe is enabled
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.ErrorIs(t, err, types.ErrFailsafeEnabled, "CheckAccessList should return ErrFailsafeEnabled when failsafe is enabled")
 
 	// Test setting failsafe to false
@@ -654,7 +656,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.False(t, enabled, "failsafe should be disabled after setting to false")
 
 	// Test that CheckAccessList works normally when failsafe is disabled
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 }
 

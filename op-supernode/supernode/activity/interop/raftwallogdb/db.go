@@ -18,6 +18,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // Entry layout for a sealed block (raft-wal stores all of this in a single Log entry):
@@ -64,7 +66,7 @@ type DB struct {
 type pendingLog struct {
 	hash    common.Hash
 	logIdx  uint32
-	execMsg *types.ExecutingMessage
+	execMsg *messages.ExecutingMessage
 }
 
 type blockRecord struct {
@@ -98,7 +100,7 @@ func (r *blockRecord) LogHash(i uint32) common.Hash {
 
 // ExecMsg returns the i-th executing-message record as (localLogIdx, msg).
 // Caller must ensure i < r.ExecMsgCount.
-func (r *blockRecord) ExecMsg(i uint32) (uint32, *types.ExecutingMessage) {
+func (r *blockRecord) ExecMsg(i uint32) (uint32, *messages.ExecutingMessage) {
 	off := int(i) * execMsgRecordSize
 	return decodeExecMsg(r.execMsgs[off : off+execMsgRecordSize])
 }
@@ -127,7 +129,7 @@ func decodeBlockRecord(buf []byte) (blockRecord, error) {
 }
 
 // encodeExecMsgInto writes an 88-byte execMsg record (with embedded logIdx) to buf.
-func encodeExecMsgInto(buf []byte, logIdx uint32, em *types.ExecutingMessage) {
+func encodeExecMsgInto(buf []byte, logIdx uint32, em *messages.ExecutingMessage) {
 	binary.BigEndian.PutUint32(buf[0:4], logIdx)
 	chainBytes := em.ChainID.Bytes32()
 	copy(buf[4:36], chainBytes[:])
@@ -138,11 +140,11 @@ func encodeExecMsgInto(buf []byte, logIdx uint32, em *types.ExecutingMessage) {
 }
 
 // decodeExecMsg reads an 88-byte execMsg record and returns (logIdx, msg).
-func decodeExecMsg(buf []byte) (uint32, *types.ExecutingMessage) {
+func decodeExecMsg(buf []byte) (uint32, *messages.ExecutingMessage) {
 	logIdx := binary.BigEndian.Uint32(buf[0:4])
 	var chainBytes [32]byte
 	copy(chainBytes[:], buf[4:36])
-	em := &types.ExecutingMessage{
+	em := &messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromBytes32(chainBytes),
 		BlockNum:  binary.BigEndian.Uint64(buf[36:44]),
 		LogIdx:    binary.BigEndian.Uint32(buf[44:48]),
@@ -211,39 +213,39 @@ func (d *DB) LatestSealedBlock() (eth.BlockID, bool) {
 	return d.latest, true
 }
 
-func (d *DB) FirstSealedBlock() (types.BlockSeal, error) {
+func (d *DB) FirstSealedBlock() (messages.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.hasBlocks {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	rec, err := d.readBlockAt(indexFor(d.firstBlock))
 	if err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
-	return types.BlockSeal{Hash: rec.Hash, Number: d.firstBlock, Timestamp: rec.Timestamp}, nil
+	return messages.BlockSeal{Hash: rec.Hash, Number: d.firstBlock, Timestamp: rec.Timestamp}, nil
 }
 
-func (d *DB) FindSealedBlock(number uint64) (types.BlockSeal, error) {
+func (d *DB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.hasBlocks {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	if number > d.latest.Number {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	if number < d.firstBlock {
-		return types.BlockSeal{}, types.ErrSkipped
+		return messages.BlockSeal{}, types.ErrSkipped
 	}
 	rec, err := d.readBlockAt(indexFor(number))
 	if err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
-	return types.BlockSeal{Hash: rec.Hash, Number: number, Timestamp: rec.Timestamp}, nil
+	return messages.BlockSeal{Hash: rec.Hash, Number: number, Timestamp: rec.Timestamp}, nil
 }
 
-func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
+func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.hasBlocks {
@@ -273,7 +275,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 		ParentHash: rec.ParentHash,
 		Time:       rec.Timestamp,
 	}
-	execMsgs := make(map[uint32]*types.ExecutingMessage, rec.ExecMsgCount)
+	execMsgs := make(map[uint32]*messages.ExecutingMessage, rec.ExecMsgCount)
 	for i := uint32(0); i < rec.ExecMsgCount; i++ {
 		idx, em := rec.ExecMsg(i)
 		execMsgs[idx] = em
@@ -281,39 +283,39 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types
 	return ref, rec.LogCount, execMsgs, nil
 }
 
-func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (d *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.hasBlocks {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	if query.BlockNum > d.latest.Number {
 		if d.latestTS > query.Timestamp {
-			return types.BlockSeal{}, types.ErrConflict
+			return messages.BlockSeal{}, types.ErrConflict
 		}
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	if query.BlockNum < d.firstBlock {
-		return types.BlockSeal{}, types.ErrSkipped
+		return messages.BlockSeal{}, types.ErrSkipped
 	}
 
 	var log raft.Log
 	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
-		return types.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
+		return messages.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
 	}
 	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
 	if query.LogIdx >= rec.LogCount {
-		return types.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, types.ErrConflict
 	}
 	if rec.Timestamp != query.Timestamp {
-		return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d: %w", query.Timestamp, rec.Timestamp, types.ErrConflict)
+		return messages.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d: %w", query.Timestamp, rec.Timestamp, types.ErrConflict)
 	}
 
 	logHash := rec.LogHash(query.LogIdx)
-	expectedChecksum := types.ChecksumArgs{
+	expectedChecksum := messages.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,
 		Timestamp:   rec.Timestamp,
@@ -321,12 +323,12 @@ func (d *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		LogHash:     logHash,
 	}.Checksum()
 	if expectedChecksum != query.Checksum {
-		return types.BlockSeal{}, fmt.Errorf("checksum mismatch: %w", types.ErrConflict)
+		return messages.BlockSeal{}, fmt.Errorf("checksum mismatch: %w", types.ErrConflict)
 	}
-	return types.BlockSeal{Hash: rec.Hash, Number: query.BlockNum, Timestamp: rec.Timestamp}, nil
+	return messages.BlockSeal{Hash: rec.Hash, Number: query.BlockNum, Timestamp: rec.Timestamp}, nil
 }
 
-func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

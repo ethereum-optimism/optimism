@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
@@ -49,7 +50,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -96,7 +96,7 @@ type SuperSystem interface {
 		ctx context.Context,
 		id string,
 		sender string,
-		msgIdentifier supervisortypes.Identifier,
+		msgIdentifier messages.Identifier,
 		msgHash [32]byte,
 		expectedError error,
 	) (*types.Receipt, error)
@@ -503,7 +503,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	ctx context.Context,
 	id string,
 	sender string,
-	msgIdentifier supervisortypes.Identifier,
+	msgIdentifier messages.Identifier,
 	msgHash [32]byte,
 	expectedError error,
 ) (*types.Receipt, error) {
@@ -528,7 +528,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	auth.AccessList = []types.AccessTuple{
 		{
 			Address:     predeploys.CrossL2InboxAddr,
-			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+			StorageKeys: messages.EncodeAccessList([]messages.Access{access}),
 		},
 	}
 

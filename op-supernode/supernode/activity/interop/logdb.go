@@ -10,10 +10,10 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
@@ -22,16 +22,16 @@ type LogsDB interface {
 	// LatestSealedBlock returns the latest sealed block ID, or false if no blocks are sealed.
 	LatestSealedBlock() (eth.BlockID, bool)
 	// FirstSealedBlock returns the first block seal in the DB.
-	FirstSealedBlock() (types.BlockSeal, error)
+	FirstSealedBlock() (messages.BlockSeal, error)
 	// FindSealedBlock returns the block seal for the given block number.
-	FindSealedBlock(number uint64) (types.BlockSeal, error)
+	FindSealedBlock(number uint64) (messages.BlockSeal, error)
 	// OpenBlock returns the block reference, log count, and executing messages for a block.
-	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 	// Contains checks if an initiating message exists in the database.
 	// Returns the block seal if found, or an error (ErrConflict if not found, ErrFuture if not yet indexed).
-	Contains(query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	// AddLog adds a log entry to the database.
-	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
 	// SealBlock seals a block in the database.
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 	// Rewind removes all blocks after newHead from the database.

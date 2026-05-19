@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 const (
@@ -246,7 +248,7 @@ func plainLog(index uint, blockNum uint64) *gethTypes.Log {
 }
 
 func buildExecMsgLog(index uint, em seedExecMsg) *gethTypes.Log {
-	id := types.Identifier{
+	id := messages.Identifier{
 		Origin:      em.Origin,
 		BlockNumber: em.TargetBlock,
 		LogIndex:    em.TargetLogIdx,
@@ -261,7 +263,7 @@ func buildExecMsgLog(index uint, em seedExecMsg) *gethTypes.Log {
 	return &gethTypes.Log{
 		Address: params.InteropCrossL2InboxAddress,
 		Topics: []common.Hash{
-			types.ExecutingMessageEventTopic,
+			messages.ExecutingMessageEventTopic,
 			payloadHash,
 		},
 		Data:  data,
@@ -270,7 +272,7 @@ func buildExecMsgLog(index uint, em seedExecMsg) *gethTypes.Log {
 }
 
 // encodeExecMsgIdentifier is the inverse of Message.DecodeEvent's data section.
-func encodeExecMsgIdentifier(id types.Identifier) []byte {
+func encodeExecMsgIdentifier(id messages.Identifier) []byte {
 	out := make([]byte, 32*5)
 	copy(out[12:32], id.Origin[:])
 	binary.BigEndian.PutUint64(out[32+24:64], id.BlockNumber)
@@ -284,14 +286,14 @@ func encodeExecMsgIdentifier(id types.Identifier) []byte {
 // accessForLog returns an Access referencing the given (blockNum, logIdx) on
 // this chain. The checksum is computed from the actual stored log content so
 // the access entry is accepted by a happy-path CheckAccessList.
-func (si *seededIngester) accessForLog(blockNum uint64, logIdx uint32) types.Access {
+func (si *seededIngester) accessForLog(blockNum uint64, logIdx uint32) messages.Access {
 	si.t.Helper()
 	receipts, ok := si.receipts[blockNum]
 	require.Truef(si.t, ok, "no receipts seeded for block %d", blockNum)
 	require.Lessf(si.t, int(logIdx), len(receipts[0].Logs), "log index %d out of range for block %d", logIdx, blockNum)
 	log := receipts[0].Logs[logIdx]
 	info := si.blockInfo[blockNum]
-	args := types.ChecksumArgs{
+	args := messages.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   info.timestamp,
@@ -325,7 +327,7 @@ func twoChainBackend(t *testing.T, sourceLogCount int) *seededBackend {
 }
 
 // sourceAccess returns an access for the first source-chain block's log.
-func (sb *seededBackend) sourceAccess(blockNum uint64, logIdx uint32) types.Access {
+func (sb *seededBackend) sourceAccess(blockNum uint64, logIdx uint32) messages.Access {
 	return sb.ingesters[eth.ChainIDFromUInt64(901)].accessForLog(blockNum, logIdx)
 }
 
@@ -393,9 +395,9 @@ func (si *seededIngester) addBlock(num, ts uint64, parent common.Hash, logs []se
 
 // withChecksum returns a copy of acc with a synthetic checksum (typed prefix
 // preserved so it survives access-list encoding).
-func withChecksum(acc types.Access, raw [32]byte) types.Access {
-	raw[0] = types.PrefixChecksum
-	acc.Checksum = types.MessageChecksum(raw)
+func withChecksum(acc messages.Access, raw [32]byte) messages.Access {
+	raw[0] = messages.PrefixChecksum
+	acc.Checksum = messages.MessageChecksum(raw)
 	return acc
 }
 
@@ -459,15 +461,15 @@ func newSeededBackend(t *testing.T, opts backendOpts) *seededBackend {
 
 // checkAccessList encodes the given access entries into the inbox-entry form
 // CheckAccessList expects and forwards the call.
-func (sb *seededBackend) checkAccessList(execChain eth.ChainID, execTs uint64, accesses ...types.Access) error {
-	entries := types.EncodeAccessList(accesses)
+func (sb *seededBackend) checkAccessList(execChain eth.ChainID, execTs uint64, accesses ...messages.Access) error {
+	entries := messages.EncodeAccessList(accesses)
 	return sb.CheckAccessList(context.Background(), entries, types.LocalUnsafe,
-		types.ExecutingDescriptor{Timestamp: execTs, ChainID: execChain})
+		messages.ExecutingDescriptor{Timestamp: execTs, ChainID: execChain})
 }
 
 // requireRejection asserts CheckAccessList rejects the given accesses with the
 // expected classification label.
-func (sb *seededBackend) requireRejection(execChain eth.ChainID, execTs uint64, expectedReason string, accesses ...types.Access) {
+func (sb *seededBackend) requireRejection(execChain eth.ChainID, execTs uint64, expectedReason string, accesses ...messages.Access) {
 	sb.t.Helper()
 	before := sb.metrics.rejectionCount(expectedReason)
 	err := sb.checkAccessList(execChain, execTs, accesses...)
@@ -479,7 +481,7 @@ func (sb *seededBackend) requireRejection(execChain eth.ChainID, execTs uint64, 
 }
 
 // requireAccepted asserts CheckAccessList accepts the given accesses.
-func (sb *seededBackend) requireAccepted(execChain eth.ChainID, execTs uint64, accesses ...types.Access) {
+func (sb *seededBackend) requireAccepted(execChain eth.ChainID, execTs uint64, accesses ...messages.Access) {
 	sb.t.Helper()
 	err := sb.checkAccessList(execChain, execTs, accesses...)
 	require.NoErrorf(sb.t, err, "expected accept, got err=%v", err)

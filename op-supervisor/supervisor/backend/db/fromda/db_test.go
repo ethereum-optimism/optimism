@@ -17,6 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type stubMetrics struct {
@@ -104,8 +106,8 @@ func TestEmptyDB(t *testing.T) {
 		})
 }
 
-func mockL1(i uint64) types.BlockSeal {
-	return types.BlockSeal{
+func mockL1(i uint64) messages.BlockSeal {
+	return messages.BlockSeal{
 		Hash:      crypto.Keccak256Hash([]byte(fmt.Sprintf("L1 block %d", i))),
 		Number:    i,
 		Timestamp: 1000_000 + i*12,
@@ -120,12 +122,12 @@ func mockL1Ref(i uint64) eth.BlockRef {
 	return v.MustWithParent(mockL1(i - 1).ID())
 }
 
-func mockL2(i uint64) types.BlockSeal {
+func mockL2(i uint64) messages.BlockSeal {
 	var h common.Hash
 	if i != 0 {
 		h = crypto.Keccak256Hash([]byte(fmt.Sprintf("L2 block %d", i)))
 	}
-	return types.BlockSeal{
+	return messages.BlockSeal{
 		Hash:      h,
 		Number:    i,
 		Timestamp: 1000_000 + i*2,
@@ -140,7 +142,7 @@ func mockL2Ref(i uint64) eth.BlockRef {
 	return v.MustWithParent(mockL2(i - 1).ID())
 }
 
-func toRef(seal types.BlockSeal, parentHash common.Hash) eth.BlockRef {
+func toRef(seal messages.BlockSeal, parentHash common.Hash) eth.BlockRef {
 	return eth.BlockRef{
 		Hash:       seal.Hash,
 		Number:     seal.Number,
@@ -210,12 +212,12 @@ func TestSingleEntryDB(t *testing.T) {
 			// PreviousDerived
 			prev, err := db.PreviousDerived(expectedDerived.ID(), types.RevisionAny)
 			require.NoError(t, err)
-			require.Equal(t, types.BlockSeal{}, prev, "zeroed seal before first entry")
+			require.Equal(t, messages.BlockSeal{}, prev, "zeroed seal before first entry")
 
 			// PreviousSource
 			prev, err = db.PreviousSource(expectedSource.ID())
 			require.NoError(t, err)
-			require.Equal(t, types.BlockSeal{}, prev, "zeroed seal before first entry")
+			require.Equal(t, messages.BlockSeal{}, prev, "zeroed seal before first entry")
 
 			// NextDerived
 			_, err = db.NextDerived(expectedDerived.ID(), types.RevisionAny)
@@ -310,7 +312,7 @@ func TestThreeBlocksDB(t *testing.T) {
 
 		derived, err = db.PreviousDerived(l2Block0.ID(), types.RevisionAny)
 		require.NoError(t, err)
-		require.Equal(t, types.BlockSeal{}, derived)
+		require.Equal(t, messages.BlockSeal{}, derived)
 
 		derived, err = db.PreviousDerived(l2Block1.ID(), types.RevisionAny)
 		require.NoError(t, err)
@@ -335,7 +337,7 @@ func TestThreeBlocksDB(t *testing.T) {
 
 		source, err = db.PreviousSource(l1Block0.ID())
 		require.NoError(t, err)
-		require.Equal(t, types.BlockSeal{}, source)
+		require.Equal(t, messages.BlockSeal{}, source)
 
 		source, err = db.PreviousSource(l1Block1.ID())
 		require.NoError(t, err)
@@ -435,7 +437,7 @@ func TestFastL2Batcher(t *testing.T) {
 		require.Equal(t, l1Block2, source)
 
 		// Multiple L2 blocks all derived from same older L1 block
-		for _, b := range []types.BlockSeal{l2Block1, l2Block2, l2Block3, l2Block4} {
+		for _, b := range []messages.BlockSeal{l2Block1, l2Block2, l2Block3, l2Block4} {
 			source, err = db.DerivedToFirstSource(b.ID(), types.RevisionAny)
 			require.NoError(t, err)
 			require.Equal(t, l1Block1, source)
@@ -551,7 +553,7 @@ func TestSlowL2Batcher(t *testing.T) {
 		require.Equal(t, l2Block2, derived)
 
 		// Multiple L1 blocks all copying the last known derived L2 block
-		for _, b := range []types.BlockSeal{l1Block1, l1Block2, l1Block3, l1Block4} {
+		for _, b := range []messages.BlockSeal{l1Block1, l1Block2, l1Block3, l1Block4} {
 			derived, err = db.SourceToLastDerived(b.ID())
 			require.NoError(t, err)
 			require.Equal(t, l2Block1, derived)
@@ -637,9 +639,9 @@ func TestManyEntryDB(t *testing.T) {
 
 func testManyEntryDB(t *testing.T, offsetL1 uint64, offsetL2 uint64) {
 	// L2 -> first L1 occurrence
-	firstSource := make(map[eth.BlockID]types.BlockSeal)
+	firstSource := make(map[eth.BlockID]messages.BlockSeal)
 	// L1 -> last L2 occurrence
-	lastDerived := make(map[eth.BlockID]types.BlockSeal)
+	lastDerived := make(map[eth.BlockID]messages.BlockSeal)
 
 	runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {
 		// Insert genesis

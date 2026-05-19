@@ -7,6 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // LogsDB is the subset of an op-supervisor logs DB that
@@ -15,12 +17,12 @@ import (
 // produce under correct ingester control flow.
 type LogsDB interface {
 	Close() error
-	Contains(query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	LatestSealedBlock() (eth.BlockID, bool)
-	FindSealedBlock(number uint64) (types.BlockSeal, error)
-	FirstSealedBlock() (types.BlockSeal, error)
-	OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error)
-	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+	FindSealedBlock(number uint64) (messages.BlockSeal, error)
+	FirstSealedBlock() (messages.BlockSeal, error)
+	OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error)
+	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 	Rewind(newHead eth.BlockID) error
 }
@@ -29,7 +31,7 @@ type LogsDB interface {
 // The ExecutingMessage contains the initiating message's data (source chain),
 // while InclusionBlockNum/Timestamp indicate when it was executed (this chain).
 type IncludedMessage struct {
-	*types.ExecutingMessage
+	*messages.ExecutingMessage
 	InclusionBlockNum  uint64
 	InclusionTimestamp uint64
 }
@@ -46,7 +48,7 @@ type ChainIngester interface {
 	Stop() error
 
 	// Contains checks if a log exists in the chain's database.
-	Contains(query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 
 	// LatestBlock returns the latest ingested block.
 	LatestBlock() (eth.BlockID, bool)
@@ -87,7 +89,7 @@ type CrossValidator interface {
 	Stop() error
 
 	// ValidateAccessEntry validates a single access list entry.
-	ValidateAccessEntry(access types.Access, minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error
+	ValidateAccessEntry(access messages.Access, minSafety types.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error
 
 	// CrossValidatedTimestamp returns the global cross-validated timestamp.
 	CrossValidatedTimestamp() (uint64, bool)

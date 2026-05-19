@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -23,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -55,7 +55,7 @@ type BlockRefByLabel interface {
 	BlockRefByLabel(context.Context, eth.BlockLabel) (eth.BlockRef, error)
 }
 
-func planExecMsg(t devtest.T, initMsg *suptypes.Message, blockTime time.Duration, el BlockRefByLabel) txplan.Option {
+func planExecMsg(t devtest.T, initMsg *messages.Message, blockTime time.Duration, el BlockRefByLabel) txplan.Option {
 	t.Require().NotNil(initMsg)
 	return txplan.Combine(planCall(t, &txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
@@ -222,7 +222,7 @@ func newReliableEL(el txinclude.EL, blockTime time.Duration, observer txinclude.
 }
 
 // initMsgFromReceipt turns the first log in the receipt into an inititiating message.
-func initMsgFromReceipt(t devtest.T, l2 *L2, receipt *ethtypes.Receipt) (*suptypes.Message, error) {
+func initMsgFromReceipt(t devtest.T, l2 *L2, receipt *ethtypes.Receipt) (*messages.Message, error) {
 	ref, err := l2.EL.Escape().EthClient().BlockRefByHash(t.Ctx(), receipt.BlockHash)
 	if err != nil {
 		return nil, fmt.Errorf("get init msg block ref by hash: %w", err)

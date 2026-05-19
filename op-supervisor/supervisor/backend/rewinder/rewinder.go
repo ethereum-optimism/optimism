@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type l1Node interface {
@@ -22,20 +24,20 @@ type l1Node interface {
 type rewinderDB interface {
 	DependencySet() depset.DependencySet
 
-	PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error)
-	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
+	PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource messages.BlockSeal, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error)
 
 	LocalSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 	CrossSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 
 	RewindLocalSafeSource(eth.ChainID, eth.BlockID) error
 	RewindCrossSafeSource(eth.ChainID, eth.BlockID) error
-	RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) error
+	RewindLogs(chainID eth.ChainID, newHead messages.BlockSeal) error
 
-	FindSealedBlock(eth.ChainID, uint64) (types.BlockSeal, error)
-	Finalized(eth.ChainID) (types.BlockSeal, error)
+	FindSealedBlock(eth.ChainID, uint64) (messages.BlockSeal, error)
+	Finalized(eth.ChainID) (messages.BlockSeal, error)
 
-	LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
+	LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error)
 }
 
 // Rewinder is responsible for handling the rewinding of databases to the latest common ancestor between
@@ -112,13 +114,13 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 	finalized, err := r.db.Finalized(ev.ChainID)
 	if err != nil {
 		if errors.Is(err, types.ErrFuture) {
-			finalized = types.BlockSeal{Number: 0}
+			finalized = messages.BlockSeal{Number: 0}
 		} else {
 			r.log.Error("failed to get finalized block", "chain", ev.ChainID, "err", err)
 			return
 		}
 	}
-	var target types.BlockSeal
+	var target messages.BlockSeal
 	for height := int64(newSafeHead.Number - 1); height >= int64(finalized.Number); height-- {
 		// Get the block at this height
 		target, err = r.db.FindSealedBlock(ev.ChainID, uint64(height))

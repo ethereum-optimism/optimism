@@ -4,9 +4,9 @@ import (
 	"context"
 
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type RollupConfigSetSource interface {
@@ -52,9 +52,9 @@ type StaticRollupConfig struct {
 // It's a trimmed down version of [rollup.Genesis].
 type Genesis struct {
 	// The L1 block that the rollup starts *after* (no derived transactions)
-	L1 types.BlockSeal `json:"l1"`
+	L1 messages.BlockSeal `json:"l1"`
 	// The L2 block the rollup starts from (no transactions, pre-configured state, no parent)
-	L2 types.BlockSeal `json:"l2"`
+	L2 messages.BlockSeal `json:"l2"`
 }
 
 func (c *StaticRollupConfigSet) LoadRollupConfigSet(ctx context.Context) (RollupConfigSet, error) {
@@ -68,12 +68,12 @@ var (
 
 func GenesisFromRollupGenesis(genesis *rollup.Genesis, l1Time uint64) Genesis {
 	return Genesis{
-		L1: types.BlockSeal{
+		L1: messages.BlockSeal{
 			Hash:      genesis.L1.Hash,
 			Number:    genesis.L1.Number,
 			Timestamp: l1Time,
 		},
-		L2: types.BlockSeal{
+		L2: messages.BlockSeal{
 			Hash:      genesis.L2.Hash,
 			Number:    genesis.L2.Number,
 			Timestamp: genesis.L2Time,

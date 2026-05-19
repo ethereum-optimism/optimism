@@ -5,12 +5,12 @@ import (
 	"math/rand"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -268,8 +268,8 @@ func IntraBlockCases() []*IntraBlockTestCase {
 				fabricatedPayload = append(fabricatedPayload, topic.Bytes()...)
 				fabricatedPayload = append(fabricatedPayload, msgHash.Bytes()...)
 
-				fabricatedBMsg := suptypes.Message{
-					Identifier: suptypes.Identifier{
+				fabricatedBMsg := messages.Message{
+					Identifier: messages.Identifier{
 						Origin:      s.eventLoggerB,
 						BlockNumber: s.expectedBlockNumB,
 						LogIndex:    0,

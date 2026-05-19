@@ -9,6 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type InteropAPI struct {
@@ -35,7 +37,7 @@ func (ib *InteropAPI) UpdateFinalized(ctx context.Context, id eth.BlockID) error
 	return ib.backend.UpdateFinalized(ctx, id)
 }
 
-func (ib *InteropAPI) InvalidateBlock(ctx context.Context, seal supervisortypes.BlockSeal) error {
+func (ib *InteropAPI) InvalidateBlock(ctx context.Context, seal messages.BlockSeal) error {
 	return ib.backend.InvalidateBlock(ctx, seal)
 }
 

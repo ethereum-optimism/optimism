@@ -8,13 +8,13 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type LogStorage interface {
 	SealBlock(chain eth.ChainID, block eth.BlockRef) error
-	AddLog(chain eth.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+	AddLog(chain eth.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
 }
 
 type logProcessor struct {
@@ -62,6 +62,6 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts 
 // The address is hashed into the payload hash to save space in the log storage,
 // and because they represent paired data.
 func LogToLogHash(l *ethTypes.Log) common.Hash {
-	payloadHash := crypto.Keccak256Hash(types.LogToMessagePayload(l))
-	return types.PayloadHashToLogHash(payloadHash, l.Address)
+	payloadHash := crypto.Keccak256Hash(messages.LogToMessagePayload(l))
+	return messages.PayloadHashToLogHash(payloadHash, l.Address)
 }

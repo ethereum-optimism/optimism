@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -23,7 +24,7 @@ func TestInteropFilterClient_CheckAccessList(t *testing.T) {
 
 	inboxEntries := []common.Hash{common.HexToHash("0x01")}
 	minSafety := types.CrossUnsafe
-	execDescriptor := types.ExecutingDescriptor{
+	execDescriptor := messages.ExecutingDescriptor{
 		ChainID:   eth.ChainIDFromUInt64(900),
 		Timestamp: 123,
 	}

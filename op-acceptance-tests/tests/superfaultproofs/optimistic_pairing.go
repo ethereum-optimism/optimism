@@ -3,6 +3,7 @@ package superfaultproofs
 import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -63,8 +64,8 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 	topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
 	msgHash := crypto.Keccak256Hash([]byte("optimistic pairing fabricated msg"))
 	fabricatedPayload := append(append(make([]byte, 0, 64), topic.Bytes()...), msgHash.Bytes()...)
-	fabricatedMsg := suptypes.Message{
-		Identifier: suptypes.Identifier{
+	fabricatedMsg := messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      eventLoggerB,
 			BlockNumber: unsafeB.Number + 1,
 			LogIndex:    0,
