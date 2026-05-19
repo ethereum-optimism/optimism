@@ -25,8 +25,27 @@ var (
 )
 
 const (
+	// unhealthyLagMultiplier is the unsafe-head lag ceiling during recovery.
+	// Once recovery has lasted for the shared rolling window, lag above
+	// unhealthyLagMultiplier*unsafeInterval marks the sequencer unhealthy.
 	unhealthyLagMultiplier = 3
-	recoveringWindowSize   = 5
+	// recoveringWindowSize is the shared health-check grace window. Unsafe-head
+	// recovery uses it to require sustained lag improvement. Sync-status RPC
+	// availability and CL peer-count checks use it as a rolling window: all
+	// failed observations fail the check, all successful observations restore
+	// Success, and mixed or not-yet-full windows remain Inconclusive.
+	recoveringWindowSize = 5
+)
+
+type rollingWindowState string
+
+const (
+	// rollingWindowSuccess means the full rolling window contains only successes.
+	rollingWindowSuccess rollingWindowState = "Success"
+	// rollingWindowFailed means the full rolling window contains only failures.
+	rollingWindowFailed rollingWindowState = "Failed"
+	// rollingWindowInconclusive means the window is not full or contains mixed results.
+	rollingWindowInconclusive rollingWindowState = "Inconclusive"
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
@@ -102,8 +121,8 @@ type SequencerHealthMonitor struct {
 	healthUpdateCh     chan error
 	lastSeenUnsafeNum  uint64
 	lastSeenUnsafeTime uint64
-	seenSyncStatus     bool
-	syncStatusFailures uint64
+	syncStatusWindow   rollingWindowTracker
+	peerCountWindow    rollingWindowTracker
 
 	timeProviderFn func() uint64
 
@@ -122,6 +141,47 @@ type SequencerHealthMonitor struct {
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
+
+type rollingWindowTracker struct {
+	observations [recoveringWindowSize]bool
+	next         uint64
+	count        uint64
+	successes    uint64
+}
+
+func (t *rollingWindowTracker) observe(success bool) rollingWindowState {
+	if t.count < recoveringWindowSize {
+		t.observations[t.count] = success
+		t.count++
+		if success {
+			t.successes++
+		}
+		return t.state()
+	}
+
+	if t.observations[t.next] {
+		t.successes--
+	}
+	t.observations[t.next] = success
+	if success {
+		t.successes++
+	}
+	t.next = (t.next + 1) % recoveringWindowSize
+	return t.state()
+}
+
+func (t *rollingWindowTracker) state() rollingWindowState {
+	switch {
+	case t.count < recoveringWindowSize:
+		return rollingWindowInconclusive
+	case t.successes == recoveringWindowSize:
+		return rollingWindowSuccess
+	case t.successes == 0:
+		return rollingWindowFailed
+	default:
+		return rollingWindowInconclusive
+	}
+}
 
 // Start implements HealthMonitor.
 func (hm *SequencerHealthMonitor) Start(ctx context.Context) error {
@@ -232,26 +292,25 @@ func (hm *SequencerHealthMonitor) checkNode(ctx context.Context) error {
 func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
-		hm.syncStatusFailures++
-		if hm.seenSyncStatus && hm.syncStatusFailures < recoveringWindowSize {
-			hm.log.Warn(
-				"health monitor temporarily failed to get sync status",
+		state := hm.syncStatusWindow.observe(false)
+		if state == rollingWindowFailed {
+			hm.log.Error(
+				"health monitor failed to get sync status",
 				"err", err,
-				"consecutive_failures", hm.syncStatusFailures,
-				"failure_limit", recoveringWindowSize,
+				"window_state", state,
+				"window_size", recoveringWindowSize,
 			)
-			return nil
+			return ErrSequencerConnectionDown
 		}
-		hm.log.Error(
-			"health monitor failed to get sync status",
+		hm.log.Warn(
+			"health monitor temporarily failed to get sync status",
 			"err", err,
-			"consecutive_failures", hm.syncStatusFailures,
-			"failure_limit", recoveringWindowSize,
+			"window_state", state,
+			"window_size", recoveringWindowSize,
 		)
-		return ErrSequencerConnectionDown
+		return nil
 	}
-	hm.seenSyncStatus = true
-	hm.syncStatusFailures = 0
+	hm.syncStatusWindow.observe(true)
 
 	now := hm.timeProviderFn()
 
@@ -339,13 +398,24 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error {
 	stats, err := hm.p2p.PeerStats(ctx)
 	if err != nil {
-		hm.log.Error("health monitor failed to get peer stats", "err", err)
-		return ErrSequencerConnectionDown
+		state := hm.peerCountWindow.observe(false)
+		if state == rollingWindowFailed {
+			hm.log.Error("health monitor failed to get peer stats", "err", err, "window_state", state, "window_size", recoveringWindowSize)
+			return ErrSequencerConnectionDown
+		}
+		hm.log.Warn("health monitor temporarily failed to get peer stats", "err", err, "window_state", state, "window_size", recoveringWindowSize)
+		return nil
 	}
 	if uint64(stats.Connected) < hm.minPeerCount {
-		hm.log.Error("peer count is below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount)
-		return ErrSequencerNotHealthy
+		state := hm.peerCountWindow.observe(false)
+		if state == rollingWindowFailed {
+			hm.log.Error("peer count is below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", recoveringWindowSize)
+			return ErrSequencerNotHealthy
+		}
+		hm.log.Warn("peer count is temporarily below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", recoveringWindowSize)
+		return nil
 	}
+	hm.peerCountWindow.observe(true)
 
 	return nil
 }

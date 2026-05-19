@@ -6,7 +6,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -272,9 +271,6 @@ func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Opt
 				UnsafeInterval: unsafeInterval,
 				SafeInterval:   safeInterval,
 				MinPeerCount:   minPeerCount,
-			}
-			cfg.ConductorP2PPeerStats = &apis.PeerStats{
-				Connected: uint(minPeerCount),
 			}
 		},
 	}

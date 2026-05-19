@@ -8,8 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	ds "github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
+
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -122,6 +126,8 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL.(*OpNode), runtime.L2EL, true, false, conductorCfg)
 	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true, conductorCfg)
 	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true, conductorCfg)
+	connectSingleChainCLPeer(t, runtime.L2CL, nodeB.CL)
+	connectSingleChainCLPeer(t, runtime.L2CL, nodeC.CL)
 	startConductorCluster(t, conductorA, []*Conductor{conductorB, conductorC})
 
 	runtime.Conductors = map[string]*Conductor{
@@ -177,8 +183,7 @@ func addSingleChainOpNode(
 }
 
 type conductorNodeConfig struct {
-	HealthCheck   opconductor.HealthCheckConfig
-	TestOverrides opconductor.TestOverrides
+	HealthCheck opconductor.HealthCheckConfig
 }
 
 func conductorConfigFromPreset(cfg PresetConfig) conductorNodeConfig {
@@ -191,13 +196,8 @@ func conductorConfigFromPreset(cfg PresetConfig) conductorNodeConfig {
 	if cfg.ConductorHealthCheck != nil {
 		healthCfg = *cfg.ConductorHealthCheck
 	}
-	testOverrides := opconductor.TestOverrides{}
-	if cfg.ConductorP2PPeerStats != nil {
-		testOverrides.P2PPeerStats = cfg.ConductorP2PPeerStats
-	}
 	return conductorNodeConfig{
-		HealthCheck:   healthCfg,
-		TestOverrides: testOverrides,
+		HealthCheck: healthCfg,
 	}
 }
 
@@ -212,6 +212,9 @@ func configureOpNodeForConductor(opNode *OpNode, conductorRPCEndpoint *atomic.Va
 	opNode.cfg.ConductorRpcTimeout = 5 * time.Second
 	opNode.cfg.ConductorRpc = conductorRPCFromEndpoint(conductorRPCEndpoint)
 	opNode.cfg.Driver.SequencerStopped = true
+	if p2pCfg, ok := opNode.cfg.P2P.(*p2p.Config); ok {
+		p2pCfg.Store = dssync.MutexWrap(ds.NewMapDatastore())
+	}
 }
 
 func conductorRPCFromEndpoint(conductorRPCEndpoint *atomic.Value) func(ctx context.Context) (string, error) {
@@ -331,7 +334,6 @@ func startConductorForRPC(
 		ExecutionRPC:            executionRPC,
 		Paused:                  paused,
 		HealthCheck:             conductorCfg.HealthCheck,
-		TestOverrides:           conductorCfg.TestOverrides,
 		RollupCfg:               *l2Net.rollupCfg,
 		RPCEnableProxy:          false,
 		LogConfig: oplog.CLIConfig{

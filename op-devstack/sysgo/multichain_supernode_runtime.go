@@ -326,7 +326,20 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 
 	var l2AConductors map[string]*Conductor
 	var l2BConductors map[string]*Conductor
+	var l2AFollowers map[string]*SingleChainNodeRuntime
+	var l2BFollowers map[string]*SingleChainNodeRuntime
 	if enableConductors {
+		var conductorHealthPeerDepSet depset.DependencySet
+		if depSet != nil {
+			conductorHealthPeerDepSet = depSet
+		} else {
+			conductorHealthPeerDepSet = wb.outFullCfgSet.DependencySet
+		}
+		l2AConductorHealthPeer := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ACL, conductorHealthPeerDepSet, "conductor-health-peer")
+		l2BConductorHealthPeer := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BCL, conductorHealthPeerDepSet, "conductor-health-peer")
+		l2AFollowers = map[string]*SingleChainNodeRuntime{l2AConductorHealthPeer.Name: l2AConductorHealthPeer}
+		l2BFollowers = map[string]*SingleChainNodeRuntime{l2BConductorHealthPeer.Name: l2BConductorHealthPeer}
+
 		conductorCfg := conductorConfigFromPreset(cfg)
 		l2AConductor := startConductorForRPC(
 			t,
@@ -397,6 +410,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 				CL:         l2ACL,
 				Batcher:    l2ABatcher,
 				Proposer:   l2AProposer,
+				Followers:  l2AFollowers,
 				Conductors: l2AConductors,
 			},
 			"l2b": {
@@ -406,6 +420,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 				CL:         l2BCL,
 				Batcher:    l2BBatcher,
 				Proposer:   l2BProposer,
+				Followers:  l2BFollowers,
 				Conductors: l2BConductors,
 			},
 		},
@@ -493,33 +508,48 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
 	t.Require().NotNil(chain.CL, "%s runtime chain missing CL follow source", chainKey)
 
-	jwtPath := chain.EL.JWTPath()
-	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELNode(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
-	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:            name,
-		IsSequencer:    false,
-		NoDiscovery:    true,
-		EnableReqResp:  false,
-		UseReqResp:     false,
-		L2FollowSource: chain.CL.UserRPC(),
-		DependencySet:  runtime.DependencySet,
-	})
-
-	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC(), false)
-	connectL2CLPeers(t, t.Logger(), chain.CL, l2CL)
-
-	node := &SingleChainNodeRuntime{
-		Name:        name,
-		IsSequencer: false,
-		EL:          l2EL,
-		CL:          l2CL,
-	}
+	node := startMultiChainFollowL2Node(t, runtime.Keys, runtime.L1Network, runtime.L1EL, runtime.L1CL, chain.Network, chain.EL, chain.CL, runtime.DependencySet, name)
 	if chain.Followers == nil {
 		chain.Followers = make(map[string]*SingleChainNodeRuntime)
 	}
 	chain.Followers[name] = node
 	return node
+}
+
+func startMultiChainFollowL2Node(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	l2CL L2CLNode,
+	dependencySet depset.DependencySet,
+	name string,
+) *SingleChainNodeRuntime {
+	jwtPath := l2EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	followerEL := startL2ELNode(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	followerCL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, followerEL, jwtSecret, l2CLNodeStartConfig{
+		Key:            name,
+		IsSequencer:    false,
+		NoDiscovery:    true,
+		EnableReqResp:  false,
+		UseReqResp:     false,
+		L2FollowSource: l2CL.UserRPC(),
+		DependencySet:  dependencySet,
+	})
+
+	connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), followerEL.UserRPC(), false)
+	connectL2CLPeers(t, t.Logger(), l2CL, followerCL)
+
+	return &SingleChainNodeRuntime{
+		Name:        name,
+		IsSequencer: false,
+		EL:          followerEL,
+		CL:          followerCL,
+	}
 }
 
 func startTwoL2SharedSupernode(

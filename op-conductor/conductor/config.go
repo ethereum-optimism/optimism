@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -106,15 +105,6 @@ type Config struct {
 
 	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
 	RoundRobinLeaderTransfer bool
-
-	// TestOverrides configures dependencies that are only overridden by in-process tests.
-	TestOverrides TestOverrides
-}
-
-// TestOverrides contains dependency overrides for in-process tests.
-type TestOverrides struct {
-	// P2PPeerStats overrides CL P2P peer stats for devstack tests that do not model CL P2P topology.
-	P2PPeerStats *apis.PeerStats
 }
 
 // Check validates the CLIConfig.

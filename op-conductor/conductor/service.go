@@ -23,7 +23,6 @@ import (
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	"github.com/ethereum-optimism/optimism/op-conductor/rpc/ws"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -41,16 +40,6 @@ var (
 	ErrUnsafeHeadMismatch = errors.New("unsafe head mismatch")
 	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
-
-type peerStatsOverrideP2PClient struct {
-	apis.P2PClient
-	peerStats *apis.PeerStats
-}
-
-func (pc *peerStatsOverrideP2PClient) PeerStats(ctx context.Context) (*apis.PeerStats, error) {
-	stats := *pc.peerStats
-	return &stats, nil
-}
 
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
@@ -254,13 +243,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		elP2p = nil
 	}
 
-	var p2p apis.P2PClient = sources.NewP2PClient(nc)
-	if c.cfg.TestOverrides.P2PPeerStats != nil {
-		p2p = &peerStatsOverrideP2PClient{
-			P2PClient: p2p,
-			peerStats: c.cfg.TestOverrides.P2PPeerStats,
-		}
-	}
+	p2p := sources.NewP2PClient(nc)
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,

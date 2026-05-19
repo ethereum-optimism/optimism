@@ -161,18 +161,44 @@ func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64
 	return monitor, tp
 }
 
+func newPeerCountMonitor(t *testing.T, minPeerCount uint64, mockP2P *p2pMocks.API) *SequencerHealthMonitor {
+	t.Helper()
+	return &SequencerHealthMonitor{
+		log:          testlog.Logger(t, log.LevelDebug),
+		minPeerCount: minPeerCount,
+		p2p:          mockP2P,
+	}
+}
+
+func TestRollingWindowTrackerStates(t *testing.T) {
+	var tracker rollingWindowTracker
+
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.Equal(t, rollingWindowInconclusive, tracker.observe(false))
+	}
+	require.Equal(t, rollingWindowInconclusive, tracker.observe(true), "one success after failures should not reset the window")
+
+	for i := uint64(1); i < recoveringWindowSize-1; i++ {
+		require.Equal(t, rollingWindowInconclusive, tracker.observe(true))
+	}
+	require.Equal(t, rollingWindowSuccess, tracker.observe(true))
+
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.Equal(t, rollingWindowInconclusive, tracker.observe(false))
+	}
+	require.Equal(t, rollingWindowFailed, tracker.observe(false))
+}
+
 func TestMinPeerCountZeroStillQueriesPeerStats(t *testing.T) {
 	pc := &p2pMocks.API{}
-	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Times(1)
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Times(recoveringWindowSize)
 
-	monitor := &SequencerHealthMonitor{
-		log:          testlog.Logger(t, log.LevelDebug),
-		minPeerCount: 0,
-		p2p:          pc,
+	monitor := newPeerCountMonitor(t, 0, pc)
+
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
 	}
-
-	err := monitor.checkNodePeerCount(context.Background())
-	require.ErrorIs(t, err, ErrSequencerConnectionDown)
+	require.ErrorIs(t, monitor.checkNodePeerCount(context.Background()), ErrSequencerConnectionDown)
 	pc.AssertExpectations(t)
 }
 
@@ -333,12 +359,87 @@ func TestTransientSyncStatusFailureAfterHealthyPollStaysHealthy(t *testing.T) {
 	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
 }
 
-func TestInitialSyncStatusFailureStillUnhealthy(t *testing.T) {
+func TestInitialSyncStatusFailureToleratedUntilWindowFails(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}
-	rc.ExpectSyncStatus(nil, errors.New("optimism_syncStatus unavailable"))
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, errors.New("optimism_syncStatus unavailable"))
+	}
 
 	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
+}
+
+func TestMixedSyncStatusFailureWindowStaysHealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	syncErr := errors.New("optimism_syncStatus unavailable")
+	polls := []struct {
+		status *eth.SyncStatus
+		err    error
+	}{
+		{err: syncErr},
+		{status: mockSyncStatus(now, 5, now, 5)},
+		{err: syncErr},
+		{status: mockSyncStatus(now, 6, now, 6)},
+		{err: syncErr},
+		{err: syncErr},
+		{status: mockSyncStatus(now, 7, now, 7)},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(poll.status, poll.err)
+	}
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for range polls {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
+func TestSingleSyncStatusSuccessDoesNotResetWindow(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	syncErr := errors.New("optimism_syncStatus unavailable")
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, syncErr)
+	}
+	rc.ExpectSyncStatus(mockSyncStatus(now, 5, now, 5), nil)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, syncErr)
+	}
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(mockSyncStatus(now, 6+i, now, 6+i), nil)
+	}
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.NoError(t, monitor.checkNodeSyncStatus(context.Background()), "single success after failures should still be inconclusive")
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()), "recovering successes should not immediately restore Success state")
+	}
+	require.NoError(t, monitor.checkNodeSyncStatus(context.Background()), "full window of successes should restore Success state")
+}
+
+func TestSyncStatusFullFailureWindowReturnsConnectionDown(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	syncErr := errors.New("optimism_syncStatus unavailable")
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, syncErr)
+	}
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
 	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
 }
 
@@ -404,26 +505,75 @@ func TestUnsafeHeadRecoveryPlateauAboveUnsafeIntervalMarkedUnhealthy(t *testing.
 
 func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	s.T().Parallel()
-	now := uint64(time.Now().Unix())
-
-	rc := &testutils.MockRollupClient{}
-	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
-	rc.ExpectSyncStatus(ss1, nil)
-	rc.ExpectSyncStatus(ss1, nil)
 
 	pc := &p2pMocks.API{}
 	ps1 := &apis.PeerStats{
 		Connected: unhealthyPeerCount,
 	}
-	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(1)
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(recoveringWindowSize)
 
-	monitor := s.SetupMonitor(now, 60, 60, rc, pc, nil)
+	monitor := newPeerCountMonitor(s.T(), s.minPeerCount, pc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		s.NoError(monitor.checkNodePeerCount(context.Background()))
+	}
+	s.Equal(ErrSequencerNotHealthy, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(s.T())
+}
 
-	healthUpdateCh := monitor.Subscribe()
-	healthFailure := <-healthUpdateCh
-	s.NotNil(healthFailure)
+func TestPeerStatsRPCErrorWindow(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Times(recoveringWindowSize)
 
-	s.NoError(monitor.Stop())
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	}
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(t)
+}
+
+func TestLowPeerCountWindow(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: unhealthyPeerCount}, nil).Times(recoveringWindowSize)
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	}
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(t)
+}
+
+func TestMixedPeerCountFailureWindowReturnsCurrentError(t *testing.T) {
+	pc := &p2pMocks.API{}
+	lowPeers := &apis.PeerStats{Connected: unhealthyPeerCount}
+	pc.EXPECT().PeerStats(mock.Anything).Return(lowPeers, nil).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(lowPeers, nil).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(lowPeers, nil).Once()
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	for i := uint64(1); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	}
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(t)
+}
+
+func TestPeerCountMixedSuccessFailureWindowStaysHealthy(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: healthyPeerCount}, nil).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: unhealthyPeerCount}, nil).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: healthyPeerCount}, nil).Once()
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	}
+	pc.AssertExpectations(t)
 }
 
 func (s *HealthMonitorTestSuite) TestUnhealthyLowElP2pPeerCount() {
@@ -464,24 +614,18 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
-	elP2pClient := &clientmocks.ElP2PClient{}
-	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil)
-
-	monitor := s.SetupMonitor(now, uint64(unsafeBlocksInterval), 60, rc, nil, elP2pClient)
-	healthUpdateCh := monitor.Subscribe()
-
+	monitor, tp := newSyncStatusMonitor(s.T(), now, unsafeBlocksInterval, 60, rc)
 	for i := uint64(0); i < unsafeBlocksInterval+recoveringWindowSize+1; i++ {
-		healthFailure := <-healthUpdateCh
+		tp.now = now + i
+		healthFailure := monitor.checkNodeSyncStatus(context.Background())
 		if i < unsafeBlocksInterval+recoveringWindowSize {
 			s.Nil(healthFailure)
 			s.Equal(now, monitor.lastSeenUnsafeTime)
 			s.Equal(uint64(5), monitor.lastSeenUnsafeNum)
 		} else {
-			s.NotNil(healthFailure)
+			s.Equal(ErrSequencerNotHealthy, healthFailure)
 		}
 	}
-
-	s.NoError(monitor.Stop())
 }
 
 func (s *HealthMonitorTestSuite) TestUnhealthySafeHeadNotProgressing() {
