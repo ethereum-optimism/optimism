@@ -20,13 +20,13 @@ audit-source:
 ---
 
 OP Stack interop is expected to activate on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) in **late June 2026**, forming a two-chain interop dependency set on testnet.
-Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology) that follow the supernode tier's safe view.
+Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology) that follow the supernode.
 
 <Warning>
   **A node that has not been migrated to the [supernode-plus-Light-CL topology](/notices/specialized-node-topology) by the activation timestamp cannot verify cross-chain dependencies.**
   Every op-node in the fleet must run with `--l2.follow.source` (env: `OP_NODE_L2_FOLLOW_SOURCE`) pointed at an op-supernode that derives both chains.
   Without that wiring — flag unset, or pointed at a non-supernode source — the op-node's safe head advances past the activation block without cross-chain validation, so the node cannot serve as a verifier or RPC source for the interop chain.
-  The [Specialized op-node topology notice](/notices/specialized-node-topology) describes that pattern in detail — *recommended* there, **required** here.
+  The [Specialized op-node topology notice](/notices/specialized-node-topology) describes the pattern in detail.
   Start with that notice if your fleet hasn't moved off the homogeneous topology yet.
 </Warning>
 
@@ -48,12 +48,15 @@ For how cross-chain messages and block safety work under interop, see the [inter
 
 ## Who this affects
 
-This notice applies to anyone running an op-node on OP Sepolia or Unichain Sepolia after the activation timestamp.
+This notice applies to anyone running OP Sepolia or Unichain Sepolia nodes after the activation timestamp.
 
 Every op-node in the fleet — replicas, RPC nodes, or any other op-node deployment — must run as a Light CL pointed at an op-supernode that derives both chains.
 Each operator stands up at least one op-supernode for the dependency set and reconfigures every op-node in their fleet to follow it.
 
-Operators of any other OP Stack chain (mainnet, other testnets) are not affected by this rollout — interop on those chains is scheduled separately.
+This rollout is scoped to OP Sepolia and Unichain Sepolia.
+Other OP Stack chains will activate the same Lagoon hardfork.
+With an empty dependency set there's nothing to cross-validate, so those operators can keep running plain op-node.
+Interop on OP Mainnet and Unichain follows in late July 2026, and other OP Stack chains move to the supernode topology only when they join an interop set.
 
 ## Required components
 
@@ -152,15 +155,16 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   OP_SUPERNODE_METRICS_PORT: "7300"
 
   # Pre-activation only: override the interop activation timestamp until
-  # the chains' rollup configs include `interop_time`.
+  # the chains' rollup configs include `lagoon_time` (the field carrying the
+  # Lagoon hardfork activation — the upgrade that enables interop).
   # Set to a future epoch-seconds value (e.g., late June 2026 once announced).
-  # Drop this line once OP Sepolia and Unichain Sepolia rollup configs ship `interop_time`.
+  # Drop this line once OP Sepolia and Unichain Sepolia rollup configs ship `lagoon_time`.
   OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP: "<future-unix-timestamp>"
   ```
 
   <Warning>
     op-supernode defaults `--interop.log-backfill-depth` to 7 days, which requires an interop activation timestamp to be known.
-    Until OP Sepolia and Unichain Sepolia rollup configs ship `interop_time` (close to activation), the supernode exits at startup with `interop.log-backfill-depth=168h0m0s requires an interop activation timestamp`.
+    Until OP Sepolia and Unichain Sepolia rollup configs ship `lagoon_time` (the Lagoon hardfork activation field that lights up interop, set close to activation), the supernode exits at startup with `interop.log-backfill-depth=168h0m0s requires an interop activation timestamp`.
     Set `OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP` (or `--interop.activation-timestamp`) to a future epoch-seconds value while testing, or set `OP_SUPERNODE_INTEROP_LOG_BACKFILL_DEPTH=0s` to disable the backfill.
   </Warning>
 
