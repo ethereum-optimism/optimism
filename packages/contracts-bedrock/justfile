@@ -232,7 +232,7 @@ test-l2-fork-upgrade-rerun *ARGS:
 # - L2_FORK_RPC_URL must be set to a post-Karst betanet L2 RPC URL.
 # - L2_BLOCK_BEFORE_FORK must be set to the block right before the fork
 # - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
-# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_AFTER_FORK=<block> just test-post-karst-betanet-l2-fork-upgrade [ARGS]
+# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> just test-post-karst-betanet-l2-fork-upgrade [ARGS]
 test-post-karst-betanet-l2-fork-upgrade *ARGS:
   L2CM_ACTIVATION_TEST=true just prepare-l2-upgrade-env "just test {{ARGS}}"
 
