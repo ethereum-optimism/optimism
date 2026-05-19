@@ -15,7 +15,7 @@ parameters:
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:b6bcd5cc2a2dfc7a7ea525d8af6e5030019709bfccde6b7d49355977d5bb5340
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:6b421a05805bc2b7b2b1e72a4418f8984444c1be9ec31d620cabec7acff0a36f
   base_image:
     type: string
     default: default
