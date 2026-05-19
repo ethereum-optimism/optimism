@@ -89,6 +89,12 @@ type TwoL2SupernodeInterop struct {
 	timeTravel *clock.AdvancingClock
 }
 
+// L2UserRPCURLs returns the user-RPC URLs for both L2 EL nodes in canonical
+// (A, B) order. Useful for scripts and tools that take a list of L2 endpoints.
+func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
+	return []string{s.L2ELA.Escape().UserRPC(), s.L2ELB.Escape().UserRPC()}
+}
+
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
