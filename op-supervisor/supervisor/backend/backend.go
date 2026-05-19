@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type SupervisorBackend struct {
@@ -552,17 +553,17 @@ func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc message
 
 // checkSafety is a helper method to check if a block has the given safety level.
 // It is already assumed to exist in the canonical unsafe chain.
-func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel types.SafetyLevel) error {
+func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel safety.SafetyLevel) error {
 	switch safetyLevel {
-	case types.LocalUnsafe:
+	case safety.LocalUnsafe:
 		return nil // msg exists, nothing more to check
-	case types.CrossUnsafe:
+	case safety.CrossUnsafe:
 		return su.chainDBs.IsCrossUnsafe(chainID, blockID)
-	case types.LocalSafe:
+	case safety.LocalSafe:
 		return su.chainDBs.IsLocalSafe(chainID, blockID)
-	case types.CrossSafe:
+	case safety.CrossSafe:
 		return su.chainDBs.IsCrossSafe(chainID, blockID)
-	case types.Finalized:
+	case safety.Finalized:
 		return su.chainDBs.IsFinalized(chainID, blockID)
 	default:
 		return types.ErrConflict
@@ -570,7 +571,7 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 }
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, execDescr messages.ExecutingDescriptor) error {
+	minSafety safety.SafetyLevel, execDescr messages.ExecutingDescriptor) error {
 	// Check if failsafe is enabled
 	if su.isFailsafeEnabled() {
 		su.logger.Debug("Failsafe is enabled, rejecting access-list check")
@@ -578,7 +579,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	}
 
 	switch minSafety {
-	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
+	case safety.LocalUnsafe, safety.CrossUnsafe, safety.LocalSafe, safety.CrossSafe, safety.Finalized:
 		// valid safety level
 	default:
 		return ErrUnexpectedMinSafetyLevel

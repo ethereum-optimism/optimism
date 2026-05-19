@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
@@ -104,7 +105,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	// Reconnect CLP2P so verifier can backfill the unsafe gap
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 50)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 50)
 }
 
 // TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL demonstrates the flow where:
@@ -164,7 +165,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 		return l2Unsafe.Number > 0 && l2Unsafe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
 
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 30)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 30)
 
 	// Pick reorg block
 	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
@@ -172,7 +173,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 
 	// Make few more unsafe blocks which will be reorged out
 	sys.L2EL.Advanced(eth.Unsafe, 4)
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 30)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 30)
 
 	// Stop Verifier CL
 	sys.L2CLB.Stop()
@@ -246,7 +247,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartL2CL(gt *testing.T) {
 	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 
 	// Verifier converged with sequencer's canonical unsafe chain
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 50)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 50)
 
 	seqUnsafe = sys.L2EL.BlockRefByLabel(eth.Unsafe)
 	verUnsafe = sys.L2ELB.BlockRefByLabel(eth.Unsafe)
@@ -308,7 +309,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 		return l2Unsafe.Number > 0 && l2Unsafe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
 
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 5)
 
 	// Pick reorg block
 	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
@@ -316,7 +317,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 
 	// Make few more unsafe blocks which will be reorged out
 	sys.L2EL.Advanced(eth.Unsafe, 4)
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 5)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 5)
 
 	// Disconnect CLP2P
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
@@ -367,7 +368,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	logger.Info("Verifier diverged", "rewindTo", rewindTo)
 
 	// Wait until verifier reset and dropped all reorg blocks
-	sys.L2CLB.Reset(types.LocalUnsafe, rewindTo)
+	sys.L2CLB.Reset(safety.LocalUnsafe, rewindTo)
 	logger.Info("Verifier rewind done", "rewindTo", rewindTo)
 
 	// Make sure CLP2P is connected
@@ -379,7 +380,7 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 
 	// Verifier converged with sequencer's canonical unsafe chain
-	sys.L2ELB.InSync(sys.L2EL, types.LocalUnsafe, 50)
+	sys.L2ELB.InSync(sys.L2EL, safety.LocalUnsafe, 50)
 
 	seqUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 	verUnsafe = sys.L2ELB.BlockRefByLabel(eth.Unsafe)

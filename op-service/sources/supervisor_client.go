@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type SupervisorClient struct {
@@ -76,7 +77,7 @@ func (cl *SupervisorClient) GetFailsafeEnabled(ctx context.Context) (bool, error
 }
 
 func (cl *SupervisorClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
+	minSafety safety.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "supervisor_checkAccessList", inboxEntries, minSafety, executingDescriptor)
 }
 

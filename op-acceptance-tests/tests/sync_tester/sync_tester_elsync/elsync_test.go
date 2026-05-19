@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func simpleWithSyncTesterOpts() []presets.Option {
@@ -32,8 +33,8 @@ func TestSyncTesterELSync(gt *testing.T) {
 	startDelta := uint64(5)
 	attempts := 30
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, startDelta, attempts),
-		sys.L2CL2.AdvancedFn(types.LocalUnsafe, startDelta, attempts),
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, startDelta, attempts),
+		sys.L2CL2.AdvancedFn(safety.LocalUnsafe, startDelta, attempts),
 	)
 
 	// Stop L2CL2 attached to Sync Tester EL Endpoint
@@ -51,7 +52,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 
 	// Wait for L2CL to advance more unsafe blocks
 	delta := uint64(5)
-	sys.L2CL.Advanced(types.LocalUnsafe, startDelta+delta, attempts)
+	sys.L2CL.Advanced(safety.LocalUnsafe, startDelta+delta, attempts)
 
 	// EL Sync active
 	session := sys.SyncTester.GetSession(sessionID)
@@ -66,7 +67,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// Sequencer EL and SyncTester EL advances together
 	target := sys.L2EL.BlockRefByLabel(eth.Unsafe).Number + 5
 	dsl.CheckAll(t,
-		sys.L2CL2.ReachedFn(types.LocalUnsafe, target, attempts),
+		sys.L2CL2.ReachedFn(safety.LocalUnsafe, target, attempts),
 		// EL Sync complete
 		sys.SyncTesterL2EL.ReachedFn(eth.Unsafe, target, attempts),
 	)

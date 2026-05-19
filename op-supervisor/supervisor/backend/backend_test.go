@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 const testChainIDOffset = 900
@@ -634,7 +635,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.False(t, enabled, "failsafe should be disabled by default")
 
 	// Test that CheckAccessList works normally in initial state
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, safety.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 
 	// Test setting failsafe to true
@@ -645,7 +646,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.True(t, enabled, "failsafe should be enabled after setting to true")
 
 	// Test that CheckAccessList returns ErrFailsafeEnabled when failsafe is enabled
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, safety.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.ErrorIs(t, err, types.ErrFailsafeEnabled, "CheckAccessList should return ErrFailsafeEnabled when failsafe is enabled")
 
 	// Test setting failsafe to false
@@ -656,7 +657,7 @@ func TestFailsafeEnabled(t *testing.T) {
 	require.False(t, enabled, "failsafe should be disabled after setting to false")
 
 	// Test that CheckAccessList works normally when failsafe is disabled
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, messages.ExecutingDescriptor{})
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, safety.LocalUnsafe, messages.ExecutingDescriptor{})
 	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // LockstepCrossValidator validates cross-chain executing messages and tracks
@@ -187,7 +188,7 @@ func validateMessageTiming(
 // ValidateAccessEntry validates a single access list entry against all message validity rules.
 func (v *LockstepCrossValidator) ValidateAccessEntry(
 	access messages.Access,
-	minSafety types.SafetyLevel,
+	minSafety safety.SafetyLevel,
 	execDescriptor messages.ExecutingDescriptor,
 ) error {
 	// Check that we have ingested data for the requested timestamp
@@ -198,7 +199,7 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	}
 
 	// Check cross-unsafe timestamp
-	if minSafety == types.CrossUnsafe {
+	if minSafety == safety.CrossUnsafe {
 		crossValidatedTs, ok := v.CrossValidatedTimestamp()
 		if !ok {
 			return fmt.Errorf("cross-validated timestamp not available: %w", types.ErrOutOfScope)

@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 const (
@@ -463,7 +463,7 @@ func newSeededBackend(t *testing.T, opts backendOpts) *seededBackend {
 // CheckAccessList expects and forwards the call.
 func (sb *seededBackend) checkAccessList(execChain eth.ChainID, execTs uint64, accesses ...messages.Access) error {
 	entries := messages.EncodeAccessList(accesses)
-	return sb.CheckAccessList(context.Background(), entries, types.LocalUnsafe,
+	return sb.CheckAccessList(context.Background(), entries, safety.LocalUnsafe,
 		messages.ExecutingDescriptor{Timestamp: execTs, ChainID: execChain})
 }
 

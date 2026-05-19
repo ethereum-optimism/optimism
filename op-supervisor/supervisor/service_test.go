@@ -22,9 +22,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestSupervisorService(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSupervisorService(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		err = cl.CallContext(ctx, nil, "supervisor_checkAccessList",
-			[]common.Hash{}, types.CrossUnsafe, messages.ExecutingDescriptor{
+			[]common.Hash{}, safety.CrossUnsafe, messages.ExecutingDescriptor{
 				Timestamp: 1234568, ChainID: eth.ChainIDFromUInt64(123)})
 		cancel()
 		require.NoError(t, err)

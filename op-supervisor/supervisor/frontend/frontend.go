@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type Backend interface {
@@ -26,7 +27,7 @@ type QueryFrontend struct {
 var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
+	minSafety safety.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
 	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
 		return &rpc.JsonError{

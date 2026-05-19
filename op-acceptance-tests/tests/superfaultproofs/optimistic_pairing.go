@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -97,7 +98,7 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 		sys.TestSequencer.SequenceBlock(t, chains[1].ID, unsafeB.Hash)
 		t.Require().Equal(endTimestamp, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Time)
 		advanceSafeToCurrentUnsafe(t, chains[1])
-		sys.L2CLA.Reached(suptypes.CrossSafe, newHeadA.Number, 60)
+		sys.L2CLA.Reached(safety.CrossSafe, newHeadA.Number, 60)
 	}
 
 	// The super root at startTimestamp must be fully verifiable at gameL1Head;

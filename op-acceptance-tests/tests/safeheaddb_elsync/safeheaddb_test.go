@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func newSingleChainMultiNodeELSync(t devtest.T) *presets.SingleChainMultiNode {
@@ -40,10 +41,10 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
+		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
 
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
@@ -52,7 +53,7 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	sys.L2ELB.Stop()
 	sys.L2CLB.Stop()
 
-	sys.L2CL.Advanced(types.LocalSafe, 3, 30)
+	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
@@ -65,8 +66,8 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 	// EL Sync after a full database wipe requires more time than the initial sync:
 	// the EL must re-download all blocks via P2P before the CL can begin derivation,
 	// and node A keeps advancing LocalSafe in the meantime.
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 90)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 90) // At least one safe head db update after resync
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 90)
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 }
@@ -86,9 +87,9 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	sys := newSingleChainMultiNodeELSync(t)
 
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
+		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 
 	preRestartSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
@@ -96,12 +97,12 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
 	sys.L2CLB.Stop()
 
-	sys.L2CL.Advanced(types.LocalSafe, 3, 30)
+	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
 
 	sys.L2CLB.Start()
 
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 60) // At least one safe head db update after resync
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 60)
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 60) // At least one safe head db update after resync
 
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 }

@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Test constants
@@ -178,6 +178,6 @@ func TestBackend_CheckAccessList_SupportLegacyCheckAccessListFormat(t *testing.T
 	mock.SetReady(true)
 	mock.SetLatestTimestamp(200)
 
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(0, 150, 0))
+	err := backend.CheckAccessList(context.Background(), nil, safety.LocalUnsafe, makeExecDescriptor(0, 150, 0))
 	require.NoError(t, err)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Note: Test helpers (newTestCrossValidator, makeAccess, makeExecDescriptor) and
@@ -40,7 +41,7 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	// 200 < 201, so should fail
 	exec := makeExecDescriptor(testChainA, 150, 51)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrConflict)
 	require.Contains(t, err.Error(), "expire before timeout")
@@ -68,12 +69,12 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	// At boundary: access at timestamp 100 == crossValidatedTs=100 should pass
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
-	err := cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.NoError(t, err)
 
 	// Beyond boundary: access at timestamp 101 > crossValidatedTs=100 should fail
 	access = makeAccess(testChainA, 101, 10, 0, checksum)
-	err = cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
+	err = cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrOutOfScope)
 }
@@ -96,7 +97,7 @@ func TestCrossValidator_KnownChain(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.NoError(t, err)
 }
 
@@ -114,7 +115,7 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 	access := makeAccess(unknownChainID, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrUnknownChain)
 }
@@ -133,7 +134,7 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrConflict)
 }
@@ -267,7 +268,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	access := makeAccess(testChainA, 150, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 200, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrOutOfScope)
 	require.Contains(t, err.Error(), "not yet ingested")
@@ -292,7 +293,7 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 100, 0) // Same as init timestamp
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrConflict)
 	require.Contains(t, err.Error(), "not before inclusion")
@@ -314,7 +315,7 @@ func TestValidateExecMsg_MessageExpired(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 250, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, types.ErrConflict)
 	require.Contains(t, err.Error(), "expired")

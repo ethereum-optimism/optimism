@@ -6,9 +6,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // LogsDB is the subset of an op-supervisor logs DB that
@@ -89,7 +89,7 @@ type CrossValidator interface {
 	Stop() error
 
 	// ValidateAccessEntry validates a single access list entry.
-	ValidateAccessEntry(access messages.Access, minSafety types.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error
+	ValidateAccessEntry(access messages.Access, minSafety safety.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error
 
 	// CrossValidatedTimestamp returns the global cross-validated timestamp.
 	CrossValidatedTimestamp() (uint64, bool)

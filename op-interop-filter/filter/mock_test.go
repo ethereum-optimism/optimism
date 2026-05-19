@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // mockChainIngester is an in-memory implementation of ChainIngester for testing.
@@ -266,7 +267,7 @@ type mockCrossValidator struct {
 
 func (m *mockCrossValidator) Start() error { return nil }
 func (m *mockCrossValidator) Stop() error  { return nil }
-func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety types.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error {
+func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety safety.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error {
 	return m.validateErr
 }
 func (m *mockCrossValidator) CrossValidatedTimestamp() (uint64, bool) { return 0, false }

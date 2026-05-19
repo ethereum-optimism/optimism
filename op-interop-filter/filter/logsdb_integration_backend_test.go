@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestIntegration_Backend_NoChains_FailsafeOn(t *testing.T) {
@@ -31,7 +32,7 @@ func TestIntegration_Backend_NoChains_FailsafeOn(t *testing.T) {
 	})
 
 	require.False(t, bk.Ready(), "empty chain map -> Backend.Ready() is false")
-	err := bk.CheckAccessList(ctx, nil, types.LocalUnsafe, messages.ExecutingDescriptor{ChainID: executingChain()})
+	err := bk.CheckAccessList(ctx, nil, safety.LocalUnsafe, messages.ExecutingDescriptor{ChainID: executingChain()})
 	require.ErrorIs(t, err, types.ErrUninitialized)
 }
 
@@ -85,7 +86,7 @@ func TestIntegration_Backend_UnsupportedSafetyLevel_Rejected(t *testing.T) {
 	t.Parallel()
 
 	bk := twoChainBackend(t, 1)
-	err := bk.CheckAccessList(context.Background(), nil, types.Finalized,
+	err := bk.CheckAccessList(context.Background(), nil, safety.Finalized,
 		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported safety level")
@@ -95,7 +96,7 @@ func TestIntegration_Backend_EmptyAccessList_LocalUnsafe_Accepted(t *testing.T) 
 	t.Parallel()
 
 	bk := twoChainBackend(t, 1)
-	require.NoError(t, bk.CheckAccessList(context.Background(), nil, types.LocalUnsafe,
+	require.NoError(t, bk.CheckAccessList(context.Background(), nil, safety.LocalUnsafe,
 		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs}))
 }
 
@@ -114,7 +115,7 @@ func TestIntegration_Backend_Ready_FalseUntilAllChainsReady(t *testing.T) {
 
 	require.False(t, bk.Ready(), "Backend.Ready requires all ingesters Ready")
 
-	err := bk.CheckAccessList(context.Background(), nil, types.LocalUnsafe,
+	err := bk.CheckAccessList(context.Background(), nil, safety.LocalUnsafe,
 		messages.ExecutingDescriptor{ChainID: executingChain(), Timestamp: inclusionTs})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, types.ErrUninitialized) || errors.Is(err, types.ErrFailsafeEnabled),
