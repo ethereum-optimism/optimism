@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -60,7 +61,9 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 				return fmt.Errorf("expected head to lag: %s", lvl)
 			}
 			logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
-			time.Sleep(2 * time.Second)
+			if err := clock.SystemClock.SleepCtx(ctx, 2*time.Second); err != nil {
+				return err
+			}
 		}
 		logger.Info("Node lagged as expected")
 		return nil

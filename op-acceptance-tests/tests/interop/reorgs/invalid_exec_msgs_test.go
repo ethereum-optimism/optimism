@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -184,7 +185,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
+		require.NoError(t, clock.SystemClock.SleepCtx(ctx, 2*time.Second))
 
 		// include simple transfer tx in opened block
 		{
@@ -202,7 +203,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 
 		err = ia.Next(ctx)
 		require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
+		require.NoError(t, clock.SystemClock.SleepCtx(ctx, 2*time.Second))
 	}
 
 	// continue sequencing with the supernode
