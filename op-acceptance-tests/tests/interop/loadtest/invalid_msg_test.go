@@ -99,9 +99,11 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 	validInitMsg := out.Entries[0]
 
 	ctxInvalid, cancelInvalid := context.WithCancel(t.Ctx())
-	defer cancelInvalid()
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		cancelInvalid()
+		wg.Wait()
+	}()
 
 	// Spam a fixed number of invalid messages per block time.
 	wg.Add(1)
