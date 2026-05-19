@@ -161,6 +161,21 @@ func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64
 	return monitor, tp
 }
 
+func TestMinPeerCountZeroStillQueriesPeerStats(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Times(1)
+
+	monitor := &SequencerHealthMonitor{
+		log:          testlog.Logger(t, log.LevelDebug),
+		minPeerCount: 0,
+		p2p:          pc,
+	}
+
+	err := monitor.checkNodePeerCount(context.Background())
+	require.ErrorIs(t, err, ErrSequencerConnectionDown)
+	pc.AssertExpectations(t)
+}
+
 func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}

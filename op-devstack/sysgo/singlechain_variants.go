@@ -177,7 +177,8 @@ func addSingleChainOpNode(
 }
 
 type conductorNodeConfig struct {
-	HealthCheck opconductor.HealthCheckConfig
+	HealthCheck   opconductor.HealthCheckConfig
+	TestOverrides opconductor.TestOverrides
 }
 
 func conductorConfigFromPreset(cfg PresetConfig) conductorNodeConfig {
@@ -190,8 +191,13 @@ func conductorConfigFromPreset(cfg PresetConfig) conductorNodeConfig {
 	if cfg.ConductorHealthCheck != nil {
 		healthCfg = *cfg.ConductorHealthCheck
 	}
+	testOverrides := opconductor.TestOverrides{}
+	if cfg.ConductorP2PPeerStats != nil {
+		testOverrides.P2PPeerStats = cfg.ConductorP2PPeerStats
+	}
 	return conductorNodeConfig{
-		HealthCheck: healthCfg,
+		HealthCheck:   healthCfg,
+		TestOverrides: testOverrides,
 	}
 }
 
@@ -325,6 +331,7 @@ func startConductorForRPC(
 		ExecutionRPC:            executionRPC,
 		Paused:                  paused,
 		HealthCheck:             conductorCfg.HealthCheck,
+		TestOverrides:           conductorCfg.TestOverrides,
 		RollupCfg:               *l2Net.rollupCfg,
 		RPCEnableProxy:          false,
 		LogConfig: oplog.CLIConfig{

@@ -5,6 +5,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -40,6 +41,8 @@ type PresetConfig struct {
 	// ConductorHealthCheck overrides the default slow conductor health check
 	// intervals for tests that intentionally exercise health transitions.
 	ConductorHealthCheck *opconductor.HealthCheckConfig
+	// ConductorP2PPeerStats overrides CL P2P peer stats for in-process conductor tests.
+	ConductorP2PPeerStats *apis.PeerStats
 }
 
 func NewPresetConfig() PresetConfig {
