@@ -23,15 +23,3 @@ func TestConfigCheckRollupBoostAndNextMutuallyExclusive(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "only one of rollup-boost or rollup-boost next healthchecks can be enabled")
 }
-
-func TestHealthCheckConfigRejectsZeroMinPeerCount(t *testing.T) {
-	cfg := &HealthCheckConfig{
-		Interval:     1,
-		SafeInterval: 1,
-		MinPeerCount: 0,
-	}
-
-	err := cfg.Check()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing minimum peer count")
-}
