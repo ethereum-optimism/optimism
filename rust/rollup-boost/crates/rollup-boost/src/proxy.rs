@@ -796,7 +796,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_l2_server_recovery() -> eyre::Result<()> {
-
         // Step 1: Reserve a port for L2 by binding and then releasing it
         let temp_listener = TcpListener::bind("127.0.0.1:0").await?;
         let l2_addr = temp_listener.local_addr()?;
