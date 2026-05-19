@@ -13,6 +13,7 @@ use alloy_provider::RootProvider;
 use clap::Parser;
 use kona_cli::cli_styles;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
     VerifyingPreimageFetcher,
@@ -114,6 +115,12 @@ pub struct SingleChainHost {
     /// look up the config in the known l1 configs.
     #[arg(long, alias = "l1-cfg", env)]
     pub l1_config_path: Option<PathBuf>,
+    /// Path to the dependency set config. Required when the supplied rollup config schedules the
+    /// Interop hardfork at or before the disputed block, because interop activation must agree
+    /// with op-node's `--interop.dependency-set`. The config should be a serde-JSON serialized
+    /// [`DependencySet`].
+    #[arg(long, alias = "depset-cfg", env)]
+    pub dependency_set_path: Option<PathBuf>,
 }
 
 /// An error that can occur when handling single chain hosts
@@ -252,6 +259,17 @@ impl SingleChainHost {
         serde_json::from_str(&ser_config).map_err(SingleChainHostError::ParseError)
     }
 
+    /// Reads the [`DependencySet`] from the file system. Returns `None` when no
+    /// `--depset-cfg` path was supplied; otherwise the inner `Result` reflects parse/IO outcome.
+    pub fn read_dependency_set(&self) -> Option<Result<DependencySet, SingleChainHostError>> {
+        let path = self.dependency_set_path.as_ref()?;
+        Some((|| {
+            let ser_config = std::fs::read_to_string(path)?;
+            let dep_set: DependencySet = serde_json::from_str(&ser_config)?;
+            Ok(dep_set)
+        })())
+    }
+
     /// Creates the key-value store for the host backend.
     ///
     /// If the data directory contains a `kvformat` marker file, the recorded format is used to
@@ -331,6 +349,19 @@ mod test {
             (["--server", "--rollup-config-path", "dummy", "--data-dir", "dummy"].as_slice(), true),
             (["--native", "--l2-chain-id", "0", "--data-dir", "dummy"].as_slice(), true),
             (["--native", "--rollup-config-path", "dummy", "--data-dir", "dummy"].as_slice(), true),
+            (
+                [
+                    "--native",
+                    "--rollup-config-path",
+                    "dummy",
+                    "--data-dir",
+                    "dummy",
+                    "--depset-cfg",
+                    "dummy",
+                ]
+                .as_slice(),
+                true,
+            ),
             (
                 [
                     "--l1-node-address",
