@@ -104,7 +104,12 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     ///         switches to the fork after the fork if L2CM activation test is enabled.
     function _executeCurrentBundleOrSwitchFork() internal {
         if (isL2CMActivationTest()) {
-            vm.createSelectFork(Config.l2ForkRpcUrl(), Config.l2BlockAfterFork());
+            uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
+            if (l2BlockAfterFork == 0) {
+                vm.createSelectFork(Config.l2ForkRpcUrl());
+            } else {
+                vm.createSelectFork(Config.l2ForkRpcUrl(), l2BlockAfterFork);
+            }
             console.log("Setup: L2 fork switched to after the fork!");
             return;
         }
