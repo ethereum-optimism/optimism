@@ -19,8 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
-var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
-
 type SuperNode struct {
 	mu sync.Mutex
 	peerRegistry
@@ -130,7 +128,7 @@ func (n *SuperNode) stopLocked() {
 
 // InteropActivity returns the interop activity, or nil if the supernode is
 // stopped or has no interop activity. The pointer is bound to the current
-// instance; do not cache across RestartWithFreshDataDir. Test-only.
+// instance; do not cache across StartWithFreshDataDir. Test-only.
 func (n *SuperNode) InteropActivity() *interop.Interop {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -140,33 +138,8 @@ func (n *SuperNode) InteropActivity() *interop.Interop {
 	return n.sn.InteropActivity()
 }
 
-// RestartWithFreshDataDir stops the supernode, deletes its on-disk data
-// directory, and starts a fresh supernode against the same chain
-// containers, virtual nodes, and externally-visible RPC address. Test-only.
-func (n *SuperNode) RestartWithFreshDataDir() error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.sn == nil {
-		return errSupernodeNotRunning
-	}
-	n.stopLocked()
-	return n.wipeDataDirAndStartLocked()
-}
-
-// StopForExternalWipe stops the supernode without touching its data dir.
-// Pairs with StartWithFreshDataDir. Test-only.
-func (n *SuperNode) StopForExternalWipe() error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.sn == nil {
-		return errSupernodeNotRunning
-	}
-	n.stopLocked()
-	return nil
-}
-
 // StartWithFreshDataDir wipes the data dir and starts a fresh supernode.
-// Pairs with StopForExternalWipe. Test-only.
+// Pairs with Stop. Test-only.
 func (n *SuperNode) StartWithFreshDataDir() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()

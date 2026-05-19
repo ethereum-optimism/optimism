@@ -16,20 +16,15 @@ type Supernode interface {
 type SupernodeTestControl interface {
 	// InteropActivity returns the current interop activity, or nil if the
 	// supernode is stopped or interop is not configured. Do not cache the
-	// pointer across RestartWithFreshDataDir.
+	// pointer across StartWithFreshDataDir.
 	InteropActivity() *interop.Interop
 
-	// RestartWithFreshDataDir stops the supernode, deletes its on-disk
-	// data directory, and starts a fresh supernode against the same chain
-	// containers, virtual nodes, and externally-visible RPC address.
-	RestartWithFreshDataDir() error
-
-	// StopForExternalWipe stops the supernode without touching its data
-	// dir so the caller can wipe sibling components (e.g. EL state)
-	// between Stop and StartWithFreshDataDir.
-	StopForExternalWipe() error
+	// Stop stops the supernode without touching its data dir, leaving the
+	// externally-visible RPC address in place so sibling components can be
+	// wiped between Stop and StartWithFreshDataDir.
+	Stop()
 
 	// StartWithFreshDataDir wipes the supernode's data dir and starts it
-	// against the same VNs and RPC address. Pairs with StopForExternalWipe.
+	// against the same VNs and RPC address. Pairs with Stop.
 	StartWithFreshDataDir() error
 }

@@ -146,18 +146,18 @@ type RestartOpts struct {
 }
 
 // WithELWiped is a RestartWithFreshDataDir option that also wipes every
-// supernode-fronted EL's on-disk state. Requires AttachFrontends.
+// supernode-fronted EL's on-disk state. Requires AttachWipeableELs.
 func WithELWiped(o *RestartOpts) { o.WipeELs = true }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
 // directory in full, and starts a fresh supernode against the same chain
 // containers, virtual nodes, and externally-visible RPC address. With
-// WithELWiped, every fronted EL is stopped, wiped, and restarted around the
-// supernode restart so the post-restart VN must execution-layer-sync from
-// sibling peers. Each EL's Start re-dials its registered static peers;
-// fronted CL static peers are re-dialed after the supernode comes back up.
-// Requires NewSupernodeWithTestControl, plus AttachFrontends when WipeELs is
-// set.
+// WithELWiped, every fronted EL is stopped, wiped, and restarted between
+// the supernode stop and start so the post-restart VN must
+// execution-layer-sync from sibling peers. Each EL's Start re-dials its
+// registered static peers; fronted CL static peers are re-dialed after the
+// supernode comes back up. Requires NewSupernodeWithTestControl, plus
+// AttachWipeableELs when WipeELs is set.
 func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 	s.require.NotNil(s.testControl,
 		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
@@ -167,22 +167,22 @@ func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 		fn(&o)
 	}
 
-	if !o.WipeELs {
+	if o.WipeELs {
+		s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachWipeableELs from the preset")
+		s.log.Info("restarting supernode with fresh data dir and wiping fronted ELs")
+	} else {
 		s.log.Info("restarting supernode with fresh data dir")
-		s.require.NoError(s.testControl.RestartWithFreshDataDir(),
-			"failed to restart supernode with fresh data dir")
-		return
 	}
 
-	s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachWipeableELs from the preset")
-	s.log.Info("restarting supernode with fresh data dir and wiping fronted ELs")
-	s.require.NoError(s.testControl.StopForExternalWipe(), "stop supernode")
-	for _, el := range s.frontedELs {
-		el.Stop()
-		el.WipeOnDiskState()
-	}
-	for _, el := range s.frontedELs {
-		el.Start()
+	s.testControl.Stop()
+	if o.WipeELs {
+		for _, el := range s.frontedELs {
+			el.Stop()
+			el.WipeOnDiskState()
+		}
+		for _, el := range s.frontedELs {
+			el.Start()
+		}
 	}
 	s.require.NoError(s.testControl.StartWithFreshDataDir(), "start supernode fresh")
 }
