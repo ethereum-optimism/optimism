@@ -121,10 +121,9 @@ type EngineController struct {
 	// Derived from L1, and known to be a completed span-batch,
 	// but not cross-verified yet.
 	localSafeHead eth.L2BlockRef
-	// Last locally materialized finalized head.
-	// In superAuthority mode, this is updated from successfully resolved
-	// superAuthority finalized refs and used as a fallback when the authority
-	// or EL is temporarily unavailable.
+	// Derived from finalized L1 data, but not necessarily
+	// verified by the superAuthority.
+	// Only to be used as a FinalizedHead when there is no superAuthority
 	localFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
@@ -267,26 +266,10 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
 			return e.localSafeHead
 		}
-		if e.localFinalizedHead != (eth.L2BlockRef{}) {
-			if f == e.localFinalizedHead.ID() {
-				return e.localFinalizedHead
-			}
-			if f.Number < e.localFinalizedHead.Number {
-				// SuperAuthority finality is expected to be monotonic. A lower
-				// finalized head means the authority is reporting stale state.
-				e.log.Error("superAuthority finalized head is behind cached finalized head, using cached finalized head", "super_authority_finalized", f, "cached_finalized", e.localFinalizedHead)
-				return e.localFinalizedHead
-			}
-			if f.Number == e.localFinalizedHead.Number {
-				panic("superAuthority finalized head conflicts with cached finalized head at same height")
-			}
-		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)
 		if err != nil {
-			e.log.Warn("superAuthority finalized head is not known to the engine, using cached finalized head", "super_authority_finalized", f, "cached_finalized", e.localFinalizedHead, "err", err)
-			return e.localFinalizedHead
+			panic("superAuthority supplied an identifier for the finalized head which is not known to the engine")
 		}
-		e.SetFinalizedHead(br)
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
