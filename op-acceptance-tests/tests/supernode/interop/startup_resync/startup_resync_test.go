@@ -106,4 +106,3 @@ func runPreActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts))
 		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
 	)
 }
-
