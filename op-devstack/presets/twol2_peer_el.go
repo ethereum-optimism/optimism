@@ -6,18 +6,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-// TwoL2SupernodeInteropPeerEL extends TwoL2SupernodeInterop with a dedicated
-// sequencer EL+CL pair per chain. The embedded fields (L2ELA/B, L2ACL/B)
-// point at the supernode-fronted verifier nodes — the wipe targets. The
-// supernode VN runs in ELSync so the wiped EL recovers via devp2p from the
-// chain's sequencer EL.
+// TwoL2SupernodeInteropPeerEL extends TwoL2SupernodeInterop with a second
+// supernode that follows both chains as a verifier. The embedded fields
+// (Supernode, L2ELA, L2ELB, …) describe the sequencer side and continue
+// to drive block production. VerifierSupernode + VerifierL2ELA/B are the
+// wipe targets: the verifier VNs run in NonSequencer/ELSync mode and
+// resync over EL devp2p from the sequencer ELs after a wipe.
 type TwoL2SupernodeInteropPeerEL struct {
 	TwoL2SupernodeInterop
 
-	SequencerL2AEL *dsl.L2ELNode
-	SequencerL2BEL *dsl.L2ELNode
-	SequencerL2ACL *dsl.L2CLNode
-	SequencerL2BCL *dsl.L2CLNode
+	VerifierSupernode *dsl.Supernode
+	VerifierL2ELA     *dsl.L2ELNode
+	VerifierL2ELB     *dsl.L2ELNode
+	VerifierL2ACL     *dsl.L2CLNode
+	VerifierL2BCL     *dsl.L2CLNode
 }
 
 func NewTwoL2SupernodeInteropPeerEL(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInteropPeerEL {

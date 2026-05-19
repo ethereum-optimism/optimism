@@ -18,11 +18,11 @@ const (
 	preRestartFinalized = uint64(5)
 )
 
-// TestSupernodeResyncResumesAtActivation_PostActivation wipes the supernode
-// data dir after the chain has crossed activation and asserts cross-safe
-// resumes. The "EL data wiped" subtest additionally wipes the supernode-
-// fronted verifier EL so it must execution-layer-sync from the chain's
-// sequencer EL.
+// TestSupernodeResyncResumesAtActivation_PostActivation wipes the verifier
+// supernode's data dir after the chain has crossed activation and asserts
+// cross-safe resumes on the verifier. The "EL data wiped" subtest
+// additionally wipes the verifier ELs so they must execution-layer-sync
+// from the chains' sequencer ELs.
 func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -37,10 +37,10 @@ func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	}
 }
 
-// TestSupernodeResyncSchedulesAtActivation_PreActivation wipes the supernode
-// data dir while interop is still scheduled and asserts cold-start parks the
-// verifier at activation. The "EL data wiped" subtest additionally wipes the
-// supernode-fronted EL.
+// TestSupernodeResyncSchedulesAtActivation_PreActivation wipes the verifier
+// supernode's data dir while interop is still scheduled and asserts
+// cold-start parks the verifier at activation. The "EL data wiped" subtest
+// additionally wipes the verifier ELs.
 func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -61,24 +61,24 @@ func runPostActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts)
 		presets.WithUniformL2BlockTimes(l2BlockTime),
 		presets.WithInteropLogBackfillDepth(backfillDepth),
 	)
-	sys.Supernode.AwaitBackfillCompleted()
+	sys.VerifierSupernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-		sys.L2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
+		sys.VerifierL2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
+		sys.VerifierL2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
 	)
 
-	activation := sys.Supernode.ActivationTimestamp()
-	sys.Supernode.RestartWithFreshDataDir(restartOpts...)
-	sys.Supernode.AwaitVerificationStartsAtOrAfter(activation)
-	sys.Supernode.AwaitBackfillCompleted()
+	activation := sys.VerifierSupernode.ActivationTimestamp()
+	sys.VerifierSupernode.RestartWithFreshDataDir(restartOpts...)
+	sys.VerifierSupernode.AwaitVerificationStartsAtOrAfter(activation)
+	sys.VerifierSupernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.VerifierL2ACL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.VerifierL2BCL.AdvancedFn(types.CrossSafe, 1, 60),
 	)
 
-	sys.Supernode.AssertBackfillCovers(backfillDepth, l2BlockTime,
+	sys.VerifierSupernode.AssertBackfillCovers(backfillDepth, l2BlockTime,
 		sys.L2A.ChainID(), sys.L2B.ChainID())
 }
 
@@ -91,19 +91,19 @@ func runPreActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts))
 		presets.WithUniformL2BlockTimes(l2BlockTime),
 		presets.WithInteropLogBackfillDepth(backfillDepth),
 	)
-	sys.Supernode.AwaitBackfillCompleted()
-	activation := sys.Supernode.ActivationTimestamp()
+	sys.VerifierSupernode.AwaitBackfillCompleted()
+	activation := sys.VerifierSupernode.ActivationTimestamp()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.LocalSafe, 2, 60),
-		sys.L2BCL.AdvancedFn(types.LocalSafe, 2, 60),
+		sys.VerifierL2ACL.AdvancedFn(types.LocalSafe, 2, 60),
+		sys.VerifierL2BCL.AdvancedFn(types.LocalSafe, 2, 60),
 	)
 
-	sys.Supernode.RestartWithFreshDataDir(restartOpts...)
-	sys.Supernode.AwaitVerificationStartsAt(activation)
+	sys.VerifierSupernode.RestartWithFreshDataDir(restartOpts...)
+	sys.VerifierSupernode.AwaitVerificationStartsAt(activation)
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.VerifierL2ACL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.VerifierL2BCL.AdvancedFn(types.CrossSafe, 1, 60),
 	)
 }

@@ -148,6 +148,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	}
 	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)
 	preset.FunderB = dsl.NewFunder(preset.Wallet, preset.FaucetB, preset.L2ELB)
+	preset.Supernode.AttachELs([]*dsl.L2ELNode{preset.L2ELA, preset.L2ELB})
 	return preset
 }
 

@@ -90,50 +90,15 @@ func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64
 	return runtime
 }
 
-// NewTwoL2SupernodeInteropPeerELRuntimeWithConfig builds an interop runtime
-// where each chain is driven by one sequencer EL+CL pair and the supernode
-// VN runs as a non-sequencer ELSync verifier, so the verifier side can be
-// wiped without halting block production.
+// NewTwoL2SupernodeInteropPeerELRuntimeWithConfig builds the base interop
+// runtime (sequencer supernode driving both chains) and adds a second
+// supernode in NonSequencer/ELSync mode that follows both chains as a
+// verifier. The verifier supernode and its ELs can be wiped without
+// halting block production on the sequencer supernode.
 func NewTwoL2SupernodeInteropPeerELRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
-	cfg.SupernodeVNMode = supernodeVNMode{NonSequencer: true, SyncMode: nodeSync.ELSync, DisableReqRespSync: true, NoDiscovery: true}
-	cfg.SkipBatcherProposer = true
-	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg)
-	addPeerELSequencer(t, runtime, cfg, "l2a")
-	addPeerELSequencer(t, runtime, cfg, "l2b")
-	attachTestSequencerToFollower(t, runtime, "test-sequencer-2l2-peer-el", "sequencer")
-	runtime.DelaySeconds = delaySeconds
+	runtime := NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, cfg)
+	addVerifierSupernode(t, runtime, cfg)
 	return runtime
-}
-
-// attachTestSequencerToFollower wires the test sequencer against a named
-// follower per chain instead of chain.EL/CL.
-func attachTestSequencerToFollower(t devtest.T, runtime *MultiChainRuntime, testSequencerName, followerKey string) {
-	t.Require().NotEmpty(runtime.Chains, "runtime must contain at least one chain")
-	chainKeys := make([]string, 0, len(runtime.Chains))
-	for key := range runtime.Chains {
-		chainKeys = append(chainKeys, key)
-	}
-	sort.Strings(chainKeys)
-
-	firstFollower := runtime.Chains[chainKeys[0]].Followers[followerKey]
-	t.Require().NotNil(firstFollower, "missing follower %s on chain %s", followerKey, chainKeys[0])
-	jwtPath := firstFollower.EL.JWTPath()
-	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-
-	targets := make([]l2TestSequencerTarget, 0, len(chainKeys))
-	for _, key := range chainKeys {
-		chain := runtime.Chains[key]
-		follower := chain.Followers[followerKey]
-		t.Require().NotNil(follower, "missing follower %s on chain %s", followerKey, key)
-		targets = append(targets, l2TestSequencerTarget{
-			chainID: chain.Network.ChainID(),
-			l2EL:    follower.EL,
-			l2CL:    follower.CL,
-		})
-	}
-
-	ts := startTestSequencerForL2Chains(t, runtime.Keys, testSequencerName, jwtPath, jwtSecret, runtime.L1Network, runtime.L1EL, runtime.L1CL, targets)
-	runtime.TestSequencer = newTestSequencerRuntime(ts, "")
 }
 
 func newTwoL2SupernodeRuntime(t devtest.T, enableInterop bool, delaySeconds uint64) (*MultiChainRuntime, uint64) {
@@ -332,24 +297,20 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		l1CL,
 		l2ANet,
 		l2AEL,
-		cfg.SupernodeVNMode,
+		supernodeVNMode{},
 		l2BNet,
 		l2BEL,
-		cfg.SupernodeVNMode,
+		supernodeVNMode{},
 		depSet,
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 	)
 
-	var l2ABatcher, l2BBatcher *L2Batcher
-	var l2AProposer, l2BProposer *L2Proposer
-	if !cfg.SkipBatcherProposer {
-		l2ABatcher = startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
-		l2AProposer = startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL)
-		l2BBatcher = startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
-		l2BProposer = startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL)
-	}
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
+	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
+	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
@@ -510,44 +471,58 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	return node
 }
 
-// addPeerELSequencer adds the chain's sequencer EL+CL pair while the
-// supernode-fronted EL+CL runs as the verifier. The verifier's EL receives
-// blocks from the sequencer over EL devp2p, so it can be wiped and resync
-// without halting block production. The sequencer lands in
-// Followers["sequencer"] for downstream lookup.
-func addPeerELSequencer(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig, chainKey string) {
-	chain := runtime.Chains[chainKey]
-	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
+// addVerifierSupernode starts a second supernode that follows both chains
+// as a NonSequencer ELSync verifier, with its own EL per chain. Each
+// verifier EL peers bidi over EL devp2p with the chain's sequencer EL so
+// payloads flow into the verifier without engaging the verifier's CL
+// reqresp. The two supernodes' per-chain VNs are CL-peered so the verifier
+// hears head announcements and can drive snap sync.
+func addVerifierSupernode(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) {
+	chainA := runtime.Chains["l2a"]
+	chainB := runtime.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a runtime chain")
+	t.Require().NotNil(chainB, "missing l2b runtime chain")
+	t.Require().NotNil(runtime.Supernode, "verifier supernode requires a sequencer supernode")
 
-	jwtPath := chain.EL.JWTPath()
+	depSetStatic, ok := runtime.DependencySet.(*depset.StaticConfigDependencySet)
+	t.Require().True(ok, "verifier supernode requires static dependency set")
+
+	jwtPath := chainA.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 
-	seqName := "sequencer-peer"
-	seqEL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, seqName, NewELNodeIdentity(0))
-	seqCL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, seqEL, jwtSecret, l2CLNodeStartConfig{
-		Key:           seqName,
-		IsSequencer:   true,
-		NoDiscovery:   true,
-		EnableReqResp: true,
-		UseReqResp:    true,
-		DependencySet: runtime.DependencySet,
-	})
+	verAEL := startL2ELForKey(t, chainA.Network, jwtPath, jwtSecret, "verifier", NewELNodeIdentity(0))
+	verBEL := startL2ELForKey(t, chainB.Network, jwtPath, jwtSecret, "verifier", NewELNodeIdentity(0))
 
-	connectL2ELPeersBidi(t, t.Logger(), seqEL, chain.EL, true)
-	connectL2CLPeers(t, t.Logger(), seqCL, chain.CL)
-
-	chain.Batcher = startMinimalBatcher(t, runtime.Keys, chain.Network, runtime.L1EL, seqCL, seqEL, cfg.BatcherOptions...)
-	chain.Proposer = startMinimalProposer(t, runtime.Keys, chain.Network, runtime.L1EL, seqCL)
-
-	if chain.Followers == nil {
-		chain.Followers = make(map[string]*SingleChainNodeRuntime)
+	verifierMode := supernodeVNMode{
+		NonSequencer:       true,
+		SyncMode:           nodeSync.ELSync,
+		DisableReqRespSync: true,
+		NoDiscovery:        true,
 	}
-	chain.Followers["sequencer"] = &SingleChainNodeRuntime{
-		Name:        seqName,
-		IsSequencer: true,
-		EL:          seqEL,
-		CL:          seqCL,
-	}
+
+	verifierSN, verACL, verBCL := startTwoL2SharedSupernodeWithMode(
+		t,
+		runtime.L1Network,
+		runtime.L1EL,
+		runtime.L1CL,
+		chainA.Network, verAEL, verifierMode,
+		chainB.Network, verBEL, verifierMode,
+		depSetStatic,
+		runtime.Supernode.snCfg.InteropActivationTimestamp,
+		cfg.InteropLogBackfillDepth,
+		jwtSecret,
+	)
+
+	connectL2ELPeersBidi(t, t.Logger(), verAEL, chainA.EL, true)
+	connectL2ELPeersBidi(t, t.Logger(), verBEL, chainB.EL, true)
+	connectL2CLPeers(t, t.Logger(), verACL, chainA.CL)
+	connectL2CLPeers(t, t.Logger(), verBCL, chainB.CL)
+
+	runtime.VerifierSupernode = verifierSN
+	chainA.VerifierEL = verAEL
+	chainA.VerifierCL = verACL
+	chainB.VerifierEL = verBEL
+	chainB.VerifierCL = verBCL
 }
 
 // supernodeVNMode overrides the per-VN sequencing/sync configuration. The

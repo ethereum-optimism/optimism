@@ -20,10 +20,11 @@ type Supernode struct {
 	frontedELs  []*L2ELNode
 }
 
-// AttachWipeableELs records the external ELs the supernode fronts so a
-// wipe-and-restart action can wipe their on-disk state alongside the
-// supernode's. Peer restoration is handled in sysgo, not here.
-func (s *Supernode) AttachWipeableELs(els []*L2ELNode) {
+// AttachELs records the L2 ELs this supernode drives. Used by
+// RestartWithFreshDataDir(WithELWiped) to wipe their on-disk state
+// alongside the supernode's, and available to future operations that
+// need to address the supernode's ELs as a group.
+func (s *Supernode) AttachELs(els []*L2ELNode) {
 	s.frontedELs = els
 }
 
@@ -146,7 +147,7 @@ type RestartOpts struct {
 }
 
 // WithELWiped is a RestartWithFreshDataDir option that also wipes every
-// supernode-fronted EL's on-disk state. Requires AttachWipeableELs.
+// supernode-fronted EL's on-disk state. Requires AttachELs.
 func WithELWiped(o *RestartOpts) { o.WipeELs = true }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
@@ -157,7 +158,7 @@ func WithELWiped(o *RestartOpts) { o.WipeELs = true }
 // execution-layer-sync from peer ELs. Each EL's Start re-dials its
 // registered static peers; fronted CL static peers are re-dialed after the
 // supernode comes back up. Requires NewSupernodeWithTestControl, plus
-// AttachWipeableELs when WipeELs is set.
+// AttachELs when WipeELs is set.
 func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 	s.require.NotNil(s.testControl,
 		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
