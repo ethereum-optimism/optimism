@@ -189,6 +189,40 @@ func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
 	}
 }
 
+func TestUnsafeHeadRecoveryProgressWithinRollingWindowStaysHealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now       uint64
+		unsafeLag uint64
+		unsafeNum uint64
+	}{
+		{now: now, unsafeLag: 25, unsafeNum: 5},
+		{now: now + 2, unsafeLag: 24, unsafeNum: 6},
+		{now: now + 4, unsafeLag: 24, unsafeNum: 7},
+		{now: now + 6, unsafeLag: 24, unsafeNum: 8},
+		{now: now + 8, unsafeLag: 24, unsafeNum: 9},
+		{now: now + 10, unsafeLag: 23, unsafeNum: 10},
+		{now: now + 12, unsafeLag: 23, unsafeNum: 11},
+		{now: now + 14, unsafeLag: 23, unsafeNum: 12},
+		{now: now + 16, unsafeLag: 23, unsafeNum: 13},
+		{now: now + 18, unsafeLag: 22, unsafeNum: 14},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.now-poll.unsafeLag, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.Equal(t, uint64(25), monitor.initialLagInRecovery)
+	require.Equal(t, uint64(22), monitor.recoveryWindowStartLag)
+	require.Equal(t, uint64(10), monitor.pollsInRecovery)
+	require.Equal(t, uint64(1), monitor.pollsInRecoveryWindow)
+}
+
 func TestStoppedSequencerStillMarkedUnhealthy(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}
@@ -308,7 +342,8 @@ func TestPollsInRecoveryNotResetOnSecondRegression(t *testing.T) {
 		{now: now + 19, unsafeTime: now + 7, unsafeNum: 8},
 		{now: now + 21, unsafeTime: now + 3, unsafeNum: 9},
 		{now: now + 23, unsafeTime: now + 3, unsafeNum: 9},
-		{now: now + 25, unsafeTime: now + 3, unsafeNum: 9, err: ErrSequencerNotHealthy},
+		{now: now + 25, unsafeTime: now + 3, unsafeNum: 9},
+		{now: now + 27, unsafeTime: now + 3, unsafeNum: 9, err: ErrSequencerNotHealthy},
 	}
 	for _, poll := range polls {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
@@ -319,8 +354,37 @@ func TestPollsInRecoveryNotResetOnSecondRegression(t *testing.T) {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
 	}
-	require.Equal(t, uint64(recoveringWindowSize), monitor.pollsInRecovery)
-	require.Equal(t, uint64(15), monitor.firstLagInWindow)
+	require.Equal(t, uint64(15), monitor.initialLagInRecovery)
+	require.Equal(t, uint64(12), monitor.recoveryWindowStartLag)
+	require.Equal(t, uint64(6), monitor.pollsInRecovery)
+	require.Equal(t, uint64(recoveringWindowSize), monitor.pollsInRecoveryWindow)
+}
+
+func TestUnsafeHeadRecoveryPlateauAboveUnsafeIntervalMarkedUnhealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now       uint64
+		unsafeLag uint64
+		unsafeNum uint64
+		err       error
+	}{
+		{now: now, unsafeLag: 25, unsafeNum: 5},
+		{now: now + 2, unsafeLag: 24, unsafeNum: 6},
+		{now: now + 4, unsafeLag: 24, unsafeNum: 7},
+		{now: now + 6, unsafeLag: 24, unsafeNum: 8},
+		{now: now + 8, unsafeLag: 24, unsafeNum: 9},
+		{now: now + 10, unsafeLag: 24, unsafeNum: 10, err: ErrSequencerNotHealthy},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.now-poll.unsafeLag, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
+	}
 }
 
 func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
