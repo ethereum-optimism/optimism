@@ -129,6 +129,7 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	connectSingleChainCLPeer(t, runtime.L2CL, nodeB.CL)
 	connectSingleChainCLPeer(t, runtime.L2CL, nodeC.CL)
 	startConductorCluster(t, conductorA, []*Conductor{conductorB, conductorC})
+	waitForRollupSequencerActive(t, runtime.L2CL.UserRPC())
 
 	runtime.Conductors = map[string]*Conductor{
 		"sequencer": conductorA,
@@ -410,6 +411,28 @@ func fetchInitialUnsafePayload(t devtest.T, nodeRPC string, executionRPC string)
 	})
 	t.Require().NoError(err, "fetch conductor initial unsafe payload")
 	return payload
+}
+
+func waitForRollupSequencerActive(t devtest.T, nodeRPC string) {
+	require := t.Require()
+	rpcClient, err := opclient.NewRPC(t.Ctx(), t.Logger(), nodeRPC)
+	require.NoError(err, "dial op-node RPC for sequencer active check")
+	defer rpcClient.Close()
+	rollupClient := sources.NewRollupClient(rpcClient)
+
+	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
+	defer cancel()
+	err = retry.Do0(ctx, 60, retry.Fixed(500*time.Millisecond), func() error {
+		active, err := rollupClient.SequencerActive(ctx)
+		if err != nil {
+			return err
+		}
+		if !active {
+			return errors.New("sequencer is not active yet")
+		}
+		return nil
+	})
+	require.NoError(err, "sequencer never became active")
 }
 
 func startConductorCluster(t devtest.T, bootstrap *Conductor, members []*Conductor) {
