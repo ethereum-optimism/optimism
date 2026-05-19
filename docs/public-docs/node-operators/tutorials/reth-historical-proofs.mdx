@@ -6,6 +6,13 @@ description: Learn how to initialize and run op-reth with the historical proof s
 As part of the op-geth deprecation, all existing op-geth services are migrating to op-reth. This guide covers how to set up an op-reth node with the **proofs-history** historical proof store, using storage format **v2**, to efficiently compute historical proofs within a configurable retention window.
 
 <Info>
+**Do you need this tutorial?** Withdrawal proving on op-reth uses `eth_getProof` against historical L2 state, so both permissioned and permissionless chains need historical state exposed — but the required lookback differs sharply:
+
+- **Permissioned chains** only need a few hours of lookback (covering your dispute-game publishing cadence with margin). The lighter `--rpc.eth-proof-window <num_blocks>` flag is sufficient on its own — no separate proofs database is needed, and **this tutorial does not apply**. See the [op-reth configuration reference](/node-operators/reference/op-reth-config#rpc-eth-proof-window) for that flag.
+- **Permissionless chains** need ~28 days of lookback. `--rpc.eth-proof-window` becomes too slow and memory-hungry at that range, so follow this tutorial to set up `--proofs-history` (v2).
+</Info>
+
+<Info>
 Use historical proofs storage format v2 by setting `--proofs-history.storage-version=v2` when running `op-reth node`.
 </Info>
 
@@ -97,7 +104,7 @@ Initialize the separate storage used by the historical proof store to persist hi
 ```
 
 <Info>
-The first time `proofs init` runs, it takes minutes to hours to complete. Subsequent invocations should only take seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization. For that reason it is recommended to start from a snapshot whose tip is old enough to cover the required time window, so that when the node starts syncing from the snapshot's tip, the full window is covered.
+The first time `proofs init` runs, it takes minutes to hours to complete. Subsequent invocations should only take seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for permissionless fault proofs at default settings), the node must run continuously for at least that long after initialization. For that reason it is recommended to start from a snapshot whose tip is old enough to cover the required time window, so that when the node starts syncing from the snapshot's tip, the full window is covered.
 </Info>
 
 ## Running op-reth
