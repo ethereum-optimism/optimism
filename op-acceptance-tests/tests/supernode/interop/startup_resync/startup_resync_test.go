@@ -21,7 +21,8 @@ const (
 // TestSupernodeResyncResumesAtActivation_PostActivation wipes the supernode
 // data dir after the chain has crossed activation and asserts cross-safe
 // resumes. The "EL data wiped" subtest additionally wipes the supernode-
-// fronted EL so it must execution-layer-sync from a sibling sequencer EL.
+// fronted verifier EL so it must execution-layer-sync from the chain's
+// sequencer EL.
 func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	for _, tc := range []struct {
 		name        string

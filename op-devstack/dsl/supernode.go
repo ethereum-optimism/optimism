@@ -141,7 +141,7 @@ func (s *Supernode) ResumeInterop() {
 type RestartOpts struct {
 	// WipeELs, when true, additionally stops and wipes every supernode-
 	// fronted EL alongside the supernode data dir, forcing post-restart
-	// execution-layer sync from sibling peers.
+	// execution-layer sync from peer ELs.
 	WipeELs bool
 }
 
@@ -154,7 +154,7 @@ func WithELWiped(o *RestartOpts) { o.WipeELs = true }
 // containers, virtual nodes, and externally-visible RPC address. With
 // WithELWiped, every fronted EL is stopped, wiped, and restarted between
 // the supernode stop and start so the post-restart VN must
-// execution-layer-sync from sibling peers. Each EL's Start re-dials its
+// execution-layer-sync from peer ELs. Each EL's Start re-dials its
 // registered static peers; fronted CL static peers are re-dialed after the
 // supernode comes back up. Requires NewSupernodeWithTestControl, plus
 // AttachWipeableELs when WipeELs is set.
@@ -167,13 +167,7 @@ func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 		fn(&o)
 	}
 
-	if o.WipeELs {
-		s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachWipeableELs from the preset")
-		s.log.Info("restarting supernode with fresh data dir and wiping fronted ELs")
-	} else {
-		s.log.Info("restarting supernode with fresh data dir")
-	}
-
+	s.log.Info("restarting supernode with fresh data dir", "wipe_els", o.WipeELs)
 	s.testControl.Stop()
 	if o.WipeELs {
 		for _, el := range s.frontedELs {

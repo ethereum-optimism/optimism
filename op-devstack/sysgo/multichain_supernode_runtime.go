@@ -91,15 +91,15 @@ func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64
 }
 
 // NewTwoL2SupernodeInteropPeerELRuntimeWithConfig builds an interop runtime
-// where each chain's supernode VN is a non-sequencer ELSync follower of an
-// added sibling sequencer EL+CL pair, so the supernode side can be wiped
-// without halting block production.
+// where each chain is driven by one sequencer EL+CL pair and the supernode
+// VN runs as a non-sequencer ELSync verifier, so the verifier side can be
+// wiped without halting block production.
 func NewTwoL2SupernodeInteropPeerELRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
 	cfg.SupernodeVNMode = supernodeVNMode{NonSequencer: true, SyncMode: nodeSync.ELSync, DisableReqRespSync: true, NoDiscovery: true}
 	cfg.SkipBatcherProposer = true
 	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg)
-	addPeerELSiblingSequencer(t, runtime, cfg, "l2a")
-	addPeerELSiblingSequencer(t, runtime, cfg, "l2b")
+	addPeerELSequencer(t, runtime, cfg, "l2a")
+	addPeerELSequencer(t, runtime, cfg, "l2b")
 	attachTestSequencerToFollower(t, runtime, "test-sequencer-2l2-peer-el", "sequencer")
 	runtime.DelaySeconds = delaySeconds
 	return runtime
@@ -510,19 +510,22 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	return node
 }
 
-// addPeerELSiblingSequencer adds a sequencer pair to a chain whose VN is
-// running as a non-sequencer ELSync follower, so the wiped EL can devp2p-sync
-// from the sibling. The sibling lands in Followers["sequencer"].
-func addPeerELSiblingSequencer(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig, chainKey string) {
+// addPeerELSequencer adds the chain's sequencer EL+CL pair while the
+// supernode-fronted EL+CL runs as the verifier. The verifier's EL receives
+// blocks from the sequencer over EL devp2p, so it can be wiped and resync
+// without halting block production. The sequencer lands in
+// Followers["sequencer"] for downstream lookup.
+func addPeerELSequencer(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig, chainKey string) {
 	chain := runtime.Chains[chainKey]
 	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
 
 	jwtPath := chain.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 
-	siblingEL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, "sequencer-sibling", NewELNodeIdentity(0))
-	siblingCL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, siblingEL, jwtSecret, l2CLNodeStartConfig{
-		Key:           "sequencer-sibling",
+	seqName := "sequencer-peer"
+	seqEL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, seqName, NewELNodeIdentity(0))
+	seqCL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, seqEL, jwtSecret, l2CLNodeStartConfig{
+		Key:           seqName,
 		IsSequencer:   true,
 		NoDiscovery:   true,
 		EnableReqResp: true,
@@ -530,20 +533,20 @@ func addPeerELSiblingSequencer(t devtest.T, runtime *MultiChainRuntime, cfg Pres
 		DependencySet: runtime.DependencySet,
 	})
 
-	connectL2ELPeersBidi(t, t.Logger(), siblingEL, chain.EL, true)
-	connectL2CLPeers(t, t.Logger(), siblingCL, chain.CL)
+	connectL2ELPeersBidi(t, t.Logger(), seqEL, chain.EL, true)
+	connectL2CLPeers(t, t.Logger(), seqCL, chain.CL)
 
-	chain.Batcher = startMinimalBatcher(t, runtime.Keys, chain.Network, runtime.L1EL, siblingCL, siblingEL, cfg.BatcherOptions...)
-	chain.Proposer = startMinimalProposer(t, runtime.Keys, chain.Network, runtime.L1EL, siblingCL)
+	chain.Batcher = startMinimalBatcher(t, runtime.Keys, chain.Network, runtime.L1EL, seqCL, seqEL, cfg.BatcherOptions...)
+	chain.Proposer = startMinimalProposer(t, runtime.Keys, chain.Network, runtime.L1EL, seqCL)
 
 	if chain.Followers == nil {
 		chain.Followers = make(map[string]*SingleChainNodeRuntime)
 	}
 	chain.Followers["sequencer"] = &SingleChainNodeRuntime{
-		Name:        "sequencer-sibling",
+		Name:        seqName,
 		IsSequencer: true,
-		EL:          siblingEL,
-		CL:          siblingCL,
+		EL:          seqEL,
+		CL:          seqCL,
 	}
 }
 

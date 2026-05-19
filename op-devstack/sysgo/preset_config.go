@@ -40,7 +40,7 @@ type PresetConfig struct {
 	// Zero value = default (sequencer, CL-sync, reqresp, discovery).
 	SupernodeVNMode supernodeVNMode
 	// SkipBatcherProposer leaves batcher/proposer unwired; the caller
-	// (e.g. the peer-EL runtime) attaches them to a sibling sequencer.
+	// (e.g. the peer-EL runtime) attaches them to its sequencer pair.
 	SkipBatcherProposer bool
 }
 

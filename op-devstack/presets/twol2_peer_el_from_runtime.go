@@ -8,12 +8,12 @@ import (
 
 func twoL2SupernodeInteropPeerELFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeInteropPeerEL {
 	base := twoL2SupernodeInteropFromRuntime(t, runtime)
-	seqA := addSiblingSequencerFrontend(t, base.L2A, runtime, "l2a")
-	seqB := addSiblingSequencerFrontend(t, base.L2B, runtime, "l2b")
+	seqA := addSequencerFrontend(t, base.L2A, runtime, "l2a")
+	seqB := addSequencerFrontend(t, base.L2B, runtime, "l2b")
 
-	// Sibling↔supernode-fronted peering is wired (and registered for restart
-	// replay) in sysgo's addPeerELSiblingSequencer. Tell the Supernode DSL
-	// which ELs need a wipe alongside the supernode data dir.
+	// Sequencer↔verifier peering is wired (and registered for restart replay)
+	// in sysgo's addPeerELSequencer. Tell the Supernode DSL which verifier
+	// ELs need a wipe alongside the supernode data dir.
 	base.Supernode.AttachWipeableELs([]*dsl.L2ELNode{base.L2ELA, base.L2ELB})
 
 	return &TwoL2SupernodeInteropPeerEL{
@@ -25,20 +25,20 @@ func twoL2SupernodeInteropPeerELFromRuntime(t devtest.T, runtime *sysgo.MultiCha
 	}
 }
 
-type siblingSequencerFrontend struct {
+type sequencerFrontend struct {
 	el *dsl.L2ELNode
 	cl *dsl.L2CLNode
 }
 
-func addSiblingSequencerFrontend(t devtest.T, l2Net *dsl.L2Network, runtime *sysgo.MultiChainRuntime, chainKey string) siblingSequencerFrontend {
+func addSequencerFrontend(t devtest.T, l2Net *dsl.L2Network, runtime *sysgo.MultiChainRuntime, chainKey string) sequencerFrontend {
 	chain := runtime.Chains[chainKey]
 	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
-	sibling := chain.Followers["sequencer"]
-	t.Require().NotNil(sibling, "missing %s sibling sequencer", chainKey)
+	seq := chain.Followers["sequencer"]
+	t.Require().NotNil(seq, "missing %s sequencer", chainKey)
 
 	chainID := chain.Network.ChainID()
-	el := newL2ELFrontend(t, sibling.Name, chainID, sibling.EL.UserRPC(), sibling.EL.EngineRPC(), sibling.EL.JWTPath(), chain.Network.RollupConfig(), sibling.EL)
-	cl := newL2CLFrontend(t, sibling.Name, chainID, sibling.CL.UserRPC(), sibling.CL)
+	el := newL2ELFrontend(t, seq.Name, chainID, seq.EL.UserRPC(), seq.EL.EngineRPC(), seq.EL.JWTPath(), chain.Network.RollupConfig(), seq.EL)
+	cl := newL2CLFrontend(t, seq.Name, chainID, seq.CL.UserRPC(), seq.CL)
 	cl.attachEL(el)
 
 	net, ok := l2Net.Escape().(*presetL2Network)
@@ -46,5 +46,5 @@ func addSiblingSequencerFrontend(t devtest.T, l2Net *dsl.L2Network, runtime *sys
 	net.AddL2ELNode(el)
 	net.AddL2CLNode(cl)
 
-	return siblingSequencerFrontend{el: dsl.NewL2ELNode(el), cl: dsl.NewL2CLNode(cl)}
+	return sequencerFrontend{el: dsl.NewL2ELNode(el), cl: dsl.NewL2CLNode(cl)}
 }

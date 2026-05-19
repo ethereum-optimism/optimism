@@ -20,7 +20,7 @@ type SupernodeTestControl interface {
 	InteropActivity() *interop.Interop
 
 	// Stop stops the supernode without touching its data dir, leaving the
-	// externally-visible RPC address in place so sibling components can be
+	// externally-visible RPC address in place so peer components can be
 	// wiped between Stop and StartWithFreshDataDir.
 	Stop()
 
