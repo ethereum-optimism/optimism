@@ -22,6 +22,7 @@ const (
 	featuresSolPath     = "src/libraries/Features.sol"
 	configSolPath       = "scripts/libraries/Config.sol"
 	featureFlagsSolPath = "test/setup/FeatureFlags.sol"
+	circleCIPath        = "../../.circleci/continue/main.yml"
 
 	devEnvPrefix = "DEV_FEATURE__"
 	sysEnvPrefix = "SYS_FEATURE__"
@@ -32,6 +33,9 @@ const (
 	lifecycleActive      = "active"
 	lifecycleHardcodedOn = "hardcoded-on"
 	lifecycleLegacy      = "legacy"
+
+	featuresMatrixAnchor = "features_matrix"
+	ciBaselineRow        = "main"
 )
 
 // sysSetupConsumerFiles are setup files that may consume and activate sys feature readers.
@@ -101,6 +105,12 @@ type SysFeatureSetup struct {
 	Activations map[string]map[string]bool
 }
 
+// CircleCIConfig is the feature subset extracted from .circleci/continue/main.yml.
+type CircleCIConfig struct {
+	SystemFeaturesDefault []string
+	FeaturesMatrix        []string
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -138,12 +148,17 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("feature-flags: %w", err)
 	}
+	ci, err := readCircleCIConfig(circleCIPath)
+	if err != nil {
+		return fmt.Errorf("feature-flags: %w", err)
+	}
 
 	var errs []string
 	errs = append(errs, validateRegistry(registry)...)
 	errs = append(errs, validateDefinitions(registry, devConsts, sysConsts)...)
 	errs = append(errs, validateGoParity(registry, devConsts, goConsts, solHardcoded, goHardcoded)...)
 	errs = append(errs, validateWiring(registry, readers, ff, sysSetup)...)
+	errs = append(errs, validateCIParity(registry, ci)...)
 
 	if len(errs) > 0 {
 		for _, e := range errs {
@@ -241,6 +256,14 @@ func scanSysFeatureSetup(paths []string) (SysFeatureSetup, error) {
 		scanSysFeatureSetupContent(string(data), &setup)
 	}
 	return setup, nil
+}
+
+func readCircleCIConfig(path string) (CircleCIConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return CircleCIConfig{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	return parseCircleCIConfig(data)
 }
 
 // Parsing
@@ -592,6 +615,101 @@ func scanSysFeatureSetupContent(content string, setup *SysFeatureSetup) {
 			setup.addActivation(reader, "CUSTOM_GAS_TOKEN")
 		}
 	}
+}
+
+func parseCircleCIConfig(data []byte) (CircleCIConfig, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return CircleCIConfig{}, fmt.Errorf("parse circleci yaml: %w", err)
+	}
+	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
+		return CircleCIConfig{}, fmt.Errorf("parse circleci yaml: root must be a mapping")
+	}
+	doc := root.Content[0]
+
+	sysDefault, err := readCISystemFeaturesDefault(doc)
+	if err != nil {
+		return CircleCIConfig{}, err
+	}
+	matrix, err := readCIFeaturesMatrix(doc)
+	if err != nil {
+		return CircleCIConfig{}, err
+	}
+	return CircleCIConfig{
+		SystemFeaturesDefault: sysDefault,
+		FeaturesMatrix:        matrix,
+	}, nil
+}
+
+func readCISystemFeaturesDefault(doc *yaml.Node) ([]string, error) {
+	n := yamlMapNodeAt(doc, "commands", "setup-features", "parameters", "system_features", "default")
+	if n == nil || n.Kind != yaml.ScalarNode {
+		return nil, fmt.Errorf("circleci yaml: commands.setup-features.parameters.system_features.default missing or not a scalar")
+	}
+	return strings.Fields(n.Value), nil
+}
+
+func readCIFeaturesMatrix(doc *yaml.Node) ([]string, error) {
+	n := yamlFindAnchorNode(doc, featuresMatrixAnchor)
+	if n == nil {
+		return nil, fmt.Errorf("circleci yaml: could not find &%s anchor", featuresMatrixAnchor)
+	}
+	if n.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("circleci yaml: &%s is not a sequence", featuresMatrixAnchor)
+	}
+	rows := make([]string, 0, len(n.Content))
+	for _, item := range n.Content {
+		if item.Kind != yaml.ScalarNode {
+			return nil, fmt.Errorf("circleci yaml: &%s row is not a scalar", featuresMatrixAnchor)
+		}
+		rows = append(rows, strings.TrimSpace(item.Value))
+	}
+	return rows, nil
+}
+
+func yamlMapNodeAt(node *yaml.Node, keys ...string) *yaml.Node {
+	for _, key := range keys {
+		if node == nil || node.Kind != yaml.MappingNode {
+			return nil
+		}
+		var next *yaml.Node
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == key {
+				next = node.Content[i+1]
+				break
+			}
+		}
+		node = next
+	}
+	return node
+}
+
+func yamlFindAnchorNode(node *yaml.Node, anchor string) *yaml.Node {
+	if node == nil {
+		return nil
+	}
+	if node.Anchor == anchor {
+		return node
+	}
+	for _, c := range node.Content {
+		if got := yamlFindAnchorNode(c, anchor); got != nil {
+			return got
+		}
+	}
+	return nil
+}
+
+func parseCIMatrixRow(s string) []string {
+	s = strings.TrimSpace(s)
+	if strings.EqualFold(s, ciBaselineRow) {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, strings.TrimSpace(p))
+	}
+	return out
 }
 
 func extractBraceBody(content string, openBrace int) (string, bool) {
@@ -1117,6 +1235,116 @@ func validateWiring(
 	// Keep error ordering stable for tests and diffs.
 	sort.Strings(errs)
 	return errs
+}
+
+func renderCIMatrix(r Registry) []string {
+	declarationOrder := map[string]int{}
+	for i, f := range r.Features {
+		declarationOrder[f.Name] = i
+	}
+	out := make([]string, 0, len(r.Combinations.Matrix))
+	for _, row := range r.Combinations.Matrix {
+		if len(row) == 0 {
+			out = append(out, ciBaselineRow)
+			continue
+		}
+		canon := append([]string(nil), row...)
+		sort.SliceStable(canon, func(i, j int) bool {
+			return declarationOrder[canon[i]] < declarationOrder[canon[j]]
+		})
+		out = append(out, strings.Join(canon, ","))
+	}
+	return out
+}
+
+func validateCIParity(r Registry, ci CircleCIConfig) []string {
+	var errs []string
+
+	// CircleCI stores system features as a space-separated string.
+	var registrySys []string
+	for _, f := range r.Features {
+		if f.Type == typeSys {
+			registrySys = append(registrySys, f.Name)
+		}
+	}
+	sort.Strings(registrySys)
+	gotSys := append([]string(nil), ci.SystemFeaturesDefault...)
+	sort.Strings(gotSys)
+	if !stringSlicesEqual(registrySys, gotSys) {
+		errs = append(errs, fmt.Sprintf(".circleci/continue/main.yml setup-features.parameters.system_features.default = %q, expected %q (sorted feature-flags.yaml type: sys features, space-separated)",
+			strings.Join(ci.SystemFeaturesDefault, " "),
+			strings.Join(registrySys, " ")))
+	}
+
+	// Compare matrix rows exactly; registry rows render in declaration order.
+	expected := renderCIMatrix(r)
+	if !stringSlicesEqual(expected, ci.FeaturesMatrix) {
+		errs = append(errs, fmt.Sprintf(".circleci/continue/main.yml features_matrix does not match feature-flags.yaml combinations.matrix (rendered with registry declaration order, main = [])\n  expected: %v\n  actual:   %v",
+			expected, ci.FeaturesMatrix))
+	}
+
+	// Validate each CI row so errors can point at the bad row directly.
+	knownFeature := map[string]Feature{}
+	for _, f := range r.Features {
+		knownFeature[f.Name] = f
+	}
+	for i, raw := range ci.FeaturesMatrix {
+		row := parseCIMatrixRow(raw)
+		if len(row) == 0 {
+			continue
+		}
+		inRow := map[string]bool{}
+		for _, name := range row {
+			if _, ok := knownFeature[name]; !ok {
+				errs = append(errs, fmt.Sprintf(".circleci/continue/main.yml features_matrix[%d] %q references unknown feature %q", i, raw, name))
+			}
+			inRow[name] = true
+		}
+		for key, prereqs := range r.Combinations.Requires {
+			if !inRow[key] {
+				continue
+			}
+			for _, p := range prereqs {
+				if inRow[p] {
+					continue
+				}
+				if f, ok := knownFeature[p]; ok && f.Lifecycle == lifecycleHardcodedOn {
+					continue
+				}
+				errs = append(errs, fmt.Sprintf(".circleci/continue/main.yml features_matrix[%d] %q enables %s but is missing required prerequisite %s", i, raw, key, p))
+			}
+		}
+		for j, excl := range r.Combinations.Excludes {
+			if len(excl) == 0 {
+				continue
+			}
+			all := true
+			for _, name := range excl {
+				if !inRow[name] {
+					all = false
+					break
+				}
+			}
+			if all {
+				errs = append(errs, fmt.Sprintf(".circleci/continue/main.yml features_matrix[%d] %q violates excludes[%d]: %v", i, raw, j, excl))
+			}
+		}
+	}
+
+	sort.Strings(errs)
+	return errs
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func isZeroHex(h string) bool {

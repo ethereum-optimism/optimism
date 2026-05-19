@@ -42,7 +42,7 @@ phases:
         description: Check kontrol summaries unchanged
         command: ./scripts/checks/check-kontrol-summaries-unchanged.sh
       - name: feature-flags
-        description: Check feature flag registry against Solidity surfaces
+        description: Check feature flag registry against Solidity, Go, and CircleCI surfaces
         command: go run ./scripts/checks/feature-flags
 
   # Phase 3: Source build checks - production contracts only
