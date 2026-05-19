@@ -315,22 +315,19 @@ func CheckEIP7825DepositBypass(
 
 	l2DepositHash := types.NewTx(l2DepositTx).Hash()
 	logger.Info("EIP-7825-deposit: waiting for L2 deposit receipt", "tx", l2DepositHash)
-	deadline := time.Now().Add(2 * time.Minute)
 	var l2Receipt *types.Receipt
-	var lastErr error
-	for time.Now().Before(deadline) {
-		l2Receipt, lastErr = l2.TransactionReceipt(ctx, l2DepositHash)
-		if lastErr == nil && l2Receipt != nil {
+	for {
+		var err error
+		l2Receipt, err = l2.TransactionReceipt(ctx, l2DepositHash)
+		if err == nil && l2Receipt != nil {
 			break
 		}
+		logger.Info("Could not find transaction receipt", "err", err)
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
-		case <-time.After(time.Second):
+		case <-time.After(2 * time.Second):
 		}
-	}
-	if l2Receipt == nil {
-		return 0, fmt.Errorf("timed out waiting for L2 deposit receipt: tx=%s, lastErr=%w", l2DepositHash, lastErr)
 	}
 	if l2Receipt.Status != types.ReceiptStatusSuccessful {
 		return 0, fmt.Errorf("L2 deposit reverted: tx=%s, block=%v", l2DepositHash, l2Receipt.BlockNumber)
