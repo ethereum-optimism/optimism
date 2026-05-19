@@ -54,12 +54,13 @@ type rpcELNode struct {
 	client    opclient.RPC
 	ethClient *sources.EthClient
 	chainID   eth.ChainID
+	userRPC   string
 	txTimeout time.Duration
 }
 
 var _ stack.ELNode = (*rpcELNode)(nil)
 
-func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, timeout time.Duration) rpcELNode {
+func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, timeout time.Duration) rpcELNode {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	ethCl, err := sources.NewEthClient(rpcCl, t.Logger(), nil, sources.DefaultEthClientConfig(10))
 	t.Require().NoError(err)
@@ -71,6 +72,7 @@ func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.
 		client:       rpcCl,
 		ethClient:    ethCl,
 		chainID:      chainID,
+		userRPC:      userRPC,
 		txTimeout:    timeout,
 	}
 }
@@ -83,6 +85,10 @@ func (r *rpcELNode) EthClient() apis.EthClient {
 	return r.ethClient
 }
 
+func (r *rpcELNode) UserRPC() string {
+	return r.userRPC
+}
+
 func (r *rpcELNode) TransactionTimeout() time.Duration {
 	return r.txTimeout
 }
@@ -93,9 +99,9 @@ type l1ELFrontend struct {
 
 var _ stack.L1ELNode = (*l1ELFrontend)(nil)
 
-func newPresetL1ELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC) *l1ELFrontend {
+func newPresetL1ELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string) *l1ELFrontend {
 	return &l1ELFrontend{
-		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 	}
 }
 
@@ -144,7 +150,7 @@ type l2ELFrontend struct {
 
 var _ stack.L2ELNode = (*l2ELFrontend)(nil)
 
-func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
+func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
 	t.Require().NotNil(rollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(userRPCCl, t.Logger(), nil, sources.L2ClientSimpleConfig(rollupCfg, false, 10, 10))
 	t.Require().NoError(err)
@@ -154,7 +160,7 @@ func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl 
 	engineClient, err := sources.NewEngineClient(engineRPCCl, t.Logger(), nil, engineClientCfg)
 	t.Require().NoError(err)
 	return &l2ELFrontend{
-		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, 0),
+		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, userRPC, 0),
 		l2Client:       l2Client,
 		l2EngineClient: engineClient,
 	}
@@ -351,11 +357,11 @@ type oprBuilderFrontend struct {
 
 var _ stack.OPRBuilderNode = (*oprBuilderFrontend)(nil)
 
-func newPresetOPRBuilderNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient, updateRuleSet func(string) error) *oprBuilderFrontend {
+func newPresetOPRBuilderNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient, updateRuleSet func(string) error) *oprBuilderFrontend {
 	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
 	t.Require().NoError(err)
 	return &oprBuilderFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 		engineClient:      engineClient,
 		flashblocksClient: flashblocksCl,
 		updateRuleSet:     updateRuleSet,
@@ -397,11 +403,11 @@ type rollupBoostFrontend struct {
 
 var _ stack.RollupBoostNode = (*rollupBoostFrontend)(nil)
 
-func newPresetRollupBoostNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient) *rollupBoostFrontend {
+func newPresetRollupBoostNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient) *rollupBoostFrontend {
 	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
 	t.Require().NoError(err)
 	return &rollupBoostFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 		engineClient:      engineClient,
 		flashblocksClient: flashblocksCl,
 	}
