@@ -52,6 +52,9 @@ members = [
 
   # Op-Revm
   "op-revm/",
+
+  # Revm execution-environment integration tests
+  "revm-ee-tests/",
 ]
 default-members = [
   "kona/bin/host",

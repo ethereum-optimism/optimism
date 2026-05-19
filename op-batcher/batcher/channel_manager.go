@@ -310,18 +310,28 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*chann
 		return firstWithTxData, nil
 	}
 
-	// No pending tx data, so we have to add new blocks to the channel
-	// If we have no saved blocks, we will not be able to create valid frames
-	if s.pendingBlocks() == 0 {
+	// If there are pending blocks, add them to a channel.
+	havePendingBlocks := s.pendingBlocks() > 0
+	if havePendingBlocks {
+		if err := s.ensureChannelWithSpace(l1Head); err != nil {
+			return nil, err
+		}
+		if err := s.processBlocks(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Nothing to flush if there's no open channel.
+	if s.currentChannel == nil {
 		return nil, io.EOF
 	}
 
-	if err := s.ensureChannelWithSpace(l1Head); err != nil {
-		return nil, err
-	}
-
-	if err := s.processBlocks(); err != nil {
-		return nil, err
+	// If no blocks were added this call and the channel is already full, its
+	// frames were already produced by a prior call (and drained by the earlier
+	// HasTxData check above). Skip re-running outputFrames on an already-closed
+	// channel-out, which would error.
+	if !havePendingBlocks && s.currentChannel.IsFull() {
+		return nil, io.EOF
 	}
 
 	if !pi.ignoreMaxChannelDuration {

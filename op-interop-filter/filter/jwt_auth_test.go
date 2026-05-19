@@ -49,7 +49,7 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
+		Namespace: "interop",
 		Service:   new(testSupervisorAPI),
 	})
 
@@ -103,7 +103,7 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 
 	t.Run("filter API works without JWT on its dedicated port", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})
@@ -132,7 +132,7 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
+		Namespace: "interop",
 		Service:   new(testSupervisorAPI),
 	})
 	filterServer.AddAPI(rpc.API{
@@ -159,7 +159,7 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 
 	t.Run("supervisor API still works alongside public admin", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})
@@ -176,7 +176,7 @@ func TestFilterAPIWithoutAdminServer(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
+		Namespace: "interop",
 		Service:   new(testSupervisorAPI),
 	})
 
@@ -192,7 +192,7 @@ func TestFilterAPIWithoutAdminServer(t *testing.T) {
 
 	t.Run("filter API works without admin server configured", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})

@@ -60,7 +60,7 @@ where
         // Reorg originates beyond the stored tip — the engine is still catching up.
         // Sync batches will fetch post-reorg blocks from the provider, so nothing to unwind.
         debug!(
-            target: "live-trie::engine",
+            target: "trie::engine::task",
             first_block = first.block.number,
             tip = tip.number,
             "Reorg starts beyond stored tip, skipping"
@@ -72,7 +72,7 @@ where
     let common_ancestor_number = first.block.number.saturating_sub(1);
 
     info!(
-        target: "live-trie::engine",
+        target: "trie::engine::task",
         reorg_depth = block_updates.len(),
         common_ancestor = common_ancestor_number,
         "Handling reorg: unwinding and buffering new path"
@@ -96,6 +96,7 @@ where
     state.metrics.reorg_duration_seconds.record(total_duration);
 
     info!(
+        target: "trie::engine::task",
         start_block_number = block_updates.first().map(|(b, _, _)| b.block.number),
         end_block_number = block_updates.last().map(|(b, _, _)| b.block.number),
         ?total_duration,

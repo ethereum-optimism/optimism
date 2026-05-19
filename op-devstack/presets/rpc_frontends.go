@@ -429,39 +429,6 @@ func (r *rollupBoostFrontend) Stop() {
 	r.lifecycle.Stop()
 }
 
-type supervisorFrontend struct {
-	presetCommon
-	api       apis.SupervisorAPI
-	lifecycle stack.Lifecycle
-}
-
-var _ stack.Supervisor = (*supervisorFrontend)(nil)
-
-func newPresetSupervisor(t devtest.T, name string, rpcCl opclient.RPC) *supervisorFrontend {
-	return &supervisorFrontend{
-		presetCommon: newPresetCommon(t, name),
-		api:          sources.NewSupervisorClient(rpcCl),
-	}
-}
-
-func (r *supervisorFrontend) AdminAPI() apis.SupervisorAdminAPI {
-	return r.api
-}
-
-func (r *supervisorFrontend) QueryAPI() apis.SupervisorQueryAPI {
-	return r.api
-}
-
-func (r *supervisorFrontend) Start() {
-	r.require().NotNil(r.lifecycle, "supervisor %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Start()
-}
-
-func (r *supervisorFrontend) Stop() {
-	r.require().NotNil(r.lifecycle, "supervisor %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Stop()
-}
-
 type supernodeFrontend struct {
 	presetCommon
 	api apis.SupernodeQueryAPI

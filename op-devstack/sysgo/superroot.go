@@ -11,6 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
+	w3eth "github.com/lmittmann/w3/module/eth"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
@@ -20,17 +31,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/lmittmann/w3"
-	w3eth "github.com/lmittmann/w3/module/eth"
 )
 
 // V2 structs for OPCM >= 7.0.0 (using IOPContractsManagerMigrator interface)
@@ -147,26 +147,6 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 	return superrootTime
 }
 
-func getSupervisorSuperRoot(t devtest.T, supervisor Supervisor, timestamp uint64) eth.Bytes32 {
-	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
-	t.Require().NoError(err)
-
-	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
-	err = wait.For(ctx, time.Second, func() (bool, error) {
-		status, err := client.SyncStatus(ctx)
-		if err != nil {
-			return false, err
-		}
-		return timestamp < status.MinSyncedL1.Time, nil
-	})
-	cancel()
-	t.Require().NoError(err, "waiting for supervisor to sync failed")
-
-	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
-	t.Require().NoError(err, "super root at timestamp failed")
-	return super.SuperRoot
-}
-
 func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
 	t.Require().NoError(err)
@@ -267,13 +247,13 @@ func migrateSuperRootsWithProposal(
 		DisputeGameConfigs: []DisputeGameConfigV2{
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superPermissionedCannonGameType,
 				GameArgs: permGameArgs,
 			},
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superCannonKonaGameType,
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},

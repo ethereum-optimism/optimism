@@ -121,9 +121,10 @@ type EngineController struct {
 	// Derived from L1, and known to be a completed span-batch,
 	// but not cross-verified yet.
 	localSafeHead eth.L2BlockRef
-	// Derived from finalized L1 data, but not necessarily
-	// verified by the superAuthority.
-	// Only to be used as a FinalizedHead when there is no superAuthority
+	// Last locally materialized finalized head.
+	// In superAuthority mode, this is updated from successfully resolved
+	// superAuthority finalized refs and used as a fallback when the authority
+	// or EL is temporarily unavailable.
 	localFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
@@ -222,7 +223,20 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
+			finalized := e.FinalizedHead()
+			e.log.Warn("superAuthority safe head is not known to the engine, using finalized head", "super_authority_safe", fvshid, "finalized", finalized, "err", err)
+			return finalized
+		}
+		canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
+		if err != nil {
+			finalized := e.FinalizedHead()
+			e.log.Warn("cannot verify superAuthority safe head canonicality, using finalized head", "super_authority_safe", br, "finalized", finalized, "err", err)
+			return finalized
+		}
+		if canonical.Hash != br.Hash {
+			finalized := e.FinalizedHead()
+			e.log.Warn("superAuthority safe head is not canonical, using finalized head", "super_authority_safe", br, "canonical", canonical, "finalized", finalized)
+			return finalized
 		}
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
@@ -253,10 +267,26 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
 			return e.localSafeHead
 		}
+		if e.localFinalizedHead != (eth.L2BlockRef{}) {
+			if f == e.localFinalizedHead.ID() {
+				return e.localFinalizedHead
+			}
+			if f.Number < e.localFinalizedHead.Number {
+				// SuperAuthority finality is expected to be monotonic. A lower
+				// finalized head means the authority is reporting stale state.
+				e.log.Error("superAuthority finalized head is behind cached finalized head, using cached finalized head", "super_authority_finalized", f, "cached_finalized", e.localFinalizedHead)
+				return e.localFinalizedHead
+			}
+			if f.Number == e.localFinalizedHead.Number {
+				panic("superAuthority finalized head conflicts with cached finalized head at same height")
+			}
+		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the finalized head which is not known to the engine")
+			e.log.Warn("superAuthority finalized head is not known to the engine, using cached finalized head", "super_authority_finalized", f, "cached_finalized", e.localFinalizedHead, "err", err)
+			return e.localFinalizedHead
 		}
+		e.SetFinalizedHead(br)
 		return br
 	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
@@ -470,18 +500,35 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
-			return fmt.Errorf("failed to load finalized head: %w", err)
+			// In ELSync mode the engine has no finalized block until its initial
+			// snap-sync completes and the CL emits a finalized FCU. Treat
+			// NotFound as "no finalized block yet" and continue, mirroring the
+			// eth.Safe branch below. In CLSync mode the engine is expected to
+			// have a finalized block after the initial reset, so propagate
+			// the error as before.
+			if errors.Is(err, ethereum.NotFound) && e.syncCfg.SyncMode == sync.ELSync {
+				e.log.Debug("No finalized L2 block known yet, leaving finalized head unset")
+			} else {
+				return fmt.Errorf("failed to load finalized head: %w", err)
+			}
+		} else {
+			e.SetFinalizedHead(finalizedRef)
+			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
-		e.SetFinalizedHead(finalizedRef)
-		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 	}
 	if e.localSafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
-				// If the engine doesn't have a safe head, then we can use the finalized head
-				e.SetLocalSafeHead(finalizedRef)
-				e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				if finalizedRef == (eth.L2BlockRef{}) {
+					// Neither safe nor finalized are known yet — leave local-safe
+					// unset so the next initializeUnknowns retries.
+					e.log.Debug("No safe or finalized L2 block known yet, leaving local-safe head unset")
+				} else {
+					// If the engine doesn't have a safe head, then we can use the finalized head
+					e.SetLocalSafeHead(finalizedRef)
+					e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				}
 			} else {
 				return fmt.Errorf("failed to load local-safe head: %w", err)
 			}

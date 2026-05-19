@@ -140,6 +140,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an invalid upgrade sequence is provided.
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
 
+    /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
+    error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -155,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.20
+    /// @custom:semver 7.1.21
     function version() public pure returns (string memory) {
-        return "7.1.20";
+        return "7.1.21";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -719,6 +722,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
+            // If game is enabled, we must have a non-zero init bond.
+            if (_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
             // Check if this is a permissioned type.
             bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
                 || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
@@ -898,6 +906,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // If the game is enabled, grab the implementation and craft the game arguments.
             if (_cfg.disputeGameConfigs[i].enabled) {
                 gameImpl = _getGameImpl(_cfg.disputeGameConfigs[i].gameType);
+                if (address(gameImpl) == address(0) || address(gameImpl).code.length == 0) {
+                    revert OPContractsManagerV2_ZeroGameImplementation(_cfg.disputeGameConfigs[i].gameType);
+                }
                 gameArgs = _makeGameArgs(
                     _cfg.l2ChainId, _cts.anchorStateRegistry, _cts.delayedWETH, _cfg.disputeGameConfigs[i]
                 );

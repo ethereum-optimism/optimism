@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -115,12 +116,36 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	dsl.CheckAll(t, divergenceChecks...)
 
 	// Freeze new block production so interop can catch cross-safe up to local-safe.
+	//
+	// Cross-safe only commits at timestamps where every chain has a local-safe
+	// block, so the chains must end at the same unsafe-head timestamp before
+	// ResumeInterop. StopSequencer is async between chains, so the chain stopped
+	// second can seal an extra block. Use the test sequencer to deterministically
+	// level the trailing chain back up to the leader.
 	sys.L2ACL.StopSequencer()
 	sys.L2BCL.StopSequencer()
 	t.Cleanup(func() {
 		sys.L2ACL.StartSequencer()
 		sys.L2BCL.StartSequencer()
 	})
+
+	for range 10 {
+		unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+		if unsafeA.Time == unsafeB.Time {
+			break
+		}
+		if unsafeA.Time < unsafeB.Time {
+			sys.TestSequencer.SequenceBlock(t, sys.L2A.ChainID(), unsafeA.Hash)
+		} else {
+			sys.TestSequencer.SequenceBlock(t, sys.L2B.ChainID(), unsafeB.Hash)
+		}
+	}
+	unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	require.Equalf(unsafeA.Time, unsafeB.Time,
+		"chains must be at same unsafe timestamp before ResumeInterop; got A=%d B=%d",
+		unsafeA.Time, unsafeB.Time)
 
 	sys.Supernode.ResumeInterop()
 

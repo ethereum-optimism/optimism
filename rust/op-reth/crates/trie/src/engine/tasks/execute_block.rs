@@ -12,7 +12,7 @@ use reth_provider::{
 };
 use reth_revm::database::StateProviderDatabase;
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 pub(crate) struct ExecuteBlockTask<Block: reth_primitives_traits::Block> {
     pub(crate) block: RecoveredBlock<Block>,
@@ -59,6 +59,7 @@ where
 
     if block.number() <= tip.number {
         debug!(
+            target: "trie::engine::task",
             block_number = block.number(),
             tip_number = tip.number,
             "Block already covered by tip, skipping execute_and_store",
@@ -68,6 +69,7 @@ where
 
     if block.number() > tip.number.saturating_add(1) {
         debug!(
+            target: "trie::engine::task",
             block_number = block.number(),
             tip_number = tip.number,
             "Gap detected, updating sync target",
@@ -90,10 +92,11 @@ where
     let parent_state = match state.provider.state_by_block_hash(block.parent_hash()) {
         Ok(p) => p,
         Err(ProviderError::StateForHashNotFound(hash)) => {
-            // Likely a transient reorg race: reth no longer has state for what we believe is the
-            // parent. Skip gracefully; subsequent ChainCommitted/ChainReorged notifications will
-            // resync us.
-            warn!(
+            // Recoverable: either a transient reorg race or reth still materializing state
+            // (staged sync mid-flight). Skip; subsequent notifications will resync us.
+            // Logged at debug to avoid flooding during long catch-up phases
+            debug!(
+                target: "trie::engine::task",
                 block_number = block.number(),
                 parent_hash = ?hash,
                 "Parent state not available in reth; skipping execute_block",
@@ -143,6 +146,7 @@ where
     }
 
     info!(
+        target: "trie::engine::task",
         block_number = block.number(),
         ?total_duration,
         ?execution_duration,

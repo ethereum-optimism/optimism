@@ -3,6 +3,7 @@ package chain_container
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -110,6 +111,11 @@ func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) 
 	return m.safeHeadL1, m.safeHeadErr
 }
 
+// FirstSafeHeadEntry implements virtual_node.VirtualNode FirstSafeHeadEntry
+func (m *mockVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
 // LastL1 implements virtual_node.VirtualNode LastL1
 func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
@@ -148,6 +154,10 @@ func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, 
 
 func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
+}
+
+func (m *mockEngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
 }
 
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
@@ -949,7 +959,7 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	vncfg := createTestVNConfig()
 	vncfg.Rollup.Genesis.L2Time = 1000
 	vncfg.Rollup.BlockTime = 2
-	log := createTestLogger(t)
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
@@ -984,6 +994,50 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ethereum.NotFound),
 		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l1 block number at which l2 block became safe"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l1 block at which l2 block became safe is not available yet"),
+	))
+}
+
+func TestChainContainer_OptimisticAt_LocalSafeTipNotFoundLogsDebug(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	impl.engine = &mockEngineController{}
+	impl.vn = &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+	}
+
+	_, _, err := container.OptimisticAt(context.Background(), 2000)
+
+	require.ErrorIs(t, err, ethereum.NotFound)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l2 block at given timestamp"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l2 block at timestamp is not local safe yet"),
+	))
 }
 
 // mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus
@@ -1000,6 +1054,9 @@ func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNu
 }
 func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, m.l1AtSafeHeadErr
+}
+func (m *mockVNForL1AtSafeHeadError) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return m.syncStatusResult, nil

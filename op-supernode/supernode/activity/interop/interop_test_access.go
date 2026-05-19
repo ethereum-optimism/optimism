@@ -6,7 +6,6 @@ package interop
 // in this file so the boundary is easy to audit.
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -37,17 +36,16 @@ func (i *Interop) Resume() {
 // Backfill observability
 // ---------------------------------------------------------------------------
 
-// BackfillAttempts returns the number of times runLogBackfill has been
+// BackfillAttempts returns the number of times advanceColdStartInit has been
 // invoked since the most recent Start. Integration tests use it to confirm
-// the retry loop has engaged.
+// the cold-start retry loop has engaged.
 func (i *Interop) BackfillAttempts() int32 {
 	return i.backfillAttempts.Load()
 }
 
-// BackfillCompleted reports whether the log backfill phase has finished
-// (either ran and returned nil, or was skipped because logBackfillDepth
-// was 0). Integration tests use it to gate assertions on downstream state
-// until backfill is done.
+// BackfillCompleted reports whether cold-start init has finished (backfill
+// ran, or resume skipped it). Integration tests gate downstream assertions
+// on this.
 func (i *Interop) BackfillCompleted() bool {
 	return i.backfillCompleted.Load()
 }
@@ -63,18 +61,21 @@ func (i *Interop) ActivationTimestamp() uint64 {
 	return i.activationTimestamp
 }
 
-// BackfillEndTimestamp returns the inclusive last timestamp whose logs were
-// sealed by runLogBackfill, or 0 if backfill has not run. The main loop
-// starts verification at BackfillEndTimestamp()+1 (or ActivationTimestamp()
-// when backfill was skipped).
-func (i *Interop) BackfillEndTimestamp() uint64 {
-	return i.backfillEndTimestamp
+// VerificationStartTimestamp returns the L2 timestamp at which the main loop
+// begins verification on the most recent Start. Returns 0 before
+// initialization completes.
+func (i *Interop) VerificationStartTimestamp() uint64 {
+	if !i.initialized.Load() {
+		return 0
+	}
+	return i.verificationStartTimestamp
 }
 
-// FirstVerifiableTimestamp returns the timestamp at which the main loop begins
-// verification. It is intended for tests after startup has completed.
+// FirstVerifiableTimestamp returns the lowest timestamp the verifier covers
+// (verifiedDB.FirstTimestamp when commits exist, else
+// VerificationStartTimestamp). Returns 0 before initialization completes.
 func (i *Interop) FirstVerifiableTimestamp() uint64 {
-	ts, err := i.firstVerifiableTimestamp(context.Background())
+	ts, err := i.firstVerifiableTimestamp()
 	if err != nil {
 		return 0
 	}

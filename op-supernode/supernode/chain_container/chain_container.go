@@ -12,6 +12,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -37,6 +38,11 @@ const virtualNodeVersion = "0.1.0"
 // retrying; recovery requires operator intervention.
 var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node")
 
+// ErrSafeDBEmpty is returned by FirstSafeHeadTimestamp when SafeDB has no
+// entries yet. This is a transient condition during cold start while the VN
+// derives its first safe head; callers should back off and retry.
+var ErrSafeDBEmpty = errors.New("safedb has no entries yet")
+
 type ChainContainer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -44,10 +50,15 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 
 	ID() eth.ChainID
+	ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error)
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
+	// FirstSafeHeadTimestamp returns the L2 block timestamp of the first
+	// entry in this chain's SafeDB. Returns ErrSafeDBEmpty when the chain
+	// has not yet derived a safe head.
+	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
@@ -139,10 +150,7 @@ type simpleChainContainer struct {
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
-	// verifiersMu guards writes and reads of the verifiers slice. Concurrent
-	// readers (VerifiedAt, VerifierCurrentL1s) can race with the test-only
-	// ReplaceVerifier path used by RestartInteropActivity, which swaps a
-	// verifier while the chain container is still running.
+	// verifiersMu guards writes and reads of the verifiers slice.
 	verifiersMu sync.RWMutex
 	verifiers   []activity.VerificationActivity
 	onReset     ResetCallback // Called when chain resets to notify activities
@@ -221,23 +229,6 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 	c.verifiersMu.Lock()
 	defer c.verifiersMu.Unlock()
 	c.verifiers = append(c.verifiers, v)
-}
-
-// ReplaceVerifier swaps a previously-registered verifier for a new one by
-// pointer identity. Returns true if a replacement occurred. Intended for
-// integration-test orchestration that restarts a single activity while the
-// chain container keeps running. Not part of the ChainContainer interface
-// because production code has no reason to replace verifiers.
-func (c *simpleChainContainer) ReplaceVerifier(old, new activity.VerificationActivity) bool {
-	c.verifiersMu.Lock()
-	defer c.verifiersMu.Unlock()
-	for i, v := range c.verifiers {
-		if v == old {
-			c.verifiers[i] = new
-			return true
-		}
-	}
-	return false
 }
 
 func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
@@ -407,6 +398,13 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
+func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+}
+
 func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
 	if c.vncfg == nil {
 		return 0, fmt.Errorf("rollup config not available")
@@ -422,6 +420,21 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 		return 0, fmt.Errorf("block number %d before genesis %d", blocknum, c.vncfg.Rollup.Genesis.L2.Number)
 	}
 	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
+}
+
+func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	vn := c.getVN()
+	if vn == nil {
+		return 0, virtual_node.ErrVirtualNodeNotRunning
+	}
+	_, l2, err := vn.FirstSafeHeadEntry(ctx)
+	if err != nil {
+		if errors.Is(err, safedb.ErrNotFound) {
+			return 0, ErrSafeDBEmpty
+		}
+		return 0, fmt.Errorf("first safedb entry: %w", err)
+	}
+	return c.BlockNumberToTimestamp(ctx, l2.Number)
 }
 
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
@@ -508,12 +521,20 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l2 block at timestamp is not local safe yet", "timestamp", ts, "err", err)
+		} else {
+			c.log.Error("error determining l2 block at given timestamp", "timestamp", ts, "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l1 block at which l2 block became safe is not available yet", "l2", l2Block.ID(), "err", err)
+		} else {
+			c.log.Error("error determining l1 block number at which l2 block became safe", "l2", l2Block.ID(), "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 

@@ -4,7 +4,7 @@ use crate::{
     OpProofsStorageResult,
     db::{HashedStorageKey, StorageTrieKey},
 };
-use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
+use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, U256};
 use auto_impl::auto_impl;
 use derive_more::{AddAssign, Constructor};
@@ -48,6 +48,16 @@ impl BlockStateDiff {
     }
 }
 
+/// The block range covered by the proof window: earliest persisted block and latest persisted
+/// block. Both endpoints are inclusive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProofWindowRange {
+    /// Earliest block stored.
+    pub earliest: NumHash,
+    /// Latest block stored.
+    pub latest: NumHash,
+}
+
 /// Counts of trie updates written to storage.
 #[derive(Debug, Clone, Default, AddAssign, Constructor, Eq, PartialEq)]
 pub struct WriteCounts {
@@ -84,11 +94,19 @@ pub trait OpProofsProviderRO: Send + Sync + Debug {
     where
         Self: 'tx;
 
-    /// Get the earliest block number and hash that has been stored
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>>;
+    /// Get the earliest block number and hash that has been stored. Returns
+    /// [`crate::OpProofsStorageError::NoBlocksFound`] if the proof window is empty.
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash>;
 
-    /// Get the latest block number and hash that has been stored
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>>;
+    /// Get the latest block number and hash that has been stored. Returns
+    /// [`crate::OpProofsStorageError::NoBlocksFound`] if the proof window is empty.
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash>;
+
+    /// Get the proof window range — earliest and latest persisted blocks — in a single read.
+    /// Prefer this over calling [`Self::get_earliest_block`] and [`Self::get_latest_block`]
+    /// separately when you need both. Returns [`crate::OpProofsStorageError::NoBlocksFound`] if the
+    /// proof window is empty.
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange>;
 
     /// Get a trie cursor for the storage backend
     fn storage_trie_cursor<'tx>(
@@ -152,10 +170,6 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
         latest_common_block: BlockNumHash,
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()>;
-
-    /// Set the earliest block number and hash that has been stored
-    fn set_earliest_block_number(&self, block_number: u64, hash: B256)
-    -> OpProofsStorageResult<()>;
 
     /// Commit the changes to the database.
     /// Consumes the provider.

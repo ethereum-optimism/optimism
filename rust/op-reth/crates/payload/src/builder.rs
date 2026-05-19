@@ -438,12 +438,15 @@ impl<Txs> OpBuilder<'_, Txs> {
         })?;
 
         // 2. execute sequencer transactions
-        let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
+        let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
-            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None)?.is_some() {
+            if ctx
+                .execute_best_transactions(&mut info, &mut builder, best_txs, None, None)?
+                .is_some()
+            {
                 return Ok(BuildOutcomeKind::Cancelled);
             }
 
@@ -523,7 +526,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder(&mut db)?;
 
         builder.apply_pre_execution_changes()?;
-        ctx.execute_sequencer_transactions(&mut builder)?;
+        ctx.execute_sequencer_transactions(&mut builder, None)?;
         builder.into_executor().apply_post_execution_changes()?;
 
         if ctx.chain_spec.is_isthmus_active_at_timestamp(ctx.attributes().timestamp()) {
@@ -725,9 +728,15 @@ where
     }
 
     /// Executes all sequencer transactions that are included in the payload attributes.
+    ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed sequencer
+    /// transaction is appended to `vec` in commit order. `None` skips the
+    /// recording. The function never reads or clears the vec; the caller controls
+    /// capacity and lifecycle.
     pub fn execute_sequencer_transactions(
         &self,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<ExecutionInfo, PayloadBuilderError> {
         let mut info = ExecutionInfo::new();
 
@@ -764,6 +773,12 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
             info.cumulative_gas_used += gas_used.tx_gas_used();
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(sequencer_tx);
+            }
         }
 
         Ok(info)
@@ -775,6 +790,11 @@ where
     ///   - `None`: effective limit is `min(block_gas_limit, gas_limit_config)`.
     ///   - `Some(g)`: effective limit is `min(g, block_gas_limit, gas_limit_config)`
     ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed transaction
+    /// is appended to `vec` in commit order. `None` skips the recording. The
+    /// function never reads or clears the vec; the caller controls capacity and
+    /// lifecycle.
+    ///
     /// Returns `Ok(Some(()))` if the job was cancelled.
     pub fn execute_best_transactions<Builder>(
         &self,
@@ -784,6 +804,7 @@ where
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
         gas_limit_cap: Option<u64>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
@@ -886,6 +907,12 @@ where
                 .effective_tip_per_gas(base_fee)
                 .expect("fee is always valid; execution succeeded");
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(tx);
+            }
         }
 
         Ok(None)

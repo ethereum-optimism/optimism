@@ -48,7 +48,6 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
-	ctx := t.Ctx()
 
 	// Check the L2CL passed configured hardforks
 	jovianTime := sys.L2Chain.Escape().ChainConfig().JovianTime
@@ -74,13 +73,8 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	sys.L2CL2.DisconnectPeer(sys.L2CL)
 	sys.L2CL.DisconnectPeer(sys.L2CL2)
 	sys.L2CL2.Stop()
-	sessionIDs := sys.SyncTester.ListSessions()
-	require.GreaterOrEqual(len(sessionIDs), 1, "at least one session")
-	sessionID := sessionIDs[0]
-	logger.Info("SyncTester EL", "sessionID", sessionID)
-	syncTesterClient := sys.SyncTester.Escape().APIWithSession(sessionID)
 	// Resync starting from genesis
-	require.NoError(syncTesterClient.ResetSession(ctx))
+	sys.SyncTester.ResetAllSessions()
 	sys.SyncTesterL2EL.UnsafeHead().NumEqualTo(0)
 
 	// Wait until safe head reached Jovian

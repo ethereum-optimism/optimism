@@ -43,7 +43,11 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         generateScript = new GenerateNUTBundle();
 
         // Generate bundle
-        generateScript.run();
+        GenerateNUTBundle.Output memory output = generateScript.run();
+        delete currentBundleTxns;
+        for (uint256 i = 0; i < output.txns.length; i++) {
+            currentBundleTxns.push(output.txns[i]);
+        }
 
         // Capture feature flags from deploy config (genesis state)
         commonState.isInteropEnabled =
@@ -56,7 +60,7 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 
     /// @notice Genesis tests execute the bare current bundle because genesis already applies feature setup.
     function _executeCurrentBundle() internal virtual override {
-        executeScript.execute();
+        executeScript.executeAll(_currentBundleTxns());
     }
 }
 

@@ -4,11 +4,11 @@ use crate::{
     BlockStateDiff, OpProofsStorageResult, OpProofsStore,
     api::{
         InitialStateAnchor, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        WriteCounts,
+        ProofWindowRange, WriteCounts,
     },
     cursor,
 };
-use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
+use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, U256, map::HashMap};
 use derive_more::Constructor;
 use metrics::{Gauge, Histogram};
@@ -378,20 +378,24 @@ impl<P: OpProofsProviderRO> OpProofsProviderRO for OpProofsProviderROWithMetrics
         Self: 'tx;
 
     #[inline]
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_earliest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.proof_window.earliest.set(number as f64);
-        }
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_earliest_block()?;
+        self.metrics.proof_window.earliest.set(result.number as f64);
         Ok(result)
     }
 
     #[inline]
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_latest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.proof_window.latest.set(number as f64);
-        }
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_latest_block()?;
+        self.metrics.proof_window.latest.set(result.number as f64);
+        Ok(result)
+    }
+
+    #[inline]
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        let result = self.provider.get_proof_window()?;
+        self.metrics.proof_window.earliest.set(result.earliest.number as f64);
+        self.metrics.proof_window.latest.set(result.latest.number as f64);
         Ok(result)
     }
 
@@ -465,20 +469,24 @@ impl<P: OpProofsProviderRw> OpProofsProviderRO for OpProofsProviderRwWithMetrics
         Self: 'tx;
 
     #[inline]
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_earliest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.proof_window.earliest.set(number as f64);
-        }
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_earliest_block()?;
+        self.metrics.proof_window.earliest.set(result.number as f64);
         Ok(result)
     }
 
     #[inline]
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_latest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.proof_window.latest.set(number as f64);
-        }
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_latest_block()?;
+        self.metrics.proof_window.latest.set(result.number as f64);
+        Ok(result)
+    }
+
+    #[inline]
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        let result = self.provider.get_proof_window()?;
+        self.metrics.proof_window.earliest.set(result.earliest.number as f64);
+        self.metrics.proof_window.latest.set(result.latest.number as f64);
         Ok(result)
     }
 
@@ -571,16 +579,6 @@ impl<P: OpProofsProviderRw> OpProofsProviderRw for OpProofsProviderRwWithMetrics
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
         self.provider.replace_updates(latest_common_block, blocks_to_add)
-    }
-
-    #[inline]
-    fn set_earliest_block_number(
-        &self,
-        block_number: u64,
-        hash: B256,
-    ) -> OpProofsStorageResult<()> {
-        self.metrics.proof_window.earliest.set(block_number as f64);
-        self.provider.set_earliest_block_number(block_number, hash)
     }
 
     #[inline]

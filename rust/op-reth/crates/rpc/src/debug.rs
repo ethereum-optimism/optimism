@@ -22,7 +22,9 @@ use reth_optimism_payload_builder::{
     OpAttributes, OpPayloadPrimitives,
     builder::{OpBuilder, OpPayloadBuilderCtx},
 };
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, api::OpProofsProviderRO};
+use reth_optimism_trie::{
+    OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
+};
 use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
 use reth_payload_util::NoopPayloadTransactions;
 use reth_primitives_traits::{SealedHeader, TxTy};
@@ -320,16 +322,16 @@ where
     async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
         let provider_ro =
             self.inner.storage.provider_ro().map_err(|err| internal_rpc_err(err.to_string()))?;
-        let earliest = provider_ro
-            .get_earliest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
-        let latest = provider_ro
-            .get_latest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
 
-        Ok(ProofsSyncStatus {
-            earliest: earliest.map(|(block_number, _)| block_number),
-            latest: latest.map(|(block_number, _)| block_number),
-        })
+        match provider_ro.get_proof_window() {
+            Ok(window) => Ok(ProofsSyncStatus {
+                earliest: Some(window.earliest.number),
+                latest: Some(window.latest.number),
+            }),
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                Ok(ProofsSyncStatus { earliest: None, latest: None })
+            }
+            Err(err) => Err(internal_rpc_err(err.to_string())),
+        }
     }
 }

@@ -29,6 +29,9 @@ func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
 func (m *mockCC) Resume(ctx context.Context) error         { return nil }
 func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
@@ -109,6 +112,10 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
+}
+
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBEmpty
 }
 
 var _ cc.ChainContainer = (*mockCC)(nil)

@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -253,7 +252,7 @@ func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preload
 	ctx := context.Background()
 	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithBlobBatches(), WithAllocType(allocType))
 
-	status, err := sys.SupervisorClient().SyncStatus(ctx)
+	status, err := sys.SupernodeClient().SyncStatus(ctx)
 	require.NoError(t, err)
 	l2Timestamp := status.SafeTimestamp + 40
 
@@ -365,7 +364,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType config.AllocType, test TestCase) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
 		// Ensure that the superchain has progressed a bit past the genesis timestamp
@@ -421,7 +420,7 @@ func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
 		// Ensure that the superchain has progressed a bit past the genesis timestamp
@@ -561,14 +560,16 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType config.AllocType, test TestCase) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
-		superRoot, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(status.SafeTimestamp))
+		superRoot, err := client.SuperRootAtTimestamp(ctx, status.SafeTimestamp)
 		require.NoError(t, err, "Failed to get super root at safe timestamp")
-		super, err := superRoot.ToSuper()
-		require.NoError(t, err, "Failed to parse super root")
+		require.NotNil(t, superRoot.Data, "supernode returned no super root data at timestamp %v", status.SafeTimestamp)
+		super := superRoot.Data.Super
+		superV1, ok := super.(*eth.SuperV1)
+		require.Truef(t, ok, "Unsupported super type %T", super)
 
 		// Stop the batcher so the safe head doesn't advance
 		for _, id := range sys.L2IDs() {
@@ -577,7 +578,7 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 		// Create a dispute game with a proposal that is valid at `superRoot.Timestamp`, but that claims to correspond to timestamp
 		// `superRoot.Timestamp + 100000`. This is dishonest, because the superchain hasn't reached this timestamp yet.
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superRoot.Timestamp+100_000, disputegame.WithSuper(super), disputegame.WithFutureProposal())
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superV1.Timestamp+100_000, disputegame.WithSuper(super), disputegame.WithFutureProposal())
 
 		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
 
@@ -613,7 +614,7 @@ func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
 		ctx := context.Background()
 
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		// Wait for there to be there are safe L2 blocks past the claimed safe timestamp that have data available on L1 within
 		// the commitment stored in the dispute game.
 		status, err := client.SyncStatus(ctx)
@@ -666,7 +667,7 @@ func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
 		ctx := context.Background()
 
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		// Wait for there to be there are safe L2 blocks past the claimed safe timestamp that have data available on L1 within
 		// the commitment stored in the dispute game.
 		status, err := client.SyncStatus(ctx)

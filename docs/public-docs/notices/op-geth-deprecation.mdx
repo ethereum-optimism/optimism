@@ -37,6 +37,10 @@ All node operators should migrate to op-reth as soon as possible. For more detai
 </Warning>
 
 <Info>
+  Migrate to [op-reth v2.2.3 or later](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3). v2.2.3 is required to enable the historical proof store (v2) via `--proofs-history.storage-version=v2`. See the [historical proofs guide](/node-operators/tutorials/reth-historical-proofs) for the setup procedure.
+</Info>
+
+<Info>
   Syncing op-reth takes time. Start early to allow adequate validation before the hardfork window.
 </Info>
 
@@ -49,13 +53,21 @@ For OP Mainnet snapshots, you can find [snapshots here](https://datadirs.optimis
 As soon as op-reth is fully synced, take a snapshot. Refresh it regularly as Glamsterdam approaches.
 Syncing an op-reth node as soon as possible helps ensure a snapshot is available for other validators on your chain so they do not need to sync from scratch.
 
+Historical L2 state on op-reth is required for **permissioned chains as well**, not just permissionless. Withdrawal proving calls `eth_getProof` on the L2 block where the withdrawal was included regardless of your dispute-game model — op-geth handled this via archive state, and op-reth needs equivalent configuration. Permissioned chains need only a few hours of lookback (covered by option 1 below, without a historical proofs database); permissionless chains need ~28 days. Two options:
+
+- `--rpc.eth-proof-window <num_blocks>` — no historical proofs database (ExEx), but performance and memory cost grow the further back you query. Size to cover your dispute-game publishing cadence with margin.
+- `--proofs-history` — bounded memory, but storage-heavy. The default `--proofs-history.window` is 1,296,000 blocks (~30 days at 2s block time); adjust if your chain's block time differs.
+
+See [how to run historical proofs with op-reth](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs) for sizing guidance and configuration details.
+
 ### Permissionless Chain Operators
 
-In parallel, the fault proof program is moving from **op-program** to **kona client**. Current op-program deployments are expected to remain usable until the next hardfork, Karst, when chain operators will need to migrate to **kona-client**. Optimism will handle the onchain prestate updates for managed chains. If you operate a permissionless fault proof chain, checkout our guide on [how to run historical proofs with op-reth](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs).
+In parallel, the fault proof program is moving from **op-program** to **kona client**. Current op-program deployments are expected to remain usable until the next hardfork, Karst, when chain operators will need to migrate to **kona-client**. Optimism will handle the onchain prestate updates for managed chains.
 
 ## Resources
 
 - [op-reth repository](https://github.com/ethereum-optimism/optimism/tree/develop/rust)
+- [op-reth v2.2.3 release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3)
 - [op-reth configuration](https://docs.optimism.io/node-operators/guides/configuration/execution-clients#op-reth-configuration)
 - [op-reth OP Mainnet Snapshots](https://datadirs.optimism.io/)
 - [op-reth historical proofs guide](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs)
