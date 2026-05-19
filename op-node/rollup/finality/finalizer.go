@@ -103,8 +103,7 @@ type Finalizer struct {
 
 	ctx context.Context
 
-	cfg               *rollup.Config
-	supervisorEnabled bool
+	cfg *rollup.Config
 
 	emitter event.Emitter
 
@@ -135,21 +134,20 @@ type Finalizer struct {
 // NewFinalizer creates a new Finalizer instance.
 // The finalizerCfg parameter is optional and may be nil to use default finality behavior.
 // When non-nil, any non-nil fields in finalizerCfg will override the defaults.
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, finalizerCfg *Config, supervisorEnabled bool, l1Fetcher FinalizerL1Interface, ec EngineController) *Finalizer {
+func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, finalizerCfg *Config, l1Fetcher FinalizerL1Interface, ec EngineController) *Finalizer {
 	lookback := calcFinalityLookback(cfg, finalizerCfg)
 	delay := calcFinalityDelay(finalizerCfg)
 	return &Finalizer{
-		ctx:               ctx,
-		cfg:               cfg,
-		supervisorEnabled: supervisorEnabled,
-		log:               log,
-		finalizedL1:       eth.L1BlockRef{},
-		engineController:  ec,
-		triedFinalizeAt:   0,
-		finalityData:      make([]FinalityData, 0, lookback),
-		finalityLookback:  lookback,
-		finalityDelay:     delay,
-		l1Fetcher:         l1Fetcher,
+		ctx:              ctx,
+		cfg:              cfg,
+		log:              log,
+		finalizedL1:      eth.L1BlockRef{},
+		engineController: ec,
+		triedFinalizeAt:  0,
+		finalityData:     make([]FinalityData, 0, lookback),
+		finalityLookback: lookback,
+		finalityDelay:    delay,
+		l1Fetcher:        l1Fetcher,
 	}
 }
 
@@ -299,13 +297,6 @@ func (fi *Finalizer) tryFinalize() {
 func (fi *Finalizer) onDerivedSafeBlock(l2Safe eth.L2BlockRef, derivedFrom eth.L1BlockRef) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-
-	// Stop registering blocks after interop only if supervisor is enabled.
-	// Finality in interop is determined by the superchain backend,
-	// i.e. the op-supervisor RPC identifies which L2 block may be finalized.
-	if fi.cfg.IsInterop(l2Safe.Time) && fi.supervisorEnabled {
-		return
-	}
 
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(fi.finalityData) == 0 || fi.finalityData[len(fi.finalityData)-1].L1Block.Number < derivedFrom.Number {

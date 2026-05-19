@@ -1,12 +1,10 @@
 package dsl
 
 import (
-	"context"
 	"os"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -20,14 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -62,54 +55,7 @@ type InteropSetup struct {
 	T          helpers.Testing
 }
 
-// InteropActors holds a bundle of global actors and actors of 2 chains.
-type InteropActors struct {
-	L1Miner    *helpers.L1Miner
-	Supervisor *SupervisorActor
-	ChainA     *Chain
-	ChainB     *Chain
-}
-
-func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
-	// Initialize both chain states
-	actors.ChainA.Sequencer.ActL2PipelineFull(t)
-	actors.ChainB.Sequencer.ActL2PipelineFull(t)
-	t.Log("Sequencers should initialize, and produce initial reset requests")
-
-	// Process the anchor point
-	actors.Supervisor.ProcessFull(t)
-	t.Log("Supervisor should have anchor points now")
-
-	// Sync supervisors, i.e. the reset request makes it to the supervisor now
-	actors.ChainA.Sequencer.SyncSupervisor(t)
-	actors.ChainB.Sequencer.SyncSupervisor(t)
-	t.Log("Supervisor has events now")
-
-	// Pick up the reset request
-	actors.Supervisor.ProcessFull(t)
-	t.Log("Supervisor processed initial resets")
-
-	// Process reset work
-	actors.ChainA.Sequencer.ActL2PipelineFull(t)
-	actors.ChainB.Sequencer.ActL2PipelineFull(t)
-	t.Log("Processed!")
-}
-
-func (actors *InteropActors) VerifyGenesisState(t helpers.Testing) {
-	// Verify initial state
-	statusA := actors.ChainA.Sequencer.SyncStatus()
-	statusB := actors.ChainB.Sequencer.SyncStatus()
-	require.Equal(t, uint64(0), statusA.UnsafeL2.Number)
-	require.Equal(t, uint64(0), statusB.UnsafeL2.Number)
-}
-
-func (actors *InteropActors) PrepareAndVerifyInitialState(t helpers.Testing) {
-	actors.PrepareChainState(t)
-	actors.VerifyGenesisState(t)
-}
-
 // messageExpiryTime is the time in seconds that a message will be valid for on the L2 chain.
-// At a 2 second block time, this should be small enough to cover all events buffered in the supervisor event queue.
 const messageExpiryTime = 120 // 2 minutes
 
 type setupOption func(*interopgen.InteropDevRecipe)
@@ -158,53 +104,7 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	}
 }
 
-func (is *InteropSetup) CreateActors() *InteropActors {
-	l1Miner := helpers.NewL1Miner(is.T, is.Log.New("role", "l1Miner"), is.Out.L1.Genesis)
-	supervisorAPI := NewSupervisor(is.T, is.Log, is.CfgSet)
-	supervisorAPI.backend.AttachL1Source(l1Miner.L1ClientSimple(is.T))
-	require.NoError(is.T, supervisorAPI.backend.Start(is.T.Ctx()))
-	is.T.Cleanup(func() {
-		require.NoError(is.T, supervisorAPI.backend.Stop(context.Background()))
-	})
-	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"], is.CfgSet, is.Out.L1.Genesis.Config)
-	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"], is.CfgSet, is.Out.L1.Genesis.Config)
-	// Hook up L2 RPCs to supervisor, to fetch event data from
-	srcA := chainA.Sequencer.InteropSyncNode(is.T)
-	srcB := chainB.Sequencer.InteropSyncNode(is.T)
-	nodeA, err := supervisorAPI.backend.AttachSyncNode(is.T.Ctx(), srcA, true)
-	require.NoError(is.T, err)
-	nodeB, err := supervisorAPI.backend.AttachSyncNode(is.T.Ctx(), srcB, true)
-	require.NoError(is.T, err)
-	chainA.Sequencer.InteropControl = nodeA
-	chainB.Sequencer.InteropControl = nodeB
-	return &InteropActors{
-		L1Miner:    l1Miner,
-		Supervisor: supervisorAPI,
-		ChainA:     chainA,
-		ChainB:     chainB,
-	}
-}
-
-// SupervisorActor represents a supervisor, instrumented to run synchronously for action-test purposes.
-type SupervisorActor struct {
-	exec    *event.GlobalSyncExec
-	backend *backend.SupervisorBackend
-	sources.SupervisorClient
-}
-
-func (sa *SupervisorActor) ProcessFull(t helpers.Testing) {
-	require.NoError(t, sa.exec.Drain(), "process all supervisor events")
-}
-
-func (sa *SupervisorActor) SignalLatestL1(t helpers.Testing) {
-	require.NoError(t, sa.backend.PullLatestL1())
-}
-
-func (sa *SupervisorActor) SignalFinalizedL1(t helpers.Testing) {
-	require.NoError(t, sa.backend.PullFinalizedL1())
-}
-
-// RecipeToDepSet converts a recipe into a dependency-set for the supervisor.
+// RecipeToDepSet converts a recipe into a dependency-set.
 func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *depset.StaticConfigDependencySet {
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for _, out := range recipe.L2s {
@@ -213,33 +113,6 @@ func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *dep
 	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, recipe.ExpiryTime)
 	require.NoError(t, err)
 	return depSet
-}
-
-// NewSupervisor creates a new SupervisorActor, to action-test the supervisor with.
-func NewSupervisor(t helpers.Testing, logger log.Logger, fullCfgSet depset.FullConfigSetSource) *SupervisorActor {
-	logger = logger.New("role", "supervisor")
-	supervisorDataDir := t.TempDir()
-	logger.Info("supervisor data dir", "dir", supervisorDataDir)
-	svCfg := &config.Config{
-		FullConfigSetSource:   fullCfgSet,
-		SynchronousProcessors: true,
-		Datadir:               supervisorDataDir,
-		SyncSources:           &syncnode.CLISyncNodes{}, // sources are added dynamically afterwards
-	}
-	evExec := event.NewGlobalSynchronous(t.Ctx())
-	b, err := backend.NewSupervisorBackend(t.Ctx(), logger, metrics.NoopMetrics, svCfg, evExec)
-	require.NoError(t, err)
-	b.SetConfDepthL1(0)
-
-	rpcServer := helpers.NewSimpleRPCServer()
-	supervisor.RegisterRPCs(logger, svCfg, rpcServer, b, metrics.NoopMetrics)
-	rpcServer.Start(t)
-	supervisorClient := sources.NewSupervisorClient(rpcServer.Connect(t))
-	return &SupervisorActor{
-		exec:             evExec,
-		backend:          b,
-		SupervisorClient: *supervisorClient,
-	}
 }
 
 // createL2Services creates a Chain bundle, with the given configs, and attached to the given L1 miner.

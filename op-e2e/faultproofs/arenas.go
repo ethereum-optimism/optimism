@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -52,45 +51,6 @@ func (o *outputGameArena) CreateHonestActor(ctx context.Context) *disputegame.Ou
 
 func createOutputGameArena(t *testing.T, sys *e2esys.System, game *disputegame.OutputCannonGameHelper) gameArena {
 	return &outputGameArena{
-		t:    t,
-		sys:  sys,
-		game: game,
-	}
-}
-
-type superGameArena struct {
-	t    *testing.T
-	sys  interop.SuperSystem
-	game *disputegame.SuperCannonGameHelper
-}
-
-func (s *superGameArena) AdvanceTime(duration time.Duration) {
-	s.sys.AdvanceL1Time(duration)
-}
-
-func (s *superGameArena) L1Client() *ethclient.Client {
-	return s.sys.L1GethClient()
-}
-
-func (s *superGameArena) GetProposalRoot(ctx context.Context, l2SequenceNumber uint64) common.Hash {
-	output, err := s.sys.SupernodeClient().SuperRootAtTimestamp(ctx, l2SequenceNumber)
-	require.NoError(s.t, err)
-	require.NotNil(s.t, output.Data, "supernode returned no super root data at timestamp %v", l2SequenceNumber)
-	return common.Hash(output.Data.SuperRoot)
-}
-
-func (s *superGameArena) CreateChallenger(ctx context.Context) {
-	s.game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(s.t)), challenger.WithDepset(s.t, s.sys.DependencySet()))
-}
-
-func (s *superGameArena) CreateHonestActor(ctx context.Context) *disputegame.OutputHonestHelper {
-	return s.game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(s.t)), func(c *disputegame.HonestActorConfig) {
-		c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(s.t, s.sys.DependencySet()))
-	})
-}
-
-func createSuperGameArena(t *testing.T, sys interop.SuperSystem, game *disputegame.SuperCannonGameHelper) gameArena {
-	return &superGameArena{
 		t:    t,
 		sys:  sys,
 		game: game,

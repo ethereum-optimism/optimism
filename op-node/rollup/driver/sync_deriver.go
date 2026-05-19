@@ -42,10 +42,6 @@ type SyncDeriver struct {
 
 	Ctx context.Context
 
-	// When in interop, and managed by an op-supervisor,
-	// the node performs a reset based on the instructions of the op-supervisor.
-	ManagedBySupervisor bool
-
 	StepDeriver StepDeriver
 }
 
@@ -95,8 +91,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.StepDeriver.RequestStep(ctx, true)
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
-	case derive.ProvideL1Traversal:
-		s.StepDeriver.RequestStep(ctx, false)
 	default:
 		return false
 	}
@@ -184,11 +178,6 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 }
 
 func (s *SyncDeriver) onResetEvent(ctx context.Context, x rollup.ResetEvent) {
-	if s.ManagedBySupervisor {
-		s.Log.Warn("Encountered reset when managed by op-supervisor, waiting for op-supervisor", "err", x.Err)
-		// IndexingMode will pick up the ResetEvent
-		return
-	}
 	// If the system corrupts, e.g. due to a reorg, simply reset it
 	s.Log.Warn("Deriver system is resetting", "err", x.Err)
 	s.Emitter.Emit(ctx, engine.ResetEngineRequestEvent{})

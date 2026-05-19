@@ -97,7 +97,6 @@ type EngineController struct {
 	syncStatus        syncStatusEnum
 	chainSpec         *rollup.ChainSpec
 	rollupCfg         *rollup.Config
-	supervisorEnabled bool
 	elStart           time.Time
 	clock             clock.Clock
 
@@ -170,7 +169,7 @@ type EngineController struct {
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, l1 sync.L1Chain, emitter event.Emitter,
 	superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
@@ -179,20 +178,19 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 
 	return &EngineController{
-		engine:            engine,
-		log:               log,
-		metrics:           m,
-		chainSpec:         rollup.NewChainSpec(rollupCfg),
-		rollupCfg:         rollupCfg,
-		supervisorEnabled: supervisorEnabled,
-		syncCfg:           syncCfg,
-		syncStatus:        syncStatus,
-		clock:             clock.SystemClock,
-		l1:                l1,
-		ctx:               ctx,
-		emitter:           emitter,
-		superAuthority:    superAuthority,
-		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		engine:         engine,
+		log:            log,
+		metrics:        m,
+		chainSpec:      rollup.NewChainSpec(rollupCfg),
+		rollupCfg:      rollupCfg,
+		syncCfg:        syncCfg,
+		syncStatus:     syncStatus,
+		clock:          clock.SystemClock,
+		l1:             l1,
+		ctx:            ctx,
+		emitter:        emitter,
+		superAuthority: superAuthority,
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
 
@@ -239,7 +237,7 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			return finalized
 		}
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead
 	} else {
 		return e.localSafeHead
@@ -288,7 +286,7 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 		}
 		e.SetFinalizedHead(br)
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
 	} else {
 		return e.localFinalizedHead
@@ -357,12 +355,10 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 	e.localSafeHead = r
 }
 
-// SetDeprecatedSafeHead sets the cross-safe head.
-//
-// Deprecated: This is only used by supervisor pathways.
+// SetDeprecatedSafeHead sets the cross-safe head used by the FollowSource path.
 func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
-	e.deprecatedSafeHead = r // TODO Supervisor-only code path
+	e.deprecatedSafeHead = r
 }
 
 // SetUnsafeHead sets the local-unsafe head.
@@ -484,8 +480,8 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 // initializeUnknowns is important to give the op-node EngineController engine state.
 // Pre-interop, the initial reset triggered a find-sync-start, and filled the forkchoice.
 // This still happens, but now overrides what may be initialized here.
-// Post-interop, the op-supervisor may diff the forkchoice state against the supervisor DB,
-// to determine where to perform the initial reset to.
+// Post-interop, the SuperAuthority drives reset positioning instead of the local
+// forkchoice when one is configured.
 func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	if e.unsafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
@@ -538,7 +534,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		}
 	}
 	if e.deprecatedSafeHead == (eth.L2BlockRef{}) {
-		// Set deprecatedSafeHead to match local-safe for supervisor-only code paths
+		// Set deprecatedSafeHead to match local-safe for FollowSource code paths
 		e.SetDeprecatedSafeHead(e.localSafeHead)
 		e.log.Info("Set initial cross-safe block ref to match local-safe", "cross_safe", e.localSafeHead)
 	}
@@ -846,8 +842,8 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 }
 
 func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
-	// pre-interop (or if supervisor disabled) everything that is local-safe is also immediately cross-safe.
-	return !e.rollupCfg.IsInterop(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
+	// pre-interop (or when not following source) everything that is local-safe is also immediately cross-safe.
+	return !e.rollupCfg.IsInterop(timestamp) || !e.syncCfg.FollowSourceEnabled()
 }
 
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -967,7 +963,7 @@ func (e *EngineController) tryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 // PromoteSafe promotes the given ref to cross-safe head and emits SafeDerivedEvent.
 // It updates the forkchoice state but does NOT send FCU to the engine.
 // The FCU is deferred to L1 origin boundaries on the consolidation path.
-// Callers that need immediate FCU (e.g. FollowSource, supervisor) will
+// Callers that need immediate FCU (e.g. FollowSource) will
 // have it sent by a subsequent tryUpdateEngine call (e.g. from promoteFinalized
 // or the next SyncStep).
 func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef) {

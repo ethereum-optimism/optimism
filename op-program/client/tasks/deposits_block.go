@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
@@ -19,6 +20,27 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+// optimisticBlockDepositSenderAddress is the from-address used for the system deposit
+// that records the invalidated optimistic block's output root in a replacement block.
+var optimisticBlockDepositSenderAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0002")
+
+// invalidatedBlockSourceDepositTx builds the system deposit transaction encoding the
+// invalidated block's output root preimage for inclusion in the replacement block.
+func invalidatedBlockSourceDepositTx(outputRootPreimage []byte) *types.Transaction {
+	outputRoot := crypto.Keccak256Hash(outputRootPreimage)
+	src := derive.InvalidatedBlockSource{OutputRoot: outputRoot}
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          src.SourceHash(),
+		From:                optimisticBlockDepositSenderAddress,
+		To:                  &common.Address{}, // to the zero address, no EVM execution.
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 36_000,
+		IsSystemTransaction: false,
+		Data:                outputRootPreimage,
+	})
+}
 
 var errBadFCUResult = errors.New("bad FCU result")
 
@@ -128,7 +150,7 @@ func blockToDepositsOnlyAttributes(cfg *rollup.Config, block *types.Block, outpu
 			deposits = append(deposits, txdata)
 		}
 	}
-	invalidatedBlockTx := indexing.InvalidatedBlockSourceDepositTx(output.Marshal())
+	invalidatedBlockTx := invalidatedBlockSourceDepositTx(output.Marshal())
 	invalidatedBlockTxData, err := invalidatedBlockTx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal deposited tx: %w", err)

@@ -65,11 +65,21 @@ func readJWTSecret(t devtest.T, jwtPath string) [32]byte {
 	return secret
 }
 
+// interopRPCSource is implemented by L2CL nodes (currently supernode and kona)
+// that serve their own interop RPC endpoint. Plain op-node does not.
+type interopRPCSource interface {
+	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
+}
+
 func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, node sysgo.L2CLNode) *l2CLFrontend {
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	interopEndpoint, interopJWT := node.InteropRPC()
+	var interopEndpoint string
+	var interopJWT eth.Bytes32
+	if src, ok := any(node).(interopRPCSource); ok {
+		interopEndpoint, interopJWT = src.InteropRPC()
+	}
 	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC, interopEndpoint, interopJWT)
 	if lifecycle, ok := any(node).(stack.Lifecycle); ok {
 		l2CL.lifecycle = lifecycle

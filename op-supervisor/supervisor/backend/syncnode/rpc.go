@@ -7,7 +7,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
@@ -21,6 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+// interopInactiveRPCErrCode mirrors the error code historically returned by the
+// op-node indexing RPC when interop has not yet activated. Kept here so the
+// supervisor can recognize the error from any compatible RPC server.
+const interopInactiveRPCErrCode = -39003
 
 type RPCSyncNode struct {
 	name      string
@@ -157,7 +161,7 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	)
 	err := rs.cl.CallContext(ctx, &out, "interop_anchorPoint")
 	// Translate an interop-inactive error into a ErrFuture.
-	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == indexing.InteropInactiveRPCErrCode {
+	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == interopInactiveRPCErrCode {
 		return types.DerivedBlockRefPair{}, types.ErrFuture
 	}
 	return out, err

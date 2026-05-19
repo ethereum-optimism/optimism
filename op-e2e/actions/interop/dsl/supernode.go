@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	opnodeinterop "github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	opnodesync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -120,7 +119,6 @@ func newVirtualNodeConfigs(l1Miner *helpers.L1Miner, beaconAddr string, chains [
 			Rollup:                      *chain.RollupCfg,
 			L1ChainConfig:               chain.L1ChainConfig,
 			DependencySet:               chain.DependencySet,
-			InteropConfig:               &opnodeinterop.Config{},
 			RPC:                         oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0},
 			L1EpochPollInterval:         250 * time.Millisecond,
 			ConfigPersistence:           opnodecfg.DisabledConfigPersistence{},
