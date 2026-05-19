@@ -4,6 +4,7 @@ use crate::{
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
+use kona_engine::FinalizeBlockId;
 use kona_protocol::{L2BlockInfo, SyncStatus};
 use kona_providers_alloy::AlloyChainProvider;
 use thiserror::Error;
@@ -172,8 +173,13 @@ where
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
+        // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
+        // finalizes the specific block we were asked to, not whatever it happens to have at the
+        // same height.
         self.engine_client
-            .send_finalized_l2_block(sync_status.finalized_l2.block_info.number)
+            .send_finalized_l2_block(FinalizeBlockId::ByHash(
+                sync_status.finalized_l2.block_info.id(),
+            ))
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 

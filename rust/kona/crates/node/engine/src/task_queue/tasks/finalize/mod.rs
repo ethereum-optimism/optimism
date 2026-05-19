@@ -5,3 +5,9 @@ pub use task::FinalizeTask;
 
 mod error;
 pub use error::FinalizeTaskError;
+
+mod id;
+pub use id::FinalizeBlockId;
+
+#[cfg(test)]
+mod task_test;
