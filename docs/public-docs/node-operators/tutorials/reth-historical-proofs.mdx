@@ -92,7 +92,8 @@ Initialize the separate storage used by the historical proof store to persist hi
 ./target/release/op-reth proofs init \
   --datadir="/path/to/datadir" \
   --chain="optimism" \
-  --proofs-history.storage-path="/path/to/proofs-db"
+  --proofs-history.storage-path="/path/to/proofs-db" \
+  --proofs-history.storage-version=v2
 ```
 
 <Info>
@@ -109,6 +110,7 @@ Once initialized, you can start the execution client with the `--proofs-history`
   --chain="optimism" \
   --proofs-history \
   --proofs-history.storage-path="/path/to/proofs-db" \
+  --proofs-history.storage-version=v2 \
   --http \
   --http.port=8545 \
   --http.addr=0.0.0.0 \
