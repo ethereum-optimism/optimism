@@ -123,7 +123,7 @@ var (
 	}
 	SupportLegacyCheckAccessListFormatFlag = &cli.BoolFlag{
 		Name:    "support-legacy-check-access-list-format",
-		Usage:   "Support legacy supervisor_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
+		Usage:   "Support legacy interop_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
 		EnvVars: prefixEnvVars("SUPPORT_LEGACY_CHECK_ACCESS_LIST_FORMAT"),
 	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{

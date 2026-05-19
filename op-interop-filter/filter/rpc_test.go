@@ -35,7 +35,7 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	server.AddAPI(rpc.API{
-		Namespace: "supervisor",
+		Namespace: "interop",
 		Service:   &QueryFrontend{backend: backend},
 	})
 
@@ -50,74 +50,33 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 
 	t.Run("latest selector", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "latest")
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "latest")
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x02"), result)
 	})
 
 	t.Run("numeric selector", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x01"), result)
 	})
 
 	t.Run("missing block", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
 		require.ErrorContains(t, err, "not found")
 	})
 
 	t.Run("unknown chain", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(999), rpc.BlockNumber(100))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(999), rpc.BlockNumber(100))
 		require.ErrorContains(t, err, "unknown chain")
 	})
 
 	t.Run("unsupported tag", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "safe")
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "safe")
 		require.ErrorContains(t, err, "unsupported block tag")
 	})
-}
-
-// TestQueryFrontendDualNamespace verifies the query frontend is reachable under
-// both the new "interop" namespace and the deprecated "supervisor" namespace.
-func TestQueryFrontendDualNamespace(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelInfo)
-	mock := newMockChainIngester()
-	mock.AddBlock(eth.BlockID{Hash: common.HexToHash("0x01"), Number: 100})
-
-	backend := NewBackend(context.Background(), BackendParams{
-		Logger:         logger,
-		Metrics:        metrics.NoopMetrics,
-		Chains:         map[eth.ChainID]ChainIngester{eth.ChainIDFromUInt64(testChainA): mock},
-		CrossValidator: &mockCrossValidator{},
-	})
-
-	server := oprpc.NewServer(
-		"127.0.0.1",
-		0,
-		"test",
-		oprpc.WithLogger(logger),
-	)
-	frontend := &QueryFrontend{backend: backend}
-	server.AddAPI(rpc.API{Namespace: "interop", Service: frontend})
-	server.AddAPI(rpc.API{Namespace: "supervisor", Service: frontend})
-
-	require.NoError(t, server.Start())
-	t.Cleanup(func() { _ = server.Stop() })
-
-	client, err := rpc.Dial("http://" + server.Endpoint())
-	require.NoError(t, err)
-	t.Cleanup(client.Close)
-
-	for _, ns := range []string{"interop", "supervisor"} {
-		t.Run(ns, func(t *testing.T) {
-			var result common.Hash
-			err := client.Call(&result, ns+"_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
-			require.NoError(t, err)
-			require.Equal(t, common.HexToHash("0x01"), result)
-		})
-	}
 }

@@ -69,7 +69,7 @@ func Main(version string) cliapp.LifecycleAction {
 			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
 		}
 		if cfg.LegacyCheckAccessListFormat {
-			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: supervisor_checkAccessList will not reject missing executing chain IDs")
+			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -247,20 +247,9 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	)
 
-	queryFrontend := &QueryFrontend{backend: s.backend}
-
 	server.AddAPI(rpc.API{
 		Namespace:     "interop",
-		Service:       queryFrontend,
-		Authenticated: false,
-	})
-
-	// Deprecated: the "supervisor" namespace is retained for backwards
-	// compatibility with execution clients that pre-date the interop filter
-	// replacing op-supervisor. New callers should use the "interop" namespace.
-	server.AddAPI(rpc.API{
-		Namespace:     "supervisor",
-		Service:       queryFrontend,
+		Service:       &QueryFrontend{backend: s.backend},
 		Authenticated: false,
 	})
 
