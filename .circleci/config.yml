@@ -230,7 +230,6 @@ jobs:
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
                   if is_true docs_changes_detected && ! is_true contracts_changed && ! is_true rust_changes_detected; then
-                    run docs_ci
                     run contracts_feature_tests_short
                     run rust_ci_gate_short
                     run rust_e2e_gate_skip
@@ -249,9 +248,6 @@ jobs:
                       run rust_ci_gate_short
                       run rust_e2e_gate_skip
                     fi
-                    if is_true docs_changes_detected; then
-                      run docs_ci
-                    fi
                   fi
 
                 # 2. Merge queue (pre-merge validation)
@@ -268,9 +264,6 @@ jobs:
                   else
                     run rust_ci_gate_short
                     run rust_e2e_gate_skip
-                  fi
-                  if is_true docs_changes_detected; then
-                    run docs_ci
                   fi
 
                 # 3. After merge (develop push)
@@ -290,9 +283,6 @@ jobs:
                   else
                     run rust_ci_gate_short
                     run rust_e2e_gate_skip
-                  fi
-                  if is_true docs_changes_detected; then
-                    run docs_ci
                   fi
                 fi
                 ;;
@@ -321,7 +311,7 @@ jobs:
 
             # Params to forward to continuation configs (everything else is stripped)
             finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
-      # Deep-merges the 4 continuation YAML configs (main, docs-ci, rust-ci, rust-e2e)
+      # Deep-merges the 3 continuation YAML configs (main, rust-ci, rust-e2e)
       # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
       # explode(.) resolves YAML anchors/aliases so the output is self-contained.
       - run:

@@ -110,13 +110,13 @@ run_scenario \
   "PR (feature branch), docs only" \
   "webhook" "feat/my-thing" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  docs_ci
+  contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "PR (feature branch), docs + rust changed" \
   "webhook" "feat/my-thing" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release contracts_feature_tests_short rust_ci rust_e2e_ci docs_ci
+  main release contracts_feature_tests_short rust_ci rust_e2e_ci
 
 run_scenario \
   "PR (feature branch), nothing changed" \
@@ -140,7 +140,7 @@ run_scenario \
   "After merge (develop), rust changed" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates docs_ci
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
 
 run_scenario \
   "After merge (develop), no rust changes" \
