@@ -82,11 +82,11 @@ func RegisterGameTypes(
 		registerTasks = append(registerTasks, NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), l2HeaderSource, rollupClient, syncValidator))
 	}
 	if cfg.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
-		rootProvider, superNodeProvider, syncValidator, err := clients.SuperchainClients()
+		superNodeProvider, syncValidator, err := clients.SuperchainClients()
 		if err != nil {
 			return err
 		}
-		registerTasks = append(registerTasks, NewSuperCannonKonaRegisterTask(gameTypes.SuperPermissionedGameType, cfg, m, vm.NewKonaSuperExecutor(), rootProvider, superNodeProvider, syncValidator))
+		registerTasks = append(registerTasks, NewSuperCannonKonaRegisterTask(gameTypes.SuperPermissionedGameType, cfg, m, vm.NewKonaSuperExecutor(), superNodeProvider, syncValidator))
 	}
 	if cfg.GameTypeEnabled(gameTypes.FastGameType) {
 		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
