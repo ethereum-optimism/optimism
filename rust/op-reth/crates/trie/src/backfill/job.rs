@@ -290,7 +290,7 @@ where
     /// and advances the snapshot anchor atomically with each `prepend_block`
     /// (so the snapshot stays in sync with the moving `earliest`).
     ///
-    /// **Snapshot preconditions** (handled by [`Self::ensure_snapshot_ready`]):
+    /// **Snapshot preconditions** (handled internally by `ensure_snapshot_ready`):
     /// - If no snapshot exists, runs [`SnapshotInitJob`] at the current `earliest` and then
     ///   proceeds.
     /// - If a `Ready` snapshot exists at the current `earliest`, proceeds.
