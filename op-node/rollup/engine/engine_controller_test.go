@@ -443,7 +443,7 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{},
-				&testutils.MockL1Source{},
+		&testutils.MockL1Source{},
 		emitter,
 		nil, // no superAuthority
 	)
@@ -518,7 +518,7 @@ func TestInitializeUnknowns_ELSync_FinalizedNotFound(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{SyncMode: sync.ELSync},
-				&testutils.MockL1Source{},
+		&testutils.MockL1Source{},
 		emitter,
 		nil,
 	)
@@ -576,7 +576,7 @@ func TestInitializeUnknowns_CLSync_FinalizedNotFound_StillErrors(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{SyncMode: sync.CLSync},
-				&testutils.MockL1Source{},
+		&testutils.MockL1Source{},
 		emitter,
 		nil,
 	)

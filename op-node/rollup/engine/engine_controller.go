@@ -90,15 +90,15 @@ type CrossUpdateHandler interface {
 }
 
 type EngineController struct {
-	engine            ExecEngine // Underlying execution engine RPC
-	log               log.Logger
-	metrics           opmetrics.Metricer
-	syncCfg           *sync.Config
-	syncStatus        syncStatusEnum
-	chainSpec         *rollup.ChainSpec
-	rollupCfg         *rollup.Config
-	elStart           time.Time
-	clock             clock.Clock
+	engine     ExecEngine // Underlying execution engine RPC
+	log        log.Logger
+	metrics    opmetrics.Metricer
+	syncCfg    *sync.Config
+	syncStatus syncStatusEnum
+	chainSpec  *rollup.ChainSpec
+	rollupCfg  *rollup.Config
+	elStart    time.Time
+	clock      clock.Clock
 
 	// L1 chain for reset functionality
 	l1 sync.L1Chain
