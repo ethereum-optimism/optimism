@@ -11262,6 +11262,7 @@ dependencies = [
  "reth-chainspec",
  "reth-evm",
  "reth-execution-types",
+ "reth-optimism-chainspec",
  "reth-optimism-evm",
  "reth-optimism-forks",
  "reth-optimism-primitives",
