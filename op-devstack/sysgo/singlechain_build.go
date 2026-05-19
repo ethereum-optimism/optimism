@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -311,6 +312,8 @@ type l2CLNodeStartConfig struct {
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
+
+	ConductorRPCEndpoint *atomic.Value
 }
 
 func startL2CLNode(
@@ -440,7 +443,7 @@ func startL2CLNode(
 			SkipSyncStartCheck:             false,
 			SupportsPostFinalizationELSync: false,
 			L2FollowSourceEndpoint:         cfg.FollowSource,
-			NeedInitialResetEngine:         false,
+			NeedInitialResetEngine:         cfg.IsSequencer && cfg.FollowSource != "",
 			OffsetELSafe:                   cfg.OffsetELSafe,
 		},
 		ConfigPersistence:               config.DisabledConfigPersistence{},
@@ -454,6 +457,9 @@ func startL2CLNode(
 		AltDA:                           altda.CLIConfig{},
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
+	}
+	if startCfg.ConductorRPCEndpoint != nil {
+		configureOpNodeConfigForConductor(nodeCfg, startCfg.ConductorRPCEndpoint)
 	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,

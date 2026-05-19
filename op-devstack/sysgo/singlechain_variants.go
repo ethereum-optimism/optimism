@@ -13,6 +13,7 @@ import (
 
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -208,11 +209,15 @@ func newConductorRPCEndpoint() *atomic.Value {
 	return &conductorRPCEndpoint
 }
 
+func configureOpNodeConfigForConductor(cfg *opnodeconfig.Config, conductorRPCEndpoint *atomic.Value) {
+	cfg.ConductorEnabled = true
+	cfg.ConductorRpcTimeout = 5 * time.Second
+	cfg.ConductorRpc = conductorRPCFromEndpoint(conductorRPCEndpoint)
+	cfg.Driver.SequencerStopped = true
+}
+
 func configureOpNodeForConductor(opNode *OpNode, conductorRPCEndpoint *atomic.Value) {
-	opNode.cfg.ConductorEnabled = true
-	opNode.cfg.ConductorRpcTimeout = 5 * time.Second
-	opNode.cfg.ConductorRpc = conductorRPCFromEndpoint(conductorRPCEndpoint)
-	opNode.cfg.Driver.SequencerStopped = true
+	configureOpNodeConfigForConductor(opNode.cfg, conductorRPCEndpoint)
 	if p2pCfg, ok := opNode.cfg.P2P.(*p2p.Config); ok {
 		p2pCfg.Store = dssync.MutexWrap(ds.NewMapDatastore())
 	}

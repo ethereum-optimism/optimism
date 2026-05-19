@@ -308,7 +308,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		}
 	}
 
-	supernode, l2ACL, l2BCL := startTwoL2SharedSupernode(
+	supernode, l2ASupernodeCL, l2BSupernodeCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
 		l1EL,
@@ -321,8 +321,10 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
-		conductorEndpoints,
+		!enableConductors,
 	)
+	var l2ACL L2CLNode = l2ASupernodeCL
+	var l2BCL L2CLNode = l2BSupernodeCL
 
 	var l2AConductors map[string]*Conductor
 	var l2BConductors map[string]*Conductor
@@ -330,14 +332,17 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	var l2BFollowers map[string]*SingleChainNodeRuntime
 	if enableConductors {
 		conductorCfg := conductorConfigFromPreset(cfg)
-		var conductorHealthPeerDepSet depset.DependencySet
+		var conductorNodeDepSet depset.DependencySet
 		if depSet != nil {
-			conductorHealthPeerDepSet = depSet
+			conductorNodeDepSet = depSet
 		} else {
-			conductorHealthPeerDepSet = wb.outFullCfgSet.DependencySet
+			conductorNodeDepSet = wb.outFullCfgSet.DependencySet
 		}
-		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ACL, conductorHealthPeerDepSet, conductorCfg.HealthCheck.MinPeerCount)
-		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BCL, conductorHealthPeerDepSet, conductorCfg.HealthCheck.MinPeerCount)
+		l2ACL = startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ASupernodeCL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2ANet.ChainID()])
+		l2BCL = startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BSupernodeCL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2BNet.ChainID()])
+
+		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ACL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
+		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BCL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
 
 		l2AConductor := startConductorForRPC(
 			t,
@@ -535,6 +540,33 @@ func startConductorHealthPeers(
 	return followers
 }
 
+func startConductorControlledSequencerCL(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	followSource L2CLNode,
+	dependencySet depset.DependencySet,
+	jwtSecret [32]byte,
+	conductorRPCEndpoint *atomic.Value,
+) *OpNode {
+	sequencerCL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:                  "sequencer",
+		IsSequencer:          true,
+		NoDiscovery:          true,
+		EnableReqResp:        true,
+		UseReqResp:           true,
+		L2FollowSource:       followSource.UserRPC(),
+		DependencySet:        dependencySet,
+		ConductorRPCEndpoint: conductorRPCEndpoint,
+	})
+	connectL2CLPeers(t, t.Logger(), followSource, sequencerCL)
+	return sequencerCL
+}
+
 func startMultiChainFollowL2Node(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -584,20 +616,24 @@ func startTwoL2SharedSupernode(
 	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
-	conductorEndpoints map[eth.ChainID]*atomic.Value,
+	virtualSequencers bool,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		var sequencerP2PKeyHex string
+		if virtualSequencers {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
 			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -617,7 +653,7 @@ func startTwoL2SharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: virtualSequencers, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
@@ -631,12 +667,6 @@ func startTwoL2SharedSupernode(
 			Pprof:                           oppprof.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
 			ExperimentalOPStackAPI:          true,
-		}
-		if conductorRPCEndpoint := conductorEndpoints[l2Net.ChainID()]; conductorRPCEndpoint != nil {
-			cfg.ConductorEnabled = true
-			cfg.ConductorRpcTimeout = 5 * time.Second
-			cfg.ConductorRpc = conductorRPCFromEndpoint(conductorRPCEndpoint)
-			cfg.Driver.SequencerStopped = true
 		}
 		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
 		return cfg
