@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -346,26 +345,7 @@ func buildMixedOpRethNode(
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
 
-	initArgs := []string{
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-	}
-	err = exec.Command(execPath, initArgs...).Run()
-	t.Require().NoError(err, "must init op-reth node")
-
 	proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-	initProofsArgs := []string{
-		"proofs",
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + storageVersion,
-	}
-	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
 	args = append(
 		args,
@@ -379,7 +359,7 @@ func buildMixedOpRethNode(
 	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
 	args = append(args, opRethCfg.ExtraArgs...)
 
-	return &OpReth{
+	node := &OpReth{
 		name:               key,
 		chainID:            l2Net.ChainID(),
 		jwtPath:            jwtPath,
@@ -396,6 +376,8 @@ func buildMixedOpRethNode(
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+	t.Require().NoError(node.initStorage(), "must init op-reth storage")
+	return node
 }
 
 func startMixedOpRethNode(

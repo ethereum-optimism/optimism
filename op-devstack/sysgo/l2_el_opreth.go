@@ -209,6 +209,26 @@ func (n *OpReth) Stop() {
 	n.sub = nil
 }
 
+// initStorage runs op-reth's `init` and (when configured) `proofs init`
+// against the node's data dirs. Used at first start and after WipeOnDiskState.
+func (n *OpReth) initStorage() error {
+	if out, err := exec.Command(n.execPath, "init", "--datadir="+n.dataDirPath, "--chain="+n.chainConfigPath).CombinedOutput(); err != nil {
+		return fmt.Errorf("op-reth %s: init: %w: %s", n.name, err, string(out))
+	}
+	if n.proofHistoryDir != "" && n.proofStorageVer != "" {
+		out, err := exec.Command(n.execPath, "proofs", "init",
+			"--datadir="+n.dataDirPath,
+			"--chain="+n.chainConfigPath,
+			"--proofs-history.storage-path="+n.proofHistoryDir,
+			"--proofs-history.storage-version="+n.proofStorageVer,
+		).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("op-reth %s: proofs init: %w: %s", n.name, err, string(out))
+		}
+	}
+	return nil
+}
+
 // WipeOnDiskState removes and re-initialises the op-reth data dir and
 // proof-history dir. Callers must Stop the node first.
 func (n *OpReth) WipeOnDiskState() error {
@@ -231,21 +251,7 @@ func (n *OpReth) WipeOnDiskState() error {
 			return fmt.Errorf("op-reth %s: remove proof history: %w", n.name, err)
 		}
 	}
-	if out, err := exec.Command(n.execPath, "init", "--datadir="+n.dataDirPath, "--chain="+n.chainConfigPath).CombinedOutput(); err != nil {
-		return fmt.Errorf("op-reth %s: init: %w: %s", n.name, err, string(out))
-	}
-	if n.proofHistoryDir != "" && n.proofStorageVer != "" {
-		out, err := exec.Command(n.execPath, "proofs", "init",
-			"--datadir="+n.dataDirPath,
-			"--chain="+n.chainConfigPath,
-			"--proofs-history.storage-path="+n.proofHistoryDir,
-			"--proofs-history.storage-version="+n.proofStorageVer,
-		).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("op-reth %s: proofs init: %w: %s", n.name, err, string(out))
-		}
-	}
-	return nil
+	return n.initStorage()
 }
 
 func (n *OpReth) UserRPC() string {
