@@ -15,7 +15,7 @@ Education ("don't use short timeouts, don't sleep") has not closed the gap becau
 | `head := node.Head(); WaitForOther(head)` | TOCTOU — `head` is stale by the time the second call uses it. |
 | `Sleep(2s); SequenceBlock()` | Looks like "give the system a moment"; actually a missing wait on a precondition. |
 | `NewMultiNodeWithoutCheck(); WaitForBudget(60)` | Bypasses the preset's auto-detected sync budget. The preset would have used the correct 240s budget for ELSync; the test hard-codes 120s. |
-| `defer wg.Wait(); defer cancel()` | LIFO: `Wait` runs first and blocks forever because `cancel` hasn't fired yet. |
+| `defer cancel(); ... defer wg.Wait()` | LIFO: `Wait` runs first and blocks forever because `cancel` hasn't fired yet. |
 | `go func(){ require.NoError(...) }()` | `FailNow` in a non-test goroutine only exits *the goroutine*; the test hangs until package timeout. |
 
 If you have written one of these, you have probably also written it in another test. Lint catches the ones with a syntactic signature; the rest are reviewer responsibility.
@@ -122,7 +122,31 @@ require.Eventuallyf(t, func() bool {
 retryProve(ctx, 30*time.Second)   // now scoped to transient submit/confirm errors only
 ```
 
-**Examples:** [#20199](https://github.com/ethereum-optimism/optimism/pull/20199), [#20677](https://github.com/ethereum-optimism/optimism/pull/20677), [#20482](https://github.com/ethereum-optimism/optimism/pull/20482). **Lint:** no (semantic — needs a reviewer).
+```go
+// BAD — CL/supervisor state reached the target, but the EL label/content is
+// updated through an async forkchoice/reorg path. A synchronous EL read can
+// still observe the previous safe label or old block contents.
+cl.Reached(types.CrossSafe, target, 30)
+safe := el.BlockRefByLabel(eth.Safe)
+require.GreaterOrEqual(t, safe.Number, target)
+
+// GOOD — wait on the component and observable state the assertion actually
+// reads. If the assertion is about EL labels or block contents, include an
+// EL-side wait before the synchronous assertion.
+dsl.CheckAll(t,
+    cl.ReachedFn(types.CrossSafe, target, 30),
+    el.ReachedFn(eth.Safe, target, 30),
+)
+safe = el.BlockRefByLabel(eth.Safe)
+require.GreaterOrEqual(t, safe.Number, target)
+```
+
+The same shape appears when a supervisor or CL validation wait is followed by
+an EL block-content assertion. `AwaitValidatedTimestamp` and `Reached(CrossSafe)`
+prove the control-plane view advanced; they do not automatically prove the EL
+has exposed the replacement canonical block or historical proof state.
+
+**Examples:** [#20199](https://github.com/ethereum-optimism/optimism/pull/20199), [#20677](https://github.com/ethereum-optimism/optimism/pull/20677), [#20482](https://github.com/ethereum-optimism/optimism/pull/20482), [#20852](https://github.com/ethereum-optimism/optimism/pull/20852), [#20782](https://github.com/ethereum-optimism/optimism/pull/20782). **Lint:** no (semantic — needs a reviewer).
 
 ### F5 — "Done" signal that doesn't entail "work happened"
 
@@ -141,6 +165,15 @@ chain.WaitForBackfillToSeal(types.MinBlocks(2))
 ```
 
 **Examples:** [#20690](https://github.com/ethereum-optimism/optimism/issues/20690). **Lint:** no.
+
+The same trap applies to `Stop`, `Reset`, and `Restart` helpers: the call
+returning does not necessarily mean every background producer is quiesced or
+that every hidden cache has been cleared. If the next assertion depends on
+empty session state, drained queues, or no more payloads arriving, the helper
+must either guarantee that stronger postcondition or the test must wait/assert
+on it directly.
+
+**Related:** [#20783](https://github.com/ethereum-optimism/optimism/pull/20783).
 
 ### F6 — Hand-rolled sync check that bypasses the preset's auto-budget
 
@@ -312,8 +345,8 @@ When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
 - [ ] **F1**: Any `require.*` / `assert.*` calls inside a `Eventually`/`Until`/`retry.Do` callback? They should be `if err != nil { return false }` instead.
 - [ ] **F2**: Any `require.*` inside `go func(){...}()`? Goroutine assertions hang the test on failure.
 - [ ] **F3**: Any "read X, then use X in next RPC" pattern? Could X be stale?
-- [ ] **F4**: Every assertion in the test has a preceding wait on its *exact* postcondition (not a proxy like "sequencer started").
-- [ ] **F5**: `Await*`/`*Completed`/`*Done` methods — do they guarantee the *work* happened, or just that the *signal* fired?
+- [ ] **F4**: Every assertion in the test has a preceding wait on its *exact* postcondition (not a proxy like "sequencer started", "CL reached CrossSafe", or "supervisor validated timestamp" when the assertion reads EL state).
+- [ ] **F5**: `Await*`/`*Completed`/`*Done`/`Stop`/`Reset` methods — do they guarantee the *work* happened and hidden state is drained, or just that the signal/API call returned?
 - [ ] **F6**: Manual sync checks: any `WithoutCheck` followed by a hand-rolled budget? Use the auto-budgeted preset.
 - [ ] **F7**: Sync checks: is the reference value sampled *inside* the retry loop, or captured once outside?
 - [ ] **F8**: Any `time.Sleep` in test code? Replace with `WaitFor*`.
