@@ -17,6 +17,17 @@ type Supernode struct {
 	commonImpl
 	inner       stack.Supernode
 	testControl stack.SupernodeTestControl
+	frontedCLs  []*L2CLNode
+	frontedELs  []*L2ELNode
+}
+
+// AttachFrontends records the supernode-fronted CL/EL DSL nodes so that
+// wipe-and-restart actions can wipe the ELs alongside the supernode data dir
+// and re-establish each node's registered static peers after the restart.
+// Called by presets at wire-up time.
+func (s *Supernode) AttachFrontends(cls []*L2CLNode, els []*L2ELNode) {
+	s.frontedCLs = cls
+	s.frontedELs = els
 }
 
 // NewSupernode creates a new Supernode DSL wrapper
@@ -129,33 +140,62 @@ func (s *Supernode) ResumeInterop() {
 	s.interopActivity().Resume()
 }
 
-// RestartWithFreshDataDir stops the supernode, deletes its on-disk data
-// directory in full, and starts a fresh supernode against the same chain
-// containers, virtual nodes, and externally-visible RPC address.
-// Requires NewSupernodeWithTestControl.
-func (s *Supernode) RestartWithFreshDataDir() {
-	s.require.NotNil(s.testControl,
-		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
-	s.log.Info("restarting supernode with fresh data dir")
-	err := s.testControl.RestartWithFreshDataDir()
-	s.require.NoError(err, "failed to restart supernode with fresh data dir")
+// RestartOpts controls optional behaviour of Supernode.RestartWithFreshDataDir.
+type RestartOpts struct {
+	// WipeELs, when true, additionally stops and wipes every supernode-
+	// fronted EL alongside the supernode data dir, forcing post-restart
+	// execution-layer sync from sibling peers.
+	WipeELs bool
 }
 
-// RestartWithFreshDataDirAndELs wipes the supernode data dir and the
-// supplied ELs together. Order: stop supernode → stop+wipe ELs → start ELs
-// → start supernode. Requires NewSupernodeWithTestControl.
-func (s *Supernode) RestartWithFreshDataDirAndELs(els ...*L2ELNode) {
-	s.require.NotNil(s.testControl, "RestartWithFreshDataDirAndELs requires test control")
-	s.require.NotEmpty(els, "at least one EL required")
+// WithELWiped is a RestartWithFreshDataDir option that also wipes every
+// supernode-fronted EL's on-disk state. Requires AttachFrontends.
+func WithELWiped(o *RestartOpts) { o.WipeELs = true }
+
+// RestartWithFreshDataDir stops the supernode, deletes its on-disk data
+// directory in full, and starts a fresh supernode against the same chain
+// containers, virtual nodes, and externally-visible RPC address. With
+// WithELWiped, every fronted EL is stopped, wiped, and restarted around the
+// supernode restart so the post-restart VN must execution-layer-sync from
+// sibling peers. Each EL's Start re-dials its registered static peers;
+// fronted CL static peers are re-dialed after the supernode comes back up.
+// Requires NewSupernodeWithTestControl, plus AttachFrontends when WipeELs is
+// set.
+func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
+	s.require.NotNil(s.testControl,
+		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
+
+	o := RestartOpts{}
+	for _, fn := range opts {
+		fn(&o)
+	}
+
+	if !o.WipeELs {
+		s.log.Info("restarting supernode with fresh data dir")
+		s.require.NoError(s.testControl.RestartWithFreshDataDir(),
+			"failed to restart supernode with fresh data dir")
+		s.restoreFrontedCLPeers()
+		return
+	}
+
+	s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachFrontends from the preset")
+	s.log.Info("restarting supernode with fresh data dir and wiping fronted ELs")
 	s.require.NoError(s.testControl.StopForExternalWipe(), "stop supernode")
-	for _, el := range els {
+	for _, el := range s.frontedELs {
 		el.Stop()
 		el.WipeOnDiskState()
 	}
-	for _, el := range els {
+	for _, el := range s.frontedELs {
 		el.Start()
 	}
 	s.require.NoError(s.testControl.StartWithFreshDataDir(), "start supernode fresh")
+	s.restoreFrontedCLPeers()
+}
+
+func (s *Supernode) restoreFrontedCLPeers() {
+	for _, cl := range s.frontedCLs {
+		cl.restoreManagedPeers()
+	}
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the

@@ -10,6 +10,21 @@ func twoL2SupernodeInteropPeerELFromRuntime(t devtest.T, runtime *sysgo.MultiCha
 	base := twoL2SupernodeInteropFromRuntime(t, runtime)
 	seqA := addSiblingSequencerFrontend(t, base.L2A, runtime, "l2a")
 	seqB := addSiblingSequencerFrontend(t, base.L2B, runtime, "l2b")
+
+	// Register the sibling sequencer pair as static peers on the supernode-
+	// fronted CL/EL so that supernode wipe-and-restart can rebuild the
+	// topology without test-side bookkeeping. CL pubsub feeds the VN new
+	// heads; EL devp2p feeds backfill after an EL wipe.
+	base.L2ACL.ConnectPeer(seqA.cl)
+	base.L2BCL.ConnectPeer(seqB.cl)
+	base.L2ELA.PeerWith(seqA.el)
+	base.L2ELB.PeerWith(seqB.el)
+
+	base.Supernode.AttachFrontends(
+		[]*dsl.L2CLNode{base.L2ACL, base.L2BCL},
+		[]*dsl.L2ELNode{base.L2ELA, base.L2ELB},
+	)
+
 	return &TwoL2SupernodeInteropPeerEL{
 		TwoL2SupernodeInterop: *base,
 		SequencerL2AEL:        seqA.el,

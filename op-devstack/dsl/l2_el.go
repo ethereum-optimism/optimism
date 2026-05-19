@@ -25,14 +25,16 @@ var emptyHash = common.Hash{}
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	*elNode
-	inner stack.L2ELNode
+	inner        stack.L2ELNode
+	managedPeers map[string]*L2ELNode
 }
 
 // NewL2ELNode creates a new L2ELNode DSL wrapper
 func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
 	return &L2ELNode{
-		elNode: newELNode(commonFromT(inner.T()), inner),
-		inner:  inner,
+		elNode:       newELNode(commonFromT(inner.T()), inner),
+		inner:        inner,
+		managedPeers: make(map[string]*L2ELNode),
 	}
 }
 
@@ -357,6 +359,7 @@ func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())
 	lifecycle.Start()
+	el.restoreManagedPeers()
 }
 
 // WipeOnDiskState wipes any persistent state belonging to the EL between a
@@ -371,12 +374,31 @@ func (el *L2ELNode) WipeOnDiskState() {
 	el.require.NoErrorf(err, "failed to wipe on-disk state for %s", el.inner.Name())
 }
 
+// PeerWith dials peer and registers it as a static peer in both directions.
+// After a Stop/Start (e.g. via Supernode wipe-and-restart), restoreManagedPeers
+// re-dials every registered peer bidirectionally, so static topologies with
+// discovery disabled survive restarts without test-side bookkeeping.
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
-	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
+	el.managedPeers[peer.inner.Name()] = peer
+	peer.managedPeers[el.inner.Name()] = el
+	el.dialPeerRaw(peer)
 }
 
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
+	delete(el.managedPeers, peer.inner.Name())
+	delete(peer.managedPeers, el.inner.Name())
 	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+}
+
+func (el *L2ELNode) dialPeerRaw(peer *L2ELNode) {
+	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
+}
+
+func (el *L2ELNode) restoreManagedPeers() {
+	for _, peer := range el.managedPeers {
+		el.dialPeerRaw(peer)
+		peer.dialPeerRaw(el)
+	}
 }
 
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {
