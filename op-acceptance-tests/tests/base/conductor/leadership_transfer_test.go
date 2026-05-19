@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -92,9 +91,6 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 				// the modulo operation is used to wrap around the list of voters whenever i or i+1 becomes >= len(voters)
 				oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
 				oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
-
-				require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second))
-
 				testTransferLeadershipAndCheck(t, oldLeader, newLeader)
 			}
 		})
