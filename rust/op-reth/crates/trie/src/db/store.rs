@@ -971,12 +971,11 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvide
         _block_ref: BlockWithParent,
         _diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        todo!("OpProofsBackfillProvider::prepend_block for MdbxProofsProvider")
+        unimplemented!("Not supported in v1 storage")
     }
 
     fn commit(self) -> OpProofsStorageResult<()> {
-        self.tx.commit()?;
-        Ok(())
+        unimplemented!("Not supported in v1 storage")
     }
 }
 

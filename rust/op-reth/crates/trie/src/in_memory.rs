@@ -908,27 +908,14 @@ impl OpProofsInitProvider for InMemoryProofsProvider {
 impl OpProofsBackfillProvider for InMemoryProofsProvider {
     fn prepend_block(
         &self,
-        block_ref: BlockWithParent,
-        diff: BlockStateDiff,
+        _block_ref: BlockWithParent,
+        _diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        let mut inner = self.inner.write();
-        let (earliest_number, earliest_hash) =
-            inner.earliest_block.ok_or(OpProofsStorageError::NoBlocksFound)?;
-        if block_ref.block.hash != earliest_hash {
-            return Err(OpProofsStorageError::PrependOutOfOrder {
-                block_number: block_ref.block.number,
-                block_hash: block_ref.block.hash,
-                earliest_block_number: earliest_number,
-                earliest_block_hash: earliest_hash,
-            });
-        }
-        let counts = inner.store_trie_updates(block_ref.block.number, diff);
-        inner.earliest_block = Some((block_ref.block.number - 1, block_ref.parent));
-        Ok(counts)
+        unimplemented!("Not supported in Inmemory storage")
     }
 
     fn commit(self) -> OpProofsStorageResult<()> {
-        Ok(())
+        unimplemented!("Not supported in Inmemory storage")
     }
 }
 
