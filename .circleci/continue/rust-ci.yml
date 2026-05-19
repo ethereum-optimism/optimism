@@ -1178,38 +1178,14 @@ workflows:
   # =====================================
 
   # ==========================================================================
-  # Required Rust CI gate (skip) — runs when no rust changes and no dispatch
-  # Just runs the rust cargo tests for the different packages in the repo and try to build the fpvm-prestates
+  # Required Rust CI gate (skip) — runs when no rust changes and no dispatch.
+  # This path must complete quickly (e.g., docs-only PRs), so it should avoid
+  # expensive Rust build/test work while still satisfying required check names.
   # ==========================================================================
   rust-ci-gate-short:
     when: << pipeline.parameters.c-run_rust_ci_gate_short >>
     jobs:
-      - rust-ci-cargo-tests:
-          name: rust-tests
-          directory: rust
-          context: *rust-ci-context
-
-      - rust-ci-cargo-tests:
-          name: op-reth-integration-tests
-          directory: rust
-          command: "--justfile op-reth/justfile test-integration"
-          cache_profile: debug
-          context: *rust-ci-context
-
-      - kona-build-fpvm:
-          name: kona-build-fpvm-cannon-client
-          target: "cannon-client"
-          context: *rust-ci-context
-
-      - kona-registry-snapshot-check:
-          context: *rust-ci-context
-
       - required-rust-ci:
-          requires:
-            - rust-tests: terminal
-            - op-reth-integration-tests: terminal
-            - kona-build-fpvm-cannon-client: terminal
-            - kona-registry-snapshot-check: terminal
           context:
             - circleci-api-token
 
