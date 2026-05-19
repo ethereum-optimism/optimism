@@ -122,17 +122,6 @@ func newRollupBoostFrontend(t devtest.T, name string, chainID eth.ChainID, userR
 	return rollupBoost
 }
 
-func newSupervisorFrontend(t devtest.T, name string, userRPC string, lifecycle ...stack.Lifecycle) *supervisorFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-	supervisor := newPresetSupervisor(t, name, rpcCl)
-	if len(lifecycle) > 0 {
-		supervisor.lifecycle = lifecycle[0]
-	}
-	return supervisor
-}
-
 func newSupernodeFrontend(t devtest.T, name string, userRPC string) *supernodeFrontend {
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)

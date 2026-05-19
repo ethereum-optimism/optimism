@@ -392,9 +392,7 @@ func (f *DisputeGameFactory) honestSuperCannonTrace(
 		vmConfig,
 		serverExecutor,
 		prestateProvider,
-		nil, // supervisor client
 		f.superNode.QueryAPI(),
-		true,
 		vmPrestatePath,
 		path.Join(f.challengerCfg.Datadir, "test-prestates"),
 		l1Head.ID(),

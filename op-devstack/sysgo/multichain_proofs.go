@@ -123,7 +123,6 @@ func attachSuperChallengerAndProposer(
 		runtime.L1CL,
 		runtime.DependencySet,
 		runtime.Supernode.UserRPC(),
-		true,
 		nets,
 		els,
 	)
@@ -235,7 +234,6 @@ func startInteropChallenger(
 	l1CL *L1CLNode,
 	depSet depset.DependencySet,
 	superRPC string,
-	useSuperNode bool,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
 ) *L2Challenger {
@@ -281,7 +279,6 @@ func startInteropChallenger(
 		options...,
 	)
 	require.NoError(err, "failed to create interop challenger config")
-	cfg.UseSuperNode = useSuperNode
 
 	svc, err := opchallenger.Main(t.Ctx(), logger, cfg, challengermetrics.NoopMetrics)
 	require.NoError(err)

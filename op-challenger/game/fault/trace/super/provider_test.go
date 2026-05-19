@@ -18,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	gameDepth          = types.Depth(30)
+	prestateTimestamp  = uint64(1000)
+	poststateTimestamp = uint64(5000)
+)
+
 func TestSuperNodeProvider_Get(t *testing.T) {
 	t.Run("AtPostState", func(t *testing.T) {
 		provider, stubSuperNode, l1Head := createSuperNodeProvider(t)
