@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-// QueryFrontend handles supervisor query RPC methods
+// QueryFrontend handles interop query RPC methods.
 type QueryFrontend struct {
 	backend *Backend
 }

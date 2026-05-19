@@ -126,6 +126,11 @@ var (
 		Usage:   "Support legacy interop_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
 		EnvVars: prefixEnvVars("SUPPORT_LEGACY_CHECK_ACCESS_LIST_FORMAT"),
 	}
+	SupportLegacySupervisorRPCNamespaceFlag = &cli.BoolFlag{
+		Name:    "support-legacy-supervisor-rpc-namespace",
+		Usage:   "Temporarily expose query RPC methods under the legacy supervisor_* namespace in addition to canonical interop_* methods. Intended only for compatibility with legacy clients.",
+		EnvVars: prefixEnvVars("SUPPORT_LEGACY_SUPERVISOR_RPC_NAMESPACE"),
+	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
 		Name:    "dangerously-enable-passthrough",
 		Usage:   "Allow all transactions through without interop filtering. DANGEROUS: disables all executing message validation.",
@@ -154,6 +159,7 @@ var optionalFlags = []cli.Flag{
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
 	SupportLegacyCheckAccessListFormatFlag,
+	SupportLegacySupervisorRPCNamespaceFlag,
 	DangerouslyEnablePassthroughFlag,
 }
 

@@ -38,6 +38,7 @@ type Config struct {
 	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
 	Passthrough                 bool          // If true, all transactions pass through without filtering
 	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
+	LegacySupervisorNamespace   bool          // If true, exposes query RPC methods under the legacy supervisor namespace
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
 	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
 
@@ -147,6 +148,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
+		LegacySupervisorNamespace:   ctx.Bool(flags.SupportLegacySupervisorRPCNamespaceFlag.Name),
 		RPCConcurrency:              rpcConcurrency,
 		FetchConcurrency:            fetchConcurrency,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),

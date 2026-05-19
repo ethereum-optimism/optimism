@@ -34,7 +34,7 @@ type Service struct {
 
 	pprofService   *oppprof.Service
 	metricsSrv     *httputil.HTTPServer
-	rpcServer      *oprpc.Server // Main RPC server (public supervisor API)
+	rpcServer      *oprpc.Server // Main RPC server (public query API)
 	adminRPCServer *oprpc.Server // Admin RPC server (JWT-protected, separate port)
 
 	backend *Backend
@@ -70,6 +70,9 @@ func Main(version string) cliapp.LifecycleAction {
 		}
 		if cfg.LegacyCheckAccessListFormat {
 			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
+		}
+		if cfg.LegacySupervisorNamespace {
+			l.Warn("LEGACY SUPERVISOR RPC NAMESPACE ENABLED: query RPC methods are temporarily available as supervisor_* in addition to canonical interop_* methods")
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -239,7 +242,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	// Create server without JWT - public supervisor API
+	// Create server without JWT - public API
 	server := oprpc.NewServer(
 		cfg.RPCAddr,
 		cfg.RPCPort,
@@ -247,11 +250,19 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	)
 
+	queryFrontend := &QueryFrontend{backend: s.backend}
 	server.AddAPI(rpc.API{
 		Namespace:     "interop",
-		Service:       &QueryFrontend{backend: s.backend},
+		Service:       queryFrontend,
 		Authenticated: false,
 	})
+	if cfg.LegacySupervisorNamespace {
+		server.AddAPI(rpc.API{
+			Namespace:     "supervisor",
+			Service:       queryFrontend,
+			Authenticated: false,
+		})
+	}
 
 	server.AddAPI(rpc.API{
 		Namespace:     "admin",
@@ -306,7 +317,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 
-	// Start main RPC server (supervisor API)
+	// Start main RPC server (query API)
 	if err := s.rpcServer.Start(); err != nil {
 		// Rollback: stop backend if RPC server fails to start
 		stopErr := s.backend.Stop(ctx)
