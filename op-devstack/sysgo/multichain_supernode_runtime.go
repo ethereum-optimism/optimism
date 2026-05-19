@@ -329,18 +329,16 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	var l2AFollowers map[string]*SingleChainNodeRuntime
 	var l2BFollowers map[string]*SingleChainNodeRuntime
 	if enableConductors {
+		conductorCfg := conductorConfigFromPreset(cfg)
 		var conductorHealthPeerDepSet depset.DependencySet
 		if depSet != nil {
 			conductorHealthPeerDepSet = depSet
 		} else {
 			conductorHealthPeerDepSet = wb.outFullCfgSet.DependencySet
 		}
-		l2AConductorHealthPeer := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ACL, conductorHealthPeerDepSet, "conductor-health-peer")
-		l2BConductorHealthPeer := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BCL, conductorHealthPeerDepSet, "conductor-health-peer")
-		l2AFollowers = map[string]*SingleChainNodeRuntime{l2AConductorHealthPeer.Name: l2AConductorHealthPeer}
-		l2BFollowers = map[string]*SingleChainNodeRuntime{l2BConductorHealthPeer.Name: l2BConductorHealthPeer}
+		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, l2AEL, l2ACL, conductorHealthPeerDepSet, conductorCfg.HealthCheck.MinPeerCount)
+		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, l2BEL, l2BCL, conductorHealthPeerDepSet, conductorCfg.HealthCheck.MinPeerCount)
 
-		conductorCfg := conductorConfigFromPreset(cfg)
 		l2AConductor := startConductorForRPC(
 			t,
 			"sequencer",
@@ -514,6 +512,27 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	}
 	chain.Followers[name] = node
 	return node
+}
+
+func startConductorHealthPeers(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	l2CL L2CLNode,
+	dependencySet depset.DependencySet,
+	peerCount uint64,
+) map[string]*SingleChainNodeRuntime {
+	followers := make(map[string]*SingleChainNodeRuntime)
+	for i := uint64(1); i <= peerCount; i++ {
+		name := fmt.Sprintf("conductor-health-peer-%d", i)
+		node := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2Net, l2EL, l2CL, dependencySet, name)
+		followers[node.Name] = node
+	}
+	return followers
 }
 
 func startMultiChainFollowL2Node(

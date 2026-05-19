@@ -50,6 +50,45 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 	require.Equal(t, "/tmp/contracts-bedrock", cfg.LocalContractArtifactsPath)
 }
 
+func TestWithConductorHealthCheckMinPeerCount(t *testing.T) {
+	t.Run("health check option defaults min peer count to one", func(t *testing.T) {
+		cfg, _ := collectPresetConfig([]Option{WithConductorHealthCheck(5, 6, 7)})
+		require.NotNil(t, cfg.ConductorHealthCheck)
+		require.Equal(t, uint64(1), cfg.ConductorHealthCheck.MinPeerCount)
+	})
+
+	t.Run("sets min peer count with default intervals", func(t *testing.T) {
+		cfg, _ := collectPresetConfig([]Option{WithConductorHealthCheckMinPeerCount(2)})
+		require.NotNil(t, cfg.ConductorHealthCheck)
+		require.NoError(t, cfg.ConductorHealthCheck.Check())
+		require.Equal(t, uint64(2), cfg.ConductorHealthCheck.MinPeerCount)
+	})
+
+	t.Run("preserves min peer count when health check option follows", func(t *testing.T) {
+		cfg, _ := collectPresetConfig([]Option{
+			WithConductorHealthCheckMinPeerCount(2),
+			WithConductorHealthCheck(5, 6, 7),
+		})
+		require.NotNil(t, cfg.ConductorHealthCheck)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.Interval)
+		require.Equal(t, uint64(6), cfg.ConductorHealthCheck.UnsafeInterval)
+		require.Equal(t, uint64(7), cfg.ConductorHealthCheck.SafeInterval)
+		require.Equal(t, uint64(2), cfg.ConductorHealthCheck.MinPeerCount)
+	})
+
+	t.Run("overrides min peer count when applied after health check option", func(t *testing.T) {
+		cfg, _ := collectPresetConfig([]Option{
+			WithConductorHealthCheck(5, 6, 7),
+			WithConductorHealthCheckMinPeerCount(3),
+		})
+		require.NotNil(t, cfg.ConductorHealthCheck)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.Interval)
+		require.Equal(t, uint64(6), cfg.ConductorHealthCheck.UnsafeInterval)
+		require.Equal(t, uint64(7), cfg.ConductorHealthCheck.SafeInterval)
+		require.Equal(t, uint64(3), cfg.ConductorHealthCheck.MinPeerCount)
+	})
+}
+
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
 	builderOpt := sysgo.OPRBuilderNodeOptionFn(func(devtest.CommonT, sysgo.ComponentTarget, *sysgo.OPRBuilderNodeConfig) {})
 

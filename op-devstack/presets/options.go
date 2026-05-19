@@ -266,12 +266,31 @@ func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Opt
 		kinds: optionKindConductor,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			minPeerCount := uint64(1)
+			if cfg.ConductorHealthCheck != nil {
+				minPeerCount = cfg.ConductorHealthCheck.MinPeerCount
+			}
 			cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
 				Interval:       interval,
 				UnsafeInterval: unsafeInterval,
 				SafeInterval:   safeInterval,
 				MinPeerCount:   minPeerCount,
 			}
+		},
+	}
+}
+
+func WithConductorHealthCheckMinPeerCount(minPeerCount uint64) Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if cfg.ConductorHealthCheck == nil {
+				cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
+					Interval:       3600,
+					UnsafeInterval: 3600,
+					SafeInterval:   3600,
+				}
+			}
+			cfg.ConductorHealthCheck.MinPeerCount = minPeerCount
 		},
 	}
 }
