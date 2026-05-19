@@ -197,6 +197,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			SafeEnabled:              ctx.Bool(flags.HealthCheckSafeEnabled.Name),
 			SafeInterval:             ctx.Uint64(flags.HealthCheckSafeInterval.Name),
 			MinPeerCount:             ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			InteropReorgLeniency:     ctx.Bool(flags.HealthCheckInteropReorgLeniency.Name),
 			ExecutionP2pEnabled:      ctx.Bool(flags.HealthcheckExecutionP2pEnabled.Name),
 			ExecutionP2pMinPeerCount: ctx.Uint64(flags.HealthcheckExecutionP2pMinPeerCount.Name),
 			ExecutionP2pRPCUrl:       executionP2pRpcUrl,
@@ -233,6 +234,10 @@ type HealthCheckConfig struct {
 
 	// MinPeerCount is the minimum number of peers required for the sequencer to be healthy.
 	MinPeerCount uint64
+
+	// InteropReorgLeniency enables experimental rolling-window health leniency
+	// for interop reorg recovery.
+	InteropReorgLeniency bool
 
 	// ExecutionP2pEnabled is whether to enable EL P2P checks.
 	ExecutionP2pEnabled bool

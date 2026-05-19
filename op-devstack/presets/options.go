@@ -266,14 +266,17 @@ func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Opt
 		kinds: optionKindConductor,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			minPeerCount := uint64(1)
+			interopReorgLeniency := false
 			if cfg.ConductorHealthCheck != nil {
 				minPeerCount = cfg.ConductorHealthCheck.MinPeerCount
+				interopReorgLeniency = cfg.ConductorHealthCheck.InteropReorgLeniency
 			}
 			cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
-				Interval:       interval,
-				UnsafeInterval: unsafeInterval,
-				SafeInterval:   safeInterval,
-				MinPeerCount:   minPeerCount,
+				Interval:             interval,
+				UnsafeInterval:       unsafeInterval,
+				SafeInterval:         safeInterval,
+				MinPeerCount:         minPeerCount,
+				InteropReorgLeniency: interopReorgLeniency,
 			}
 		},
 	}
@@ -283,16 +286,30 @@ func WithConductorHealthCheckMinPeerCount(minPeerCount uint64) Option {
 	return option{
 		kinds: optionKindConductor,
 		applyFn: func(cfg *sysgo.PresetConfig) {
-			if cfg.ConductorHealthCheck == nil {
-				cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
-					Interval:       3600,
-					UnsafeInterval: 3600,
-					SafeInterval:   3600,
-				}
-			}
-			cfg.ConductorHealthCheck.MinPeerCount = minPeerCount
+			ensureConductorHealthCheck(cfg).MinPeerCount = minPeerCount
 		},
 	}
+}
+
+func WithConductorInteropReorgLeniency() Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			ensureConductorHealthCheck(cfg).InteropReorgLeniency = true
+		},
+	}
+}
+
+func ensureConductorHealthCheck(cfg *sysgo.PresetConfig) *opconductor.HealthCheckConfig {
+	if cfg.ConductorHealthCheck == nil {
+		cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
+			Interval:       3600,
+			UnsafeInterval: 3600,
+			SafeInterval:   3600,
+			MinPeerCount:   1,
+		}
+	}
+	return cfg.ConductorHealthCheck
 }
 
 func WithRequireInteropNotAtGenesis() Option {

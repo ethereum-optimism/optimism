@@ -141,6 +141,13 @@ var (
 		Usage:   "Minimum number of peers required to be considered healthy",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_MIN_PEER_COUNT"),
 	}
+	HealthCheckInteropReorgLeniency = &cli.BoolFlag{
+		Name:    "beta.healthcheck.interop-reorg-leniency",
+		Usage:   "Enable experimental conductor health-check leniency for interop reorg recovery.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "BETA_HEALTHCHECK_INTEROP_REORG_LENIENCY"),
+		Value:   false,
+		Hidden:  true,
+	}
 	Paused = &cli.BoolFlag{
 		Name:    "paused",
 		Usage:   "Whether the conductor is paused",
@@ -231,6 +238,7 @@ var optionalFlags = []cli.Flag{
 	RaftBootstrap,
 	HealthCheckSafeEnabled,
 	HealthCheckSafeInterval,
+	HealthCheckInteropReorgLeniency,
 	RaftSnapshotInterval,
 	RaftSnapshotThreshold,
 	RaftTrailingLogs,

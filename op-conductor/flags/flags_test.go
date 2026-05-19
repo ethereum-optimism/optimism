@@ -53,6 +53,13 @@ func TestBetaFlags(t *testing.T) {
 	}
 }
 
+func TestHealthCheckInteropReorgLeniencyFlag(t *testing.T) {
+	require.Equal(t, "beta.healthcheck.interop-reorg-leniency", HealthCheckInteropReorgLeniency.Name)
+	require.Equal(t, []string{"OP_CONDUCTOR_BETA_HEALTHCHECK_INTEROP_REORG_LENIENCY"}, HealthCheckInteropReorgLeniency.EnvVars)
+	require.True(t, HealthCheckInteropReorgLeniency.Hidden)
+	require.False(t, HealthCheckInteropReorgLeniency.Value)
+}
+
 func TestHasEnvVar(t *testing.T) {
 	for _, flag := range Flags {
 		flag := flag

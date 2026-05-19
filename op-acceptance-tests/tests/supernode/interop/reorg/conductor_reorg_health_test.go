@@ -23,6 +23,7 @@ func TestSupernodeInteropInvalidMessageReorgKeepsConductorHealthy(gt *testing.T)
 	sys := presets.NewTwoL2SupernodeInteropWithConductors(t, 0,
 		presets.WithConductorHealthCheck(5, 5, 3600),
 		presets.WithConductorHealthCheckMinPeerCount(2),
+		presets.WithConductorInteropReorgLeniency(),
 	)
 
 	ctx := t.Ctx()

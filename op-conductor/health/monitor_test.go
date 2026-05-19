@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -97,6 +98,16 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 
 type monitorOpts func(*SequencerHealthMonitor)
 
+func withInteropReorgLeniency(monitor *SequencerHealthMonitor) {
+	monitor.interopReorgLeniency = true
+}
+
+func withMetrics(metricer metrics.Metricer) monitorOpts {
+	return func(monitor *SequencerHealthMonitor) {
+		monitor.metrics = metricer
+	}
+}
+
 // SetupMonitorWithRollupBoost creates a HealthMonitor that includes a RollupBoostHealthChecker
 func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	now, unsafeInterval, safeInterval uint64,
@@ -146,11 +157,12 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	return monitor
 }
 
-func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64, mockRollupClient *testutils.MockRollupClient) (*SequencerHealthMonitor, *timeProvider) {
+func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64, mockRollupClient *testutils.MockRollupClient, opts ...monitorOpts) (*SequencerHealthMonitor, *timeProvider) {
 	t.Helper()
 	tp := &timeProvider{now: now}
 	monitor := &SequencerHealthMonitor{
 		log:            testlog.Logger(t, log.LevelDebug),
+		metrics:        &metrics.NoopMetricsImpl{},
 		rollupCfg:      &rollup.Config{BlockTime: blockTime},
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
@@ -158,16 +170,67 @@ func newSyncStatusMonitor(t *testing.T, now, unsafeInterval, safeInterval uint64
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
 	}
+	for _, opt := range opts {
+		opt(monitor)
+	}
 	return monitor, tp
 }
 
-func newPeerCountMonitor(t *testing.T, minPeerCount uint64, mockP2P *p2pMocks.API) *SequencerHealthMonitor {
+func newPeerCountMonitor(t *testing.T, minPeerCount uint64, mockP2P *p2pMocks.API, opts ...monitorOpts) *SequencerHealthMonitor {
 	t.Helper()
-	return &SequencerHealthMonitor{
+	monitor := &SequencerHealthMonitor{
 		log:          testlog.Logger(t, log.LevelDebug),
+		metrics:      &metrics.NoopMetricsImpl{},
 		minPeerCount: minPeerCount,
 		p2p:          mockP2P,
 	}
+	for _, opt := range opts {
+		opt(monitor)
+	}
+	return monitor
+}
+
+func conductorMetricValue(t *testing.T, metricer *metrics.Metrics, name string, labels map[string]string) float64 {
+	t.Helper()
+	metricFamilies, err := metricer.Registry().Gather()
+	require.NoError(t, err)
+	for _, family := range metricFamilies {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if metricLabelsMatch(metric, labels) {
+				return metricSampleValue(t, metric)
+			}
+		}
+	}
+	t.Fatalf("metric %s with labels %v not found", name, labels)
+	return 0
+}
+
+func metricLabelsMatch(metric *dto.Metric, labels map[string]string) bool {
+	actual := make(map[string]string, len(metric.GetLabel()))
+	for _, label := range metric.GetLabel() {
+		actual[label.GetName()] = label.GetValue()
+	}
+	for key, want := range labels {
+		if actual[key] != want {
+			return false
+		}
+	}
+	return len(actual) == len(labels)
+}
+
+func metricSampleValue(t *testing.T, metric *dto.Metric) float64 {
+	t.Helper()
+	if metric.GetGauge() != nil {
+		return metric.GetGauge().GetValue()
+	}
+	if metric.GetCounter() != nil {
+		return metric.GetCounter().GetValue()
+	}
+	t.Fatalf("metric has no gauge or counter sample")
+	return 0
 }
 
 func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
@@ -191,7 +254,7 @@ func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
@@ -219,7 +282,7 @@ func TestDeepUnsafeHeadRecoveryOutpacesWallClockStaysHealthy(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
@@ -245,7 +308,7 @@ func TestStoppedSequencerStillMarkedUnhealthy(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(now, 6, poll.now, 6), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
@@ -272,7 +335,7 @@ func TestUnsafeHeadRecoveryAtNormalCadenceMarkedUnhealthy(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
@@ -289,7 +352,7 @@ func TestTransientSyncStatusFailureAfterHealthyPollStaysHealthy(t *testing.T) {
 		rc.ExpectSyncStatus(nil, syncErr)
 	}
 
-	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
 	for i := uint64(1); i < recoveringWindowSize; i++ {
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
@@ -304,7 +367,7 @@ func TestInitialSyncStatusFailureToleratedUntilWindowFails(t *testing.T) {
 		rc.ExpectSyncStatus(nil, errors.New("optimism_syncStatus unavailable"))
 	}
 
-	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for i := uint64(1); i < recoveringWindowSize; i++ {
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
 	}
@@ -331,7 +394,7 @@ func TestMixedSyncStatusFailureWindowStaysHealthy(t *testing.T) {
 		rc.ExpectSyncStatus(poll.status, poll.err)
 	}
 
-	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for range polls {
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
 	}
@@ -352,7 +415,7 @@ func TestSingleSyncStatusSuccessDoesNotResetWindow(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(now, 6+i, now, 6+i), nil)
 	}
 
-	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for i := uint64(1); i < recoveringWindowSize; i++ {
 		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
 	}
@@ -388,7 +451,7 @@ func TestPollsInRecoveryNotResetOnSecondRegression(t *testing.T) {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
@@ -419,11 +482,205 @@ func TestUnsafeHeadRecoveryPlateauAboveUnsafeIntervalMarkedUnhealthy(t *testing.
 		rc.ExpectSyncStatus(mockSyncStatus(poll.now-poll.unsafeLag, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))
 	}
+}
+
+func TestUnsafeHeadRecoveryRecordsTransitionMetrics(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	metricer := metrics.NewMetrics()
+	rc := &testutils.MockRollupClient{}
+	recoveryPolls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+	}{
+		{now: now, unsafeTime: now - 20, unsafeNum: 1},
+		{now: now + 1, unsafeTime: now - 10, unsafeNum: 2},
+		{now: now + 2, unsafeTime: now - 7, unsafeNum: 3},
+	}
+	for _, poll := range recoveryPolls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 100, rc, withInteropReorgLeniency, withMetrics(metricer))
+	for _, poll := range recoveryPolls {
+		tp.now = poll.now
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_interop_reorg_recovery_events_count", map[string]string{
+		"event": string(metrics.HealthCheckRecoveryEntered),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_interop_reorg_recovery_events_count", map[string]string{
+		"event": string(metrics.HealthCheckRecoveryWindowReset),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_interop_reorg_recovery_events_count", map[string]string{
+		"event": string(metrics.HealthCheckRecoveryRecovered),
+	}))
+	require.Equal(t, float64(0), conductorMetricValue(t, metricer, "op_conductor_healthcheck_unsafe_head_recovery_active", nil))
+	require.Equal(t, float64(9), conductorMetricValue(t, metricer, "op_conductor_healthcheck_unsafe_head_recovery_current_lag_seconds", nil))
+
+	failureMetrics := metrics.NewMetrics()
+	failingRC := &testutils.MockRollupClient{}
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		failingRC.ExpectSyncStatus(mockSyncStatus(now-20, i+1, now+i, i+1), nil)
+	}
+
+	failingMonitor, failingTP := newSyncStatusMonitor(t, now, 10, 100, failingRC, withInteropReorgLeniency, withMetrics(failureMetrics))
+	for i := uint64(0); i < recoveringWindowSize-1; i++ {
+		failingTP.now = now + i
+		require.NoError(t, failingMonitor.checkNodeSyncStatus(context.Background()))
+	}
+	failingTP.now = now + recoveringWindowSize - 1
+	require.Equal(t, ErrSequencerNotHealthy, failingMonitor.checkNodeSyncStatus(context.Background()))
+	require.Equal(t, float64(1), conductorMetricValue(t, failureMetrics, "op_conductor_healthcheck_interop_reorg_recovery_events_count", map[string]string{
+		"event": string(metrics.HealthCheckRecoveryFailed),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, failureMetrics, "op_conductor_healthcheck_unsafe_head_recovery_active", nil))
+	require.Equal(t, float64(recoveringWindowSize), conductorMetricValue(t, failureMetrics, "op_conductor_healthcheck_unsafe_head_recovery_polls", nil))
+	require.Equal(t, float64(1), conductorMetricValue(t, failureMetrics, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckUnsafeLag),
+		"status": string(metrics.HealthCheckStatusUnhealthy),
+	}))
+}
+
+func TestDefaultStrictUnsafeLagFailsImmediately(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	rc.ExpectSyncStatus(mockSyncStatus(now-11, 7, now, 7), nil)
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	tp.now = now
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodeSyncStatus(context.Background()))
+}
+
+func TestDefaultStrictUnsafeLagRecordsMetrics(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	metricer := metrics.NewMetrics()
+	rc := &testutils.MockRollupClient{}
+	rc.ExpectSyncStatus(mockSyncStatus(now-11, 7, now, 7), nil)
+
+	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc, withMetrics(metricer))
+	tp.now = now
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodeSyncStatus(context.Background()))
+
+	require.Equal(t, float64(11), conductorMetricValue(t, metricer, "op_conductor_healthcheck_unsafe_lag_seconds", nil))
+	require.Equal(t, float64(7), conductorMetricValue(t, metricer, "op_conductor_healthcheck_unsafe_head_number", nil))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckUnsafeLag),
+		"status": string(metrics.HealthCheckStatusUnhealthy),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_failures_count", map[string]string{
+		"check":  string(metrics.HealthCheckUnsafeLag),
+		"reason": string(metrics.HealthCheckFailureReasonLagExceeded),
+	}))
+}
+
+func TestDefaultStrictSyncStatusRPCErrorFailsImmediately(t *testing.T) {
+	rc := &testutils.MockRollupClient{}
+	rc.ExpectSyncStatus(nil, errors.New("optimism_syncStatus unavailable"))
+
+	monitor, _ := newSyncStatusMonitor(t, uint64(time.Now().Unix()), 10, 60, rc)
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
+}
+
+func TestLenientSyncStatusRPCFailureRecordsMetrics(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	metricer := metrics.NewMetrics()
+	rc := &testutils.MockRollupClient{}
+	syncErr := errors.New("optimism_syncStatus unavailable")
+	for i := uint64(0); i < recoveringWindowSize; i++ {
+		rc.ExpectSyncStatus(nil, syncErr)
+	}
+
+	monitor, _ := newSyncStatusMonitor(t, now, 10, 60, rc, withInteropReorgLeniency, withMetrics(metricer))
+	require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckSyncStatusRPC),
+		"status": string(metrics.HealthCheckStatusWarning),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_window_observations", map[string]string{
+		"check":  string(metrics.HealthCheckSyncStatusRPC),
+		"result": "failure",
+	}))
+
+	for i := uint64(1); i < recoveringWindowSize-1; i++ {
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodeSyncStatus(context.Background()))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_window_state", map[string]string{
+		"check": string(metrics.HealthCheckSyncStatusRPC),
+		"state": string(metrics.HealthCheckWindowStateFailed),
+	}))
+	require.Equal(t, float64(recoveringWindowSize), conductorMetricValue(t, metricer, "op_conductor_healthcheck_window_observations", map[string]string{
+		"check":  string(metrics.HealthCheckSyncStatusRPC),
+		"result": "failure",
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_window_filled", map[string]string{
+		"check": string(metrics.HealthCheckSyncStatusRPC),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckSyncStatusRPC),
+		"status": string(metrics.HealthCheckStatusUnhealthy),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_failures_count", map[string]string{
+		"check":  string(metrics.HealthCheckSyncStatusRPC),
+		"reason": string(metrics.HealthCheckFailureReasonRPCError),
+	}))
+}
+
+func TestDefaultStrictPeerStatsRPCErrorFailsImmediately(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	require.Equal(t, ErrSequencerConnectionDown, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(t)
+}
+
+func TestDefaultStrictLowPeerCountFailsImmediately(t *testing.T) {
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: unhealthyPeerCount}, nil).Once()
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodePeerCount(context.Background()))
+	pc.AssertExpectations(t)
+}
+
+func TestLenientLowPeerCountRecordsMetrics(t *testing.T) {
+	metricer := metrics.NewMetrics()
+	pc := &p2pMocks.API{}
+	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: unhealthyPeerCount}, nil).Times(recoveringWindowSize)
+
+	monitor := newPeerCountMonitor(t, minPeerCount, pc, withInteropReorgLeniency, withMetrics(metricer))
+	require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	require.Equal(t, float64(unhealthyPeerCount), conductorMetricValue(t, metricer, "op_conductor_healthcheck_cl_peer_count", nil))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckPeerCount),
+		"status": string(metrics.HealthCheckStatusWarning),
+	}))
+
+	for i := uint64(1); i < recoveringWindowSize-1; i++ {
+		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
+	}
+	require.Equal(t, ErrSequencerNotHealthy, monitor.checkNodePeerCount(context.Background()))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_window_state", map[string]string{
+		"check": string(metrics.HealthCheckPeerCount),
+		"state": string(metrics.HealthCheckWindowStateFailed),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_status", map[string]string{
+		"check":  string(metrics.HealthCheckPeerCount),
+		"status": string(metrics.HealthCheckStatusUnhealthy),
+	}))
+	require.Equal(t, float64(1), conductorMetricValue(t, metricer, "op_conductor_healthcheck_check_failures_count", map[string]string{
+		"check":  string(metrics.HealthCheckPeerCount),
+		"reason": string(metrics.HealthCheckFailureReasonPeerCountBelowMin),
+	}))
+	pc.AssertExpectations(t)
 }
 
 func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
@@ -435,7 +692,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	}
 	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(recoveringWindowSize)
 
-	monitor := newPeerCountMonitor(s.T(), s.minPeerCount, pc)
+	monitor := newPeerCountMonitor(s.T(), s.minPeerCount, pc, withInteropReorgLeniency)
 	for i := uint64(1); i < recoveringWindowSize; i++ {
 		s.NoError(monitor.checkNodePeerCount(context.Background()))
 	}
@@ -447,7 +704,7 @@ func TestPeerStatsRPCErrorWindow(t *testing.T) {
 	pc := &p2pMocks.API{}
 	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Times(recoveringWindowSize)
 
-	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	monitor := newPeerCountMonitor(t, minPeerCount, pc, withInteropReorgLeniency)
 	for i := uint64(1); i < recoveringWindowSize; i++ {
 		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
 	}
@@ -463,7 +720,7 @@ func TestPeerCountMixedSuccessFailureWindowStaysHealthy(t *testing.T) {
 	pc.EXPECT().PeerStats(mock.Anything).Return(&apis.PeerStats{Connected: healthyPeerCount}, nil).Once()
 	pc.EXPECT().PeerStats(mock.Anything).Return(nil, errors.New("p2p unavailable")).Once()
 
-	monitor := newPeerCountMonitor(t, minPeerCount, pc)
+	monitor := newPeerCountMonitor(t, minPeerCount, pc, withInteropReorgLeniency)
 	for i := uint64(0); i < recoveringWindowSize; i++ {
 		require.NoError(t, monitor.checkNodePeerCount(context.Background()))
 	}
@@ -508,7 +765,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(s.T(), now, unsafeBlocksInterval, 60, rc)
+	monitor, tp := newSyncStatusMonitor(s.T(), now, unsafeBlocksInterval, 60, rc, withInteropReorgLeniency)
 	for i := uint64(0); i < unsafeBlocksInterval+recoveringWindowSize+1; i++ {
 		tp.now = now + i
 		healthFailure := monitor.checkNodeSyncStatus(context.Background())
