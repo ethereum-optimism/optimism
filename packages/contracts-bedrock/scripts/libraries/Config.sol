@@ -301,7 +301,10 @@ library Config {
 
     /// @notice Returns the L2 block after the fork.
     function l2BlockAfterFork() internal view returns (uint256) {
-        return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
+        if (l2CMActivationTest()) {
+            return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
+        }
+        revert("Config: l2BlockAfterFork called outside of L2CM activation test");
     }
 
     /// @notice Returns the L2 block number to fork at. Defaults to 0 (latest).

@@ -237,7 +237,7 @@ test-post-karst-betanet-l2-fork-upgrade *ARGS:
   L2CM_ACTIVATION_TEST=true just prepare-l2-upgrade-env "just test {{ARGS}}"
 
 test-post-karst-betanet-l2-fork-upgrade-rerun *ARGS:
-  just test-karst-betanet-l2-fork-upgrade {{ARGS}} --rerun -vvvv
+  just test-post-karst-betanet-l2-fork-upgrade {{ARGS}} --rerun -vvvv
 
 ########################################################
 #                        DEPLOY                        #
