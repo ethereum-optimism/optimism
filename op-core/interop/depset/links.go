@@ -5,6 +5,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/safemath"
 )
 
+// ActivationConfig answers per-chain interop activation queries.
+// It is satisfied by the rollup config set kept alongside the dependency set.
+type ActivationConfig interface {
+	// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
+	// It panics if the chain is not part of the rollup config set.
+	IsInterop(chainID eth.ChainID, ts uint64) bool
+
+	// IsInteropActivationBlock returns true if the given timestamp is for an Interop activation block.
+	// It panics if the chain is not part of the rollup config set.
+	IsInteropActivationBlock(chainID eth.ChainID, ts uint64) bool
+}
+
 type LinkChecker interface {
 	// CanExecute determines if an executing message is valid w.r.t. chain and timestamp constraints.
 	// I.e. if the chain may be executing messages at the given timestamp,

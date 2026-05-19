@@ -8,9 +8,11 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+// MessageExpiryTimeSecondsInterop is a post-Interop constant for the minimum age of a message before it can be considered executable.
+const MessageExpiryTimeSecondsInterop uint64 = 604800
 
 type StaticConfigDependency struct {
 }
@@ -162,7 +164,7 @@ func (ds *StaticConfigDependencySet) HasChain(chainID eth.ChainID) bool {
 
 func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 	if ds.overrideMessageExpiryWindow == 0 {
-		return params.MessageExpiryTimeSecondsInterop
+		return MessageExpiryTimeSecondsInterop
 	}
 	return ds.overrideMessageExpiryWindow
 }

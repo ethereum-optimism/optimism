@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -49,7 +50,7 @@ type SupervisorBackend struct {
 	cfgSet depset.FullConfigSet
 
 	// linker checks if the configuration constraints of a message (check chain ID + timestamp)
-	linker depset.LinkChecker
+	linker coredepset.LinkChecker
 
 	// chainDBs is the primary interface to the databases, including logs, derived-from information and L1 finalization
 	chainDBs *db.ChainsDB
@@ -153,7 +154,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		m:          m,
 		dataDir:    cfg.Datadir,
 		cfgSet:     cfgSet,
-		linker:     depset.LinkerFromConfig(cfgSet),
+		linker:     coredepset.LinkerFromConfig(cfgSet),
 		chainDBs:   chainsDBs,
 		l1Accessor: l1Accessor,
 		// For testing we can avoid running the processors.
@@ -484,7 +485,7 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret
 // Internal methods, for processors
 // ----------------------------
 
-func (su *SupervisorBackend) DependencySet() depset.DependencySet {
+func (su *SupervisorBackend) DependencySet() coredepset.DependencySet {
 	return su.cfgSet
 }
 

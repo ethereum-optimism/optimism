@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 

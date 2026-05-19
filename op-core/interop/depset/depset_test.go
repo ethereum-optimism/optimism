@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
@@ -90,7 +89,7 @@ func testDependencySetSerialization(
 			eth.ChainIDFromUInt64(901),
 		}, chainIDs)
 
-		require.Equal(t, uint64(params.MessageExpiryTimeSecondsInterop), result.MessageExpiryWindow())
+		require.Equal(t, MessageExpiryTimeSecondsInterop, result.MessageExpiryWindow())
 	})
 
 	t.Run("CustomExpiryWindow", func(t *testing.T) {

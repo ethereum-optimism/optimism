@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ import (
 )
 
 func TestSupervisorService(t *testing.T) {
-	depSet, err := depset.NewStaticConfigDependencySet(make(map[eth.ChainID]*depset.StaticConfigDependency))
+	depSet, err := coredepset.NewStaticConfigDependencySet(make(map[eth.ChainID]*coredepset.StaticConfigDependency))
 	require.NoError(t, err)
 	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), depset.StaticTimestamp(0))
 	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)

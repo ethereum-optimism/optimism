@@ -13,6 +13,7 @@ import (
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -33,18 +34,18 @@ import (
 const testChainIDOffset = 900
 
 func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
-	staticDepSet := make(map[eth.ChainID]*depset.StaticConfigDependency, size)
+	staticDepSet := make(map[eth.ChainID]*coredepset.StaticConfigDependency, size)
 	staticRollupCfgSet := make(map[eth.ChainID]*depset.StaticRollupConfig, size)
 	zero := uint64(0)
 	for i := 0; i < size; i++ {
 		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
-		staticDepSet[chainID] = &depset.StaticConfigDependency{}
+		staticDepSet[chainID] = &coredepset.StaticConfigDependency{}
 		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
 			InteropTime: &zero,
 			BlockTime:   2,
 		}
 	}
-	depSet, err := depset.NewStaticConfigDependencySet(staticDepSet)
+	depSet, err := coredepset.NewStaticConfigDependencySet(staticDepSet)
 	require.NoError(t, err)
 	rollupCfgSet := depset.NewStaticRollupConfigSet(staticRollupCfgSet)
 	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupCfgSet, depSet)
