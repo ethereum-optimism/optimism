@@ -185,11 +185,6 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
-		// Wait until wall time has advanced past the parent block's timestamp so the
-		// new block gets a strictly greater timestamp.
-		require.Eventually(gt, func() bool {
-			return uint64(time.Now().Unix()) > currentUnsafeRef.Time
-		}, 10*time.Second, 100*time.Millisecond)
 
 		// include simple transfer tx in opened block
 		{
