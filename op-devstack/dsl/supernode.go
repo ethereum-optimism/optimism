@@ -104,25 +104,26 @@ func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 }
 
 // AwaitFinalizationAdvanced reads the supernode's current finalized timestamp
-// and waits until it strictly advances past that value, then returns the new
-// finalized timestamp. The first call therefore guarantees finalization has
-// progressed past genesis (since genesis is the initial finalized timestamp).
+// from supernode_syncStatus and waits until it strictly advances past that
+// value, then returns the new finalized timestamp. The first call therefore
+// guarantees finalization has progressed past genesis (since genesis is the
+// initial finalized timestamp).
 func (s *Supernode) AwaitFinalizationAdvanced() uint64 {
 	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
 	defer cancel()
-	initial, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, ^uint64(0))
-	s.require.NoError(err, "failed to read initial finalized timestamp from supernode")
-	start := initial.CurrentFinalizedTimestamp
+	initial, err := s.inner.QueryAPI().SyncStatus(ctx)
+	s.require.NoError(err, "failed to read initial supernode sync status")
+	start := initial.FinalizedTimestamp
 	var ts uint64
 	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, ^uint64(0))
+		status, err := s.inner.QueryAPI().SyncStatus(ctx)
 		if err != nil {
 			return false, nil // Ignore transient errors.
 		}
-		if resp.CurrentFinalizedTimestamp <= start {
+		if status.FinalizedTimestamp <= start {
 			return false, nil
 		}
-		ts = resp.CurrentFinalizedTimestamp
+		ts = status.FinalizedTimestamp
 		return true, nil
 	})
 	s.require.NoError(err, "supernode finalized timestamp did not advance past %d in time", start)
