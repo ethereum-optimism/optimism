@@ -16,8 +16,7 @@ import (
 
 type Metrics interface {
 	RecordPipelineReset()
-	RecordFollowSourceError(reason string)
-	RecordFollowSourceSuccess()
+	RecordFollowSourceRequest(result string)
 	RecordPublishingError()
 	RecordDerivationError()
 
