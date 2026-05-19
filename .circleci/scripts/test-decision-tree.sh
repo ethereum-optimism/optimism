@@ -109,19 +109,28 @@ run_scenario \
 run_scenario \
   "PR (feature branch), docs only" \
   "webhook" "feat/my-thing" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
+  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "PR (feature branch), docs + rust changed" \
   "webhook" "feat/my-thing" "" "" \
-  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
+  '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": false}' \
   main release contracts_feature_tests_short rust_ci rust_e2e_ci
+
+# Footgun guard: a docs PR that also touches code outside the detection regexes
+# (e.g., op-node/, op-batcher/, any new top-level dir) MUST run main. Without
+# the all-match check, this scenario previously hit the docs-only fast path.
+run_scenario \
+  "PR (feature branch), docs + undetected code (footgun guard)" \
+  "webhook" "feat/my-thing" "" "" \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": false}' \
+  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "PR (feature branch), nothing changed" \
   "webhook" "feat/my-thing" "" "" \
-  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
+  '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \

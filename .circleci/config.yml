@@ -177,6 +177,15 @@ jobs:
             c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+      # Safer "docs-only" detection: true iff EVERY changed file is under docs/public-docs/.
+      # Using an inclusion (all-match) check instead of an exclusion of known code categories
+      # makes the fast path safe-by-default — any path not enumerated by the patterns above
+      # still falls through to the full main workflow.
+      - run:
+          name: Detect docs-only changes (all-match)
+          command: .circleci/scripts/collect-params.sh detect_all
+          environment:
+            c-only_docs_changes: "^docs/public-docs/"
       # Decision tree: determines which workflows to enable based on trigger, branch, and params.
       #
       # Helpers (defined in workflow-helpers.sh):
@@ -229,7 +238,8 @@ jobs:
                 #    Docs-only changes skip main/release entirely.
                 # ---------------------------------------------------------
                 elif [[ "${BRANCH}" != "develop" && ! "${BRANCH}" =~ ^gh-readonly-queue/ ]]; then
-                  if is_true docs_changes_detected && ! is_true contracts_changed && ! is_true rust_changes_detected; then
+                  if is_true only_docs_changes; then
+                    run ci_gate_skip
                     run contracts_feature_tests_short
                     run rust_ci_gate_short
                     run rust_e2e_gate_skip

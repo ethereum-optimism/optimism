@@ -2,9 +2,10 @@
 # Collects pipeline parameters from the environment and writes them to a JSON file.
 #
 # Called once per type with a mode argument:
-#   collect-params.sh str    — emit all c-* env vars as JSON strings
-#   collect-params.sh bool   — emit all c-* env vars as JSON booleans (normalizes 0/1)
-#   collect-params.sh detect — treat c-* env var values as ERE patterns, match against git diff
+#   collect-params.sh str        — emit all c-* env vars as JSON strings
+#   collect-params.sh bool       — emit all c-* env vars as JSON booleans (normalizes 0/1)
+#   collect-params.sh detect     — treat c-* env var values as ERE patterns; true iff ANY changed file matches
+#   collect-params.sh detect_all — treat c-* env var values as ERE patterns; true iff EVERY changed file matches (and there is at least one)
 #
 # Each invocation appends to /tmp/pipeline-parameters.json.
 # Env vars whose name starts with c- are processed; all others are ignored.
@@ -38,7 +39,7 @@ case "${MODE}" in
     done < <(env | sort)
     ;;
 
-  detect)
+  detect|detect_all)
     CHANGED=$(git diff --name-only "origin/${BASE_REVISION}...HEAD" 2>/dev/null \
       || git diff --name-only HEAD~1 HEAD || true)
     echo "=== Changed files ==="
@@ -47,13 +48,25 @@ case "${MODE}" in
 
     while IFS='=' read -r key pattern; do
       [[ "${key}" == c-* ]] || continue
-      if [ -n "${CHANGED}" ] && echo "${CHANGED}" | grep -qE "${pattern}"; then
-        result=true
-      else
+      if [ -z "${CHANGED}" ]; then
         result=false
+      elif [[ "${MODE}" == "detect_all" ]]; then
+        # True iff every changed file matches the pattern (i.e., no file fails to match).
+        if echo "${CHANGED}" | grep -qvE "${pattern}"; then
+          result=false
+        else
+          result=true
+        fi
+      else
+        # detect: true iff at least one changed file matches the pattern.
+        if echo "${CHANGED}" | grep -qE "${pattern}"; then
+          result=true
+        else
+          result=false
+        fi
       fi
       json=$(echo "${json}" | jq --argjson v "${result}" '. + {"'"${key}"'": $v}')
-      echo "  [detect] ${key} = ${result}  (pattern: ${pattern})"
+      echo "  [${MODE}] ${key} = ${result}  (pattern: ${pattern})"
     done < <(env | sort)
     ;;
 

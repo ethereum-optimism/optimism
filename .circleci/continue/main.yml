@@ -69,6 +69,9 @@ parameters:
   c-run_contracts_feature_tests_short:
     type: boolean
     default: false
+  c-run_ci_gate_skip:
+    type: boolean
+    default: false
 
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.27
@@ -3196,6 +3199,20 @@ workflows:
     when: << pipeline.parameters.c-run_contracts_feature_tests_short >>
     jobs:
       - required-contracts-ci:
+          always-succeed: true
+          context:
+            - circleci-api-token
+
+  # ============================================================================
+  # ci-gate (skip) — runs only on the docs-only fast path.
+  # Produces the ci-gate required status check with always-succeed so docs-only
+  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
+  # The real ci-gate still runs in `main` for every other path.
+  # ============================================================================
+  ci-gate-skip:
+    when: << pipeline.parameters.c-run_ci_gate_skip >>
+    jobs:
+      - ci-gate:
           always-succeed: true
           context:
             - circleci-api-token
