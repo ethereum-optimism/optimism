@@ -46,14 +46,6 @@ var CLZBytecode = []byte{
 	byte(vm.RETURN), // return mem[0:32]
 }
 
-// CheckResult is the L2 block range that a Check function exercised. Callers
-// that want to run a kona-host cross-check pass these into RunKonaNative; the
-// CLI ignores the result.
-type CheckResult struct {
-	AgreedBlock uint64 // last block before the check's first tx
-	ClaimBlock  uint64 // block of the check's last tx
-}
-
 // Precompile addresses referenced by post-Karst checks.
 var (
 	ModExpPrecompile     = common.HexToAddress("0x0000000000000000000000000000000000000005")
