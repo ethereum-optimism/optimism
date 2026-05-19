@@ -84,9 +84,6 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		L2ELB:   dsl.NewL2ELNode(l2ELB),
 		L2CLB:   dsl.NewL2CLNode(l2CLB),
 	}
-	if runtime.P2PEnabled {
-		preset.L2CLB.ManagePeer(preset.L2CL)
-	}
 	if runSyncChecks {
 		// Ensure the follower node is in sync with the sequencer before starting tests.
 		// CrossSafe requires derivation to run, which under ELSync can only begin
@@ -210,8 +207,6 @@ func singleChainTwoVerifiersFromRuntime(t devtest.T, runtime *sysgo.SingleChainR
 		L2CLC:                dsl.NewL2CLNode(l2CLC),
 		TestSequencer:        dsl.NewTestSequencer(testSequencer),
 	}
-	preset.L2CLC.ManagePeer(preset.L2CL)
-	preset.L2CLC.ManagePeer(preset.L2CLB)
 	return preset
 }
 
@@ -254,7 +249,6 @@ func simpleWithSyncTesterFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		SyncTesterL2EL: dsl.NewL2ELNode(syncTesterL2EL),
 		L2CL2:          dsl.NewL2CLNode(l2CL2),
 	}
-	preset.L2CL2.ManagePeer(preset.L2CL)
 	return preset
 }
 

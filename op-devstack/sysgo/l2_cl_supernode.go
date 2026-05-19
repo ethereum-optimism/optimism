@@ -22,7 +22,12 @@ import (
 var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
 
 type SuperNode struct {
-	mu               sync.Mutex
+	mu sync.Mutex
+	peerRegistry
+	// Per-chain RPC routes to wait on after (re)start before considering the
+	// supernode ready for peer-connector replay. Populated when a
+	// SuperNodeProxy is attached.
+	routes           []string
 	sn               *supernode.Supernode
 	cancel           context.CancelFunc
 	httpProxy        *tcpproxy.Proxy
@@ -91,6 +96,13 @@ func (n *SuperNode) startLocked() {
 	addr, err := n.sn.WaitRPCAddr(ctx)
 	n.p.Require().NoError(err, "supernode failed to bind RPC address")
 	n.httpProxy.SetUpstream(ProxyAddr(n.p.Require(), "http://"+addr))
+
+	for _, route := range n.routes {
+		waitForSupernodeRoute(n.p, n.logger, route)
+	}
+	for _, connect := range n.snapshotConnectors() {
+		connect()
+	}
 }
 
 func (n *SuperNode) Stop() {
@@ -187,15 +199,40 @@ type SuperNodeProxy struct {
 	userRPC          string
 	interopEndpoint  string
 	interopJwtSecret eth.Bytes32
+
+	// superNode is the underlying supernode that owns this proxy's RPC route.
+	// Peer connectors registered on the proxy are forwarded so they replay
+	// when the supernode restarts.
+	superNode *SuperNode
 }
 
 var _ L2CLNode = (*SuperNodeProxy)(nil)
+var _ PeerRegistrar = (*SuperNodeProxy)(nil)
 
 func (n *SuperNodeProxy) Start()          {}
 func (n *SuperNodeProxy) Stop()           {}
 func (n *SuperNodeProxy) UserRPC() string { return n.userRPC }
 func (n *SuperNodeProxy) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 	return n.interopEndpoint, n.interopJwtSecret
+}
+
+func (n *SuperNodeProxy) RegisterPeerConnector(connect func()) {
+	n.superNode.attachRoute(n.userRPC)
+	n.superNode.RegisterPeerConnector(connect)
+}
+
+// attachRoute records a per-chain RPC route that startLocked must wait on
+// after (re)start, so a peer-connector replay never fires before the
+// supernode is actually serving the chain.
+func (n *SuperNode) attachRoute(rpcEndpoint string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, existing := range n.routes {
+		if existing == rpcEndpoint {
+			return
+		}
+	}
+	n.routes = append(n.routes, rpcEndpoint)
 }
 
 // SupernodeConfig holds configuration options for the shared supernode.

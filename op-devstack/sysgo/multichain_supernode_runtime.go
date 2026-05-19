@@ -682,6 +682,7 @@ func startTwoL2SharedSupernodeWithMode(
 		userRPC:          l2ARPC,
 		interopEndpoint:  l2ARPC,
 		interopJwtSecret: jwtSecret,
+		superNode:        supernode,
 	}
 	l2BCL := &SuperNodeProxy{
 		p:                t,
@@ -689,6 +690,7 @@ func startTwoL2SharedSupernodeWithMode(
 		userRPC:          l2BRPC,
 		interopEndpoint:  l2BRPC,
 		interopJwtSecret: jwtSecret,
+		superNode:        supernode,
 	}
 
 	return supernode, l2ACL, l2BCL
@@ -796,10 +798,16 @@ func startSingleChainSharedSupernode(
 		userRPC:          l2RPC,
 		interopEndpoint:  l2RPC,
 		interopJwtSecret: jwtSecret,
+		superNode:        supernode,
 	}
 }
 
-func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
+// waitForSupernodeRoute polls a per-chain supernode route until it answers
+// both optimism_rollupConfig (the route is registered) and opp2p_self with
+// at least one listener address (the in-process VN's p2p host is fully up).
+// Returning before opp2p_self stabilises produces stale-address peer dials
+// after a restart.
+func waitForSupernodeRoute(t devtest.CommonT, logger log.Logger, rpcEndpoint string) {
 	deadline := time.Now().Add(15 * time.Second)
 	for {
 		if time.Now().After(deadline) {
@@ -808,10 +816,14 @@ func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
 
 		rpcCl, err := client.NewRPC(t.Ctx(), logger, rpcEndpoint, client.WithLazyDial())
 		if err == nil {
-			var out any
-			callErr := rpcCl.CallContext(t.Ctx(), &out, "optimism_rollupConfig")
+			var rollupOut any
+			rollupErr := rpcCl.CallContext(t.Ctx(), &rollupOut, "optimism_rollupConfig")
+			var self struct {
+				Addresses []string `json:"addresses"`
+			}
+			selfErr := rpcCl.CallContext(t.Ctx(), &self, "opp2p_self")
 			rpcCl.Close()
-			if callErr == nil {
+			if rollupErr == nil && selfErr == nil && len(self.Addresses) > 0 {
 				return
 			}
 		}

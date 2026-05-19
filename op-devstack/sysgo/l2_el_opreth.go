@@ -80,6 +80,7 @@ func OpRethWithSupervisorURL(supervisorURL string) OpRethOption {
 
 type OpReth struct {
 	mu sync.Mutex
+	peerRegistry
 
 	name      string
 	chainID   eth.ChainID
@@ -194,6 +195,10 @@ func (n *OpReth) Start() {
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+
+	for _, connect := range n.snapshotConnectors() {
+		connect()
+	}
 }
 
 // Stop stops the op-reth node. The user/auth RPC proxy addresses survive so

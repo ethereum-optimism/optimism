@@ -237,37 +237,86 @@ func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC 
 }
 
 // connectL2ELPeersBidi calls admin_addPeer in both directions so small static
-// EL-sync topologies don't depend on discovery.
+// EL-sync topologies don't depend on discovery. If both nodes implement
+// PeerRegistrar, the bidi+trusted dial is also registered for replay on
+// (re)start so the same topology survives wipes and restarts.
 func connectL2ELPeersBidi(t devtest.T, logger log.Logger, a, b L2ELNode, trusted bool) {
-	connectL2ELPeers(t, logger, a.UserRPC(), b.UserRPC(), trusted)
-	connectL2ELPeers(t, logger, b.UserRPC(), a.UserRPC(), trusted)
+	dial := func() {
+		connectL2ELPeers(t, logger, a.UserRPC(), b.UserRPC(), trusted)
+		connectL2ELPeers(t, logger, b.UserRPC(), a.UserRPC(), trusted)
+	}
+	dial()
+	registerOnBoth(a, b, dial)
 }
 
+// connectL2CLPeers bidi-connects two CL nodes and registers the dial for
+// replay on (re)start of either side.
 func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
+	dial := func() { connectL2CLPeersOnce(t, logger, l2CL1, l2CL2) }
+	dial()
+	registerOnBoth(l2CL1, l2CL2, dial)
+}
+
+func connectL2CLPeersOnce(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require := t.Require()
 	ctx := t.Ctx()
 
-	p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
-
-	connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
+	// Refresh peer info on each retry and try every advertised address: a
+	// just-restarted in-process op-node can report stale listener addresses
+	// alongside the current one, so picking only Addresses[0] would target a
+	// dead port.
+	connectFromTo := func(from, to L2CLNode) {
 		err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
-			return p2pClient.ConnectPeer(ctx, multiAddress)
+			fromClient, err := GetP2PClient(ctx, logger, from)
+			if err != nil {
+				return err
+			}
+			toClient, err := GetP2PClient(ctx, logger, to)
+			if err != nil {
+				return err
+			}
+			toInfo, err := GetPeerInfo(ctx, toClient)
+			if err != nil {
+				return err
+			}
+			if len(toInfo.Addresses) == 0 {
+				return fmt.Errorf("no peer addresses for %s", toInfo.PeerID)
+			}
+			var lastErr error
+			for _, addr := range toInfo.Addresses {
+				if dialErr := fromClient.ConnectPeer(ctx, addr); dialErr == nil {
+					return nil
+				} else {
+					lastErr = dialErr
+				}
+			}
+			return lastErr
 		})
 		require.NoError(err, "failed to connect L2CL peer")
 	}
+	connectFromTo(l2CL1, l2CL2)
+	connectFromTo(l2CL2, l2CL1)
 
-	connectPeer(p.client1, p.peerInfo2.Addresses[0])
-	connectPeer(p.client2, p.peerInfo1.Addresses[0])
-
+	p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
 	peerDump1, err := GetPeers(ctx, p.client1)
 	require.NoError(err)
 	peerDump2, err := GetPeers(ctx, p.client2)
 	require.NoError(err)
-
 	_, ok1 := peerDump1.Peers[p.peerInfo2.PeerID.String()]
 	require.True(ok1, "peer register invalid (cl1 missing cl2)")
 	_, ok2 := peerDump2.Peers[p.peerInfo1.PeerID.String()]
 	require.True(ok2, "peer register invalid (cl2 missing cl1)")
+}
+
+// registerOnBoth registers connect with whichever of a and b implement
+// PeerRegistrar. Stand-alone nodes that don't need replay can ignore it.
+func registerOnBoth[T any](a, b T, connect func()) {
+	if r, ok := any(a).(PeerRegistrar); ok {
+		r.RegisterPeerConnector(connect)
+	}
+	if r, ok := any(b).(PeerRegistrar); ok {
+		r.RegisterPeerConnector(connect)
+	}
 }
 
 func startSequencerCL(

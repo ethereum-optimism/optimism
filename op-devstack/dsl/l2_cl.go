@@ -22,16 +22,14 @@ import (
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
 type L2CLNode struct {
 	commonImpl
-	inner        stack.L2CLNode
-	managedPeers map[string]*L2CLNode
+	inner stack.L2CLNode
 }
 
 // NewL2CLNode creates a new L2CLNode DSL wrapper
 func NewL2CLNode(inner stack.L2CLNode) *L2CLNode {
 	return &L2CLNode{
-		commonImpl:   commonFromT(inner.T()),
-		inner:        inner,
-		managedPeers: make(map[string]*L2CLNode),
+		commonImpl: commonFromT(inner.T()),
+		inner:      inner,
 	}
 }
 
@@ -56,25 +54,12 @@ func (cl *L2CLNode) Start() {
 	lifecycle, ok := cl.inner.(stack.Lifecycle)
 	cl.require.Truef(ok, "L2CL node %s is not lifecycle-controllable", cl.inner.Name())
 	lifecycle.Start()
-	cl.restoreManagedPeers()
 }
 
 func (cl *L2CLNode) Stop() {
 	lifecycle, ok := cl.inner.(stack.Lifecycle)
 	cl.require.Truef(ok, "L2CL node %s is not lifecycle-controllable", cl.inner.Name())
 	lifecycle.Stop()
-}
-
-func (cl *L2CLNode) ManagePeer(peer *L2CLNode) {
-	cl.managedPeers[peer.Name()] = peer
-	peer.managedPeers[cl.Name()] = cl
-}
-
-func (cl *L2CLNode) restoreManagedPeers() {
-	for _, peer := range cl.managedPeers {
-		cl.connectPeerRaw(peer)
-		peer.connectPeerRaw(cl)
-	}
 }
 
 func (cl *L2CLNode) StartSequencer() {
@@ -449,13 +434,9 @@ func (cl *L2CLNode) Peers() *apis.PeerDump {
 	return peerDump
 }
 
+// DisconnectPeer one-shot disconnects from peer. Restart-survivability is
+// handled in sysgo via the peer registry.
 func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
-	delete(cl.managedPeers, peer.Name())
-	delete(peer.managedPeers, cl.Name())
-	cl.disconnectPeerRaw(peer)
-}
-
-func (cl *L2CLNode) disconnectPeerRaw(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	err := retry.Do0(cl.ctx, 3, retry.Exponential(), func() error {
 		return cl.inner.P2PAPI().DisconnectPeer(cl.ctx, peerInfo.PeerID)
@@ -463,16 +444,11 @@ func (cl *L2CLNode) disconnectPeerRaw(peer *L2CLNode) {
 	cl.require.NoError(err, "failed to disconnect peer")
 }
 
+// ConnectPeer one-shot dials peer. Restart-survivability is handled in sysgo
+// via the peer registry.
 func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
-	cl.managedPeers[peer.Name()] = peer
-	peer.managedPeers[cl.Name()] = cl
-	cl.connectPeerRaw(peer)
-}
-
-func (cl *L2CLNode) connectPeerRaw(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	cl.require.NotZero(len(peerInfo.Addresses), "failed to get peer address")
-	// graceful backoff for p2p connection, to avoid dial backoff or connection refused error
 	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
 	err := retry.Do0(cl.ctx, 5, strategy, func() error {
 		return cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])

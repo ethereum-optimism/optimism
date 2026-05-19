@@ -17,16 +17,13 @@ type Supernode struct {
 	commonImpl
 	inner       stack.Supernode
 	testControl stack.SupernodeTestControl
-	frontedCLs  []*L2CLNode
 	frontedELs  []*L2ELNode
 }
 
-// AttachFrontends records the supernode-fronted CL/EL DSL nodes so that
-// wipe-and-restart actions can wipe the ELs alongside the supernode data dir
-// and re-establish each node's registered static peers after the restart.
-// Called by presets at wire-up time.
-func (s *Supernode) AttachFrontends(cls []*L2CLNode, els []*L2ELNode) {
-	s.frontedCLs = cls
+// AttachWipeableELs records the external ELs the supernode fronts so a
+// wipe-and-restart action can wipe their on-disk state alongside the
+// supernode's. Peer restoration is handled in sysgo, not here.
+func (s *Supernode) AttachWipeableELs(els []*L2ELNode) {
 	s.frontedELs = els
 }
 
@@ -174,11 +171,10 @@ func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 		s.log.Info("restarting supernode with fresh data dir")
 		s.require.NoError(s.testControl.RestartWithFreshDataDir(),
 			"failed to restart supernode with fresh data dir")
-		s.restoreFrontedCLPeers()
 		return
 	}
 
-	s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachFrontends from the preset")
+	s.require.NotEmpty(s.frontedELs, "WithELWiped requires AttachWipeableELs from the preset")
 	s.log.Info("restarting supernode with fresh data dir and wiping fronted ELs")
 	s.require.NoError(s.testControl.StopForExternalWipe(), "stop supernode")
 	for _, el := range s.frontedELs {
@@ -189,13 +185,6 @@ func (s *Supernode) RestartWithFreshDataDir(opts ...func(*RestartOpts)) {
 		el.Start()
 	}
 	s.require.NoError(s.testControl.StartWithFreshDataDir(), "start supernode fresh")
-	s.restoreFrontedCLPeers()
-}
-
-func (s *Supernode) restoreFrontedCLPeers() {
-	for _, cl := range s.frontedCLs {
-		cl.restoreManagedPeers()
-	}
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the

@@ -19,6 +19,7 @@ import (
 
 type OpGeth struct {
 	mu sync.Mutex
+	peerRegistry
 
 	p             devtest.CommonT
 	logger        log.Logger
@@ -128,6 +129,10 @@ func (n *OpGeth) Start() {
 	n.l2Geth = l2Geth
 	n.authProxy.SetUpstream(ProxyAddr(require, l2Geth.AuthRPC().RPC()))
 	n.userProxy.SetUpstream(ProxyAddr(require, l2Geth.UserRPC().RPC()))
+
+	for _, connect := range n.snapshotConnectors() {
+		connect()
+	}
 }
 
 func (n *OpGeth) Stop() {
