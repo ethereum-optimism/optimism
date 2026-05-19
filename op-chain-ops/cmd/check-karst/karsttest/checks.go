@@ -52,6 +52,42 @@ var (
 	P256VerifyPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
 )
 
+// Per-EIP probe parameters shared between the pre-Karst acceptance sub-tests
+// and the post-Karst Check{EIP} functions. Each value is the exact input that
+// makes the pre-/post-Karst behaviors diverge — pre-Karst the call succeeds,
+// post-Karst it reverts — so the pre-/post-Karst symmetry can never silently
+// drift if a floor moves on one side.
+const (
+	// EIP7883BoundaryGas is the MODEXP probe gas limit: 21,000 intrinsic + 300
+	// execution. Empty calldata avoids EIP-7623 calldata cost inflation, so
+	// intrinsic gas is exactly 21,000 and the 300-gas execution budget covers
+	// EIP-2565's 200-gas floor (pre-Karst) but not EIP-7883's 500-gas floor
+	// (post-Karst).
+	EIP7883BoundaryGas = 21_300
+
+	// EIP7951BoundaryGas is the P256VERIFY probe gas limit: 21,000 intrinsic +
+	// 3,500 execution. Empty calldata avoids EIP-7623 calldata cost inflation,
+	// so intrinsic gas is exactly 21,000 and the 3,500-gas execution budget
+	// covers RIP-7212's 3,450-gas cost (pre-Karst) but not EIP-7951's
+	// 6,900-gas cost (post-Karst).
+	EIP7951BoundaryGas = 24_500
+
+	// EIP7823OversizedGasLimit is enough gas to fully process a MODEXP call
+	// with the oversized modulus produced by NewEIP7823OversizedModExpInput.
+	EIP7823OversizedGasLimit = 2_000_000
+)
+
+// NewEIP7823OversizedModExpInput returns MODEXP input whose declared modulus
+// is 1025 bytes — one byte over the EIP-7823 1024-byte cap. The high byte is
+// non-zero so the modulus parses as a non-zero value. Pre-Karst the call
+// succeeds; post-Karst it reverts.
+func NewEIP7823OversizedModExpInput() []byte {
+	const oversizeModSize = 1025
+	mod := make([]byte, oversizeModSize)
+	mod[oversizeModSize-1] = 5
+	return BuildModExpInput([]byte{2}, []byte{3}, mod)
+}
+
 // NewBasePlan returns a txplan.Option. Each per-tx Check{EIPName} composes its
 // own options on top of this base plan; gas-limit overrides via txplan.WithGasLimit
 // reset the estimator, so the same base plan handles both reverting and successful txs.
@@ -88,12 +124,10 @@ func BuildModExpInput(base, exp, mod []byte) []byte {
 // where its two transactions landed (smaller number first).
 func CheckEIP7823(ctx context.Context, logger log.Logger, basePlan txplan.Option) (uint64, uint64, error) {
 	logger.Info("EIP-7823: oversized MODEXP call must revert")
-	oversizeMod := make([]byte, 1025)
-	oversizeMod[1024] = 5
 	overReceipt, err := txplan.NewPlannedTx(basePlan,
 		txplan.WithTo(&ModExpPrecompile),
-		txplan.WithData(BuildModExpInput([]byte{2}, []byte{3}, oversizeMod)),
-		txplan.WithGasLimit(2_000_000),
+		txplan.WithData(NewEIP7823OversizedModExpInput()),
+		txplan.WithGasLimit(EIP7823OversizedGasLimit),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("oversized MODEXP submission: %w", err)
@@ -134,7 +168,7 @@ func CheckEIP7883(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	logger.Info("EIP-7883: under-gas MODEXP call must OOG-revert against the 500-gas floor")
 	underGasReceipt, err := txplan.NewPlannedTx(basePlan,
 		txplan.WithTo(&ModExpPrecompile),
-		txplan.WithGasLimit(21_300),
+		txplan.WithGasLimit(EIP7883BoundaryGas),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("under-gas MODEXP submission: %w", err)
@@ -175,7 +209,7 @@ func CheckEIP7951(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	logger.Info("EIP-7951: under-gas P256VERIFY call must OOG-revert against the 6,900-gas cost")
 	underGasReceipt, err := txplan.NewPlannedTx(basePlan,
 		txplan.WithTo(&P256VerifyPrecompile),
-		txplan.WithGasLimit(24_500),
+		txplan.WithGasLimit(EIP7951BoundaryGas),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("under-gas P256VERIFY submission: %w", err)

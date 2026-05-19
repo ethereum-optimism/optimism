@@ -31,12 +31,10 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 		// Pre-Karst: the oversized modulus is accepted by the modexp precompile
 		// and the call succeeds.
-		oversizeMod := make([]byte, 1025)
-		oversizeMod[1024] = 5
 		receipt, err := txplan.NewPlannedTx(eoa.Plan(),
 			txplan.WithTo(&karsttest.ModExpPrecompile),
-			txplan.WithData(karsttest.BuildModExpInput([]byte{2}, []byte{3}, oversizeMod)),
-			txplan.WithGasLimit(2_000_000),
+			txplan.WithData(karsttest.NewEIP7823OversizedModExpInput()),
+			txplan.WithGasLimit(karsttest.EIP7823OversizedGasLimit),
 		).Included.Eval(t.Ctx())
 		t.Require().NoError(err)
 		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
@@ -76,7 +74,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 		// Pre-Karst: 21,000 + 300 execution gas is enough for the 200-gas floor.
 		receipt, err := txplan.NewPlannedTx(eoa.Plan(),
 			txplan.WithTo(&karsttest.ModExpPrecompile),
-			txplan.WithGasLimit(21_300),
+			txplan.WithGasLimit(karsttest.EIP7883BoundaryGas),
 		).Included.Eval(t.Ctx())
 		t.Require().NoError(err)
 		t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
@@ -215,7 +213,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 				receipt, err := txplan.NewPlannedTx(eoa.Plan(),
 					txplan.WithTo(&karsttest.P256VerifyPrecompile),
-					txplan.WithGasLimit(24_500),
+					txplan.WithGasLimit(karsttest.EIP7951BoundaryGas),
 				).Included.Eval(t.Ctx())
 				t.Require().NoError(err)
 				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
