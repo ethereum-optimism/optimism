@@ -73,6 +73,45 @@ func TestStoreSafeHeads(t *testing.T) {
 	verifySafeHeads(newDB)
 }
 
+// TestSafeHeadAtL1_OnePerL1Invariant documents the post-fix invariant: in the
+// normal flow, SafeHeadUpdated is called at most once per L1 source block, with
+// the highest L2 reached during that L1. Under that invariant, every recorded
+// entry is final and SafeHeadAtL1 always returns the highest L2 derived from
+// each L1 — never an intermediate value that downstream callers could observe
+// and snapshot.
+//
+// This is a regression guard: if the deriver ever reintroduces per-event
+// SafeHeadUpdated calls, the higher layer test in op-node/rollup/driver will
+// catch it, but this test pins the SafeDB invariant the deriver relies on.
+func TestSafeHeadAtL1_OnePerL1Invariant(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	dir := t.TempDir()
+	db, err := NewSafeDB(logger, dir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	// One entry per L1, each carrying the final (highest) L2 derived from that L1.
+	l1A := eth.BlockID{Hash: common.Hash{0x01, 0xaa}, Number: 100}
+	l1B := eth.BlockID{Hash: common.Hash{0x01, 0xbb}, Number: 101}
+	finalL2A := eth.L2BlockRef{Hash: common.Hash{0x02, 0xa3}, Number: 202}
+	finalL2B := eth.L2BlockRef{Hash: common.Hash{0x02, 0xb2}, Number: 204}
+
+	require.NoError(t, db.SafeHeadUpdated(finalL2A, l1A))
+	require.NoError(t, db.SafeHeadUpdated(finalL2B, l1B))
+
+	// SafeHeadAtL1 always returns the final L2 for each L1 — no intermediate
+	// values are ever observable.
+	gotL1, gotL2, err := db.SafeHeadAtL1(context.Background(), l1A.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1A, gotL1)
+	require.Equal(t, finalL2A.ID(), gotL2)
+
+	gotL1, gotL2, err = db.SafeHeadAtL1(context.Background(), l1B.Number)
+	require.NoError(t, err)
+	require.Equal(t, l1B, gotL1)
+	require.Equal(t, finalL2B.ID(), gotL2)
+}
+
 func TestSafeHeadAtL1_EmptyDatabase(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	dir := t.TempDir()

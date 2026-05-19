@@ -47,6 +47,19 @@ type SyncDeriver struct {
 	ManagedBySupervisor bool
 
 	StepDeriver StepDeriver
+
+	// pendingSafeHead batches SafeHeadUpdated notifications by L1 source block.
+	// SafeDB keys by L1 block number, so emitting once per L2 advance overwrites
+	// the entry repeatedly within the same L1 and races downstream callers
+	// (notably the supernode cold-start path) that snapshot SafeDB mid-derivation.
+	// Instead we accumulate the highest L2 reached during the current L1 source
+	// and emit a single SafeHeadUpdated when the source advances or derivation
+	// idles. On crash, the in-memory pending entry is lost but the deriver
+	// re-derives the in-progress L1 from scratch on restart, so no half-written
+	// state can be persisted.
+	pendingSafeHead   eth.L2BlockRef
+	pendingSafeSource eth.L1BlockRef
+	hasPendingSafe    bool
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -74,6 +87,10 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	case StepEvent:
 		s.SyncStep()
 	case rollup.ResetEvent:
+		// Drop any pending batched safe-head update: the pipeline is restarting
+		// from a known-good point and will re-derive the in-progress L1 from
+		// scratch.
+		s.dropPendingSafeHead()
 		s.onResetEvent(ctx, x)
 	case rollup.L1TemporaryErrorEvent:
 		s.Log.Warn("L1 temporary error", "err", x.Err)
@@ -86,6 +103,10 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.EngineResetConfirmedEvent:
 		s.onEngineConfirmedReset(ctx, x)
 	case derive.DeriverIdleEvent:
+		// Derivation has caught up to L1; flush the final pending safe-head
+		// for the current L1 source. No further L2 blocks will be derived from
+		// it until a new L1 block arrives.
+		s.flushPendingSafeHead(ctx)
 		// Once derivation is idle the system is healthy
 		// and we can wait for new inputs. No backoff necessary.
 		s.StepDeriver.ResetStepBackoff(ctx)
@@ -130,22 +151,65 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
-	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.Source.ID()); err != nil {
-			// At this point our state is in a potentially inconsistent state as we've updated the safe head
-			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
-			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
-			s.Emitter.Emit(ctx, rollup.ResetEvent{
-				Err: fmt.Errorf("safe head notifications failed: %w", err),
-			})
+	if s.SafeHeadNotifs == nil || !s.SafeHeadNotifs.Enabled() {
+		return
+	}
+	// Batch by L1 source. If the source advances, flush the pending entry for
+	// the prior L1 first — that L1 is now final because L2 advancement to a
+	// later L1 origin cannot revert back. Then start a new pending entry for
+	// the current L1.
+	if s.hasPendingSafe && x.Source.Number != s.pendingSafeSource.Number {
+		if x.Source.Number < s.pendingSafeSource.Number {
+			// Out-of-order source: shouldn't happen in the normal flow. Log and
+			// reset the batching window to the new source so we don't silently
+			// hold a stale pending entry forever.
+			s.Log.Warn("safe-derived event source went backwards",
+				"prev_source", s.pendingSafeSource, "new_source", x.Source)
+			s.dropPendingSafeHead()
+		} else {
+			s.flushPendingSafeHead(ctx)
 		}
 	}
+	s.pendingSafeHead = x.Safe
+	s.pendingSafeSource = x.Source
+	s.hasPendingSafe = true
+}
+
+// flushPendingSafeHead emits a single SafeHeadUpdated for the current pending
+// L1 source with the highest L2 safe head reached during that L1, then clears
+// the pending entry. Idempotent: a no-op if no pending entry exists.
+func (s *SyncDeriver) flushPendingSafeHead(ctx context.Context) {
+	if !s.hasPendingSafe {
+		return
+	}
+	if s.SafeHeadNotifs == nil || !s.SafeHeadNotifs.Enabled() {
+		s.hasPendingSafe = false
+		return
+	}
+	safe := s.pendingSafeHead
+	source := s.pendingSafeSource
+	s.hasPendingSafe = false
+	if err := s.SafeHeadNotifs.SafeHeadUpdated(safe, source.ID()); err != nil {
+		// At this point our state is in a potentially inconsistent state as we've updated the safe head
+		// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
+		// a little (it always rolls back at least 1 block) and then it will retry storing the entry
+		s.Emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("safe head notifications failed: %w", err),
+		})
+	}
+}
+
+// dropPendingSafeHead discards the in-memory pending entry without flushing.
+// Used when the pipeline resets and the in-progress L1 will be re-derived.
+func (s *SyncDeriver) dropPendingSafeHead() {
+	s.hasPendingSafe = false
 }
 
 func (s *SyncDeriver) OnELSyncStarted() {
 	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
 	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
 	s.Log.Warn("Clearing safe head db because EL sync started")
+	s.dropPendingSafeHead()
 	if s.SafeHeadNotifs != nil {
 		if err := s.SafeHeadNotifs.SafeHeadReset(eth.L2BlockRef{}); err != nil {
 			s.Log.Error("Failed to notify safe-head reset when optimistically syncing")
@@ -154,6 +218,10 @@ func (s *SyncDeriver) OnELSyncStarted() {
 }
 
 func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.EngineResetConfirmedEvent) {
+	// Drop any pending batched safe-head update before applying the reset.
+	// The engine is repositioning; the in-progress L1 will be re-derived from
+	// the new safe head.
+	s.dropPendingSafeHead()
 	// If the listener update fails, we return,
 	// and don't confirm the engine-reset with the derivation pipeline.
 	// The pipeline will re-trigger a reset as necessary.
