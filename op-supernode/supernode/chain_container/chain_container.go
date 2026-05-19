@@ -422,17 +422,32 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
 }
 
+// FirstSafeHeadTimestamp returns the timestamp of SafeDB's first entry, but
+// only once the deriver has moved past that entry's L1. SafeHeadUpdated
+// overwrites entries at the same L1 key, so until then the L2 value is still
+// in flight and snapshots can go stale. Sample SyncStatus before
+// FirstSafeHeadEntry so firstEntry.L1 < capturedCurrentL1 implies the writes
+// at that L1 had already completed.
 func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	vn := c.getVN()
 	if vn == nil {
 		return 0, virtual_node.ErrVirtualNodeNotRunning
 	}
-	_, l2, err := vn.FirstSafeHeadEntry(ctx)
+	status, err := vn.SyncStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("sync status: %w", err)
+	}
+	l1, l2, err := vn.FirstSafeHeadEntry(ctx)
 	if err != nil {
 		if errors.Is(err, safedb.ErrNotFound) {
 			return 0, ErrSafeDBEmpty
 		}
 		return 0, fmt.Errorf("first safedb entry: %w", err)
+	}
+	if status.CurrentL1.Number <= l1.Number {
+		c.log.Debug("first SafeDB entry not yet stable: deriver still on its L1",
+			"first_l1", l1.Number, "current_l1", status.CurrentL1.Number)
+		return 0, ErrSafeDBEmpty
 	}
 	return c.BlockNumberToTimestamp(ctx, l2.Number)
 }
