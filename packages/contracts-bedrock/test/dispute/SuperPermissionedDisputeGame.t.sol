@@ -6,7 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { GameStatus, GameTypes, Claim } from "src/dispute/lib/Types.sol";
-import { BadAuth, BadExtraData, GameNotInProgress, UnknownChainId } from "src/dispute/lib/Errors.sol";
+import { BadAuth, BadExtraData, UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -18,8 +18,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 /// @title SuperPermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperPermissionedDisputeGame` tests.
 abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
-    event Resolved(GameStatus indexed status);
-
     address internal constant PROPOSER = address(0xfacade9);
 
     ISuperPermissionedDisputeGame internal gameImpl;
@@ -68,8 +66,8 @@ contract SuperPermissionedDisputeGame_Version_Test is SuperPermissionedDisputeGa
 contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisputeGame_TestInit {
     function test_initialize_setsGameState_succeeds() public view {
         assertEq(gameProxy.createdAt().raw(), block.timestamp);
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.IN_PROGRESS));
-        assertEq(gameProxy.resolvedAt().raw(), 0);
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
+        assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
         assertTrue(gameProxy.wasRespectedGameTypeWhenCreated());
         assertEq(gameProxy.gameCreator(), PROPOSER);
         assertEq(gameProxy.gameType().raw(), GameTypes.SUPER_PERMISSIONED_CANNON.raw());
@@ -119,25 +117,17 @@ contract SuperPermissionedDisputeGame_RootClaimByChainId_Test is SuperPermission
 }
 
 contract SuperPermissionedDisputeGame_Resolve_Test is SuperPermissionedDisputeGame_TestInit {
-    function test_resolve_succeeds() public {
-        vm.expectEmit(address(gameProxy));
-        emit Resolved(GameStatus.DEFENDER_WINS);
+    function test_resolve_noop_succeeds() public {
+        uint64 resolvedAt = gameProxy.resolvedAt().raw();
+
+        vm.warp(block.timestamp + 1);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
 
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
-        assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
-    }
-
-    function test_resolve_afterResolution_reverts() public {
-        gameProxy.resolve();
-
-        vm.expectRevert(GameNotInProgress.selector);
-        gameProxy.resolve();
+        assertEq(gameProxy.resolvedAt().raw(), resolvedAt);
     }
 
     function test_resolve_blacklistedGameIsNotClaimValid_succeeds() public {
-        gameProxy.resolve();
-
         vm.prank(superchainConfig.guardian());
         anchorStateRegistry.blacklistDisputeGame(gameProxy);
 

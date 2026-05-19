@@ -13,7 +13,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame, ISemver {
     error Encoding_EmptySuperRoot();
     error Encoding_InvalidSuperRootEncoding();
     error Encoding_InvalidSuperRootVersion();
-    error GameNotInProgress();
     error UnknownChainId();
 
     function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_);

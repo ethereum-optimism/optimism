@@ -4,9 +4,7 @@ pragma solidity 0.8.15;
 // Libraries
 import { Clone } from "@solady/utils/Clone.sol";
 import { Claim, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
-import {
-    AlreadyInitialized, BadAuth, BadExtraData, GameNotInProgress, UnknownChainId
-} from "src/dispute/lib/Errors.sol";
+import { AlreadyInitialized, BadAuth, BadExtraData, UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -58,19 +56,17 @@ contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
         if (l2SequenceNumber() <= rootL2SequenceNumber) revert BadExtraData();
 
         createdAt = Timestamp.wrap(uint64(block.timestamp));
+        resolvedAt = createdAt;
+        status = GameStatus.DEFENDER_WINS;
         wasRespectedGameTypeWhenCreated = GameType.unwrap(registry.respectedGameType()) == GameType.unwrap(gameType());
         initialized = true;
+
+        emit Resolved(GameStatus.DEFENDER_WINS);
     }
 
-    /// @notice Resolves the game in favor of the defender.
-    function resolve() external returns (GameStatus status_) {
-        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
-
+    /// @notice No-op because the game resolves in favor of the defender during initialization.
+    function resolve() external pure returns (GameStatus status_) {
         status_ = GameStatus.DEFENDER_WINS;
-        status = status_;
-        resolvedAt = Timestamp.wrap(uint64(block.timestamp));
-
-        emit Resolved(status_);
     }
 
     /// @notice Returns the output root in the root claim for the specified L2 chain ID.
