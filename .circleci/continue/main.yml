@@ -1565,6 +1565,17 @@ jobs:
           name: Check l2-rpcs.json and weekly matrix are in sync
           command: bash .circleci/scripts/check-l2-chains-sync.sh
 
+  feature-flags-sync-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - utils/checkout-with-mise:
+          enable-mise-cache: false
+      - run:
+          name: Check feature flag registry
+          command: go run ./scripts/checks/feature-flags
+          working_directory: packages/contracts-bedrock
+
   todo-issues:
     parameters:
       check_closed:
@@ -2494,6 +2505,9 @@ workflows:
       # c-contracts_changed. Keeping them here as well was duplicating every
       # contracts run on PRs that touch non-contract files.
       - l2-chains-sync-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - feature-flags-sync-check:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-upload:
