@@ -61,7 +61,7 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 				return fmt.Errorf("expected head to lag: %s", lvl)
 			}
 			logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
-			if err := clock.SystemClock.SleepCtx(ctx, 2*time.Second); err != nil {
+			if err := clock.SystemClock.SleepCtx(ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
 				return err
 			}
 		}

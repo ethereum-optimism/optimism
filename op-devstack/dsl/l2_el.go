@@ -90,7 +90,7 @@ func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc 
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
 		for range attempts {
-			if err := clock.SystemClock.SleepCtx(el.ctx, 2*time.Second); err != nil {
+			if err := clock.SystemClock.SleepCtx(el.ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
 				return err
 			}
 			head := el.BlockRefByLabel(label)

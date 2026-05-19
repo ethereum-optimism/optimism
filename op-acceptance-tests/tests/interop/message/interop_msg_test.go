@@ -151,7 +151,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 
 	// jitter randomizes tx
 	jitter := func(ctx context.Context, rng *rand.Rand) error {
-		return clock.SystemClock.SleepCtx(ctx, time.Duration(rng.Intn(250))*time.Millisecond)
+		return clock.SystemClock.SleepCtx(ctx, time.Duration(rng.Intn(250))*time.Millisecond) // nosemgrep: flake-sleep-in-test -- deliberate jitter for load test tx ordering
 	}
 
 	// fund EOAs per chain

@@ -93,7 +93,7 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 				oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
 				oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
 
-				require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second))
+				require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second)) // nosemgrep: flake-sleep-in-test -- intentional inter-transfer pause; no deterministic chain event to wait on
 
 				testTransferLeadershipAndCheck(t, oldLeader, newLeader)
 			}

@@ -221,7 +221,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 		var lastErr error
 		successes := 0
 		for range attempts {
-			if err := clock.SystemClock.SleepCtx(cl.ctx, 2*time.Second); err != nil {
+			if err := clock.SystemClock.SleepCtx(cl.ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
 				return err
 			}
 			head, err := cl.headBlockRef(lvl)
