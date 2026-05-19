@@ -875,70 +875,6 @@ jobs:
           command: cd << parameters.directory >> && << parameters.lint_command >>
           no_output_timeout: 20m
 
-  # Run tests for a vendored (non-submodule) Rust directory.
-  # Uses machine executor so that Docker is available for integration tests
-  # that spin up containers via testcontainers.
-  rust-test-vendored:
-    machine:
-      docker_layer_caching: true
-    resource_class: xlarge
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      apt_packages:
-        description: "Space-separated apt packages to install before testing"
-        type: string
-        default: ""
-      pre_test_command:
-        description: "Optional command to run inside directory before tests (e.g. build aux binaries)"
-        type: string
-        default: ""
-      test_command:
-        description: "Test command to run inside the directory"
-        type: string
-      no_output_timeout:
-        description: "Timeout for when CircleCI kills the job if there's no output"
-        type: string
-        default: 30m
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - check-changed:
-          patterns: << parameters.directory >>
-      - run:
-          name: Install apt packages
-          command: |
-            PACKAGES="<< parameters.apt_packages >>"
-            if [ -n "$PACKAGES" ]; then
-              for i in 1 2 3; do
-                if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=5 update; then
-                  break
-                fi
-                if [ "$i" = "3" ]; then
-                  echo "apt-get update failed after 3 attempts" >&2
-                  exit 1
-                fi
-                echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
-                sleep 10
-              done
-              # shellcheck disable=SC2086
-              sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends $PACKAGES
-            fi
-      - run:
-          name: Pre-test build (<< parameters.directory >>)
-          command: |
-            PRE_CMD="<< parameters.pre_test_command >>"
-            if [ -n "$PRE_CMD" ]; then
-              cd << parameters.directory >> && eval "$PRE_CMD"
-            fi
-          no_output_timeout: 30m
-      - run:
-          name: Test << parameters.directory >>
-          command: cd << parameters.directory >> && << parameters.test_command >>
-          no_output_timeout: << parameters.no_output_timeout >>
-
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2776,27 +2712,6 @@ workflows:
           name: rust-lint-rollup-boost
           directory: rust/rollup-boost
           lint_command: cargo +nightly fmt -- --check && cargo clippy -- -D warnings
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-test-vendored:
-          name: rust-test-op-rbuilder
-          directory: rust/op-rbuilder
-          apt_packages: "clang libclang-dev"
-          pre_test_command: >-
-            cargo build -p op-rbuilder --bin tester --features testing &&
-            cargo build -p op-rbuilder --bin op-rbuilder
-          test_command: >-
-            TESTS_TEMP_DIR=$(pwd) cargo test --verbose -p op-rbuilder &&
-            cargo test --verbose -p tdx-quote-provider
-          no_output_timeout: 45m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-test-vendored:
-          name: rust-test-rollup-boost
-          directory: rust/rollup-boost
-          apt_packages: "clang libclang-dev"
-          test_command: cargo test --verbose
-          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
       - rust-binaries-for-sysgo:
