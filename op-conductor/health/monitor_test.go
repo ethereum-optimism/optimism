@@ -198,6 +198,34 @@ func TestUnsafeHeadCatchingUpStaysHealthy(t *testing.T) {
 	}
 }
 
+func TestDeepUnsafeHeadRecoveryOutpacesWallClockStaysHealthy(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	rc := &testutils.MockRollupClient{}
+	polls := []struct {
+		now        uint64
+		unsafeTime uint64
+		unsafeNum  uint64
+	}{
+		{now: now, unsafeTime: now - 2, unsafeNum: 100},
+		{now: now + 2, unsafeTime: now - 600, unsafeNum: 1},
+		{now: now + 4, unsafeTime: now - 590, unsafeNum: 2},
+		{now: now + 6, unsafeTime: now - 580, unsafeNum: 3},
+		{now: now + 8, unsafeTime: now - 570, unsafeNum: 4},
+		{now: now + 10, unsafeTime: now - 560, unsafeNum: 5},
+		{now: now + 12, unsafeTime: now - 550, unsafeNum: 6},
+		{now: now + 14, unsafeTime: now - 540, unsafeNum: 7},
+	}
+	for _, poll := range polls {
+		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
+	}
+
+	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc)
+	for _, poll := range polls {
+		tp.now = poll.now
+		require.NoError(t, monitor.checkNodeSyncStatus(context.Background()))
+	}
+}
+
 func TestStoppedSequencerStillMarkedUnhealthy(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}
@@ -224,7 +252,7 @@ func TestStoppedSequencerStillMarkedUnhealthy(t *testing.T) {
 	}
 }
 
-func TestLagAboveCeilingMarkedUnhealthy(t *testing.T) {
+func TestUnsafeHeadRecoveryAtNormalCadenceMarkedUnhealthy(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	rc := &testutils.MockRollupClient{}
 	polls := []struct {
@@ -233,19 +261,18 @@ func TestLagAboveCeilingMarkedUnhealthy(t *testing.T) {
 		unsafeNum  uint64
 		err        error
 	}{
-		{now: now, unsafeTime: now, unsafeNum: 5},
-		{now: now + 2, unsafeTime: now + 2, unsafeNum: 6},
-		{now: now + 202, unsafeTime: now + 2, unsafeNum: 7},
-		{now: now + 204, unsafeTime: now + 14, unsafeNum: 8},
-		{now: now + 206, unsafeTime: now + 26, unsafeNum: 9},
-		{now: now + 208, unsafeTime: now + 38, unsafeNum: 10},
-		{now: now + 210, unsafeTime: now + 50, unsafeNum: 11, err: ErrSequencerNotHealthy},
+		{now: now, unsafeTime: now - 2, unsafeNum: 5},
+		{now: now + 2, unsafeTime: now - 100, unsafeNum: 6},
+		{now: now + 4, unsafeTime: now - 98, unsafeNum: 7},
+		{now: now + 6, unsafeTime: now - 96, unsafeNum: 8},
+		{now: now + 8, unsafeTime: now - 94, unsafeNum: 9},
+		{now: now + 10, unsafeTime: now - 92, unsafeNum: 10, err: ErrSequencerNotHealthy},
 	}
 	for _, poll := range polls {
 		rc.ExpectSyncStatus(mockSyncStatus(poll.unsafeTime, poll.unsafeNum, poll.now, poll.unsafeNum), nil)
 	}
 
-	monitor, tp := newSyncStatusMonitor(t, now, 10, 60, rc)
+	monitor, tp := newSyncStatusMonitor(t, now, 2, 3600, rc)
 	for _, poll := range polls {
 		tp.now = poll.now
 		require.Equal(t, poll.err, monitor.checkNodeSyncStatus(context.Background()))

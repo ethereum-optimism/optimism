@@ -25,15 +25,11 @@ var (
 )
 
 const (
-	// unhealthyLagMultiplier is the unsafe-head lag ceiling during recovery.
-	// Once recovery has lasted for the shared rolling window, lag above
-	// unhealthyLagMultiplier*unsafeInterval marks the sequencer unhealthy.
-	unhealthyLagMultiplier = 3
 	// recoveringWindowSize is the shared health-check grace window. Unsafe-head
-	// recovery uses it to require sustained lag improvement. Sync-status RPC
-	// availability and CL peer-count checks use it as a rolling window: all
-	// failed observations fail the check, all successful observations restore
-	// Success, and mixed or not-yet-full windows remain Inconclusive.
+	// recovery uses it to require unsafe-head time to outpace wall-clock time.
+	// Sync-status RPC availability and CL peer-count checks use it as a rolling
+	// window: all failed observations fail the check, all successful observations
+	// restore Success, and mixed or not-yet-full windows remain Inconclusive.
 	recoveringWindowSize = 5
 )
 
@@ -134,10 +130,13 @@ type SequencerHealthMonitor struct {
 	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
 
 	// Recovering state. When pollsInRecovery is zero, the sequencer is not recovering.
-	initialLagInRecovery   uint64
-	recoveryWindowStartLag uint64
-	pollsInRecovery        uint64
-	pollsInRecoveryWindow  uint64
+	initialLagInRecovery        uint64
+	recoveryWindowStartLag      uint64
+	recoveryWindowStartWallTime uint64
+	recoveryWindowStartUnsafe   uint64
+	recoveryWindowStartNum      uint64
+	pollsInRecovery             uint64
+	pollsInRecoveryWindow       uint64
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -237,7 +236,7 @@ func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 }
 
 // healthCheck checks the health of the sequencer by 3 criteria:
-// 1. unsafe head is not too far behind now (measured by unsafeInterval)
+// 1. unsafe head is within unsafeInterval or recovering faster than wall clock
 // 2. safe head is progressing every configured batch submission interval
 // 3. peer count is above the configured minimum
 func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
@@ -329,51 +328,44 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 				"initial_lag_in_recovery", hm.initialLagInRecovery,
 				"cur_unsafe_lag", curUnsafeLag,
 			)
-			hm.initialLagInRecovery = 0
-			hm.recoveryWindowStartLag = 0
-			hm.pollsInRecovery = 0
-			hm.pollsInRecoveryWindow = 0
+			hm.clearUnsafeHeadRecovery()
 		}
 	case hm.pollsInRecovery == 0:
 		hm.initialLagInRecovery = curUnsafeLag
-		hm.recoveryWindowStartLag = curUnsafeLag
 		hm.pollsInRecovery = 1
-		hm.pollsInRecoveryWindow = 1
+		hm.resetUnsafeHeadRecoveryWindow(now, status.UnsafeL2.Time, status.UnsafeL2.Number, curUnsafeLag)
 		hm.log.Info(
 			"sequencer entering unsafe-head recovery",
 			"cur_unsafe_lag", curUnsafeLag,
 			"unsafe_interval", hm.unsafeInterval,
-			"ceiling", unhealthyLagMultiplier*hm.unsafeInterval,
+			"unsafe_head_num", status.UnsafeL2.Number,
 		)
 	default:
 		hm.pollsInRecovery++
 		hm.pollsInRecoveryWindow++
-		if hm.pollsInRecovery >= recoveringWindowSize && curUnsafeLag > unhealthyLagMultiplier*hm.unsafeInterval {
-			hm.log.Error(
-				"unsafe-head lag above unhealthy ceiling",
-				"cur_unsafe_lag", curUnsafeLag,
-				"ceiling", unhealthyLagMultiplier*hm.unsafeInterval,
-				"polls_in_recovery", hm.pollsInRecovery,
-			)
-			return ErrSequencerNotHealthy
-		}
-		if curUnsafeLag < hm.recoveryWindowStartLag {
+		wallElapsed := calculateTimeDiff(now, hm.recoveryWindowStartWallTime)
+		unsafeElapsed := calculateTimeDiff(status.UnsafeL2.Time, hm.recoveryWindowStartUnsafe)
+		if unsafeElapsed > wallElapsed {
 			hm.log.Info(
-				"unsafe-head lag shrinking during recovery",
+				"unsafe-head outpacing wall clock during recovery",
 				"cur_unsafe_lag", curUnsafeLag,
 				"previous_window_start_lag", hm.recoveryWindowStartLag,
+				"wall_elapsed", wallElapsed,
+				"unsafe_elapsed", unsafeElapsed,
 				"polls_in_recovery", hm.pollsInRecovery,
 				"polls_in_recovery_window", hm.pollsInRecoveryWindow,
 			)
-			hm.recoveryWindowStartLag = curUnsafeLag
-			hm.pollsInRecoveryWindow = 1
+			hm.resetUnsafeHeadRecoveryWindow(now, status.UnsafeL2.Time, status.UnsafeL2.Number, curUnsafeLag)
 			break
 		}
 		if hm.pollsInRecoveryWindow >= recoveringWindowSize {
 			hm.log.Error(
-				"unsafe-head lag not shrinking across recovery window",
+				"unsafe-head recovery not outpacing wall clock",
 				"cur_unsafe_lag", curUnsafeLag,
 				"recovery_window_start_lag", hm.recoveryWindowStartLag,
+				"recovery_window_start_num", hm.recoveryWindowStartNum,
+				"wall_elapsed", wallElapsed,
+				"unsafe_elapsed", unsafeElapsed,
 				"polls_in_recovery", hm.pollsInRecovery,
 				"polls_in_recovery_window", hm.pollsInRecoveryWindow,
 			)
@@ -393,6 +385,24 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 	}
 
 	return nil
+}
+
+func (hm *SequencerHealthMonitor) resetUnsafeHeadRecoveryWindow(now, unsafeTime, unsafeNum, curUnsafeLag uint64) {
+	hm.recoveryWindowStartLag = curUnsafeLag
+	hm.recoveryWindowStartWallTime = now
+	hm.recoveryWindowStartUnsafe = unsafeTime
+	hm.recoveryWindowStartNum = unsafeNum
+	hm.pollsInRecoveryWindow = 1
+}
+
+func (hm *SequencerHealthMonitor) clearUnsafeHeadRecovery() {
+	hm.initialLagInRecovery = 0
+	hm.recoveryWindowStartLag = 0
+	hm.recoveryWindowStartWallTime = 0
+	hm.recoveryWindowStartUnsafe = 0
+	hm.recoveryWindowStartNum = 0
+	hm.pollsInRecovery = 0
+	hm.pollsInRecoveryWindow = 0
 }
 
 func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error {
