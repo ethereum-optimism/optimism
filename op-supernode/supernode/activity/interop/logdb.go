@@ -152,7 +152,7 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	if !hasBlocks {
 		// The main loop starts at firstVerifiableTimestamp. If the DB is empty,
 		// this is the only timestamp the main loop would legitimately seal first.
-		firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+		firstVerifiable, err := i.firstVerifiableTimestamp()
 		if err != nil {
 			return eth.BlockID{}, hasBlocks, err
 		}

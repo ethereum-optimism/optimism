@@ -10,58 +10,6 @@ parameters:
   c-base_image:
     type: string
     default: default
-  # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
-  # from the CircleCI UI. Example configuration:
-  #   when:
-  #     or:
-  #       - equal: [ "develop", <<pipeline.git.branch>> ]
-  #       - equal: [ true, <<pipeline.parameters.c-main_dispatch>> ]
-  # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
-  c-main_dispatch:
-    type: boolean
-    default: true # default to running main in case the manual run cancelled an automatic run
-  c-fault_proofs_dispatch:
-    type: boolean
-    default: false
-  c-reproducibility_dispatch:
-    type: boolean
-    default: false
-  c-kontrol_dispatch:
-    type: boolean
-    default: false
-  c-cannon_full_test_dispatch:
-    type: boolean
-    default: false
-  c-sdk_dispatch:
-    type: boolean
-    default: false
-  c-publish_contract_artifacts_dispatch:
-    type: boolean
-    default: false
-  c-stale_check_dispatch:
-    type: boolean
-    default: false
-  c-contracts_coverage_dispatch:
-    type: boolean
-    default: false
-  c-heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  c-ai_contracts_test_dispatch:
-    type: boolean
-    default: false
-  c-l2_fork_test_dispatch:
-    type: boolean
-    default: false
-  c-l2_fork_weekly_dispatch:
-    type: boolean
-    default: false
-  c-github-event-type:
-    type: string
-    default: "__not_set__"
-  c-github-event-action:
-    type: string
-    default: "__not_set__"
   c-github-event-base64:
     type: string
     default: "__not_set__"
@@ -75,84 +23,55 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
-  # Set to true by path-filtering when contracts or rebuild-all paths change.
-  # When false, contract feature matrix jobs are skipped entirely.
-  c-contracts_changed:
+  # Workflow activation flags (set by the decision tree in config.yml)
+  c-run_main:
     type: boolean
     default: false
-  # Passthrough declarations for setup config parameters.
-  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
-  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
-  # These are not referenced by any job — the c- prefixed versions above are used instead.
-  default_docker_image:
-    type: string
-    default: cimg/base:2026.03
-  rust_base_image:
-    type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
-  base_image:
-    type: string
-    default: default
-  main_dispatch:
-    type: boolean
-    default: true
-  fault_proofs_dispatch:
+  c-run_release:
     type: boolean
     default: false
-  reproducibility_dispatch:
+  c-run_scheduled_todo_issues:
     type: boolean
     default: false
-  kontrol_dispatch:
+  c-run_develop_fault_proofs:
     type: boolean
     default: false
-  cannon_full_test_dispatch:
+  c-run_develop_kontrol_tests:
     type: boolean
     default: false
-  sdk_dispatch:
+  c-run_scheduled_cannon_full_tests:
     type: boolean
     default: false
-  docker_publish_dispatch:
+  c-run_scheduled_preimage_reproducibility:
     type: boolean
     default: false
-  stale_check_dispatch:
+  c-run_scheduled_stale_check:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
+  c-run_scheduled_heavy_fuzz_tests:
     type: boolean
     default: false
-  heavy_fuzz_dispatch:
+  c-run_close_issue:
     type: boolean
     default: false
-  sync_test_op_node_dispatch:
+  c-run_ai_contracts_test:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
+  c-run_l2_fork_test:
     type: boolean
     default: false
-  l2_fork_test_dispatch:
+  c-run_scheduled_weekly_tests:
     type: boolean
     default: false
-  l2_fork_weekly_dispatch:
+  c-run_contracts_feature_tests:
     type: boolean
     default: false
-  rust_ci_dispatch:
+  c-run_contracts_feature_tests_short:
     type: boolean
     default: false
-  rust_e2e_dispatch:
+  c-run_ci_gate_skip:
     type: boolean
     default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
-  go-cache-version:
-    type: string
-    default: "v0.0"
 
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.27
@@ -2091,6 +2010,12 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge+
     steps:
+      - run:
+          name: Install eatmydata and disable fsync for all subprocesses
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends eatmydata
+            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
@@ -2649,19 +2574,7 @@ jobs:
 
 workflows:
   main:
-    when:
-      and:
-        - equal: ["", << pipeline.git.tag >>]
-        - or:
-            - and:
-                - equal: ["webhook", << pipeline.trigger_source >>]
-            - and:
-                - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-                - equal: ["api", << pipeline.trigger_source >>]
-                - equal: [
-                      << pipeline.parameters.c-github-event-type >>,
-                      "__not_set__",
-                    ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
+    when: << pipeline.parameters.c-run_main >>
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -3033,9 +2946,7 @@ workflows:
             - build-contracts-go-release-op-up
 
   release:
-    when:
-      not:
-        equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_release >>
     jobs:
       - initialize:
           context:
@@ -3069,8 +2980,7 @@ workflows:
               ignore: /.*/
 
   scheduled-todo-issues:
-    when:
-      equal: [build_four_hours, <<pipeline.schedule.name>>]
+    when: << pipeline.parameters.c-run_scheduled_todo_issues >>
     jobs:
       - todo-issues:
           name: todo-issue-checks
@@ -3090,14 +3000,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   develop-fault-proofs:
-    when:
-      or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
-        - and:
-            - equal: [true, <<pipeline.parameters.c-fault_proofs_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_develop_fault_proofs >>
     jobs:
       - cannon-prestate:
           context:
@@ -3145,14 +3048,7 @@ workflows:
             - op-e2e-cannon-tests
 
   develop-kontrol-tests:
-    when:
-      or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
-        - and:
-            - equal: [true, <<pipeline.parameters.c-kontrol_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_develop_kontrol_tests >>
     jobs:
       - kontrol-tests:
           context:
@@ -3161,10 +3057,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-cannon-full-tests:
-    when:
-      or:
-        - equal: [build_four_hours, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-cannon_full_test_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_cannon_full_tests >>
     jobs:
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
@@ -3181,11 +3074,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-reproducibility_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_preimage_reproducibility >>
     jobs:
       - preimage-reproducibility:
           context:
@@ -3193,32 +3082,21 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-stale-check:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-          # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-stale_check_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_stale_check >>
     jobs:
       - stale-check:
           context:
             - circleci-repo-optimism
 
   scheduled-heavy-fuzz-tests:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-heavy_fuzz_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_heavy_fuzz_tests >>
     jobs:
       - contracts-bedrock-heavy-fuzz-nightly:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
   close-issue-workflow:
-    when:
-      and:
-        - equal: [<< pipeline.trigger_source >>, "api"]
-        - equal: [<< pipeline.parameters.c-github-event-type >>, "pull_request"]
-        - equal: [<< pipeline.parameters.c-github-event-action >>, "labeled"]
+    when: << pipeline.parameters.c-run_close_issue >>
     jobs:
       - close-issue:
           label_name: "auto-close-trivial-contribution"
@@ -3230,10 +3108,7 @@ workflows:
             - circleci-repo-optimism
 
   ai-contracts-test-workflow:
-    when:
-      or:
-        - equal: [build_mon_thu, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-ai_contracts_test_dispatch >>]
+    when: << pipeline.parameters.c-run_ai_contracts_test >>
     jobs:
       - ai-contracts-test:
           context:
@@ -3243,10 +3118,7 @@ workflows:
             - slack
 
   l2-fork-test-workflow:
-    when:
-      and:
-        - equal: [true, << pipeline.parameters.c-l2_fork_test_dispatch >>]
-        - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_l2_fork_test >>
     jobs:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
@@ -3259,10 +3131,7 @@ workflows:
             - slack
 
   scheduled-weekly-tests:
-    when:
-      or:
-        - equal: [build_weekly, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-l2_fork_weekly_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
     jobs:
       - contracts-bedrock-tests-l2-fork:
           matrix:
@@ -3287,22 +3156,7 @@ workflows:
             - slack
 
   contracts-feature-tests:
-    when:
-      or:
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - << pipeline.parameters.c-contracts_changed >>
-        # Always run on develop (mirrors previous check-changed whitelist behavior)
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - equal: ["develop", << pipeline.git.branch >>]
-        # Merge queue (merge gate). Match checkout branch.
-        - matches:
-            pattern: "^gh-readonly-queue/.*"
-            value: << pipeline.git.branch >>
-        - and:
-            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_contracts_feature_tests >>
     jobs:
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
@@ -3473,25 +3327,23 @@ workflows:
   # Produces the required-contracts-ci status so the merge queue doesn't hang.
   # ============================================================================
   contracts-feature-tests-short:
-    when:
-      not: # these conditions should be kept in sync with the ones in contracts-feature-tests
-        or:
-          - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
-              - << pipeline.parameters.c-contracts_changed >>
-          # Always run on develop (mirrors previous check-changed whitelist behavior)
-          - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
-              - equal: ["develop", << pipeline.git.branch >>]
-          # Merge queue (merge gate). Match checkout branch.
-          - matches:
-              pattern: "^gh-readonly-queue/.*"
-              value: << pipeline.git.branch >>
-          - and:
-              - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-              - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_contracts_feature_tests_short >>
     jobs:
       - required-contracts-ci:
+          always-succeed: true
+          context:
+            - circleci-api-token
+
+  # ============================================================================
+  # ci-gate (skip) — runs only on the docs-only fast path.
+  # Produces the ci-gate required status check with always-succeed so docs-only
+  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
+  # The real ci-gate still runs in `main` for every other path.
+  # ============================================================================
+  ci-gate-skip:
+    when: << pipeline.parameters.c-run_ci_gate_skip >>
+    jobs:
+      - ci-gate:
           always-succeed: true
           context:
             - circleci-api-token

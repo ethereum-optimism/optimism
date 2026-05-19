@@ -36,6 +36,10 @@ func TestMultiELSync(gt *testing.T) {
 	// Stop L2CL2 to control SyncTesterL2EL manually
 	sys.L2CL2.Stop()
 
+	// Clear any payloads L2CL2 pushed before Stop completed — a leftover policy
+	// cache entry can flip SYNCING to VALID one step early and flake the test.
+	sys.SyncTester.ResetAllSessions()
+
 	// Advance few blocks to make sure reference node advanced
 	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
 

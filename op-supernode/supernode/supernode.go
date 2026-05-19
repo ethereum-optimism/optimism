@@ -36,10 +36,7 @@ type Supernode struct {
 	stopped     bool
 	cfg         *config.CLIConfig
 	chains      map[eth.ChainID]cc.InteropChain
-	// activitiesMu guards reads and writes of the activities slice. Concurrent
-	// readers (onChainReset, InteropActivity, Stop) can race with the
-	// test-only RestartInteropActivity path that swaps the interop activity
-	// while other activities and chain containers are still running.
+	// activitiesMu guards reads and writes of the activities slice.
 	activitiesMu    sync.RWMutex
 	activities      []activity.Activity
 	rootRPC         *oprpc.Handler
@@ -55,15 +52,6 @@ type Supernode struct {
 	supernodeMetrics *resources.SupernodeMetrics
 	// cached address when available
 	rpcAddr string
-
-	// Cached parameters needed to reconstruct the interop activity in
-	// RestartInteropActivity (test-only). See supernode_test_access.go.
-	interopActivationTs    *uint64
-	interopMsgExpiryWindow uint64
-	// lifecycleCtx is the parent context for all activity goroutines, captured
-	// from Start(). RestartInteropActivity uses it to re-launch the interop
-	// activity without disturbing other activities.
-	lifecycleCtx context.Context
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
@@ -138,8 +126,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		}
 		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
-		s.interopActivationTs = interopActivationTimestamp
-		s.interopMsgExpiryWindow = msgExpiryWindow
 	}
 
 	// Order in this slice governs Start/Stop ordering; interop is appended
@@ -243,7 +229,6 @@ func (s *Supernode) Start(ctx context.Context) error {
 	// found cancel == nil) before Start() had a chance to initialize.
 	var lifecycleCtx context.Context
 	lifecycleCtx, s.lifecycleCancel = context.WithCancel(ctx)
-	s.lifecycleCtx = lifecycleCtx
 
 	if s.httpServer != nil {
 		s.wg.Add(1)

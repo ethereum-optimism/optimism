@@ -1,11 +1,19 @@
 ---
 title: op-reth historical proof configuration
-description: Configuration options for historical proofs using ExEx in op-reth (op-rs fork).
+description: Configuration options for the op-reth historical proof store (v2).
 ---
 
-This page provides documentation for the configuration options available in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth) for supporting historical proofs via ExEx.
+This page documents the configuration options for the **historical proof store (v2)** in [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth).
 
-By enabling this Execution Extension (ExEx), the node initializes a separate storage database specifically for historical trie nodes. This allows the node to **generate and serve historical proofs** efficiently, which is critical for applications requiring historical state access, such as fault proof systems.
+When enabled, op-reth maintains a separate storage database for versioned trie data used to serve `eth_getProof` for historical blocks. This is critical for historical state access (for example, fault proof workloads) without requiring full archive-style behavior from the execution database.
+
+<Warning>
+op-reth **v2.2.3 or later** is required to enable historical proofs v2. Earlier versions do not support the `--proofs-history.storage-version=v2` flag.
+</Warning>
+
+<Info>
+Use the **historical proofs storage format v2** by setting `--proofs-history.storage-version=v2`.
+</Info>
 
 For a complete setup guide, see the tutorial on [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
 
@@ -13,16 +21,27 @@ For a complete setup guide, see the tutorial on [Running op-reth with Historical
 This fork inherits all standard op-reth configuration options. See the [op-reth configuration reference](/node-operators/reference/op-reth-config).
 </Info>
 
-## Proof History
+## Historical proof store (v2)
 
-Options for configuring the proof history ExEx.
+Options for configuring the v2 historical proof store.
 
 ### proofs-history
 
-If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster.
+If true, enable the historical proof store and keep it updated as new blocks are processed.
 
 <Tabs>
   <Tab title="Syntax">`--proofs-history`</Tab>
+</Tabs>
+
+### proofs-history.storage-version
+
+Storage format version for the historical proofs database.
+
+For the v2 system, set this to `v2`.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION>`</Tab>
+  <Tab title="Recommended">`v2`</Tab>
 </Tabs>
 
 ### proofs-history.storage-path
@@ -73,9 +92,18 @@ Periodic verification helps catch data corruption while maintaining good perform
 </Tabs>
 
 
-## Management Commands
+## Lifecycle and management commands
 
-The `op-reth proofs` command allows you to manage the storage of historical proofs.
+In v2, operators usually follow this lifecycle:
+
+1. Run `op-reth proofs init` once to initialize the proofs DB at the current tip.
+2. Start `op-reth` with `--proofs-history --proofs-history.storage-version=v2` so the node uses historical proofs storage format v2.
+3. Let the store fill proofs data **forward** from the initialization point.
+4. Let automatic pruning enforce the configured retention window.
+5. Use manual `prune` or `unwind` only for recovery/maintenance scenarios.
+
+The `op-reth proofs` command provides these maintenance operations.
+
 
 ### init
 
@@ -86,7 +114,11 @@ op-reth proofs init --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.storag
 ```
 
 <Info>
-The first time `proofs init` runs, it takes minutes to hours to complete. Subsequent invocations should only take seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization. For that reason it is recommended to start from a snapshot whose tip is old enough to cover the required time window, so that when the node starts syncing from the snapshot's tip, the full window is covered.
+The first time `proofs init` runs, it can take minutes to hours. Subsequent invocations should usually take seconds.
+
+`proofs init` does **not** backfill historical proofs. It records the current chain tip as the starting point of the proofs database. After initialization, run the node with `--proofs-history` so the store fills forward as new blocks are committed.
+
+To serve proofs across the full retention window (for example, 30 days with default settings), the node must accumulate that much forward history after init. In practice, operators should initialize from a snapshot that is already old enough to satisfy the required historical window as syncing advances.
 </Info>
 
 ### prune
@@ -98,7 +130,9 @@ op-reth proofs prune --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.stora
 ```
 
 <Info>
-Pruning runs automatically while the node is up, on the cadence set by `--proofs-history.prune-interval`. Running this command manually is only required at startup if op-reth detects a gap larger than 1000 blocks between the configured window and the data on disk and refuses to start. See the [tutorial](/node-operators/tutorials/reth-historical-proofs#manual-prune) for details.
+Pruning runs automatically while the node is up, on the cadence set by `--proofs-history.prune-interval`.
+
+Manual prune is mainly a recovery action, for example if op-reth detects a large mismatch between configured retention and on-disk data and refuses startup. See the [tutorial](/node-operators/tutorials/reth-historical-proofs#manual-prune) for details.
 </Info>
 
 ### unwind
@@ -119,7 +153,16 @@ Returns the current sync status of the proofs store.
 debug_proofsSyncStatus → { "earliest": <block>, "latest": <block> }
 ```
 
-Once `latest` tracks the chain tip, `eth_getProof` calls for blocks within `[earliest, latest]` will be served from the versioned store.
+`earliest` and `latest` define the currently available historical-proof interval in the v2 store.
+
+Once `latest` tracks chain tip, `eth_getProof` calls for blocks within `[earliest, latest]` are served from the versioned proofs store.
+
+## v1 to v2 operator notes
+
+- The historical-proof path is now centered on a dedicated versioned proofs store lifecycle (`init` -> forward fill -> prune), rather than treating it as a standalone extension workflow.
+- `proofs init` establishes a starting point only; it does not reconstruct old proofs data.
+- Coverage is operationally measured via `debug_proofsSyncStatus` (`earliest`/`latest`).
+- For stable long-window proof serving, validate startup snapshots and retention settings together.
 
 ## Metrics
 

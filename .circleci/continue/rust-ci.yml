@@ -17,85 +17,19 @@ parameters:
   c-base_image:
     type: string
     default: default
-  c-rust_ci_dispatch:
+  # Workflow activation flags (set by the decision tree in config.yml)
+  c-run_rust_ci:
     type: boolean
     default: false
-  c-go-cache-version:
-    type: string
-    default: "v0.0"
-  c-rust_changes_detected:
+  c-run_rust_ci_gate_short:
     type: boolean
     default: false
-  c-non_docs_changes:
+  c-run_scheduled_kona_link_checker:
     type: boolean
     default: false
-  # Passthrough declarations for setup config parameters.
-  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
-  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
-  # These are not referenced by any job — the c- prefixed versions above are used instead.
-  default_docker_image:
-    type: string
-    default: cimg/base:2026.03
-  rust_base_image:
-    type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
-  base_image:
-    type: string
-    default: default
-  main_dispatch:
-    type: boolean
-    default: true
-  fault_proofs_dispatch:
+  c-run_kona_publish_prestates:
     type: boolean
     default: false
-  reproducibility_dispatch:
-    type: boolean
-    default: false
-  kontrol_dispatch:
-    type: boolean
-    default: false
-  cannon_full_test_dispatch:
-    type: boolean
-    default: false
-  sdk_dispatch:
-    type: boolean
-    default: false
-  docker_publish_dispatch:
-    type: boolean
-    default: false
-  stale_check_dispatch:
-    type: boolean
-    default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
-  heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  sync_test_op_node_dispatch:
-    type: boolean
-    default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
-  rust_ci_dispatch:
-    type: boolean
-    default: false
-  rust_e2e_dispatch:
-    type: boolean
-    default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
-  go-cache-version:
-    type: string
-    default: "v0.0"
 
 # ============================================================================
 # COMMANDS
@@ -916,14 +850,7 @@ workflows:
   # Runs on rust path changes or manual dispatch with rust_ci_dispatch=true
   # ==========================================================================
   rust-ci:
-    when:
-      or:
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - << pipeline.parameters.c-rust_changes_detected >>
-        - and:
-            - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_rust_ci >>
     jobs:
       # -----------------------------------------------------------------------
       # Workspace-level jobs (replacing per-crate duplicates)
@@ -1080,10 +1007,7 @@ workflows:
   # Just runs the rust cargo tests for the different packages in the repo and try to build the fpvm-prestates
   # ==========================================================================
   rust-ci-gate-short:
-    when:
-      and:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-rust_changes_detected >>
+    when: << pipeline.parameters.c-run_rust_ci_gate_short >>
     jobs:
       - rust-ci-cargo-tests:
           name: rust-tests
@@ -1114,8 +1038,7 @@ workflows:
   # Kona scheduled workflows
   # ==========================================================================
   scheduled-kona-link-checker:
-    when:
-      equal: [build_weekly, <<pipeline.schedule.name>>]
+    when: << pipeline.parameters.c-run_scheduled_kona_link_checker >>
     jobs:
       - kona-link-checker:
           context:
@@ -1123,11 +1046,7 @@ workflows:
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
-    when:
-      and:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
-        - << pipeline.parameters.c-rust_changes_detected >> # Only publish when rust paths changed
+    when: << pipeline.parameters.c-run_kona_publish_prestates >>
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>

@@ -76,11 +76,13 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	require.Less(t, finalizedB.Number, initialTargetBlockNumB)
 
 	// Resume interop verification
-	// expect cross safe to catch up
+	// expect cross safe to catch up on both CL and EL
 	sys.Supernode.ResumeInterop()
 	dsl.CheckAll(t,
 		sys.L2ACL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
 		sys.L2BCL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
+		sys.L2ELA.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
+		sys.L2ELB.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
 	)
 
 	// check EL labels
@@ -110,12 +112,14 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	sys.AdvanceTime(90 * time.Second)
 	sys.L1Network.WaitForFinalization()
 
-	// Wait for finalized heads to catch up to or past the snapshotted safe heads
-	// Finalized advancement depends on L1 finality, so use more attempts
+	// Wait for finalized heads (CL and EL) to catch up to or past the snapshotted
+	// safe heads. Finalized advancement depends on L1 finality, so use more attempts.
 	finalizedAttempts := 30
 	dsl.CheckAll(t,
 		sys.L2ACL.ReachedFn(types.Finalized, snapshotSafeA, finalizedAttempts),
 		sys.L2BCL.ReachedFn(types.Finalized, snapshotSafeB, finalizedAttempts),
+		sys.L2ELA.ReachedFn(eth.Finalized, snapshotSafeA, finalizedAttempts),
+		sys.L2ELB.ReachedFn(eth.Finalized, snapshotSafeB, finalizedAttempts),
 	)
 
 	// Verify finalized heads on EL

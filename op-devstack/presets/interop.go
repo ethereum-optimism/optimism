@@ -181,25 +181,6 @@ func WithInteropNotAtGenesis() Option {
 	return WithRequireInteropNotAtGenesis()
 }
 
-type MultiSupervisorInterop struct {
-	SimpleInterop
-
-	// Supervisor does not support multinode so need a additional supervisor for verifier nodes
-	SupervisorSecondary *dsl.Supervisor
-
-	L2ELA2 *dsl.L2ELNode
-	L2CLA2 *dsl.L2CLNode
-	L2ELB2 *dsl.L2ELNode
-	L2CLB2 *dsl.L2CLNode
-}
-
-// NewMultiSupervisorInterop initializes a fresh multi-supervisor interop target for the
-// current test.
-func NewMultiSupervisorInterop(t devtest.T, opts ...Option) *MultiSupervisorInterop {
-	_, _ = collectSupportedPresetConfig(t, "NewMultiSupervisorInterop", opts, 0)
-	return multiSupervisorInteropFromRuntime(t, sysgo.NewMultiSupervisorInteropRuntime(t))
-}
-
 // MinimalInteropNoSupervisor is like Minimal but with interop contracts deployed.
 // No supervisor is running - this tests interop contract deployment with local finality.
 type MinimalInteropNoSupervisor struct {

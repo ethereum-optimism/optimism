@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
@@ -143,13 +144,19 @@ type Interop struct {
 	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
 
-	// backfillEndTimestamp represents the end of the range of timestamps that were sealed by runLogBackfill.
-	// this is used for loop handoff from log backfill to main processing.
-	// firstVerifiableTimestamp is used to determine the start of the main processing loop, which is backfillEndTimestamp + 1
-	// after backfill, or the EL-finalized-derived startup timestamp when backfill was not used.
-	backfillEndTimestamp uint64
-	firstVerifiableSet   bool
-	firstVerifiable      uint64
+	// verificationStartTimestamp is the first L2 timestamp the main loop
+	// attempts to verify. Set exactly once during tryInitFromVerifiedDB
+	// (resume path) or by advanceColdStartInit, then immutable.
+	verificationStartTimestamp uint64
+
+	// initialized is set true once verificationStartTimestamp has been
+	// chosen. RPC accessors return ErrNotStarted while false.
+	initialized atomic.Bool
+
+	// waitingForSync is true between tryInitFromVerifiedDB deferring
+	// cold-start origin selection and the loop iteration that completes it.
+	// Only read/written by the main loop goroutine; no mutex needed.
+	waitingForSync bool
 
 	dataDir string
 
@@ -179,11 +186,13 @@ type Interop struct {
 	// if the next timestamp to process is >= this value.
 	pauseAtTimestamp atomic.Uint64
 
-	// backfillAttempts counts the number of times runLogBackfill was invoked
-	// since Start. Read by integration tests to confirm the retry loop is engaged.
+	// backfillAttempts counts cold-start init iterations since the most
+	// recent Start. Read by integration tests to confirm the retry loop has
+	// engaged.
 	backfillAttempts atomic.Int32
-	// backfillCompleted is set to true once runLogBackfill returns nil (or was skipped
-	// because logBackfillDepth <= 0). Read by integration tests to gate on backfill finishing.
+	// backfillCompleted is set true once cold-start init finishes — either
+	// backfill ran to completion or resume skipped it. Read by integration
+	// tests to gate on cold-start init finishing.
 	backfillCompleted atomic.Bool
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
@@ -192,34 +201,31 @@ type Interop struct {
 
 	logBackfillDepth time.Duration
 	metrics          *resources.SupernodeMetrics
+
+	// clock is used for all wall-clock reads and sleeps so deterministic
+	// tests can inject a fake. Defaults to clock.SystemClock in New.
+	clock clock.Clock
 }
 
 func (i *Interop) Name() string {
 	return "interop"
 }
 
-// firstVerifiableTimestamp is the earliest timestamp the main loop will attempt
-// to verify. If verification has already committed results, the first committed
-// timestamp is the durable handoff boundary. Otherwise it is backfillEndTimestamp+1
-// after log backfill, or — on cold start with no committed results and no
-// backfill range — the EL-finalized-derived startup timestamp.
-func (i *Interop) firstVerifiableTimestamp(ctx context.Context) (uint64, error) {
+// firstVerifiableTimestamp is the earliest timestamp the verifier covers.
+// If commits exist, the verifiedDB's first committed timestamp is the
+// authoritative lower bound (it cannot move). Otherwise it is the chosen
+// verificationStartTimestamp. Returns ErrNotStarted until initialization
+// completes.
+func (i *Interop) firstVerifiableTimestamp() (uint64, error) {
 	if i.verifiedDB != nil {
 		if first, initialized := i.verifiedDB.FirstTimestamp(); initialized {
 			return first, nil
 		}
 	}
-	if i.backfillEndTimestamp != 0 {
-		next := i.backfillEndTimestamp + 1
-		if next < i.activationTimestamp {
-			return i.activationTimestamp, nil
-		}
-		return next, nil
+	if !i.initialized.Load() {
+		return 0, ErrNotStarted
 	}
-	if i.firstVerifiableSet {
-		return i.firstVerifiable, nil
-	}
-	return i.resolveFirstVerifiableTimestamp(ctx)
+	return i.verificationStartTimestamp, nil
 }
 
 // New constructs a new Interop activity.
@@ -271,6 +277,7 @@ func New(
 		messageExpiryWindow: messageExpiryWindow,
 		logBackfillDepth:    logBackfillDepth,
 		metrics:             metrics,
+		clock:               clock.SystemClock,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -292,106 +299,106 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.started = true
 	i.mu.Unlock()
 
-	if i.logBackfillDepth > 0 {
-		i.log.Info("interop log backfill depth configured", "duration", i.logBackfillDepth.String())
-		for {
-			i.backfillAttempts.Add(1)
-			end, err := i.runLogBackfill()
-			if err == nil {
-				i.backfillEndTimestamp = end
-				break
-			}
-			i.log.Warn("log backfill failed, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
-			for cid := range i.chains {
-				i.metrics.LogBackfillRetries.WithLabelValues(cid.String()).Inc()
-			}
-			select {
-			case <-i.ctx.Done():
-				return fmt.Errorf("log backfill interrupted: %w", i.ctx.Err())
-			case <-time.After(errorBackoffPeriod):
-			}
-		}
-	}
-	i.backfillCompleted.Store(true)
-	i.log.Info("log backfill complete", "backfillEndTimestamp", i.backfillEndTimestamp)
+	i.tryInitFromVerifiedDB()
+	return i.runLoop()
+}
 
-	firstVerifiableLog := uint64(0)
-	if i.backfillEndTimestamp != 0 {
-		firstVerifiableLog = i.backfillEndTimestamp + 1
-		if firstVerifiableLog < i.activationTimestamp {
-			firstVerifiableLog = i.activationTimestamp
-		}
-	} else if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
-		// Resume from the last commit to keep verifiedDB gap-free.
-		firstVerifiableLog = lastTS + 1
-	} else {
-		for {
-			first, err := i.readyFirstVerifiableTimestamp(i.ctx)
-			if err == nil {
-				i.firstVerifiable = first
-				i.firstVerifiableSet = true
-				firstVerifiableLog = first
-				break
-			}
-			// Permanent SafeDB gap must halt normal startup cleanly. Backfill-enabled
-			// startup reaches this path only if backfill had no range to seal.
-			if errors.Is(err, cc.ErrHistoryUnavailable) {
-				i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-					"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-				return fmt.Errorf("interop halted due to unavailable history: %w", err)
-			}
-			i.log.Warn("first verifiable timestamp unavailable, retrying (EL finalized head or chain data may not be ready yet)", "err", err)
-			select {
-			case <-i.ctx.Done():
-				return fmt.Errorf("first verifiable timestamp interrupted: %w", i.ctx.Err())
-			case <-time.After(errorBackoffPeriod):
-			}
-		}
+// tryInitFromVerifiedDB selects verificationStartTimestamp from verifiedDB if
+// any commit exists. Otherwise it defers to the cold-start loop, which waits
+// for every chain to record a first SafeDB entry before picking an origin.
+// Wall-clock time is not consulted: chain derivation progress is the only
+// authoritative signal for "where we are" relative to activation.
+func (i *Interop) tryInitFromVerifiedDB() {
+	if lastTS, ok := i.verifiedDB.LastTimestamp(); ok {
+		i.verificationStartTimestamp = lastTS + 1
+		i.initialized.Store(true)
+		i.backfillCompleted.Store(true) // resume skips backfill
+		i.log.Info("interop resuming from verifiedDB",
+			"verificationStartTimestamp", i.verificationStartTimestamp,
+			"activationTimestamp", i.activationTimestamp)
+		return
 	}
-	i.log.Info("interop first verifiable timestamp resolved",
-		"activationTimestamp", i.activationTimestamp,
-		"firstVerifiableTimestamp", firstVerifiableLog)
+	i.waitingForSync = true
+	i.log.Info("interop cold start; waiting for SafeDB entries on every chain",
+		"activationTimestamp", i.activationTimestamp)
+}
 
+// runLoop drives initialization and verification. Each iteration performs
+// exactly one of two actions and then sleeps for the duration the action
+// chose: waitForColdStartInit while cold-start initialization is in
+// progress, otherwise progress to verify the next round.
+func (i *Interop) runLoop() error {
 	for {
-		select {
-		case <-i.ctx.Done():
-			return i.ctx.Err()
-		default:
-			madeProgress, err := i.progressAndRecord()
-			if err != nil {
-				// Permanent SafeDB gap: log once and halt — retrying cannot fix it.
-				if errors.Is(err, cc.ErrHistoryUnavailable) {
-					i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
-					i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-						"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-					return fmt.Errorf("interop halted due to unavailable history: %w", err)
-				}
-				i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
-				i.log.Error("failed to progress and record interop", "err", err)
-				time.Sleep(errorBackoffPeriod)
-				continue
+		var (
+			sleep time.Duration
+			err   error
+		)
+		if i.waitingForSync {
+			sleep, err = i.waitForColdStartInit()
+		} else {
+			sleep, err = i.progress()
+		}
+		if err != nil {
+			return err
+		}
+		if sleep > 0 {
+			if err := i.clock.SleepCtx(i.ctx, sleep); err != nil {
+				return err
 			}
-			if !madeProgress {
-				// Chains not ready, back off before next attempt
-				time.Sleep(backoffPeriod)
-			}
-			// Otherwise: immediately ready for next iteration (aggressive catch-up)
 		}
 	}
 }
 
-// readyFirstVerifiableTimestamp resolves the first timestamp that still needs
-// interop verification and proves every chain can serve the optimistic L2/L1
-// data needed to verify it.
-func (i *Interop) readyFirstVerifiableTimestamp(ctx context.Context) (uint64, error) {
-	first, err := i.resolveFirstVerifiableTimestamp(ctx)
+// waitForColdStartInit runs one cold-start initialization step. Returns
+// (0, nil) if the step advanced (so the loop runs again immediately to either
+// finish initialization or start progressing), (backoffPeriod, nil) if no
+// progress was made yet, or (errorBackoffPeriod, nil) on any error.
+//
+// Cold-start init runs concurrently with chain-container startup, so every
+// failure mode here (VN not yet attached, transient RPC errors, EL not
+// ready) is expected during the startup window and must not kill the
+// activity. Cold-start has no path to a permanent failure: none of the calls
+// it makes return ErrHistoryUnavailable, and any real corruption surfaces in
+// the verification loop once initialization completes.
+func (i *Interop) waitForColdStartInit() (time.Duration, error) {
+	advanced, err := i.advanceColdStartInit()
 	if err != nil {
-		return 0, err
+		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
+		i.log.Warn("interop cold start step failed, will retry", "err", err)
+		return errorBackoffPeriod, nil
 	}
-	if _, err := i.checkChainsReady(first); err != nil {
-		return 0, err
+	if !advanced {
+		return backoffPeriod, nil
 	}
-	return first, nil
+	i.waitingForSync = false
+	i.initialized.Store(true)
+	i.log.Info("interop cold start complete",
+		"activationTimestamp", i.activationTimestamp,
+		"verificationStartTimestamp", i.verificationStartTimestamp)
+	return 0, nil
+}
+
+// progress runs one verification step. Returns (0, nil) when forward progress
+// was made (so the loop runs again immediately), (backoffPeriod, nil) when
+// the round was a no-op, (errorBackoffPeriod, nil) on a recoverable error,
+// or a non-nil error to terminate the loop.
+func (i *Interop) progress() (time.Duration, error) {
+	madeProgress, err := i.progressAndRecord()
+	if err != nil {
+		if errors.Is(err, cc.ErrHistoryUnavailable) {
+			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
+			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
+				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
+		}
+		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
+		i.log.Error("failed to progress and record interop", "err", err)
+		return errorBackoffPeriod, nil
+	}
+	if !madeProgress {
+		return backoffPeriod, nil
+	}
+	return 0, nil
 }
 
 // Stop stops the Interop activity.
@@ -460,7 +467,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 		return i.applyPendingTransition(*pending)
 	}
 
-	verifyStart := time.Now()
+	verifyStart := i.clock.Now()
 	output, obs, err := i.progressInterop()
 	if err != nil {
 		return false, err
@@ -482,7 +489,7 @@ func (i *Interop) progressAndRecord() (bool, error) {
 	}
 	progress, applyErr := i.applyPendingTransition(pendingTx)
 	// Record verification latency for the full round including apply.
-	i.metrics.InteropVerificationDuration.Observe(time.Since(verifyStart).Seconds())
+	i.metrics.InteropVerificationDuration.Observe(i.clock.Since(verifyStart).Seconds())
 	return progress, applyErr
 }
 
@@ -536,7 +543,7 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		obs.LastVerified = &result
 		obs.NextTimestamp = lastTS + 1
 	} else {
-		next, err := i.firstVerifiableTimestamp(i.ctx)
+		next, err := i.firstVerifiableTimestamp()
 		if err != nil {
 			return obs, err
 		}
@@ -798,7 +805,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		plan.ResetAllChainsTo = &resetTo
 	}
 
-	first, err := i.firstVerifiableTimestamp(i.ctx)
+	first, err := i.firstVerifiableTimestamp()
 	if err != nil {
 		return RewindPlan{}, err
 	}
@@ -1004,7 +1011,7 @@ func (i *Interop) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	if ts < i.activationTimestamp {
 		return true, nil
 	}
-	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	firstVerifiable, err := i.firstVerifiableTimestamp()
 	if err != nil {
 		return false, err
 	}
@@ -1039,7 +1046,7 @@ func (i *Interop) VerifiedResultAtTimestamp(ts uint64) (VerifiedResult, eth.Bloc
 	if i.ctx == nil {
 		return VerifiedResult{}, eth.BlockID{}, ErrNotStarted
 	}
-	firstVerifiable, err := i.firstVerifiableTimestamp(i.ctx)
+	firstVerifiable, err := i.firstVerifiableTimestamp()
 	if err != nil {
 		return VerifiedResult{}, eth.BlockID{}, fmt.Errorf("resolve first verifiable: %w", err)
 	}

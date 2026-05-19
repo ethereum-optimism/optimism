@@ -221,9 +221,11 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			t.Parallel()
 
 			interop := &Interop{
-				log:                 gethlog.New(),
-				activationTimestamp: tt.activationTS,
+				log:                        gethlog.New(),
+				activationTimestamp:        tt.activationTS,
+				verificationStartTimestamp: tt.activationTS,
 			}
+			interop.initialized.Store(true)
 			chainID := eth.ChainIDFromUInt64(10)
 			expectedHash := common.Hash{0x01}
 			db := &mockLogsDB{

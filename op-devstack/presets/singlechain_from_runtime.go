@@ -1,7 +1,11 @@
 package presets
 
 import (
+	"context"
+	"encoding/json"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -89,7 +93,9 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		// after the EL completes P2P sync and the node emits its first forkchoice
 		// update — so the wait strategy depends on the follower's sync mode.
 		var crossSafeCheck dsl.CheckFunc
-		if opNode, ok := nodeB.CL.(*sysgo.OpNode); ok && opNode.SyncMode() == nodeSync.ELSync {
+		opNode, hasOpNode := nodeB.CL.(*sysgo.OpNode)
+		isELSync := hasOpNode && opNode.SyncMode() == nodeSync.ELSync
+		if isELSync {
 			// EL-sync's CrossSafe wait has unpredictable duration in CI. Wait
 			// up to initialSyncCrossSafeELSyncMaxWait, but only as long as the
 			// follower's LocalUnsafe head keeps advancing — if gossip stalls
@@ -104,12 +110,48 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		} else {
 			crossSafeCheck = preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, initialSyncCheckAttemptsCrossSafe)
 		}
-		dsl.CheckAll(t,
+		runInitialSyncChecks(t, preset.L2ELB, isELSync,
 			crossSafeCheck,
 			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}
 	return preset
+}
+
+// runInitialSyncChecks runs the initial-sync DSL checks. On failure in ELSync
+// mode it captures a one-shot eth_syncing snapshot from the verifier EL to
+// give an independent confirmation of what the EL thinks its sync state is.
+// The dump is best-effort — its only purpose is diagnostics for #20649, so any
+// RPC error is logged and ignored.
+//
+// op-geth and op-reth both implement eth_syncing but with different schemas
+// (op-geth: fine-grained snap-sync counters; op-reth: alloy SyncInfo plus a
+// stages list). Dumping the raw JSON sidesteps the schema difference — the
+// human reading the CI log gets whichever shape the EL produced.
+func runInitialSyncChecks(t devtest.T, verifierEL *dsl.L2ELNode, isELSync bool, checks ...dsl.CheckFunc) {
+	var g errgroup.Group
+	for _, check := range checks {
+		check := check
+		g.Go(func() error {
+			return check()
+		})
+	}
+	err := g.Wait()
+	if err != nil && isELSync {
+		dumpVerifierELSyncing(t, verifierEL)
+	}
+	t.Require().NoError(err)
+}
+
+func dumpVerifierELSyncing(t devtest.T, verifierEL *dsl.L2ELNode) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var raw json.RawMessage
+	if err := verifierEL.EthClient().RPC().CallContext(ctx, &raw, "eth_syncing"); err != nil {
+		t.Logger().Warn("Failed to dump eth_syncing from verifier EL", "err", err)
+		return
+	}
+	t.Logger().Warn("Verifier EL eth_syncing snapshot at sync-check failure", "eth_syncing", string(raw))
 }
 
 func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {

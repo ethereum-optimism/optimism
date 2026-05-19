@@ -413,8 +413,8 @@ func (sys *System) DisputeGameFactoryAddr() common.Address {
 	return sys.L1Deployments().DisputeGameFactoryProxy
 }
 
-func (sys *System) SupervisorClient() *sources.SupervisorClient {
-	sys.t.Fatal("supervisor client is not available for single chain system")
+func (sys *System) SupernodeClient() *sources.SuperNodeClient {
+	sys.t.Fatal("supernode client is not available for single chain system")
 	return nil
 }
 
@@ -449,8 +449,8 @@ func (sys *System) L2NodeEndpoints() []endpoint.RPC {
 	return []endpoint.RPC{sys.NodeEndpoint("sequencer")}
 }
 
-func (sys *System) SupervisorEndpoint() endpoint.RPC {
-	sys.t.Fatalf("supervisor endpoint is not supported for pre-interop System")
+func (sys *System) SupernodeEndpoint() endpoint.RPC {
+	sys.t.Fatalf("supernode endpoint is not supported for pre-interop System")
 	return nil
 }
 

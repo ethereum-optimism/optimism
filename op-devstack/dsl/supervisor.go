@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
@@ -34,59 +33,6 @@ func (s *Supervisor) String() string {
 
 func (s *Supervisor) Escape() stack.Supervisor {
 	return s.inner
-}
-
-type VerifySyncStatusConfig struct {
-	AllUnsafeHeadsAdvance uint64
-}
-
-// WithAllLocalUnsafeHeadsAdvancedBy verifies that the local unsafe head of every chain advances by at least the
-// specified number of blocks compared to the value when VerifySyncStatus is called.
-func WithAllLocalUnsafeHeadsAdvancedBy(blocks uint64) func(cfg *VerifySyncStatusConfig) {
-	return func(cfg *VerifySyncStatusConfig) {
-		cfg.AllUnsafeHeadsAdvance = blocks
-	}
-}
-
-// VerifySyncStatus performs assertions based on the supervisor's SyncStatus endpoint.
-func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfig)) {
-	cfg := applyOpts(VerifySyncStatusConfig{}, opts...)
-	initial := s.FetchSyncStatus()
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		status := s.FetchSyncStatus()
-		s.require.Equalf(len(initial.Chains), len(status.Chains), "Expected %d chains in status but got %d", len(initial.Chains), len(status.Chains))
-		for chID, chStatus := range status.Chains {
-			chInitial := initial.Chains[chID]
-			required := chInitial.LocalUnsafe.Number + cfg.AllUnsafeHeadsAdvance
-			if chStatus.LocalUnsafe.Number < required {
-				s.log.Info("Required sync status not reached. Chain local unsafe has not advanced enough",
-					"chain", chID, "initialUnsafe", chInitial.LocalUnsafe, "currentUnsafe", chStatus.LocalUnsafe, "minRequired", required)
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
-}
-
-func (s *Supervisor) AwaitMinL1(minL1 uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		return s.FetchSyncStatus().MinSyncedL1.Number >= minL1, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
-}
-
-func (s *Supervisor) AwaitMinCrossSafeTimestamp(timestamp uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		return s.FetchSyncStatus().SafeTimestamp >= timestamp, nil
-	})
-	s.require.NoError(err, "Expected sync status not found")
 }
 
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
@@ -199,10 +145,6 @@ func (s *Supervisor) WaitForUnsafeHeadToAdvance(chainID eth.ChainID, delta uint6
 	s.WaitForL2HeadToAdvance(chainID, delta, types.LocalUnsafe, attempts)
 }
 
-func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
-	s.WaitForL2HeadToAdvance(chainID, delta, types.CrossSafe, attempts)
-}
-
 func (s *Supervisor) FetchSuperRootAtTimestamp(timestamp uint64) eth.SuperRootResponse {
 	response, err := s.inner.QueryAPI().SuperRootAtTimestamp(s.ctx, hexutil.Uint64(timestamp))
 	s.require.NoError(err, "Unable to fetch super root at timestamp")
@@ -219,10 +161,4 @@ func (s *Supervisor) Stop() {
 	lifecycle, ok := s.inner.(stack.Lifecycle)
 	s.require.Truef(ok, "supervisor %s is not lifecycle-controllable", s.inner.Name())
 	lifecycle.Stop()
-}
-
-func (s *Supervisor) AddManagedL2CL(cl *L2CLNode) {
-	interopEndpoint, secret := cl.inner.InteropRPC()
-	err := s.inner.AdminAPI().AddL2RPC(s.ctx, interopEndpoint, secret)
-	s.require.NoError(err, "failed to connect L2CL to supervisor")
 }

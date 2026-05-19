@@ -16,7 +16,7 @@ import (
 type Supernode struct {
 	commonImpl
 	inner       stack.Supernode
-	testControl stack.InteropTestControl
+	testControl stack.SupernodeTestControl
 }
 
 // NewSupernode creates a new Supernode DSL wrapper
@@ -29,7 +29,7 @@ func NewSupernode(inner stack.Supernode) *Supernode {
 
 // NewSupernodeWithTestControl creates a new Supernode DSL wrapper with test control support.
 // The testControl parameter can be nil if no test control is needed.
-func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.InteropTestControl) *Supernode {
+func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.SupernodeTestControl) *Supernode {
 	return &Supernode{
 		commonImpl:  commonFromT(inner.T()),
 		inner:       inner,
@@ -129,19 +129,16 @@ func (s *Supernode) ResumeInterop() {
 	s.interopActivity().Resume()
 }
 
-// RestartInterop stops the running interop activity, optionally wipes its
-// on-disk logs DBs, and launches a fresh instance against the still-running
-// supernode. The HTTP server, chain containers, virtual nodes, and all other
-// activities keep running across the restart. Setting wipeLogsDBs=true forces
-// the fresh activity to reconstruct its database via log backfill from the
-// virtual nodes, making this the primary primitive for exercising backfill
-// in tests.
-// Requires the Supernode to be created with NewSupernodeWithTestControl.
-func (s *Supernode) RestartInterop(wipeLogsDBs bool) {
-	s.require.NotNil(s.testControl, "RestartInterop requires test control; use NewSupernodeWithTestControl")
-	s.log.Info("restarting interop activity", "wipeLogsDBs", wipeLogsDBs)
-	err := s.testControl.RestartInteropActivity(wipeLogsDBs)
-	s.require.NoError(err, "failed to restart interop activity")
+// RestartWithFreshDataDir stops the supernode, deletes its on-disk data
+// directory in full, and starts a fresh supernode against the same chain
+// containers, virtual nodes, and externally-visible RPC address.
+// Requires NewSupernodeWithTestControl.
+func (s *Supernode) RestartWithFreshDataDir() {
+	s.require.NotNil(s.testControl,
+		"RestartWithFreshDataDir requires test control; use NewSupernodeWithTestControl")
+	s.log.Info("restarting supernode with fresh data dir")
+	err := s.testControl.RestartWithFreshDataDir()
+	s.require.NoError(err, "failed to restart supernode with fresh data dir")
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the
@@ -178,6 +175,37 @@ func (s *Supernode) AwaitBackfillCompleted() {
 	s.require.NoError(err, "backfill did not complete in time")
 }
 
+// ActivationTimestamp returns the configured interop activation timestamp.
+// Requires NewSupernodeWithTestControl.
+func (s *Supernode) ActivationTimestamp() uint64 {
+	return s.interopActivity().ActivationTimestamp()
+}
+
+// VerificationStartTimestamp returns the L2 timestamp the current interop
+// activity began verifying at. Returns 0 before cold-start init completes.
+// Requires NewSupernodeWithTestControl.
+func (s *Supernode) VerificationStartTimestamp() uint64 {
+	return s.interopActivity().VerificationStartTimestamp()
+}
+
+// AwaitVerificationStartsAt blocks until cold-start init completes, then
+// asserts VerificationStartTimestamp equals expected.
+// Requires NewSupernodeWithTestControl.
+func (s *Supernode) AwaitVerificationStartsAt(expected uint64) {
+	ia := s.interopActivity()
+	ctx, cancel := context.WithTimeout(s.ctx, 3*DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
+		return ia.BackfillCompleted(), nil
+	})
+	s.require.NoError(err, "cold-start initialization did not complete in time")
+	actual := ia.VerificationStartTimestamp()
+	s.require.Equalf(expected, actual,
+		"verificationStartTimestamp mismatch after cold-start init: expected %d, got %d",
+		expected, actual)
+	s.log.Info("verification start timestamp confirmed", "expected", expected, "actual", actual)
+}
+
 // AssertBackfillCovers verifies, for each supplied chain, that the interop
 // logs DB contains blocks spanning from a first-seal at or near the expected
 // T_lo all the way to a latest-seal at or near the safe tip. Specifically it
@@ -187,7 +215,7 @@ func (s *Supernode) AwaitBackfillCompleted() {
 //     (the first seal is at most one block before activation; when activation
 //     is not aligned to a block boundary, the block representing the chain
 //     state as of activation is the correct pairing anchor and is sealed).
-//  2. firstSealed.Timestamp <  BackfillEndTimestamp()+1
+//  2. firstSealed.Timestamp <  FirstVerifiableTimestamp()
 //     (the post-backfill handoff happens strictly after the backfilled range)
 //  3. firstSealed.Timestamp <= max(ActivationTimestamp, latestSealed.Timestamp - depth)
 //     + blockTime                         (backfill reached ~depth back,
@@ -202,9 +230,6 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 
 	activation := ia.ActivationTimestamp()
 	backfillHandoff := ia.FirstVerifiableTimestamp()
-	if backfillEnd := ia.BackfillEndTimestamp(); backfillEnd != 0 {
-		backfillHandoff = backfillEnd + 1
-	}
 	depthSec := uint64(depth / time.Second)
 
 	for _, chainID := range chains {
