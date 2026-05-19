@@ -56,7 +56,10 @@ func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
 
 func runPostActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts)) {
 	t := devtest.SerialT(gt)
-	sys := newResyncSystem(t, 0)
+	sys := presets.NewTwoL2SupernodeInteropPeerEL(t, 0,
+		presets.WithUniformL2BlockTimes(l2BlockTime),
+		presets.WithInteropLogBackfillDepth(backfillDepth),
+	)
 	sys.Supernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
@@ -70,8 +73,8 @@ func runPostActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts)
 	sys.Supernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 240),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 240),
+		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
 	)
 
 	sys.Supernode.AssertBackfillCovers(backfillDepth, l2BlockTime,
@@ -83,7 +86,10 @@ func runPreActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts))
 	// Delay activation by an hour so the chain stays well below it throughout
 	// the test, and cold-start always parks at the future activation timestamp
 	// regardless of CI scheduling variance.
-	sys := newResyncSystem(t, uint64(60*60))
+	sys := presets.NewTwoL2SupernodeInteropPeerEL(t, uint64(60*60),
+		presets.WithUniformL2BlockTimes(l2BlockTime),
+		presets.WithInteropLogBackfillDepth(backfillDepth),
+	)
 	sys.Supernode.AwaitBackfillCompleted()
 	activation := sys.Supernode.ActivationTimestamp()
 
@@ -96,15 +102,8 @@ func runPreActivationResync(gt *testing.T, restartOpts []func(*dsl.RestartOpts))
 	sys.Supernode.AwaitVerificationStartsAt(activation)
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 240),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 240),
-	)
-}
-
-func newResyncSystem(t devtest.T, delaySeconds uint64) *presets.TwoL2SupernodeInteropPeerEL {
-	return presets.NewTwoL2SupernodeInteropPeerEL(t, delaySeconds,
-		presets.WithUniformL2BlockTimes(l2BlockTime),
-		presets.WithInteropLogBackfillDepth(backfillDepth),
+		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
 	)
 }
 
