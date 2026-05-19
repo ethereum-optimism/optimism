@@ -55,7 +55,7 @@ Syncing an op-reth node as soon as possible helps ensure a snapshot is available
 
 Historical L2 state on op-reth is required for **permissioned chains as well**, not just permissionless. Withdrawal proving calls `eth_getProof` on the L2 block where the withdrawal was included regardless of your dispute-game model — op-geth handled this via archive state, and op-reth needs equivalent configuration. Permissioned chains need only a few hours of lookback (covered by option 1 below, without a historical proofs database); permissionless chains need ~28 days. Two options:
 
-- `--rpc.eth-proof-window <num_blocks>` — no historical proofs database, but performance and memory cost grow the further back you query. Size to cover your dispute-game publishing cadence with margin.
+- `--rpc.eth-proof-window <num_blocks>` — no historical proofs database (ExEx), but performance and memory cost grow the further back you query. Size to cover your dispute-game publishing cadence with margin.
 - `--proofs-history` — bounded memory, but storage-heavy. The default `--proofs-history.window` is 1,296,000 blocks (~30 days at 2s block time); adjust if your chain's block time differs.
 
 See [how to run historical proofs with op-reth](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs) for sizing guidance and configuration details.
