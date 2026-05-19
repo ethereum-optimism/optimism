@@ -1401,7 +1401,7 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	require.Contains(t, err.Error(), "before genesis 100")
 }
 
-// Returns ErrSafeDBEmpty until the deriver's currentL1 has moved past
+// Returns ErrSafeDBNotReady until the deriver's currentL1 has moved past
 // firstEntry.L1; only then is the entry's L2 final.
 func TestChainContainer_FirstSafeHeadTimestamp_StableSnapshot(t *testing.T) {
 	t.Parallel()
@@ -1418,34 +1418,34 @@ func TestChainContainer_FirstSafeHeadTimestamp_StableSnapshot(t *testing.T) {
 	}
 	for _, c := range []tc{
 		{
-			name: "empty SafeDB -> ErrSafeDBEmpty",
+			name: "empty SafeDB -> ErrSafeDBNotReady",
 			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
 				return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
 			},
 			syncStatus: func() (*eth.SyncStatus, error) {
 				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
 			},
-			wantErr: ErrSafeDBEmpty,
+			wantErr: ErrSafeDBNotReady,
 		},
 		{
-			name: "deriver still on firstEntry's L1 -> ErrSafeDBEmpty",
+			name: "deriver still on firstEntry's L1 -> ErrSafeDBNotReady",
 			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
 				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
 			},
 			syncStatus: func() (*eth.SyncStatus, error) {
 				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 4}}, nil
 			},
-			wantErr: ErrSafeDBEmpty,
+			wantErr: ErrSafeDBNotReady,
 		},
 		{
-			name: "deriver below firstEntry's L1 (impossible but defensive) -> ErrSafeDBEmpty",
+			name: "deriver below firstEntry's L1 (impossible but defensive) -> ErrSafeDBNotReady",
 			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
 				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
 			},
 			syncStatus: func() (*eth.SyncStatus, error) {
 				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 3}}, nil
 			},
-			wantErr: ErrSafeDBEmpty,
+			wantErr: ErrSafeDBNotReady,
 		},
 		{
 			name: "deriver past firstEntry's L1 -> returns timestamp",

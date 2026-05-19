@@ -1752,7 +1752,7 @@ type mockChainContainer struct {
 	blockNumberToTimestampOverride func(ctx context.Context, blocknum uint64) (uint64, error)
 
 	// firstSafeHeadTimestamp lets tests stub FirstSafeHeadTimestamp.
-	// firstSafeHeadTimestampErr defaults to chain_container.ErrSafeDBEmpty
+	// firstSafeHeadTimestampErr defaults to chain_container.ErrSafeDBNotReady
 	// when neither field is set so the cold-start init loop keeps waiting.
 	firstSafeHeadTimestamp    uint64
 	firstSafeHeadTimestampSet bool
@@ -1799,7 +1799,7 @@ func (m *mockChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64
 	if m.firstSafeHeadTimestampSet {
 		return m.firstSafeHeadTimestamp, nil
 	}
-	return 0, cc.ErrSafeDBEmpty
+	return 0, cc.ErrSafeDBNotReady
 }
 func (m *mockChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
 	m.mu.Lock()
