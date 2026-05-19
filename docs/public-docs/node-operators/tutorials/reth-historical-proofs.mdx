@@ -42,7 +42,7 @@ A `BlockChangeSet` reverse index enables efficient pruning: given a block number
 
 ## Prerequisites
 
-*   op-reth v2.1.0 or above.
+*   [op-reth v2.2.3 or later](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3) — required to enable historical proofs v2 (`--proofs-history.storage-version=v2`).
 *   An op-reth datadir, either initialized from genesis or restored from a [snapshot](https://datadirs.optimism.io/) (covered in the next two sections).
 *   Basic understanding of [execution client configuration](/node-operators/guides/configuration/execution-clients).
 *   Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time).
@@ -224,6 +224,7 @@ When this happens, op-reth exits with an error indicating the number of blocks t
 op-reth proofs prune \
   --datadir /path/to/reth-datadir \
   --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.storage-version v2 \
   --proofs-history.window 1296000
 ```
 
@@ -235,6 +236,7 @@ Recover from corruption by reverting the proofs database to a specific block:
 op-reth proofs unwind \
   --datadir /path/to/reth-datadir \
   --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.storage-version v2 \
   --target <BLOCK_NUMBER>
 ```
 
@@ -255,5 +257,6 @@ Benchmarked on Base Sepolia (~700k block window, WETH contract):
 
 ## Next steps
 
+*   See the [op-reth v2.2.3 release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3) for the change that introduced the historical proof store (v2).
 *   See the [op-reth historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config) for the full set of `--proofs-history.*` flags, management commands, RPC endpoints, and Prometheus metrics.
 *   See the [op-reth configuration reference](/node-operators/reference/op-reth-config) for all standard op-reth flags inherited by this fork.
