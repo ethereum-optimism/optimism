@@ -2,6 +2,12 @@ set positional-arguments
 
 NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
+# Cargo profile used by test recipes. Empty means "let cargo pick its default".
+# CI sets this to `ci-turbo` (release + opt-level=1) for faster test builds.
+CI_CARGO_PROFILE := env("CI_CARGO_PROFILE", "")
+TEST_PROFILE_FLAG := if CI_CARGO_PROFILE != "" { "--cargo-profile " + CI_CARGO_PROFILE } else { "" }
+DOCTEST_PROFILE_FLAG := if CI_CARGO_PROFILE != "" { "--profile " + CI_CARGO_PROFILE } else { "" }
+
 # Aliases
 alias t := test
 alias l := lint
@@ -75,15 +81,15 @@ test: test-unit test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
-  cargo nextest run --workspace --all-features {{args}}
+  cargo nextest run --workspace --all-features {{TEST_PROFILE_FLAG}} {{args}}
 
 # Run online tests only
 test-online:
-  cargo nextest run --workspace --all-features -E 'test(test_online)'
+  cargo nextest run --workspace --all-features {{TEST_PROFILE_FLAG}} -E 'test(test_online)'
 
 # Run doc tests
 test-docs:
-  cargo test --doc --workspace --locked --all-features
+  cargo test --doc --workspace --locked --all-features {{DOCTEST_PROFILE_FLAG}}
 
 ############################### Lint ################################
 
