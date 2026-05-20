@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
@@ -13,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -214,7 +214,7 @@ func singleRoundConsolidation(
 }
 
 func isInvalidMessageError(err error) bool {
-	return errors.Is(err, supervisortypes.ErrConflict) || errors.Is(err, supervisortypes.ErrUnknownChain)
+	return errors.Is(err, interop.ErrConflict) || errors.Is(err, interop.ErrUnknownChain)
 }
 
 type ConsolidateCheckDeps interface {
@@ -295,7 +295,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query messages.Contai
 		return messages.BlockSeal{}, err
 	}
 	if block.Time() != query.Timestamp {
-		return messages.BlockSeal{}, fmt.Errorf("block timestamp mismatch: %d != %d: %w", block.Time(), query.Timestamp, supervisortypes.ErrConflict)
+		return messages.BlockSeal{}, fmt.Errorf("block timestamp mismatch: %d != %d: %w", block.Time(), query.Timestamp, interop.ErrConflict)
 	}
 	_, receipts := d.oracle.ReceiptsByBlockHash(block.Hash(), chain)
 	var current uint32
@@ -310,7 +310,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query messages.Contai
 					LogHash:     logToLogHash(log),
 				}.Checksum()
 				if checksum != query.Checksum {
-					return messages.BlockSeal{}, fmt.Errorf("checksum mismatch: %s != %s: %w", checksum, query.Checksum, supervisortypes.ErrConflict)
+					return messages.BlockSeal{}, fmt.Errorf("checksum mismatch: %s != %s: %w", checksum, query.Checksum, interop.ErrConflict)
 				} else {
 					return messages.BlockSeal{
 						Hash:      block.Hash(),
@@ -322,7 +322,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query messages.Contai
 		}
 		current += uint32(len(receipt.Logs))
 	}
-	return messages.BlockSeal{}, fmt.Errorf("log not found: %w", supervisortypes.ErrConflict)
+	return messages.BlockSeal{}, fmt.Errorf("log not found: %w", interop.ErrConflict)
 }
 
 func logToLogHash(l *ethtypes.Log) common.Hash {
@@ -379,7 +379,7 @@ func (d *consolidateCheckDeps) OpenBlock(
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {
 	head := d.canonBlocks[chainID].GetHeaderByNumber(blockNum)
 	if head == nil {
-		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, supervisortypes.ErrConflict)
+		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, interop.ErrConflict)
 	}
 	return d.oracle.BlockByHash(head.Hash(), chainID), nil
 }

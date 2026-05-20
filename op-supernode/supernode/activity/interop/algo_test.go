@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -661,7 +661,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				sourceDB := &algoMockLogsDB{
-					containsErr: suptypes.ErrConflict, // Message not found
+					containsErr: interop.ErrConflict, // Message not found
 				}
 
 				destDB := &algoMockLogsDB{

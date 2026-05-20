@@ -1,4 +1,4 @@
-package types
+package interop
 
 import "errors"
 

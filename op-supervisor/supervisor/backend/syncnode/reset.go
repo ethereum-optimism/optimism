@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // managedNodeResetBackend is a shim to pass to the resetTracker to let it
@@ -58,7 +58,7 @@ func (m *ManagedNode) initiateReset(z eth.BlockID) {
 	defer m.resetCancel()
 
 	start, err := m.backend.ActivationBlock(ctx, m.chainID)
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset", "err", err)
 		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
 		return
@@ -129,7 +129,7 @@ func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.Block
 
 	// finalized
 	lastFinalized, err := t.backend.Finalized(iCtx, t.chainID)
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		t.log.Warn("finalized block is not yet known", "err", err)
 		lastFinalized = eth.BlockID{}
 	} else if err != nil {

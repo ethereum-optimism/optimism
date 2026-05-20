@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -31,7 +32,7 @@ func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []comm
 	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
 		return &rpc.JsonError{
-			Code:    types.GetErrorCode(err),
+			Code:    interop.GetErrorCode(err),
 			Message: err.Error(),
 		}
 	}

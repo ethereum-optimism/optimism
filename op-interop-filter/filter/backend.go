@@ -15,8 +15,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -164,11 +164,11 @@ func supportedSafetyLevel(level safety.Level) bool {
 // classifyRejectionReason categorizes an error from CheckAccessList into a rejection reason label.
 func classifyRejectionReason(err error) string {
 	switch {
-	case errors.Is(err, types.ErrFailsafeEnabled):
+	case errors.Is(err, interop.ErrFailsafeEnabled):
 		return "failsafe"
-	case errors.Is(err, types.ErrUnknownChain):
+	case errors.Is(err, interop.ErrUnknownChain):
 		return "unknown_chain"
-	case errors.Is(err, types.ErrConflict):
+	case errors.Is(err, interop.ErrConflict):
 		return "expired_message"
 	default:
 		return "invalid_executing_message"
@@ -192,14 +192,14 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 	if b.FailsafeEnabled() {
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("failsafe")
-		return types.ErrFailsafeEnabled
+		return interop.ErrFailsafeEnabled
 	}
 
 	if !b.Ready() {
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("failsafe")
 		b.log.Debug("Backend not ready; rejecting access list check")
-		return types.ErrUninitialized
+		return interop.ErrUninitialized
 	}
 
 	if !supportedSafetyLevel(minSafety) {
@@ -213,7 +213,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		if !b.legacyCheckAccessListFormat {
 			b.metrics.RecordCheckAccessList(false)
 			b.metrics.RecordCheckAccessListRejection("unknown_chain")
-			return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, types.ErrUnknownChain)
+			return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, interop.ErrUnknownChain)
 		}
 		b.log.Debug("Supporting legacy check access list format", "executing_chain", execDescriptor.ChainID)
 	}
@@ -245,7 +245,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 func (b *Backend) GetBlockHashByNumber(chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error) {
 	ingester, ok := b.chains[chainID]
 	if !ok {
-		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, types.ErrUnknownChain)
+		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, interop.ErrUnknownChain)
 	}
 
 	if blockNum == rpc.LatestBlockNumber {

@@ -14,10 +14,10 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Source interface {
@@ -156,7 +156,7 @@ func (s *ChainProcessor) index() {
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			s.log.Debug("indexer cannot find next block yet", "target", target, "err", err)
-		} else if errors.Is(err, types.ErrNoRPCSource) {
+		} else if errors.Is(err, interop.ErrNoRPCSource) {
 			s.log.Warn("No RPC source configured, cannot process new blocks")
 		} else {
 			s.log.Error("Failed to index blocks", "err", err)
@@ -214,7 +214,7 @@ func (s *ChainProcessor) rangeUpdate(target uint64) (int, error) {
 	s.clientLock.Lock()
 	defer s.clientLock.Unlock()
 	if len(s.clients) == 0 {
-		return 0, types.ErrNoRPCSource
+		return 0, interop.ErrNoRPCSource
 	}
 
 	// define the range of blocks to fetch

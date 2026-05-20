@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/binary"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -115,7 +115,7 @@ func (t *resetTracker) bisect(ctx context.Context) error {
 	}
 
 	// Check if the block at i is consistent with the local-safe DB,
-	if err = t.backend.IsLocalSafe(internalCtx, nodeI); errors.Is(err, types.ErrFuture) || errors.Is(err, types.ErrConflict) {
+	if err = t.backend.IsLocalSafe(internalCtx, nodeI); errors.Is(err, interop.ErrFuture) || errors.Is(err, interop.ErrConflict) {
 		// TODO: do we need to add more sentinel errors here?
 		t.log.Debug("midpoint of range is inconsistent. pulling back end of range", "i", i)
 		t.z = nodeI

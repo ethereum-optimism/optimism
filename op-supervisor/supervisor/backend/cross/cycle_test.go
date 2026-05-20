@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -214,7 +214,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 					},
 				},
 			},
-			expectErr: types.ErrConflict,
+			expectErr: interop.ErrConflict,
 			msg:       "expected self reference detection error",
 		},
 		{

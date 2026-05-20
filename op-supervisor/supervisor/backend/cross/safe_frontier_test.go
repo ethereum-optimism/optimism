@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -47,12 +48,12 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// (ie the hazard's block number is greater than the source block number),
 		// an error is returned as a ErrOutOfScope
 		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
-		require.ErrorIs(t, err, types.ErrOutOfScope)
+		require.ErrorIs(t, err, interop.ErrOutOfScope)
 	})
 	t.Run("errFuture: candidate cross safe failure", func(t *testing.T) {
 		sfcd := &mockSafeFrontierCheckDeps{}
 		sfcd.crossSourceFn = func() (messages.BlockSeal, error) {
-			return messages.BlockSeal{Number: 3}, types.ErrFuture
+			return messages.BlockSeal{Number: 3}, interop.ErrFuture
 		}
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
@@ -72,7 +73,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 	t.Run("errFuture: expected block does not match candidate", func(t *testing.T) {
 		sfcd := &mockSafeFrontierCheckDeps{}
 		sfcd.crossSourceFn = func() (messages.BlockSeal, error) {
-			return messages.BlockSeal{}, types.ErrFuture
+			return messages.BlockSeal{}, interop.ErrFuture
 		}
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
@@ -87,12 +88,12 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// (ie the candidate's block number is the same as the hazard's block number, but the hashes are different),
 		// an error is returned as a ErrConflict
 		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 	})
 	t.Run("errFuture: local-safe hazard out of scope", func(t *testing.T) {
 		sfcd := &mockSafeFrontierCheckDeps{}
 		sfcd.crossSourceFn = func() (messages.BlockSeal, error) {
-			return messages.BlockSeal{}, types.ErrFuture
+			return messages.BlockSeal{}, interop.ErrFuture
 		}
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
@@ -107,7 +108,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// and the initSource is out of scope,
 		// an error is returned as a ErrOutOfScope
 		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
-		require.ErrorIs(t, err, types.ErrOutOfScope)
+		require.ErrorIs(t, err, interop.ErrOutOfScope)
 	})
 	t.Run("CrossSource Error", func(t *testing.T) {
 		sfcd := &mockSafeFrontierCheckDeps{}
@@ -131,13 +132,13 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 	t.Run("Hazard Chain Out of Scope is translated to ErrFuture", func(t *testing.T) {
 		sfcd := &mockSafeFrontierCheckDeps{}
 		sfcd.crossSourceFn = func() (messages.BlockSeal, error) {
-			return messages.BlockSeal{}, types.ErrFuture
+			return messages.BlockSeal{}, interop.ErrFuture
 		}
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
 				Source:  eth.BlockRef{Number: 9},
 				Derived: eth.BlockRef{},
-			}, types.ErrOutOfScope
+			}, interop.ErrOutOfScope
 		}
 		l1Source := eth.BlockID{Number: 8}
 		hazards := map[eth.ChainID]messages.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3, Hash: common.BytesToHash([]byte{0x02})}}
@@ -145,7 +146,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// and the initSource is out of scope,
 		// an error is returned as a ErrOutOfScope
 		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
-		require.ErrorIs(t, err, types.ErrFuture)
+		require.ErrorIs(t, err, interop.ErrFuture)
 	})
 }
 

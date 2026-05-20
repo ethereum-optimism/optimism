@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -75,10 +76,10 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrAwaitReplacementBlock
+			return eth.BlockRef{}, 0, nil, interop.ErrAwaitReplacementBlock
 		}
 		err := CrossSafeUpdate(logger, chainID, csd, linkerAny{})
-		require.ErrorIs(t, err, types.ErrAwaitReplacementBlock)
+		require.ErrorIs(t, err, interop.ErrAwaitReplacementBlock)
 	})
 	t.Run("scopedCrossSafeUpdate returns ErrConflict and triggers invalidate-local-safe", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
@@ -93,7 +94,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrConflict
+			return eth.BlockRef{}, 0, nil, interop.ErrConflict
 		}
 		invalidated := false
 		csd.invalidateLocalSafeFn = func(id eth.ChainID, p types.DerivedBlockRefPair) error {
@@ -120,7 +121,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrOutOfScope
+			return eth.BlockRef{}, 0, nil, interop.ErrOutOfScope
 		}
 		newScope := eth.BlockRef{Number: 3}
 		csd.nextSourceFn = func(chain eth.ChainID, source eth.BlockID) (after eth.BlockRef, err error) {
@@ -167,7 +168,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrOutOfScope
+			return eth.BlockRef{}, 0, nil, interop.ErrOutOfScope
 		}
 		csd.nextSourceFn = func(chain eth.ChainID, source eth.BlockID) (after eth.BlockRef, err error) {
 			return eth.BlockRef{}, errors.New("some error")
@@ -191,7 +192,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrOutOfScope
+			return eth.BlockRef{}, 0, nil, interop.ErrOutOfScope
 		}
 		csd.previousDerivedFn = func(chain eth.ChainID, derived eth.BlockID) (prevDerived messages.BlockSeal, err error) {
 			return messages.BlockSeal{}, errors.New("some error")
@@ -215,7 +216,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 			}, nil
 		}
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrOutOfScope
+			return eth.BlockRef{}, 0, nil, interop.ErrOutOfScope
 		}
 		csd.updateCrossSafeFn = func(chain eth.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error {
 			return errors.New("some error")
@@ -273,7 +274,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
 		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 		require.Equal(t, eth.BlockRef{}, pair.Source)
 	})
 	t.Run("CrossSafeHazards returns error", func(t *testing.T) {
@@ -414,7 +415,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
 		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerNone{})
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 		require.Equal(t, eth.BlockRef{}, pair.Source)
 	})
 	t.Run("successful update", func(t *testing.T) {

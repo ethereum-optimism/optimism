@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -47,9 +47,9 @@ func (m *mockResetBackend) IsLocalSafe(ctx context.Context, block eth.BlockID) e
 		if safeBlock == block {
 			return nil
 		}
-		return types.ErrConflict
+		return interop.ErrConflict
 	}
-	return types.ErrFuture
+	return interop.ErrFuture
 }
 
 func (m *mockResetBackend) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
