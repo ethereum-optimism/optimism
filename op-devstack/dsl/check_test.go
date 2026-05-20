@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -111,7 +112,9 @@ func TestMatchedWithProgressFn_KeepsWaitingWhileProgressing(t *testing.T) {
 	go func() {
 		defer driverWG.Done()
 		for i := 6; i <= 12; i++ {
-			time.Sleep(500 * time.Millisecond)
+			if err := clock.SystemClock.SleepCtx(ctx, 500*time.Millisecond); err != nil {
+				return
+			}
 			base.set(types.LocalUnsafe, uint64(i), common.BigToHash(common.Big1))
 		}
 		// Now let CrossSafe match.

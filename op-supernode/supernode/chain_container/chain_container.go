@@ -38,10 +38,12 @@ const virtualNodeVersion = "0.1.0"
 // retrying; recovery requires operator intervention.
 var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node")
 
-// ErrSafeDBEmpty is returned by FirstSafeHeadTimestamp when SafeDB has no
-// entries yet. This is a transient condition during cold start while the VN
-// derives its first safe head; callers should back off and retry.
-var ErrSafeDBEmpty = errors.New("safedb has no entries yet")
+// ErrSafeDBNotReady is returned by FirstSafeHeadTimestamp when SafeDB does not
+// yet have a stable first entry: either it has no entries at all, or the
+// deriver has not advanced past the first entry's L1 (so SafeHeadUpdated may
+// still overwrite the L2 value at that L1 key). This is a transient condition
+// during cold start; callers should back off and retry.
+var ErrSafeDBNotReady = errors.New("safedb not ready: no stable first entry yet")
 
 type ChainContainer interface {
 	Start(ctx context.Context) error
@@ -56,8 +58,8 @@ type ChainContainer interface {
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
 	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
 	// FirstSafeHeadTimestamp returns the L2 block timestamp of the first
-	// entry in this chain's SafeDB. Returns ErrSafeDBEmpty when the chain
-	// has not yet derived a safe head.
+	// entry in this chain's SafeDB. Returns ErrSafeDBNotReady when the chain
+	// has not yet derived a stable first safe head.
 	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
@@ -422,17 +424,32 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
 }
 
+// FirstSafeHeadTimestamp returns the timestamp of SafeDB's first entry, but
+// only once the deriver has moved past that entry's L1. SafeHeadUpdated
+// overwrites entries at the same L1 key, so until then the L2 value is still
+// in flight and snapshots can go stale. Sample SyncStatus before
+// FirstSafeHeadEntry so firstEntry.L1 < capturedCurrentL1 implies the writes
+// at that L1 had already completed.
 func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
 	vn := c.getVN()
 	if vn == nil {
 		return 0, virtual_node.ErrVirtualNodeNotRunning
 	}
-	_, l2, err := vn.FirstSafeHeadEntry(ctx)
+	status, err := vn.SyncStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("sync status: %w", err)
+	}
+	l1, l2, err := vn.FirstSafeHeadEntry(ctx)
 	if err != nil {
 		if errors.Is(err, safedb.ErrNotFound) {
-			return 0, ErrSafeDBEmpty
+			return 0, ErrSafeDBNotReady
 		}
 		return 0, fmt.Errorf("first safedb entry: %w", err)
+	}
+	if status.CurrentL1.Number <= l1.Number {
+		c.log.Debug("first SafeDB entry not yet stable: deriver still on its L1",
+			"first_l1", l1.Number, "current_l1", status.CurrentL1.Number)
+		return 0, ErrSafeDBNotReady
 	}
 	return c.BlockNumberToTimestamp(ctx, l2.Number)
 }

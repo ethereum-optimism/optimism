@@ -70,7 +70,7 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 	for range i.chains {
 		r := <-results
 		if r.err != nil {
-			if errors.Is(r.err, cc.ErrSafeDBEmpty) {
+			if errors.Is(r.err, cc.ErrSafeDBNotReady) {
 				emptyAny = true
 				i.log.Debug("interop cold start: chain SafeDB empty, waiting", "chain", r.id)
 				continue

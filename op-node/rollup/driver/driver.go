@@ -490,26 +490,26 @@ func (s *Driver) followUpstream() {
 	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
-		s.metrics.RecordFollowSourceError("fetch_status")
+		s.metrics.RecordFollowSourceRequest("error_fetch_status")
 		return
 	}
 	s.log.Info("Follow Upstream", "eSafe", status.SafeL2, "eLocalSafe", status.LocalSafeL2, "eFinalized", status.FinalizedL2, "eCurrentL1", status.CurrentL1)
 	if status.SafeL2.Number > status.LocalSafeL2.Number {
 		s.log.Warn("Follow Upstream: Invalid external state, safe is ahead of local safe",
 			"safe", status.SafeL2.Number, "localSafe", status.LocalSafeL2.Number)
-		s.metrics.RecordFollowSourceError("invalid_state")
+		s.metrics.RecordFollowSourceRequest("error_invalid_state")
 		return
 	}
 	if status.FinalizedL2.Number > status.SafeL2.Number {
 		s.log.Warn("Follow Upstream: Invalid external state, finalized is ahead of safe", "safe", status.SafeL2.Number, "finalized", status.FinalizedL2.Number)
-		s.metrics.RecordFollowSourceError("invalid_state")
+		s.metrics.RecordFollowSourceRequest("error_invalid_state")
 		return
 	}
 
 	eLocalSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.LocalSafeL2.L1Origin.Number)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external local safe head", "err", err)
-		s.metrics.RecordFollowSourceError("l1_lookup")
+		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 		return
 	}
 	if eLocalSafeL1Origin.Hash != status.LocalSafeL2.L1Origin.Hash {
@@ -518,14 +518,14 @@ func (s *Driver) followUpstream() {
 			"actual", eLocalSafeL1Origin,
 			"expected", status.LocalSafeL2.L1Origin,
 		)
-		s.metrics.RecordFollowSourceError("l1_mismatch")
+		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
 		return
 	}
 
 	eSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.SafeL2.L1Origin.Number)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external safe head", "err", err)
-		s.metrics.RecordFollowSourceError("l1_lookup")
+		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 		return
 	}
 	if eSafeL1Origin.Hash != status.SafeL2.L1Origin.Hash {
@@ -534,14 +534,14 @@ func (s *Driver) followUpstream() {
 			"actual", eSafeL1Origin,
 			"expected", status.SafeL2.L1Origin,
 		)
-		s.metrics.RecordFollowSourceError("l1_mismatch")
+		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
 		return
 	}
 
 	eFinalizedL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.FinalizedL2.L1Origin.Number)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external finalized head", "err", err)
-		s.metrics.RecordFollowSourceError("l1_lookup")
+		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 		return
 	}
 	if eFinalizedL1Origin.Hash != status.FinalizedL2.L1Origin.Hash {
@@ -550,7 +550,7 @@ func (s *Driver) followUpstream() {
 			"actual", eFinalizedL1Origin,
 			"expected", status.FinalizedL2.L1Origin,
 		)
-		s.metrics.RecordFollowSourceError("l1_mismatch")
+		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
 		return
 	}
 
@@ -560,7 +560,7 @@ func (s *Driver) followUpstream() {
 		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
 		if err != nil {
 			s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
-			s.metrics.RecordFollowSourceError("l1_lookup")
+			s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 			return
 		}
 		if eCurrentL1.Hash != status.CurrentL1.Hash {
@@ -569,7 +569,7 @@ func (s *Driver) followUpstream() {
 				"actual", eCurrentL1,
 				"expected", status.CurrentL1,
 			)
-			s.metrics.RecordFollowSourceError("l1_mismatch")
+			s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
 			return
 		}
 
@@ -577,6 +577,6 @@ func (s *Driver) followUpstream() {
 		s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
 	}
 	// Only reach this point if all L1 checks passed
-	s.metrics.RecordFollowSourceSuccess()
+	s.metrics.RecordFollowSourceRequest("success")
 	s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
 }

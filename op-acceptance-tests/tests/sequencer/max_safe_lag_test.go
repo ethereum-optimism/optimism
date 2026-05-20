@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,7 +75,7 @@ func TestMaxSafeLagStallAndResume(gt *testing.T) {
 
 	// Confirm the stall holds for enough samples to cover at least one L1 block.
 	for range stableSamples {
-		time.Sleep(time.Duration(blockTime) * time.Second)
+		require.NoError(t, clock.SystemClock.SleepCtx(t.Ctx(), time.Duration(blockTime)*time.Second)) // nosemgrep: flake-sleep-in-test -- stall confirmation requires wall-clock spacing; no chain event to wait on
 		status := sys.L2CL.SyncStatus()
 		require.Equal(t, stalledUnsafe, status.UnsafeL2.Number,
 			"sequencer was expected to stay stalled but unsafe head advanced: %d -> %d",

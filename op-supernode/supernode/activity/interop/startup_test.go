@@ -92,7 +92,7 @@ func TestAdvanceColdStartInit_WaitsWhenAnyChainEmpty(t *testing.T) {
 			m.firstSafeHeadTimestampSet = true
 		}).
 		WithChain(20, func(m *mockChainContainer) {
-			// Default: returns ErrSafeDBEmpty.
+			// Default: returns ErrSafeDBNotReady.
 		}).
 		Build()
 	// Harness pre-sets initialized=true for tests that drive the verify
@@ -102,7 +102,7 @@ func TestAdvanceColdStartInit_WaitsWhenAnyChainEmpty(t *testing.T) {
 
 	advanced, err := h.interop.advanceColdStartInit()
 	require.NoError(t, err)
-	require.False(t, advanced, "must wait when any chain reports ErrSafeDBEmpty")
+	require.False(t, advanced, "must wait when any chain reports ErrSafeDBNotReady")
 	require.False(t, h.interop.initialized.Load())
 }
 
@@ -150,7 +150,7 @@ func TestAdvanceColdStartInit_PicksMaxClampedToActivation(t *testing.T) {
 }
 
 // TestAdvanceColdStartInit_PropagatesNonEmptyErrors confirms that
-// FirstSafeHeadTimestamp errors other than ErrSafeDBEmpty are fatal.
+// FirstSafeHeadTimestamp errors other than ErrSafeDBNotReady are fatal.
 func TestAdvanceColdStartInit_PropagatesNonEmptyErrors(t *testing.T) {
 
 	fault := errors.New("vn not running")
@@ -568,4 +568,4 @@ func TestFirstVerifiableTimestamp_ErrNotStartedBeforeInit(t *testing.T) {
 }
 
 // _ ensures the cc import is retained even if helpers shift.
-var _ = cc.ErrSafeDBEmpty
+var _ = cc.ErrSafeDBNotReady

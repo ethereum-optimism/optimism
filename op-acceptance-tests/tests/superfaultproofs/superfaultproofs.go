@@ -267,7 +267,7 @@ func marshalTransition(superRoot eth.SuperV1, step uint64, progress ...interopTy
 // in-progress L1 block.
 func awaitFullyProcessedL1(t devtest.T, queryAPI apis.SupernodeQueryAPI, targetL1 uint64) {
 	t.Require().Eventually(func() bool {
-		ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Ctx(), dsl.DefaultTimeout)
 		defer cancel()
 		resp, err := queryAPI.SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
 		if err != nil {

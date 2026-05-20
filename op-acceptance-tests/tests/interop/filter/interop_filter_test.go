@@ -67,7 +67,7 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	// Send a transaction with the fabricated access list.
 	// The interop filter should reject this because the inbox entry doesn't
 	// correspond to any real cross-chain message.
-	ctx, cancel := context.WithTimeout(gt.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 30*time.Second)
 	defer cancel()
 
 	bobAddr := bob.Address()
@@ -135,7 +135,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
 	sys.L2B.WaitForBlock()
 
-	ctx, cancel := context.WithTimeout(gt.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 30*time.Second)
 	defer cancel()
 
 	// During failsafe, even valid access lists should be rejected

@@ -13,6 +13,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -54,6 +55,13 @@ type mockVirtualNode struct {
 	// instead of the synthesised default built from safeHeadL1/safeHeadL2.
 	// When nil, the default synthesis below is used.
 	syncStatusOverride func() (*eth.SyncStatus, error)
+
+	// Decouples FirstSafeHeadEntry's result from safeHeadL1/L2 (read by
+	// SyncStatus, SafeHeadAtL1, etc.).
+	firstSafeHeadEntryOverride func() (eth.BlockID, eth.BlockID, error)
+
+	// Order in which mock methods were invoked.
+	methodCalls []string
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -113,6 +121,12 @@ func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) 
 
 // FirstSafeHeadEntry implements virtual_node.VirtualNode FirstSafeHeadEntry
 func (m *mockVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "FirstSafeHeadEntry")
+	m.mu.Unlock()
+	if m.firstSafeHeadEntryOverride != nil {
+		return m.firstSafeHeadEntryOverride()
+	}
 	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
 }
 
@@ -123,6 +137,9 @@ func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 
 // SyncStatus implements virtual_node.VirtualNode SyncStatus
 func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "SyncStatus")
+	m.mu.Unlock()
 	if m.syncStatusOverride != nil {
 		return m.syncStatusOverride()
 	}
@@ -1382,4 +1399,153 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	_, err = impl.BlockNumberToTimestamp(context.Background(), 99)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "before genesis 100")
+}
+
+// Returns ErrSafeDBNotReady until the deriver's currentL1 has moved past
+// firstEntry.L1; only then is the entry's L2 final.
+func TestChainContainer_FirstSafeHeadTimestamp_StableSnapshot(t *testing.T) {
+	t.Parallel()
+
+	const blockTime = 2
+	const genesisL2Time = 1000
+
+	type tc struct {
+		name       string
+		firstEntry func() (eth.BlockID, eth.BlockID, error)
+		syncStatus func() (*eth.SyncStatus, error)
+		wantErr    error
+		wantTS     uint64
+	}
+	for _, c := range []tc{
+		{
+			name: "empty SafeDB -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver still on firstEntry's L1 -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 4}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver below firstEntry's L1 (impossible but defensive) -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 3}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver past firstEntry's L1 -> returns timestamp",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantTS: genesisL2Time + 23*blockTime,
+		},
+		{
+			name: "SyncStatus error propagates",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return nil, errors.New("rpc down")
+			},
+			wantErr: nil, // checked via Contains below
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			vncfg := createTestVNConfig()
+			vncfg.Rollup.Genesis.L2Time = genesisL2Time
+			vncfg.Rollup.BlockTime = blockTime
+			log := createTestLogger(t)
+
+			mockVN := newMockVirtualNode()
+			mockVN.firstSafeHeadEntryOverride = c.firstEntry
+			mockVN.syncStatusOverride = c.syncStatus
+
+			impl := &simpleChainContainer{
+				chainID: eth.ChainIDFromUInt64(420),
+				log:     log,
+				vncfg:   vncfg,
+				vn:      mockVN,
+			}
+
+			ts, err := impl.FirstSafeHeadTimestamp(context.Background())
+			if c.wantErr != nil {
+				require.ErrorIs(t, err, c.wantErr)
+				require.Zero(t, ts)
+				return
+			}
+			if c.name == "SyncStatus error propagates" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "sync status")
+				require.Contains(t, err.Error(), "rpc down")
+				require.Zero(t, ts)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, c.wantTS, ts)
+		})
+	}
+}
+
+// SyncStatus must be sampled before FirstSafeHeadEntry; the reverse order
+// admits a race where the deriver finishes firstEntry.L1 between reads.
+func TestChainContainer_FirstSafeHeadTimestamp_SamplesSyncStatusFirst(t *testing.T) {
+	t.Parallel()
+
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+
+	mockVN := newMockVirtualNode()
+	mockVN.firstSafeHeadEntryOverride = func() (eth.BlockID, eth.BlockID, error) {
+		return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+	}
+	mockVN.syncStatusOverride = func() (*eth.SyncStatus, error) {
+		return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+	}
+
+	impl := &simpleChainContainer{
+		chainID: eth.ChainIDFromUInt64(420),
+		log:     log,
+		vncfg:   vncfg,
+		vn:      mockVN,
+	}
+
+	_, err := impl.FirstSafeHeadTimestamp(context.Background())
+	require.NoError(t, err)
+
+	mockVN.mu.Lock()
+	defer mockVN.mu.Unlock()
+	require.GreaterOrEqual(t, len(mockVN.methodCalls), 2)
+	syncIdx, firstIdx := -1, -1
+	for i, name := range mockVN.methodCalls {
+		if name == "SyncStatus" && syncIdx == -1 {
+			syncIdx = i
+		}
+		if name == "FirstSafeHeadEntry" && firstIdx == -1 {
+			firstIdx = i
+		}
+	}
+	require.NotEqual(t, -1, syncIdx, "SyncStatus should have been called")
+	require.NotEqual(t, -1, firstIdx, "FirstSafeHeadEntry should have been called")
+	require.Less(t, syncIdx, firstIdx,
+		"SyncStatus must be sampled before FirstSafeHeadEntry — the reverse order admits a race; methodCalls=%v", mockVN.methodCalls)
 }

@@ -1074,7 +1074,7 @@ func (m *algoMockChain) BlockNumberToTimestamp(ctx context.Context, blocknum uin
 	return 0, nil
 }
 func (m *algoMockChain) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
-	return 0, cc.ErrSafeDBEmpty
+	return 0, cc.ErrSafeDBNotReady
 }
 func (m *algoMockChain) ID() eth.ChainID                                  { return m.id }
 func (m *algoMockChain) Start(ctx context.Context) error                  { return nil }

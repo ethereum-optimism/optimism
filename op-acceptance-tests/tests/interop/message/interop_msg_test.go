@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -149,8 +150,8 @@ func TestRandomDirectedGraph(gt *testing.T) {
 	fundAmount := eth.OneTenthEther
 
 	// jitter randomizes tx
-	jitter := func(rng *rand.Rand) {
-		time.Sleep(time.Duration(rng.Intn(250)) * time.Millisecond)
+	jitter := func(ctx context.Context, rng *rand.Rand) error {
+		return clock.SystemClock.SleepCtx(ctx, time.Duration(rng.Intn(250))*time.Millisecond) // nosemgrep: flake-sleep-in-test -- deliberate jitter for load test tx ordering
 	}
 
 	// fund EOAs per chain
@@ -190,7 +191,9 @@ func TestRandomDirectedGraph(gt *testing.T) {
 					case <-ctx.Done():
 						return ctx.Err()
 					}
-					jitter(publisherRng)
+					if err := jitter(ctx, publisherRng); err != nil {
+						return err
+					}
 				}
 			}
 			return nil
@@ -216,7 +219,9 @@ func TestRandomDirectedGraph(gt *testing.T) {
 						"destChainID", tx.PlannedTx.ChainID.Value(),
 						"sourceBlockNum", dependsOn.PlannedTx.IncludedBlock.Value().Number,
 						"destBlockNum", receipt.BlockNumber)
-					jitter(subscriberRng)
+					if err := jitter(ctx, subscriberRng); err != nil {
+						return err
+					}
 				}
 			}
 		})

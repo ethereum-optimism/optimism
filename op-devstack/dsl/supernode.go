@@ -103,6 +103,48 @@ func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
 	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
 }
 
+// AwaitFinalizationAdvanced reads the supernode's current finalized timestamp
+// from supernode_syncStatus and waits until it strictly advances past that
+// value, then returns the new finalized timestamp. The first call therefore
+// guarantees finalization has progressed past genesis (since genesis is the
+// initial finalized timestamp).
+func (s *Supernode) AwaitFinalizationAdvanced() uint64 {
+	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
+	defer cancel()
+	initial, err := s.inner.QueryAPI().SyncStatus(ctx)
+	s.require.NoError(err, "failed to read initial supernode sync status")
+	start := initial.FinalizedTimestamp
+	var ts uint64
+	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
+		status, err := s.inner.QueryAPI().SyncStatus(ctx)
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		if status.FinalizedTimestamp <= start {
+			return false, nil
+		}
+		ts = status.FinalizedTimestamp
+		return true, nil
+	})
+	s.require.NoError(err, "supernode finalized timestamp did not advance past %d in time", start)
+	return ts
+}
+
+// SuperRootAt returns the validated super-root at the given timestamp,
+// asserting that all expectedChainIDs are present. The timestamp must already
+// be finalized; this method does not wait for finalization.
+func (s *Supernode) SuperRootAt(timestamp uint64, expectedChainIDs ...eth.ChainID) eth.SuperRootAtTimestampResponse {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
+	s.require.NoError(err, "failed to query super-root at timestamp %d", timestamp)
+	s.require.NotNil(resp.Data, "supernode returned no super-root data at finalized timestamp %d", timestamp)
+	for _, chainID := range expectedChainIDs {
+		s.require.Contains(resp.ChainIDs, chainID, "supernode super-root at timestamp %d missing chain %s", timestamp, chainID)
+	}
+	return resp
+}
+
 // interopActivity returns the currently running interop activity, failing
 // the test if test control is not wired up or the activity is not present.
 // All methods below that exercise the interop activity route through this

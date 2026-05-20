@@ -101,7 +101,6 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 	ctxInvalid, cancelInvalid := context.WithCancel(t.Ctx())
 	defer cancelInvalid()
 	var wg sync.WaitGroup
-	defer wg.Wait()
 
 	// Spam a fixed number of invalid messages per block time.
 	wg.Add(1)
@@ -125,4 +124,11 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 		s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(observer))
 		s.Run(t, NewRelaySpammer(l2A, l2B))
 	}()
+
+	// Block until the goroutines exit (when t.Ctx() expires after the setupLoadTest
+	// timeout). Using an explicit Wait — rather than defer wg.Wait() — keeps the
+	// goroutines' ctxInvalid alive for the full test duration. A deferred closure
+	// that cancels ctxInvalid before waiting would race with the goroutine's
+	// startup, since the test body returns immediately after spawning them.
+	wg.Wait()
 }
