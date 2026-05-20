@@ -83,7 +83,8 @@ Versions marked `TBD` will be pinned in this notice once the activation release 
 
 The migration has four phases.
 Complete each one and verify it on testnet before the activation timestamp.
-The order matters: the [supernode](/op-stack/interop/supernode) needs its execution clients up first, and the [Light CL fleet](/notices/specialized-node-topology) needs the supernode up before it can follow.
+Start the execution clients first, then the supernode — the supernode drives the ELs through their sync, because an EL has no way to know what chain head to target on its own.
+Light CLs come last, since they follow the supernode.
 Full per-flag reference for the supernode is in the [supernode configuration guide](/node-operators/guides/configuration/supernode); this notice walks through the testnet-specific setup.
 
 The command examples in each step are minimum viable configurations — they cover the flags required for the interop topology and nothing else.
@@ -93,8 +94,11 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   <Step title="Stand up execution clients for both chains">
   Run at least one op-reth process for OP Sepolia and at least one for Unichain Sepolia.
   Execution clients are not shared across chains; each supernode instance connects to exactly one engine-API endpoint per chain, and production fleets typically run several execution clients per chain to match the supernode tier and Light CL pool.
-  Each execution client needs its own JWT secret file (or a single shared file — see the note at the end of this step) and its own engine-API listen address.
-  Snap-sync or full-sync each client to the chain head before bringing the supernode up — the supernode cannot advance a chain whose execution client is still syncing.
+  Each execution client needs its own JWT secret file (a single shared file across both ELs is fine — see the note at the end of this step) and its own engine-API listen address.
+  ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
+  The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
+  Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required).
+  If you also run op-challenger for permissionless fault proofs, these ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs). Pure node operators (RPC, exchange, indexer) without op-challenger can skip that.
 
   ```bash
   # OP Sepolia execution client
@@ -114,12 +118,13 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --authrpc.jwtsecret=/etc/op/jwt-secret.txt
   ```
 
-  Both processes can share a single JWT secret file when the supernode is the only consensus client connecting to them.
-  Use separate files only if a different consensus client also connects to one of them.
+  Each EL has exactly one consensus client connected to it — the supernode's virtual node for that chain.
+  Sharing the same JWT secret file across both ELs is the simplest configuration; the supernode references it once via `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`.
   </Step>
 
   <Step title="Stand up op-supernode for both chains">
-  Run op-supernode with both chains in `--chains`, a shared L1 RPC, a shared beacon endpoint, and at least one beacon archive fallback.
+  Run op-supernode with both chains in `--chains`, a shared L1 RPC, and a shared beacon endpoint.
+  A beacon archive fallback is optional — only required if your primary beacon node doesn't keep the full blob history the supernode might need to backfill (Ethereum beacon nodes typically prune blob sidecars after roughly 18 days).
   The example below uses environment variables; pass the equivalent `--flag` arguments if that fits your deployment better.
   Fill in the placeholders before starting the binary.
 
@@ -131,7 +136,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   # Shared L1 access
   OP_SUPERNODE_L1_ETH_RPC: <your-sepolia-l1-eth-rpc>
   OP_SUPERNODE_L1_BEACON: <your-sepolia-l1-beacon-rpc>
-  OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-sepolia-l1-beacon-archiver-rpc>
+  # OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-sepolia-l1-beacon-archiver-rpc>  # optional; add if your primary beacon prunes blob sidecars
 
   # Shared JWT secret for every virtual node's engine connection
   OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
@@ -147,29 +152,12 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
   OP_SUPERNODE_RPC_ADDR: 0.0.0.0
   OP_SUPERNODE_RPC_PORT: "8545"
-
-  # Observability
-  OP_SUPERNODE_LOG_LEVEL: info
-  OP_SUPERNODE_METRICS_ENABLED: "true"
-  OP_SUPERNODE_METRICS_ADDR: 0.0.0.0
-  OP_SUPERNODE_METRICS_PORT: "7300"
-
-  # Pre-activation only: override the interop activation timestamp until
-  # the chains' rollup configs include `lagoon_time` (the field carrying the
-  # Lagoon hardfork activation — the upgrade that enables interop).
-  # Set to a future epoch-seconds value (e.g., late June 2026 once announced).
-  # Drop this line once OP Sepolia and Unichain Sepolia rollup configs ship `lagoon_time`.
-  OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP: "<future-unix-timestamp>"
   ```
 
-  <Warning>
-    op-supernode defaults `--interop.log-backfill-depth` to 7 days, which requires an interop activation timestamp to be known.
-    Until OP Sepolia and Unichain Sepolia rollup configs ship `lagoon_time` (the Lagoon hardfork activation field that lights up interop, set close to activation), the supernode exits at startup with `interop.log-backfill-depth=168h0m0s requires an interop activation timestamp`.
-    Set `OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP` (or `--interop.activation-timestamp`) to a future epoch-seconds value while testing, or set `OP_SUPERNODE_INTEROP_LOG_BACKFILL_DEPTH=0s` to disable the backfill.
-  </Warning>
+  The supernode picks up the interop activation timestamp and the dependency set from the rollup configs once those land in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) — no manual override is required at this layer.
 
-  Configure the beacon archive fallback from the start.
-  A supernode that has been offline past a regular beacon node's blob-prune window (about 18 days) cannot recover the missing blobs from the primary beacon alone, and chain containers will stall at the gap.
+  If your primary beacon node prunes blob sidecars (the Ethereum default is about 18 days), configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service from the start.
+  A supernode that has been offline past the primary beacon's prune window cannot recover the missing blobs alone, and chain containers will stall at the gap.
 
   For the full flag reference and recommendations, see the [supernode configuration guide](/node-operators/guides/configuration/supernode).
   </Step>
@@ -275,4 +263,5 @@ If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default
 * [Specialized op-node topology notice](/notices/specialized-node-topology) — operator-facing pattern for running Light CL fleets behind a safe source.
 * [Interop reorg awareness](/op-stack/interop/reorg) — how the safety model handles equivocation and L1 reorgs.
 * [Cross-chain security measures](/op-stack/security/interop-security) — how the safety level for inbound cross-chain messages is configured at the chain level.
+* [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) — only relevant if you also run op-challenger; configures the supernode's ELs to serve historical proofs.
 
