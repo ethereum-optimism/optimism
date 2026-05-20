@@ -4,7 +4,7 @@
 [karst]
   bundle = "op-core/nuts/bundles/karst_nut_bundle.json"
   hash = "sha256:6114640baa0348c14c130923992b5107a79d5a0feb03216618f9f93bffb88be5"
-  commit = "3aeb762b541ac421cc515216360afd4476a9a0e8"
+  commit = "0905bb28484b2069e58509f8aa1448c31e81f05f"
 
 [interop]
   bundle = "op-core/nuts/bundles/interop_nut_bundle.json"
