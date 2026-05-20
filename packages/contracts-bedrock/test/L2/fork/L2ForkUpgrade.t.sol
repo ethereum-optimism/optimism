@@ -805,14 +805,93 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Converts RPC logs from `vm.eth_getLogs` into the shape returned by `vm.getRecordedLogs`.
     /// @param _ethLogs The RPC logs from `vm.eth_getLogs`.
-    /// @return logs The logs in the shape returned by `vm.getRecordedLogs`.
-    function _ethGetLogsToLogs(Vm.EthGetLogs[] memory _ethLogs) internal pure returns (Vm.Log[] memory logs) {
-        logs = new Vm.Log[](_ethLogs.length);
+    /// @return logs_ The logs in the shape returned by `vm.getRecordedLogs`.
+    function _ethGetLogsToLogs(Vm.EthGetLogs[] memory _ethLogs) internal pure returns (Vm.Log[] memory logs_) {
+        logs_ = new Vm.Log[](_ethLogs.length);
         for (uint256 i = 0; i < _ethLogs.length; i++) {
-            logs[i].topics = _ethLogs[i].topics;
-            logs[i].data = _ethLogs[i].data;
-            logs[i].emitter = _ethLogs[i].emitter;
+            logs_[i].topics = _ethLogs[i].topics;
+            logs_[i].data = _ethLogs[i].data;
+            logs_[i].emitter = _ethLogs[i].emitter;
         }
+    }
+}
+
+/// @title L2ForkUpgrade_ActivationBlockTxns_Test
+/// @notice Verifies the activation block contains the expected NUT bundle transactions.
+contract L2ForkUpgrade_ActivationBlockTxns_Test is L2ForkUpgrade_TestInit {
+    /// @notice Fetches the activation block via RPC and asserts that the NUT bundle transactions
+    ///         are present in the correct order with the correct from, to, and calldata.
+    function test_l2ForkUpgrade_activationBlockContainsNUTBundle_succeeds() public {
+        if (!isL2CMActivationTest()) {
+            vm.skip(true);
+            return;
+        }
+        skipIfUnoptimized();
+
+        // activationBlock is the first block after the pre-fork snapshot where the NUT bundle runs.
+        uint256 activationBlock = Config.l2ForkBlockNumber() + 1;
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundleTxns = _currentBundleTxns();
+
+        // setUp already selected the L2 fork, so vm.rpc uses L2_FORK_RPC_URL.
+        string memory blockJson = string(
+            vm.rpc(
+                "eth_getBlockByNumber",
+                string.concat('["0x', LibString.toHexStringNoPrefix(activationBlock), '", true]')
+            )
+        );
+
+        address[] memory froms = vm.parseJsonAddressArray(blockJson, ".transactions[*].from");
+        address[] memory tos = vm.parseJsonAddressArray(blockJson, ".transactions[*].to");
+        bytes[] memory inputs = vm.parseJsonBytesArray(blockJson, ".transactions[*].input");
+
+        // The activation block also contains the L1 attributes deposit (and potentially other
+        // system transactions) before the NUT bundle. Find the bundle start by matching the
+        // first bundle transaction's from+to.
+        uint256 bundleStart = _findBundleStart(froms, tos, bundleTxns[0]);
+
+        assertGe(
+            froms.length - bundleStart,
+            bundleTxns.length,
+            "Activation block does not contain enough transactions for the full NUT bundle"
+        );
+
+        for (uint256 i = 0; i < bundleTxns.length; i++) {
+            uint256 blockIdx = bundleStart + i;
+            assertEq(
+                froms[blockIdx],
+                bundleTxns[i].from,
+                string.concat("from mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
+            );
+            assertEq(
+                tos[blockIdx],
+                bundleTxns[i].to,
+                string.concat("to mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
+            );
+            assertEq(
+                keccak256(inputs[blockIdx]),
+                keccak256(bundleTxns[i].data),
+                string.concat("data mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
+            );
+        }
+    }
+
+    /// @notice Returns the block transaction index where the NUT bundle starts, identified by
+    ///         matching the first bundle transaction's from+to pair.
+    function _findBundleStart(
+        address[] memory _froms,
+        address[] memory _tos,
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory _firstBundleTxn
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < _froms.length; i++) {
+            if (_froms[i] == _firstBundleTxn.from && _tos[i] == _firstBundleTxn.to) {
+                return i;
+            }
+        }
+        revert("L2ForkUpgrade_ActivationBlockTxns_Test: NUT bundle start not found in activation block");
     }
 }
 
