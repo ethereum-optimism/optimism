@@ -10,55 +10,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckLogBackfillRequiresInteropActivation(t *testing.T) {
+func TestInteropLogBackfillEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
 		depth    time.Duration
 		resolved *uint64
-		wantErr  string
+		want     bool
 	}{
 		{
-			name:     "depth disabled is always fine",
-			depth:    0,
-			resolved: nil,
-		},
-		{
-			name:     "negative depth treated as disabled here; config.Check() rejects negatives",
-			depth:    -time.Second,
-			resolved: nil,
-		},
-		{
-			name:     "depth with CLI-resolved activation",
+			name:     "depth and activation: enabled",
 			depth:    time.Hour,
 			resolved: uint64Ptr(100),
+			want:     true,
 		},
 		{
-			// This is the case config.Check() used to reject outright: the
-			// CLI override is nil, but a rollup-derived activation is a valid
-			// source. checkLogBackfillRequiresInteropActivation doesn't care
-			// which source produced the timestamp — only that one exists.
-			name:     "depth with rollup-derived activation",
+			name:     "depth without activation: disabled, not an error",
 			depth:    time.Hour,
-			resolved: uint64Ptr(200),
+			resolved: nil,
+			want:     false,
 		},
 		{
-			name:    "depth without any activation source is rejected",
-			depth:   time.Hour,
-			wantErr: "requires an interop activation timestamp",
+			name:     "zero depth with activation: disabled",
+			depth:    0,
+			resolved: uint64Ptr(100),
+			want:     false,
+		},
+		{
+			name:     "zero depth without activation: disabled",
+			depth:    0,
+			resolved: nil,
+			want:     false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := checkLogBackfillRequiresInteropActivation(tt.depth, tt.resolved)
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.ErrorContains(t, err, tt.wantErr)
+			require.Equal(t, tt.want, interopLogBackfillEnabled(tt.depth, tt.resolved))
 		})
 	}
 }
