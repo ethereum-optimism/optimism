@@ -133,10 +133,12 @@ func TestTooLongDataEncoding(t *testing.T) {
 func FuzzEncodeDecodeBlob(f *testing.F) {
 	var b Blob
 	f.Fuzz(func(t *testing.T, d []byte) {
+		if len(d) > MaxBlobDataSize {
+			d = d[:MaxBlobDataSize]
+		}
 		b.Clear()
 		data := Data(d)
-		err := b.FromData(data)
-		require.NoError(t, err)
+		require.NoError(t, b.FromData(data))
 		decoded, err := b.ToData()
 		require.NoError(t, err)
 		require.Equal(t, data, decoded)
