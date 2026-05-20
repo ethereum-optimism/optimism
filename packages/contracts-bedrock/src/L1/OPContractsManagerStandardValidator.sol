@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -506,6 +506,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return assertValidSuperPermissionedDisputeGame(_errors, _sysCfg, _admin, _proposer, _errorPrefix);
+        }
+
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
@@ -530,12 +534,52 @@ contract OPContractsManagerStandardValidator is ISemver {
             _buildDisputeGameConfig(_overrides)
         );
 
-        // Challenger is specific to legacy permissioned dispute game contracts.
-        if (_gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-            address _challenger = expectedChallenger(_overrides);
-            _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
-        }
+        address _challenger = expectedChallenger(_overrides);
+        _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
         _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
+
+        return _errors;
+    }
+
+    function assertValidSuperPermissionedDisputeGame(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin,
+        address _proposer,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        {
+            address game = address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+            _errors = internalRequire(game != address(0), string.concat(_errorPrefix, "-10"), _errors);
+            if (game == address(0)) return _errors;
+
+            _errors = internalRequire(
+                LibString.eq(getVersion(game), getVersion(superPermissionedDisputeGameImpl)),
+                string.concat(_errorPrefix, "-20"),
+                _errors
+            );
+        }
+
+        bytes memory gameArgsBytes = dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bool argsOk = LibGameArgs.isValidSuperPermissionedArgs(gameArgsBytes);
+        _errors = internalRequire(argsOk, string.concat(_errorPrefix, "-GARGS-10"), _errors);
+        if (!argsOk) return _errors;
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
+        IAnchorStateRegistry asr = IAnchorStateRegistry(gameArgs.anchorStateRegistry);
+        _errors = internalRequire(gameArgs.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
+
+        (Hash anchorRoot,) = asr.getAnchorRoot();
+
+        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
+        _errors = standardValidatorUtils.assertValidAnchorStateRegistry(
+            _errors, _sysCfg, dgf, asr, _admin, anchorStateRegistryImpl, _errorPrefix
+        );
 
         return _errors;
     }
