@@ -1614,7 +1614,7 @@ jobs:
         default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium.gen2
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
