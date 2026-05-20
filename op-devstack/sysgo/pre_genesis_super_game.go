@@ -26,24 +26,12 @@ import (
 // current head at which the rollup's first L1 block (and L2 genesis) is
 // scheduled. The dispute game creation transaction must be included in an
 // L1 block strictly before this target. The delay is the wall-clock budget
-// (in L1 blocks of l1Net.blockTime each) for:
-//   - the OPCM migration call that registers the super game type and
-//     commits the starting anchor, and
-//   - the dispute game creation submission and inclusion.
-//
-// At an L1 block time of 6s, a delay of 20 gives ~120s of budget — well
-// beyond observed setup times (~40s worst-case on CI). The post-migration
-// head check below converts any remaining budget exhaustion into a fast,
-// explicit setup failure rather than a late-stage flaky assertion.
-const preGenesisRollupStartBlockDelay = uint64(20)
-
-// preGenesisCreateBlockMargin is the minimum number of L1 blocks that must
-// remain between the head observed immediately before submitting the
-// dispute game creation transaction and the planned rollup start block.
-// One block accounts for the standard mining latency between submission
-// and inclusion; the extra margin absorbs an additional block of jitter
-// (e.g. an L1 block being mined while the tx is still in the mempool).
-const preGenesisCreateBlockMargin = uint64(2)
+// (in L1 blocks of l1Net.blockTime each) for the OPCM migration call and
+// the dispute game creation submission and inclusion. At an L1 block time
+// of 6s, a delay of 10 gives ~60s of budget — headroom above the ~40s
+// worst-case observed on CI without making the test wait unnecessarily long
+// for the planned start block.
+const preGenesisRollupStartBlockDelay = uint64(10)
 
 var preGenesisStartingAnchorRoot = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000042")
 
@@ -137,30 +125,6 @@ func preparePreGenesisSuperGame(
 	)
 	initBond, err := contractio.Read(dgf.InitBonds(uint32(gameType)), t.Ctx())
 	require.NoError(err, "failed to read dispute game init bond")
-
-	// Read the L1 head immediately before submitting the dispute game
-	// creation tx. The migration above mines a variable number of L1
-	// blocks; if it has consumed so much of the block budget that
-	// inclusion of the create tx would collide with (or pass) the planned
-	// rollup start block, fail the setup explicitly here instead of
-	// letting the assertion below fire intermittently. This converts the
-	// underlying wall-clock race (anchor pre-commitment locks plannedGenesisTime
-	// and thus plannedRollupStartBlockNumber, while the create tx is included
-	// at the L1 head reached at submission time) into a clear, debuggable
-	// setup failure.
-	preCreateHeader, err := client.HeaderByNumber(t.Ctx(), nil)
-	require.NoError(err, "failed to fetch L1 head before dispute game creation")
-	preCreateHead := bigs.Uint64Strict(preCreateHeader.Number)
-	t.Logger().Info("post-migration L1 head before dispute game creation",
-		"l1_head", preCreateHead,
-		"planned_rollup_start_block", plannedRollupStartBlockNumber,
-		"margin", preGenesisCreateBlockMargin,
-	)
-	require.Greaterf(plannedRollupStartBlockNumber, preCreateHead+preGenesisCreateBlockMargin,
-		"L1 setup race: head=%d, planned rollup start=%d, margin=%d. "+
-			"Setup consumed too many L1 blocks before dispute game creation. "+
-			"Increase preGenesisRollupStartBlockDelay or reduce setup work.",
-		preCreateHead, plannedRollupStartBlockNumber, preGenesisCreateBlockMargin)
 
 	receipt, err := contractio.Write(
 		dgf.Create(uint32(gameType), rootClaim, extraData),
