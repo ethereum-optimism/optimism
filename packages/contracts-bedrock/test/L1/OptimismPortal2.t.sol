@@ -728,6 +728,21 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         forceEnableInterop();
     }
 
+    /// @notice Etches a single byte at `_addr` and mocks accessors so it passes the new
+    ///         lockbox+registry wiring checks in `migrateToSharedDisputeGame`.
+    function _mockValidLockbox(address _addr) internal {
+        vm.etch(_addr, hex"00");
+        vm.mockCall(
+            _addr,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal(payable(address(optimismPortal2))))),
+            abi.encode(true)
+        );
+    }
+
+    function _mockValidRegistry(address _addr) internal {
+        vm.etch(_addr, hex"00");
+    }
+
     /// @notice Tests that `migrateToSharedDisputeGame` reverts if the caller is not the proxy admin
     ///         owner.
     function testFuzz_migrateToSharedDisputeGame_notProxyAdminOwner_reverts(address _caller) external {
@@ -756,6 +771,48 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(_newLockbox), newAnchorStateRegistry);
     }
 
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new lockbox is the zero
+    ///         address.
+    function test_migrateToSharedDisputeGame_zeroLockbox_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        address registry = address(0x1234);
+        _mockValidRegistry(registry);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(0)), IAnchorStateRegistry(registry));
+    }
+
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new registry is the zero
+    ///         address.
+    function test_migrateToSharedDisputeGame_zeroRegistry_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        address lockbox = address(0x1234);
+        _mockValidLockbox(lockbox);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(lockbox), IAnchorStateRegistry(address(0)));
+    }
+
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new lockbox has not
+    ///         authorized this portal.
+    function test_migrateToSharedDisputeGame_lockboxNotAuthorizingPortal_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        address lockbox = address(0x1234);
+        address registry = address(0x5678);
+        // Etch code but mock authorizedPortals -> false.
+        vm.etch(lockbox, hex"00");
+        vm.mockCall(
+            lockbox,
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal(payable(address(optimismPortal2))))),
+            abi.encode(false)
+        );
+        _mockValidRegistry(registry);
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_LockboxNotAuthorizedForPortal.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(lockbox), IAnchorStateRegistry(registry));
+    }
+
     /// @notice Tests that `migrateToSharedDisputeGame` updates the ETHLockbox contract, updates the
     ///         AnchorStateRegistry, and sets the superRootsActive flag to true.
     /// @param _newLockbox The new ETHLockbox to migrate to.
@@ -770,6 +827,16 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
         vm.assume(_newLockbox != oldLockbox);
         vm.assume(_newAnchorStateRegistry != oldAnchorStateRegistry);
+        vm.assume(_newLockbox != _newAnchorStateRegistry);
+        vm.assume(_newLockbox != address(0) && _newAnchorStateRegistry != address(0));
+        // Avoid colliding with precompiles / existing contracts in the test harness.
+        assumeNotPrecompile(_newLockbox);
+        assumeNotPrecompile(_newAnchorStateRegistry);
+        vm.assume(_newLockbox.code.length == 0);
+        vm.assume(_newAnchorStateRegistry.code.length == 0);
+
+        _mockValidLockbox(_newLockbox);
+        _mockValidRegistry(_newAnchorStateRegistry);
 
         vm.expectEmit(address(optimismPortal2));
         emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
