@@ -1,7 +1,7 @@
 # Static checks for recurring flake patterns in op-acceptance-tests / op-devstack.
 #
 # Scoped narrowly to test code; do not enable for production code paths.
-# Each rule maps to a numbered entry (F1..F14) in docs/ai/flake-prevention.md.
+# Each rule maps to a numbered entry (F1..F15) in docs/ai/flake-prevention.md.
 #
 # Run locally:
 #   semgrep scan --config .semgrep/rules/go-acceptance-test-flakes.yaml \
@@ -36,9 +36,21 @@ rules:
                 ...
               }, ...)
           - pattern: |
+              require.Eventually($T, func(...) bool {
+                ...
+                assert.$F(...)
+                ...
+              }, ...)
+          - pattern: |
               require.EventuallyWithT($T, func(...) {
                 ...
                 require.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              require.EventuallyWithT($T, func(...) {
+                ...
+                assert.$F(...)
                 ...
               }, ...)
           - pattern: |
@@ -129,8 +141,11 @@ rules:
       `time.Sleep` in tests or DSL methods masks a missing wait. Replace with an
       explicit `WaitFor*` on the actual postcondition. See docs/ai/flake-prevention.md#f8.
       If you genuinely need to pace a polling loop, do it inside `wait.For` / `retry.Do`
-      backoff configuration, not as a free-standing Sleep.
-    pattern: time.Sleep(...)
+      backoff configuration, not as a free-standing Sleep. Use `// nosemgrep: flake-sleep-in-test`
+      with an explanatory comment for the rare cases where no chain event exists to wait on.
+    patterns:
+      - pattern: time.Sleep(...)
+      - pattern: clock.SystemClock.SleepCtx(...)
 
   # NOTE: a `<-time.After(d)`-as-sleep rule was prototyped here but dropped.
   # Semgrep's Go pattern parser doesn't accept `case <-... :` / `select {...}`
