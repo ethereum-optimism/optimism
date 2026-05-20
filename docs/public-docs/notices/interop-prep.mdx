@@ -122,7 +122,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   Each EL in the fleet has exactly one consensus client connected to it.
   The supernode drives its ELs via per-chain virtual nodes; each Light CL also gets its own EL.
   The supernode shares one JWT secret across its internal virtual nodes via `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH` (set the path once at the supernode level).
-  Each Light CL connects to its EL with its own `--l2.jwt-secret` flag — whether you use the same secret across the fleet or scope each CL-EL pair to its own secret is an operator choice.
+  Each Light CL connects to its EL with its own `--l2.jwt-secret` flag.
   </Step>
 
   <Step title="Stand up op-supernode for both chains">
