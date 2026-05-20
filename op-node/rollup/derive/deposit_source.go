@@ -2,10 +2,14 @@ package derive
 
 import (
 	"encoding/binary"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var OptimisticBlockDepositSenderAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0002")
 
 type UserDepositSource struct {
 	L1BlockHash common.Hash
@@ -78,4 +82,21 @@ func (dep *InvalidatedBlockSource) SourceHash() common.Hash {
 	binary.BigEndian.PutUint64(domainInput[32-8:32], InvalidatedBlockSourceDomain)
 	copy(domainInput[32:], dep.OutputRoot[:])
 	return crypto.Keccak256Hash(domainInput[:])
+}
+
+// InvalidatedBlockSourceDepositTx builds the system deposit transaction that marks an
+// optimistic block as invalidated. The output-root preimage is embedded as the tx data.
+func InvalidatedBlockSourceDepositTx(outputRootPreimage []byte) *types.Transaction {
+	outputRoot := crypto.Keccak256Hash(outputRootPreimage)
+	src := InvalidatedBlockSource{OutputRoot: outputRoot}
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          src.SourceHash(),
+		From:                OptimisticBlockDepositSenderAddress,
+		To:                  &common.Address{}, // to the zero address, no EVM execution.
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 36_000,
+		IsSystemTransaction: false,
+		Data:                outputRootPreimage,
+	})
 }

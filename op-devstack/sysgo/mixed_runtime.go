@@ -516,8 +516,6 @@ func startMixedKonaNode(
 		name:               clKey,
 		chainID:            l2Net.ChainID(),
 		userRPC:            "",
-		interopEndpoint:    "",
-		interopJwtSecret:   eth.Bytes32{},
 		execPath:           execPath,
 		args:               []string{"node"},
 		env:                envVars,

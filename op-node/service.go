@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -95,7 +94,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		DependencySet:               depSet,
 		Driver:                      *driverConfig,
 		Beacon:                      NewBeaconEndpointConfig(ctx),
-		InteropConfig:               NewSupervisorEndpointConfig(ctx),
 		RPC:                         rpc.ReadCLIConfig(ctx),
 		Metrics:                     opmetrics.ReadCLIConfig(ctx),
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
@@ -135,14 +133,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
-	return &interop.Config{
-		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
-		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
-		RPCJwtSecretPath: ctx.String(flags.InteropJWTSecret.Name),
-	}
 }
 
 func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {

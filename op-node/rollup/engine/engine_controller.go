@@ -90,16 +90,15 @@ type CrossUpdateHandler interface {
 }
 
 type EngineController struct {
-	engine            ExecEngine // Underlying execution engine RPC
-	log               log.Logger
-	metrics           opmetrics.Metricer
-	syncCfg           *sync.Config
-	syncStatus        syncStatusEnum
-	chainSpec         *rollup.ChainSpec
-	rollupCfg         *rollup.Config
-	supervisorEnabled bool
-	elStart           time.Time
-	clock             clock.Clock
+	engine     ExecEngine // Underlying execution engine RPC
+	log        log.Logger
+	metrics    opmetrics.Metricer
+	syncCfg    *sync.Config
+	syncStatus syncStatusEnum
+	chainSpec  *rollup.ChainSpec
+	rollupCfg  *rollup.Config
+	elStart    time.Time
+	clock      clock.Clock
 
 	// L1 chain for reset functionality
 	l1 sync.L1Chain
@@ -172,7 +171,7 @@ type EngineController struct {
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, l1 sync.L1Chain, emitter event.Emitter,
 	superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
@@ -181,20 +180,19 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 
 	return &EngineController{
-		engine:            engine,
-		log:               log,
-		metrics:           m,
-		chainSpec:         rollup.NewChainSpec(rollupCfg),
-		rollupCfg:         rollupCfg,
-		supervisorEnabled: supervisorEnabled,
-		syncCfg:           syncCfg,
-		syncStatus:        syncStatus,
-		clock:             clock.SystemClock,
-		l1:                l1,
-		ctx:               ctx,
-		emitter:           emitter,
-		superAuthority:    superAuthority,
-		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		engine:         engine,
+		log:            log,
+		metrics:        m,
+		chainSpec:      rollup.NewChainSpec(rollupCfg),
+		rollupCfg:      rollupCfg,
+		syncCfg:        syncCfg,
+		syncStatus:     syncStatus,
+		clock:          clock.SystemClock,
+		l1:             l1,
+		ctx:            ctx,
+		emitter:        emitter,
+		superAuthority: superAuthority,
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
 
@@ -241,7 +239,7 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			return finalized
 		}
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead
 	} else {
 		return e.localSafeHead
@@ -294,7 +292,7 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 		}
 		e.superAuthorityFinalizedHead = br
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
 	} else {
 		return e.localFinalizedHead
@@ -852,8 +850,8 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 }
 
 func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
-	// pre-interop (or if supervisor disabled) everything that is local-safe is also immediately cross-safe.
-	return !e.rollupCfg.IsInterop(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
+	// pre-interop, everything that is local-safe is also immediately cross-safe.
+	return !e.rollupCfg.IsInterop(timestamp) || !e.syncCfg.FollowSourceEnabled()
 }
 
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -883,8 +881,6 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		// so this is where the batched FCU is sent — one per L1 block instead of per L2 block.
 		// tryUpdateEngine compares against lastForkchoice and is a no-op if unchanged.
 		e.tryUpdateEngine(ctx)
-	case InteropInvalidateBlockEvent:
-		e.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
 		e.onBuildStart(ctx, x)
 	case BuildStartedEvent:

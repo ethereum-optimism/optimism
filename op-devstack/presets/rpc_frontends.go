@@ -194,24 +194,20 @@ type l2CLFrontend struct {
 	rollupBoostNodes locks.RWMap[string, *rollupBoostFrontend]
 	oprBuilderNodes  locks.RWMap[string, *oprBuilderFrontend]
 	userRPC          string
-	interopEndpoint  string
-	interopJWTSecret eth.Bytes32
 	lifecycle        stack.Lifecycle
 }
 
 var _ stack.L2CLNode = (*l2CLFrontend)(nil)
 
-func newPresetL2CLNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC, interopEndpoint string, interopJWTSecret eth.Bytes32) *l2CLFrontend {
+func newPresetL2CLNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string) *l2CLFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	return &l2CLFrontend{
-		presetCommon:     newPresetCommon(t, name),
-		chainID:          chainID,
-		client:           rpcCl,
-		rollupClient:     sources.NewRollupClient(rpcCl),
-		p2pClient:        sources.NewP2PClient(rpcCl),
-		userRPC:          userRPC,
-		interopEndpoint:  interopEndpoint,
-		interopJWTSecret: interopJWTSecret,
+		presetCommon: newPresetCommon(t, name),
+		chainID:      chainID,
+		client:       rpcCl,
+		rollupClient: sources.NewRollupClient(rpcCl),
+		p2pClient:    sources.NewP2PClient(rpcCl),
+		userRPC:      userRPC,
 	}
 }
 
@@ -229,10 +225,6 @@ func (r *l2CLFrontend) RollupAPI() apis.RollupClient {
 
 func (r *l2CLFrontend) P2PAPI() apis.P2PClient {
 	return r.p2pClient
-}
-
-func (r *l2CLFrontend) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return r.interopEndpoint, r.interopJWTSecret
 }
 
 func (r *l2CLFrontend) UserRPC() string {

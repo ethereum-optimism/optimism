@@ -7,7 +7,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
@@ -159,7 +158,9 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	)
 	err := rs.cl.CallContext(ctx, &out, "interop_anchorPoint")
 	// Translate an interop-inactive error into a ErrFuture.
-	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == indexing.InteropInactiveRPCErrCode {
+	// -39003 is the RPC error code op-node previously used to signal interop-inactive.
+	// op-node no longer serves this endpoint; op-supervisor is slated for removal.
+	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == -39003 {
 		return types.DerivedBlockRefPair{}, types.ErrFuture
 	}
 	return out, err
