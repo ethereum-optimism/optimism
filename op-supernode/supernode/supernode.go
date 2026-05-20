@@ -156,13 +156,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	return s, nil
 }
 
-// interopLogBackfillEnabled reports whether interop log backfill will run.
-// Without a resolved activation timestamp the interop activity is never
-// constructed, so the depth flag is ignored rather than rejected.
-func interopLogBackfillEnabled(depth time.Duration, resolved *uint64) bool {
-	return depth > 0 && resolved != nil
-}
-
 func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {
 	if override != nil {
 		return override, nil

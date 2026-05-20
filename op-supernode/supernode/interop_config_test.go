@@ -2,56 +2,12 @@ package supernode
 
 import (
 	"testing"
-	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
-
-func TestInteropLogBackfillEnabled(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		depth    time.Duration
-		resolved *uint64
-		want     bool
-	}{
-		{
-			name:     "depth and activation: enabled",
-			depth:    time.Hour,
-			resolved: uint64Ptr(100),
-			want:     true,
-		},
-		{
-			name:     "depth without activation: disabled, not an error",
-			depth:    time.Hour,
-			resolved: nil,
-			want:     false,
-		},
-		{
-			name:     "zero depth with activation: disabled",
-			depth:    0,
-			resolved: uint64Ptr(100),
-			want:     false,
-		},
-		{
-			name:     "zero depth without activation: disabled",
-			depth:    0,
-			resolved: nil,
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.want, interopLogBackfillEnabled(tt.depth, tt.resolved))
-		})
-	}
-}
 
 func TestResolveInteropActivationTimestamp(t *testing.T) {
 	t.Parallel()
