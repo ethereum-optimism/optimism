@@ -3,7 +3,10 @@ package sysgo
 import (
 	"crypto/elliptic"
 	"encoding/hex"
+	"encoding/json"
 	"math/big"
+	"os"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,7 +37,7 @@ func applyBatchConsensusMockVerifier(cfg PresetConfig, l1Net *L1Network, l2Nets 
 	if cfg.BatchConsensusMockVerifierAccept {
 		code = batchConsensusMockVerifierTrueCode
 		if cfg.BatchConsensusCommonwareSidecar {
-			code = batchConsensusMockVerifierCommonwareProofCode(batchConsensusCommonwareProofSignerAddresses())
+			code = batchConsensusCommonwareSolidityVerifierCode()
 		} else if cfg.BatchConsensusMockProofSidecar {
 			code = batchConsensusMockVerifierProofCode(batchConsensusMockProofSignerAddress())
 		}
@@ -63,7 +66,35 @@ func batchConsensusMockVerifierProofCode(signer common.Address) []byte {
 }
 
 func batchConsensusMockVerifierCommonwareProofCode(_ []common.Address) []byte {
-	return batchConsensusMockVerifierCommonwareP256ProofCode(batchConsensusCommonwareP256ProofPublicKeys())
+	return batchConsensusCommonwareSolidityVerifierCode()
+}
+
+func batchConsensusCommonwareSolidityVerifierCode() []byte {
+	paths, err := contractPaths()
+	if err != nil {
+		panic(err)
+	}
+	artifactPath := filepath.Join(
+		paths.FoundryArtifacts,
+		"CommonwareSimplexBatchConsensusVerifier.sol",
+		"CommonwareSimplexBatchConsensusVerifier.json",
+	)
+	data, err := os.ReadFile(artifactPath)
+	if err != nil {
+		panic(err)
+	}
+	var artifact struct {
+		DeployedBytecode struct {
+			Object string `json:"object"`
+		} `json:"deployedBytecode"`
+	}
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		panic(err)
+	}
+	if artifact.DeployedBytecode.Object == "" {
+		panic("CommonwareSimplexBatchConsensusVerifier artifact has empty deployed bytecode")
+	}
+	return common.FromHex(artifact.DeployedBytecode.Object)
 }
 
 var batchConsensusCommonwareP256ProofSignerKeys = []string{
