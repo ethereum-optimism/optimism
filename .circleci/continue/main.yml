@@ -602,7 +602,7 @@ jobs:
     description: "Build a Rust workspace with target directory caching"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -669,7 +669,7 @@ jobs:
   rust-build-vendored:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -762,7 +762,7 @@ jobs:
   rust-build-vendored:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -855,7 +855,7 @@ jobs:
   rust-lint-vendored:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -878,7 +878,7 @@ jobs:
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - run:
           command: echo  "Initializing..."
@@ -951,7 +951,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     parameters:
       build_args:
         description: Forge build arguments
@@ -1018,7 +1018,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parameters:
       test_list:
         description: List of test files to run
@@ -1106,7 +1106,7 @@ jobs:
   contracts-bedrock-heavy-fuzz-nightly:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
@@ -1163,7 +1163,7 @@ jobs:
   ai-contracts-test:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1541,7 +1541,7 @@ jobs:
   required-contracts-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     parameters:
       always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
@@ -1668,7 +1668,7 @@ jobs:
   go-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1690,7 +1690,7 @@ jobs:
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1711,7 +1711,7 @@ jobs:
   prep-superchain:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1736,7 +1736,7 @@ jobs:
   check-nut-locks:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1792,7 +1792,7 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -1850,7 +1850,7 @@ jobs:
       resource_class:
         description: Machine resource class
         type: string
-        default: 2xlarge
+        default: 2xlarge.gen2
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1924,7 +1924,7 @@ jobs:
         default: 30m
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+
+    resource_class: 2xlarge+.gen2
     steps:
       - run:
           name: Install eatmydata and disable fsync for all subprocesses
@@ -2008,7 +2008,7 @@ jobs:
   memory-all:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - run:
           name: All memory-all tests passed
@@ -2017,7 +2017,7 @@ jobs:
   sanitize-op-program:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2070,7 +2070,7 @@ jobs:
   rust-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - run:
           name: All Rust binaries ready
@@ -2079,7 +2079,7 @@ jobs:
   # ============================================================================
 
   publish-cannon-prestates:
-    resource_class: medium
+    resource_class: medium.gen2
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
@@ -2191,7 +2191,7 @@ jobs:
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - checkout # no need to use mise here since the docker image contains the only dependency
       - unless:
@@ -2223,7 +2223,7 @@ jobs:
   bedrock-go-tests: # just a helper, that depends on all the actual test jobs
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - run: echo Done
 
@@ -2337,7 +2337,7 @@ jobs:
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
@@ -2372,7 +2372,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
@@ -2395,7 +2395,7 @@ jobs:
   diff-fetcher-forge-artifacts:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2924,7 +2924,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: 2xlarge
+          resource_class: 2xlarge.gen2
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
