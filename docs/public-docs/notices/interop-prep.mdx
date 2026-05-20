@@ -97,7 +97,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   Each execution client needs its own JWT secret file (a single shared file across both ELs is fine — see the note at the end of this step) and its own engine-API listen address.
   ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
-  Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required).
+  Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags).
   If you also run op-challenger for permissionless fault proofs, these ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs). Pure node operators (RPC, exchange, indexer) without op-challenger can skip that.
 
   ```bash
