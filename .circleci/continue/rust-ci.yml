@@ -561,6 +561,75 @@ jobs:
           command: <<parameters.command>>
       - rust-save-build-cache: *udeps-cache-args
 
+  # Lint + test job for vendored Rust workspaces that live as subdirectories
+  # of `rust/` (op-rbuilder, rollup-boost). Mirrors what upstream gates on in
+  # GitHub Actions: lint (fmt + clippy) and test against the vendored Cargo
+  # workspace. Optional pre-step + apt packages cover upstream-specific needs
+  # like building a test helper binary or installing native deps.
+  rust-vendored-checks:
+    parameters:
+      directory:
+        description: "Directory containing the vendored Cargo workspace"
+        type: string
+      apt_packages:
+        description: "Space-separated apt packages to install before building (e.g. native deps for sys crates)."
+        type: string
+        default: ""
+      pre_command:
+        description: "Optional command to run before lint/test (e.g. build a tester helper binary). Runs in <directory>."
+        type: string
+        default: ""
+      lint_command:
+        description: "Lint command to run (in <directory>)."
+        type: string
+        default: "make lint"
+      test_command:
+        description: "Test command to run (in <directory>)."
+        type: string
+        default: "make test"
+      resource_class:
+        description: "CircleCI resource class for the job runner."
+        type: string
+        default: "xlarge"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: <<parameters.resource_class>>
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - when:
+          condition: <<parameters.apt_packages>>
+          steps:
+            - apt-install:
+                packages: <<parameters.apt_packages>>
+                extra_flags: "--no-install-recommends"
+      - rust-prepare-and-restore-cache: &vendored-checks-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-checks
+      - when:
+          condition: <<parameters.pre_command>>
+          steps:
+            - run:
+                name: Pre-check setup
+                working_directory: <<parameters.directory>>
+                no_output_timeout: 30m
+                command: <<parameters.pre_command>>
+      - run:
+          name: Lint
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 20m
+          command: <<parameters.lint_command>>
+      - run:
+          name: Test
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          environment:
+            TESTS_TEMP_DIR: /tmp/rust-vendored-tests
+          command: |
+            mkdir -p "$TESTS_TEMP_DIR"
+            <<parameters.test_command>>
+      - rust-save-build-cache: *vendored-checks-cache-args
+
   # Shared cargo hack build job (cross-compile targets like WASM)
   rust-ci-cargo-hack-build:
     parameters:
@@ -973,6 +1042,38 @@ workflows:
           name: kona-host-client-offline-cannon
           context: *rust-ci-context
 
+      # Vendored Rust workspaces (op-rbuilder, rollup-boost).
+      # Mirrors upstream's lint + test gates.
+      - rust-vendored-checks:
+          name: op-rbuilder-checks
+          directory: rust/op-rbuilder
+          # libsqlite3 (db), libtss2 (tdx-quote-provider); upstream installs both.
+          apt_packages: "libsqlite3-dev libtss2-dev"
+          # Match upstream's pre-compile of the tester helper + main binary.
+          pre_command: |
+            make tester
+            cargo build -p op-rbuilder --bin op-rbuilder
+          lint_command: "make lint"
+          # nextest's process-per-test isolation keeps RSS bounded; the
+          # single-process `cargo test --lib` form OOMs on 2xlarge.
+          # `--no-default-features --features jemalloc` drops `docker-tests`
+          # (testcontainers needs /var/run/docker.sock, not exposed here).
+          test_command: |
+            cargo nextest run --workspace --test-threads=4 --retries 2 \
+              --no-default-features --features jemalloc
+          resource_class: "2xlarge"
+          context: *rust-ci-context
+
+      - rust-vendored-checks:
+          name: rollup-boost-checks
+          directory: rust/rollup-boost
+          lint_command: "make lint"
+          # `--no-default-features` drops `docker-tests` (no docker socket here).
+          test_command: |
+            cargo build --bin rollup-boost
+            cargo test --workspace --verbose --no-default-features
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -998,6 +1099,8 @@ workflows:
             - kona-lint-cannon: terminal
             - kona-build-fpvm-cannon-client: terminal
             - kona-host-client-offline-cannon: terminal
+            - op-rbuilder-checks: terminal
+            - rollup-boost-checks: terminal
           context:
             - circleci-api-token
   # =====================================

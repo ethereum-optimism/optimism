@@ -851,30 +851,6 @@ jobs:
           paths:
             - ".circleci-cache/rust-binaries"
 
-  # Lint a vendored (non-submodule) Rust directory.
-  rust-lint-vendored:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      lint_command:
-        description: "Lint command to run inside the directory"
-        type: string
-      needs_clang:
-        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
-        type: boolean
-        default: false
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Lint << parameters.directory >>
-          command: cd << parameters.directory >> && << parameters.lint_command >>
-          no_output_timeout: 20m
-
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2701,19 +2677,8 @@ workflows:
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-lint-vendored:
-          name: rust-lint-op-rbuilder
-          directory: rust/op-rbuilder
-          lint_command: cargo +nightly fmt -- --check && cargo clippy --all-features -- -D warnings
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-lint-vendored:
-          name: rust-lint-rollup-boost
-          directory: rust/rollup-boost
-          lint_command: cargo +nightly fmt -- --check && cargo clippy -- -D warnings
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      # Lint runs in `rust-ci.yml` as `op-rbuilder-checks` / `rollup-boost-checks`
+      # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
             - rust-workspace-binaries
