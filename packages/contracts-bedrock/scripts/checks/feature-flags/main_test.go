@@ -1,6 +1,8 @@
 package main
 
 import (
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -8,7 +10,7 @@ import (
 )
 
 func TestParseDevFeaturesSol_MultiLineConstant(t *testing.T) {
-	// OPTIMISM_PORTAL_INTEROP is intentionally split across two lines on develop.
+	// DevFeatures.sol constants may be split across lines.
 	src := `
 		library DevFeatures {
 		    bytes32 public constant OPTIMISM_PORTAL_INTEROP =
@@ -175,7 +177,7 @@ func TestScanSysFeatureSetupContent_CouplesReaderAndActivation(t *testing.T) {
 	require.False(t, setup.activates("sysFeatureInterop", "INTEROP"), "activation outside the Config branch must not count")
 }
 
-func TestExactlyOneNibble(t *testing.T) {
+func TestExactlyOneBit(t *testing.T) {
 	cases := []struct {
 		hex  string
 		want bool
@@ -187,11 +189,11 @@ func TestExactlyOneNibble(t *testing.T) {
 		{strings.Repeat("0", 62) + "10", true},
 		{strings.Repeat("0", 64), false},        // zero
 		{strings.Repeat("0", 63) + "3", false},  // bitmap with two bits set
-		{strings.Repeat("0", 62) + "11", false}, // two nibbles set
+		{strings.Repeat("0", 62) + "11", false}, // two bits set
 		{strings.Repeat("0", 63) + "f", false},  // single nibble, multiple bits
 	}
 	for _, c := range cases {
-		require.Equal(t, c.want, exactlyOneNibble(c.hex), "input=0x%s", c.hex)
+		require.Equal(t, c.want, exactlyOneBit(c.hex), "input=0x%s", c.hex)
 	}
 }
 
@@ -351,7 +353,7 @@ func TestValidateDefinitions_DevHexRules(t *testing.T) {
 	r := Registry{Features: []Feature{{Name: "A", Type: "dev", Lifecycle: "active"}}}
 	bad := []DevFeatureConst{{Name: "A", Hex: strings.Repeat("0", 63) + "3"}}
 	errs := validateDefinitions(r, bad, nil)
-	require.Contains(t, joinErrs(errs), "must have exactly one nibble set")
+	require.Contains(t, joinErrs(errs), "must have exactly one bit set")
 
 	zero := []DevFeatureConst{{Name: "A", Hex: strings.Repeat("0", 64)}}
 	errs = validateDefinitions(r, zero, nil)
@@ -776,4 +778,640 @@ func TestValidateCIParity_HardcodedOnPrereqDoesNotNeedRow(t *testing.T) {
 
 func joinErrs(errs []string) string {
 	return strings.Join(errs, "\n")
+}
+
+func TestParseChecksYaml_ExtractsFeatureFlagsCheck(t *testing.T) {
+	src := `
+phases:
+  - name: setup
+    checks:
+      - name: lint-fix
+        command: forge fmt
+  - name: pre-build
+    checks:
+      - name: feature-flags
+        description: Check feature flag registry
+        command: go run ./scripts/checks/feature-flags
+`
+	got, err := parseChecksYaml([]byte(src))
+	require.NoError(t, err)
+	require.True(t, got.FeatureFlagsFound)
+	require.Equal(t, 1, got.FeatureFlagsCount)
+	require.Equal(t, "pre-build", got.FeatureFlagsPhase)
+	require.Equal(t, "go run ./scripts/checks/feature-flags", got.FeatureFlagsCommand)
+}
+
+func TestParseChecksYaml_MissingFeatureFlagsCheck(t *testing.T) {
+	src := `
+phases:
+  - name: setup
+    checks:
+      - name: lint-fix
+        command: forge fmt
+`
+	got, err := parseChecksYaml([]byte(src))
+	require.NoError(t, err)
+	require.False(t, got.FeatureFlagsFound)
+	require.Equal(t, 0, got.FeatureFlagsCount)
+	require.Empty(t, got.FeatureFlagsCommand)
+	require.Empty(t, got.FeatureFlagsPhase)
+}
+
+func TestParseChecksYaml_AlternatePhase(t *testing.T) {
+	src := `
+phases:
+  - name: setup
+    checks:
+      - name: feature-flags
+        command: go run ./scripts/checks/feature-flags
+`
+	got, err := parseChecksYaml([]byte(src))
+	require.NoError(t, err)
+	require.True(t, got.FeatureFlagsFound)
+	require.Equal(t, 1, got.FeatureFlagsCount)
+	require.Equal(t, "setup", got.FeatureFlagsPhase)
+}
+
+func TestParseChecksYaml_PhaseNameIsTrimmed(t *testing.T) {
+	src := `
+phases:
+  - name: "  pre-build  "
+    checks:
+      - name: feature-flags
+        command: go run ./scripts/checks/feature-flags
+`
+	got, err := parseChecksYaml([]byte(src))
+	require.NoError(t, err)
+	require.True(t, got.FeatureFlagsFound)
+	require.Equal(t, "pre-build", got.FeatureFlagsPhase)
+}
+
+func TestParseChecksYaml_CountsDuplicateFeatureFlagsChecks(t *testing.T) {
+	src := `
+phases:
+  - name: setup
+    checks:
+      - name: feature-flags
+        command: go run ./scripts/checks/feature-flags
+  - name: pre-build
+    checks:
+      - name: feature-flags
+        command: go run ./scripts/checks/feature-flags
+`
+	got, err := parseChecksYaml([]byte(src))
+	require.NoError(t, err)
+	require.True(t, got.FeatureFlagsFound)
+	require.Equal(t, 2, got.FeatureFlagsCount)
+	require.Equal(t, "setup", got.FeatureFlagsPhase)
+}
+
+// happyCircleCIDoc is a minimal but complete CircleCI YAML fixture that
+// satisfies every check in validateCIControlPlane.
+const happyCircleCIDoc = `version: 2.1
+
+commands:
+  setup-features:
+    parameters:
+      features:
+        type: string
+        default: ""
+      system_features:
+        type: string
+        default: "ALPHA BETA"
+
+jobs:
+  contracts-bedrock-tests:
+    parameters:
+      features:
+        type: string
+        default: ""
+    steps:
+      - setup-features:
+          features: <<parameters.features>>
+
+  contracts-bedrock-coverage:
+    parameters:
+      features:
+        type: string
+        default: ""
+    steps:
+      - setup-features:
+          features: <<parameters.features>>
+
+  contracts-bedrock-tests-upgrade:
+    parameters:
+      features:
+        type: string
+        default: ""
+    steps:
+      - setup-features:
+          features: <<parameters.features>>
+
+  contracts-bedrock-tests-l2-fork:
+    parameters:
+      features:
+        type: string
+        default: "L2CM"
+    steps:
+      - setup-features:
+          features: <<parameters.features>>
+
+  contracts-bedrock-checks-fast:
+    steps:
+      - run:
+          name: Print forge version
+          command: forge --version
+      - run:
+          name: Run checks
+          command: just check-fast
+          working_directory: packages/contracts-bedrock
+
+workflows:
+  contracts-feature-tests:
+    jobs:
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: &features_matrix
+                - main
+                - ALPHA
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-develop <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+      - contracts-bedrock-coverage:
+          name: contracts-bedrock-coverage <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: *features_matrix
+      - contracts-bedrock-checks-fast:
+          name: contracts-bedrock-checks-fast-feature-tests
+      - required-contracts-ci:
+          requires:
+            - contracts-bedrock-checks-fast-feature-tests: terminal
+`
+
+func parseHappyCIControlPlane(t *testing.T) CIControlPlane {
+	t.Helper()
+	doc, err := parseCircleCIDoc([]byte(happyCircleCIDoc))
+	require.NoError(t, err)
+	return parseCIControlPlane(doc)
+}
+
+func TestParseCIControlPlane_HappyPath(t *testing.T) {
+	cp := parseHappyCIControlPlane(t)
+
+	require.Equal(t, "just check-fast", cp.ChecksFastCommand)
+	require.Equal(t, "packages/contracts-bedrock", cp.ChecksFastWorkingDir)
+	require.True(t, cp.HasCheckFastFeatureTests)
+	require.True(t, cp.RequiredCIReqsCheckFast)
+	require.True(t, cp.SetupFeaturesCommandExists)
+	require.Equal(t, 1, cp.SetupFeaturesCommandCount)
+	require.True(t, cp.SetupFeaturesHasFeaturesParam)
+	require.True(t, cp.SetupFeaturesHasSystemFeaturesParam)
+	require.Equal(t, 1, cp.FeaturesMatrixAnchorCount)
+
+	require.Len(t, cp.SetupFeaturesCallers, 4)
+	for _, c := range cp.SetupFeaturesCallers {
+		require.True(t, setupFeaturesAllowedJobs[c.Job], "caller in unexpected job %q", c.Job)
+		require.Equal(t, "<<parameters.features>>", c.Features)
+		require.Empty(t, c.SystemFeatures)
+		require.False(t, c.SystemFeaturesOverride)
+		require.Greater(t, c.Line, 0, "caller in %s missing line number", c.Job)
+	}
+
+	require.Len(t, cp.MatrixConsumers, 6)
+	gotConsumers := map[string]MatrixConsumer{}
+	for _, mc := range cp.MatrixConsumers {
+		gotConsumers[mc.InstanceName] = mc
+		require.True(t, mc.UsesFeaturesAnchor, "consumer %q does not source from *features_matrix", mc.InstanceName)
+		require.Equal(t, "contracts-feature-tests", mc.Workflow)
+		require.Greater(t, mc.Line, 0, "consumer %q missing line number", mc.InstanceName)
+	}
+	for _, name := range contractsFeatureTestsMatrixConsumers {
+		_, ok := gotConsumers[name]
+		require.True(t, ok, "missing expected consumer %q", name)
+	}
+
+	require.Equal(t, "", cp.FeatureDefaults["contracts-bedrock-tests"])
+	require.Equal(t, "", cp.FeatureDefaults["contracts-bedrock-coverage"])
+	require.Equal(t, "", cp.FeatureDefaults["contracts-bedrock-tests-upgrade"])
+	_, l2ForkRead := cp.FeatureDefaults["contracts-bedrock-tests-l2-fork"]
+	require.False(t, l2ForkRead, "tests-l2-fork must be excluded from FeatureDefaults")
+}
+
+// happyChecksConfig returns a ChecksConfig that satisfies every check in
+// validateChecksConfigControlPlane.
+func happyChecksConfig() ChecksConfig {
+	return ChecksConfig{
+		FeatureFlagsCommand: featureFlagsCheckCommand,
+		FeatureFlagsPhase:   "pre-build",
+		FeatureFlagsFound:   true,
+		FeatureFlagsCount:   1,
+	}
+}
+
+func TestValidateChecksConfigControlPlane_Happy(t *testing.T) {
+	require.Empty(t, validateChecksConfigControlPlane(happyChecksConfig()))
+}
+
+func TestValidateChecksConfigControlPlane_MissingCheck(t *testing.T) {
+	cfg := happyChecksConfig()
+	cfg.FeatureFlagsFound = false
+	cfg.FeatureFlagsCount = 0
+	errs := validateChecksConfigControlPlane(cfg)
+	require.Contains(t, joinErrs(errs), "checks.yaml control-plane: feature-flags check is missing")
+}
+
+func TestValidateChecksConfigControlPlane_CommandMismatch(t *testing.T) {
+	cfg := happyChecksConfig()
+	cfg.FeatureFlagsCommand = "go run ./scripts/checks/feature-flags -strict"
+	errs := validateChecksConfigControlPlane(cfg)
+	require.Contains(t, joinErrs(errs), `checks.yaml control-plane: feature-flags check command is "go run ./scripts/checks/feature-flags -strict", expected "go run ./scripts/checks/feature-flags"`)
+}
+
+func TestValidateChecksConfigControlPlane_DuplicateCheck(t *testing.T) {
+	cfg := happyChecksConfig()
+	cfg.FeatureFlagsCount = 2
+	errs := validateChecksConfigControlPlane(cfg)
+	require.Contains(t, joinErrs(errs), "checks.yaml control-plane: feature-flags check appears 2 times, expected 1")
+}
+
+func TestValidateChecksConfigControlPlane_BuildGatedPhase(t *testing.T) {
+	cfg := happyChecksConfig()
+	cfg.FeatureFlagsPhase = "source"
+	errs := validateChecksConfigControlPlane(cfg)
+	require.Contains(t, joinErrs(errs), `checks.yaml control-plane: feature-flags check phase is "source", must be one of setup, pre-build`)
+}
+
+// happyControlPlane returns a CIControlPlane that satisfies every check in
+// validateCIControlPlane. Negative tests mutate one field at a time.
+func happyControlPlane() CIControlPlane {
+	callers := make([]SetupFeaturesCaller, 0, 4)
+	for _, job := range []string{
+		jobContractsBedrockTests,
+		jobContractsBedrockCoverage,
+		jobContractsBedrockTestsUpgrade,
+		jobContractsBedrockTestsL2Fork,
+	} {
+		callers = append(callers, SetupFeaturesCaller{
+			Job:      job,
+			Features: featuresParameterTemplate,
+			Line:     1000,
+		})
+	}
+	consumers := make([]MatrixConsumer, 0, len(contractsFeatureTestsMatrixConsumers))
+	for i, name := range contractsFeatureTestsMatrixConsumers {
+		consumers = append(consumers, MatrixConsumer{
+			Workflow:           workflowContractsFeatureTests,
+			JobType:            jobContractsBedrockTests,
+			InstanceName:       name,
+			UsesFeaturesAnchor: true,
+			Line:               3000 + i,
+		})
+	}
+	return CIControlPlane{
+		ChecksFastCommand:                   checksFastCommand,
+		ChecksFastWorkingDir:                contractsBedrockWorkingDir,
+		HasCheckFastFeatureTests:            true,
+		RequiredCIReqsCheckFast:             true,
+		SetupFeaturesCommandExists:          true,
+		SetupFeaturesCommandCount:           1,
+		SetupFeaturesHasFeaturesParam:       true,
+		SetupFeaturesHasSystemFeaturesParam: true,
+		SetupFeaturesCallers:                callers,
+		FeaturesMatrixAnchorCount:           1,
+		MatrixConsumers:                     consumers,
+		FeatureDefaults: map[string]string{
+			jobContractsBedrockTests:        "",
+			jobContractsBedrockCoverage:     "",
+			jobContractsBedrockTestsUpgrade: "",
+		},
+	}
+}
+
+func TestValidateCIControlPlane_Happy(t *testing.T) {
+	require.Empty(t, validateCIControlPlane(happyControlPlane()))
+}
+
+func TestValidateCIControlPlane_CheckFastCommandMutated(t *testing.T) {
+	cp := happyControlPlane()
+	cp.ChecksFastCommand = "just check-fast -run lint"
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), `CircleCI control-plane: contracts-bedrock-checks-fast command is "just check-fast -run lint", expected "just check-fast"`)
+}
+
+func TestValidateCIControlPlane_CheckFastMissingWorkingDir(t *testing.T) {
+	cp := happyControlPlane()
+	cp.ChecksFastWorkingDir = ""
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), `CircleCI control-plane: contracts-bedrock-checks-fast working_directory is "", expected "packages/contracts-bedrock"`)
+}
+
+func TestValidateCIControlPlane_MissingCheckFastFeatureTestsInvocation(t *testing.T) {
+	cp := happyControlPlane()
+	cp.HasCheckFastFeatureTests = false
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: workflow contracts-feature-tests does not invoke contracts-bedrock-checks-fast with name contracts-bedrock-checks-fast-feature-tests")
+}
+
+func TestValidateCIControlPlane_RequiredCIWithoutTerminal(t *testing.T) {
+	cp := happyControlPlane()
+	cp.RequiredCIReqsCheckFast = false
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: required-contracts-ci does not terminal-require contracts-bedrock-checks-fast-feature-tests")
+}
+
+func TestValidateCIControlPlane_RequiredCIOmitsCheckFast(t *testing.T) {
+	// Omitting the requirement and requiring it without "terminal" both
+	// collapse to RequiredCIReqsCheckFast == false, so they share one error.
+	cp := happyControlPlane()
+	cp.RequiredCIReqsCheckFast = false
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: required-contracts-ci does not terminal-require contracts-bedrock-checks-fast-feature-tests")
+}
+
+func TestValidateCIControlPlane_DuplicateSetupFeaturesCommand(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCommandCount = 2
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: commands.setup-features appears 2 times, expected 1")
+}
+
+func TestValidateCIControlPlane_SetupFeaturesCallerPassesSystemFeatures(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCallers[0].SystemFeatures = "ALPHA"
+	cp.SetupFeaturesCallers[0].Line = 1234
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: setup-features caller in job contracts-bedrock-tests at line 1234 passes system_features override")
+}
+
+func TestValidateCIControlPlane_SetupFeaturesCallerPassesEmptySystemFeatures(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCallers[0].SystemFeaturesOverride = true
+	cp.SetupFeaturesCallers[0].Line = 1234
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: setup-features caller in job contracts-bedrock-tests at line 1234 passes system_features override")
+}
+
+func TestValidateCIControlPlane_SetupFeaturesCallerInUnknownJob(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCallers = append(cp.SetupFeaturesCallers, SetupFeaturesCaller{
+		Job:      "contracts-bedrock-tests-extra",
+		Features: featuresParameterTemplate,
+		Line:     1234,
+	})
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: setup-features caller in job contracts-bedrock-tests-extra at line 1234 is not allowed")
+}
+
+func TestValidateCIControlPlane_SetupFeaturesCallerMissingFromExpectedJob(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCallers = cp.SetupFeaturesCallers[1:] // drop contracts-bedrock-tests
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: job contracts-bedrock-tests does not call setup-features")
+}
+
+func TestValidateCIControlPlane_SetupFeaturesCallerPassesLiteralFeatures(t *testing.T) {
+	cp := happyControlPlane()
+	cp.SetupFeaturesCallers[0].Features = "FOO"
+	cp.SetupFeaturesCallers[0].Line = 1234
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), `CircleCI control-plane: setup-features caller in job contracts-bedrock-tests at line 1234 passes features="FOO", expected "<<parameters.features>>"`)
+}
+
+func TestValidateCIControlPlane_DuplicateFeaturesMatrixAnchor(t *testing.T) {
+	cp := happyControlPlane()
+	cp.FeaturesMatrixAnchorCount = 2
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: &features_matrix anchor count is 2, expected 1")
+}
+
+func TestValidateCIControlPlane_MatrixConsumerUsesInlineMatrix(t *testing.T) {
+	cp := happyControlPlane()
+	cp.MatrixConsumers[0].UsesFeaturesAnchor = false
+	cp.MatrixConsumers[0].Line = 4242
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs),
+		"CircleCI control-plane: matrix consumer "+contractsFeatureTestsMatrixConsumers[0]+
+			" at line 4242 does not source matrix.parameters.features from *features_matrix")
+}
+
+func TestValidateCIControlPlane_UnexpectedMatrixConsumer(t *testing.T) {
+	cp := happyControlPlane()
+	cp.MatrixConsumers = append(cp.MatrixConsumers, MatrixConsumer{
+		Workflow:           workflowContractsFeatureTests,
+		JobType:            jobContractsBedrockTests,
+		InstanceName:       "contracts-bedrock-tests-experimental",
+		UsesFeaturesAnchor: true,
+		Line:               5555,
+	})
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: unexpected matrix consumer contracts-bedrock-tests-experimental at line 5555 in workflow contracts-feature-tests")
+}
+
+func TestValidateCIControlPlane_MissingExpectedMatrixConsumer(t *testing.T) {
+	cp := happyControlPlane()
+	cp.MatrixConsumers = cp.MatrixConsumers[1:] // drop contracts-bedrock-tests-heavy-fuzz-modified
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), "CircleCI control-plane: expected matrix consumer contracts-bedrock-tests-heavy-fuzz-modified is missing from workflow contracts-feature-tests")
+}
+
+func TestValidateCIControlPlane_NonEmptyFeatureDefault(t *testing.T) {
+	cp := happyControlPlane()
+	cp.FeatureDefaults[jobContractsBedrockTests] = "OPTIMISM_PORTAL_INTEROP"
+	errs := validateCIControlPlane(cp)
+	require.Contains(t, joinErrs(errs), `CircleCI control-plane: contracts-bedrock-tests parameters.features.default = "OPTIMISM_PORTAL_INTEROP", expected ""`)
+}
+
+// The following parser-driven tests feed YAML fixtures through parseCIControlPlane
+// so the walker is exercised end-to-end, not just at the struct boundary.
+
+func parseControlPlane(t *testing.T, src string) CIControlPlane {
+	t.Helper()
+	doc, err := parseCircleCIDoc([]byte(src))
+	require.NoError(t, err)
+	return parseCIControlPlane(doc)
+}
+
+func TestParseCIControlPlane_CountsDuplicateAnchor(t *testing.T) {
+	src := `
+workflows:
+  contracts-feature-tests:
+    jobs:
+      - a:
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: &features_matrix
+                - main
+      - b:
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features: &features_matrix
+                - main
+`
+	cp := parseControlPlane(t, src)
+	require.Equal(t, 2, cp.FeaturesMatrixAnchorCount)
+}
+
+func TestParseCIControlPlane_CheckFastCommandMutationIsCaptured(t *testing.T) {
+	src := `
+jobs:
+  contracts-bedrock-checks-fast:
+    steps:
+      - run:
+          name: Run checks
+          command: just check-fast -run lint
+          working_directory: packages/contracts-bedrock
+`
+	cp := parseControlPlane(t, src)
+	require.Equal(t, "just check-fast -run lint", cp.ChecksFastCommand)
+	require.Equal(t, "packages/contracts-bedrock", cp.ChecksFastWorkingDir)
+}
+
+func TestParseCIControlPlane_CheckFastCommandIsTrimmed(t *testing.T) {
+	src := `
+jobs:
+  contracts-bedrock-checks-fast:
+    steps:
+      - run:
+          name: Run checks
+          command: "  just check-fast  "
+          working_directory: packages/contracts-bedrock
+`
+	cp := parseControlPlane(t, src)
+	require.Equal(t, "just check-fast", cp.ChecksFastCommand)
+	require.Equal(t, "packages/contracts-bedrock", cp.ChecksFastWorkingDir)
+}
+
+func TestParseCIControlPlane_CheckFastFallbackPrefersRunChecksStep(t *testing.T) {
+	src := `
+jobs:
+  contracts-bedrock-checks-fast:
+    steps:
+      - run:
+          name: Prepare check-fast cache
+          command: tools/check-fast-init
+          working_directory: scripts
+      - run:
+          name: Run checks
+          command: just check-fast -run lint
+          working_directory: packages/contracts-bedrock
+`
+	cp := parseControlPlane(t, src)
+	require.Equal(t, "just check-fast -run lint", cp.ChecksFastCommand)
+	require.Equal(t, "packages/contracts-bedrock", cp.ChecksFastWorkingDir)
+}
+
+func TestParseCIControlPlane_SetupFeaturesScalarInvocationIsCaptured(t *testing.T) {
+	src := `
+jobs:
+  contracts-bedrock-tests:
+    steps:
+      - setup-features
+`
+	cp := parseControlPlane(t, src)
+	require.Len(t, cp.SetupFeaturesCallers, 1)
+	require.Equal(t, "contracts-bedrock-tests", cp.SetupFeaturesCallers[0].Job)
+	require.Empty(t, cp.SetupFeaturesCallers[0].Features)
+	require.Greater(t, cp.SetupFeaturesCallers[0].Line, 0)
+}
+
+func TestParseCIControlPlane_SetupFeaturesCallerParamsAreNormalized(t *testing.T) {
+	src := `
+jobs:
+  contracts-bedrock-tests:
+    steps:
+      - setup-features:
+          features: "  <<parameters.features>>  "
+          system_features: ""
+`
+	cp := parseControlPlane(t, src)
+	require.Len(t, cp.SetupFeaturesCallers, 1)
+	require.Equal(t, "<<parameters.features>>", cp.SetupFeaturesCallers[0].Features)
+	require.Empty(t, cp.SetupFeaturesCallers[0].SystemFeatures)
+	require.True(t, cp.SetupFeaturesCallers[0].SystemFeaturesOverride)
+}
+
+func TestParseCIControlPlane_InlineMatrixDoesNotCountAsAnchor(t *testing.T) {
+	src := `
+workflows:
+  contracts-feature-tests:
+    jobs:
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.features>>
+          features: <<matrix.features>>
+          matrix:
+            parameters:
+              features:
+                - main
+                - ALPHA
+`
+	cp := parseControlPlane(t, src)
+	require.Len(t, cp.MatrixConsumers, 1)
+	require.False(t, cp.MatrixConsumers[0].UsesFeaturesAnchor)
+}
+
+func TestParseCIControlPlane_MatrixConsumerFeaturesIsTrimmed(t *testing.T) {
+	src := `
+workflows:
+  contracts-feature-tests:
+    jobs:
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.features>>
+          features: "  <<matrix.features>>  "
+          matrix:
+            parameters:
+              features: &features_matrix
+                - main
+                - ALPHA
+`
+	cp := parseControlPlane(t, src)
+	require.Len(t, cp.MatrixConsumers, 1)
+	require.Equal(t, "contracts-bedrock-tests", cp.MatrixConsumers[0].InstanceName)
+	require.True(t, cp.MatrixConsumers[0].UsesFeaturesAnchor)
+}
+
+// TestRealRepoControlPlane is an on-disk smoke test against the actual
+// .circleci/continue/main.yml and packages/contracts-bedrock/checks.yaml.
+// It catches drift between what this checker requires and the live tree.
+func TestRealRepoControlPlane(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "runtime.Caller failed")
+	pkgDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..")
+	checksPath := filepath.Join(pkgDir, "checks.yaml")
+	circleciPath := filepath.Join(pkgDir, "..", "..", ".circleci", "continue", "main.yml")
+
+	checksCfg, err := readChecksYaml(checksPath)
+	require.NoError(t, err)
+	require.Empty(t, validateChecksConfigControlPlane(checksCfg), "checks.yaml control-plane drift")
+
+	_, cp, err := readCircleCIConfig(circleciPath)
+	require.NoError(t, err)
+	require.Empty(t, validateCIControlPlane(cp), "CircleCI control-plane drift")
 }

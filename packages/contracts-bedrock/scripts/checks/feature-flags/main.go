@@ -23,6 +23,7 @@ const (
 	configSolPath       = "scripts/libraries/Config.sol"
 	featureFlagsSolPath = "test/setup/FeatureFlags.sol"
 	circleCIPath        = "../../.circleci/continue/main.yml"
+	checksYamlPath      = "checks.yaml"
 
 	devEnvPrefix = "DEV_FEATURE__"
 	sysEnvPrefix = "SYS_FEATURE__"
@@ -36,7 +37,76 @@ const (
 
 	featuresMatrixAnchor = "features_matrix"
 	ciBaselineRow        = "main"
+
+	workflowContractsFeatureTests     = "contracts-feature-tests"
+	checkFastFeatureTestsInstanceName = "contracts-bedrock-checks-fast-feature-tests"
+	jobChecksFast                     = "contracts-bedrock-checks-fast"
+	jobContractsBedrockTests          = "contracts-bedrock-tests"
+	jobContractsBedrockCoverage       = "contracts-bedrock-coverage"
+	jobContractsBedrockTestsUpgrade   = "contracts-bedrock-tests-upgrade"
+	jobContractsBedrockTestsL2Fork    = "contracts-bedrock-tests-l2-fork"
+	jobRequiredContractsCI            = "required-contracts-ci"
+
+	featureFlagsCheckName       = "feature-flags"
+	featureFlagsCheckCommand    = "go run ./scripts/checks/feature-flags"
+	checksFastCommand           = "just check-fast"
+	contractsBedrockWorkingDir  = "packages/contracts-bedrock"
+	requireTerminalValue        = "terminal"
+	setupFeaturesCommandName    = "setup-features"
+	setupFeaturesFeaturesParam  = "features"
+	setupFeaturesSystemFeatures = "system_features"
+	featuresParameterTemplate   = "<<parameters.features>>"
+	matrixFeaturesTemplate      = "<<matrix.features>>"
 )
+
+// checksYamlFeaturePhases is the set of phases that may host the feature-flags check.
+// Build-gated phases (e.g. source, dev) are not allowed because the check must
+// run before the contracts are built.
+var checksYamlFeaturePhases = map[string]bool{
+	"setup":     true,
+	"pre-build": true,
+}
+
+// setupFeaturesRequiredJobs lists every CircleCI job that must invoke the
+// setup-features command.
+var setupFeaturesRequiredJobs = []string{
+	jobContractsBedrockTests,
+	jobContractsBedrockCoverage,
+	jobContractsBedrockTestsUpgrade,
+	jobContractsBedrockTestsL2Fork,
+}
+
+// setupFeaturesAllowedJobs is derived from setupFeaturesRequiredJobs so the
+// allowlist and required-job list cannot drift.
+var setupFeaturesAllowedJobs = stringSet(setupFeaturesRequiredJobs)
+
+func stringSet(values []string) map[string]bool {
+	out := make(map[string]bool, len(values))
+	for _, value := range values {
+		out[value] = true
+	}
+	return out
+}
+
+// contractsFeatureTestsMatrixConsumers is the expected set of matrix-driven job
+// instances in the contracts-feature-tests workflow.
+var contractsFeatureTestsMatrixConsumers = []string{
+	"contracts-bedrock-tests-heavy-fuzz-modified",
+	"contracts-bedrock-tests",
+	"contracts-bedrock-tests-develop",
+	"contracts-bedrock-coverage",
+	"contracts-bedrock-tests-upgrade op-mainnet",
+	"contracts-bedrock-tests-upgrade-develop op-mainnet",
+}
+
+// contractsFeatureTestsEmptyDefaultJobs are job definitions whose
+// parameters.features.default must be the empty string. tests-l2-fork is
+// intentionally excluded.
+var contractsFeatureTestsEmptyDefaultJobs = []string{
+	jobContractsBedrockTests,
+	jobContractsBedrockCoverage,
+	jobContractsBedrockTestsUpgrade,
+}
 
 // sysSetupConsumerFiles are setup files that may consume and activate sys feature readers.
 var sysSetupConsumerFiles = []string{
@@ -111,6 +181,52 @@ type CircleCIConfig struct {
 	FeaturesMatrix        []string
 }
 
+// ChecksConfig is the feature-flags subset extracted from
+// packages/contracts-bedrock/checks.yaml.
+type ChecksConfig struct {
+	FeatureFlagsCommand string
+	FeatureFlagsPhase   string
+	FeatureFlagsFound   bool
+	FeatureFlagsCount   int
+}
+
+// CIControlPlane captures the CircleCI wiring that keeps feature-flag checks
+// required: the checks-fast gate path, setup-features command usage, and the
+// features_matrix anchor and consumers.
+type CIControlPlane struct {
+	ChecksFastCommand                   string
+	ChecksFastWorkingDir                string
+	HasCheckFastFeatureTests            bool
+	RequiredCIReqsCheckFast             bool
+	SetupFeaturesCommandExists          bool
+	SetupFeaturesCommandCount           int
+	SetupFeaturesHasFeaturesParam       bool
+	SetupFeaturesHasSystemFeaturesParam bool
+	SetupFeaturesCallers                []SetupFeaturesCaller
+	FeaturesMatrixAnchorCount           int
+	MatrixConsumers                     []MatrixConsumer
+	FeatureDefaults                     map[string]string
+}
+
+// SetupFeaturesCaller is one invocation of the setup-features command.
+type SetupFeaturesCaller struct {
+	Job                    string
+	Features               string
+	SystemFeatures         string
+	SystemFeaturesOverride bool
+	Line                   int
+}
+
+// MatrixConsumer is one workflow-level job invocation that consumes the
+// features matrix.
+type MatrixConsumer struct {
+	Workflow           string
+	JobType            string
+	InstanceName       string
+	UsesFeaturesAnchor bool
+	Line               int
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -148,7 +264,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("feature-flags: %w", err)
 	}
-	ci, err := readCircleCIConfig(circleCIPath)
+	ci, controlPlane, err := readCircleCIConfig(circleCIPath)
+	if err != nil {
+		return fmt.Errorf("feature-flags: %w", err)
+	}
+	checksCfg, err := readChecksYaml(checksYamlPath)
 	if err != nil {
 		return fmt.Errorf("feature-flags: %w", err)
 	}
@@ -159,6 +279,8 @@ func run() error {
 	errs = append(errs, validateGoParity(registry, devConsts, goConsts, solHardcoded, goHardcoded)...)
 	errs = append(errs, validateWiring(registry, readers, ff, sysSetup)...)
 	errs = append(errs, validateCIParity(registry, ci)...)
+	errs = append(errs, validateChecksConfigControlPlane(checksCfg)...)
+	errs = append(errs, validateCIControlPlane(controlPlane)...)
 
 	if len(errs) > 0 {
 		for _, e := range errs {
@@ -258,12 +380,28 @@ func scanSysFeatureSetup(paths []string) (SysFeatureSetup, error) {
 	return setup, nil
 }
 
-func readCircleCIConfig(path string) (CircleCIConfig, error) {
+func readCircleCIConfig(path string) (CircleCIConfig, CIControlPlane, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return CircleCIConfig{}, fmt.Errorf("read %s: %w", path, err)
+		return CircleCIConfig{}, CIControlPlane{}, fmt.Errorf("read %s: %w", path, err)
 	}
-	return parseCircleCIConfig(data)
+	doc, err := parseCircleCIDoc(data)
+	if err != nil {
+		return CircleCIConfig{}, CIControlPlane{}, err
+	}
+	cfg, err := parseCircleCIConfigFromDoc(doc)
+	if err != nil {
+		return CircleCIConfig{}, CIControlPlane{}, err
+	}
+	return cfg, parseCIControlPlane(doc), nil
+}
+
+func readChecksYaml(path string) (ChecksConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ChecksConfig{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	return parseChecksYaml(data)
 }
 
 // Parsing
@@ -617,16 +755,26 @@ func scanSysFeatureSetupContent(content string, setup *SysFeatureSetup) {
 	}
 }
 
-func parseCircleCIConfig(data []byte) (CircleCIConfig, error) {
+func parseCircleCIDoc(data []byte) (*yaml.Node, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return CircleCIConfig{}, fmt.Errorf("parse circleci yaml: %w", err)
+		return nil, fmt.Errorf("parse circleci yaml: %w", err)
 	}
 	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
-		return CircleCIConfig{}, fmt.Errorf("parse circleci yaml: root must be a mapping")
+		return nil, fmt.Errorf("parse circleci yaml: root must be a mapping")
 	}
-	doc := root.Content[0]
+	return root.Content[0], nil
+}
 
+func parseCircleCIConfig(data []byte) (CircleCIConfig, error) {
+	doc, err := parseCircleCIDoc(data)
+	if err != nil {
+		return CircleCIConfig{}, err
+	}
+	return parseCircleCIConfigFromDoc(doc)
+}
+
+func parseCircleCIConfigFromDoc(doc *yaml.Node) (CircleCIConfig, error) {
 	sysDefault, err := readCISystemFeaturesDefault(doc)
 	if err != nil {
 		return CircleCIConfig{}, err
@@ -639,6 +787,333 @@ func parseCircleCIConfig(data []byte) (CircleCIConfig, error) {
 		SystemFeaturesDefault: sysDefault,
 		FeaturesMatrix:        matrix,
 	}, nil
+}
+
+func parseChecksYaml(data []byte) (ChecksConfig, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return ChecksConfig{}, fmt.Errorf("parse checks yaml: %w", err)
+	}
+	if len(root.Content) == 0 || root.Content[0].Kind != yaml.MappingNode {
+		return ChecksConfig{}, fmt.Errorf("parse checks yaml: root must be a mapping")
+	}
+	doc := root.Content[0]
+
+	phases := yamlMapNodeAt(doc, "phases")
+	if phases == nil || phases.Kind != yaml.SequenceNode {
+		return ChecksConfig{}, nil
+	}
+	var cfg ChecksConfig
+	for _, phase := range phases.Content {
+		if phase.Kind != yaml.MappingNode {
+			continue
+		}
+		phaseName := ""
+		if n := yamlMapNodeAt(phase, "name"); n != nil && n.Kind == yaml.ScalarNode {
+			phaseName = strings.TrimSpace(n.Value)
+		}
+		checks := yamlMapNodeAt(phase, "checks")
+		if checks == nil || checks.Kind != yaml.SequenceNode {
+			continue
+		}
+		for _, check := range checks.Content {
+			if check.Kind != yaml.MappingNode {
+				continue
+			}
+			nameNode := yamlMapNodeAt(check, "name")
+			if nameNode == nil || nameNode.Kind != yaml.ScalarNode || nameNode.Value != featureFlagsCheckName {
+				continue
+			}
+			cfg.FeatureFlagsCount++
+			if cfg.FeatureFlagsFound {
+				continue
+			}
+			cmd := ""
+			if c := yamlMapNodeAt(check, "command"); c != nil && c.Kind == yaml.ScalarNode {
+				cmd = strings.TrimSpace(c.Value)
+			}
+			cfg.FeatureFlagsCommand = cmd
+			cfg.FeatureFlagsPhase = phaseName
+			cfg.FeatureFlagsFound = true
+		}
+	}
+	return cfg, nil
+}
+
+func parseCIControlPlane(doc *yaml.Node) CIControlPlane {
+	cp := CIControlPlane{FeatureDefaults: map[string]string{}}
+	cp.ChecksFastCommand, cp.ChecksFastWorkingDir = extractChecksFastRunStep(doc)
+	cp.SetupFeaturesCommandExists, cp.SetupFeaturesHasFeaturesParam, cp.SetupFeaturesHasSystemFeaturesParam = extractSetupFeaturesCommand(doc)
+	cp.SetupFeaturesCommandCount = countMappingKey(yamlMapNodeAt(doc, "commands"), setupFeaturesCommandName)
+	cp.SetupFeaturesCallers = collectSetupFeaturesCallers(doc)
+	cp.FeaturesMatrixAnchorCount = countAnchors(doc, featuresMatrixAnchor)
+	cp.MatrixConsumers = collectMatrixConsumers(doc, workflowContractsFeatureTests)
+	cp.HasCheckFastFeatureTests = hasCheckFastFeatureTestsInvocation(doc, workflowContractsFeatureTests)
+	cp.RequiredCIReqsCheckFast = requiredContractsCITerminalRequiresCheckFast(doc, workflowContractsFeatureTests)
+	for _, job := range contractsFeatureTestsEmptyDefaultJobs {
+		if v, ok := readJobFeatureDefault(doc, job); ok {
+			cp.FeatureDefaults[job] = v
+		}
+	}
+	return cp
+}
+
+func extractChecksFastRunStep(doc *yaml.Node) (command, workingDir string) {
+	steps := yamlMapNodeAt(doc, "jobs", jobChecksFast, "steps")
+	if steps == nil || steps.Kind != yaml.SequenceNode {
+		return "", ""
+	}
+	var namedFallbackCommand, namedFallbackWorkingDir string
+	var namedFallbackFound bool
+	var substringFallbackCommand, substringFallbackWorkingDir string
+	for _, step := range steps.Content {
+		if step.Kind != yaml.MappingNode || len(step.Content) < 2 {
+			continue
+		}
+		if step.Content[0].Value != "run" {
+			continue
+		}
+		runVal := step.Content[1]
+		if runVal.Kind != yaml.MappingNode {
+			continue
+		}
+		var stepName, stepCmd, stepDir string
+		for i := 0; i+1 < len(runVal.Content); i += 2 {
+			switch runVal.Content[i].Value {
+			case "name":
+				stepName = runVal.Content[i+1].Value
+			case "command":
+				stepCmd = runVal.Content[i+1].Value
+			case "working_directory":
+				stepDir = runVal.Content[i+1].Value
+			}
+		}
+		trimmedStepCmd := strings.TrimSpace(stepCmd)
+		if trimmedStepCmd == checksFastCommand {
+			return trimmedStepCmd, stepDir
+		}
+		// Keep likely stale check steps so errors print the actual command.
+		if stepName == "Run checks" && !namedFallbackFound {
+			namedFallbackFound = true
+			namedFallbackCommand = stepCmd
+			namedFallbackWorkingDir = stepDir
+		} else if substringFallbackCommand == "" && strings.Contains(trimmedStepCmd, "check-fast") {
+			substringFallbackCommand = stepCmd
+			substringFallbackWorkingDir = stepDir
+		}
+	}
+	if namedFallbackFound {
+		return namedFallbackCommand, namedFallbackWorkingDir
+	}
+	return substringFallbackCommand, substringFallbackWorkingDir
+}
+
+func extractSetupFeaturesCommand(doc *yaml.Node) (exists, hasFeatures, hasSystemFeatures bool) {
+	cmd := yamlMapNodeAt(doc, "commands", setupFeaturesCommandName)
+	if cmd == nil || cmd.Kind != yaml.MappingNode {
+		return false, false, false
+	}
+	exists = true
+	params := yamlMapNodeAt(cmd, "parameters")
+	if params == nil || params.Kind != yaml.MappingNode {
+		return exists, false, false
+	}
+	for i := 0; i+1 < len(params.Content); i += 2 {
+		switch params.Content[i].Value {
+		case setupFeaturesFeaturesParam:
+			hasFeatures = true
+		case setupFeaturesSystemFeatures:
+			hasSystemFeatures = true
+		}
+	}
+	return exists, hasFeatures, hasSystemFeatures
+}
+
+func collectSetupFeaturesCallers(doc *yaml.Node) []SetupFeaturesCaller {
+	var out []SetupFeaturesCaller
+	jobs := yamlMapNodeAt(doc, "jobs")
+	if jobs == nil || jobs.Kind != yaml.MappingNode {
+		return out
+	}
+	for i := 0; i+1 < len(jobs.Content); i += 2 {
+		jobName := jobs.Content[i].Value
+		steps := yamlMapNodeAt(jobs.Content[i+1], "steps")
+		if steps == nil || steps.Kind != yaml.SequenceNode {
+			continue
+		}
+		for _, step := range steps.Content {
+			if step.Kind == yaml.ScalarNode && step.Value == setupFeaturesCommandName {
+				out = append(out, SetupFeaturesCaller{Job: jobName, Line: step.Line})
+				continue
+			}
+			if step.Kind != yaml.MappingNode || len(step.Content) < 2 {
+				continue
+			}
+			keyNode := step.Content[0]
+			if keyNode.Value != setupFeaturesCommandName {
+				continue
+			}
+			caller := SetupFeaturesCaller{Job: jobName, Line: keyNode.Line}
+			valNode := step.Content[1]
+			if valNode.Kind == yaml.MappingNode {
+				for j := 0; j+1 < len(valNode.Content); j += 2 {
+					switch valNode.Content[j].Value {
+					case setupFeaturesFeaturesParam:
+						caller.Features = strings.TrimSpace(valNode.Content[j+1].Value)
+					case setupFeaturesSystemFeatures:
+						caller.SystemFeaturesOverride = true
+						caller.SystemFeatures = valNode.Content[j+1].Value
+					}
+				}
+			}
+			out = append(out, caller)
+		}
+	}
+	return out
+}
+
+func countAnchors(node *yaml.Node, anchor string) int {
+	if node == nil {
+		return 0
+	}
+	n := 0
+	if node.Anchor == anchor {
+		n++
+	}
+	for _, c := range node.Content {
+		n += countAnchors(c, anchor)
+	}
+	return n
+}
+
+func countMappingKey(node *yaml.Node, key string) int {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return 0
+	}
+	n := 0
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			n++
+		}
+	}
+	return n
+}
+
+func collectMatrixConsumers(doc *yaml.Node, workflow string) []MatrixConsumer {
+	var out []MatrixConsumer
+	jobs := yamlMapNodeAt(doc, "workflows", workflow, "jobs")
+	if jobs == nil || jobs.Kind != yaml.SequenceNode {
+		return out
+	}
+	for _, entry := range jobs.Content {
+		if entry.Kind != yaml.MappingNode || len(entry.Content) < 2 {
+			continue
+		}
+		keyNode := entry.Content[0]
+		valNode := entry.Content[1]
+		if valNode.Kind != yaml.MappingNode {
+			continue
+		}
+		var name, features string
+		var matrixFeaturesNode *yaml.Node
+		for i := 0; i+1 < len(valNode.Content); i += 2 {
+			k := valNode.Content[i].Value
+			v := valNode.Content[i+1]
+			switch k {
+			case "name":
+				name = v.Value
+			case setupFeaturesFeaturesParam:
+				features = strings.TrimSpace(v.Value)
+			case "matrix":
+				matrixFeaturesNode = yamlMapNodeAt(v, "parameters", setupFeaturesFeaturesParam)
+			}
+		}
+		if features != matrixFeaturesTemplate {
+			continue
+		}
+		usesAnchor := false
+		if matrixFeaturesNode != nil {
+			if matrixFeaturesNode.Anchor == featuresMatrixAnchor {
+				usesAnchor = true
+			}
+			if matrixFeaturesNode.Kind == yaml.AliasNode && matrixFeaturesNode.Alias != nil && matrixFeaturesNode.Alias.Anchor == featuresMatrixAnchor {
+				usesAnchor = true
+			}
+		}
+		out = append(out, MatrixConsumer{
+			Workflow:           workflow,
+			JobType:            keyNode.Value,
+			InstanceName:       stripMatrixFeaturesTemplate(name),
+			UsesFeaturesAnchor: usesAnchor,
+			Line:               keyNode.Line,
+		})
+	}
+	return out
+}
+
+func stripMatrixFeaturesTemplate(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, matrixFeaturesTemplate, ""))
+}
+
+func hasCheckFastFeatureTestsInvocation(doc *yaml.Node, workflow string) bool {
+	jobs := yamlMapNodeAt(doc, "workflows", workflow, "jobs")
+	if jobs == nil || jobs.Kind != yaml.SequenceNode {
+		return false
+	}
+	for _, entry := range jobs.Content {
+		if entry.Kind != yaml.MappingNode || len(entry.Content) < 2 {
+			continue
+		}
+		if entry.Content[0].Value != jobChecksFast {
+			continue
+		}
+		valNode := entry.Content[1]
+		if valNode.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(valNode.Content); i += 2 {
+			if valNode.Content[i].Value == "name" && valNode.Content[i+1].Value == checkFastFeatureTestsInstanceName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func requiredContractsCITerminalRequiresCheckFast(doc *yaml.Node, workflow string) bool {
+	jobs := yamlMapNodeAt(doc, "workflows", workflow, "jobs")
+	if jobs == nil || jobs.Kind != yaml.SequenceNode {
+		return false
+	}
+	for _, entry := range jobs.Content {
+		if entry.Kind != yaml.MappingNode || len(entry.Content) < 2 {
+			continue
+		}
+		if entry.Content[0].Value != jobRequiredContractsCI {
+			continue
+		}
+		requires := yamlMapNodeAt(entry.Content[1], "requires")
+		if requires == nil || requires.Kind != yaml.SequenceNode {
+			continue
+		}
+		for _, req := range requires.Content {
+			if req.Kind != yaml.MappingNode || len(req.Content) < 2 {
+				continue
+			}
+			if req.Content[0].Value == checkFastFeatureTestsInstanceName && req.Content[1].Value == requireTerminalValue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func readJobFeatureDefault(doc *yaml.Node, jobName string) (string, bool) {
+	n := yamlMapNodeAt(doc, "jobs", jobName, "parameters", setupFeaturesFeaturesParam, "default")
+	if n == nil || n.Kind != yaml.ScalarNode {
+		return "", false
+	}
+	return n.Value, true
 }
 
 func readCISystemFeaturesDefault(doc *yaml.Node) ([]string, error) {
@@ -915,6 +1390,7 @@ func validateRegistry(r Registry) []string {
 		}
 	}
 
+	sort.Strings(errs)
 	return errs
 }
 
@@ -963,8 +1439,8 @@ func validateDefinitions(r Registry, devConsts []DevFeatureConst, sysConsts []Sy
 		if isZeroHex(c.Hex) {
 			errs = append(errs, fmt.Sprintf("DevFeatures.%s hex value is zero", c.Name))
 		}
-		if !exactlyOneNibble(c.Hex) {
-			errs = append(errs, fmt.Sprintf("DevFeatures.%s hex value 0x%s must have exactly one nibble set", c.Name, c.Hex))
+		if !exactlyOneBit(c.Hex) {
+			errs = append(errs, fmt.Sprintf("DevFeatures.%s hex value 0x%s must have exactly one bit set", c.Name, c.Hex))
 		}
 		if other, dup := seenHex[c.Hex]; dup {
 			errs = append(errs, fmt.Sprintf("DevFeatures.%s hex value 0x%s duplicates %s", c.Name, c.Hex, other))
@@ -994,6 +1470,7 @@ func validateDefinitions(r Registry, devConsts []DevFeatureConst, sysConsts []Sy
 		}
 	}
 
+	sort.Strings(errs)
 	return errs
 }
 
@@ -1335,6 +1812,144 @@ func validateCIParity(r Registry, ci CircleCIConfig) []string {
 	return errs
 }
 
+func validateChecksConfigControlPlane(cfg ChecksConfig) []string {
+	const prefix = "checks.yaml control-plane: "
+	var errs []string
+	if !cfg.FeatureFlagsFound {
+		errs = append(errs, prefix+"feature-flags check is missing")
+		return errs
+	}
+	if cfg.FeatureFlagsCount != 1 {
+		errs = append(errs, fmt.Sprintf("%sfeature-flags check appears %d times, expected 1",
+			prefix, cfg.FeatureFlagsCount))
+	}
+	if cfg.FeatureFlagsCommand != featureFlagsCheckCommand {
+		errs = append(errs, fmt.Sprintf("%sfeature-flags check command is %q, expected %q",
+			prefix, cfg.FeatureFlagsCommand, featureFlagsCheckCommand))
+	}
+	if !checksYamlFeaturePhases[cfg.FeatureFlagsPhase] {
+		errs = append(errs, fmt.Sprintf("%sfeature-flags check phase is %q, must be one of setup, pre-build",
+			prefix, cfg.FeatureFlagsPhase))
+	}
+	return errs
+}
+
+func validateCIControlPlane(cp CIControlPlane) []string {
+	const prefix = "CircleCI control-plane: "
+	var errs []string
+
+	// contracts-bedrock-checks-fast gate path and required-CI wiring.
+	if cp.ChecksFastCommand != checksFastCommand {
+		errs = append(errs, fmt.Sprintf("%s%s command is %q, expected %q",
+			prefix, jobChecksFast, cp.ChecksFastCommand, checksFastCommand))
+	}
+	if cp.ChecksFastWorkingDir != contractsBedrockWorkingDir {
+		errs = append(errs, fmt.Sprintf("%s%s working_directory is %q, expected %q",
+			prefix, jobChecksFast, cp.ChecksFastWorkingDir, contractsBedrockWorkingDir))
+	}
+	if !cp.HasCheckFastFeatureTests {
+		errs = append(errs, fmt.Sprintf("%sworkflow %s does not invoke %s with name %s",
+			prefix, workflowContractsFeatureTests, jobChecksFast, checkFastFeatureTestsInstanceName))
+	}
+	if !cp.RequiredCIReqsCheckFast {
+		errs = append(errs, fmt.Sprintf("%s%s does not terminal-require %s",
+			prefix, jobRequiredContractsCI, checkFastFeatureTestsInstanceName))
+	}
+
+	// setup-features command definition and call sites.
+	if !cp.SetupFeaturesCommandExists {
+		errs = append(errs, fmt.Sprintf("%scommands.%s is missing", prefix, setupFeaturesCommandName))
+	} else {
+		if cp.SetupFeaturesCommandCount != 1 {
+			errs = append(errs, fmt.Sprintf("%scommands.%s appears %d times, expected 1",
+				prefix, setupFeaturesCommandName, cp.SetupFeaturesCommandCount))
+		}
+		if !cp.SetupFeaturesHasFeaturesParam {
+			errs = append(errs, fmt.Sprintf("%scommands.%s is missing parameter %q",
+				prefix, setupFeaturesCommandName, setupFeaturesFeaturesParam))
+		}
+		if !cp.SetupFeaturesHasSystemFeaturesParam {
+			errs = append(errs, fmt.Sprintf("%scommands.%s is missing parameter %q",
+				prefix, setupFeaturesCommandName, setupFeaturesSystemFeatures))
+		}
+	}
+	setupFeaturesSeenJobs := map[string]bool{}
+	for _, caller := range cp.SetupFeaturesCallers {
+		loc := ""
+		if caller.Line > 0 {
+			loc = fmt.Sprintf(" at line %d", caller.Line)
+		}
+		if !setupFeaturesAllowedJobs[caller.Job] {
+			errs = append(errs, fmt.Sprintf("%s%s caller in job %s%s is not allowed",
+				prefix, setupFeaturesCommandName, caller.Job, loc))
+			continue
+		}
+		setupFeaturesSeenJobs[caller.Job] = true
+		if caller.SystemFeaturesOverride || caller.SystemFeatures != "" {
+			errs = append(errs, fmt.Sprintf("%s%s caller in job %s%s passes %s override",
+				prefix, setupFeaturesCommandName, caller.Job, loc, setupFeaturesSystemFeatures))
+		}
+		if caller.Features != featuresParameterTemplate {
+			errs = append(errs, fmt.Sprintf("%s%s caller in job %s%s passes %s=%q, expected %q",
+				prefix, setupFeaturesCommandName, caller.Job, loc,
+				setupFeaturesFeaturesParam, caller.Features, featuresParameterTemplate))
+		}
+	}
+	for _, job := range setupFeaturesRequiredJobs {
+		if !setupFeaturesSeenJobs[job] {
+			errs = append(errs, fmt.Sprintf("%sjob %s does not call %s",
+				prefix, job, setupFeaturesCommandName))
+		}
+	}
+
+	// features_matrix anchor and matrix consumers.
+	if cp.FeaturesMatrixAnchorCount != 1 {
+		errs = append(errs, fmt.Sprintf("%s&%s anchor count is %d, expected 1",
+			prefix, featuresMatrixAnchor, cp.FeaturesMatrixAnchorCount))
+	}
+	expected := map[string]bool{}
+	for _, name := range contractsFeatureTestsMatrixConsumers {
+		expected[name] = true
+	}
+	seen := map[string]bool{}
+	for _, mc := range cp.MatrixConsumers {
+		loc := ""
+		if mc.Line > 0 {
+			loc = fmt.Sprintf(" at line %d", mc.Line)
+		}
+		if !mc.UsesFeaturesAnchor {
+			errs = append(errs, fmt.Sprintf("%smatrix consumer %s%s does not source matrix.parameters.features from *%s",
+				prefix, mc.InstanceName, loc, featuresMatrixAnchor))
+		}
+		if !expected[mc.InstanceName] {
+			errs = append(errs, fmt.Sprintf("%sunexpected matrix consumer %s%s in workflow %s",
+				prefix, mc.InstanceName, loc, mc.Workflow))
+		}
+		seen[mc.InstanceName] = true
+	}
+	for _, name := range contractsFeatureTestsMatrixConsumers {
+		if !seen[name] {
+			errs = append(errs, fmt.Sprintf("%sexpected matrix consumer %s is missing from workflow %s",
+				prefix, name, workflowContractsFeatureTests))
+		}
+	}
+	for _, job := range contractsFeatureTestsEmptyDefaultJobs {
+		v, ok := cp.FeatureDefaults[job]
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s%s parameters.%s.default is missing, expected %q",
+				prefix, job, setupFeaturesFeaturesParam, ""))
+			continue
+		}
+		if v != "" {
+			errs = append(errs, fmt.Sprintf("%s%s parameters.%s.default = %q, expected %q",
+				prefix, job, setupFeaturesFeaturesParam, v, ""))
+		}
+	}
+
+	sort.Strings(errs)
+	return errs
+}
+
 func stringSlicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -1356,8 +1971,8 @@ func isZeroHex(h string) bool {
 	return true
 }
 
-// exactlyOneNibble reports whether h has one nonzero nibble and that nibble is a power of two.
-func exactlyOneNibble(h string) bool {
+// exactlyOneBit reports whether h has exactly one bitmap bit set.
+func exactlyOneBit(h string) bool {
 	nonZero := 0
 	var val byte
 	for i := 0; i < len(h); i++ {
