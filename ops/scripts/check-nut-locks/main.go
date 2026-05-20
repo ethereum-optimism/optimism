@@ -65,14 +65,19 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 	return nil
 }
 
-// checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
+// checkCommitAncestry verifies that a commit is an ancestor of origin/develop
+// or origin/proposal/op-contracts/v7.0.0. The proposal branch is included because
+// some bundles are generated from contract changes that landed there before develop.
 func checkCommitAncestry(root, fork string, commit string) error {
-	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, "origin/develop")
-	cmd.Dir = root
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop", fork, commit[:12])
+	branches := []string{"origin/develop", "origin/proposal/op-contracts/v7.0.0"}
+	for _, branch := range branches {
+		cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, branch)
+		cmd.Dir = root
+		if cmd.Run() == nil {
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("fork %s: commit %s is not an ancestor of origin/develop or origin/proposal/op-contracts/v7.0.0", fork, commit[:12])
 }
 
 func main() {
