@@ -307,7 +307,7 @@ jobs:
         default: "just fmt-check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -332,7 +332,7 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -361,7 +361,7 @@ jobs:
         default: "cargo deny check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -386,7 +386,7 @@ jobs:
         default: "zepter run check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -407,7 +407,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -432,7 +432,7 @@ jobs:
         default: "just check-no-std"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -458,7 +458,7 @@ jobs:
         default: "just lint-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -485,7 +485,7 @@ jobs:
         default: "just test-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -519,7 +519,7 @@ jobs:
         default: "release"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -546,7 +546,7 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -576,7 +576,7 @@ jobs:
         default: "--workspace"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -599,7 +599,7 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -766,7 +766,7 @@ jobs:
   kona-link-checker:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
