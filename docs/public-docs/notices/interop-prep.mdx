@@ -93,7 +93,8 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
 <Steps>
   <Step title="Stand up execution clients for both chains">
   Run at least one op-reth process for OP Sepolia and at least one for Unichain Sepolia.
-  Execution clients are not shared across chains; each supernode instance connects to exactly one engine-API endpoint per chain, and production fleets typically run several execution clients per chain to match the supernode tier and Light CL pool.
+  Execution clients are not shared across chains.
+  For each chain, plan one EL per consensus client connecting to it — one per supernode virtual node, plus one per Light CL in your fleet.
   Each execution client needs its own JWT secret file (a single shared file across both ELs is fine — see the note at the end of this step) and its own engine-API listen address.
   ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
