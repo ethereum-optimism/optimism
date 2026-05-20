@@ -157,7 +157,17 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   OP_SUPERNODE_RPC_PORT: "8545"
   ```
 
-  The supernode picks up the interop activation timestamp and the dependency set from the rollup configs once those land in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) — no manual override is required at this layer.
+  The supernode loads the interop activation timestamp from each chain's rollup config — no manual override is required there.
+  The dependency set isn't yet loaded from the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry), so set it explicitly with `--vn.all.interop.dependency-set=<path>` (env: `OP_SUPERNODE_VN_ALL_INTEROP_DEPENDENCY_SET`), pointing at a JSON file that lists the two chains:
+
+  ```json
+  {
+    "dependencies": {
+      "11155420": {},
+      "1301": {}
+    }
+  }
+  ```
 
   If your primary beacon node prunes blob sidecars (the Ethereum default is about 18 days), configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service from the start.
   A supernode that has been offline past the primary beacon's prune window cannot recover the missing blobs alone, and chain containers will stall at the gap.
