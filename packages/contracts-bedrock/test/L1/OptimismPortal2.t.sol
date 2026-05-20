@@ -731,7 +731,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
     /// @notice Deploys a fresh ETHLockbox proxy pointed at the same implementation as the existing
     ///         `ethLockbox` and initializes it with `optimismPortal2` optionally authorized.
-    function _deployRealLockbox(bool _authorizePortal) internal returns (IETHLockbox lockbox_) {
+    function _deployLockbox(bool _authorizePortal) internal returns (IETHLockbox lockbox_) {
         address proxyAdminAddr = address(proxyAdmin);
 
         vm.prank(proxyAdminAddr);
@@ -749,7 +749,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
     /// @notice Deploys a fresh AnchorStateRegistry proxy pointed at the same implementation as the
     ///         existing `anchorStateRegistry` and initializes it with a dummy anchor root.
-    function _deployRealRegistry() internal returns (IAnchorStateRegistry registry_) {
+    function _deployAnchorStateRegistry() internal returns (IAnchorStateRegistry registry_) {
         address proxyAdminAddr = address(proxyAdmin);
 
         vm.prank(proxyAdminAddr);
@@ -803,7 +803,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     ///         address.
     function test_migrateToSharedDisputeGame_zeroLockbox_reverts() external {
         address caller = optimismPortal2.proxyAdminOwner();
-        IAnchorStateRegistry registry = _deployRealRegistry();
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
         vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
         vm.prank(caller);
         optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(0)), registry);
@@ -813,7 +813,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     ///         address.
     function test_migrateToSharedDisputeGame_zeroRegistry_reverts() external {
         address caller = optimismPortal2.proxyAdminOwner();
-        IETHLockbox lockbox = _deployRealLockbox({ _authorizePortal: true });
+        IETHLockbox lockbox = _deployLockbox({ _authorizePortal: true });
         vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
         vm.prank(caller);
         optimismPortal2.migrateToSharedDisputeGame(lockbox, IAnchorStateRegistry(address(0)));
@@ -823,8 +823,8 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     ///         authorized this portal.
     function test_migrateToSharedDisputeGame_lockboxNotAuthorizingPortal_reverts() external {
         address caller = optimismPortal2.proxyAdminOwner();
-        IETHLockbox lockbox = _deployRealLockbox({ _authorizePortal: false });
-        IAnchorStateRegistry registry = _deployRealRegistry();
+        IETHLockbox lockbox = _deployLockbox({ _authorizePortal: false });
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_LockboxNotAuthorizedForPortal.selector);
         vm.prank(caller);
@@ -838,8 +838,8 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         address oldLockbox = address(optimismPortal2.ethLockbox());
         address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
 
-        IETHLockbox newLockbox = _deployRealLockbox({ _authorizePortal: true });
-        IAnchorStateRegistry newAnchorStateRegistry = _deployRealRegistry();
+        IETHLockbox newLockbox = _deployLockbox({ _authorizePortal: true });
+        IAnchorStateRegistry newAnchorStateRegistry = _deployAnchorStateRegistry();
         assertTrue(
             newLockbox.authorizedPortals(IOptimismPortal(payable(address(optimismPortal2)))),
             "test setup: portal not authorized on new lockbox"
