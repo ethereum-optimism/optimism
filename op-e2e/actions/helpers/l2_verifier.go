@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
 var interopJWTSecret = [32]byte{4}
@@ -255,20 +254,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode
-}
-
-func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
-	require.NotNil(t, v.interopSys, "interop sub-system must be running")
-	m, ok := v.interopSys.(*indexing.IndexingMode)
-	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
-	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
-	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), 5*time.Second, auth)
-	require.NoError(t, err)
-	t.Cleanup(cl.Close)
-	bCl := client.NewBaseRPCClient(cl)
-	dialSetup := &syncnode.RPCDialSetup{JWTSecret: m.JWTSecret(), Endpoint: m.WSEndpoint()}
-	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl, opts, v.log, dialSetup)
 }
 
 type l2VerifierBackend struct {
