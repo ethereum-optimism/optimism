@@ -2,7 +2,9 @@ package sources
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -33,6 +35,10 @@ func (cl *InteropFilterClient) CheckAccessList(ctx context.Context, inboxEntries
 func (cl *InteropFilterClient) GetBlockHashByNumber(ctx context.Context, chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error) {
 	var result common.Hash
 	err := cl.client.CallContext(ctx, &result, "interop_getBlockHashByNumber", chainID, blockNum)
+	if isNotFound(err) {
+		err = fmt.Errorf("%w: %v", ethereum.NotFound, err.Error())
+		return result, err
+	}
 	return result, err
 }
 
