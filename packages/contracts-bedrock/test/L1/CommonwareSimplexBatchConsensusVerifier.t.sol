@@ -15,7 +15,7 @@ contract CommonwareSimplexBatchConsensusVerifier_Test is Test {
 
     function setUp() public {
         vm.etch(address(0x100), P256_VERIFIER_BYTECODE);
-        verifier = new CommonwareSimplexBatchConsensusVerifier();
+        verifier = _newVerifier(3);
     }
 
     function test_verifyBatchConsensus_validProof_succeeds() public view {
@@ -49,6 +49,51 @@ contract CommonwareSimplexBatchConsensusVerifier_Test is Test {
         bytes memory proof = _copy(VALID_PROOF);
         proof[0x0123] ^= 0x01;
         assertFalse(verifier.verifyBatchConsensus(proof));
+    }
+
+    function test_verifyBatchConsensus_rejectsInsufficientQuorum() public {
+        CommonwareSimplexBatchConsensusVerifier fourOfFour = _newVerifier(4);
+        assertFalse(fourOfFour.verifyBatchConsensus(VALID_PROOF));
+    }
+
+    function test_verifyBatchConsensus_rejectsWrongCommitteeKey() public {
+        (bytes32[] memory xs, bytes32[] memory ys) = _committee();
+        xs[1] = xs[0];
+        CommonwareSimplexBatchConsensusVerifier wrongCommittee = new CommonwareSimplexBatchConsensusVerifier(xs, ys, 3);
+        assertFalse(wrongCommittee.verifyBatchConsensus(VALID_PROOF));
+    }
+
+    function test_constructor_rejectsInvalidQuorum() public {
+        (bytes32[] memory xs, bytes32[] memory ys) = _committee();
+        vm.expectRevert("CommonwareSimplex: invalid config");
+        new CommonwareSimplexBatchConsensusVerifier(xs, ys, 5);
+    }
+
+    function test_constructor_rejectsDuplicateValidator() public {
+        (bytes32[] memory xs, bytes32[] memory ys) = _committee();
+        xs[2] = xs[1];
+        ys[2] = ys[1];
+        vm.expectRevert("CommonwareSimplex: duplicate validator");
+        new CommonwareSimplexBatchConsensusVerifier(xs, ys, 3);
+    }
+
+    function _newVerifier(uint256 quorum) internal returns (CommonwareSimplexBatchConsensusVerifier) {
+        (bytes32[] memory xs, bytes32[] memory ys) = _committee();
+        return new CommonwareSimplexBatchConsensusVerifier(xs, ys, quorum);
+    }
+
+    function _committee() internal pure returns (bytes32[] memory xs, bytes32[] memory ys) {
+        xs = new bytes32[](4);
+        ys = new bytes32[](4);
+
+        xs[0] = 0x3bd43f49684b6e9be4eee504029cfc9e520d6035605ec99acdd082f818324d6c;
+        ys[0] = 0x59dc2d73f88d5def8923c6ef41fa5e25ba7420c7bb4a7f002ee3e81878e45f1b;
+        xs[1] = 0xb94425908ddd66d4dc8fc0e1516fe888c7558e5945da5c0b3df3d9a12cc7d991;
+        ys[1] = 0x30a50e74eb9cf19dbe8545f55f25774d035431ddd8f60996f6be020ab9932cff;
+        xs[2] = 0x6348f24d507e944cc8a2c73c88f05cc1224b4873bd7b12fb75d48be495b1a3c6;
+        ys[2] = 0x674fe8b903c5d7f11d5f6261851f0e0e5cd835dfea422f0a59a0c43a56d8482b;
+        xs[3] = 0xc2d3f77d431b8d1b66f73bff503fd3f82dc4172992e7bebd9f836dbc8da7efa8;
+        ys[3] = 0xea311f669388c70096d166207adbe142f4ae09384a66d9aa73b9e6646ab8ad7f;
     }
 
     function _copy(bytes memory input) internal pure returns (bytes memory out) {

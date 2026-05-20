@@ -2,13 +2,12 @@
 pragma solidity 0.8.15;
 
 /// @title CommonwareSimplexBatchConsensusVerifier
-/// @notice Verifies the fixed Commonware Simplex secp256r1 batch-consensus proof envelope used by the POC.
+/// @notice Verifies a Commonware Simplex secp256r1 batch-consensus proof envelope.
 /// @dev The fallback accepts raw proof bytes and returns ABI-encoded bool so op-node can eth_call the verifier
 ///      directly with the blob transaction calldata.
 contract CommonwareSimplexBatchConsensusVerifier {
     bytes9 internal constant SIMPLEX_PREFIX = "CWSIMPLX1";
 
-    uint256 internal constant PROOF_SIZE = 0x01e3;
     uint256 internal constant OUTER_DIGEST_OFFSET = 0x0009;
     uint256 internal constant OUTER_MARKER_OFFSET = 0x0029;
     uint256 internal constant CERTIFICATE_OFFSET = 0x00ed;
@@ -21,15 +20,32 @@ contract CommonwareSimplexBatchConsensusVerifier {
     uint256 internal constant PROPOSAL_LEN = 0x0023;
     uint256 internal constant HASH_INPUT_LEN = 0x004d;
     uint256 internal constant P256_INPUT_LEN = 0x00a0;
+    uint256 internal constant MAX_BITMAP_SIGNERS = 8;
 
     address internal constant P256_PRECOMPILE = 0x0000000000000000000000000000000000000100;
 
-    bytes32 internal constant VALIDATOR_0_X = 0xb94425908ddd66d4dc8fc0e1516fe888c7558e5945da5c0b3df3d9a12cc7d991;
-    bytes32 internal constant VALIDATOR_0_Y = 0x30a50e74eb9cf19dbe8545f55f25774d035431ddd8f60996f6be020ab9932cff;
-    bytes32 internal constant VALIDATOR_1_X = 0x6348f24d507e944cc8a2c73c88f05cc1224b4873bd7b12fb75d48be495b1a3c6;
-    bytes32 internal constant VALIDATOR_1_Y = 0x674fe8b903c5d7f11d5f6261851f0e0e5cd835dfea422f0a59a0c43a56d8482b;
-    bytes32 internal constant VALIDATOR_2_X = 0xc2d3f77d431b8d1b66f73bff503fd3f82dc4172992e7bebd9f836dbc8da7efa8;
-    bytes32 internal constant VALIDATOR_2_Y = 0xea311f669388c70096d166207adbe142f4ae09384a66d9aa73b9e6646ab8ad7f;
+    uint256 public committeeSize;
+    uint256 public quorum;
+    mapping(uint256 => bytes32) public validatorX;
+    mapping(uint256 => bytes32) public validatorY;
+
+    constructor(bytes32[] memory _validatorX, bytes32[] memory _validatorY, uint256 _quorum) {
+        require(_validatorX.length == _validatorY.length, "CommonwareSimplex: length mismatch");
+        require(_validConfig(_validatorX.length, _quorum), "CommonwareSimplex: invalid config");
+        committeeSize = _validatorX.length;
+        quorum = _quorum;
+        for (uint256 i = 0; i < _validatorX.length; i++) {
+            require(_validatorX[i] != bytes32(0) && _validatorY[i] != bytes32(0), "CommonwareSimplex: empty validator");
+            for (uint256 j = 0; j < i; j++) {
+                require(
+                    _validatorX[i] != _validatorX[j] || _validatorY[i] != _validatorY[j],
+                    "CommonwareSimplex: duplicate validator"
+                );
+            }
+            validatorX[i] = _validatorX[i];
+            validatorY[i] = _validatorY[i];
+        }
+    }
 
     /// @notice Raw-call entrypoint used by op-node derivation.
     fallback(bytes calldata _proof) external returns (bytes memory) {
@@ -42,18 +58,24 @@ contract CommonwareSimplexBatchConsensusVerifier {
     }
 
     function _verify(bytes calldata _proof) internal view returns (bool) {
-        if (_proof.length != PROOF_SIZE) return false;
+        uint256 size = committeeSize;
+        uint256 threshold = quorum;
+        if (!_validConfig(size, threshold)) return false;
+        if (_proof.length < SIGNATURE_OFFSET) return false;
         if (_readBytes9(_proof, 0) != SIMPLEX_PREFIX) return false;
         if (_readBytes9(_proof, CERTIFICATE_OFFSET) != SIMPLEX_PREFIX) return false;
         if (_byteAt(_proof, OUTER_MARKER_OFFSET) != 0x01) return false;
-        if (_byteAt(_proof, BITMAP_OFFSET) != 0x0e) return false;
-        if (_byteAt(_proof, SIGNATURE_LEN_OFFSET) != 0x03) return false;
         if (_readBytes32(_proof, OUTER_DIGEST_OFFSET) != _readBytes32(_proof, PAYLOAD_OFFSET)) return false;
-        if (_readUint64(_proof, SIGNERS_LEN_OFFSET) != 4) return false;
+        if (_readUint64(_proof, SIGNERS_LEN_OFFSET) != size) return false;
+
+        uint8 bitmap = _byteAt(_proof, BITMAP_OFFSET);
+        uint256 signatureCount = _byteAt(_proof, SIGNATURE_LEN_OFFSET);
+        if (signatureCount < threshold) return false;
+        if (_proof.length != SIGNATURE_OFFSET + (signatureCount * 64)) return false;
+        if (_countBits(bitmap) != signatureCount) return false;
 
         bytes32 digest = _simplexSigningDigest(_proof);
-        return _verifyValidator(_proof, digest, 0) && _verifyValidator(_proof, digest, 1)
-            && _verifyValidator(_proof, digest, 2);
+        return _verifyQuorum(_proof, digest, bitmap, signatureCount, size, threshold);
     }
 
     function _simplexSigningDigest(bytes calldata _proof) internal pure returns (bytes32 digest_) {
@@ -68,16 +90,39 @@ contract CommonwareSimplexBatchConsensusVerifier {
         digest_ = sha256(input);
     }
 
-    function _verifyValidator(
+    function _verifyQuorum(
         bytes calldata _proof,
         bytes32 _digest,
-        uint256 _validatorIndex
+        uint8 _bitmap,
+        uint256 _signatureCount,
+        uint256 _committeeSize,
+        uint256 _quorum
     )
         internal
         view
         returns (bool)
     {
-        uint256 sigOffset = SIGNATURE_OFFSET + (_validatorIndex * 64);
+        uint256 verified = 0;
+        uint256 bitmap = uint256(_bitmap);
+        for (uint256 validatorIndex = 0; validatorIndex < _committeeSize; validatorIndex++) {
+            if ((bitmap & (uint256(1) << validatorIndex)) == 0) continue;
+            if (!_verifyValidator(_proof, _digest, validatorIndex, verified)) return false;
+            verified++;
+        }
+        return verified == _signatureCount && verified >= _quorum;
+    }
+
+    function _verifyValidator(
+        bytes calldata _proof,
+        bytes32 _digest,
+        uint256 _validatorIndex,
+        uint256 _signatureIndex
+    )
+        internal
+        view
+        returns (bool)
+    {
+        uint256 sigOffset = SIGNATURE_OFFSET + (_signatureIndex * 64);
         bytes32 r = _readBytes32(_proof, sigOffset);
         bytes32 s = _readBytes32(_proof, sigOffset + 32);
         (bytes32 x, bytes32 y) = _validatorKey(_validatorIndex);
@@ -98,11 +143,20 @@ contract CommonwareSimplexBatchConsensusVerifier {
         return success && output.length == 32 && abi.decode(output, (uint256)) == 1;
     }
 
-    function _validatorKey(uint256 _validatorIndex) internal pure returns (bytes32 x_, bytes32 y_) {
-        if (_validatorIndex == 0) return (VALIDATOR_0_X, VALIDATOR_0_Y);
-        if (_validatorIndex == 1) return (VALIDATOR_1_X, VALIDATOR_1_Y);
-        if (_validatorIndex == 2) return (VALIDATOR_2_X, VALIDATOR_2_Y);
-        revert("invalid validator index");
+    function _validatorKey(uint256 _validatorIndex) internal view returns (bytes32 x_, bytes32 y_) {
+        x_ = validatorX[_validatorIndex];
+        y_ = validatorY[_validatorIndex];
+    }
+
+    function _validConfig(uint256 _committeeSize, uint256 _quorum) internal pure returns (bool) {
+        return _committeeSize > 0 && _committeeSize <= MAX_BITMAP_SIGNERS && _quorum > 0 && _quorum <= _committeeSize;
+    }
+
+    function _countBits(uint8 _bitmap) internal pure returns (uint256 count_) {
+        uint256 bitmap = uint256(_bitmap);
+        for (uint256 i = 0; i < MAX_BITMAP_SIGNERS; i++) {
+            if ((bitmap & (uint256(1) << i)) != 0) count_++;
+        }
     }
 
     function _readBytes9(bytes calldata _data, uint256 _offset) internal pure returns (bytes9 out_) {

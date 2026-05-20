@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	gethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
 var DefaultBatchConsensusMockVerifierAddress = common.HexToAddress("0x00000000000000000000000000000000000bc0de")
@@ -42,10 +43,14 @@ func applyBatchConsensusMockVerifier(cfg PresetConfig, l1Net *L1Network, l2Nets 
 			code = batchConsensusMockVerifierProofCode(batchConsensusMockProofSignerAddress())
 		}
 	}
-	l1Net.genesis.Alloc[addr] = types.Account{
+	account := types.Account{
 		Balance: big.NewInt(0),
 		Code:    code,
 	}
+	if cfg.BatchConsensusMockVerifierAccept && cfg.BatchConsensusCommonwareSidecar {
+		account.Storage = batchConsensusCommonwareSolidityVerifierStorage()
+	}
+	l1Net.genesis.Alloc[addr] = account
 	l1GenesisID := eth.ToBlockID(l1Net.genesis.ToBlock())
 	for _, l2Net := range l2Nets {
 		l2Net.rollupCfg.Genesis.L1 = l1GenesisID
@@ -95,6 +100,26 @@ func batchConsensusCommonwareSolidityVerifierCode() []byte {
 		panic("CommonwareSimplexBatchConsensusVerifier artifact has empty deployed bytecode")
 	}
 	return common.FromHex(artifact.DeployedBytecode.Object)
+}
+
+func batchConsensusCommonwareSolidityVerifierStorage() map[common.Hash]common.Hash {
+	keys := batchConsensusCommonwareP256ProofPublicKeysForAllValidators()
+	orderedKeys := []batchConsensusP256PublicKey{keys[3], keys[0], keys[1], keys[2]}
+	storage := make(map[common.Hash]common.Hash)
+	storage[common.BigToHash(big.NewInt(0))] = common.BigToHash(big.NewInt(int64(len(orderedKeys))))
+	storage[common.BigToHash(big.NewInt(1))] = common.BigToHash(big.NewInt(3))
+	for i, key := range orderedKeys {
+		storage[batchConsensusMappingStorageSlot(uint64(i), 2)] = common.BytesToHash(key.x[:])
+		storage[batchConsensusMappingStorageSlot(uint64(i), 3)] = common.BytesToHash(key.y[:])
+	}
+	return storage
+}
+
+func batchConsensusMappingStorageSlot(index uint64, slot uint64) common.Hash {
+	var input [64]byte
+	new(big.Int).SetUint64(index).FillBytes(input[:32])
+	new(big.Int).SetUint64(slot).FillBytes(input[32:])
+	return gethcrypto.Keccak256Hash(input[:])
 }
 
 var batchConsensusCommonwareP256ProofSignerKeys = []string{
