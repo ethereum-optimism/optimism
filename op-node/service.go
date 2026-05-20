@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/superchain"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -49,7 +50,7 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	depSet, err := NewDependencySetFromCLI(ctx)
+	depSet, err := NewDependencySetFromCLI(ctx, eth.ChainIDFromBig(rollupConfig.L2ChainID))
 	if err != nil {
 		return nil, err
 	}
@@ -311,12 +312,22 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
-func NewDependencySetFromCLI(cli cliiface.Context) (depset.DependencySet, error) {
-	if !cli.IsSet(flags.InteropDependencySet.Name) {
-		return nil, nil
+// NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
+// set, otherwise from the superchain-registry. An unknown chain yields
+// (nil, nil); config.Check then errors iff InteropTime is set.
+func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
+	if cli.IsSet(flags.InteropDependencySet.Name) {
+		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
+		return loader.LoadDependencySet()
 	}
-	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
-	return loader.LoadDependencySet()
+	ds, err := depset.FromRegistry(chainID)
+	if err != nil {
+		if errors.Is(err, superchain.ErrUnknownChain) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load dependency set from superchain-registry: %w", err)
+	}
+	return ds, nil
 }
 
 func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
