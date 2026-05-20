@@ -66,7 +66,7 @@ type Metricer interface {
 	RecordLoopExecutionTime(duration float64)
 	RecordRollupBoostConnectionAttempts(success bool, source string)
 	RecordWebSocketClientCount(count int)
-	RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled, interopReorgLeniency bool)
+	RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount, interopReorgLeniencyWindowSize uint64, safeEnabled, interopReorgLeniency bool)
 	RecordHealthCheckHeads(unsafeNumber, unsafeTimestamp, safeNumber, safeTimestamp, unsafeLag, safeLag uint64)
 	RecordHealthCheckPeerCount(peerCount, minPeerCount uint64)
 	RecordHealthCheckWindow(check HealthCheck, state HealthCheckWindowState, successes, failures, windowSize uint64)
@@ -105,6 +105,7 @@ type Metrics struct {
 	healthCheckSafeIntervalSeconds              prometheus.Gauge
 	healthCheckSafeEnabled                      prometheus.Gauge
 	healthCheckInteropReorgLeniencyEnabled      prometheus.Gauge
+	healthCheckInteropReorgLeniencyWindowSize   prometheus.Gauge
 	healthCheckUnsafeLagSeconds                 prometheus.Gauge
 	healthCheckSafeLagSeconds                   prometheus.Gauge
 	healthCheckUnsafeHeadNumber                 prometheus.Gauge
@@ -228,6 +229,11 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "healthcheck_interop_reorg_leniency_enabled",
 			Help:      "1 if conductor interop reorg health-check leniency is enabled",
+		}),
+		healthCheckInteropReorgLeniencyWindowSize: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "healthcheck_interop_reorg_leniency_window_size",
+			Help:      "Configured number of observations in the conductor interop reorg health-check leniency window",
 		}),
 		healthCheckUnsafeLagSeconds: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -406,12 +412,13 @@ func (m *Metrics) RecordWebSocketClientCount(count int) {
 	m.webSocketClients.Set(float64(count))
 }
 
-func (m *Metrics) RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled, interopReorgLeniency bool) {
+func (m *Metrics) RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount, interopReorgLeniencyWindowSize uint64, safeEnabled, interopReorgLeniency bool) {
 	m.healthCheckIntervalSeconds.Set(float64(interval))
 	m.healthCheckUnsafeIntervalSeconds.Set(float64(unsafeInterval))
 	m.healthCheckSafeIntervalSeconds.Set(float64(safeInterval))
 	m.healthCheckSafeEnabled.Set(boolToFloat(safeEnabled))
 	m.healthCheckInteropReorgLeniencyEnabled.Set(boolToFloat(interopReorgLeniency))
+	m.healthCheckInteropReorgLeniencyWindowSize.Set(float64(interopReorgLeniencyWindowSize))
 	m.healthCheckMinPeerCount.Set(float64(minPeerCount))
 }
 

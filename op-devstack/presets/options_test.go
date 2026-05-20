@@ -63,6 +63,7 @@ func TestWithConductorInteropReorgLeniency(t *testing.T) {
 		require.NotNil(t, cfg.ConductorHealthCheck)
 		require.NoError(t, cfg.ConductorHealthCheck.Check())
 		require.True(t, cfg.ConductorHealthCheck.InteropReorgLeniency)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize)
 	})
 
 	t.Run("preserves leniency when health check option follows", func(t *testing.T) {
@@ -75,6 +76,7 @@ func TestWithConductorInteropReorgLeniency(t *testing.T) {
 		require.Equal(t, uint64(6), cfg.ConductorHealthCheck.UnsafeInterval)
 		require.Equal(t, uint64(7), cfg.ConductorHealthCheck.SafeInterval)
 		require.True(t, cfg.ConductorHealthCheck.InteropReorgLeniency)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize)
 	})
 
 	t.Run("sets leniency when applied after health check option", func(t *testing.T) {
@@ -87,6 +89,7 @@ func TestWithConductorInteropReorgLeniency(t *testing.T) {
 		require.Equal(t, uint64(6), cfg.ConductorHealthCheck.UnsafeInterval)
 		require.Equal(t, uint64(7), cfg.ConductorHealthCheck.SafeInterval)
 		require.True(t, cfg.ConductorHealthCheck.InteropReorgLeniency)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize)
 	})
 }
 
@@ -95,6 +98,7 @@ func TestWithConductorHealthCheckMinPeerCount(t *testing.T) {
 		cfg, _ := collectPresetConfig([]Option{WithConductorHealthCheck(5, 6, 7)})
 		require.NotNil(t, cfg.ConductorHealthCheck)
 		require.Equal(t, uint64(1), cfg.ConductorHealthCheck.MinPeerCount)
+		require.Equal(t, uint64(5), cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize)
 	})
 
 	t.Run("sets min peer count with default intervals", func(t *testing.T) {

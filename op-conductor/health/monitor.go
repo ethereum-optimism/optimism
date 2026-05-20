@@ -25,13 +25,13 @@ var (
 )
 
 const (
-	// recoveringWindowSize is the shared health-check grace window used when
+	// defaultRecoveringWindowSize is the shared health-check grace window used when
 	// interop reorg leniency is enabled. Unsafe-head recovery uses it to require
 	// unsafe-head time to outpace wall-clock time. Sync-status RPC availability
 	// and CL peer-count checks use it as a rolling window: all failed observations
 	// fail the check, all successful observations restore Success, and mixed or
 	// not-yet-full windows remain Inconclusive.
-	recoveringWindowSize = 5
+	defaultRecoveringWindowSize = 5
 )
 
 type rollingWindowState string
@@ -60,8 +60,9 @@ type HealthMonitor interface {
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
 // interopReorgLeniency enables experimental interop reorg recovery leniency.
+// recoveringWindowSize is the number of observations used by lenient rolling/recovery windows.
 // rollupBoostHealthChecker is an optional health checker for rollup-boost (either standard or next client).
-func NewSequencerHealthMonitor(log log.Logger, metricer metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, interopReorgLeniency bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, rollupBoostHealthChecker client.RollupBoostHealthChecker, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metricer metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, interopReorgLeniency bool, recoveringWindowSize uint64, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, rollupBoostHealthChecker client.RollupBoostHealthChecker, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
 	if metricer == nil {
 		metricer = metrics.NoopMetrics
 	}
@@ -77,6 +78,7 @@ func NewSequencerHealthMonitor(log log.Logger, metricer metrics.Metricer, interv
 		safeInterval:             safeInterval,
 		minPeerCount:             minPeerCount,
 		interopReorgLeniency:     interopReorgLeniency,
+		recoveringWindowSize:     normalizeRecoveringWindowSize(recoveringWindowSize),
 		timeProviderFn:           currentTimeProvider,
 		node:                     node,
 		p2p:                      p2p,
@@ -122,6 +124,7 @@ type SequencerHealthMonitor struct {
 	safeInterval         uint64
 	minPeerCount         uint64
 	interopReorgLeniency bool
+	recoveringWindowSize uint64
 	interval             uint64
 	healthUpdateCh       chan error
 	lastSeenUnsafeNum    uint64
@@ -151,20 +154,38 @@ type SequencerHealthMonitor struct {
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
 
 type rollingWindowTracker struct {
-	observations [recoveringWindowSize]bool
+	observations []bool
 	next         uint64
 	count        uint64
 	successes    uint64
 }
 
-func (t *rollingWindowTracker) observe(success bool) rollingWindowState {
-	if t.count < recoveringWindowSize {
-		t.observations[t.count] = success
+func normalizeRecoveringWindowSize(windowSize uint64) uint64 {
+	if windowSize == 0 {
+		return defaultRecoveringWindowSize
+	}
+	return windowSize
+}
+
+func (hm *SequencerHealthMonitor) recoveringWindowSizeOrDefault() uint64 {
+	return normalizeRecoveringWindowSize(hm.recoveringWindowSize)
+}
+
+func (t *rollingWindowTracker) observe(success bool, windowSize uint64) rollingWindowState {
+	windowSize = normalizeRecoveringWindowSize(windowSize)
+	if t.count > windowSize || uint64(len(t.observations)) > windowSize {
+		t.observations = nil
+		t.next = 0
+		t.count = 0
+		t.successes = 0
+	}
+	if t.count < windowSize {
+		t.observations = append(t.observations, success)
 		t.count++
 		if success {
 			t.successes++
 		}
-		return t.state()
+		return t.state(windowSize)
 	}
 
 	if t.observations[t.next] {
@@ -174,15 +195,15 @@ func (t *rollingWindowTracker) observe(success bool) rollingWindowState {
 	if success {
 		t.successes++
 	}
-	t.next = (t.next + 1) % recoveringWindowSize
-	return t.state()
+	t.next = (t.next + 1) % windowSize
+	return t.state(windowSize)
 }
 
-func (t *rollingWindowTracker) state() rollingWindowState {
+func (t *rollingWindowTracker) state(windowSize uint64) rollingWindowState {
 	switch {
-	case t.count < recoveringWindowSize:
+	case t.count < windowSize:
 		return rollingWindowInconclusive
-	case t.successes == recoveringWindowSize:
+	case t.successes == windowSize:
 		return rollingWindowSuccess
 	case t.successes == 0:
 		return rollingWindowFailed
@@ -200,6 +221,7 @@ func (hm *SequencerHealthMonitor) recordStaticHealthCheckMetrics() {
 		hm.unsafeInterval,
 		hm.safeInterval,
 		hm.minPeerCount,
+		hm.recoveringWindowSizeOrDefault(),
 		hm.safeEnabled,
 		hm.interopReorgLeniency,
 	)
@@ -229,7 +251,7 @@ func (hm *SequencerHealthMonitor) recordRollingWindow(check metrics.HealthCheck,
 	}
 	successes := tracker.successes
 	failures := tracker.count - successes
-	hm.metrics.RecordHealthCheckWindow(check, metricWindowState(state), successes, failures, recoveringWindowSize)
+	hm.metrics.RecordHealthCheckWindow(check, metricWindowState(state), successes, failures, hm.recoveringWindowSizeOrDefault())
 }
 
 func (hm *SequencerHealthMonitor) recordCheckStatus(check metrics.HealthCheck, status metrics.HealthCheckStatus) {
@@ -455,16 +477,17 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatusStrict(ctx context.Context)
 }
 
 func (hm *SequencerHealthMonitor) checkNodeSyncStatusInteropReorgLenient(ctx context.Context) error {
+	windowSize := hm.recoveringWindowSizeOrDefault()
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
-		state := hm.syncStatusWindow.observe(false)
+		state := hm.syncStatusWindow.observe(false, windowSize)
 		hm.recordRollingWindow(metrics.HealthCheckSyncStatusRPC, hm.syncStatusWindow, state)
 		if state == rollingWindowFailed {
 			hm.log.Error(
 				"health monitor failed to get sync status",
 				"err", err,
 				"window_state", state,
-				"window_size", recoveringWindowSize,
+				"window_size", windowSize,
 			)
 			hm.recordCheckStatus(metrics.HealthCheckSyncStatusRPC, metrics.HealthCheckStatusUnhealthy)
 			hm.recordCheckFailure(metrics.HealthCheckSyncStatusRPC, metrics.HealthCheckFailureReasonRPCError)
@@ -474,12 +497,12 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatusInteropReorgLenient(ctx con
 			"health monitor temporarily failed to get sync status",
 			"err", err,
 			"window_state", state,
-			"window_size", recoveringWindowSize,
+			"window_size", windowSize,
 		)
 		hm.recordCheckStatus(metrics.HealthCheckSyncStatusRPC, metrics.HealthCheckStatusWarning)
 		return nil
 	}
-	state := hm.syncStatusWindow.observe(true)
+	state := hm.syncStatusWindow.observe(true, windowSize)
 	hm.recordRollingWindow(metrics.HealthCheckSyncStatusRPC, hm.syncStatusWindow, state)
 	hm.recordCheckStatus(metrics.HealthCheckSyncStatusRPC, metrics.HealthCheckStatusHealthy)
 
@@ -541,7 +564,7 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatusInteropReorgLenient(ctx con
 			hm.recordUnsafeHeadRecovery(true, curUnsafeLag, 0, 0)
 			break
 		}
-		if hm.pollsInRecoveryWindow >= recoveringWindowSize {
+		if hm.pollsInRecoveryWindow >= windowSize {
 			hm.log.Error(
 				"unsafe-head recovery not outpacing wall clock",
 				"cur_unsafe_lag", curUnsafeLag,
@@ -631,35 +654,36 @@ func (hm *SequencerHealthMonitor) checkNodePeerCountStrict(ctx context.Context) 
 }
 
 func (hm *SequencerHealthMonitor) checkNodePeerCountInteropReorgLenient(ctx context.Context) error {
+	windowSize := hm.recoveringWindowSizeOrDefault()
 	stats, err := hm.p2p.PeerStats(ctx)
 	if err != nil {
-		state := hm.peerCountWindow.observe(false)
+		state := hm.peerCountWindow.observe(false, windowSize)
 		hm.recordRollingWindow(metrics.HealthCheckPeerCount, hm.peerCountWindow, state)
 		if state == rollingWindowFailed {
-			hm.log.Error("health monitor failed to get peer stats", "err", err, "window_state", state, "window_size", recoveringWindowSize)
+			hm.log.Error("health monitor failed to get peer stats", "err", err, "window_state", state, "window_size", windowSize)
 			hm.recordCheckStatus(metrics.HealthCheckPeerCount, metrics.HealthCheckStatusUnhealthy)
 			hm.recordCheckFailure(metrics.HealthCheckPeerCount, metrics.HealthCheckFailureReasonRPCError)
 			return ErrSequencerConnectionDown
 		}
-		hm.log.Warn("health monitor temporarily failed to get peer stats", "err", err, "window_state", state, "window_size", recoveringWindowSize)
+		hm.log.Warn("health monitor temporarily failed to get peer stats", "err", err, "window_state", state, "window_size", windowSize)
 		hm.recordCheckStatus(metrics.HealthCheckPeerCount, metrics.HealthCheckStatusWarning)
 		return nil
 	}
 	hm.recordPeerCount(uint64(stats.Connected))
 	if uint64(stats.Connected) < hm.minPeerCount {
-		state := hm.peerCountWindow.observe(false)
+		state := hm.peerCountWindow.observe(false, windowSize)
 		hm.recordRollingWindow(metrics.HealthCheckPeerCount, hm.peerCountWindow, state)
 		if state == rollingWindowFailed {
-			hm.log.Error("peer count is below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", recoveringWindowSize)
+			hm.log.Error("peer count is below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", windowSize)
 			hm.recordCheckStatus(metrics.HealthCheckPeerCount, metrics.HealthCheckStatusUnhealthy)
 			hm.recordCheckFailure(metrics.HealthCheckPeerCount, metrics.HealthCheckFailureReasonPeerCountBelowMin)
 			return ErrSequencerNotHealthy
 		}
-		hm.log.Warn("peer count is temporarily below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", recoveringWindowSize)
+		hm.log.Warn("peer count is temporarily below minimum", "connected", stats.Connected, "minPeerCount", hm.minPeerCount, "window_state", state, "window_size", windowSize)
 		hm.recordCheckStatus(metrics.HealthCheckPeerCount, metrics.HealthCheckStatusWarning)
 		return nil
 	}
-	state := hm.peerCountWindow.observe(true)
+	state := hm.peerCountWindow.observe(true, windowSize)
 	hm.recordRollingWindow(metrics.HealthCheckPeerCount, hm.peerCountWindow, state)
 	hm.recordCheckStatus(metrics.HealthCheckPeerCount, metrics.HealthCheckStatusHealthy)
 

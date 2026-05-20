@@ -148,6 +148,13 @@ var (
 		Value:   false,
 		Hidden:  true,
 	}
+	HealthCheckInteropReorgLeniencyWindowSize = &cli.Uint64Flag{
+		Name:    "beta.healthcheck.interop-reorg-leniency-window-size",
+		Usage:   "Number of observations in the experimental conductor health-check leniency rolling window.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "BETA_HEALTHCHECK_INTEROP_REORG_LENIENCY_WINDOW_SIZE"),
+		Value:   5,
+		Hidden:  true,
+	}
 	Paused = &cli.BoolFlag{
 		Name:    "paused",
 		Usage:   "Whether the conductor is paused",
@@ -239,6 +246,7 @@ var optionalFlags = []cli.Flag{
 	HealthCheckSafeEnabled,
 	HealthCheckSafeInterval,
 	HealthCheckInteropReorgLeniency,
+	HealthCheckInteropReorgLeniencyWindowSize,
 	RaftSnapshotInterval,
 	RaftSnapshotThreshold,
 	RaftTrailingLogs,

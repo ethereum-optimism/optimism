@@ -192,16 +192,17 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RollupBoostNextHealthcheckURL: ctx.String(flags.RollupBoostNextHealthcheckURL.Name),
 		Paused:                        ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
-			Interval:                 ctx.Uint64(flags.HealthCheckInterval.Name),
-			UnsafeInterval:           ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
-			SafeEnabled:              ctx.Bool(flags.HealthCheckSafeEnabled.Name),
-			SafeInterval:             ctx.Uint64(flags.HealthCheckSafeInterval.Name),
-			MinPeerCount:             ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
-			InteropReorgLeniency:     ctx.Bool(flags.HealthCheckInteropReorgLeniency.Name),
-			ExecutionP2pEnabled:      ctx.Bool(flags.HealthcheckExecutionP2pEnabled.Name),
-			ExecutionP2pMinPeerCount: ctx.Uint64(flags.HealthcheckExecutionP2pMinPeerCount.Name),
-			ExecutionP2pRPCUrl:       executionP2pRpcUrl,
-			ExecutionP2pCheckApi:     executionP2pCheckApi,
+			Interval:                       ctx.Uint64(flags.HealthCheckInterval.Name),
+			UnsafeInterval:                 ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeEnabled:                    ctx.Bool(flags.HealthCheckSafeEnabled.Name),
+			SafeInterval:                   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount:                   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			InteropReorgLeniency:           ctx.Bool(flags.HealthCheckInteropReorgLeniency.Name),
+			InteropReorgLeniencyWindowSize: ctx.Uint64(flags.HealthCheckInteropReorgLeniencyWindowSize.Name),
+			ExecutionP2pEnabled:            ctx.Bool(flags.HealthcheckExecutionP2pEnabled.Name),
+			ExecutionP2pMinPeerCount:       ctx.Uint64(flags.HealthcheckExecutionP2pMinPeerCount.Name),
+			ExecutionP2pRPCUrl:             executionP2pRpcUrl,
+			ExecutionP2pCheckApi:           executionP2pCheckApi,
 			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
 			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
@@ -239,6 +240,10 @@ type HealthCheckConfig struct {
 	// for interop reorg recovery.
 	InteropReorgLeniency bool
 
+	// InteropReorgLeniencyWindowSize is the number of observations in the shared
+	// rolling/recovery window when interop reorg leniency is enabled.
+	InteropReorgLeniencyWindowSize uint64
+
 	// ExecutionP2pEnabled is whether to enable EL P2P checks.
 	ExecutionP2pEnabled bool
 
@@ -267,6 +272,9 @@ func (c *HealthCheckConfig) Check() error {
 	}
 	if c.MinPeerCount == 0 {
 		return fmt.Errorf("missing minimum peer count")
+	}
+	if c.InteropReorgLeniency && c.InteropReorgLeniencyWindowSize == 0 {
+		return fmt.Errorf("missing interop reorg leniency window size")
 	}
 	if c.ExecutionP2pEnabled {
 		if c.ExecutionP2pMinPeerCount == 0 {

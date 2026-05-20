@@ -267,16 +267,21 @@ func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Opt
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			minPeerCount := uint64(1)
 			interopReorgLeniency := false
+			interopReorgLeniencyWindowSize := uint64(5)
 			if cfg.ConductorHealthCheck != nil {
 				minPeerCount = cfg.ConductorHealthCheck.MinPeerCount
 				interopReorgLeniency = cfg.ConductorHealthCheck.InteropReorgLeniency
+				if cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize != 0 {
+					interopReorgLeniencyWindowSize = cfg.ConductorHealthCheck.InteropReorgLeniencyWindowSize
+				}
 			}
 			cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
-				Interval:             interval,
-				UnsafeInterval:       unsafeInterval,
-				SafeInterval:         safeInterval,
-				MinPeerCount:         minPeerCount,
-				InteropReorgLeniency: interopReorgLeniency,
+				Interval:                       interval,
+				UnsafeInterval:                 unsafeInterval,
+				SafeInterval:                   safeInterval,
+				MinPeerCount:                   minPeerCount,
+				InteropReorgLeniency:           interopReorgLeniency,
+				InteropReorgLeniencyWindowSize: interopReorgLeniencyWindowSize,
 			}
 		},
 	}
@@ -303,10 +308,11 @@ func WithConductorInteropReorgLeniency() Option {
 func ensureConductorHealthCheck(cfg *sysgo.PresetConfig) *opconductor.HealthCheckConfig {
 	if cfg.ConductorHealthCheck == nil {
 		cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
-			Interval:       3600,
-			UnsafeInterval: 3600,
-			SafeInterval:   3600,
-			MinPeerCount:   1,
+			Interval:                       3600,
+			UnsafeInterval:                 3600,
+			SafeInterval:                   3600,
+			MinPeerCount:                   1,
+			InteropReorgLeniencyWindowSize: 5,
 		}
 	}
 	return cfg.ConductorHealthCheck

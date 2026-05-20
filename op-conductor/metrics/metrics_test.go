@@ -10,7 +10,7 @@ import (
 func TestHealthCheckDebugGauges(t *testing.T) {
 	metricer := NewMetrics()
 
-	metricer.RecordHealthCheckConfig(1, 10, 60, 2, true, true)
+	metricer.RecordHealthCheckConfig(1, 10, 60, 2, 7, true, true)
 	metricer.RecordHealthCheckHeads(100, 1234, 90, 1200, 5, 39)
 	metricer.RecordHealthCheckPeerCount(3, 2)
 	metricer.RecordUnsafeHeadRecovery(true, 12, 20, 15, 4, 8, 3, 2)
@@ -20,6 +20,7 @@ func TestHealthCheckDebugGauges(t *testing.T) {
 	require.Equal(t, float64(60), metricValue(t, metricer, "op_conductor_healthcheck_safe_interval_seconds", nil))
 	require.Equal(t, float64(1), metricValue(t, metricer, "op_conductor_healthcheck_safe_enabled", nil))
 	require.Equal(t, float64(1), metricValue(t, metricer, "op_conductor_healthcheck_interop_reorg_leniency_enabled", nil))
+	require.Equal(t, float64(7), metricValue(t, metricer, "op_conductor_healthcheck_interop_reorg_leniency_window_size", nil))
 	require.Equal(t, float64(100), metricValue(t, metricer, "op_conductor_healthcheck_unsafe_head_number", nil))
 	require.Equal(t, float64(1234), metricValue(t, metricer, "op_conductor_healthcheck_unsafe_head_timestamp", nil))
 	require.Equal(t, float64(5), metricValue(t, metricer, "op_conductor_healthcheck_unsafe_lag_seconds", nil))

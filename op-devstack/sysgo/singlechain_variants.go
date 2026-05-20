@@ -190,10 +190,11 @@ type conductorNodeConfig struct {
 
 func conductorConfigFromPreset(cfg PresetConfig) conductorNodeConfig {
 	healthCfg := opconductor.HealthCheckConfig{
-		Interval:       3600,
-		UnsafeInterval: 3600,
-		SafeInterval:   3600,
-		MinPeerCount:   1,
+		Interval:                       3600,
+		UnsafeInterval:                 3600,
+		SafeInterval:                   3600,
+		MinPeerCount:                   1,
+		InteropReorgLeniencyWindowSize: 5,
 	}
 	if cfg.ConductorHealthCheck != nil {
 		healthCfg = *cfg.ConductorHealthCheck

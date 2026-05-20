@@ -18,7 +18,7 @@ func (*NoopMetricsImpl) RecordHealthCheck(success bool, err error)              
 func (*NoopMetricsImpl) RecordLoopExecutionTime(duration float64)                        {}
 func (*NoopMetricsImpl) RecordRollupBoostConnectionAttempts(success bool, source string) {}
 func (*NoopMetricsImpl) RecordWebSocketClientCount(count int)                            {}
-func (*NoopMetricsImpl) RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled, interopReorgLeniency bool) {
+func (*NoopMetricsImpl) RecordHealthCheckConfig(interval, unsafeInterval, safeInterval, minPeerCount, interopReorgLeniencyWindowSize uint64, safeEnabled, interopReorgLeniency bool) {
 }
 func (*NoopMetricsImpl) RecordHealthCheckHeads(unsafeNumber, unsafeTimestamp, safeNumber, safeTimestamp, unsafeLag, safeLag uint64) {
 }
