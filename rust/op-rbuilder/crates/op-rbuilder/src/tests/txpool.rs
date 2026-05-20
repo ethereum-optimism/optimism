@@ -11,6 +11,10 @@ use reth_optimism_chainspec::OpChainSpec;
     config = NodeConfig::<OpChainSpec> {
         txpool: TxPoolArgs {
             pending_max_count: 50,
+            // Allow a single sender to occupy the full pending sub-pool so the test can
+            // saturate the pool from one signer and then exercise priority-tx eviction
+            // from a different signer.
+            max_account_slots: 50,
             ..Default::default()
         },
         ..default_node_config()

@@ -1,23 +1,24 @@
 use axum::extract::ws::Message;
 use futures::StreamExt;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::error::Error;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::net::TcpListener;
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::Sender;
-use tokio::task::JoinHandle;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    error::Error,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::{
+    net::TcpListener,
+    sync::{broadcast, broadcast::Sender},
+    task::JoinHandle,
+};
 use tokio_tungstenite::connect_async;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
-use websocket_proxy::auth::Authentication;
-use websocket_proxy::metrics::Metrics;
-use websocket_proxy::rate_limit::InMemoryRateLimit;
-use websocket_proxy::registry::Registry;
-use websocket_proxy::server::Server;
+use websocket_proxy::{
+    auth::Authentication, metrics::Metrics, rate_limit::InMemoryRateLimit, registry::Registry,
+    server::Server,
+};
 
 struct TestHarness {
     received_messages: Arc<Mutex<HashMap<usize, Vec<String>>>>,
@@ -171,7 +172,8 @@ impl TestHarness {
                 }
             };
 
-            // Do nothing - just keep the connection alive but don't read messages or respond to pings
+            // Do nothing - just keep the connection alive but don't read messages or respond to
+            // pings
             loop {
                 tokio::time::sleep(Duration::from_millis(1000)).await;
             }

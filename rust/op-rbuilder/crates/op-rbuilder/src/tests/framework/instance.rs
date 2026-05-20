@@ -33,7 +33,7 @@ use parking_lot::Mutex;
 use reth::{
     args::{DatadirArgs, NetworkArgs, RpcServerArgs},
     core::exit::NodeExitFuture,
-    tasks::TaskManager,
+    tasks::Runtime,
 };
 use reth_node_builder::{NodeBuilder, NodeConfig};
 use reth_optimism_chainspec::OpChainSpec;
@@ -59,7 +59,7 @@ pub struct LocalInstance {
     signer: Signer,
     config: NodeConfig<OpChainSpec>,
     args: OpRbuilderArgs,
-    task_manager: Option<TaskManager>,
+    task_manager: Option<Runtime>,
     exit_future: NodeExitFuture,
     _node_handle: Box<dyn Any + Send>,
     pool_observer: TransactionPoolObserver,
@@ -127,7 +127,7 @@ impl LocalInstance {
 
         let node_builder = NodeBuilder::<_, OpChainSpec>::new(config.clone())
             .with_database(create_test_db(config.clone()))
-            .with_launch_context(task_manager.executor())
+            .with_launch_context(task_manager.clone())
             .with_types::<OpNode>()
             .with_components(
                 op_node
@@ -335,6 +335,8 @@ pub fn default_node_config() -> NodeConfig<OpChainSpec> {
             .parse()
             .expect("Failed to parse data dir path"),
         static_files_path: None,
+        rocksdb_path: None,
+        pprof_dumps_path: None,
     };
 
     NodeConfig::<OpChainSpec>::new(chain_spec())
@@ -354,8 +356,8 @@ fn chain_spec() -> Arc<OpChainSpec> {
     CHAIN_SPEC.clone()
 }
 
-fn task_manager() -> TaskManager {
-    TaskManager::new(tokio::runtime::Handle::current())
+fn task_manager() -> Runtime {
+    Runtime::test()
 }
 
 fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {

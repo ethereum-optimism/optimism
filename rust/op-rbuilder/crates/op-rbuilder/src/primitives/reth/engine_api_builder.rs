@@ -20,14 +20,14 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes, ProtocolVersion, SuperchainSignal,
 };
 use reth::builder::NodeTypes;
 use reth_node_api::{EngineApiValidator, EngineTypes};
 use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_optimism_rpc::OpEngineApiServer;
 use reth_rpc_api::IntoEngineApiRpcModule;
-use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
+use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
 
 /// Builder for basic [`OpEngineApi`] implementation.
@@ -73,11 +73,12 @@ where
             ctx.beacon_engine_handle.clone(),
             PayloadStore::new(ctx.node.payload_builder_handle().clone()),
             ctx.node.pool().clone(),
-            Box::new(ctx.node.task_executor().clone()),
+            ctx.node.task_executor().clone(),
             client,
             EngineCapabilities::new(OP_ENGINE_CAPABILITIES.iter().copied()),
             engine_validator,
             ctx.config.engine.accept_execution_requests_hash,
+            ctx.node.network().clone(),
         );
 
         Ok(OpEngineApiExt::new(OpEngineApi::new(inner)))
@@ -90,7 +91,7 @@ pub struct OpEngineApiExt<Provider, Pool, Validator> {
 
 impl<Provider, Pool, Validator> OpEngineApiExt<Provider, Pool, Validator>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
+    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<OpEngineTypes>,
 {
@@ -103,7 +104,7 @@ where
 impl<Provider, Pool, Validator> OpRbuilderEngineApiServer<OpEngineTypes>
     for OpEngineApiExt<Provider, Pool, Validator>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
+    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<OpEngineTypes>,
 {
@@ -142,7 +143,7 @@ where
     async fn fork_choice_updated_v1(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         self.inner
             .fork_choice_updated_v1(fork_choice_state, payload_attributes)
@@ -152,7 +153,7 @@ where
     async fn fork_choice_updated_v2(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         self.inner
             .fork_choice_updated_v2(fork_choice_state, payload_attributes)
@@ -162,7 +163,7 @@ where
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         self.inner
             .fork_choice_updated_v3(fork_choice_state, payload_attributes)
@@ -205,10 +206,6 @@ where
         self.inner
             .get_payload_bodies_by_range_v1(start, count)
             .await
-    }
-
-    async fn signal_superchain_v1(&self, signal: SuperchainSignal) -> RpcResult<ProtocolVersion> {
-        self.inner.signal_superchain_v1(signal).await
     }
 
     async fn get_client_version_v1(
@@ -400,12 +397,6 @@ pub trait OpRbuilderEngineApi<Engine: EngineTypes> {
         start: U64,
         count: U64,
     ) -> RpcResult<ExecutionPayloadBodiesV1>;
-
-    /// Signals superchain information to the Engine.
-    /// Returns the latest supported OP-Stack protocol version of the execution engine.
-    /// See also <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
-    #[method(name = "engine_signalSuperchainV1")]
-    async fn signal_superchain_v1(&self, _signal: SuperchainSignal) -> RpcResult<ProtocolVersion>;
 
     /// Returns the execution client version information.
     ///
