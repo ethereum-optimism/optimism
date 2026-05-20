@@ -28,7 +28,15 @@ build: ## Build (debug version)
 
 .PHONY: docker-image
 docker-image: ## Build a rollup-boost Docker image
-	docker build --platform linux/amd64 --build-arg FEATURES="$(FEATURES)" . -t rollup-boost
+	# The Dockerfile references the parent rust/ workspace via the named
+	# `monorepo-rust` BuildKit context to resolve sibling path deps
+	# (../op-reth/..., ../op-alloy/...). Requires buildx.
+	docker buildx build --load \
+		--platform linux/amd64 \
+		--build-arg FEATURES="$(FEATURES)" \
+		--build-context monorepo-rust=.. \
+		-t rollup-boost \
+		.
 
 ##@ Dev
 

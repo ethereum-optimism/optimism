@@ -70,7 +70,16 @@ tester: ## Build tester (debug version)
 
 .PHONY: docker-image-rbuilder
 docker-image-rbuilder: ## Build a rbuilder Docker image
-	docker build --platform linux/amd64 --target rbuilder-runtime --build-arg FEATURES="$(FEATURES)"  . -t rbuilder
+	# The Dockerfile references the parent rust/ workspace via the named
+	# `monorepo-rust` BuildKit context to resolve sibling path deps
+	# (../op-reth/..., ../rollup-boost/..., etc.). Requires buildx.
+	docker buildx build --load \
+		--platform linux/amd64 \
+		--target rbuilder-runtime \
+		--build-arg FEATURES="$(FEATURES)" \
+		--build-context monorepo-rust=.. \
+		-t rbuilder \
+		.
 
 ##@ Dev
 

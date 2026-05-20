@@ -168,7 +168,14 @@ hyper-util = { version = "0.1.11" }
 http-body-util = { version = "0.1.3" }
 
 [features]
-default = ["jemalloc"]
+default = ["jemalloc", "docker-tests"]
+
+# Gates the smoke tests under `src/tests/smoke.rs` that cross-validate
+# against an external op-reth via testcontainers (needs the host's
+# `/var/run/docker.sock`). Disable with `--no-default-features` in
+# environments (e.g. the CircleCI Docker executor) where the socket
+# is not available.
+docker-tests = []
 
 jemalloc = [
     "dep:tikv-jemallocator",
