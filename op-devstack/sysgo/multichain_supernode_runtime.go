@@ -150,7 +150,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
 	if cfg.EnableTimeTravel {
-		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
@@ -216,7 +216,7 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
 	if cfg.EnableTimeTravel {
-		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
