@@ -254,7 +254,6 @@ If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default
 ## Troubleshooting
 
 * **Safe head advances but RPC consumers report invalid blocks.** The op-node isn't following an op-supernode — either `--l2.follow.source` is unset, or it points at a non-supernode source — so safe-head promotion skips cross-chain validation. Point `--l2.follow.source` at a supernode that derives both chains.
-* **Supernode chain container fails to start.** The most common cause is `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC` pointing at an execution client that is unreachable at startup. The supernode retries engine-API calls a few times during startup, but persistent failure causes the chain container to exit. A still-syncing execution client is fine — the supernode drives it through sync.
 * **Blobs missing for L1 blocks older than ~18 days.** The primary beacon node has pruned them. Configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service. See the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver) for options.
 * **Light CL safe head lags the supernode by more than a few blocks.** Check the network path between Light CL and supernode (or supernode `proxyd`). The Light CL polls `optimism_syncStatus` over RPC; a high-latency or rate-limited path here directly delays safe-head propagation.
 
