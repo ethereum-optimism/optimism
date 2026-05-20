@@ -957,7 +957,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     ///         configured L2 chain ID. Forces the non-super branch by mocking `gameType`, so the
     ///         check is exercised regardless of which game type is respected in the environment.
     function test_proveWithdrawalTransaction_wrongChainIdNonSuperGame_reverts() external {
-        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.CANNON));
+        vm.mockCall(address(game), abi.encodeCall(game.gameType, ()), abi.encode(GameTypes.CANNON_KONA));
         vm.mockCall(address(game), abi.encodeCall(game.l2ChainId, ()), abi.encode(systemConfig.l2ChainId() + 1));
         vm.expectRevert(IOptimismPortal.OptimismPortal_UnknownChainId.selector);
         optimismPortal2.proveWithdrawalTransaction({
