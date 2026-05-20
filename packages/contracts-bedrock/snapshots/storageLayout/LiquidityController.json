@@ -14,45 +14,45 @@
     "type": "bool"
   },
   {
-    "bytes": "1600",
-    "label": "__gap",
-    "offset": 0,
-    "slot": "1",
-    "type": "uint256[50]"
-  },
-  {
-    "bytes": "20",
-    "label": "_owner",
-    "offset": 0,
-    "slot": "51",
-    "type": "address"
-  },
-  {
-    "bytes": "1568",
-    "label": "__gap",
-    "offset": 0,
-    "slot": "52",
-    "type": "uint256[49]"
-  },
-  {
     "bytes": "32",
     "label": "minters",
     "offset": 0,
-    "slot": "101",
+    "slot": "1",
     "type": "mapping(address => bool)"
   },
   {
     "bytes": "32",
     "label": "gasPayingTokenName",
     "offset": 0,
-    "slot": "102",
+    "slot": "2",
     "type": "string"
   },
   {
     "bytes": "32",
     "label": "gasPayingTokenSymbol",
     "offset": 0,
-    "slot": "103",
+    "slot": "3",
     "type": "string"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "4",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "54",
+    "type": "address"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "55",
+    "type": "uint256[49]"
   }
 ]
