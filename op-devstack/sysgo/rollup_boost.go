@@ -75,10 +75,13 @@ func (r *RollupBoostNode) Start() {
 	// Channels for bound-port discovery via log parsing. rollup-boost is launched with
 	// port=0 so the OS atomically picks ports at bind time; pre-allocating in Go would
 	// close the listener before the subprocess could bind it, opening a race window.
+	//
+	// Buffered so a stray duplicate emit is dropped by the select-default below rather
+	// than blocking the parser goroutine. Channels are not closed: the parser callback
+	// outlives this function (it stays wired into r.sub), so closing would risk a
+	// send-on-closed panic on any late or repeat log line.
 	rpcChan := make(chan string, 1)
-	defer close(rpcChan)
 	flashblocksWSChan := make(chan string, 1)
-	defer close(flashblocksWSChan)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
 	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelWarn)
