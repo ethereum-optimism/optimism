@@ -22,15 +22,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// preGenesisRollupStartBlockDelay is the number of L1 blocks ahead of the
-// current head at which the rollup's first L1 block (and L2 genesis) is
-// scheduled. The dispute game creation transaction must be included in an
-// L1 block strictly before this target. The delay is the wall-clock budget
-// (in L1 blocks of l1Net.blockTime each) for the OPCM migration call and
-// the dispute game creation submission and inclusion. At an L1 block time
-// of 6s, a delay of 10 gives ~60s of budget — headroom above the ~40s
-// worst-case observed on CI without making the test wait unnecessarily long
-// for the planned start block.
+// Budget (in L1 blocks) for migration + dispute game creation. At blockTime=6s,
+// 10 gives ~60s, above the ~40s worst case observed on CI. See #20869.
 const preGenesisRollupStartBlockDelay = uint64(10)
 
 var preGenesisStartingAnchorRoot = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000042")
