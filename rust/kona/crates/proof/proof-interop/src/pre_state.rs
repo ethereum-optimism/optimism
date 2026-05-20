@@ -443,7 +443,7 @@ mod test {
         }
     }
 
-    // PreState::TransitionState.transition() does not add Block if if pending_progress.len() ==
+    // PreState::TransitionState.transition() does not add Block if pending_progress.len() ==
     // pre_state.output_roots.len() and TRANSITION_STATE_MAX_STEPS not reached
     #[test]
     fn test_transition_state_step_increment_at_capacity() {

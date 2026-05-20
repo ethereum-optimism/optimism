@@ -726,7 +726,7 @@ func TestAddDependentLog(t *testing.T) {
 }
 
 func TestContains(t *testing.T) {
-	// t53 and t54 are not not expected to be in the database because those blocks are never Sealed
+	// t53 and t54 are not expected to be in the database because those blocks are never Sealed
 	t50, t51, t52, t53, t54 := uint64(5000), uint64(5001), uint64(5001), uint64(5003), uint64(5004)
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
