@@ -157,7 +157,7 @@ func (b *Backend) Ready() bool {
 }
 
 // supportedSafetyLevel returns true if the safety level is supported for access list checks.
-func supportedSafetyLevel(level safety.SafetyLevel) bool {
+func supportedSafetyLevel(level safety.Level) bool {
 	return level == safety.LocalUnsafe || level == safety.CrossUnsafe
 }
 
@@ -177,7 +177,7 @@ func classifyRejectionReason(err error) string {
 
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety safety.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 
 	start := time.Now()
 	defer func() {

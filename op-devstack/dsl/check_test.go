@@ -23,23 +23,23 @@ type programmableSyncProvider struct {
 	name string
 
 	mu   sync.Mutex
-	byID map[safety.SafetyLevel]eth.BlockID
+	byID map[safety.Level]eth.BlockID
 }
 
 func newProgrammableSyncProvider(name string) *programmableSyncProvider {
 	return &programmableSyncProvider{
 		name: name,
-		byID: map[safety.SafetyLevel]eth.BlockID{},
+		byID: map[safety.Level]eth.BlockID{},
 	}
 }
 
-func (p *programmableSyncProvider) set(lvl safety.SafetyLevel, num uint64, hash common.Hash) {
+func (p *programmableSyncProvider) set(lvl safety.Level, num uint64, hash common.Hash) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.byID[lvl] = eth.BlockID{Number: num, Hash: hash}
 }
 
-func (p *programmableSyncProvider) ChainSyncStatus(chainID eth.ChainID, lvl safety.SafetyLevel) eth.BlockID {
+func (p *programmableSyncProvider) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.byID[lvl]

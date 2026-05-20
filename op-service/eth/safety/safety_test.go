@@ -10,7 +10,7 @@ import (
 )
 
 func TestSafetyLevel(t *testing.T) {
-	for _, lvl := range []SafetyLevel{
+	for _, lvl := range []Level{
 		Finalized,
 		CrossSafe,
 		LocalSafe,
@@ -19,14 +19,14 @@ func TestSafetyLevel(t *testing.T) {
 		Invalid,
 	} {
 		upper := strings.ToUpper(lvl.String())
-		var x SafetyLevel
+		var x Level
 		require.ErrorContains(t, json.Unmarshal([]byte(fmt.Sprintf("%q", upper)), &x), "unrecognized", "case sensitive")
 		require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf("%q", lvl.String())), &x))
 		dat, err := json.Marshal(x)
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("%q", lvl.String()), string(dat))
 	}
-	var x SafetyLevel
+	var x Level
 	require.ErrorContains(t, json.Unmarshal([]byte(`""`), &x), "unrecognized", "empty")
 	require.ErrorContains(t, json.Unmarshal([]byte(`"foobar"`), &x), "unrecognized", "other")
 }

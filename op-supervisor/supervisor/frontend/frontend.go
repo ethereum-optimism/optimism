@@ -27,7 +27,7 @@ type QueryFrontend struct {
 var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety safety.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
 		return &rpc.JsonError{

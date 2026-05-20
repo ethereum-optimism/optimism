@@ -449,7 +449,7 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 	}))
 }
 
-func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.SafetyLevel) eth.BlockID {
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
@@ -489,19 +489,19 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	return receipt
 }
 
-func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl safety.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int) {
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (el *L2ELNode) InSync(other SyncStatusProvider, lvl safety.SafetyLevel, attempts int) {
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
 }
 

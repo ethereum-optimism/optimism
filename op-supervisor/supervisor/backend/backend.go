@@ -553,7 +553,7 @@ func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc message
 
 // checkSafety is a helper method to check if a block has the given safety level.
 // It is already assumed to exist in the canonical unsafe chain.
-func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel safety.SafetyLevel) error {
+func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel safety.Level) error {
 	switch safetyLevel {
 	case safety.LocalUnsafe:
 		return nil // msg exists, nothing more to check
@@ -571,7 +571,7 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 }
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety safety.SafetyLevel, execDescr messages.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescr messages.ExecutingDescriptor) error {
 	// Check if failsafe is enabled
 	if su.isFailsafeEnabled() {
 		su.logger.Debug("Failsafe is enabled, rejecting access-list check")

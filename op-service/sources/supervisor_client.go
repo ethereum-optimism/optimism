@@ -77,7 +77,7 @@ func (cl *SupervisorClient) GetFailsafeEnabled(ctx context.Context) (bool, error
 }
 
 func (cl *SupervisorClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety safety.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "supervisor_checkAccessList", inboxEntries, minSafety, executingDescriptor)
 }
 

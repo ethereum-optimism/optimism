@@ -188,7 +188,7 @@ func validateMessageTiming(
 // ValidateAccessEntry validates a single access list entry against all message validity rules.
 func (v *LockstepCrossValidator) ValidateAccessEntry(
 	access messages.Access,
-	minSafety safety.SafetyLevel,
+	minSafety safety.Level,
 	execDescriptor messages.ExecutingDescriptor,
 ) error {
 	// Check that we have ingested data for the requested timestamp

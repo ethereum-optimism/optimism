@@ -156,7 +156,7 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 
 // headBlockRef is the error-returning variant of HeadBlockRef, for use inside
 // retry/eventually loops.
-func (cl *L2CLNode) headBlockRef(lvl safety.SafetyLevel) (eth.L2BlockRef, error) {
+func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 	syncStatus, err := cl.syncStatus()
 	if err != nil {
 		return eth.L2BlockRef{}, err
@@ -178,7 +178,7 @@ func (cl *L2CLNode) headBlockRef(lvl safety.SafetyLevel) (eth.L2BlockRef, error)
 }
 
 // HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
-func (cl *L2CLNode) HeadBlockRef(lvl safety.SafetyLevel) eth.L2BlockRef {
+func (cl *L2CLNode) HeadBlockRef(lvl safety.Level) eth.L2BlockRef {
 	blockRef, err := cl.headBlockRef(lvl)
 	cl.require.NoError(err)
 	return blockRef
@@ -205,7 +205,7 @@ func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
 
 // AdvancedFn returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) AdvancedFn(lvl safety.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) AdvancedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
@@ -214,7 +214,7 @@ func (cl *L2CLNode) AdvancedFn(lvl safety.SafetyLevel, delta uint64, attempts in
 	}
 }
 
-func (cl *L2CLNode) NotAdvancedFn(lvl safety.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) NotAdvancedFn(lvl safety.Level, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
@@ -248,7 +248,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl safety.SafetyLevel, attempts int) CheckFun
 
 // awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
 // for at least 10 seconds.
-func (cl *L2CLNode) WaitForStall(lvl safety.SafetyLevel) {
+func (cl *L2CLNode) WaitForStall(lvl safety.Level) {
 	var last eth.BlockID
 	var stableSince time.Time
 	cl.require.Eventuallyf(func() bool {
@@ -272,7 +272,7 @@ func (cl *L2CLNode) WaitForStall(lvl safety.SafetyLevel) {
 
 // ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) ReachedFn(lvl safety.SafetyLevel, target uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) CheckFunc {
 	return func() error {
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", target)
 		logger.Info("Expecting chain to reach")
@@ -295,7 +295,7 @@ func (cl *L2CLNode) ReachedFn(lvl safety.SafetyLevel, target uint64, attempts in
 
 // ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) ReachedRefFn(lvl safety.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts int) CheckFunc {
 	return func() error {
 		err := cl.ReachedFn(lvl, target.Number, attempts)()
 		if err != nil {
@@ -316,7 +316,7 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.SafetyLevel, target eth.BlockID, att
 
 // RewindedFn returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) RewindedFn(lvl safety.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) RewindedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
@@ -341,7 +341,7 @@ func (cl *L2CLNode) RewindedFn(lvl safety.SafetyLevel, delta uint64, attempts in
 	}
 }
 
-func (cl *L2CLNode) Advanced(lvl safety.SafetyLevel, delta uint64, attempts int) {
+func (cl *L2CLNode) Advanced(lvl safety.Level, delta uint64, attempts int) {
 	cl.require.NoError(cl.AdvancedFn(lvl, delta, attempts)())
 }
 
@@ -349,7 +349,7 @@ func (cl *L2CLNode) AdvancedUnsafe(delta uint64, attempts int) {
 	cl.Advanced(safety.LocalUnsafe, delta, attempts)
 }
 
-func (cl *L2CLNode) NotAdvanced(lvl safety.SafetyLevel, attempts int) {
+func (cl *L2CLNode) NotAdvanced(lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.NotAdvancedFn(lvl, attempts)())
 }
 
@@ -357,7 +357,7 @@ func (cl *L2CLNode) NotAdvancedUnsafe(attempts int) {
 	cl.NotAdvanced(safety.LocalUnsafe, attempts)
 }
 
-func (cl *L2CLNode) Reached(lvl safety.SafetyLevel, target uint64, attempts int) {
+func (cl *L2CLNode) Reached(lvl safety.Level, target uint64, attempts int) {
 	cl.require.NoError(cl.ReachedFn(lvl, target, attempts)())
 }
 
@@ -365,16 +365,16 @@ func (cl *L2CLNode) ReachedUnsafe(target uint64, attempts int) {
 	cl.Reached(safety.LocalUnsafe, target, attempts)
 }
 
-func (cl *L2CLNode) ReachedRef(lvl safety.SafetyLevel, target eth.BlockID, attempts int) {
+func (cl *L2CLNode) ReachedRef(lvl safety.Level, target eth.BlockID, attempts int) {
 	cl.require.NoError(cl.ReachedRefFn(lvl, target, attempts)())
 }
 
-func (cl *L2CLNode) Rewinded(lvl safety.SafetyLevel, delta uint64, attempts int) {
+func (cl *L2CLNode) Rewinded(lvl safety.Level, delta uint64, attempts int) {
 	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
 }
 
 // ChainSyncStatus satisfies that the L2CLNode can provide sync status per chain
-func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.SafetyLevel) eth.BlockID {
+func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	cl.require.Equal(chainID, cl.inner.ChainID(), "chain ID mismatch")
 	return cl.HeadBlockRef(lvl).ID()
 }
@@ -399,13 +399,13 @@ func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 
 // LaggedFn returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference chain sync status provider
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
+func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int, allowMatch bool) CheckFunc {
 	return LaggedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts, allowMatch)
 }
 
 // MatchedFn returns a lambda that checks the L2CLNode head with given safety level is matched with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
@@ -413,23 +413,23 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl safety.SafetyLevel
 // match refNode's matchLvl head while requiring cl to keep making progress on
 // progressLvl. See MatchedWithProgressFn in check.go for the precise semantics.
 // Composable with other lambdas to wait in parallel.
-func (cl *L2CLNode) MatchedWithProgressFn(refNode SyncStatusProvider, matchLvl, progressLvl safety.SafetyLevel, maxWait, stallTimeout time.Duration) CheckFunc {
+func (cl *L2CLNode) MatchedWithProgressFn(refNode SyncStatusProvider, matchLvl, progressLvl safety.Level, maxWait, stallTimeout time.Duration) CheckFunc {
 	return MatchedWithProgressFn(cl, refNode, cl.log, cl.ctx, matchLvl, progressLvl, cl.ChainID(), maxWait, stallTimeout)
 }
 
-func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl safety.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
-func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int, allowMatch bool) {
+func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl safety.Level, attempts int, allowMatch bool) {
 	cl.require.NoError(cl.LaggedFn(refNode, lvl, attempts, allowMatch)())
 }
 
-func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl safety.SafetyLevel, attempts int) {
+func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl safety.SafetyLevel, attempts int) {
+func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.InSyncFn(other, lvl, attempts)())
 }
 
@@ -563,7 +563,7 @@ func (cl *L2CLNode) PostUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", payload.ExecutionPayload.BlockNumber)
 }
 
-func (cl *L2CLNode) Reset(lvl safety.SafetyLevel, target eth.L2BlockRef) {
+func (cl *L2CLNode) Reset(lvl safety.Level, target eth.L2BlockRef) {
 	cl.require.NoError(retry.Do0(cl.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
 			res := cl.HeadBlockRef(lvl)

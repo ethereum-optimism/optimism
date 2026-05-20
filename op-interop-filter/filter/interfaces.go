@@ -89,7 +89,7 @@ type CrossValidator interface {
 	Stop() error
 
 	// ValidateAccessEntry validates a single access list entry.
-	ValidateAccessEntry(access messages.Access, minSafety safety.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error
+	ValidateAccessEntry(access messages.Access, minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error
 
 	// CrossValidatedTimestamp returns the global cross-validated timestamp.
 	CrossValidatedTimestamp() (uint64, bool)

@@ -39,7 +39,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	// L2CLB is the verifier without follow source, derivation enabled
 	// L2CLC is the verifier with CL follow source, derivation disabled
 	// All verifiers must eventually advance unsafe, safe, finalized
-	checkMatchedAll := func(lvl safety.SafetyLevel) {
+	checkMatchedAll := func(lvl safety.Level) {
 		dsl.CheckAll(t,
 			sys.L2CL.ReachedFn(lvl, target, attempts),
 			sys.L2CLB.ReachedFn(lvl, target, attempts),

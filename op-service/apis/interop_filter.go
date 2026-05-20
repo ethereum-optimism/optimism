@@ -8,11 +8,11 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type InteropFilterQueryAPI interface {
 	CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-		minSafety types.SafetyLevel, executingDescriptor messages.ExecutingDescriptor) error
+		minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error
 	GetBlockHashByNumber(ctx context.Context, chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error)
 }

@@ -267,7 +267,7 @@ type mockCrossValidator struct {
 
 func (m *mockCrossValidator) Start() error { return nil }
 func (m *mockCrossValidator) Stop() error  { return nil }
-func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety safety.SafetyLevel, execDescriptor messages.ExecutingDescriptor) error {
+func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 	return m.validateErr
 }
 func (m *mockCrossValidator) CrossValidatedTimestamp() (uint64, bool) { return 0, false }

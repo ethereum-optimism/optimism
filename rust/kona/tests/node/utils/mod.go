@@ -36,7 +36,7 @@ func SendRPCRequest[T any](clientRPC client.RPC, method string, resOutput *T, pa
 	return clientRPC.CallContext(ctx, &resOutput, method, params...)
 }
 
-func MatchedWithinRange(t devtest.T, baseNode, refNode dsl.L2CLNode, delta uint64, lvl safety.SafetyLevel, attempts int) dsl.CheckFunc {
+func MatchedWithinRange(t devtest.T, baseNode, refNode dsl.L2CLNode, delta uint64, lvl safety.Level, attempts int) dsl.CheckFunc {
 	logger := t.Logger()
 	chainID := baseNode.ChainID()
 
