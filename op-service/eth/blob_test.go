@@ -1,6 +1,8 @@
 package eth
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -147,15 +149,19 @@ func FuzzEncodeDecodeBlob(f *testing.F) {
 
 func FuzzDetectNonBijectivity(f *testing.F) {
 	var b Blob
-	r := rand.New(rand.NewSource(99))
 	f.Fuzz(func(t *testing.T, d []byte) {
 		b.Clear()
 		data := Data(d)
 		err := b.FromData(data)
 		require.NoError(t, err)
-		// randomly flip a bit and make sure the data either fails to decode or decodes differently
-		byteToFlip := r.Intn(BlobSize)
-		bitToFlip := r.Intn(8)
+		// Derive the bit to flip from d so the fuzz function is pure;
+		// non-determinism stalls the engine during minimization.
+		h := sha256.Sum256(d)
+		byteToFlip := int(binary.BigEndian.Uint32(h[0:4])) % BlobSize
+		if byteToFlip < 0 {
+			byteToFlip += BlobSize
+		}
+		bitToFlip := int(h[4]) % 8
 		mask := byte(1 << bitToFlip)
 		b[byteToFlip] = b[byteToFlip] ^ mask
 		decoded, err := b.ToData()
