@@ -57,6 +57,15 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
+    /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
+    error OPContractsManagerMigrator_ZeroL2ChainId();
+
+    /// @notice Thrown when two chains share the same l2ChainId.
+    error OPContractsManagerMigrator_DuplicateL2ChainId();
+
+    /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
+    error OPContractsManagerMigrator_ChainIdsNotAscending();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -107,20 +116,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
         }
 
-        // Check that all of the chains have the same core contracts.
-        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
-            // Different chains might actually have different ProxyAdmin contracts, but it's fine
-            // as long as the owner of all of those contracts is the same.
-            if (_input.chainSystemConfigs[i].proxyAdmin().owner() != _input.chainSystemConfigs[0].proxyAdmin().owner())
-            {
-                revert OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
-            }
-
-            // Each chain must have the same SuperchainConfig.
-            if (_input.chainSystemConfigs[i].superchainConfig() != _input.chainSystemConfigs[0].superchainConfig()) {
-                revert OPContractsManagerMigrator_SuperchainConfigMismatch();
-            }
-        }
+        // Check that all of the chains have the same core contracts, that no chain reports a
+        // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
+        // provided in ascending order.
+        _validateChainSystemConfigs(_input.chainSystemConfigs);
 
         // NOTE: Interop doesn't have a real chain ID, and the chain ID provided here is ONLY used
         // as a salt mixer, so we just use the block.timestamp instead. It really doesn't matter
@@ -244,6 +243,41 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 _makeGameArgs(0, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs[i])
             );
             disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
+        }
+    }
+
+    /// @notice Validates the per-chain SystemConfig array supplied to migrate(). All chains must
+    ///         share a ProxyAdmin owner and SuperchainConfig, and their l2ChainIds must be
+    ///         non-zero, distinct, and provided in ascending order.
+    /// @param _chainSystemConfigs The chain system configs to validate.
+    function _validateChainSystemConfigs(ISystemConfig[] calldata _chainSystemConfigs) internal view {
+        uint256 prevL2ChainId;
+        for (uint256 i = 0; i < _chainSystemConfigs.length; i++) {
+            // Different chains might actually have different ProxyAdmin contracts, but it's fine
+            // as long as the owner of all of those contracts is the same.
+            if (_chainSystemConfigs[i].proxyAdmin().owner() != _chainSystemConfigs[0].proxyAdmin().owner()) {
+                revert OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
+            }
+
+            // Each chain must have the same SuperchainConfig.
+            if (_chainSystemConfigs[i].superchainConfig() != _chainSystemConfigs[0].superchainConfig()) {
+                revert OPContractsManagerMigrator_SuperchainConfigMismatch();
+            }
+
+            // The shared super-root dispute game system keys output roots by l2ChainId, so a
+            // zero or duplicate l2ChainId across migrated portals would let the same withdrawal
+            // be finalized through multiple portals.
+            uint256 l2ChainId = _chainSystemConfigs[i].l2ChainId();
+            if (i == 0) {
+                if (l2ChainId == 0) {
+                    revert OPContractsManagerMigrator_ZeroL2ChainId();
+                }
+            } else if (l2ChainId == prevL2ChainId) {
+                revert OPContractsManagerMigrator_DuplicateL2ChainId();
+            } else if (l2ChainId < prevL2ChainId) {
+                revert OPContractsManagerMigrator_ChainIdsNotAscending();
+            }
+            prevL2ChainId = l2ChainId;
         }
     }
 

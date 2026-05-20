@@ -107,7 +107,17 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_ChainIdsNotAscending",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_CustomGasTokenNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_DuplicateL2ChainId",
     "type": "error"
   },
   {
@@ -138,6 +148,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ZeroL2ChainId",
     "type": "error"
   }
 ]
