@@ -1,7 +1,7 @@
 # Static checks for recurring flake patterns in op-acceptance-tests / op-devstack.
 #
 # Scoped narrowly to test code; do not enable for production code paths.
-# Each rule maps to a numbered entry (F1..F15) in docs/ai/flake-prevention.md.
+# Each rule maps to a numbered entry (F1..F14) in docs/ai/flake-prevention.md.
 #
 # Run locally:
 #   semgrep scan --config .semgrep/rules/go-acceptance-test-flakes.yaml \
