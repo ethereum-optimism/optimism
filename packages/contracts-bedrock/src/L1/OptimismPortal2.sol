@@ -233,10 +233,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
+    /// @notice Thrown when the dispute game's L2 chain ID does not match the portal's configured
+    ///         L2 chain ID.
+    error OptimismPortal_UnknownChainId();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.6.1
+    /// @custom:semver 5.6.2
     function version() public pure virtual returns (string memory) {
-        return "5.6.1";
+        return "5.6.2";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -413,12 +417,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // Extract the output root claim. Super game types use rootClaimByChainId to extract
-        // the per-chain output root from the super root. Legacy game types use rootClaim directly.
+        // the per-chain output root from the super root. Legacy game types use rootClaim directly
+        // and we explicitly verify that the game's L2 chain ID matches this portal's.
         // TODO(#19816): Post interop clean up the legacy rootClaim() usage in OptimismPortal2.
         Claim outputRootClaim;
         if (GameTypes.isSuperGame(disputeGameProxy.gameType())) {
             outputRootClaim = disputeGameProxy.rootClaimByChainId(systemConfig.l2ChainId());
         } else {
+            if (disputeGameProxy.l2ChainId() != systemConfig.l2ChainId()) {
+                revert OptimismPortal_UnknownChainId();
+            }
             outputRootClaim = disputeGameProxy.rootClaim();
         }
 

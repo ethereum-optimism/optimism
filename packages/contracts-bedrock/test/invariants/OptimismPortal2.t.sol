@@ -133,6 +133,11 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         // Warp forward in time to ensure that the game is created after the retirement timestamp.
         vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
 
+        // Ensure the dispute game implementation is deployed with the same L2 chain ID that the
+        // portal's SystemConfig is configured for, so proveWithdrawalTransaction's chain ID check
+        // passes.
+        l2ChainId = systemConfig.l2ChainId();
+
         setupFaultDisputeGame(Claim.wrap(bytes32(0)));
 
         // Create a dispute game with the output root we've proposed.

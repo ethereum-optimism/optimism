@@ -101,6 +101,11 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
 
         depositor = makeAddr("depositor");
 
+        // Ensure the dispute game implementation is deployed with the same L2 chain ID that the
+        // portal's SystemConfig is configured for, so proveWithdrawalTransaction's chain ID check
+        // passes.
+        l2ChainId = systemConfig.l2ChainId();
+
         setupFaultDisputeGame(Claim.wrap(_outputRoot));
 
         // Warp forward in time to ensure that the game is created after the retirement timestamp.
@@ -939,6 +944,19 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     function test_proveWithdrawalTransaction_legacyGame_reverts() external {
         vm.mockCallRevert(address(game), abi.encodeCall(game.wasRespectedGameTypeWhenCreated, ()), "");
         vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when a non-super dispute game's
+    ///         `l2ChainId()` does not match the portal's configured L2 chain ID.
+    function test_proveWithdrawalTransaction_wrongChainIdNonSuperGame_reverts() external {
+        vm.mockCall(address(game), abi.encodeCall(game.l2ChainId, ()), abi.encode(systemConfig.l2ChainId() + 1));
+        vm.expectRevert(IOptimismPortal.OptimismPortal_UnknownChainId.selector);
         optimismPortal2.proveWithdrawalTransaction({
             _tx: _defaultTx,
             _disputeGameIndex: _proposedGameIndex,
