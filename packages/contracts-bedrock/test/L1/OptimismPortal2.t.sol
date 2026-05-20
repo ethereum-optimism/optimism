@@ -955,6 +955,13 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when a non-super dispute game's
     ///         `l2ChainId()` does not match the portal's configured L2 chain ID.
     function test_proveWithdrawalTransaction_wrongChainIdNonSuperGame_reverts() external {
+        // Only relevant for non-super games — the super game path enforces the chain ID via
+        // `rootClaimByChainId`. Skip when the respected game type is a super game (e.g. after the
+        // super-root games migration).
+        if (DisputeGames.isSuperGame(respectedGameType)) {
+            vm.skip(true, "Skipping: respected game type is a super game");
+        }
+
         vm.mockCall(address(game), abi.encodeCall(game.l2ChainId, ()), abi.encode(systemConfig.l2ChainId() + 1));
         vm.expectRevert(IOptimismPortal.OptimismPortal_UnknownChainId.selector);
         optimismPortal2.proveWithdrawalTransaction({
