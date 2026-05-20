@@ -629,7 +629,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     # This job frequently gets killed for smaller resource_class
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -670,7 +670,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -721,7 +721,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -747,7 +747,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -789,7 +789,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
