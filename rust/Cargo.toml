@@ -35,6 +35,7 @@ members = [
   "op-reth/crates/hardforks/",
   "op-reth/crates/node/",
   "op-reth/crates/payload/",
+  "op-reth/crates/post-exec-replay/",
   "op-reth/crates/primitives/",
   "op-reth/crates/reth/",
   "op-reth/crates/rpc/",
@@ -292,6 +293,7 @@ reth-optimism-flashblocks = { path = "op-reth/crates/flashblocks/" }
 reth-optimism-forks = { path = "op-reth/crates/hardforks/", default-features = false }
 reth-optimism-node = { path = "op-reth/crates/node/" }
 reth-optimism-payload-builder = { path = "op-reth/crates/payload/" }
+reth-optimism-post-exec-replay = { path = "op-reth/crates/post-exec-replay/" }
 reth-optimism-primitives = { path = "op-reth/crates/primitives/", default-features = false }
 reth-op = { path = "op-reth/crates/reth/", default-features = false }
 reth-optimism-rpc = { path = "op-reth/crates/rpc/" }

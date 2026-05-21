@@ -49,7 +49,7 @@ use reth_optimism_rpc::{
     eth::{OpEthApiBuilder, ext::OpEthExtApi},
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
-    witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
+    witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{OpPool, OpPooledTx, supervisor::SupervisorClient};
@@ -715,6 +715,7 @@ where
                 ctx.node.provider().clone(),
                 ctx.node.task_executor().clone(),
                 builder,
+                ctx.node.evm_config().clone(),
             );
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
@@ -746,6 +747,10 @@ where
                 modules.merge_if_module_configured(
                     RethRpcModule::Debug,
                     DebugExecutionWitnessApiServer::into_rpc(debug_ext.clone()),
+                )?;
+                modules.merge_if_module_configured(
+                    RethRpcModule::Debug,
+                    OpDebugPostExecApiServer::into_rpc(debug_ext.clone()),
                 )?;
 
                 // extend the miner namespace if configured in the regular http server
