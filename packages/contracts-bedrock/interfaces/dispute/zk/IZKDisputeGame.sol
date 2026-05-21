@@ -38,6 +38,9 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
         Claim claim;
     }
 
+    /// @dev Error to prevent passing a non-zero chainId to this dispute game.
+    error NoChainIdNeeded();
+
     /// @notice Emitted when the game is challenged.
     event Challenged(address indexed challenger);
 

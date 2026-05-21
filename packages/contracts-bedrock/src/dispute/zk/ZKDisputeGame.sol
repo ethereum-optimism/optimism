@@ -15,6 +15,7 @@ import {
 } from "src/dispute/lib/Types.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import {
     AlreadyInitialized,
     AnchorRootNotFound,
@@ -52,6 +53,9 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 ///         design that uses a generic IZKVerifier and DelayedWETH for bond custody.
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
+    /// @dev Error to prevent passing a chainId to this dispute game.
+    error NoChainIdNeeded();
+
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
     ////////////////////////////////////////////////////////////////
@@ -337,8 +341,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // output proposal to be created.
         if (!_verifyInitCallDataLength()) revert BadExtraData();
 
-        // INVARIANT: The L2 chain ID must not be zero.
-        if (l2ChainId() == 0) revert UnknownChainId();
+        // Revert if the super root proof in extraData does not match the root claim.
+        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(superRootProof());
+        if (Hashing.hashSuperRootProof(superRootProof) != rootClaim().raw()) revert BadExtraData();
 
         // Store the factory reference for parent game lookups.
         disputeGameFactory = IDisputeGameFactory(msg.sender);
@@ -374,6 +379,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
+
+        // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
+        if (l2ChainId() != 0) revert NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
         // or before the configured starting sequence number.
