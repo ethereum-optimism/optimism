@@ -13,7 +13,10 @@ pub use engine::{
 };
 
 pub(crate) mod rpc;
-pub use rpc::{QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError};
+pub use rpc::{
+    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
+    RpcActorError, RpcServerHandle, RpcServerLauncher,
+};
 
 mod derivation;
 pub use derivation::{

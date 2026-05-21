@@ -3,12 +3,12 @@ use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
     EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, InteropMode,
-    L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
-    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedEngineRpcClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
-    SequencerConfig,
-    actors::{BlockStream, QueuedUnsafePayloadGossipClient, rpc::launch as launch_rpc_server},
+    JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
+    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
+    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    actors::{BlockStream, QueuedUnsafePayloadGossipClient},
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
@@ -127,6 +127,9 @@ type ConfiguredSequencerActor = SequencerActor<
     QueuedSequencerEngineClient,
     QueuedUnsafePayloadGossipClient,
 >;
+
+/// Concrete type of the rpc actor used by `RollupNode`.
+type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -281,8 +284,10 @@ impl RollupNode {
 
     /// Builds the L1 watcher actor along with its head and finalized block streams.
     ///
-    /// The block-stream type produced by [`BlockStream::new_as_stream`] is `impl Stream`, so the
-    /// returned actor's concrete type is unnameable; we hide it behind `impl NodeActor`.
+    /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
+    /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
+    /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
+    /// Using `impl Trait` here is intentional; the macro consumer only requires `NodeActor`.
     fn build_l1_watcher(
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
@@ -365,7 +370,7 @@ impl RollupNode {
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
-    ) -> Result<Option<RpcActor>, String> {
+    ) -> Result<Option<ConfiguredRpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
         };
@@ -396,11 +401,14 @@ impl RollupNode {
                 .map_err(|e| format!("Failed to register ws module: {e:?}"))?;
         }
 
-        let handle = launch_rpc_server(&config, modules.clone())
+        let restarts_remaining = config.restart_count();
+        let launcher = JsonrpseeServerLauncher::new(config);
+        let handle = launcher
+            .launch(modules.clone())
             .await
             .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
 
-        Ok(Some(RpcActor::new(config, modules, handle)))
+        Ok(Some(RpcActor::new(launcher, modules, handle, restarts_remaining)))
     }
 
     /// Starts the rollup node service.
@@ -422,6 +430,13 @@ impl RollupNode {
     /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
     /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
     /// received.
+    ///
+    /// ## Shutdown
+    ///
+    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
+    /// received, the umbrella cancellation token fires and all peer actors observe it on their
+    /// next `select!`. Actors may log channel-closed errors while peers are torn down
+    /// concurrently; this is expected and not a sign of an unclean exit.
     pub async fn start(&self) -> Result<(), String> {
         // Single umbrella cancellation token owned by the spawn_and_wait! macro.
         let cancellation = CancellationToken::new();

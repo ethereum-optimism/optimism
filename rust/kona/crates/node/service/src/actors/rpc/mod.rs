@@ -1,6 +1,8 @@
 mod actor;
 pub use actor::RpcActor;
-pub(crate) use actor::launch;
+
+mod launcher;
+pub use launcher::{JsonrpseeServerLauncher, RpcServerHandle, RpcServerLauncher};
 
 mod engine_rpc_client;
 pub use engine_rpc_client::QueuedEngineRpcClient;
