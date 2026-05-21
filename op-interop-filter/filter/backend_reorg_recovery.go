@@ -40,6 +40,7 @@ func (b *Backend) tryResolveReorgs(ctx context.Context) {
 
 		b.crossValidator.ResetCrossValidatedTimestamp(timestamp)
 		ingester.ClearError()
+		b.metrics.RecordFailsafeEnabled(b.FailsafeEnabled())
 		b.log.Info("Auto-resolved reorg-triggered failsafe",
 			"chain", chainID,
 			"target", eth.Finalized,
