@@ -81,7 +81,7 @@ func (r *Metrics) RecordBlockStats(hash common.Hash, num uint64, time uint64, tx
 	r.BlockTime.Set(float64(time))
 	r.BlockTxs.Set(float64(txs))
 	r.BlockGas.Set(float64(gas))
-	r.BlockGas.Set(float64(baseFee))
+	r.BlockBaseFee.Set(baseFee)
 }
 
 var _ Metricer = (*Metrics)(nil)
