@@ -1,10 +1,12 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -114,15 +116,31 @@ type OpReth struct {
 var _ L2ELNode = (*OpReth)(nil)
 
 func (n *OpReth) Start() {
+	n.p.Require().NoError(n.start(n.p.Ctx()), "Must start")
+}
+
+func (n *OpReth) StartWithTimeout(timeout time.Duration) error {
+	ctx := n.p.Ctx()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return n.start(ctx)
+}
+
+func (n *OpReth) start(ctx context.Context) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.sub != nil {
 		n.p.Logger().Warn("op-reth already started")
-		return
+		return nil
 	}
 	if n.authProxy == nil {
 		n.authProxy = tcpproxy.New(n.p.Logger())
-		n.p.Require().NoError(n.authProxy.Start())
+		if err := n.authProxy.Start(); err != nil {
+			return fmt.Errorf("start auth proxy: %w", err)
+		}
 		n.p.Cleanup(func() {
 			n.authProxy.Close()
 		})
@@ -130,7 +148,9 @@ func (n *OpReth) Start() {
 	}
 	if n.userProxy == nil {
 		n.userProxy = tcpproxy.New(n.p.Logger())
-		n.p.Require().NoError(n.userProxy.Start())
+		if err := n.userProxy.Start(); err != nil {
+			return fmt.Errorf("start user proxy: %w", err)
+		}
 		n.p.Cleanup(func() {
 			n.userProxy.Close()
 		})
@@ -182,20 +202,29 @@ func (n *OpReth) Start() {
 	n.sub = NewSubProcess(n.p, stdOutLogs, stdErrLogs)
 
 	err := n.sub.Start(n.execPath, n.args, n.env)
-	n.p.Require().NoError(err, "Must start")
+	if err != nil {
+		return fmt.Errorf("start op-reth subprocess: %w", err)
+	}
 
 	var userRPCAddr, authRPCAddr string
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
+	if err := tasks.Await(ctx, userRPCChan, &userRPCAddr); err != nil {
+		return fmt.Errorf("need user RPC: %w", err)
+	}
+	if err := tasks.Await(ctx, authRPCChan, &authRPCAddr); err != nil {
+		return fmt.Errorf("need auth RPC: %w", err)
+	}
 
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget
-		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		if err := tasks.Await(ctx, metricsTargetChan, &metricsTarget); err != nil {
+			return fmt.Errorf("need metrics endpoint: %w", err)
+		}
 		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.name, metricsTarget)
 	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+	return nil
 }
 
 // Stop stops the op-reth node.

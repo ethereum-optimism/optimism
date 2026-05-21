@@ -2,6 +2,7 @@ package presets
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -177,6 +178,17 @@ func (r *l2ELFrontend) L2EngineClient() apis.EngineClient {
 func (r *l2ELFrontend) Start() {
 	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
 	r.lifecycle.Start()
+}
+
+func (r *l2ELFrontend) StartWithTimeout(timeout time.Duration) error {
+	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
+	lifecycle, ok := r.lifecycle.(interface {
+		StartWithTimeout(time.Duration) error
+	})
+	if !ok {
+		return fmt.Errorf("L2EL node %s does not support timed start", r.Name())
+	}
+	return lifecycle.StartWithTimeout(timeout)
 }
 
 func (r *l2ELFrontend) Stop() {

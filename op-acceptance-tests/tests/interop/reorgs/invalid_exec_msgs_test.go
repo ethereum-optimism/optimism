@@ -77,12 +77,22 @@ func TestReorgInvalidExecMsgOpRethProofsHistoryTinyWindow(gt *testing.T) {
 				sys.Log.Info("observed op-reth RPC failure after proofs-history unwind", "err", err)
 				return true
 			}, time.Minute, 200*time.Millisecond, "expected op-reth to exit during proofs-history reorg unwind")
-			failAfterSustainedTinyProofWindowStall(t, sys, original, 30*time.Second)
+			sys.Log.Info("restarting op-reth after proofs-history unwind exit",
+				"number", original.Number,
+				"hash", original.Hash)
+			sys.L2ELA.Stop()
+			if err := sys.L2ELA.StartWithTimeout(15 * time.Second); err != nil {
+				require.Failf(t,
+					"repro observed",
+					"after exiting during proofs-history reorg unwind, op-reth did not become RPC-ready within 15s of restart: original=%s err=%v",
+					original, err)
+			}
+			failAfterRestartedTinyProofWindowStall(t, sys, original, 30*time.Second)
 		},
 		false)
 }
 
-func failAfterSustainedTinyProofWindowStall(
+func failAfterRestartedTinyProofWindowStall(
 	t devtest.T,
 	sys *presets.TwoL2SupernodeInterop,
 	original eth.L2BlockRef,
@@ -134,7 +144,7 @@ func failAfterSustainedTinyProofWindowStall(
 
 		if lastLog.IsZero() || time.Since(lastLog) >= 5*time.Second {
 			lastLog = time.Now()
-			l.Info("observing tiny proofs-history repro non-recovery",
+			l.Info("observing tiny proofs-history repro non-recovery after op-reth restart",
 				"elapsed", time.Since(start),
 				"duration", duration,
 				"original", original,
@@ -152,7 +162,7 @@ func failAfterSustainedTinyProofWindowStall(
 
 	require.Failf(t,
 		"repro observed",
-		"op-reth exited during proofs-history reorg unwind, chain A EL did not advance, and supernode did not advance chain A safe past the reorg point for %s: original=%s baseline_supernode_status=%v last_el_unsafe=%v last_supernode_status=%v",
+		"after restarting op-reth from the proofs-history reorg-unwind exit, chain A EL did not advance and supernode did not advance chain A safe past the reorg point for %s: original=%s baseline_supernode_status=%v last_el_unsafe=%v last_supernode_status=%v",
 		duration, original, supernodeChainStatusOrErr(baseline, chainID, baselineErr), lastEL, lastSupernode)
 }
 

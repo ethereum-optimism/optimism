@@ -363,6 +363,16 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+func (el *L2ELNode) StartWithTimeout(timeout time.Duration) error {
+	lifecycle, ok := el.inner.(interface {
+		StartWithTimeout(time.Duration) error
+	})
+	if !ok {
+		return fmt.Errorf("L2EL node %s does not support timed start", el.inner.Name())
+	}
+	return lifecycle.StartWithTimeout(timeout)
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
 }
