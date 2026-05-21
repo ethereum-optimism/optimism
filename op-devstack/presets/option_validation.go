@@ -15,6 +15,7 @@ const (
 	optionKindBatcher
 	optionKindProposer
 	optionKindOPRBuilder
+	optionKindOpReth
 	optionKindGlobalL2CL
 	optionKindGlobalSyncTesterEL
 	optionKindL1EL
@@ -32,12 +33,14 @@ const (
 	optionKindSkipHonestProposer
 	optionKindSupernodeVerifierSyncMode
 	optionKindInteropActivationDelay
+	optionKindInteropAtGenesis
 )
 
 const allOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindOPRBuilder |
+	optionKindOpReth |
 	optionKindGlobalL2CL |
 	optionKindGlobalSyncTesterEL |
 	optionKindL1EL |
@@ -54,7 +57,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindPreGenesisSuperGame |
 	optionKindSkipHonestProposer |
 	optionKindSupernodeVerifierSyncMode |
-	optionKindInteropActivationDelay
+	optionKindInteropActivationDelay |
+	optionKindInteropAtGenesis
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -64,6 +68,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindBatcher, label: "batcher options"},
 	{kind: optionKindProposer, label: "proposer options"},
 	{kind: optionKindOPRBuilder, label: "builder options"},
+	{kind: optionKindOpReth, label: "op-reth options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
 	{kind: optionKindL1EL, label: "L1 EL options"},
@@ -81,6 +86,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
 	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
 	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
+	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 }
 
 func (k optionKinds) String() string {
@@ -127,16 +133,7 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindAfterBuild |
 	optionKindProofValidation
 
-const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindBatcher |
-	optionKindProposer |
-	optionKindGlobalL2CL |
-	optionKindL1EL |
-	optionKindAddedGameType |
-	optionKindRespectedGameType |
-	optionKindTimeTravel |
-	optionKindAfterBuild |
-	optionKindProofValidation
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
@@ -178,4 +175,6 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindPreGenesisSuperGame
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
-	optionKindOPRBuilder
+	optionKindOPRBuilder |
+	optionKindOpReth |
+	optionKindInteropAtGenesis

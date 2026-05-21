@@ -60,11 +60,6 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 	})
 }
 
-// OpRethWithSDMEnabled enables Sequencer-Defined Metering on the op-reth node.
-func OpRethWithSDMEnabled() OpRethOption {
-	return OpRethWithExtraArgs("--rollup.sdm-enabled")
-}
-
 // OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
 // An empty interopURL is a no-op so callers can pass the value unconditionally.
 func OpRethWithInteropURL(interopURL string) OpRethOption {
