@@ -43,6 +43,12 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
 
 impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_> {
     /// Constructs a new [`NetworkActor`].
+    ///
+    /// `handler` must already be live: the caller is responsible for invoking
+    /// `NetworkBuilder::build()?.start().await?` (or equivalent) before constructing the actor.
+    /// Passing an unstarted handler will cause `step()` to hang or fail on its first poll of the
+    /// gossip swarm. Keeping the constructor sync — and the "is this live?" invariant the caller's
+    /// responsibility — is the deliberate trade-off over an `init()`-style trait method.
     pub fn new(
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
