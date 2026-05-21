@@ -7768,6 +7768,7 @@ dependencies = [
  "alloy-contract 2.0.5",
  "alloy-eips 2.0.5",
  "alloy-evm",
+ "alloy-hardforks",
  "alloy-json-rpc 2.0.5",
  "alloy-network 2.0.5",
  "alloy-op-evm",
@@ -11262,6 +11263,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-optimism-post-exec-replay"
+version = "1.11.3"
+dependencies = [
+ "alloy-consensus 2.0.5",
+ "alloy-eips 2.0.5",
+ "alloy-primitives 1.6.0",
+ "op-alloy-consensus",
+ "reth-evm",
+ "reth-execution-errors",
+ "reth-node-api",
+ "reth-optimism-evm",
+ "reth-primitives-traits",
+ "revm",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "reth-optimism-primitives"
 version = "1.11.3"
 dependencies = [
@@ -11281,6 +11300,7 @@ version = "1.11.3"
 dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
+ "alloy-hardforks",
  "alloy-json-rpc 2.0.5",
  "alloy-op-evm",
  "alloy-primitives 1.6.0",
@@ -11318,6 +11338,7 @@ dependencies = [
  "reth-optimism-flashblocks",
  "reth-optimism-forks",
  "reth-optimism-payload-builder",
+ "reth-optimism-post-exec-replay",
  "reth-optimism-primitives",
  "reth-optimism-trie",
  "reth-optimism-txpool",
