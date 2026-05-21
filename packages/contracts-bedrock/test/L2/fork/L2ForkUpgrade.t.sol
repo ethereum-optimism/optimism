@@ -725,10 +725,32 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy emitted the Upgraded event
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
+        _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
+    }
+
+    function _getExpectedImpls(address[] memory _predeploys) internal view returns (address[] memory expectedImpls_) {
+        expectedImpls_ = new address[](_predeploys.length);
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            if (!_isFeaturePredeployAndDisabled(_predeploys[i])) {
+                expectedImpls_[i] = _getExpectedImplementation(_predeploys[i], Predeploys.getName(_predeploys[i]));
+            }
+        }
+    }
+
+    function _verifyEvents(
+        address[] memory _predeploys,
+        Vm.Log[] memory _logs,
+        address[] memory _expectedImpls,
+        address _storageSetterImpl
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i];
 
             if (_isFeaturePredeployAndDisabled(predeploy)) {
                 continue;
@@ -742,17 +764,17 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
-            for (uint256 j = 0; j < logs.length; j++) {
+            for (uint256 j = 0; j < _logs.length; j++) {
                 // Check if this log is an Upgraded event from the current predeploy
                 if (
-                    logs[j].emitter == predeploy && logs[j].topics.length > 0
-                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
+                    _logs[j].emitter == predeploy && _logs[j].topics.length > 0
+                        && _logs[j].topics[0] == UPGRADED_EVENT_TOPIC
                 ) {
                     // Decode the implementation address from the event
-                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
+                    address emittedImpl = address(uint160(uint256(_logs[j].topics[1])));
 
                     // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
-                    if (emittedImpl == storageSetterImpl) {
+                    if (emittedImpl == _storageSetterImpl) {
                         continue;
                     }
 

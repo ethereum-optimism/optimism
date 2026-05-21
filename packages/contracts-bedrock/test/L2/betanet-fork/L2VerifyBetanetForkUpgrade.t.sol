@@ -163,12 +163,7 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         // (deployed on fork 0) is not accessible.
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
-        address[] memory expectedImpls = new address[](predeploys.length);
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
-                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
-            }
-        }
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Execute upgrade bundle
         _executeCurrentBundle();
@@ -177,51 +172,7 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         Vm.Log[] memory logs = _getLogs(predeploys);
 
         // Verify each predeploy emitted the Upgraded event
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
-
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
-
-            // Get predeploy name
-            string memory name = Predeploys.getName(predeploy);
-
-            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
-            address expectedImpl = expectedImpls[i];
-
-            // Find the Upgraded event for this predeploy (skip StorageSetter events)
-            bool foundEvent = false;
-            for (uint256 j = 0; j < logs.length; j++) {
-                // Check if this log is an Upgraded event from the current predeploy
-                if (
-                    logs[j].emitter == predeploy && logs[j].topics.length > 0
-                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
-                ) {
-                    // Decode the implementation address from the event
-                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
-
-                    // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
-                    if (emittedImpl == storageSetterImpl) {
-                        continue;
-                    }
-
-                    foundEvent = true;
-
-                    // Verify the implementation matches expected
-                    assertEq(
-                        emittedImpl,
-                        expectedImpl,
-                        string.concat("Upgraded event implementation mismatch for ", name, ": ", vm.toString(predeploy))
-                    );
-
-                    break;
-                }
-            }
-
-            // Verify the event was found
-            assertTrue(foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy)));
-        }
+        _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
     }
 
     function _getLogs(address[] memory predeploys) internal returns (Vm.Log[] memory logs_) {
