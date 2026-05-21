@@ -7,14 +7,12 @@ use jsonrpsee::{RpcModule, core::async_trait, server::Server};
 use kona_cli::LogConfig;
 use kona_gossip::P2pRpcRequest;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NetworkInboundData,
-    NodeActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
 };
 use kona_registry::scr_rollup_config_by_alloy_ident;
 use kona_rpc::{OpP2PApiServer, P2pRpc, RpcBuilder};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use url::Url;
 
@@ -74,13 +72,34 @@ impl NetCommand {
         let p2p_config = self.p2p.config(rollup_config, args, self.l1_eth_rpc).await?;
 
         let (block_tx, mut block_rx) = mpsc::channel(1024);
-        let (NetworkInboundData { p2p_rpc: rpc, .. }, network) = NetworkActor::new(
+        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (rpc, p2p_rpc_rx) = mpsc::channel(1024);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+        // signer_tx, admin_rpc_tx, gossip_payload_tx are not used by this single-purpose binary —
+        // they exist solely to satisfy NetworkActor::new and are held to keep the channels open.
+        let _unused_senders = (signer_tx, admin_rpc_tx, gossip_payload_tx);
+
+        let handler = NetworkBuilder::from(p2p_config).build()?.start().await?;
+
+        let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx },
-            CancellationToken::new(),
-            NetworkBuilder::from(p2p_config),
+            handler,
+            signer_rx,
+            p2p_rpc_rx,
+            admin_rpc_rx,
+            gossip_payload_rx,
         );
 
-        network.start(()).await?;
+        // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = network.step().await {
+                    error!(target: "net", "Network actor error: {e:?}");
+                    return;
+                }
+            }
+        });
 
         info!(target: "net", "Network started, receiving blocks.");
 

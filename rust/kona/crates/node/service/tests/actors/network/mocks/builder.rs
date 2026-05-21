@@ -18,7 +18,6 @@ use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -59,7 +58,7 @@ impl TestNetworkBuilder {
 
     /// Minimal network configuration.
     /// Only allows loopback addresses in the discovery table.
-    pub(crate) fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
+    pub(crate) async fn build(&mut self, bootnodes: Vec<Enr>) -> TestNetwork {
         let keypair = self.custom_keypair.take().unwrap_or_else(Keypair::generate_secp256k1);
 
         let secp256k1_key = keypair.clone().try_into_secp256k1()
@@ -97,16 +96,33 @@ impl TestNetworkBuilder {
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
 
+        let handler = builder.build().expect("build network").start().await.expect("start network");
+
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (inbound_data, actor) = NetworkActor::new(
+        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+
+        let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
-            CancellationToken::new(),
-            builder,
+            handler,
+            signer_rx,
+            p2p_rpc_rx,
+            admin_rpc_rx,
+            gossip_payload_rx,
         );
 
-        let handle = tokio::spawn(async move { actor.start(()).await });
+        let handle = tokio::spawn(async move {
+            loop {
+                actor.step().await?;
+            }
+            // Unreachable: the loop above only exits via Err.
+            #[allow(unreachable_code)]
+            Ok(())
+        });
 
-        TestNetwork { inbound_data, blocks_rx, handle }
+        TestNetwork { signer_tx, p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
 }
 
