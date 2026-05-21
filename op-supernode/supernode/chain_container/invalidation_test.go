@@ -331,6 +331,10 @@ func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label
 	return eth.L2BlockRef{}, nil
 }
 
+func (m *mockEngineForInvalidation) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return m.blockRef, m.blockRefErr
+}
+
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
 type mockVNForInvalidation struct {
 	stopErr error

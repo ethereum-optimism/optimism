@@ -22,6 +22,9 @@ type EngineController interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	// L2BlockRefByNumber returns the L2 block reference for the given block number.
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	// BlockAtTimestamp returns the L2 block reference for the block at or before
+	// the given timestamp, clamped to the head of the specified label.
+	BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// OutputV0ByBlockHash returns the output preimage for the given L2 block

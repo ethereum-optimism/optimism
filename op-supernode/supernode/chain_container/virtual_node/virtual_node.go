@@ -78,6 +78,7 @@ type simpleVirtualNode struct {
 	mu     sync.Mutex         // Protects state transitions
 	state  VNState            // Current lifecycle state
 	cancel context.CancelFunc // Cancels the running context
+	done   chan struct{}      // Closed when Start has completed shutdown
 }
 
 func generateVirtualNodeID() string {
@@ -132,7 +133,10 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	}
 	v.inner = n
 	v.state = VNStateRunning
+	done := make(chan struct{})
+	v.done = done
 	v.mu.Unlock()
+	defer close(done)
 
 	// Run inner node in goroutine
 	// and await any signal to exit (Stop(), parent ctx, or inner error)
@@ -142,22 +146,21 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	}()
 	<-runCtx.Done()
 
-	// Update state under lock, but do NOT hold the lock during inner.Stop().
-	// inner.Stop() drains the op-node event system, which may call back into
-	// this VirtualNode (e.g. SyncStatus via EngineController.FinalizedHead).
-	// SyncStatus needs v.mu, so holding it here would deadlock.
-	v.mu.Lock()
-	v.state = VNStateStopped
-	v.cancel = nil
-	v.mu.Unlock()
-
-	// Stop the inner node outside the lock. Use n which is the local reference
-	// to the inner node created at the top of this function.
+	// Stop the inner node outside the lock. inner.Stop() drains the op-node event
+	// system, which may call back into this VirtualNode (e.g. SyncStatus via
+	// EngineController.FinalizedHead). SyncStatus needs v.mu, so holding it here
+	// would deadlock.
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer stopCancel()
 	if err := n.Stop(stopCtx); err != nil {
 		v.log.Error("error stopping inner node", "err", err)
 	}
+
+	v.mu.Lock()
+	v.state = VNStateStopped
+	v.cancel = nil
+	v.done = nil
+	v.mu.Unlock()
 
 	// Return inner error if that's what caused the cancellation, otherwise context error
 	if cancelErr != nil {
@@ -178,9 +181,8 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 
 func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	v.mu.Lock()
-	defer v.mu.Unlock()
-
 	if v.state != VNStateRunning {
+		v.mu.Unlock()
 		return nil // Already stopped or not started
 	}
 
@@ -188,7 +190,16 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	if v.cancel != nil {
 		v.cancel()
 	}
+	done := v.done
+	v.mu.Unlock()
 
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 

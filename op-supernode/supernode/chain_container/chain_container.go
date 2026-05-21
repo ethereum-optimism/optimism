@@ -685,6 +685,10 @@ retryLoop:
 		}
 	}
 
+	if err := c.resetSafeDBAfterEngineRewind(ctx, timestamp); err != nil {
+		return err
+	}
+
 	// Notify activities about the reset
 	if c.onReset != nil {
 		c.onReset(c.chainID, timestamp, invalidatedBlock)
@@ -697,6 +701,30 @@ retryLoop:
 	}
 	c.log.Info("chain_container/RewindEngine: resumed container")
 
+	return nil
+}
+
+func (c *simpleChainContainer) resetSafeDBAfterEngineRewind(ctx context.Context, timestamp uint64) error {
+	if c.vncfg == nil || c.vncfg.SafeDBPath == "" {
+		return nil
+	}
+	target, err := c.engine.BlockAtTimestamp(ctx, timestamp, eth.Unsafe)
+	if err != nil {
+		return fmt.Errorf("determine safe-db rewind target at timestamp %d: %w", timestamp, err)
+	}
+	db, err := safedb.NewSafeDB(c.log, c.vncfg.SafeDBPath)
+	if err != nil {
+		return fmt.Errorf("open safe-db for rewind: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			c.log.Error("failed to close safe-db after rewind", "err", err)
+		}
+	}()
+	if err := db.SafeHeadReset(target); err != nil {
+		return fmt.Errorf("rewind safe-db to %s: %w", target, err)
+	}
+	c.log.Info("chain_container/RewindEngine: rewound safe-db", "target", target)
 	return nil
 }
 
