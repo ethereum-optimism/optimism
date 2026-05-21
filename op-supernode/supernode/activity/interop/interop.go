@@ -364,10 +364,14 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	advanced, err := i.advanceColdStartInit()
 	if err != nil {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
-		i.log.Warn("interop cold start step failed, will retry", "err", err)
+		i.log.Warn("interop cold start step failed, will retry",
+			"err", err, "attempts", i.backfillAttempts.Load())
 		return errorBackoffPeriod, nil
 	}
 	if !advanced {
+		if attempts := i.backfillAttempts.Load(); attempts%30 == 0 {
+			i.logColdStartProgress(attempts)
+		}
 		return backoffPeriod, nil
 	}
 	i.waitingForSync = false
@@ -376,6 +380,32 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 		"activationTimestamp", i.activationTimestamp,
 		"verificationStartTimestamp", i.verificationStartTimestamp)
 	return 0, nil
+}
+
+// logColdStartProgress queries each chain's sync status and SafeDB readiness,
+// then emits a single info-level log with per-chain derivation progress.
+func (i *Interop) logColdStartProgress(attempts int32) {
+	fields := []any{
+		"attempts", attempts,
+		"activationTimestamp", i.activationTimestamp,
+	}
+	for _, chain := range i.chains {
+		chainID := chain.ID()
+		_, safeDBErr := chain.FirstSafeHeadTimestamp(i.ctx)
+		safeDBReady := safeDBErr == nil
+
+		status, syncErr := chain.SyncStatus(i.ctx)
+		if syncErr != nil {
+			fields = append(fields,
+				fmt.Sprintf("chain_%s", chainID), fmt.Sprintf("safedb_ready=%v sync_err=%v", safeDBReady, syncErr))
+			continue
+		}
+		fields = append(fields,
+			fmt.Sprintf("chain_%s", chainID),
+			fmt.Sprintf("safedb_ready=%v unsafe=%d pending_safe=%d safe=%d",
+				safeDBReady, status.UnsafeL2.Number, status.PendingSafeL2.Number, status.SafeL2.Number))
+	}
+	i.log.Info("interop cold start: waiting for SafeDB entries on all chains", fields...)
 }
 
 // progress runs one verification step. Returns (0, nil) when forward progress
