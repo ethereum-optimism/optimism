@@ -684,10 +684,19 @@ where
         )
     }
 
-    /// Returns whether SDM production is enabled for this payload by the explicit integration-test
-    /// override.
-    pub const fn sdm_production_enabled(&self) -> bool {
-        self.builder_config.sdm_enabled
+    /// Returns whether SDM production should run for this payload.
+    ///
+    /// Two gates must agree:
+    /// - **Protocol**: SDM rides the Interop hardfork, so this requires Interop active at the next
+    ///   block's timestamp per the chain spec.
+    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC.
+    ///   Starts disabled at process boot.
+    ///
+    /// Either being false disables production.
+    pub fn sdm_production_enabled(&self) -> bool {
+        let protocol_active =
+            self.chain_spec.is_interop_active_at_timestamp(self.attributes().timestamp());
+        protocol_active && self.builder_config.sdm_desired_enabled.enabled()
     }
 
     /// Returns the unique id for this payload job.
@@ -708,6 +717,12 @@ where
         impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
         PayloadBuilderError,
     > {
+        let post_exec_mode = if self.sdm_production_enabled() {
+            PostExecMode::Produce
+        } else {
+            PostExecMode::Disabled
+        };
+
         self.evm_config
             .post_exec_builder_for_next_block(
                 db,
@@ -718,11 +733,7 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
-                if self.sdm_production_enabled() {
-                    PostExecMode::Produce
-                } else {
-                    PostExecMode::Disabled
-                },
+                post_exec_mode,
             )
             .map_err(PayloadBuilderError::other)
     }
