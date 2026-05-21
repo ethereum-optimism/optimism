@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
@@ -860,9 +859,9 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	for _, receipt := range receipts {
 		for _, l := range receipt.Logs {
-			logHash := processors.LogToLogHash(l)
+			logHash := messages.LogToLogHash(l)
 
-			execMsg, err := processors.DecodeExecutingMessageLog(l)
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
 			}

@@ -70,19 +70,19 @@ func TestLogProcessor(t *testing.T) {
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: LogToLogHash(rcpts[0].Logs[0]),
+				logHash: messages.LogToLogHash(rcpts[0].Logs[0]),
 				execMsg: nil,
 			},
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: LogToLogHash(rcpts[0].Logs[1]),
+				logHash: messages.LogToLogHash(rcpts[0].Logs[1]),
 				execMsg: nil,
 			},
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: LogToLogHash(rcpts[1].Logs[0]),
+				logHash: messages.LogToLogHash(rcpts[1].Logs[0]),
 				execMsg: nil,
 			},
 		}
@@ -130,7 +130,7 @@ func TestLogProcessor(t *testing.T) {
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: LogToLogHash(rcpts[0].Logs[0]),
+				logHash: messages.LogToLogHash(rcpts[0].Logs[0]),
 				execMsg: execMsg,
 			},
 		}
@@ -145,62 +145,6 @@ func TestLogProcessor(t *testing.T) {
 		}
 		require.Equal(t, expectedBlocks, store.seals)
 	})
-}
-
-func TestToLogHash(t *testing.T) {
-	mkLog := func() *ethTypes.Log {
-		return &ethTypes.Log{
-			Address: common.Address{0xaa, 0xbb},
-			Topics: []common.Hash{
-				{0xcc},
-				{0xdd},
-			},
-			Data:        []byte{0xee, 0xff, 0x00},
-			BlockNumber: 12345,
-			TxHash:      common.Hash{0x11, 0x22, 0x33},
-			TxIndex:     4,
-			BlockHash:   common.Hash{0x44, 0x55},
-			Index:       8,
-			Removed:     false,
-		}
-	}
-	relevantMods := []func(l *ethTypes.Log){
-		func(l *ethTypes.Log) { l.Address = common.Address{0xab, 0xcd} },
-		func(l *ethTypes.Log) { l.Topics = append(l.Topics, common.Hash{0x12, 0x34}) },
-		func(l *ethTypes.Log) { l.Topics = l.Topics[:len(l.Topics)-1] },
-		func(l *ethTypes.Log) { l.Topics[0] = common.Hash{0x12, 0x34} },
-		func(l *ethTypes.Log) { l.Data = append(l.Data, 0x56) },
-		func(l *ethTypes.Log) { l.Data = l.Data[:len(l.Data)-1] },
-		func(l *ethTypes.Log) { l.Data[0] = 0x45 },
-	}
-	irrelevantMods := []func(l *ethTypes.Log){
-		func(l *ethTypes.Log) { l.BlockNumber = 987 },
-		func(l *ethTypes.Log) { l.TxHash = common.Hash{0xab, 0xcd} },
-		func(l *ethTypes.Log) { l.TxIndex = 99 },
-		func(l *ethTypes.Log) { l.BlockHash = common.Hash{0xab, 0xcd} },
-		func(l *ethTypes.Log) { l.Index = 98 },
-		func(l *ethTypes.Log) { l.Removed = true },
-	}
-	refHash := LogToLogHash(mkLog())
-	// The log hash is stored in the database so test that it matches the actual value.
-	// If this changes, compatibility with existing databases may be affected
-	expectedRefHash := common.HexToHash("0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f")
-	require.Equal(t, expectedRefHash, refHash, "reference hash changed, check that database compatibility is not broken")
-
-	// Check that the hash is changed when any data it should include changes
-	for i, mod := range relevantMods {
-		l := mkLog()
-		mod(l)
-		hash := LogToLogHash(l)
-		require.NotEqualf(t, refHash, hash, "expected relevant modification %v to affect the hash but it did not", i)
-	}
-	// Check that the hash is not changed when any data it should not include changes
-	for i, mod := range irrelevantMods {
-		l := mkLog()
-		mod(l)
-		hash := LogToLogHash(l)
-		require.Equal(t, refHash, hash, "expected irrelevant modification %v to not affect the hash but it did", i)
-	}
 }
 
 type stubLogStorage struct {

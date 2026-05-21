@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -29,7 +28,7 @@ func ReceiptsToExecutingMessages(receipts ethtypes.Receipts) (map[uint32]*messag
 	var curr uint32
 	for _, rcpt := range receipts {
 		for _, l := range rcpt.Logs {
-			execMsg, err := processors.DecodeExecutingMessageLog(l)
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return nil, 0, err
 			}

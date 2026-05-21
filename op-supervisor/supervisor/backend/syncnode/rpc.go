@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -191,7 +190,7 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query messages.ContainsQuer
 		return messages.BlockSeal{}, interop.ErrConflict
 	}
 
-	logHash := processors.LogToLogHash(log)
+	logHash := messages.LogToLogHash(log)
 	entryChecksum := messages.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,

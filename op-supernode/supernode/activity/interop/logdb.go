@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
@@ -246,10 +245,10 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 	var logIndex uint32
 	for _, receipt := range receipts {
 		for _, l := range receipt.Logs {
-			logHash := processors.LogToLogHash(l)
+			logHash := messages.LogToLogHash(l)
 
 			// Decode executing message if present (nil if not an executing message)
-			execMsg, _ := processors.DecodeExecutingMessageLog(l)
+			execMsg, _ := messages.DecodeExecutingMessageLog(l)
 
 			if err := db.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
 				return fmt.Errorf("failed to add log %d: %w", logIndex, err)
