@@ -32,21 +32,12 @@ where
 #[derive(Debug, Clone)]
 pub struct OpReceiptConverter<Provider> {
     provider: Provider,
-    /// Whether SDM is explicitly enabled for integration tests.
-    sdm_enabled: bool,
 }
 
 impl<Provider> OpReceiptConverter<Provider> {
     /// Creates a new [`OpReceiptConverter`].
     pub const fn new(provider: Provider) -> Self {
-        Self { provider, sdm_enabled: false }
-    }
-
-    /// Configures the temporary SDM integration-test override.
-    #[must_use]
-    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
-        self.sdm_enabled = sdm_enabled;
-        self
+        Self { provider }
     }
 }
 
@@ -98,7 +89,7 @@ where
         let post_exec_payload = parse_post_exec_payload_from_transactions(
             block.body().transactions(),
             block.header().number(),
-            self.sdm_enabled,
+            self.provider.chain_spec().is_interop_active_at_timestamp(block.header().timestamp()),
         )?
         .map(|parsed| parsed.payload);
 
@@ -392,9 +383,11 @@ mod test {
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OpChainHardforks,
     };
     use alloy_primitives::{Address, Bytes, Signature, U256, hex};
+    use alloy_genesis::Genesis;
     use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
     use op_alloy_network::eip2718::Decodable2718;
-    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
+    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET, OpChainSpecBuilder};
+    use std::sync::Arc;
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{Recovered, SealedBlock};
 
@@ -554,11 +547,17 @@ mod test {
             },
         });
 
+        let interop_chain_spec = Arc::new(
+            OpChainSpecBuilder::default()
+                .chain(OP_MAINNET.chain())
+                .genesis(Genesis::default())
+                .interop_activated()
+                .build(),
+        );
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
             _,
             OpPrimitives,
-        >::new(OP_MAINNET.clone()))
-        .with_sdm_enabled(true);
+        >::new(interop_chain_spec));
         let receipts =
             <OpReceiptConverter<_> as ReceiptConverter<OpPrimitives>>::convert_receipts_with_block(
                 &converter,

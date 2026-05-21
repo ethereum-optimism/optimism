@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -460,8 +460,8 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 	l1BeforeBatching := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 	sys.L2Batcher.Start()
 	dsl.CheckAll(t,
-		sys.L2CL.ReachedRefFn(suptypes.CrossSafe, sentinelRef.ID(), 120),
-		sys.L2CLVerifier.ReachedRefFn(suptypes.CrossSafe, sentinelRef.ID(), 120),
+		sys.L2CL.ReachedRefFn(safety.CrossSafe, sentinelRef.ID(), 120),
+		sys.L2CLVerifier.ReachedRefFn(safety.CrossSafe, sentinelRef.ID(), 120),
 		sys.L2EL.ReachedFn(eth.Safe, sentinelBlockNum, 120),
 		sys.L2ELVerifier.ReachedFn(eth.Safe, sentinelBlockNum, 120),
 	)

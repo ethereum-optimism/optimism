@@ -2,17 +2,25 @@ package sdm
 
 import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
+
+// sdmDisabledInteropOffset pushes Interop far past any reasonable acceptance-test
+// window so the chain spec gates SDM off. Used by sdmEnabled=false tests.
+const sdmDisabledInteropOffset uint64 = 3_600
 
 type sdmRethSystem struct {
 	L1EL         *dsl.L1ELNode
 	L2EL         *dsl.L2ELNode
 	L2CL         *dsl.L2CLNode
+	L2Network    *dsl.L2Network
 	L2ELVerifier *dsl.L2ELNode
 	L2CLVerifier *dsl.L2CLNode
 	L2Batcher    *dsl.L2Batcher
@@ -24,9 +32,43 @@ func newSDMRethSystem(t devtest.T, sdmEnabled bool) *sdmRethSystem {
 }
 
 func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpts ...sysgo.BatcherOption) *sdmRethSystem {
-	var opRethOpts []sysgo.OpRethOption
+	// SDM activation tracks the Interop hardfork in chain spec: both op-node derivation
+	// and op-reth execution read IsInterop(timestamp) from the same chain spec. To toggle
+	// SDM in tests, we toggle Interop activation rather than a separate node-level flag.
+	var interopOffset *uint64
+	if !sdmEnabled {
+		off := sdmDisabledInteropOffset
+		interopOffset = &off
+	}
+	sys := newSDMRethSystemWithInteropOffset(t, interopOffset, batcherOpts...)
+
 	if sdmEnabled {
-		opRethOpts = append(opRethOpts, sysgo.OpRethWithSDMEnabled())
+		t.Require().True(sys.L2Network.IsForkActive(forks.Interop),
+			"Interop must be active for SDM-enabled tests; otherwise chain-spec gates SDM off")
+	} else {
+		t.Require().False(sys.L2Network.IsForkActive(forks.Interop),
+			"Interop must be inactive for SDM-disabled tests; otherwise chain-spec gates SDM on")
+	}
+	return sys
+}
+
+// newSDMRethSystemWithInteropOffset builds the SDM system with an explicit Interop activation
+// offset. Pass nil to leave Interop at genesis (SDM active from the first block); pass a non-nil
+// offset (in seconds from L2 genesis) to schedule Interop later. Used by the boundary test that
+// exercises the chain-spec gate across the activation timestamp.
+func newSDMRethSystemWithInteropOffset(
+	t devtest.T,
+	interopOffset *uint64,
+	batcherOpts ...sysgo.BatcherOption,
+) *sdmRethSystem {
+	var deployerOpts []sysgo.DeployerOption
+	if interopOffset != nil {
+		offset := *interopOffset
+		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+			for _, l2Cfg := range builder.L2s() {
+				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
+			}
+		})
 	}
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
@@ -46,8 +88,8 @@ func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpt
 				IsSequencer: false,
 			},
 		},
-		BatcherOptions: batcherOpts,
-		OpRethOptions:  opRethOpts,
+		BatcherOptions:  batcherOpts,
+		DeployerOptions: deployerOpts,
 	})
 	frontends := presets.NewMixedSingleChainFrontends(t, runtime)
 	frontends.L2Batcher.Stop()
@@ -70,6 +112,7 @@ func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpt
 		L1EL:         frontends.L1EL,
 		L2EL:         frontends.L2Network.PrimaryEL(),
 		L2CL:         frontends.L2Network.PrimaryCL(),
+		L2Network:    frontends.L2Network,
 		L2ELVerifier: verifierEL,
 		L2CLVerifier: verifierCL,
 		L2Batcher:    frontends.L2Batcher,

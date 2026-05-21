@@ -684,10 +684,13 @@ where
         )
     }
 
-    /// Returns whether SDM production is enabled for this payload by the explicit integration-test
-    /// override.
-    pub const fn sdm_production_enabled(&self) -> bool {
-        self.builder_config.sdm_enabled
+    /// Returns whether SDM production is consensus-active for the block being built.
+    ///
+    /// SDM activates with the Interop hardfork; both this EL gate and the op-node CL gate
+    /// (`IsSDM == IsInterop` in `op-node/rollup/toggles.go`) read from the same chain spec, so
+    /// they cannot drift.
+    pub fn sdm_production_enabled(&self) -> bool {
+        self.chain_spec.is_interop_active_at_timestamp(self.attributes().timestamp())
     }
 
     /// Returns the unique id for this payload job.

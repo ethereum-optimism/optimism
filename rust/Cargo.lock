@@ -11534,7 +11534,7 @@ name = "reth-optimism-post-exec-replay"
 version = "1.11.3"
 dependencies = [
  "alloy-consensus",
- "alloy-eips 2.0.4",
+ "alloy-eips 2.0.5",
  "alloy-primitives",
  "op-alloy-consensus",
  "reth-evm",
@@ -11581,6 +11581,7 @@ version = "1.11.3"
 dependencies = [
  "alloy-consensus",
  "alloy-eips 2.0.5",
+ "alloy-genesis",
  "alloy-json-rpc",
  "alloy-op-evm",
  "alloy-op-hardforks",
