@@ -73,7 +73,11 @@ acceptance-test:
         CPU_COUNT=1
     fi
 
-    DEFAULT_JOBS="$CPU_COUNT"
+    # Cap concurrent test packages: each package spins a full devstack
+    # (L1 geth + op-node + op-reth/op-geth + batcher + proposer + challenger).
+    # Unbounded -p saturated CPU+RAM and caused mass "context deadline exceeded"
+    # failures across the runner. See ethereum-optimism/optimism#20966.
+    DEFAULT_JOBS=3
     DEFAULT_TEST_PARALLEL="$(( CPU_COUNT / 2 ))"
     if [[ "$DEFAULT_TEST_PARALLEL" -lt 1 ]]; then
         DEFAULT_TEST_PARALLEL=1
