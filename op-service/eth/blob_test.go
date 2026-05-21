@@ -150,6 +150,9 @@ func FuzzEncodeDecodeBlob(f *testing.F) {
 func FuzzDetectNonBijectivity(f *testing.F) {
 	var b Blob
 	f.Fuzz(func(t *testing.T, d []byte) {
+		if len(d) > MaxBlobDataSize {
+			d = d[:MaxBlobDataSize]
+		}
 		b.Clear()
 		data := Data(d)
 		err := b.FromData(data)
@@ -165,7 +168,7 @@ func FuzzDetectNonBijectivity(f *testing.F) {
 		mask := byte(1 << bitToFlip)
 		b[byteToFlip] = b[byteToFlip] ^ mask
 		decoded, err := b.ToData()
-		if err != nil {
+		if err == nil {
 			require.NotEqual(t, data, decoded)
 		}
 	})
