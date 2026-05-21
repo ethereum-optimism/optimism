@@ -49,12 +49,6 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
-    /// Enable experimental SDM support for integration tests.
-    ///
-    /// SDM is not scheduled for Jovian or Karst; leave this disabled for production networks.
-    #[arg(long = "rollup.sdm-enabled", default_value = "false")]
-    pub sdm_enabled: bool,
-
     /// HTTP endpoint for the interop filter, used to validate the interop messages referenced by
     /// incoming transactions. When not set, interop transaction validation is disabled: a node
     /// that builds blocks will then include transactions carrying invalid interop messages,
@@ -164,7 +158,6 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
-            sdm_enabled: false,
             interop_http: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),
