@@ -172,7 +172,7 @@ where
     }
 
     /// Returns whether SDM is active at the given timestamp.
-    const fn is_sdm_active(&self, timestamp: u64) -> bool {
+    fn is_sdm_active(&self, timestamp: u64) -> bool {
         #[cfg(any(test, feature = "test-utils"))]
         if let Some(active) = self.sdm_active_override {
             return active;

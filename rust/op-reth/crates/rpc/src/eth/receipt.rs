@@ -32,21 +32,12 @@ where
 #[derive(Debug, Clone)]
 pub struct OpReceiptConverter<Provider> {
     provider: Provider,
-    /// Whether SDM is explicitly enabled for integration tests.
-    sdm_enabled: bool,
 }
 
 impl<Provider> OpReceiptConverter<Provider> {
     /// Creates a new [`OpReceiptConverter`].
     pub const fn new(provider: Provider) -> Self {
-        Self { provider, sdm_enabled: false }
-    }
-
-    /// Configures the temporary SDM integration-test override.
-    #[must_use]
-    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
-        self.sdm_enabled = sdm_enabled;
-        self
+        Self { provider }
     }
 }
 
@@ -95,10 +86,12 @@ where
         };
 
         let mut receipts = Vec::with_capacity(inputs.len());
+        let sdm_active =
+            self.provider.chain_spec().is_interop_active_at_timestamp(block.header().timestamp());
         let post_exec_payload = parse_post_exec_payload_from_transactions(
             block.body().transactions(),
             block.header().number(),
-            self.sdm_enabled,
+            sdm_active,
         )?
         .map(|parsed| parsed.payload);
 
@@ -388,15 +381,17 @@ mod test {
         Block, BlockBody, Eip658Value, Header, Receipt, Sealable, SignableTransaction, TxEip7702,
         transaction::TransactionMeta,
     };
+    use alloy_genesis::Genesis;
     use alloy_op_hardforks::{
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OpChainHardforks,
     };
     use alloy_primitives::{Address, Bytes, Signature, U256, hex};
     use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
     use op_alloy_network::eip2718::Decodable2718;
-    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
+    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{Recovered, SealedBlock};
+    use std::sync::Arc;
 
     /// OP Mainnet transaction at index 0 in block 124665056.
     ///
@@ -554,11 +549,17 @@ mod test {
             },
         });
 
+        let interop_active = Arc::new(
+            OpChainSpecBuilder::default()
+                .chain(OP_MAINNET.chain())
+                .genesis(Genesis::default())
+                .interop_activated()
+                .build(),
+        );
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
             _,
             OpPrimitives,
-        >::new(OP_MAINNET.clone()))
-        .with_sdm_enabled(true);
+        >::new(interop_active));
         let receipts =
             <OpReceiptConverter<_> as ReceiptConverter<OpPrimitives>>::convert_receipts_with_block(
                 &converter,

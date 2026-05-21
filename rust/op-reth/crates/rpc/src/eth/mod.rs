@@ -467,8 +467,6 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
     /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
-    /// Whether SDM is explicitly enabled for integration tests.
-    sdm_enabled: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
 }
@@ -481,7 +479,6 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             min_suggested_priority_fee: 1_000_000,
             flashblocks_url: None,
             flashblock_consensus: false,
-            sdm_enabled: false,
             _nt: PhantomData,
         }
     }
@@ -496,7 +493,6 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             min_suggested_priority_fee: 1_000_000,
             flashblocks_url: None,
             flashblock_consensus: false,
-            sdm_enabled: false,
             _nt: PhantomData,
         }
     }
@@ -528,13 +524,6 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// With flashblock consensus client enabled to drive chain forward
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
-        self
-    }
-
-    /// Configure the temporary SDM integration-test override.
-    #[must_use]
-    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
-        self.sdm_enabled = sdm_enabled;
         self
     }
 }
@@ -572,15 +561,12 @@ where
             min_suggested_priority_fee,
             flashblocks_url,
             flashblock_consensus,
-            sdm_enabled,
             ..
         } = self;
-        let rpc_converter = RpcConverter::new(
-            OpReceiptConverter::new(ctx.components.provider().clone())
-                .with_sdm_enabled(sdm_enabled),
-        )
-        .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
-        .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
+        let rpc_converter =
+            RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
+                .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
+                .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(
