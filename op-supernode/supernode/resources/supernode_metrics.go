@@ -14,7 +14,6 @@ type SupernodeMetrics struct {
 	InteropVerifiedTimestamp    prometheus.Gauge
 	InteropRoundDecisions       *prometheus.CounterVec
 	InteropRewinds              prometheus.Counter
-	InteropVerificationBehind   prometheus.Gauge
 	InteropVerificationDuration prometheus.Histogram
 	ChainRewindDepthBlocks      *prometheus.HistogramVec
 	DenyListEntries             *prometheus.CounterVec
@@ -59,11 +58,6 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_rewinds_total",
 			Help:      "Total number of interop rewinds due to L1 consistency failures.",
 		}),
-		InteropVerificationBehind: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "supernode",
-			Name:      "interop_verification_behind_seconds",
-			Help:      "Seconds between the newest unsafe L2 timestamp observed by interop and the latest verified timestamp.",
-		}),
 		InteropVerificationDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "supernode",
 			Name:      "interop_verification_duration_seconds",
@@ -105,7 +99,6 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.InteropVerifiedTimestamp,
 		m.InteropRoundDecisions,
 		m.InteropRewinds,
-		m.InteropVerificationBehind,
 		m.InteropVerificationDuration,
 		m.ChainRewindDepthBlocks,
 		m.DenyListEntries,
