@@ -22,7 +22,7 @@ use tracing::{debug, error};
 const SYNC_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
 
 /// Upper bound for the exponential sync-retry delay. Caps log volume during persistent
-/// failure modes (e.g. provider regression that outlives our state) to ~10/sec.
+/// failure modes (e.g. provider regression that outlives our state) to ~0.1/sec.
 const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(10);
 
 const fn next_sync_backoff(current: Duration) -> Duration {
