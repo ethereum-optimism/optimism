@@ -170,6 +170,22 @@ func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 	}
 }
 
+func WithOpRethOption(opt sysgo.OpRethOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindOpReth
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.OpRethOptions = append(cfg.OpRethOptions, opt)
+		},
+	}
+}
+
 func WithL1Geth(execPath string) Option {
 	return option{
 		kinds: optionKindL1EL,

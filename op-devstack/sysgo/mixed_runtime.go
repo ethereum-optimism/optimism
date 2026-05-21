@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -367,16 +368,21 @@ func buildMixedOpRethNode(
 	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
+	opRethCfg := DefaultOpRethConfig()
+	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
+	proofsHistoryWindow := opRethCfg.ProofsHistoryWindow
+	if proofsHistoryWindow == 0 {
+		proofsHistoryWindow = 10000
+	}
+
 	args = append(
 		args,
 		"--proofs-history",
-		"--proofs-history.window=10000",
+		"--proofs-history.window="+strconv.FormatUint(proofsHistoryWindow, 10),
 		"--proofs-history.storage-path="+proofHistoryDir,
 		"--proofs-history.storage-version="+storageVersion,
 	)
 
-	opRethCfg := DefaultOpRethConfig()
-	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
 	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{

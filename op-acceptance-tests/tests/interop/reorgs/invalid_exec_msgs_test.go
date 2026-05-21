@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -118,15 +119,147 @@ func TestReorgInvalidExecMsgOpRethCrashRestart(gt *testing.T) {
 		})
 }
 
+func TestReorgInvalidExecMsgOpRethProofsHistoryTinyWindow(gt *testing.T) {
+	testReorgInvalidExecMsgWithOptionsAndHooks(gt,
+		[]presets.Option{
+			presets.WithOpRethOption(sysgo.OpRethWithProofsHistoryWindow(1)),
+		},
+		func(msg *messages.Message) {
+			msg.Identifier.LogIndex = 1024
+		},
+		func(t devtest.T, sys *presets.TwoL2SupernodeInterop, original eth.L2BlockRef) {
+			sys.Log.Info("waiting for tiny proofs-history window to flush before CL-driven reorg",
+				"number", original.Number,
+				"hash", original.Hash)
+			select {
+			case <-t.Ctx().Done():
+				t.Require().NoError(t.Ctx().Err())
+			case <-time.After(12 * time.Second):
+			}
+		},
+		func(t devtest.T, sys *presets.TwoL2SupernodeInterop, original eth.L2BlockRef) {
+			ctx := t.Ctx()
+			sys.Log.Info("waiting for op-reth to exit after proofs-history reorg unwind",
+				"number", original.Number,
+				"hash", original.Hash)
+			require.Eventually(t, func() bool {
+				_, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByLabel(ctx, eth.Unsafe)
+				if err == nil {
+					return false
+				}
+				sys.Log.Info("observed op-reth RPC failure after proofs-history unwind", "err", err)
+				return true
+			}, time.Minute, 200*time.Millisecond, "expected op-reth to exit during proofs-history reorg unwind")
+			failAfterSustainedTinyProofWindowStall(t, sys, original, 30*time.Second)
+		},
+		false)
+}
+
+func failAfterSustainedTinyProofWindowStall(
+	t devtest.T,
+	sys *presets.TwoL2SupernodeInterop,
+	original eth.L2BlockRef,
+	duration time.Duration,
+) {
+	ctx := t.Ctx()
+	l := sys.Log
+	el := sys.L2ELA.Escape().L2EthClient()
+	supernode := sys.SuperNodeClient()
+	chainID := sys.L2A.ChainID()
+
+	baseline, baselineErr := supernode.SyncStatus(ctx)
+	start := time.Now()
+	var lastEL any
+	var lastSupernode any
+	var lastLog time.Time
+
+	for time.Since(start) < duration {
+		unsafe, elErr := el.L2BlockRefByLabel(ctx, eth.Unsafe)
+		status, statusErr := supernode.SyncStatus(ctx)
+		chainStatus, chainStatusOK := status.Chains[chainID]
+
+		if elErr != nil {
+			lastEL = elErr
+		} else {
+			lastEL = unsafe
+		}
+		if statusErr != nil {
+			lastSupernode = statusErr
+		} else if !chainStatusOK {
+			lastSupernode = fmt.Errorf("supernode_syncStatus missing chain %s", chainID)
+		} else {
+			lastSupernode = chainStatus
+		}
+
+		if elErr == nil && statusErr == nil && chainStatusOK && chainStatus.SafeL2.Number > original.Number {
+			require.Failf(t,
+				"unexpected recovery",
+				"op-reth RPC recovered and supernode chain A safe advanced past reorg point: original=%s el_unsafe=%s supernode_safe=%s supernode_unsafe=%s",
+				original, unsafe, chainStatus.SafeL2, chainStatus.UnsafeL2)
+		}
+
+		if lastLog.IsZero() || time.Since(lastLog) >= 5*time.Second {
+			lastLog = time.Now()
+			l.Info("observing tiny proofs-history repro non-recovery",
+				"elapsed", time.Since(start),
+				"duration", duration,
+				"original", original,
+				"baseline_supernode_status", supernodeChainStatusOrErr(baseline, chainID, baselineErr),
+				"el_unsafe", blockRefOrErr(unsafe, elErr),
+				"supernode_status", supernodeChainStatusOrErr(status, chainID, statusErr))
+		}
+
+		select {
+		case <-ctx.Done():
+			require.NoError(t, ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+
+	require.Failf(t,
+		"repro observed",
+		"op-reth exited during proofs-history reorg unwind and supernode did not recover for %s: original=%s baseline_supernode_status=%v last_el_unsafe=%v last_supernode_status=%v",
+		duration, original, supernodeChainStatusOrErr(baseline, chainID, baselineErr), lastEL, lastSupernode)
+}
+
+func blockRefOrErr(ref eth.L2BlockRef, err error) any {
+	if err != nil {
+		return err
+	}
+	return ref
+}
+
+func supernodeChainStatusOrErr(status eth.SuperNodeSyncStatusResponse, chainID eth.ChainID, err error) any {
+	if err != nil {
+		return err
+	}
+	chainStatus, ok := status.Chains[chainID]
+	if !ok {
+		return fmt.Errorf("supernode_syncStatus missing chain %s", chainID)
+	}
+	return chainStatus
+}
+
 func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Message)) {
 	testReorgInvalidExecMsgWithHook(gt, txModifierFn, nil)
 }
 
 func testReorgInvalidExecMsgWithHook(gt *testing.T, txModifierFn func(msg *messages.Message), afterReorgStarted func(devtest.T, *presets.TwoL2SupernodeInterop, eth.L2BlockRef)) {
+	testReorgInvalidExecMsgWithOptionsAndHooks(gt, nil, txModifierFn, nil, afterReorgStarted, true)
+}
+
+func testReorgInvalidExecMsgWithOptionsAndHooks(
+	gt *testing.T,
+	opts []presets.Option,
+	txModifierFn func(msg *messages.Message),
+	beforeSequencerRestart func(devtest.T, *presets.TwoL2SupernodeInterop, eth.L2BlockRef),
+	afterReorgStarted func(devtest.T, *presets.TwoL2SupernodeInterop, eth.L2BlockRef),
+	expectRecovery bool,
+) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, opts...)
 	l := sys.Log
 
 	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2A.ChainID())
@@ -290,19 +423,27 @@ func testReorgInvalidExecMsgWithHook(gt *testing.T, txModifierFn func(msg *messa
 		require.NoError(t, err, "op-node never observed test-sequencer's committed unsafe head %s", expectedUnsafe.Hash)
 	}
 
+	originalRef_A := eth.L2BlockRef{
+		Number:     divergenceBlockNumber_A,
+		Hash:       originalHash_A,
+		ParentHash: originalParentHash_A,
+	}
+	if beforeSequencerRestart != nil {
+		beforeSequencerRestart(t, sys, originalRef_A)
+	}
+
 	// continue sequencing with the supernode
 	sys.L2ACL.StartSequencer()
 
 	// start batcher on chain A
 	sys.L2BatcherA.Start()
 
-	originalRef_A := eth.L2BlockRef{
-		Number:     divergenceBlockNumber_A,
-		Hash:       originalHash_A,
-		ParentHash: originalParentHash_A,
-	}
 	if afterReorgStarted != nil {
 		afterReorgStarted(t, sys, originalRef_A)
+	}
+
+	if !expectRecovery {
+		return
 	}
 
 	// wait for reorg on chain A

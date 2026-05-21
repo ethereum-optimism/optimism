@@ -18,6 +18,8 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// ProofsHistoryWindow overrides the default proofs-history retention window when non-zero.
+	ProofsHistoryWindow uint64
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -57,6 +59,14 @@ func (b OpRethOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *OpRe
 func OpRethWithExtraArgs(args ...string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
+	})
+}
+
+// OpRethWithProofsHistoryWindow overrides the proofs-history retention window.
+func OpRethWithProofsHistoryWindow(window uint64) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		p.Require().Greater(window, uint64(0), "proofs-history window must be non-zero")
+		cfg.ProofsHistoryWindow = window
 	})
 }
 

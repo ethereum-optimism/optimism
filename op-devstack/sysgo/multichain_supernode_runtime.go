@@ -100,8 +100,21 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
 // respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
-func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+func startSupernodeEL(
+	t devtest.T,
+	l2Net *L2Network,
+	jwtPath string,
+	jwtSecret [32]byte,
+	opts ...OpRethOption,
+) L2ELNode {
+	switch devstackL2ELKind() {
+	case MixedL2ELOpGeth:
+		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	case MixedL2ELOpRethV2:
+		return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil, "v2", opts...)
+	default: // op-reth v1
+		return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil, "v1", opts...)
+	}
 }
 
 // startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
@@ -114,6 +127,7 @@ func startSupernodeELWithSupervisorURL(
 	jwtPath string,
 	jwtSecret [32]byte,
 	supervisorURL string,
+	opts ...OpRethOption,
 ) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
@@ -133,7 +147,7 @@ func startSupernodeELWithSupervisorURL(
 		return l2EL
 	default: // op-reth
 		return startMixedOpRethNodeWithSupervisorURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1")
+			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1", opts...)
 	}
 }
 
@@ -154,7 +168,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
-	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
+	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret, cfg.OpRethOptions...)
 
 	var depSetStatic *depset.StaticConfigDependencySet
 	if depSet != nil {
@@ -235,8 +249,8 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		filterRPC := "http://" + filterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC, cfg.OpRethOptions...)
+		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC, cfg.OpRethOptions...)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
 		rollupConfigs := map[eth.ChainID]*rollup.Config{
@@ -253,8 +267,8 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
 		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
-		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret, cfg.OpRethOptions...)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret, cfg.OpRethOptions...)
 	}
 
 	var activationTime uint64

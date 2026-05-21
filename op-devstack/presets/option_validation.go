@@ -17,6 +17,7 @@ const (
 	optionKindOPRBuilder
 	optionKindGlobalL2CL
 	optionKindGlobalSyncTesterEL
+	optionKindOpReth
 	optionKindL1EL
 	optionKindAddedGameType
 	optionKindRespectedGameType
@@ -38,6 +39,7 @@ const allOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |
 	optionKindGlobalL2CL |
 	optionKindGlobalSyncTesterEL |
+	optionKindOpReth |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
@@ -62,6 +64,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindOPRBuilder, label: "builder options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
+	{kind: optionKindOpReth, label: "op-reth options"},
 	{kind: optionKindL1EL, label: "L1 EL options"},
 	{kind: optionKindAddedGameType, label: "added game types"},
 	{kind: optionKindRespectedGameType, label: "respected game types"},
@@ -151,6 +154,7 @@ const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindTimeTravel |
+	optionKindOpReth |
 	optionKindL1EL |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |

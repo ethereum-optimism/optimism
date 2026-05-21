@@ -21,6 +21,7 @@ type PresetConfig struct {
 	OPRBuilderOptions          []OPRBuilderNodeOption
 	GlobalL2CLOptions          []L2CLOption
 	GlobalSyncTesterELOptions  []SyncTesterELOption
+	OpRethOptions              []OpRethOption
 	L1ELKind                   string
 	L1GethExecPath             string
 	AddedGameTypes             []gameTypes.GameType
