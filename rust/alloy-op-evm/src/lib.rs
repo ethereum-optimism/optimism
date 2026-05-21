@@ -72,7 +72,7 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
     >,
     inspect: bool,
     post_exec_tracking_active: bool,
-    last_tx_warming_savings: u64,
+    last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
@@ -142,7 +142,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
             }),
             inspect,
             post_exec_tracking_active: false,
-            last_tx_warming_savings: 0,
+            last_tx_post_exec_result: post_exec::PostExecExecutedTx::default(),
             _tx: PhantomData,
         }
     }
@@ -159,9 +159,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
-        post_exec::PostExecExecutedTx {
-            refund_total: core::mem::take(&mut self.last_tx_warming_savings),
-        }
+        core::mem::take(&mut self.last_tx_post_exec_result)
     }
 }
 
@@ -249,7 +247,7 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.last_tx_warming_savings = 0;
+        self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
@@ -269,8 +267,7 @@ where
                 }
             }
 
-            let post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
-            self.last_tx_warming_savings = post_exec_result.refund_total;
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
             self.post_exec_tracking_active = false;
         }
 
