@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
@@ -119,6 +120,10 @@ type MixedSingleChainPresetConfig struct {
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
 	OpRethOptions              []OpRethOption
+	// InteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provides
+	// the resulting dependency set to op-node CL startup. Required by any test that exercises
+	// Interop-gated consensus features (e.g. SDM PostExec) without a supervisor.
+	InteropAtGenesis bool
 }
 
 type mixedSingleChainNode struct {
@@ -156,7 +161,14 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	var l1Net *L1Network
+	var l2Net *L2Network
+	var depSet coredepset.DependencySet
+	if cfg.InteropAtGenesis {
+		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	} else {
+		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
 
@@ -187,6 +199,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				NoDiscovery:   true,
 				EnableReqResp: true,
 				UseReqResp:    true,
+				DependencySet: depSet,
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
