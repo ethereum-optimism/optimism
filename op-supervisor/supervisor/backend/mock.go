@@ -5,7 +5,9 @@ import (
 	"io"
 	"sync/atomic"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -47,7 +49,7 @@ func (m *MockBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.By
 }
 
 func (m *MockBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 	return nil
 }
 

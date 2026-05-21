@@ -9,6 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func hash(b byte) common.Hash {
@@ -54,7 +56,7 @@ func TestEmpty(t *testing.T) {
 	require.ErrorIs(t, err, types.ErrFuture)
 	_, _, _, err = db.OpenBlock(1)
 	require.ErrorIs(t, err, types.ErrFuture)
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, Timestamp: 1})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 1})
 	require.ErrorIs(t, err, types.ErrFuture)
 }
 
@@ -63,12 +65,12 @@ func TestSealAndOpenBlock(t *testing.T) {
 	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
 
-	em := &types.ExecutingMessage{
+	em := &messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(20),
 		BlockNum:  1,
 		LogIdx:    1,
 		Timestamp: 200,
-		Checksum:  types.MessageChecksum(hash(0xEE)),
+		Checksum:  messages.MessageChecksum(hash(0xEE)),
 	}
 	require.NoError(t, db.AddLog(hash(0x01), parent, 0, nil))
 	require.NoError(t, db.AddLog(hash(0x02), parent, 1, em))
@@ -172,33 +174,33 @@ func TestContains(t *testing.T) {
 	blk1 := blockID(1, 0x11)
 	require.NoError(t, db.SealBlock(parent.Hash, blk1, 200))
 
-	good := types.ChecksumArgs{
+	good := messages.ChecksumArgs{
 		BlockNumber: 1, LogIndex: 0, Timestamp: 200, ChainID: chain, LogHash: logHash,
 	}.Checksum()
 
 	// Happy path.
-	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: good})
+	seal, err := db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: good})
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, seal.Hash)
 
 	// Wrong checksum.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: types.MessageChecksum(hash(0xDE))})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: messages.MessageChecksum(hash(0xDE))})
 	require.ErrorIs(t, err, types.ErrConflict)
 
 	// Wrong timestamp for the block.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 999, Checksum: good})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 999, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
 
 	// LogIdx out of range for an existing block.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 5, Timestamp: 200, Checksum: good})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 5, Timestamp: 200, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
 
 	// Future block (timestamp consistent with growth): ErrFuture.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 999, Checksum: good})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 999, Checksum: good})
 	require.ErrorIs(t, err, types.ErrFuture)
 
 	// Future block but past timestamp: ErrConflict (cannot be in the future).
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
 }
 
@@ -210,7 +212,7 @@ func TestContains_Block0(t *testing.T) {
 	db := tempDB(t)
 
 	// Empty DB → ErrFuture, regardless of block number.
-	_, err := db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
+	_, err := db.Contains(messages.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
 	require.ErrorIs(t, err, types.ErrFuture)
 
 	// Seal block 0 as a logless genesis.
@@ -229,7 +231,7 @@ func TestContains_Block0(t *testing.T) {
 
 	// Contains on block 0 with logIdx 0 hits the "logIdx >= logCount" check (not
 	// a hard-coded block-0 reject) and returns ErrConflict.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
 	require.ErrorIs(t, err, types.ErrConflict)
 }
 
@@ -316,14 +318,14 @@ func TestMultiBlockRoundtrip(t *testing.T) {
 	for n := uint64(1); n <= 10; n++ {
 		// 3 logs per block, one carries an execMsg.
 		for idx := uint32(0); idx < 3; idx++ {
-			var em *types.ExecutingMessage
+			var em *messages.ExecutingMessage
 			if idx == 1 {
-				em = &types.ExecutingMessage{
+				em = &messages.ExecutingMessage{
 					ChainID:   eth.ChainIDFromUInt64(42),
 					BlockNum:  n,
 					LogIdx:    idx,
 					Timestamp: n * 10,
-					Checksum:  types.MessageChecksum(hash(byte(n*10 + uint64(idx)))),
+					Checksum:  messages.MessageChecksum(hash(byte(n*10 + uint64(idx)))),
 				}
 			}
 			require.NoError(t, db.AddLog(hash(byte(n*10+uint64(idx))), prev, idx, em))
@@ -524,26 +526,26 @@ func TestRecordEncoding_Roundtrip(t *testing.T) {
 	logHashes := []common.Hash{hash(0x11), hash(0x22), hash(0x33)}
 	execMsgs := []struct {
 		localLogIdx uint32
-		msg         types.ExecutingMessage
+		msg         messages.ExecutingMessage
 	}{
 		{
 			localLogIdx: 0,
-			msg: types.ExecutingMessage{
+			msg: messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(8453),
 				BlockNum:  99,
 				LogIdx:    7,
 				Timestamp: 4242,
-				Checksum:  types.MessageChecksum(hash(0x77)),
+				Checksum:  messages.MessageChecksum(hash(0x77)),
 			},
 		},
 		{
 			localLogIdx: 2,
-			msg: types.ExecutingMessage{
+			msg: messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(10),
 				BlockNum:  100,
 				LogIdx:    1,
 				Timestamp: 4243,
-				Checksum:  types.MessageChecksum(hash(0x88)),
+				Checksum:  messages.MessageChecksum(hash(0x88)),
 			},
 		},
 	}
@@ -592,18 +594,18 @@ func TestMultipleExecMsgsInBlock(t *testing.T) {
 	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
-	want := map[uint32]*types.ExecutingMessage{}
+	want := map[uint32]*messages.ExecutingMessage{}
 	const logCount = 6
 	for idx := uint32(0); idx < logCount; idx++ {
-		var em *types.ExecutingMessage
+		var em *messages.ExecutingMessage
 		// Logs 0, 2, 5 carry exec messages — non-contiguous slots.
 		if idx == 0 || idx == 2 || idx == 5 {
-			em = &types.ExecutingMessage{
+			em = &messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(uint64(100 + idx)),
 				BlockNum:  uint64(idx) + 1,
 				LogIdx:    idx + 10,
 				Timestamp: uint64(idx) * 7,
-				Checksum:  types.MessageChecksum(hash(byte(0xA0 + idx))),
+				Checksum:  messages.MessageChecksum(hash(byte(0xA0 + idx))),
 			}
 			want[idx] = em
 		}
@@ -639,15 +641,15 @@ func TestContains_LastIndexBoundary(t *testing.T) {
 
 	// Last valid logIdx is n-1.
 	lastIdx := uint32(n - 1)
-	good := types.ChecksumArgs{
+	good := messages.ChecksumArgs{
 		BlockNumber: 1, LogIndex: lastIdx, Timestamp: 200, ChainID: chain, LogHash: hashes[lastIdx],
 	}.Checksum()
-	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: lastIdx, Timestamp: 200, Checksum: good})
+	seal, err := db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: lastIdx, Timestamp: 200, Checksum: good})
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, seal.Hash)
 
 	// logIdx == n is one past the end and must be ErrConflict.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: n, Timestamp: 200, Checksum: good})
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: n, Timestamp: 200, Checksum: good})
 	require.ErrorIs(t, err, types.ErrConflict)
 }
 

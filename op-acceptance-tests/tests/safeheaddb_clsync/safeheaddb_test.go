@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestPreserveDatabaseOnCLResync(gt *testing.T) {
@@ -35,10 +36,10 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 
 	startSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
+		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
 
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
@@ -47,14 +48,14 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2ELB.Stop()
 	sys.L2CLB.Stop()
 
-	sys.L2CL.Advanced(types.LocalSafe, 3, 30)
+	sys.L2CL.Advanced(safety.LocalSafe, 3, 30)
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 30) // At least one safe head db update after resync
 
 	// Safe head db should not have been reset
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))

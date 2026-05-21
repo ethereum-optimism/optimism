@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestSyncTesterE2E(gt *testing.T) {
@@ -47,8 +48,8 @@ func TestSyncTesterE2E(gt *testing.T) {
 
 	target := uint64(5)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
-		sys.L2CL2.AdvancedFn(types.LocalUnsafe, target, 30),
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, target, 30),
+		sys.L2CL2.AdvancedFn(safety.LocalUnsafe, target, 30),
 	)
 
 	// Test that we can get chain ID from SyncTester

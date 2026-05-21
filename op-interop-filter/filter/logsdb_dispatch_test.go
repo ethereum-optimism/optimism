@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // fakeLogsDB satisfies the LogsDB interface and lets tests inject specific
@@ -30,18 +32,20 @@ type fakeLogsDB struct {
 }
 
 func (f *fakeLogsDB) Close() error { return nil }
-func (f *fakeLogsDB) Contains(types.ContainsQuery) (types.BlockSeal, error) {
-	return types.BlockSeal{}, nil
+func (f *fakeLogsDB) Contains(messages.ContainsQuery) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (f *fakeLogsDB) FindSealedBlock(uint64) (types.BlockSeal, error) { return types.BlockSeal{}, nil }
-func (f *fakeLogsDB) FirstSealedBlock() (types.BlockSeal, error)      { return types.BlockSeal{}, nil }
-func (f *fakeLogsDB) Rewind(eth.BlockID) error                        { return nil }
-func (f *fakeLogsDB) OpenBlock(uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
+func (f *fakeLogsDB) FindSealedBlock(uint64) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
+}
+func (f *fakeLogsDB) FirstSealedBlock() (messages.BlockSeal, error) { return messages.BlockSeal{}, nil }
+func (f *fakeLogsDB) Rewind(eth.BlockID) error                      { return nil }
+func (f *fakeLogsDB) OpenBlock(uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	return eth.BlockRef{}, 0, nil, nil
 }
 func (f *fakeLogsDB) LatestSealedBlock() (eth.BlockID, bool) { return f.latest, f.hasSealed }
 
-func (f *fakeLogsDB) AddLog(common.Hash, eth.BlockID, uint32, *types.ExecutingMessage) error {
+func (f *fakeLogsDB) AddLog(common.Hash, eth.BlockID, uint32, *messages.ExecutingMessage) error {
 	return f.addLogErr
 }
 

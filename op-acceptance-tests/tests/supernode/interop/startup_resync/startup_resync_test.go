@@ -11,7 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 const (
@@ -40,16 +41,16 @@ func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	// populate, instead of collapsing to empty against a re-recorded
 	// genesis SafeDB entry.
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
-		sys.L2BCL.AdvancedFn(types.Finalized, preRestartFinalized, 180),
+		sys.L2ACL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
+		sys.L2BCL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
 	)
 
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitBackfillCompleted()
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),
 	)
 
 	// Verify the cold-start backfill repopulated the logs DB.
@@ -77,15 +78,15 @@ func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
 	// Setup: let local-safe accumulate enough that op-node's SafeDB has
 	// entries to serve to the post-restart cold-start init.
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.LocalSafe, 2, 30),
-		sys.L2BCL.AdvancedFn(types.LocalSafe, 2, 30),
+		sys.L2ACL.AdvancedFn(safety.LocalSafe, 2, 30),
+		sys.L2BCL.AdvancedFn(safety.LocalSafe, 2, 30),
 	)
 
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitVerificationStartsAt(activation)
 
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 1, 60),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 1, 60),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),
 	)
 }

@@ -22,7 +22,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -431,7 +432,7 @@ func (f *DisputeGameFactory) startOutputRootGameOfType(
 func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.l2CL, "L2 CL is required create output games")
 	if !cfg.allowFuture {
-		f.l2CL.Reached(safetyTypes.LocalSafe, blockNum, 30)
+		f.l2CL.Reached(safety.LocalSafe, blockNum, 30)
 	}
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], blockNum)

@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -156,7 +155,6 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		InteropConfig:                   &interop.Config{},
 		P2P:                             nil,
 		L1EpochPollInterval:             2 * time.Second,
 		Sync:                            sync.Config{SyncMode: sync.CLSync, SyncModeReqResp: true},

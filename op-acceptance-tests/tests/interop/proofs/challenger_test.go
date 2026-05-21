@@ -5,21 +5,22 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithoutHonestProposer())
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLA.AdvancedFn(safety.CrossSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.CrossSafe, 1, 30),
 	)
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
@@ -40,8 +41,8 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithoutHonestProposer())
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLA.AdvancedFn(safety.CrossSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.CrossSafe, 1, 30),
 	)
 
 	attacker := sys.FunderL1.NewFundedEOA(eth.TenEther)
@@ -63,8 +64,8 @@ func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithoutHonestProposer())
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLA.AdvancedFn(safety.CrossSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.CrossSafe, 1, 30),
 	)
 
 	dgf := sys.DisputeGameFactory()

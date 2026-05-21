@@ -9,6 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type IteratorState interface {
@@ -16,7 +18,7 @@ type IteratorState interface {
 	SealedBlock() (hash common.Hash, num uint64, ok bool)
 	SealedTimestamp() (timestamp uint64, ok bool)
 	InitMessage() (hash common.Hash, logIndex uint32, ok bool)
-	ExecMessage() *types.ExecutingMessage
+	ExecMessage() *messages.ExecutingMessage
 }
 
 type Iterator interface {
@@ -170,6 +172,6 @@ func (i *iterator) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
 }
 
 // ExecMessage returns the current executing message, if any is available.
-func (i *iterator) ExecMessage() *types.ExecutingMessage {
+func (i *iterator) ExecMessage() *messages.ExecutingMessage {
 	return i.current.ExecMessage()
 }

@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // progressLogInterval is how often to log ingestion progress.
@@ -221,13 +223,13 @@ func (c *LogsDBChainIngester) ClearError() {
 }
 
 // Contains checks if a log exists in the database
-func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
 		c.log.Warn("Contains called but logs DB not initialized")
-		return types.BlockSeal{}, types.ErrUninitialized
+		return messages.BlockSeal{}, types.ErrUninitialized
 	}
 
 	return c.logsDB.Contains(query)

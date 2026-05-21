@@ -12,12 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
@@ -146,7 +146,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	msg := result.Entries[0]
 	accessList := types.AccessList{{
 		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
+		StorageKeys: messages.EncodeAccessList([]messages.Access{msg.Access()}),
 	}}
 
 	bobAddr := bob.Address()

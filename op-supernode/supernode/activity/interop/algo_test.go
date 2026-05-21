@@ -16,6 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // =============================================================================
@@ -87,22 +89,22 @@ func newActivationBoundaryCase(name string, activationTs, blockTimeOverride, exe
 			destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 			l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
 
-			execMsg := &suptypes.ExecutingMessage{
+			execMsg := &messages.ExecutingMessage{
 				ChainID:   sourceChainID,
 				BlockNum:  50,
 				LogIdx:    0,
 				Timestamp: initTs,
-				Checksum:  suptypes.MessageChecksum{0x01},
+				Checksum:  messages.MessageChecksum{0x01},
 			}
 
 			sourceDB := &algoMockLogsDB{
 				openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: initTs},
-				containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: initTs},
+				containsSeal: messages.BlockSeal{Number: 50, Timestamp: initTs},
 			}
 
 			destDB := &algoMockLogsDB{
 				openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTs},
-				openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+				openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 					0: execMsg,
 				},
 			}
@@ -406,22 +408,22 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: 500, // Source timestamp < dest timestamp (1000)
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: 500},
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 500},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: 500},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -466,22 +468,22 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 				l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: initTimestamp, // Exactly at expiry boundary
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: initTimestamp},
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: initTimestamp},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: initTimestamp},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTimestamp},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -526,22 +528,22 @@ func TestVerifyInteropMessages(t *testing.T) {
 				sourceBlock := eth.BlockID{Number: 50, Hash: sourceBlockHash}
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: sharedTimestamp, // SAME as executing timestamp - should be VALID
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: sourceBlockHash, Number: 50, Time: sharedTimestamp},
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: sharedTimestamp},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: sharedTimestamp},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -650,12 +652,12 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlockHash := common.HexToHash("0xDest")
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: 500,
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
@@ -664,7 +666,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -702,21 +704,21 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlockHash := common.HexToHash("0xDest")
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: 1001, // FUTURE timestamp (> 1000) - INVALID!
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 1001},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: 1001},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -751,17 +753,17 @@ func TestVerifyInteropMessages(t *testing.T) {
 				destBlockHash := common.HexToHash("0xDest")
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   unknownSourceChain, // Not registered
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: 500,
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -801,21 +803,21 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
 
-				execMsg := &suptypes.ExecutingMessage{
+				execMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: initTimestamp, // Expired!
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: initTimestamp},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: initTimestamp},
 				}
 
 				destDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: execTimestamp},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: execMsg,
 					},
 				}
@@ -854,16 +856,16 @@ func TestVerifyInteropMessages(t *testing.T) {
 				validBlock := eth.BlockID{Number: 100, Hash: validBlockHash}
 				invalidBlock := eth.BlockID{Number: 200, Hash: invalidBlockHash}
 
-				badExecMsg := &suptypes.ExecutingMessage{
+				badExecMsg := &messages.ExecutingMessage{
 					ChainID:   sourceChainID,
 					BlockNum:  50,
 					LogIdx:    0,
 					Timestamp: 1001, // Future timestamp - INVALID
-					Checksum:  suptypes.MessageChecksum{0x01},
+					Checksum:  messages.MessageChecksum{0x01},
 				}
 
 				sourceDB := &algoMockLogsDB{
-					containsSeal: suptypes.BlockSeal{Number: 50, Timestamp: 1001},
+					containsSeal: messages.BlockSeal{Number: 50, Timestamp: 1001},
 				}
 
 				validDB := &algoMockLogsDB{
@@ -873,7 +875,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				invalidDB := &algoMockLogsDB{
 					openBlockRef: eth.BlockRef{Hash: invalidBlockHash, Number: 200, Time: 1000},
-					openBlockExecMsg: map[uint32]*suptypes.ExecutingMessage{
+					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
 						0: badExecMsg,
 					},
 				}
@@ -980,13 +982,13 @@ func TestVerifyInteropMessages(t *testing.T) {
 type algoMockLogsDB struct {
 	openBlockRef     eth.BlockRef
 	openBlockLogCnt  uint32
-	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
+	openBlockExecMsg map[uint32]*messages.ExecutingMessage
 	openBlockErr     error
 
-	firstSealedBlock    suptypes.BlockSeal
+	firstSealedBlock    messages.BlockSeal
 	firstSealedBlockErr error
 
-	containsSeal suptypes.BlockSeal
+	containsSeal messages.BlockSeal
 	containsErr  error
 }
 
@@ -994,28 +996,28 @@ func (m *algoMockLogsDB) BlockNumberToTimestamp(ctx context.Context, blocknum ui
 	return 0, nil
 }
 func (m *algoMockLogsDB) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
-func (m *algoMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+func (m *algoMockLogsDB) FirstSealedBlock() (messages.BlockSeal, error) {
 	if m.firstSealedBlockErr != nil {
-		return suptypes.BlockSeal{}, m.firstSealedBlockErr
+		return messages.BlockSeal{}, m.firstSealedBlockErr
 	}
 	return m.firstSealedBlock, nil
 }
-func (m *algoMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+func (m *algoMockLogsDB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (m *algoMockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+func (m *algoMockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	if m.openBlockErr != nil {
 		return eth.BlockRef{}, 0, nil, m.openBlockErr
 	}
 	return m.openBlockRef, m.openBlockLogCnt, m.openBlockExecMsg, nil
 }
-func (m *algoMockLogsDB) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
+func (m *algoMockLogsDB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	if m.containsErr != nil {
-		return suptypes.BlockSeal{}, m.containsErr
+		return messages.BlockSeal{}, m.containsErr
 	}
 	return m.containsSeal, nil
 }
-func (m *algoMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
+func (m *algoMockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	return nil
 }
 func (m *algoMockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {

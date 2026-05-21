@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -28,8 +27,6 @@ type Config struct {
 	L2 L2EndpointSetup
 
 	Beacon L1BeaconEndpointSetup
-
-	InteropConfig interop.Setup
 
 	Driver driver.Config
 
@@ -89,11 +86,6 @@ type Config struct {
 
 	// Experimental. Enables new opstack RPC namespace. Used by op-test-sequencer.
 	ExperimentalOPStackAPI bool
-
-	// SupervisorEnabled indicates whether supervisor-based interop features are enabled.
-	// When false (default), interop contracts deploy but cross-chain coordination is handled locally.
-	// When true, the node defers cross-unsafe/cross-safe/finality to the supervisor.
-	SupervisorEnabled bool
 }
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.
@@ -137,12 +129,6 @@ func (cfg *Config) Check() error {
 		if err := cfg.Beacon.Check(); err != nil {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
-	}
-	if cfg.InteropConfig == nil {
-		return errors.New("missing interop config")
-	}
-	if err := cfg.InteropConfig.Check(); err != nil {
-		return fmt.Errorf("misconfigured interop: %w", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

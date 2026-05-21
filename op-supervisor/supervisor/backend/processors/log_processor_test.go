@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 var logProcessorChainID = eth.ChainIDFromUInt64(4)
@@ -110,16 +110,16 @@ func TestLogProcessor(t *testing.T) {
 				},
 			},
 		}
-		execMsg := &types.ExecutingMessage{
+		execMsg := &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  6,
 			LogIdx:    8,
 			Timestamp: 10,
-			Checksum:  types.MessageChecksum{0xaa},
+			Checksum:  messages.MessageChecksum{0xaa},
 		}
 		store := &stubLogStorage{}
 		processor := NewLogProcessor(eth.ChainID{4}, store).(*logProcessor)
-		processor.eventDecoder = func(l *ethTypes.Log) (*types.ExecutingMessage, error) {
+		processor.eventDecoder = func(l *ethTypes.Log) (*messages.ExecutingMessage, error) {
 			require.Equal(t, rcpts[0].Logs[0], l)
 			return execMsg, nil
 		}
@@ -220,7 +220,7 @@ func (s *stubLogStorage) SealBlock(chainID eth.ChainID, block eth.BlockRef) erro
 	return nil
 }
 
-func (s *stubLogStorage) AddLog(chainID eth.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (s *stubLogStorage) AddLog(chainID eth.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}
@@ -243,5 +243,5 @@ type storedLog struct {
 	parent  eth.BlockID
 	logIdx  uint32
 	logHash common.Hash
-	execMsg *types.ExecutingMessage
+	execMsg *messages.ExecutingMessage
 }

@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestInteropFilterClient_CheckAccessList(t *testing.T) {
@@ -22,8 +23,8 @@ func TestInteropFilterClient_CheckAccessList(t *testing.T) {
 	client := NewInteropFilterClient(rpcClient)
 
 	inboxEntries := []common.Hash{common.HexToHash("0x01")}
-	minSafety := types.CrossUnsafe
-	execDescriptor := types.ExecutingDescriptor{
+	minSafety := safety.CrossUnsafe
+	execDescriptor := messages.ExecutingDescriptor{
 		ChainID:   eth.ChainIDFromUInt64(900),
 		Timestamp: 123,
 	}

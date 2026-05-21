@@ -22,6 +22,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // TestRewindL1 tests handling of L1 reorgs by checking that:
@@ -170,11 +172,11 @@ func TestRewindL2(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1Block1.Hash,
 				Number: l1Block1.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block2B.Hash,
 				Number: block2B.Number,
 			},
@@ -270,11 +272,11 @@ func TestNoRewindNeeded(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1Block2.Hash,
 				Number: l1Block2.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block2A.Hash,
 				Number: block2A.Number,
 			},
@@ -372,11 +374,11 @@ func TestRewindLongChain(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1Blocks[96/10].Hash,
 				Number: l1Blocks[96/10].Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block96B.Hash,
 				Number: block96B.Number,
 			},
@@ -445,11 +447,11 @@ func TestRewindMultiChain(t *testing.T) {
 		i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 			ChainID: chainID,
 			NewLocalSafe: types.DerivedBlockSealPair{
-				Source: types.BlockSeal{
+				Source: messages.BlockSeal{
 					Hash:   l1Block1.Hash,
 					Number: l1Block1.Number,
 				},
-				Derived: types.BlockSeal{
+				Derived: messages.BlockSeal{
 					Hash:   block2B.Hash,
 					Number: block2B.Number,
 				},
@@ -587,11 +589,11 @@ func TestRewindL2WalkBack(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   block4B.L1Origin.Hash,
 				Number: block4B.L1Origin.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block4B.Hash,
 				Number: block4B.Number,
 			},
@@ -804,11 +806,11 @@ func TestRewindL1GenesisOnlyL2(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1GenesisB.Hash,
 				Number: l1GenesisB.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   genesis.Hash,
 				Number: genesis.Number,
 			},
@@ -1223,11 +1225,11 @@ func TestRewindL2LocalDerivationUnsafeMismatch(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1Block3.Hash,
 				Number: l1Block3.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block3B.Hash,
 				Number: block3B.Number,
 			},
@@ -1381,11 +1383,11 @@ func TestRewindL2LocalDerivationSafeMismatch(t *testing.T) {
 	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
-			Source: types.BlockSeal{
+			Source: messages.BlockSeal{
 				Hash:   l1Block3B.Hash,
 				Number: l1Block3B.Number,
 			},
-			Derived: types.BlockSeal{
+			Derived: messages.BlockSeal{
 				Hash:   block3B.Hash,
 				Number: block3B.Number,
 			},
@@ -1516,7 +1518,7 @@ func (s *testSetup) makeBlockSafe(chainID eth.ChainID, block eth.L2BlockRef, l1B
 	}, "test")
 
 	if makeCrossSafe {
-		require.NoError(s.t, s.chainsDB.UpdateCrossUnsafe(chainID, types.BlockSeal{
+		require.NoError(s.t, s.chainsDB.UpdateCrossUnsafe(chainID, messages.BlockSeal{
 			Hash:      block.Hash,
 			Number:    block.Number,
 			Timestamp: block.Time,

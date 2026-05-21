@@ -3,9 +3,9 @@ package interop
 import (
 	"fmt"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -13,13 +13,13 @@ type frontierQueryKey struct {
 	blockNum  uint64
 	timestamp uint64
 	logIdx    uint32
-	checksum  suptypes.MessageChecksum
+	checksum  messages.MessageChecksum
 }
 
 type frontierBlockView struct {
 	ref      eth.BlockRef
-	execMsgs map[uint32]*suptypes.ExecutingMessage
-	contains map[frontierQueryKey]suptypes.BlockSeal
+	execMsgs map[uint32]*messages.ExecutingMessage
+	contains map[frontierQueryKey]messages.BlockSeal
 }
 
 type frontierVerificationView struct {
@@ -51,14 +51,14 @@ func buildFrontierBlockView(chainID eth.ChainID, blockInfo eth.BlockInfo, receip
 		ParentHash: blockInfo.ParentHash(),
 		Time:       blockInfo.Time(),
 	}
-	execMsgs := make(map[uint32]*suptypes.ExecutingMessage)
-	contains := make(map[frontierQueryKey]suptypes.BlockSeal)
+	execMsgs := make(map[uint32]*messages.ExecutingMessage)
+	contains := make(map[frontierQueryKey]messages.BlockSeal)
 
 	var logIdx uint32
 	for _, receipt := range receipts {
 		for _, entry := range receipt.Logs {
 			logHash := processors.LogToLogHash(entry)
-			query := suptypes.ChecksumArgs{
+			query := messages.ChecksumArgs{
 				BlockNumber: ref.Number,
 				LogIndex:    logIdx,
 				Timestamp:   ref.Time,
@@ -70,7 +70,7 @@ func buildFrontierBlockView(chainID eth.ChainID, blockInfo eth.BlockInfo, receip
 				timestamp: query.Timestamp,
 				logIdx:    query.LogIdx,
 				checksum:  query.Checksum,
-			}] = suptypes.BlockSeal{
+			}] = messages.BlockSeal{
 				Hash:      ref.Hash,
 				Number:    ref.Number,
 				Timestamp: ref.Time,
@@ -98,10 +98,10 @@ func (v *frontierVerificationView) block(chainID eth.ChainID) (frontierBlockView
 	return block, ok
 }
 
-func (v *frontierVerificationView) contains(chainID eth.ChainID, query suptypes.ContainsQuery) (suptypes.BlockSeal, bool) {
+func (v *frontierVerificationView) contains(chainID eth.ChainID, query messages.ContainsQuery) (messages.BlockSeal, bool) {
 	block, ok := v.block(chainID)
 	if !ok {
-		return suptypes.BlockSeal{}, false
+		return messages.BlockSeal{}, false
 	}
 	seal, ok := block.contains[frontierQueryKey{
 		blockNum:  query.BlockNum,

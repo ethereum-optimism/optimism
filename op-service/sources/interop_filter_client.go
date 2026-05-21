@@ -8,10 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type InteropFilterClient struct {
@@ -28,7 +29,7 @@ func NewInteropFilterClient(client client.RPC) *InteropFilterClient {
 }
 
 func (cl *InteropFilterClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "interop_checkAccessList", inboxEntries, minSafety, executingDescriptor)
 }
 

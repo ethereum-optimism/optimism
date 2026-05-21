@@ -16,6 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Backend coordinates chain ingesters and handles CheckAccessList requests.
@@ -154,8 +157,8 @@ func (b *Backend) Ready() bool {
 }
 
 // supportedSafetyLevel returns true if the safety level is supported for access list checks.
-func supportedSafetyLevel(level types.SafetyLevel) bool {
-	return level == types.LocalUnsafe || level == types.CrossUnsafe
+func supportedSafetyLevel(level safety.Level) bool {
+	return level == safety.LocalUnsafe || level == safety.CrossUnsafe
 }
 
 // classifyRejectionReason categorizes an error from CheckAccessList into a rejection reason label.
@@ -174,7 +177,7 @@ func classifyRejectionReason(err error) string {
 
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 
 	start := time.Now()
 	defer func() {
@@ -203,7 +206,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("invalid_executing_message")
 		return fmt.Errorf("unsupported safety level %s: only %s and %s are supported",
-			minSafety, types.LocalUnsafe, types.CrossUnsafe)
+			minSafety, safety.LocalUnsafe, safety.CrossUnsafe)
 	}
 
 	if _, ok := b.chains[execDescriptor.ChainID]; !ok {
@@ -217,9 +220,9 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 
 	remaining := inboxEntries
 	for len(remaining) > 0 {
-		var access types.Access
+		var access messages.Access
 		var err error
-		remaining, access, err = types.ParseAccess(remaining)
+		remaining, access, err = messages.ParseAccess(remaining)
 		if err != nil {
 			b.metrics.RecordCheckAccessList(false)
 			b.metrics.RecordCheckAccessListRejection("parse_error")

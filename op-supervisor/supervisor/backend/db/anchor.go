@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // ForceInitialized marks the chain database as initialized, even if it is not.
@@ -85,7 +87,7 @@ func (db *ChainsDB) maybeInitFromUnsafe(id eth.ChainID, anchor eth.BlockRef) err
 			return err
 		}
 		logger.Info("Initialized events database")
-		if err := db.UpdateCrossUnsafe(id, types.BlockSealFromRef(anchor)); err != nil {
+		if err := db.UpdateCrossUnsafe(id, messages.BlockSealFromRef(anchor)); err != nil {
 			return fmt.Errorf("failed updating cross unsafe: %w", err)
 		}
 	} else if err != nil {

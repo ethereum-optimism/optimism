@@ -27,24 +27,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
-
-var interopJWTSecret = [32]byte{4}
-
-type InteropControl interface {
-	PullEvents(ctx context.Context) (pulledAny bool, err error)
-}
 
 // L2Verifier is an actor that functions like a rollup node,
 // without the full P2P/API/Node stack, but just the derivation state, and simplified driver.
@@ -81,10 +72,6 @@ type L2Verifier struct {
 
 	rpc *rpc.Server
 
-	interopSys interop.SubSystem // may be nil if interop is not active
-
-	InteropControl InteropControl // if managed by an op-supervisor
-
 	failRPC func(call []rpc.BatchElem) error // mock error
 
 	// The L2Verifier actor is embedded in the L2Sequencer actor,
@@ -94,7 +81,6 @@ type L2Verifier struct {
 
 type L2API interface {
 	engine.Engine
-	indexing.L2Source
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
@@ -133,33 +119,14 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		},
 	)
 
-	var interopSys interop.SubSystem
-	if cfg.InteropTime != nil {
-		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{}, 5_000)
-		mm.TestDisableEventDeduplication()
-		interopSys = mm
-		sys.Register("interop", interopSys, opts)
-		require.NoError(t, interopSys.Start(context.Background()))
-		t.Cleanup(func() {
-			_ = interopSys.Stop(context.Background())
-		})
-	}
-
-	// supervisorEnabled when interop system is active
-	supervisorEnabled := interopSys != nil
-
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, supervisorEnabled, l1, sys.Register("engine-controller", nil, opts), nil)
-
-	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
-		mm.SetEngineController(ec)
-	}
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil, opts), nil)
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, nil, supervisorEnabled, l1, altDASrc, ec)
+		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, nil, l1, altDASrc, ec)
 	} else {
-		finalizer = finality.NewFinalizer(ctx, log, cfg, nil, supervisorEnabled, l1, ec)
+		finalizer = finality.NewFinalizer(ctx, log, cfg, nil, l1, ec)
 	}
 	sys.Register("finalizer", finalizer, opts)
 
@@ -167,8 +134,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("attributes-handler", attrHandler, opts)
 	ec.SetAttributesResetter(attrHandler)
 
-	indexingMode := supervisorEnabled
-	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode, l1ChainConfig)
+	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, l1ChainConfig)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
 	sys.Register("pipeline", pipelineDeriver, opts)
 	ec.SetPipelineResetter(pipelineDeriver)
@@ -192,11 +158,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Config:         cfg,
 		L1:             l1,
 		// No need to initialize L1Tracker because no L1 block cache is used for testing
-		L2:                  eng,
-		Log:                 log,
-		Ctx:                 ctx,
-		ManagedBySupervisor: indexingMode,
-		StepDeriver:         stepDeriver,
+		L2:          eng,
+		Log:         log,
+		Ctx:         ctx,
+		StepDeriver: stepDeriver,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -225,7 +190,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		RollupCfg:         cfg,
 		rpc:               rpc.NewServer(),
 		synchronousEvents: testActionEmitter,
-		interopSys:        interopSys,
 	}
 	sys.Register("verifier", rollupNode, opts)
 
@@ -450,12 +414,6 @@ func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvel
 		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
 		require.NoError(t, err)
 	}
-}
-
-func (s *L2Verifier) SyncSupervisor(t Testing) {
-	require.NotNil(t, s.InteropControl, "must be managed by op-supervisor")
-	_, err := s.InteropControl.PullEvents(t.Ctx())
-	require.NoError(t, err)
 }
 
 type TestingStepSchedulingDeriver struct {

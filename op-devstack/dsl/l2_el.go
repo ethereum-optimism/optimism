@@ -16,7 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -448,15 +449,15 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 	}))
 }
 
-func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl suptypes.SafetyLevel) eth.BlockID {
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
-	case suptypes.Finalized:
+	case safety.Finalized:
 		blockRef = el.BlockRefByLabel(eth.Finalized)
-	case suptypes.CrossSafe, suptypes.LocalSafe:
+	case safety.CrossSafe, safety.LocalSafe:
 		blockRef = el.BlockRefByLabel(eth.Safe)
-	case suptypes.CrossUnsafe, suptypes.LocalUnsafe:
+	case safety.CrossUnsafe, safety.LocalUnsafe:
 		blockRef = el.BlockRefByLabel(eth.Unsafe)
 	default:
 		el.require.NoError(errors.New("invalid safety level"))
@@ -488,24 +489,24 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	return receipt
 }
 
-func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (el *L2ELNode) InSync(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
 }
 
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
-	el.Matched(refNode, suptypes.LocalUnsafe, attempts)
+	el.Matched(refNode, safety.LocalUnsafe, attempts)
 }
 
 // WaitForPendingNonceMatchFn returns a lambda that waits for the pending nonce of an account to match the provided reference nonce

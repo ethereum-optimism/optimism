@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 const (
@@ -150,14 +152,14 @@ func (db *DB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (Iterator, 
 // returning the next index after it where things continue from.
 // returns ErrFuture if the block is too new to be able to tell
 // returns ErrDifferent if the known block does not match
-func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
+func (db *DB) FindSealedBlock(number uint64) (seal messages.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	iter, err := db.newIteratorAt(number, 0)
 	if errors.Is(err, types.ErrFuture) {
-		return types.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, types.ErrFuture)
+		return messages.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, types.ErrFuture)
 	} else if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to find sealed block %d: %w", number, err)
+		return messages.BlockSeal{}, fmt.Errorf("failed to find sealed block %d: %w", number, err)
 	}
 	h, n, ok := iter.SealedBlock()
 	if !ok {
@@ -170,7 +172,7 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 	if !ok {
 		panic("expected timestamp")
 	}
-	return types.BlockSeal{
+	return messages.BlockSeal{
 		Hash:      h,
 		Number:    n,
 		Timestamp: timestamp,
@@ -178,16 +180,16 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 }
 
 // FirstSealedBlock returns the first block seal in the DB, if any.
-func (db *DB) FirstSealedBlock() (seal types.BlockSeal, err error) {
+func (db *DB) FirstSealedBlock() (seal messages.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	iter := db.newIterator(0)
 	if err := iter.NextBlock(); err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
 	h, n, _ := iter.SealedBlock()
 	t, _ := iter.SealedTimestamp()
-	return types.BlockSeal{
+	return messages.BlockSeal{
 		Hash:      h,
 		Number:    n,
 		Timestamp: t,
@@ -196,7 +198,7 @@ func (db *DB) FirstSealedBlock() (seal types.BlockSeal, err error) {
 
 // OpenBlock returns the Executing Messages for the block at the given number.
 // it returns identification of the block, the parent block, and the executing messages.
-func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, retErr error) {
+func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, retErr error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
@@ -235,7 +237,7 @@ func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, exe
 	}
 	// walk to the end of the block, and remember what we see in the block.
 	logCount = 0
-	execMsgs = make(map[uint32]*types.ExecutingMessage, 0)
+	execMsgs = make(map[uint32]*messages.ExecutingMessage, 0)
 	retErr = blockIter.TraverseConditional(func(state IteratorState) error {
 		_, logIndex, ok := state.InitMessage()
 		if ok {
@@ -291,7 +293,7 @@ func (db *DB) LatestSealedBlock() (id eth.BlockID, ok bool) {
 // This can be used to check the validity of cross-chain interop events.
 // The block-seal of the blockNum block, that the log was included in, is returned.
 // This seal may be fully zeroed, without error, if the block isn't fully known yet.
-func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (db *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	blockNum, logIdx, timestamp := query.BlockNum, query.LogIdx, query.Timestamp
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -303,18 +305,18 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		// the included timestamp is within the database. In this case we know the request is not just a ErrFuture,
 		// but a ErrConflict, as we know the request will not be included in the future.
 		if db.lastEntryContext.timestamp > timestamp {
-			return types.BlockSeal{}, types.ErrConflict
+			return messages.BlockSeal{}, types.ErrConflict
 		}
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 
 	entryLogHash, iter, err := db.findLogInfo(blockNum, logIdx)
 	if err != nil {
 		// if we get an ErrFuture but have a complete block, then we really have a conflict
 		if errors.Is(err, types.ErrFuture) && db.lastEntryContext.hasCompleteBlock() {
-			return types.BlockSeal{}, types.ErrConflict
+			return messages.BlockSeal{}, types.ErrConflict
 		}
-		return types.BlockSeal{}, err // may be ErrConflict if the block does not have as many logs
+		return messages.BlockSeal{}, err // may be ErrConflict if the block does not have as many logs
 	}
 	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", entryLogHash)
 	// Now find the block seal after the log, to identify where the log was included in.
@@ -338,14 +340,14 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	if errors.Is(err, types.ErrStop) {
 		h, n, ok := iter.SealedBlock()
 		if !ok {
-			return types.BlockSeal{}, errIteratorStoppedButNoSealedBlock
+			return messages.BlockSeal{}, errIteratorStoppedButNoSealedBlock
 		}
 		t, _ := iter.SealedTimestamp()
 		// check the timestamp invariant on the result
 		if t != timestamp {
-			return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d %w", timestamp, t, types.ErrConflict)
+			return messages.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d %w", timestamp, t, types.ErrConflict)
 		}
-		entryChecksum := types.ChecksumArgs{
+		entryChecksum := messages.ChecksumArgs{
 			BlockNumber: n,
 			LogIndex:    logIdx,
 			Timestamp:   t,
@@ -354,16 +356,16 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		}.Checksum()
 		// Found the requested block and log index, check if the hash matches
 		if entryChecksum != query.Checksum {
-			return types.BlockSeal{}, fmt.Errorf("payload hash mismatch: expected %s, got %s %w", query.Checksum, entryChecksum, types.ErrConflict)
+			return messages.BlockSeal{}, fmt.Errorf("payload hash mismatch: expected %s, got %s %w", query.Checksum, entryChecksum, types.ErrConflict)
 		}
 		// construct a block seal with the found data now that we know it's correct
-		return types.BlockSeal{
+		return messages.BlockSeal{
 			Hash:      h,
 			Number:    n,
 			Timestamp: t,
 		}, nil
 	}
-	return types.BlockSeal{}, err
+	return messages.BlockSeal{}, err
 }
 
 // findLogInfo returns the hash of the log at the specified block number and log index.
@@ -576,7 +578,7 @@ func (db *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uin
 	return db.flush()
 }
 
-func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 

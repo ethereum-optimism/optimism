@@ -4,23 +4,24 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type SafeStartDeps interface {
-	Contains(chain eth.ChainID, query types.ContainsQuery) (includedIn types.BlockSeal, err error)
+	Contains(chain eth.ChainID, query messages.ContainsQuery) (includedIn messages.BlockSeal, err error)
 
-	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error)
 
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 }
 
 // CrossSafeHazards checks if the given messages all exist and pass invariants.
 // It returns a hazard-set: if any intra-block messaging happened,
 // these hazard blocks have to be verified.
-func CrossSafeHazards(d SafeStartDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, inL1Source eth.BlockID, candidate types.BlockSeal) (*HazardSet, error) {
+func CrossSafeHazards(d SafeStartDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, inL1Source eth.BlockID, candidate messages.BlockSeal) (*HazardSet, error) {
 	safeDeps := &SafeHazardDeps{SafeStartDeps: d, inL1Source: inL1Source}
 	return NewHazardSet(safeDeps, linker, logger, chainID, candidate)
 }
