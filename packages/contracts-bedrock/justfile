@@ -231,7 +231,7 @@ test-l2-fork-upgrade-rerun *ARGS:
 # Env Vars:
 # - L2_FORK_RPC_URL must be set to a post-Karst betanet L2 RPC URL.
 # - L2_BLOCK_BEFORE_FORK must be set to the block right before the fork
-# - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
+# - L2_FORK_BLOCK_NUMBER optional: pin to a block after the activation block (defaults to latest).
 prepare-l2cm-activation-env *ARGS:
   #!/bin/bash
   set -euo pipefail
