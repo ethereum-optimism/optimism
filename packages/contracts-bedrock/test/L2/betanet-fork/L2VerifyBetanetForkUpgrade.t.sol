@@ -2,18 +2,14 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { CommonTest } from "test/setup/CommonTest.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 // Scripts
 import { Config } from "scripts/libraries/Config.sol";
-import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
-import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Process } from "scripts/libraries/Process.sol";
@@ -39,7 +35,7 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 
     /// @notice Verify betanet fork upgrade tests switch to the block after the activation block.
     function _executeCurrentBundle() internal virtual override {
-                uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
+        uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
         if (l2BlockAfterFork == 0) {
             vm.createSelectFork(Config.l2ForkRpcUrl());
         } else {
@@ -51,7 +47,10 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 
 /// @title L2GenesisForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions were updated during the betanet activation.
-contract L2VerifyBetanetForkUpgrade_Versions_Test is L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_Versions_Test {
+contract L2VerifyBetanetForkUpgrade_Versions_Test is
+    L2VerifyBetanetForkUpgrade_TestInit,
+    L2ForkUpgrade_Versions_Test
+{
     function setUp() public override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit.setUp();
     }
@@ -80,7 +79,8 @@ contract L2VerifyBetanetForkUpgrade_Initialization_Test is
 /// @notice Tests that all predeploy implementations were correctly upgraded during the betanet activation.
 contract L2VerifyBetanetForkUpgrade_Implementations_Test is
     L2VerifyBetanetForkUpgrade_TestInit,
-    L2ForkUpgrade_Implementations_Test {
+    L2ForkUpgrade_Implementations_Test
+{
     function setUp() public override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit.setUp();
     }
@@ -154,7 +154,7 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
     }
 
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public override(L2ForkUpgrade_Events_Test) {
-       // Skip if running with an unoptimized Foundry profile
+        // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
         // Pre-capture everything from generateScript before any fork switch:
@@ -224,26 +224,25 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
     }
 
     function _getLogs(address[] memory predeploys) internal returns (Vm.Log[] memory logs_) {
-         bytes32[] memory topics = new bytes32[](1);
-            uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
-            topics[0] = UPGRADED_EVENT_TOPIC;
-            // vm.eth_getLogs serializes address(0) as the literal zero address rather than null,
-            // so passing address(0) returns no events. Query each predeploy address individually.
-            uint256 totalCount = 0;
-            Vm.EthGetLogs[][] memory perDeployLogs = new Vm.EthGetLogs[][](predeploys.length);
-            for (uint256 p = 0; p < predeploys.length; p++) {
-                perDeployLogs[p] =
-                    vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p], topics);
-                totalCount += perDeployLogs[p].length;
+        bytes32[] memory topics = new bytes32[](1);
+        uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
+        topics[0] = UPGRADED_EVENT_TOPIC;
+        // vm.eth_getLogs serializes address(0) as the literal zero address rather than null,
+        // so passing address(0) returns no events. Query each predeploy address individually.
+        uint256 totalCount = 0;
+        Vm.EthGetLogs[][] memory perDeployLogs = new Vm.EthGetLogs[][](predeploys.length);
+        for (uint256 p = 0; p < predeploys.length; p++) {
+            perDeployLogs[p] = vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p], topics);
+            totalCount += perDeployLogs[p].length;
+        }
+        Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);
+        uint256 flatIdx = 0;
+        for (uint256 p = 0; p < predeploys.length; p++) {
+            for (uint256 q = 0; q < perDeployLogs[p].length; q++) {
+                ethLogs[flatIdx++] = perDeployLogs[p][q];
             }
-            Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);
-            uint256 flatIdx = 0;
-            for (uint256 p = 0; p < predeploys.length; p++) {
-                for (uint256 q = 0; q < perDeployLogs[p].length; q++) {
-                    ethLogs[flatIdx++] = perDeployLogs[p][q];
-                }
-            }
-            logs_ = _ethGetLogsToLogs(ethLogs);
+        }
+        logs_ = _ethGetLogsToLogs(ethLogs);
     }
 
     /// @notice Converts RPC logs from `vm.eth_getLogs` into the shape returned by `vm.getRecordedLogs`.
@@ -259,7 +258,6 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
     }
 }
 
-
 /// @title L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test
 /// @notice Verifies the activation block contains the expected NUT bundle transactions.
 contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetForkUpgrade_TestInit {
@@ -270,7 +268,7 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
     /// @notice Fetches the activation block via RPC and asserts that the NUT bundle transactions
     ///         are present in the correct order with the correct from, to, and calldata.
     function test_l2VerifyBetanetForkUpgrade_activationBlockContainsNUTBundle_succeeds() public {
-       // Skip if running with an unoptimized Foundry profile
+        // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
         // Execute bundle on forked L2
@@ -323,7 +321,11 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
     }
 
     /// @notice Fetches a block via `cast rpc` (FFI). Returns JSON suitable for `vm.parseJson`.
-    function _ffiGetBlockByNumber(string memory _blockHex, string memory _rpcUrl, bool _fullTxs)
+    function _ffiGetBlockByNumber(
+        string memory _blockHex,
+        string memory _rpcUrl,
+        bool _fullTxs
+    )
         internal
         returns (string memory blockJson_)
     {
@@ -345,7 +347,10 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
     }
 
     /// @notice Parses from/to/input for each transaction in a full activation block JSON payload.
-    function _parseActivationBlockTransactions(string memory _blockJson, uint256 _txCount)
+    function _parseActivationBlockTransactions(
+        string memory _blockJson,
+        uint256 _txCount
+    )
         internal
         pure
         returns (address[] memory froms_, address[] memory tos_, bytes[] memory inputs_)

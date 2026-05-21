@@ -10,7 +10,6 @@ import { console } from "forge-std/console.sol";
 // Scripts
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
-import { Config } from "scripts/libraries/Config.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
@@ -646,7 +645,7 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
-    function test_l2ForkUpgrade_implementationsMatch_succeeds() virtual public {
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
@@ -701,7 +700,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
-    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() virtual public {
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
@@ -723,7 +722,6 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
-
 
         // Get all upgradeable predeploys
         address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
