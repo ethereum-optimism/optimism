@@ -77,8 +77,8 @@ impl RpcServerLauncher for JsonrpseeServerLauncher {
 
 /// Launches the jsonrpsee [`Server`].
 ///
-/// Exposed for the [`RollupNode`](crate::service::node::RollupNode) bootstrap path, which performs
-/// the initial server launch before constructing the [`crate::RpcActor`].
+/// Exposed for the [`crate::RollupNode`] bootstrap path, which performs the initial server
+/// launch before constructing the [`crate::RpcActor`].
 ///
 /// ## Errors
 ///
