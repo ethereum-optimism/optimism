@@ -16,6 +16,7 @@ import {
 import {
     AlreadyInitialized,
     AnchorRootNotFound,
+    BadExtraData,
     BondTransferFailed,
     ClaimAlreadyResolved,
     GameNotFinalized,
@@ -140,90 +141,127 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     uint256 public totalBonds;
 
     ////////////////////////////////////////////////////////////////
-    //                     CWIA GETTERS                           //
+    //                 CWIA GETTERS (PRE-EXTRA-DATA)              //
     ////////////////////////////////////////////////////////////////
 
     /// @notice Getter for the creator of the dispute game.
+    /// @dev `clones-with-immutable-args` argument #1
     /// @return creator_ The creator of the dispute game.
     function gameCreator() public pure returns (address creator_) {
         creator_ = _getArgAddress(0x00);
     }
 
     /// @notice Getter for the root claim.
+    /// @dev `clones-with-immutable-args` argument #2
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
         rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
     }
 
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
+    /// @dev `clones-with-immutable-args` argument #3
     /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
     function l1Head() public pure returns (Hash l1Head_) {
         l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
     /// @notice Getter for the game type.
+    /// @dev `clones-with-immutable-args` argument #4
     /// @return gameType_ The type of proof system being used.
     function gameType() public pure returns (GameType gameType_) {
         gameType_ = GameType.wrap(_getArgUint32(0x54));
     }
-
-    /// @notice The L2 sequence number for which this game proposes an output root.
-    /// @dev Per spec, this value must fit within a uint64.
-    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
-        l2SequenceNumber_ = _getArgUint256(0x58);
-    }
+    
+    ////////////////////////////////////////////////////////////////
+    //              CWIA GETTERS (EXTRA-DATA, STATIC OFFSETS)     //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice The parent index of the game.
+    /// @dev Stored at a fixed offset (88) inside extraData so we can recover it without first
+    ///      parsing the variable-length SuperRootProof that follows.
+    /// @return parentIndex_ The index in the factory's game array of this game's parent, or
+    ///         `type(uint32).max` if this is a root game with no parent.
     function parentIndex() public pure returns (uint32 parentIndex_) {
-        parentIndex_ = _getArgUint32(0x78);
+        parentIndex_ = _getArgUint32(0x58);
     }
 
+    /// @notice The L2 sequence number (super root timestamp) of the disputed super root.
+    /// @dev Sourced from the `SuperRootProof` timestamp embedded in extraData. Return type is
+    ///      `uint256` to match `IDisputeGame.l2SequenceNumber` but the underlying value is a uint64.
+    /// @return l2SequenceNumber_ The L2 sequence number (super root timestamp) of the disputed super root.
+    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
+        // 88 (preExtraData) + 4 (parentIndex) + 1 (super version) = 0x5D.
+        l2SequenceNumber_ = _getArgUint64(0x5D);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //              CWIA GETTERS (IMPL-ARGS, DYNAMIC OFFSETS)     //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Returns the absolute prestate commitment (ZK circuit identity).
+    /// @dev `clones-with-immutable-args` argument #6
+    /// @return absolutePrestate_ The absolute prestate commitment of the ZK circuit.
     function absolutePrestate() public pure returns (bytes32 absolutePrestate_) {
-        absolutePrestate_ = _getArgBytes32(0x7C);
+        absolutePrestate_ = _getArgBytes32(_preExtraDataByteCount() + _extraDataByteCount());
     }
 
     /// @notice Returns the ZK verifier contract.
+    /// @dev `clones-with-immutable-args` argument #7
+    /// @return verifier_ The ZK verifier contract used to validate proofs.
     function verifier() public pure returns (IZKVerifier verifier_) {
-        verifier_ = IZKVerifier(_getArgAddress(0x9C));
+        verifier_ = IZKVerifier(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 32));
     }
 
     /// @notice Returns the max challenge duration.
+    /// @dev `clones-with-immutable-args` argument #8
+    /// @return maxChallengeDuration_ The maximum time a proposal can remain unchallenged.
     function maxChallengeDuration() public pure returns (Duration maxChallengeDuration_) {
-        maxChallengeDuration_ = Duration.wrap(_getArgUint64(0xB0));
+        maxChallengeDuration_ = Duration.wrap(_getArgUint64(_preExtraDataByteCount() + _extraDataByteCount() + 52));
     }
 
     /// @notice Returns the max prove duration.
+    /// @dev `clones-with-immutable-args` argument #9
+    /// @return maxProveDuration_ The maximum time a challenged proposal can remain unproven.
     function maxProveDuration() public pure returns (Duration maxProveDuration_) {
-        maxProveDuration_ = Duration.wrap(_getArgUint64(0xB8));
+        maxProveDuration_ = Duration.wrap(_getArgUint64(_preExtraDataByteCount() + _extraDataByteCount() + 60));
     }
 
     /// @notice Returns the challenger bond amount.
+    /// @dev `clones-with-immutable-args` argument #10
+    /// @return challengerBond_ The required bond, in wei, for a challenger to challenge the proposal.
     function challengerBond() public pure returns (uint256 challengerBond_) {
-        challengerBond_ = _getArgUint256(0xC0);
+        challengerBond_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 68);
     }
 
     /// @notice Returns the anchor state registry contract.
+    /// @dev `clones-with-immutable-args` argument #11
+    /// @return registry_ The anchor state registry contract.
     function anchorStateRegistry() public pure returns (IAnchorStateRegistry registry_) {
-        registry_ = IAnchorStateRegistry(_getArgAddress(0xE0));
+        registry_ = IAnchorStateRegistry(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 100));
     }
 
     /// @notice Returns the DelayedWETH contract used for bond custody.
+    /// @dev `clones-with-immutable-args` argument #12
+    /// @return weth_ The DelayedWETH contract used for bond custody.
     function weth() public pure returns (IDelayedWETH weth_) {
-        weth_ = IDelayedWETH(payable(_getArgAddress(0xF4)));
+        weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 120)));
     }
 
     /// @notice Returns the L2 chain ID.
+    /// @dev `clones-with-immutable-args` argument #13. Kept in the impl-args layout for
+    ///      backwards-compatibility with the existing factory packing. Must be zero for super
+    ///      games, enforced in `initialize()`.
+    /// @return l2ChainId_ The L2 chain ID. Always zero for super games.
     function l2ChainId() public pure returns (uint256 l2ChainId_) {
-        l2ChainId_ = _getArgUint256(0x108);
+        l2ChainId_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 140);
     }
 
     /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #5
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
+    ///         Layout: 4 bytes parentIndex || 1 byte version || 8 bytes timestamp || n*(32+32) bytes (chainId, root) pairs.
     function extraData() public pure returns (bytes memory extraData_) {
-        // The extra data starts at the second word within the cwia calldata and
-        // is 36 bytes long. 32 bytes are for the l2SequenceNumber, 4 bytes are for the parentIndex.
-        extraData_ = _getArgBytes(0x58, 0x24);
+        extraData_ = _getArgBytes(_preExtraDataByteCount(), _extraDataByteCount());
     }
 
     /// @notice Only the starting block number of the game.
@@ -279,24 +317,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
-        //
-        // Expected length: 0x12E
-        // - 0x04 selector
-        // - 0x14 creator address
-        // - 0x20 root claim
-        // - 0x20 l1 head
-        // - 0x04 gameType (factory-inserted)
-        // - 0x20 extraData (l2SequenceNumber)
-        // - 0x04 extraData (parentIndex)
-        // - 0xAC gameArgs (absolutePrestate + verifier + durations + bond + registry + weth + l2ChainId)
-        // - 0x02 CWIA bytes
-        assembly {
-            if iszero(eq(calldatasize(), 0x12E)) {
-                // Store the selector for `BadExtraData()` & revert
-                mstore(0x00, 0x9824bdab)
-                revert(0x1C, 0x04)
-            }
-        }
+        if (!_verifyInitCallDataLength()) revert BadExtraData();
 
         // INVARIANT: The L2 chain ID must not be zero.
         if (l2ChainId() == 0) revert UnknownChainId();
@@ -336,12 +357,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
 
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured starting block number.
+        // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
+        // or before the configured starting sequence number.
         if (l2SequenceNumber() <= startingProposal.l2SequenceNumber) {
-            revert UnexpectedRootClaim(rootClaim());
-        }
-        if (l2SequenceNumber() > type(uint64).max) {
             revert UnexpectedRootClaim(rootClaim());
         }
 
@@ -369,6 +387,78 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // Set whether the game type was respected when the game was created.
         wasRespectedGameTypeWhenCreated =
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
+    }
+
+    /// @notice Validates the expected length of msg.data for the initialize() call.
+    /// @dev    This function must only be called by initialize().
+    ///
+    ///      Expected msg.data structure:
+    ///      ┌────────────────────────────────────────────────────────────────────┐
+    ///      │ 4 bytes           │ Function selector (initialize())               │
+    ///      │===================│ ============ pre extra data ================== │
+    ///      │ 20 bytes          │ creator address                                │
+    ///      │ 32 bytes          │ root claim                                     │
+    ///      │ 32 bytes          │ l1 head                                        │
+    ///      │ 4 bytes           │ game type                                      │
+    ///      │===================│ ============ extra data ====================== │
+    ///      │ 4 bytes           │ parent index                                   │
+    ///      │ 1 byte            │ super version                                  │
+    ///      │ 8 bytes           │ super timestamp (l2SequenceNumber)             │
+    ///      │ n * (32+32) bytes │ (chainId, outputRoot) tuples                   │
+    ///      │===================│ ============ end extra data ================== │
+    ///      │ 172 bytes         │ game impl args                                 │
+    ///      │ 2 bytes           │ CWIA length suffix                             │
+    ///      └────────────────────────────────────────────────────────────────────┘
+    function _verifyInitCallDataLength() internal pure returns (bool) {
+        // At minimum, we need the selector + CWIA suffix + the fixed pre-extra-data region.
+        uint256 preExtraDataLen = 4 + 2 + _preExtraDataByteCount();
+        if (msg.data.length < preExtraDataLen) return false;
+
+        uint256 postExtraDataLen = gameImplArgsByteCount();
+        uint256 extraDataAndGameArgsLength = msg.data.length - preExtraDataLen;
+        // Ensure we have enough data for the game impl args.
+        if (extraDataAndGameArgsLength < postExtraDataLen) return false;
+
+        uint256 extraLen = extraDataAndGameArgsLength - postExtraDataLen;
+        // 4 bytes parentIndex + 1 byte super version + 8 bytes super timestamp = 13 bytes header.
+        if (extraLen < 13) return false;
+        uint256 rem = extraLen - 13;
+        // There must be at least one (chainId, outputRoot) tuple.
+        if (rem == 0) return false;
+        return rem % 64 == 0;
+    }
+
+    /// @notice Returns the byte count of the extra data in the initialize() call.
+    /// @dev    Precondition: msg.data has a valid length.
+    function _extraDataByteCount() internal pure returns (uint256) {
+        // The CWIA runtime appends the immutable args and a 2-byte length suffix to every forwarded
+        // call; strip the original calldata and suffix so offsets stay correct for functions with params.
+        uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
+        return immutableArgsLength - _preExtraDataByteCount() - gameImplArgsByteCount();
+    }
+
+    /// @notice Returns the byte count of the pre-extra-data region.
+    function _preExtraDataByteCount() internal pure returns (uint256) {
+        // Expected length: 88 bytes
+        // - 20 bytes: creator address
+        // - 32 bytes: root claim
+        // - 32 bytes: l1 head
+        // - 4 bytes: game type
+        return 88;
+    }
+
+    /// @notice Returns the byte count of the game implementation args for this contract.
+    function gameImplArgsByteCount() internal pure virtual returns (uint256) {
+        // Expected length: 172 bytes
+        // - 32 bytes: absolutePrestate
+        // - 20 bytes: verifier address
+        // - 8 bytes:  maxChallengeDuration
+        // - 8 bytes:  maxProveDuration
+        // - 32 bytes: challengerBond
+        // - 20 bytes: anchorStateRegistry address
+        // - 20 bytes: weth address
+        // - 32 bytes: l2ChainId (zero for super games)
+        return 172;
     }
 
     ////////////////////////////////////////////////////////////////
