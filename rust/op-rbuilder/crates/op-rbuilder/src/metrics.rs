@@ -204,6 +204,10 @@ pub fn record_flag_gauge_metrics(builder_args: &OpRbuilderArgs) {
         .set(builder_args.flashtestations.flashtestations_enabled as i32);
     gauge!("op_rbuilder_flags_enable_revert_protection")
         .set(builder_args.enable_revert_protection as i32);
+    // SDM opt-in starts disabled on every process boot; the value is mutated at runtime via
+    // admin_setSdmEnabled. We seed the gauge here so scrapes pre-RPC see 0 rather than
+    // missing-metric.
+    gauge!("op_rbuilder_flags_sdm_enabled").set(0);
 }
 
 /// Record TEE workload ID and measurement metrics
