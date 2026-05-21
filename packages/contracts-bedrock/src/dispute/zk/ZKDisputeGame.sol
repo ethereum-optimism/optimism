@@ -277,10 +277,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         superRootProof_ = _getArgBytes(_preExtraDataByteCount() + 4, _extraDataByteCount() - 4);
     }
 
-    /// @notice Returns the starting block number of the game.
-    /// @return startingBlockNumber_ The starting block number of the game, from the starting proposal.
-    function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingProposal.l2SequenceNumber;
+    /// @notice Returns the starting L2 sequence number (super root timestamp) of the game.
+    /// @return startingSequenceNumber_ The starting L2 sequence number, from the starting proposal.
+    function startingSequenceNumber() external view returns (uint256 startingSequenceNumber_) {
+        startingSequenceNumber_ = startingProposal.l2SequenceNumber;
     }
 
     /// @notice Returns the starting output root of the game.
@@ -329,7 +329,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         //
         // Explicit checks:
         // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the starting block number.
+        // - A super root cannot be proposed at or before the starting L2 sequence number (timestamp).
 
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
