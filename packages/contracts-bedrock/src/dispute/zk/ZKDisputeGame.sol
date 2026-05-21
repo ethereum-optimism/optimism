@@ -13,6 +13,8 @@ import {
     Timestamp,
     Proposal
 } from "src/dispute/lib/Types.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import {
     AlreadyInitialized,
     AnchorRootNotFound,
@@ -171,7 +173,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     function gameType() public pure returns (GameType gameType_) {
         gameType_ = GameType.wrap(_getArgUint32(0x54));
     }
-    
+
     ////////////////////////////////////////////////////////////////
     //              CWIA GETTERS (EXTRA-DATA, STATIC OFFSETS)     //
     ////////////////////////////////////////////////////////////////
@@ -259,27 +261,43 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Getter for the extra data.
     /// @dev `clones-with-immutable-args` argument #5
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
-    ///         Layout: 4 bytes parentIndex || 1 byte version || 8 bytes timestamp || n*(32+32) bytes (chainId, root) pairs.
+    ///         Layout: 4 bytes parentIndex || 1 byte version || 8 bytes timestamp || n*(32+32) bytes (chainId, root)
+    /// pairs.
     function extraData() public pure returns (bytes memory extraData_) {
         extraData_ = _getArgBytes(_preExtraDataByteCount(), _extraDataByteCount());
     }
 
-    /// @notice Only the starting block number of the game.
+    /// @notice Returns the encoded SuperRootProof bytes portion of extraData, without the 4-byte parentIndex prefix.
+    /// @return superRootProof_ The encoded SuperRootProof bytes.
+    function superRootProof() public pure returns (bytes memory superRootProof_) {
+        superRootProof_ = _getArgBytes(_preExtraDataByteCount() + 4, _extraDataByteCount() - 4);
+    }
+
+    /// @notice Returns the starting block number of the game.
+    /// @return startingBlockNumber_ The starting block number of the game, from the starting proposal.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
         startingBlockNumber_ = startingProposal.l2SequenceNumber;
     }
 
-    /// @notice Starting output root of the game.
+    /// @notice Returns the starting output root of the game.
+    /// @return startingRootHash_ The starting output root of the game, from the starting proposal.
     function startingRootHash() external view returns (Hash startingRootHash_) {
         startingRootHash_ = startingProposal.root;
     }
 
-    /// @notice Getter for the root claim for a given L2 chain ID.
-    /// @param _chainId The L2 chain ID to get the root claim for.
-    /// @return rootClaim_ The root claim of the DisputeGame.
-    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim rootClaim_) {
-        if (_chainId != l2ChainId()) revert UnknownChainId();
-        rootClaim_ = rootClaim();
+    /// @notice Returns the output root in the root claim for the specified L2 chain ID.
+    /// @param _chainId The L2 chain ID to get the output root claim for.
+    /// @return outputRootClaim_ The output root claim for the specified L2 chain ID.
+    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim outputRootClaim_) {
+        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(superRootProof());
+        Types.OutputRootWithChainId[] memory outputRoots = superRootProof.outputRoots;
+
+        for (uint256 i = 0; i < outputRoots.length; i++) {
+            if (outputRoots[i].chainId == _chainId) {
+                return Claim.wrap(outputRoots[i].root);
+            }
+        }
+        revert UnknownChainId();
     }
 
     /// @notice Returns the components of the game UUID's preimage provided in the cwia payload.
