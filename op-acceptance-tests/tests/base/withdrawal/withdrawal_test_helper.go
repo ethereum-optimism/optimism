@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -70,6 +71,49 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	withdrawal.WaitForDisputeGameResolved()
 
 	// Advance time to when game finalization and proof finalization delay has expired
+	sys.AdvanceTime(max(bridge.WithdrawalDelay()-bridge.GameResolutionDelay(), bridge.DisputeGameFinalityDelay()))
+
+	t.Logger().Info("Attempting to finalize", "proofMaturity", bridge.WithdrawalDelay(), "gameResolutionDelay", bridge.GameResolutionDelay(), "gameFinalityDelay", bridge.DisputeGameFinalityDelay())
+	withdrawal.Finalize(l1User)
+	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.FinalizeGasCost()).Add(withdrawalAmount)
+	l1User.VerifyBalanceExact(expectedL1UserBalance)
+}
+
+// TestWithdrawalAfterUpgrade is like TestWithdrawal but waits for the given fork to activate
+// before initiating the withdrawal, exercising the upgrade path rather than genesis activation.
+func TestWithdrawalAfterUpgrade(gt *testing.T, gameType gameTypes.GameType, fork opforks.Name, extra ...presets.Option) {
+	t := devtest.ParallelT(gt)
+	sys := newSystem(t, gameType, extra...)
+
+	sys.L2Chain.AwaitActivation(t, fork)
+
+	bridge := sys.StandardBridge()
+	bridge.VerifyRespectedGameType(gameType)
+
+	initialL1Balance := eth.OneThirdEther
+
+	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
+	l2User := l1User.AsEL(sys.L2EL)
+	depositAmount := eth.OneTenthEther
+	withdrawalAmount := eth.OneHundredthEther
+
+	deposit := bridge.Deposit(depositAmount, l1User)
+	expectedL1UserBalance := initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost())
+	l1User.VerifyBalanceExact(expectedL1UserBalance)
+	expectedL2UserBalance := depositAmount
+	l2User.VerifyBalanceExact(expectedL2UserBalance)
+
+	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
+	expectedL2UserBalance = expectedL2UserBalance.Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost())
+	l2User.VerifyBalanceExact(expectedL2UserBalance)
+
+	withdrawal.Prove(l1User)
+	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.ProveGasCost())
+	l1User.VerifyBalanceExact(expectedL1UserBalance)
+
+	sys.AdvanceTime(bridge.GameResolutionDelay())
+	withdrawal.WaitForDisputeGameResolved()
+
 	sys.AdvanceTime(max(bridge.WithdrawalDelay()-bridge.GameResolutionDelay(), bridge.DisputeGameFinalityDelay()))
 
 	t.Logger().Info("Attempting to finalize", "proofMaturity", bridge.WithdrawalDelay(), "gameResolutionDelay", bridge.GameResolutionDelay(), "gameFinalityDelay", bridge.DisputeGameFinalityDelay())
