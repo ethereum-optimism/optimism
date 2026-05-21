@@ -13,7 +13,7 @@ use revm::{Inspector, inspector::NoOpInspector};
 
 pub use inspector::{
     PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
-    SDMWarmingInspector,
+    SDMWarmingInspector, WarmingRefundEvent, WarmingRefundKind,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
@@ -218,8 +218,14 @@ where
 
 /// Extension trait for block executors that collect post-exec payload entries.
 pub trait PostExecExecutorExt {
+    /// Returns the accumulated post-exec entries for the current block without clearing them.
+    fn post_exec_entries(&self) -> &[SDMGasEntry];
+
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
+
+    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
@@ -228,7 +234,15 @@ where
     R: OpReceiptBuilder,
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
+    fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        Self::post_exec_entries(self)
+    }
+
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         Self::take_post_exec_entries(self)
+    }
+
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        Self::take_warming_events_by_tx(self)
     }
 }
