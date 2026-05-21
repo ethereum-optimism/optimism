@@ -2256,7 +2256,9 @@
               "/op-stack/features/custom-gas-token",
               "/op-stack/features/bridged-usdc-standard",
               "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional"
+              "/op-stack/features/send-raw-transaction-conditional",
+              "/op-stack/features/l2-contract-manager",
+              "/op-stack/features/osaka-on-l2"
             ]
           },
           {
