@@ -203,24 +203,8 @@ func (n *OpReth) Start() {
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.sub == nil {
-		n.p.Logger().Warn("op-reth already stopped")
-		return
-	}
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
-	n.sub = nil
-}
-
-func (n *OpReth) Crash() {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.sub == nil {
-		n.p.Logger().Warn("op-reth already stopped")
-		return
-	}
-	err := n.sub.Kill()
-	n.p.Require().NoError(err, "Must kill")
 	n.sub = nil
 }
 

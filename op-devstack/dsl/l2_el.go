@@ -357,13 +357,6 @@ func (el *L2ELNode) Stop() {
 	lifecycle.Stop()
 }
 
-func (el *L2ELNode) Crash() {
-	el.log.Info("Crashing", "name", el.inner.Name())
-	crashable, ok := el.inner.(interface{ Crash() })
-	el.require.Truef(ok, "L2EL node %s is not crash-controllable", el.inner.Name())
-	crashable.Crash()
-}
-
 func (el *L2ELNode) Start() {
 	lifecycle, ok := el.inner.(stack.Lifecycle)
 	el.require.Truef(ok, "L2EL node %s is not lifecycle-controllable", el.inner.Name())

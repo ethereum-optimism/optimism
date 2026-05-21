@@ -184,13 +184,6 @@ func (r *l2ELFrontend) Stop() {
 	r.lifecycle.Stop()
 }
 
-func (r *l2ELFrontend) Crash() {
-	r.require().NotNil(r.lifecycle, "L2EL node %s is not lifecycle-controllable", r.Name())
-	crashable, ok := r.lifecycle.(interface{ Crash() })
-	r.require().Truef(ok, "L2EL node %s is not crash-controllable", r.Name())
-	crashable.Crash()
-}
-
 type l2CLFrontend struct {
 	presetCommon
 	chainID          eth.ChainID
