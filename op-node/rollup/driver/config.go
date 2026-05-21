@@ -23,6 +23,9 @@ type Config struct {
 	// SequencerStopped is false when the driver should sequence new blocks.
 	SequencerStopped bool `json:"sequencer_stopped"`
 
+	// SdmEnabled is the persisted operator preference for local SDM/PostExec sequencing.
+	SdmEnabled bool `json:"sdm_enabled"`
+
 	// SequencerMaxSafeLag is the maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
 	// Disabled if 0.
 	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
