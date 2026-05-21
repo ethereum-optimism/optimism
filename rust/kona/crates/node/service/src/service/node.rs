@@ -142,11 +142,6 @@ impl RollupNode {
         NetworkBuilder::from(self.p2p_config.clone())
     }
 
-    /// Returns an engine builder for the node.
-    fn engine_config(&self) -> EngineConfig {
-        self.engine_config.clone()
-    }
-
     /// Returns an rpc builder for the node.
     fn rpc_builder(&self) -> Option<RpcBuilder> {
         self.rpc_builder.clone()
@@ -229,7 +224,7 @@ impl RollupNode {
         let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
         let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
 
-        let engine_client = Arc::new(self.engine_config().build_engine_client());
+        let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
 
         // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
         let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
