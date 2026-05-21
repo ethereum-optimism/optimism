@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
@@ -16,15 +15,15 @@ import (
 )
 
 type Backend interface {
-	apis.SupervisorAdminAPI
-	apis.SupervisorQueryAPI
+	SupervisorAdminAPI
+	SupervisorQueryAPI
 }
 
 type QueryFrontend struct {
-	Supervisor apis.SupervisorQueryAPI
+	Supervisor SupervisorQueryAPI
 }
 
-var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
+var _ SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
@@ -78,7 +77,7 @@ type AdminFrontend struct {
 	Supervisor Backend
 }
 
-var _ apis.SupervisorAdminAPI = (*AdminFrontend)(nil)
+var _ SupervisorAdminAPI = (*AdminFrontend)(nil)
 
 // Start starts the service, if it was previously stopped.
 func (a *AdminFrontend) Start(ctx context.Context) error {
