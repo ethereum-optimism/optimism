@@ -22,7 +22,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -392,9 +393,7 @@ func (f *DisputeGameFactory) honestSuperCannonTrace(
 		vmConfig,
 		serverExecutor,
 		prestateProvider,
-		nil, // supervisor client
 		f.superNode.QueryAPI(),
-		true,
 		vmPrestatePath,
 		path.Join(f.challengerCfg.Datadir, "test-prestates"),
 		l1Head.ID(),
@@ -433,7 +432,7 @@ func (f *DisputeGameFactory) startOutputRootGameOfType(
 func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.l2CL, "L2 CL is required create output games")
 	if !cfg.allowFuture {
-		f.l2CL.Reached(safetyTypes.LocalSafe, blockNum, 30)
+		f.l2CL.Reached(safety.LocalSafe, blockNum, 30)
 	}
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], blockNum)
@@ -491,6 +490,10 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	l1Head := superRootResp.CurrentL1
+	// SuperRootAtTimestamp's CurrentL1 names the block currently being processed.
+	// The trace provider's gate requires supernode CurrentL1 > l1Head, so wait
+	// until the supernode advances past this block before invoking it.
+	f.superNode.AwaitFullyProcessedL1(l1Head.Number)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
 	traceProvider := super.NewSuperNodeTraceProvider(

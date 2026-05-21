@@ -37,6 +37,7 @@ type Config struct {
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
 	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
 	Passthrough                 bool          // If true, all transactions pass through without filtering
+	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
 	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
 	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
 
@@ -145,6 +146,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		ValidationInterval:          validationInterval,
 		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
+		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
 		RPCConcurrency:              rpcConcurrency,
 		FetchConcurrency:            fetchConcurrency,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),

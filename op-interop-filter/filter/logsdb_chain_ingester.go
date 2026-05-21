@@ -20,10 +20,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // progressLogInterval is how often to log ingestion progress.
@@ -54,7 +55,7 @@ type LogsDBChainIngester struct {
 
 	rpcClient        client.RPC
 	ethClient        EthClient
-	logsDB           *logs.DB
+	logsDB           LogsDB
 	dataDir          string
 	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
@@ -222,13 +223,13 @@ func (c *LogsDBChainIngester) ClearError() {
 }
 
 // Contains checks if a log exists in the database
-func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
 		c.log.Warn("Contains called but logs DB not initialized")
-		return types.BlockSeal{}, types.ErrUninitialized
+		return messages.BlockSeal{}, types.ErrUninitialized
 	}
 
 	return c.logsDB.Contains(query)
@@ -402,23 +403,22 @@ func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 }
 
 func (c *LogsDBChainIngester) initLogsDB() error {
-	var dbPath string
+	var dbDir string
 	if c.dataDir != "" {
-		chainDir := filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
-		if err := os.MkdirAll(chainDir, 0755); err != nil {
+		dbDir = filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			return fmt.Errorf("failed to create chain directory: %w", err)
 		}
-		dbPath = filepath.Join(chainDir, "logs.db")
 	} else {
 		tempDir, err := os.MkdirTemp("", fmt.Sprintf("interop-filter-chain-%s-*", c.chainID))
 		if err != nil {
 			return fmt.Errorf("failed to create temp directory: %w", err)
 		}
-		dbPath = filepath.Join(tempDir, "logs.db")
-		c.log.Warn("Using temporary directory for logs DB", "path", dbPath)
+		dbDir = tempDir
+		c.log.Warn("Using temporary directory for logs DB", "path", dbDir)
 	}
 
-	db, err := logs.NewFromFile(c.log, &logsDBMetrics{m: c.metrics, chainID: c.chainID}, c.chainID, dbPath, true)
+	db, err := raftwallogdb.Open(dbDir, c.chainID)
 	if err != nil {
 		return fmt.Errorf("failed to open logs DB: %w", err)
 	}
@@ -427,7 +427,7 @@ func (c *LogsDBChainIngester) initLogsDB() error {
 	c.logsDB = db
 	c.mu.Unlock()
 
-	c.log.Info("Initialized logs DB", "path", dbPath)
+	c.log.Info("Initialized logs DB", "path", dbDir)
 	return nil
 }
 
@@ -633,7 +633,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
 	}
 
-	if err := c.logsDB.Rewind(reads.NoopRegistry{}, targetID); err != nil {
+	if err := c.logsDB.Rewind(targetID); err != nil {
 		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
 	}
 
@@ -675,8 +675,8 @@ func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
 }
 
 func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, lastLogTime time.Time) (uint64, time.Time, error) {
-	if c.Error() != nil {
-		return startBlock, lastLogTime, nil
+	if errState := c.Error(); errState != nil {
+		return startBlock, lastLogTime, errState
 	}
 	if startBlock > endBlock {
 		return startBlock, lastLogTime, nil
@@ -761,8 +761,8 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 }
 
 func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
-	if c.Error() != nil {
-		return nil
+	if errState := c.Error(); errState != nil {
+		return errState
 	}
 
 	blockInfo := fetched.blockInfo
@@ -786,7 +786,7 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 				"expected_parent", latestBlock.Hash,
 				"actual_parent", blockInfo.ParentHash())
 			c.SetError(ErrorReorg, fmt.Sprintf("parent hash mismatch at block %d", blockNum))
-			return nil
+			return c.Error()
 		}
 	}
 
@@ -794,15 +794,15 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 	if err != nil {
 		if errors.Is(err, types.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
-			return nil
+			return c.Error()
 		}
 		if errors.Is(err, types.ErrDataCorruption) {
 			c.SetError(ErrorDataCorruption, fmt.Sprintf("data corruption at block %d: %v", blockNum, err))
-			return nil
+			return c.Error()
 		}
 		if errors.Is(err, ErrInvalidLog) {
 			c.SetError(ErrorInvalidExecutingMessage, fmt.Sprintf("invalid log at block %d: %v", blockNum, err))
-			return nil
+			return c.Error()
 		}
 		return err
 	}
@@ -812,7 +812,12 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
 	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
 
-	c.log.Debug("Ingested block", "block", blockNum, "hash", blockID.Hash, "timestamp", blockInfo.Time(), "logs", logCount)
+	c.log.Info("Ingested block",
+		"block", blockNum,
+		"hash", blockID.Hash,
+		"timestamp", blockInfo.Time(),
+		"ingested_at", time.Now().UTC(),
+		"logs", logCount)
 
 	// Set earliest block on first successful ingestion (fresh start case).
 	// On restart, findAndSetEarliestBlock handles this instead.
@@ -886,16 +891,6 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	return logIndex, nil
 }
-
-// logsDBMetrics implements the logs.Metrics interface
-type logsDBMetrics struct {
-	m       metrics.Metricer
-	chainID eth.ChainID
-}
-
-func (l *logsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
-
-func (l *logsDBMetrics) RecordDBSearchEntriesRead(count int64) {}
 
 // Ensure LogsDBChainIngester implements ChainIngester
 var _ ChainIngester = (*LogsDBChainIngester)(nil)

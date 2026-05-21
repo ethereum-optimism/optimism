@@ -24,11 +24,6 @@ type SuperAuthority interface {
 	// Returns true if the payload should not be applied.
 	// The error indicates if the check could not be performed (should be logged but not fatal).
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
-	// NotifyPipelineReset is invoked when the inner node observes
-	// rollup.ResetEvent, before the published sync status is republished
-	// or any reset state changes are visible to readers. Implementations
-	// must be non-blocking: the StatusTracker holds its mutex during the call.
-	NotifyPipelineReset()
 }
 
 // SafeHeadListener is called when the safe head is updated.

@@ -29,6 +29,9 @@ func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
 func (m *mockCC) Resume(ctx context.Context) error         { return nil }
 func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
@@ -57,18 +60,11 @@ func (m *mockCC) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
-func (m *mockCC) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	if m.verifiedErr != nil {
-		return eth.BlockID{}, eth.BlockID{}, m.verifiedErr
-	}
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-
 func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if m.outputErr != nil {
 		return eth.Bytes32{}, m.outputErr
 	}
@@ -118,7 +114,9 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 	return 0, nil
 }
 
-func (m *mockCC) Generation() uint64 { return 0 }
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBNotReady
+}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 

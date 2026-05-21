@@ -21,10 +21,3 @@ pub use store_v2::{
     MdbxProofsProviderV2, MdbxProofsStorageV2, V2AccountCursor, V2AccountTrieCursor,
     V2StorageCursor, V2StorageTrieCursor,
 };
-
-use alloy_eips::NumHash;
-
-pub(crate) struct ProofWindowValue {
-    pub earliest: NumHash,
-    pub latest: NumHash,
-}

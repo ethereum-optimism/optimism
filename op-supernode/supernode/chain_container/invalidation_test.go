@@ -305,6 +305,10 @@ func (m *mockEngineForInvalidation) OutputV0AtBlockNumber(ctx context.Context, n
 	return nil, nil
 }
 
+func (m *mockEngineForInvalidation) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
+}
+
 func (m *mockEngineForInvalidation) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
 	m.rewindCalled = true
 	m.rewindTimestamp = timestamp
@@ -323,6 +327,10 @@ func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num 
 	return m.blockRef, m.blockRefErr
 }
 
+func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
 type mockVNForInvalidation struct {
 	stopErr error
@@ -338,6 +346,9 @@ func (m *mockVNForInvalidation) SafeHeadAtL1(ctx context.Context, l1BlockNum uin
 }
 func (m *mockVNForInvalidation) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
+}
+func (m *mockVNForInvalidation) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForInvalidation) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
@@ -61,8 +62,7 @@ type FlashblocksRuntimeSupport struct {
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
 	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
-	Supervisor    Supervisor
+	DependencySet coredepset.DependencySet
 }
 
 type SingleChainRuntime struct {
@@ -135,7 +135,7 @@ type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
 	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
+	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network
 	L1EL      *L1Geth
@@ -143,9 +143,7 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor   Supervisor
-	SecondarySupervisor Supervisor
-	Supernode           *SuperNode
+	Supernode *SuperNode
 
 	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock

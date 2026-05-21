@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // searchCheckpoint is both a checkpoint for searching, as well as a checkpoint for sealing blocks.
@@ -112,7 +114,7 @@ type execChainID struct {
 	chainID eth.ChainID
 }
 
-func newExecChainID(msg types.ExecutingMessage) (execChainID, error) {
+func newExecChainID(msg messages.ExecutingMessage) (execChainID, error) {
 	return execChainID{
 		chainID: msg.ChainID,
 	}, nil
@@ -143,7 +145,7 @@ type execPosition struct {
 	timestamp uint64
 }
 
-func newExecPosition(msg types.ExecutingMessage) (execPosition, error) {
+func newExecPosition(msg messages.ExecutingMessage) (execPosition, error) {
 	return execPosition{
 		blockNum:  msg.BlockNum,
 		logIdx:    msg.LogIdx,
@@ -174,10 +176,10 @@ func (e execPosition) encode() Entry {
 }
 
 type execChecksum struct {
-	checksum types.MessageChecksum
+	checksum messages.MessageChecksum
 }
 
-func newExecChecksum(checksum types.MessageChecksum) execChecksum {
+func newExecChecksum(checksum messages.MessageChecksum) execChecksum {
 	return execChecksum{checksum: checksum}
 }
 
@@ -185,7 +187,7 @@ func newExecChecksumFromEntry(data Entry) (execChecksum, error) {
 	if data.Type() != TypeExecChecksum {
 		return execChecksum{}, fmt.Errorf("%w: attempting to decode execChecksum but was type %s", types.ErrDataCorruption, data.Type())
 	}
-	return newExecChecksum(types.MessageChecksum(data[1:33])), nil
+	return newExecChecksum(messages.MessageChecksum(data[1:33])), nil
 }
 
 // encode creates an executing check entry

@@ -6,12 +6,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type SafeFrontierCheckDeps interface {
 	CandidateCrossSafe(chain eth.ChainID) (candidate types.DerivedBlockRefPair, err error)
 
-	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error)
 }
 
 // HazardSafeFrontierChecks verifies all the hazard blocks are either:

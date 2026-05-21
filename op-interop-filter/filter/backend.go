@@ -16,6 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Backend coordinates chain ingesters and handles CheckAccessList requests.
@@ -36,6 +39,9 @@ type Backend struct {
 	// Passthrough mode: all transactions pass without filtering
 	passthrough bool
 
+	// Compatibility mode for legacy clients that omit executing chainID.
+	legacyCheckAccessListFormat bool
+
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -45,11 +51,12 @@ type Backend struct {
 
 // BackendParams contains parameters for creating a Backend.
 type BackendParams struct {
-	Logger         log.Logger
-	Metrics        metrics.Metricer
-	Chains         map[eth.ChainID]ChainIngester
-	CrossValidator CrossValidator
-	Passthrough    bool
+	Logger                      log.Logger
+	Metrics                     metrics.Metricer
+	Chains                      map[eth.ChainID]ChainIngester
+	CrossValidator              CrossValidator
+	Passthrough                 bool
+	LegacyCheckAccessListFormat bool
 
 	ReorgRecoveryEnabled bool
 }
@@ -59,14 +66,15 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	return &Backend{
-		log:                  params.Logger,
-		metrics:              params.Metrics,
-		chains:               params.Chains,
-		crossValidator:       params.CrossValidator,
-		passthrough:          params.Passthrough,
-		ctx:                  ctx,
-		cancel:               cancel,
-		reorgRecoveryEnabled: params.ReorgRecoveryEnabled,
+		log:                         params.Logger,
+		metrics:                     params.Metrics,
+		chains:                      params.Chains,
+		crossValidator:              params.CrossValidator,
+		passthrough:                 params.Passthrough,
+		legacyCheckAccessListFormat: params.LegacyCheckAccessListFormat,
+		ctx:                         ctx,
+		cancel:                      cancel,
+		reorgRecoveryEnabled:        params.ReorgRecoveryEnabled,
 	}
 }
 
@@ -149,8 +157,8 @@ func (b *Backend) Ready() bool {
 }
 
 // supportedSafetyLevel returns true if the safety level is supported for access list checks.
-func supportedSafetyLevel(level types.SafetyLevel) bool {
-	return level == types.LocalUnsafe || level == types.CrossUnsafe
+func supportedSafetyLevel(level safety.Level) bool {
+	return level == safety.LocalUnsafe || level == safety.CrossUnsafe
 }
 
 // classifyRejectionReason categorizes an error from CheckAccessList into a rejection reason label.
@@ -169,7 +177,7 @@ func classifyRejectionReason(err error) string {
 
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 
 	start := time.Now()
 	defer func() {
@@ -198,20 +206,23 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("invalid_executing_message")
 		return fmt.Errorf("unsupported safety level %s: only %s and %s are supported",
-			minSafety, types.LocalUnsafe, types.CrossUnsafe)
+			minSafety, safety.LocalUnsafe, safety.CrossUnsafe)
 	}
 
 	if _, ok := b.chains[execDescriptor.ChainID]; !ok {
-		b.metrics.RecordCheckAccessList(false)
-		b.metrics.RecordCheckAccessListRejection("unknown_chain")
-		return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, types.ErrUnknownChain)
+		if !b.legacyCheckAccessListFormat {
+			b.metrics.RecordCheckAccessList(false)
+			b.metrics.RecordCheckAccessListRejection("unknown_chain")
+			return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, types.ErrUnknownChain)
+		}
+		b.log.Debug("Supporting legacy check access list format", "executing_chain", execDescriptor.ChainID)
 	}
 
 	remaining := inboxEntries
 	for len(remaining) > 0 {
-		var access types.Access
+		var access messages.Access
 		var err error
-		remaining, access, err = types.ParseAccess(remaining)
+		remaining, access, err = messages.ParseAccess(remaining)
 		if err != nil {
 			b.metrics.RecordCheckAccessList(false)
 			b.metrics.RecordCheckAccessListRejection("parse_error")

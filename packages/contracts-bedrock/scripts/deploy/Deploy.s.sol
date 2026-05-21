@@ -405,7 +405,7 @@ contract Deploy is Deployer {
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0,
+            initBond: DEFAULT_INIT_BOND,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({

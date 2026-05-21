@@ -46,6 +46,7 @@ type FaultDisputeGame struct {
 	L2SequenceNumber func() TypedCall[*big.Int]    `sol:"l2SequenceNumber"`
 	Status           func() TypedCall[uint8]       `sol:"status"`
 	GameType         func() TypedCall[uint32]      `sol:"gameType"`
+	CreatedAt        func() TypedCall[uint64]      `sol:"createdAt"`
 
 	// IFaultDisputeGame.sol read methods
 	AbsolutePrestate       func() TypedCall[common.Hash]                                              `sol:"absolutePrestate"`

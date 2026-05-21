@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -43,7 +44,7 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	depSet := &depset.JSONDependencySetLoader{Path: "test-dep-set"}
+	depSet := &coredepset.JSONDependencySetLoader{Path: "test-dep-set"}
 	rollupCfgSet := &depset.JSONRollupConfigSetLoader{Path: "test-rollup-set"}
 	fullCfgSet := &depset.FullConfigSetSourceMerged{RollupConfigSetSource: rollupCfgSet, DependencySetSource: depSet}
 	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, fullCfgSet, ValidDatadir)

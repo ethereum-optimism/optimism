@@ -371,7 +371,6 @@ func buildMixedOpRethNode(
 		args,
 		"--proofs-history",
 		"--proofs-history.window=10000",
-		"--proofs-history.prune-interval=1m",
 		"--proofs-history.storage-path="+proofHistoryDir,
 		"--proofs-history.storage-version="+storageVersion,
 	)
@@ -517,8 +516,6 @@ func startMixedKonaNode(
 		name:               clKey,
 		chainID:            l2Net.ChainID(),
 		userRPC:            "",
-		interopEndpoint:    "",
-		interopJwtSecret:   eth.Bytes32{},
 		execPath:           execPath,
 		args:               []string{"node"},
 		env:                envVars,

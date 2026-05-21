@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 const testDefaultTimestamp = 100
@@ -15,16 +17,16 @@ const testDefaultTimestamp = 100
 var errUnexpectedChain = errors.New("unexpected chain")
 
 type mockCycleCheckDeps struct {
-	openBlockFn func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error)
+	openBlockFn func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error)
 }
 
-func (m *mockCycleCheckDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
+func (m *mockCycleCheckDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	return m.openBlockFn(chainID, blockNum)
 }
 
 type chainBlockDef struct {
 	logCount uint32
-	messages map[uint32]*types.ExecutingMessage
+	messages map[uint32]*messages.ExecutingMessage
 	error    error
 }
 
@@ -36,8 +38,8 @@ type hazardCycleChecksTestCase struct {
 	msg               string
 
 	// Optional overrides
-	hazards     map[eth.ChainID]types.BlockSeal
-	openBlockFn func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error)
+	hazards     map[eth.ChainID]messages.BlockSeal
+	openBlockFn func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error)
 }
 
 func runHazardCycleChecksTestCaseGroup(t *testing.T, group string, tests []hazardCycleChecksTestCase) {
@@ -51,7 +53,7 @@ func runHazardCycleChecksTestCaseGroup(t *testing.T, group string, tests []hazar
 func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 	// Create mocked dependencies
 	deps := &mockCycleCheckDeps{
-		openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
+		openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 			// Use override if provided
 			if tc.openBlockFn != nil {
 				return tc.openBlockFn(chainID, blockNum)
@@ -70,13 +72,13 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 	}
 
 	// Generate hazards map automatically if not explicitly provided
-	var hazards map[eth.ChainID]types.BlockSeal
+	var hazards map[eth.ChainID]messages.BlockSeal
 	if tc.hazards != nil {
 		hazards = tc.hazards
 	} else {
-		hazards = make(map[eth.ChainID]types.BlockSeal)
+		hazards = make(map[eth.ChainID]messages.BlockSeal)
 		for chainID := range tc.chainBlocks {
-			hazards[chainID] = types.BlockSeal{Number: 1}
+			hazards[chainID] = messages.BlockSeal{Number: 1}
 		}
 	}
 
@@ -99,12 +101,12 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 	}
 }
 
-func execMsg(chainID eth.ChainID, logIdx uint32) *types.ExecutingMessage {
+func execMsg(chainID eth.ChainID, logIdx uint32) *messages.ExecutingMessage {
 	return execMsgWithTimestamp(chainID, logIdx, testDefaultTimestamp)
 }
 
-func execMsgWithTimestamp(chainID eth.ChainID, logIdx uint32, timestamp uint64) *types.ExecutingMessage {
-	return &types.ExecutingMessage{
+func execMsgWithTimestamp(chainID eth.ChainID, logIdx uint32, timestamp uint64) *messages.ExecutingMessage {
+	return &messages.ExecutingMessage{
 		ChainID:   chainID,
 		LogIdx:    logIdx,
 		Timestamp: timestamp,
@@ -114,7 +116,7 @@ func execMsgWithTimestamp(chainID eth.ChainID, logIdx uint32, timestamp uint64) 
 var emptyChainBlocks = map[eth.ChainID]chainBlockDef{
 	eth.ChainIDFromUInt64(1): {
 		logCount: 0,
-		messages: map[uint32]*types.ExecutingMessage{},
+		messages: map[uint32]*messages.ExecutingMessage{},
 	},
 }
 
@@ -127,7 +129,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 		{
 			name:        "empty hazards",
 			chainBlocks: emptyChainBlocks,
-			hazards:     make(map[eth.ChainID]types.BlockSeal),
+			hazards:     make(map[eth.ChainID]messages.BlockSeal),
 			expectErr:   nil,
 			msg:         "expected no error when there are no hazards",
 		},
@@ -148,7 +150,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 		{
 			name:        "failed to open block error",
 			chainBlocks: emptyChainBlocks,
-			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
+			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 				return eth.BlockRef{}, 0, nil, errTestOpenBlock
 			},
 			expectErrContains: "failed to open block",
@@ -158,8 +160,8 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			name:        "block mismatch error",
 			chainBlocks: emptyChainBlocks,
 			// openBlockFn returns a block number that doesn't match the expected block number.
-			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
-				return eth.BlockRef{Number: blockNum + 1}, 0, make(map[uint32]*types.ExecutingMessage), nil
+			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
+				return eth.BlockRef{Number: blockNum + 1}, 0, make(map[uint32]*messages.ExecutingMessage), nil
 			},
 			expectErr: errInconsistentBlockSeal,
 			msg:       "expected error due to block mismatch",
@@ -169,20 +171,20 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(2), 0),
 						1: execMsg(eth.ChainIDFromUInt64(2), 1),
 					},
 				},
 				eth.ChainIDFromUInt64(2): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 0),
 						1: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
 				},
 			},
-			hazards: map[eth.ChainID]types.BlockSeal{
+			hazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {Number: 1},
 				eth.ChainIDFromUInt64(2): {Number: 1},
 			},
@@ -194,7 +196,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						5: execMsg(eth.ChainIDFromUInt64(1), 0), // Invalid index >= logCount.
 					},
 				},
@@ -207,7 +209,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 1,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 0), // Points at itself.
 					},
 				},
@@ -220,12 +222,12 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(2), 0), // References chain 2 which isn't in hazards.
 					},
 				},
 			},
-			hazards: map[eth.ChainID]types.BlockSeal{
+			hazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {Number: 1}, // Only include chain 1.
 			},
 			expectErr: ErrExecMsgUnknownChain,
@@ -248,7 +250,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 1,
-					messages: map[uint32]*types.ExecutingMessage{},
+					messages: map[uint32]*messages.ExecutingMessage{},
 				},
 			},
 			msg: "expected no cycle found for single basic log",
@@ -258,7 +260,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 0),
 					},
 				},
@@ -270,7 +272,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{},
+					messages: map[uint32]*messages.ExecutingMessage{},
 				},
 			},
 			msg: "expected no cycle found for two basic logs",
@@ -280,7 +282,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 0),
 						2: execMsg(eth.ChainIDFromUInt64(1), 0),
 					},
@@ -293,7 +295,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 0),
 						2: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
@@ -306,7 +308,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 0),
 					},
 				},
@@ -318,7 +320,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 1,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(2), 0),
 					},
 				},
@@ -334,7 +336,7 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsgWithTimestamp(eth.ChainIDFromUInt64(1), 1, testDefaultTimestamp+1),
 					},
 				},
@@ -356,7 +358,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 2),
 					},
 				},
@@ -371,7 +373,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 2),
 						2: execMsg(eth.ChainIDFromUInt64(1), 0),
 					},
@@ -386,7 +388,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 1),
 						1: execMsg(eth.ChainIDFromUInt64(1), 0),
 					},
@@ -401,7 +403,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 2),
 						2: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
@@ -417,7 +419,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 4,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 3),
 						3: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
@@ -432,13 +434,13 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(2), 0),
 					},
 				},
 				eth.ChainIDFromUInt64(2): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
 				},
@@ -455,7 +457,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 4,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 2), // Points to log 2
 						2: execMsg(eth.ChainIDFromUInt64(1), 3), // Points to log 3
 						3: execMsg(eth.ChainIDFromUInt64(1), 1), // Points back to log 1
@@ -472,7 +474,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 10,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 5), // Points to log 5
 						5: execMsg(eth.ChainIDFromUInt64(1), 2), // Points back to log 2 which is adjacent to log 1
 					},
@@ -487,20 +489,20 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(2), 1),
 					},
 				},
 				eth.ChainIDFromUInt64(2): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						1: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
 				},
 				eth.ChainIDFromUInt64(3): {},
 			},
 			expectErr: ErrCycle,
-			hazards: map[eth.ChainID]types.BlockSeal{
+			hazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {Number: 1},
 				eth.ChainIDFromUInt64(2): {Number: 1},
 				eth.ChainIDFromUInt64(3): {Number: 1},
@@ -513,7 +515,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
 				},
@@ -527,7 +529,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 3,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 2),
 					},
 				},
@@ -541,13 +543,13 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			chainBlocks: map[eth.ChainID]chainBlockDef{
 				eth.ChainIDFromUInt64(1): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(2), 0),
 					},
 				},
 				eth.ChainIDFromUInt64(2): {
 					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
+					messages: map[uint32]*messages.ExecutingMessage{
 						0: execMsg(eth.ChainIDFromUInt64(1), 1),
 					},
 				},
@@ -568,7 +570,7 @@ func TestHazardCycleChecksLargeGraphNoCycle(t *testing.T) {
 	// Create a large but acyclic graph
 	chainBlocks := make(map[eth.ChainID]chainBlockDef)
 	for i := 1; i <= largeGraphChains; i++ {
-		msgs := make(map[uint32]*types.ExecutingMessage)
+		msgs := make(map[uint32]*messages.ExecutingMessage)
 		// Create a chain of dependencies across chains
 		if i > 1 {
 			for j := uint32(0); j < largeGraphLogsPerChain; j++ {
@@ -598,7 +600,7 @@ func TestHazardCycleChecksLargeGraphCycle(t *testing.T) {
 
 	chainBlocks := make(map[eth.ChainID]chainBlockDef)
 	for i := 1; i <= largeGraphChains; i++ {
-		msgs := make(map[uint32]*types.ExecutingMessage)
+		msgs := make(map[uint32]*messages.ExecutingMessage)
 		// Create a chain of dependencies across chains
 		if i > 1 {
 			for j := uint32(0); j < largeGraphLogsPerChain; j++ {

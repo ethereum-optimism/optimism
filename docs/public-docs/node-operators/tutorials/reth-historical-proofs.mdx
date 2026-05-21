@@ -1,26 +1,37 @@
 ---
 title: Running op-reth with Historical Proofs
-description: Learn how to initialize and run op-reth with the historical proofs ExEx for efficient historical state proofs.
+description: Learn how to initialize and run op-reth with the historical proof store (v2) for efficient historical state proofs.
 ---
 
-As part of the op-geth deprecation, all existing op-geth services are migrating to op-reth. This guide covers how to set up an op-reth node with the **proofs-history** Execution Extension (ExEx) to efficiently compute historical proofs within a configurable retention window.
+As part of the op-geth deprecation, all existing op-geth services are migrating to op-reth. This guide covers how to set up an op-reth node with the **proofs-history** historical proof store, using storage format **v2**, to efficiently compute historical proofs within a configurable retention window.
+
+<Info>
+**Do you need this tutorial?** Withdrawal proving on op-reth uses `eth_getProof` against historical L2 state, so both permissioned and permissionless chains need historical state exposed — but the required lookback differs sharply:
+
+- **Permissioned chains** only need a few hours of lookback (covering your dispute-game publishing cadence with margin). The lighter `--rpc.eth-proof-window <num_blocks>` flag is sufficient on its own — no separate proofs database is needed, and **this tutorial does not apply**. See the [op-reth configuration reference](/node-operators/reference/op-reth-config#rpc-eth-proof-window) for that flag.
+- **Permissionless chains** need ~28 days of lookback. `--rpc.eth-proof-window` becomes too slow and memory-hungry at that range, so follow this tutorial to set up `--proofs-history` (v2).
+</Info>
+
+<Info>
+Use historical proofs storage format v2 by setting `--proofs-history.storage-version=v2` when running `op-reth node`.
+</Info>
 
 ## Problem
 
-Reth's default `eth_getProof` implementation works by reverting in-memory state diffs backward from the current tip. For blocks older than ~7 days, this causes unbounded memory growth and out-of-memory (OOM) crashes — a critical issue for infrastructure serving rollup fault proofs and indexers that query historical state.
+Reth's default eth_getProof implementation works by reverting in-memory state diffs backward from the current tip. The --rpc.eth-proof-window <num_blocks> flag (default 0) controls how far back from the current tip the node can serve eth_getProof responses. For withdrawal proving to work, the window must reach back to the block referenced by any dispute game created after the withdrawal was submitted on L2.
 
 ## Solution
 
-The **proofs-history** ExEx implements a **Versioned State Store** that tracks intermediate Merkle Patricia Trie nodes tagged by block number. This enables direct O(1) lookups of proofs at any historical block within a configurable retention window, without reverting state.
+The **proofs-history** subsystem implements a **Versioned State Store** that tracks intermediate Merkle Patricia Trie nodes tagged by block number. This enables direct O(1) lookups of proofs at any historical block within a configurable retention window, without reverting state.
 
-The ExEx processes blocks asynchronously, so it adds zero overhead to sync speed and negligible tip latency.
+The subsystem processes blocks asynchronously, so it adds zero overhead to sync speed and negligible tip latency.
 
 ## Architecture
 
 ```
 op-reth node
 ├── Standard reth pipeline (sync, EVM, state)
-├── proofs-history ExEx (ingests committed blocks → versioned trie store)
+├── proofs-history store (v2) (ingests committed blocks → versioned trie store)
 ├── Pruner task (background, removes data outside retention window)
 └── RPC overrides (eth_getProof, debug_executePayload, debug_executionWitness)
 ```
@@ -38,7 +49,7 @@ A `BlockChangeSet` reverse index enables efficient pruning: given a block number
 
 ## Prerequisites
 
-*   op-reth v2.1.0 or above.
+*   [op-reth v2.2.3 or later](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3) — required to enable historical proofs v2 (`--proofs-history.storage-version=v2`).
 *   An op-reth datadir, either initialized from genesis or restored from a [snapshot](https://datadirs.optimism.io/) (covered in the next two sections).
 *   Basic understanding of [execution client configuration](/node-operators/guides/configuration/execution-clients).
 *   Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time).
@@ -82,17 +93,18 @@ If you prefer to start from a pre-synchronized database snapshot instead of sync
 
 ### 2. Initialize Proofs Storage
 
-Initialize the separate storage used by the ExEx to store historical proofs. This step is **required** before starting the node with `--proofs-history`, even when reusing an existing op-reth datadir or restoring from a snapshot.
+Initialize the separate storage used by the historical proof store to persist historical proofs. This step is **required** before starting the node with `--proofs-history`, even when reusing an existing op-reth datadir or restoring from a snapshot.
 
 ```bash
 ./target/release/op-reth proofs init \
   --datadir="/path/to/datadir" \
   --chain="optimism" \
-  --proofs-history.storage-path="/path/to/proofs-db"
+  --proofs-history.storage-path="/path/to/proofs-db" \
+  --proofs-history.storage-version=v2
 ```
 
 <Info>
-`proofs init` completes in seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for fault proofs at default settings), the node must run continuously for at least that long after initialization.
+The first time `proofs init` runs, it takes minutes to hours to complete. Subsequent invocations should only take seconds. It does **not** backfill historical proofs — it simply marks the current chain tip as the starting point of the proofs database. Once the node is running with `--proofs-history`, the proofs database fills forward as new blocks are committed. To serve proofs across the full retention window (e.g., 30 days for permissionless fault proofs at default settings), the node must run continuously for at least that long after initialization. For that reason it is recommended to start from a snapshot whose tip is old enough to cover the required time window, so that when the node starts syncing from the snapshot's tip, the full window is covered.
 </Info>
 
 ## Running op-reth
@@ -105,6 +117,7 @@ Once initialized, you can start the execution client with the `--proofs-history`
   --chain="optimism" \
   --proofs-history \
   --proofs-history.storage-path="/path/to/proofs-db" \
+  --proofs-history.storage-version=v2 \
   --http \
   --http.port=8545 \
   --http.addr=0.0.0.0 \
@@ -126,6 +139,10 @@ Once initialized, you can start the execution client with the `--proofs-history`
 
 <Info>
 Make sure to include all other standard flags required for your network (e.g., specific bootnodes). See the configuration reference for details.
+</Info>
+
+<Info>
+The default `--proofs-history.window` is **1,296,000 blocks**, corresponding to ~30 days at 2s block times. For chains with a different block time, set `--proofs-history.window=<num_blocks>` explicitly using `target_retention_seconds / block_time_seconds`.
 </Info>
 
 ## Running Consensus Node
@@ -216,6 +233,7 @@ When this happens, op-reth exits with an error indicating the number of blocks t
 op-reth proofs prune \
   --datadir /path/to/reth-datadir \
   --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.storage-version v2 \
   --proofs-history.window 1296000
 ```
 
@@ -227,6 +245,7 @@ Recover from corruption by reverting the proofs database to a specific block:
 op-reth proofs unwind \
   --datadir /path/to/reth-datadir \
   --proofs-history.storage-path /path/to/proofs-db \
+  --proofs-history.storage-version v2 \
   --target <BLOCK_NUMBER>
 ```
 
@@ -247,5 +266,6 @@ Benchmarked on Base Sepolia (~700k block window, WETH contract):
 
 ## Next steps
 
+*   See the [op-reth v2.2.3 release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3) for the change that introduced the historical proof store (v2).
 *   See the [op-reth historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config) for the full set of `--proofs-history.*` flags, management commands, RPC endpoints, and Prometheus metrics.
 *   See the [op-reth configuration reference](/node-operators/reference/op-reth-config) for all standard op-reth flags inherited by this fork.

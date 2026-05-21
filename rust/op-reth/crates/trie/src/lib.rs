@@ -19,6 +19,7 @@ use reth_ethereum_primitives as _;
 pub mod api;
 pub use api::{
     BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
+    ProofWindowRange,
 };
 
 pub mod initialize;
@@ -49,8 +50,6 @@ pub type OpProofsStorage<S> = S;
 pub mod proof;
 
 pub mod provider;
-
-pub mod live;
 
 pub mod engine;
 pub use engine::EngineHandle;

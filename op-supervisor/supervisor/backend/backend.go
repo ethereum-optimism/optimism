@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -32,6 +33,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 type SupervisorBackend struct {
@@ -49,7 +53,7 @@ type SupervisorBackend struct {
 	cfgSet depset.FullConfigSet
 
 	// linker checks if the configuration constraints of a message (check chain ID + timestamp)
-	linker depset.LinkChecker
+	linker coredepset.LinkChecker
 
 	// chainDBs is the primary interface to the databases, including logs, derived-from information and L1 finalization
 	chainDBs *db.ChainsDB
@@ -153,7 +157,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		m:          m,
 		dataDir:    cfg.Datadir,
 		cfgSet:     cfgSet,
-		linker:     depset.LinkerFromConfig(cfgSet),
+		linker:     coredepset.LinkerFromConfig(cfgSet),
 		chainDBs:   chainsDBs,
 		l1Accessor: l1Accessor,
 		// For testing we can avoid running the processors.
@@ -484,7 +488,7 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret
 // Internal methods, for processors
 // ----------------------------
 
-func (su *SupervisorBackend) DependencySet() depset.DependencySet {
+func (su *SupervisorBackend) DependencySet() coredepset.DependencySet {
 	return su.cfgSet
 }
 
@@ -492,9 +496,9 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // ----------------------------
 
 // If the initiating message exists, the block it is included in is returned.
-func (su *SupervisorBackend) checkAccessWithDB(acc types.Access) (eth.BlockID, error) {
+func (su *SupervisorBackend) checkAccessWithDB(acc messages.Access) (eth.BlockID, error) {
 	// Check if message exists
-	bl, err := su.chainDBs.Contains(acc.ChainID, types.ContainsQuery{
+	bl, err := su.chainDBs.Contains(acc.ChainID, messages.ContainsQuery{
 		Timestamp: acc.Timestamp,
 		BlockNum:  acc.BlockNumber,
 		LogIdx:    acc.LogIndex,
@@ -507,7 +511,7 @@ func (su *SupervisorBackend) checkAccessWithDB(acc types.Access) (eth.BlockID, e
 	return bl.ID(), nil
 }
 
-func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc types.Access, msgBlockFromDB eth.BlockID) {
+func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc messages.Access, msgBlockFromDB eth.BlockID) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
 	defer cancel()
 	msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
@@ -528,13 +532,13 @@ func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc t
 // fetched, receipts are fetched, log exists) but the log checksum does not
 // match. Returns ad-hoc errors for the mechanical failures listed above. Returns
 // the block ID and nil if the log is found and the checksum matches.
-func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc types.Access) (eth.BlockID, error) {
+func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc messages.Access) (eth.BlockID, error) {
 	src, ok := su.syncSources.Get(acc.ChainID)
 	if !ok {
 		return eth.BlockID{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, acc.ChainID)
 	}
 
-	blockSeal, err := src.Contains(ctx, types.ContainsQuery{
+	blockSeal, err := src.Contains(ctx, messages.ContainsQuery{
 		Timestamp: acc.Timestamp,
 		BlockNum:  acc.BlockNumber,
 		LogIdx:    acc.LogIndex,
@@ -549,17 +553,17 @@ func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc types.A
 
 // checkSafety is a helper method to check if a block has the given safety level.
 // It is already assumed to exist in the canonical unsafe chain.
-func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel types.SafetyLevel) error {
+func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel safety.Level) error {
 	switch safetyLevel {
-	case types.LocalUnsafe:
+	case safety.LocalUnsafe:
 		return nil // msg exists, nothing more to check
-	case types.CrossUnsafe:
+	case safety.CrossUnsafe:
 		return su.chainDBs.IsCrossUnsafe(chainID, blockID)
-	case types.LocalSafe:
+	case safety.LocalSafe:
 		return su.chainDBs.IsLocalSafe(chainID, blockID)
-	case types.CrossSafe:
+	case safety.CrossSafe:
 		return su.chainDBs.IsCrossSafe(chainID, blockID)
-	case types.Finalized:
+	case safety.Finalized:
 		return su.chainDBs.IsFinalized(chainID, blockID)
 	default:
 		return types.ErrConflict
@@ -567,7 +571,7 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 }
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, execDescr types.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescr messages.ExecutingDescriptor) error {
 	// Check if failsafe is enabled
 	if su.isFailsafeEnabled() {
 		su.logger.Debug("Failsafe is enabled, rejecting access-list check")
@@ -575,7 +579,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	}
 
 	switch minSafety {
-	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
+	case safety.LocalUnsafe, safety.CrossUnsafe, safety.LocalSafe, safety.CrossSafe, safety.Finalized:
 		// valid safety level
 	default:
 		return ErrUnexpectedMinSafetyLevel
@@ -591,7 +595,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("stopped access-list check early: %w", err)
 		}
-		remaining, acc, err := types.ParseAccess(entries)
+		remaining, acc, err := messages.ParseAccess(entries)
 		if err != nil {
 			return fmt.Errorf("failed to read data: %w", err)
 		}

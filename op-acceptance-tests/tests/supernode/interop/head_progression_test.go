@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestSupernodeInterop_SafeHeadProgression tests that the cross-safe head
@@ -49,19 +50,19 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	// check safe heads get to at least that height,
 	// let local safe heads run ahead
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
-		sys.L2BCL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
-		sys.L2ACL.ReachedFn(types.CrossSafe, initialTargetBlockNumA-1, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, initialTargetBlockNumB-1, attempts),
+		sys.L2ACL.ReachedFn(safety.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(safety.CrossSafe, initialTargetBlockNumA-1, attempts),
+		sys.L2BCL.ReachedFn(safety.CrossSafe, initialTargetBlockNumB-1, attempts),
 	)
 
 	// Expect cross safe and finalized to stall since we paused the interop activity
 	numAttempts := 2 // implies a 4s wait
 	dsl.CheckAll(t,
-		sys.L2ACL.NotAdvancedFn(types.CrossSafe, numAttempts),
-		sys.L2BCL.NotAdvancedFn(types.CrossSafe, numAttempts),
-		sys.L2ACL.NotAdvancedFn(types.Finalized, numAttempts),
-		sys.L2BCL.NotAdvancedFn(types.Finalized, numAttempts),
+		sys.L2ACL.NotAdvancedFn(safety.CrossSafe, numAttempts),
+		sys.L2BCL.NotAdvancedFn(safety.CrossSafe, numAttempts),
+		sys.L2ACL.NotAdvancedFn(safety.Finalized, numAttempts),
+		sys.L2BCL.NotAdvancedFn(safety.Finalized, numAttempts),
 	)
 
 	// Check EL labels - cross-safeand finalized should be
@@ -76,11 +77,13 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	require.Less(t, finalizedB.Number, initialTargetBlockNumB)
 
 	// Resume interop verification
-	// expect cross safe to catch up
+	// expect cross safe to catch up on both CL and EL
 	sys.Supernode.ResumeInterop()
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, finalTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(safety.CrossSafe, finalTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(safety.CrossSafe, finalTargetBlockNum, attempts),
+		sys.L2ELA.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
+		sys.L2ELB.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
 	)
 
 	// check EL labels
@@ -110,12 +113,14 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	sys.AdvanceTime(90 * time.Second)
 	sys.L1Network.WaitForFinalization()
 
-	// Wait for finalized heads to catch up to or past the snapshotted safe heads
-	// Finalized advancement depends on L1 finality, so use more attempts
+	// Wait for finalized heads (CL and EL) to catch up to or past the snapshotted
+	// safe heads. Finalized advancement depends on L1 finality, so use more attempts.
 	finalizedAttempts := 30
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.Finalized, snapshotSafeA, finalizedAttempts),
-		sys.L2BCL.ReachedFn(types.Finalized, snapshotSafeB, finalizedAttempts),
+		sys.L2ACL.ReachedFn(safety.Finalized, snapshotSafeA, finalizedAttempts),
+		sys.L2BCL.ReachedFn(safety.Finalized, snapshotSafeB, finalizedAttempts),
+		sys.L2ELA.ReachedFn(eth.Finalized, snapshotSafeA, finalizedAttempts),
+		sys.L2ELB.ReachedFn(eth.Finalized, snapshotSafeB, finalizedAttempts),
 	)
 
 	// Verify finalized heads on EL
@@ -161,8 +166,8 @@ func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
 
 	// Wait for initial sync
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.LocalSafe, initialTargetBlockNum, attempts),
-		sys.L2BCL.ReachedFn(types.LocalSafe, initialTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(safety.LocalSafe, initialTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, initialTargetBlockNum, attempts),
 	)
 
 	baselineLocalSafeB := sys.L2BCL.SyncStatus().LocalSafeL2.Number
@@ -172,7 +177,7 @@ func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
 
 	// Chain A advances while B is frozen
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2ACL.ReachedFn(safety.LocalSafe, finalTargetBlockNum, attempts),
 	)
 
 	unevenStatusA := sys.L2ACL.SyncStatus()
@@ -193,13 +198,13 @@ func TestSupernodeInterop_SafeHeadWithUnevenProgress(gt *testing.T) {
 
 	// Chain B catches up
 	dsl.CheckAll(t,
-		sys.L2BCL.ReachedFn(types.LocalSafe, finalTargetBlockNum, attempts),
+		sys.L2BCL.ReachedFn(safety.LocalSafe, finalTargetBlockNum, attempts),
 	)
 
 	// Cross-safe heads advance after chain B catches up
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.CrossSafe, snapshotCrossSafeA+5, attempts),
-		sys.L2BCL.ReachedFn(types.CrossSafe, snapshotCrossSafeA+5, attempts),
+		sys.L2ACL.ReachedFn(safety.CrossSafe, snapshotCrossSafeA+5, attempts),
+		sys.L2BCL.ReachedFn(safety.CrossSafe, snapshotCrossSafeA+5, attempts),
 	)
 
 	// Check EL labels

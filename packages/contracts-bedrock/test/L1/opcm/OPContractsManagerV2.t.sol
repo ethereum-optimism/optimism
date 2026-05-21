@@ -240,6 +240,10 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
+        // Etch code to the dummy ZK verifier address
+        // so that the code length check passes in the StandardValidator.
+        vm.etch(address(0xBEEF), hex"01");
+
         // Set the chain PAO.
         chainPAO = proxyAdmin.owner();
         vm.label(chainPAO, "ProxyAdmin Owner");
@@ -419,19 +423,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
-
-        // When the ZK dispute game dev feature is enabled but no ZK game is registered in the
-        // factory (post-upgrade), the validator will always produce a ZKDG-10 error. Append it
-        // automatically so callers don't have to repeat this everywhere.
-        bool zkFeature = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        bool zkGameDeployed = address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0);
-        if (zkFeature && !zkGameDeployed) {
-            if (bytes(_expectedValidatorErrors).length == 0) {
-                _expectedValidatorErrors = "ZKDG-10";
-            } else {
-                _expectedValidatorErrors = string.concat(_expectedValidatorErrors, ",ZKDG-10");
-            }
-        }
 
         // Expect validator errors if the user provides them. We always expect the L1PAOMultisig
         // and Challenger overrides so we don't need to repeat them here.
@@ -1100,6 +1091,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
+        // Etch code to the dummy ZK verifier address
+        // so that the code length check passes in the StandardValidator.
+        vm.etch(address(0xDEAD), hex"01");
+
         // Rotate to new prestate and verifier.
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
@@ -1141,6 +1136,28 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 0, "ZK init bond should be zero after disable"
+        );
+    }
+
+    /// @notice Tests that enabling a game type with a zero container implementation reverts.
+    function test_upgrade_enabledGameWithZeroImpl_reverts() public {
+        // Zero out the Cannon implementation in the container
+        // Cannon is always enabled in the default v2UpgradeInput.
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        impls.faultDisputeGameImpl = address(0);
+
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.implementations, ()),
+            abi.encode(impls)
+        );
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_ZeroGameImplementation.selector, GameTypes.CANNON
+            )
         );
     }
 
@@ -1789,9 +1806,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // In standard mode, CANNON and CANNON_KONA are disabled → PLDG-10,CKDG-10.
         // In super root mode, SUPER_CANNON_KONA is disabled → SCKDG-SHAPE,SCKDG-10.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
-        if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         // Verify key contracts are deployed.
@@ -1868,6 +1883,18 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that deploy reverts when an enabled game has a zero init bond.
+    function test_deploy_enabledGameZeroBond_reverts() public {
+        // Enable Cannon but keep a zero init bond.
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = 0;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that two different senders deploying with the same saltMixer and l2ChainId
     ///         get different contract addresses.
     function test_deploy_differentSendersDifferentAddresses_succeeds() public {
@@ -1928,11 +1955,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice PERMISSIONED_CANNON as respected game type succeeds during deploy.
     function test_deploy_permissionedCannonRespectedGameType_succeeds() public {
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        bool zk = isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         deployConfig.startingRespectedGameType = permType;
         string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
-        if (zk) expectedErrors = string.concat(expectedErrors, ",ZKDG-10");
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
     }

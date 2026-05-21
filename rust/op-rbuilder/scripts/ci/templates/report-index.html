@@ -1,0 +1,44 @@
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="https://collective.flashbots.net/">
+                <img style="float:right; background:white; margin-left: 64px; width: 100px; height: 100px;" src="https://d33wubrfki0l68.cloudfront.net/ae8530415158fbbbbe17fb033855452f792606c7/fe19f/img/logo.png">
+            </a>
+            <h1>rbuilder benchmarks for <tt>__HEAD_SHA_SHORT__</tt></h1>
+
+            <p>
+            <table class="head-infos pure-table pure-table-striped">
+                <tr>
+                    <td>Date</td>
+                    <td><tt>__DATE__</tt></td>
+                </tr>
+                <tr>
+                    <td>Commit</td>
+                    <td><tt>__HEAD_SHA__</tt></td>
+                </tr>
+                <tr id="head-info-base-sha">
+                    <td>Base SHA</td>
+                    <td><tt>__BASE_SHA__</tt></td>
+                </tr>
+                <tr id="head-info-PR">
+                    <td>PR</td>
+                    <td><a href="__REPO_URL__/pull/__PR_NUMBER__">__PR_NUMBER__</a></td>
+                </tr>
+            </table>
+            </p>
+        </div>
+
+        __CHANGES__
+
+        <hr>
+
+        <div class="content results">
+            <h3>Benchmarks:</h3>
+            __CONTENT__
+        </div>
+
+        <hr>
+
+        __FOOTER__
+    </div>
+</body>

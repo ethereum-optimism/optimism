@@ -15,7 +15,7 @@ use reth_node_api::{EngineApiValidator, EngineTypes};
 use reth_optimism_payload_builder::OpExecData;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
-use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
+use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
@@ -247,7 +247,7 @@ where
 impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
+    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
     EngineT: EngineTypes<ExecutionData = OpExecData>,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<EngineT>,

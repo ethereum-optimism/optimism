@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -19,7 +20,6 @@ import (
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -486,7 +486,7 @@ func (u *EOA) ApproveToken(tokenAddr common.Address, spender common.Address, amo
 type SameTimestampPair struct {
 	eoa         *EOA
 	Trigger     *txintent.InitTrigger
-	Message     suptypes.Message
+	Message     messages.Message
 	eventLogger common.Address
 }
 
@@ -526,8 +526,8 @@ func (u *EOA) PrepareSameTimestampInit(
 	}
 	payload = append(payload, trigger.OpaqueData...)
 
-	msg := suptypes.Message{
-		Identifier: suptypes.Identifier{
+	msg := messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      eventLogger,
 			BlockNumber: expectedBlockNum,
 			LogIndex:    expectedLogIdx,
@@ -580,16 +580,16 @@ func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx
 	return tx.PlannedTx
 }
 
-// PrecomputeExecEventMessage computes the suptypes.Message that a CrossL2Inbox
+// PrecomputeExecEventMessage computes the messages.Message that a CrossL2Inbox
 // ExecutingMessage event will produce when executing the given referenced message.
 // This allows precomputing exec-referencing-exec chains before any blocks are built.
 func PrecomputeExecEventMessage(
-	referencedMsg suptypes.Message,
+	referencedMsg messages.Message,
 	execChainID eth.ChainID,
 	expectedBlockNum uint64,
 	expectedLogIdx uint32,
 	expectedTimestamp uint64,
-) suptypes.Message {
+) messages.Message {
 	// Build ABI-encoded Identifier data (5 x 32-byte words)
 	id := referencedMsg.Identifier
 	data := make([]byte, 0, 32*5)
@@ -606,12 +606,12 @@ func PrecomputeExecEventMessage(
 
 	// payload = topics || data (per LogToMessagePayload)
 	payload := make([]byte, 0, 32+32+32*5)
-	payload = append(payload, suptypes.ExecutingMessageEventTopic.Bytes()...)
+	payload = append(payload, messages.ExecutingMessageEventTopic.Bytes()...)
 	payload = append(payload, referencedMsg.PayloadHash.Bytes()...)
 	payload = append(payload, data...)
 
-	return suptypes.Message{
-		Identifier: suptypes.Identifier{
+	return messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      predeploys.CrossL2InboxAddr,
 			BlockNumber: expectedBlockNum,
 			LogIndex:    expectedLogIdx,
@@ -625,7 +625,7 @@ func PrecomputeExecEventMessage(
 // SubmitExecForMessage returns a planned exec transaction referencing the given message.
 // Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
 // precomputed exec event messages for exec-referencing-exec chains.
-func SubmitExecForMessage(msg suptypes.Message, executor *EOA) *txplan.PlannedTx {
+func SubmitExecForMessage(msg messages.Message, executor *EOA) *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,

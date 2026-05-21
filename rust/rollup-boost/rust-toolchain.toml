@@ -1,0 +1,5 @@
+[toolchain]
+# Bumped from 1.88.0 to match the parent monorepo's rust/rust-toolchain.toml
+# pin (1.94). Required by the alloy / op-revm / op-alloy bumps.
+channel = "1.94.0"
+components = ["rustfmt", "clippy"]

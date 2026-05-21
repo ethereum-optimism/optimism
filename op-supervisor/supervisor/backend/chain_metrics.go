@@ -1,22 +1,22 @@
 package backend
 
 import (
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Metrics interface {
 	CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool)
 	CacheGet(chainID eth.ChainID, label string, hit bool)
 
-	RecordCrossUnsafe(chainID eth.ChainID, ref types.BlockSeal)
-	RecordCrossSafe(chainID eth.ChainID, ref types.BlockSeal)
-	RecordLocalSafe(chainID eth.ChainID, ref types.BlockSeal)
-	RecordLocalUnsafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordCrossUnsafe(chainID eth.ChainID, ref messages.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, ref messages.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, ref messages.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, ref messages.BlockSeal)
 
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
@@ -41,19 +41,19 @@ func newChainMetrics(chainID eth.ChainID, delegate Metrics) *chainMetrics {
 	}
 }
 
-func (c *chainMetrics) RecordCrossUnsafe(seal types.BlockSeal) {
+func (c *chainMetrics) RecordCrossUnsafe(seal messages.BlockSeal) {
 	c.delegate.RecordCrossUnsafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordCrossSafe(seal types.BlockSeal) {
+func (c *chainMetrics) RecordCrossSafe(seal messages.BlockSeal) {
 	c.delegate.RecordCrossSafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordLocalSafe(seal types.BlockSeal) {
+func (c *chainMetrics) RecordLocalSafe(seal messages.BlockSeal) {
 	c.delegate.RecordLocalSafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordLocalUnsafe(seal types.BlockSeal) {
+func (c *chainMetrics) RecordLocalUnsafe(seal messages.BlockSeal) {
 	c.delegate.RecordLocalUnsafe(c.chainID, seal)
 }
 

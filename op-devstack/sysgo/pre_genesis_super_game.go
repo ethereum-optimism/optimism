@@ -22,7 +22,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-const preGenesisRollupStartBlockDelay = uint64(6)
+// Budget (in L1 blocks) for migration + dispute game creation. At blockTime=6s,
+// 10 gives ~60s, above the ~40s worst case observed on CI. See #20869.
+const preGenesisRollupStartBlockDelay = uint64(10)
 
 var preGenesisStartingAnchorRoot = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000042")
 
@@ -116,6 +118,7 @@ func preparePreGenesisSuperGame(
 	)
 	initBond, err := contractio.Read(dgf.InitBonds(uint32(gameType)), t.Ctx())
 	require.NoError(err, "failed to read dispute game init bond")
+
 	receipt, err := contractio.Write(
 		dgf.Create(uint32(gameType), rootClaim, extraData),
 		t.Ctx(),

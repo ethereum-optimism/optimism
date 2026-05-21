@@ -1,0 +1,523 @@
+---
+title: Supernode configuration
+description: Learn how to configure op-supernode to run every chain in an interop dependency set in one process.
+audit-source:
+  - op-supernode/flags/flags.go
+  - op-supernode/flags/virtual_flags.go
+  - op-supernode/cmd/main.go
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/activity/interop/interop.go
+  - op-supernode/README.md
+---
+
+<Info>
+  op-supernode is in active development.
+  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the flag list may evolve before the stable release.
+  For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
+</Info>
+
+This page lists all configuration options for op-supernode.
+op-supernode runs every chain in an interop dependency set together as virtual nodes inside one process, sharing the L1 client and beacon-chain plumbing across them.
+The following options are from the `--help` in [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8).
+
+## Recommendations
+
+### Share the JWT secret across virtual nodes with `--vn.all.l2.jwt-secret`
+
+<Info>
+  Each chain's virtual node needs the JWT secret to authenticate with its execution client over the Engine API.
+  When every chain in the dependency set uses the same secret, set it once at the supernode level and let every virtual node inherit it.
+</Info>
+
+To share a single JWT secret across every virtual node, set `--vn.all.l2.jwt-secret=<path>` (or `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`) at the supernode level.
+This avoids repeating the per-chain `--vn.<chainID>.l2.jwt-secret` line for every chain in `--chains`.
+Use the per-chain form only when a chain's execution client requires its own secret.
+
+### Configure a beacon archiver fallback with `--l1.beacon-fallbacks`
+
+<Warning>
+  Ethereum beacon nodes prune blob sidecars after roughly 18 days.
+  Without an archive fallback configured, a supernode that has been offline past the prune window cannot fetch the blobs it needs to derive missed L1 blocks, and chain containers will stall at the gap.
+</Warning>
+
+Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints.
+Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
+The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
+The `--l1.beacon-archiver` alias points at the same flag and is accepted for compatibility with older deployment scripts.
+
+For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+
+### Configure EL retention for supernode backfill
+
+<Info>
+  The supernode reads historical block and receipt data from each chain's execution client to backfill initiating-message logs after restarts or extended downtime.
+  ELs that aggressively prune receipts will break the backfill path.
+</Info>
+
+Configure each EL to retain at least 7 days of block and receipt history.
+A full archive is not required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags that let you keep block and receipt history without enabling transaction indexing or world-state history.
+
+If you also run op-challenger for permissionless fault proofs, the same ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
+
+### Pair op-supernode with a Light CL fleet
+
+For operators running more than a handful of nodes, the deployable pattern is to concentrate the expensive multi-chain derivation work on supernodes and run the rest of the fleet as op-node or kona-node instances in Light CL mode.
+Each supernode (or HA pool of supernodes) acts as the safe source for a fleet of Light CLs.
+The fleet points at the supernode's `optimism_syncStatus` RPC over the `--l2.follow.source` flag and inherits its safe and finalized view, while keeping its own unsafe-head progression over P2P.
+Larger operators often run several such supernode-plus-fleet groups for blast-radius isolation, regional placement, or staged rollouts.
+
+See the [specialized op-node topology notice](/notices/specialized-node-topology) for the fleet side of this pattern, and the [supernode explainer](/op-stack/interop/supernode#op-supernode-and-light-cl) for the architecture overview.
+
+Set `--disable-p2p=true` on the supernode when the fleet handles unsafe-head P2P gossip on its own.
+Leave P2P enabled (the default) when the supernode is the only node in the topology.
+
+### Run an HA pool of supernodes behind a consensus-aware proxyd
+
+For production reliability, OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
+Point the Light CL fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
+This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
+
+An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
+If the entire supernode tier becomes unreachable, Light CLs keep advancing the unsafe chain over P2P gossip and resume safe-head tracking automatically once the tier is restored.
+
+A single op-supernode is acceptable for evaluation, but treat it as a single point of failure for safe-head progression on every chain it hosts.
+
+## Example configuration
+
+This is a minimum viable configuration for an op-supernode acting as a verifier across OP Sepolia and Unichain Sepolia.
+The example uses environment variables; pass the equivalent `--flag` arguments instead if that fits your deployment better.
+Fill in the placeholders before starting the binary.
+
+<Info>
+  The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
+  For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC` pairs for each chain.
+</Info>
+
+```yaml
+# Dependency set and storage
+OP_SUPERNODE_CHAINS: "11155420,1301"          # OP Sepolia + Unichain Sepolia
+OP_SUPERNODE_DATA_DIR: /var/lib/op-supernode  # default is ./datadir
+
+# Shared L1 access
+OP_SUPERNODE_L1_ETH_RPC: <your-l1-eth-rpc>
+OP_SUPERNODE_L1_BEACON: <your-l1-beacon-rpc>
+OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-l1-beacon-archiver-rpc>
+
+# Shared JWT secret for every virtual node's engine connection
+OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
+
+# Per-chain: chain identity and engine RPC
+OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
+OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: <op-sepolia-engine-rpc>
+OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
+OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: <unichain-sepolia-engine-rpc>
+
+# Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
+OP_SUPERNODE_RPC_ADDR: 0.0.0.0
+OP_SUPERNODE_RPC_PORT: "8545"
+
+# Observability
+OP_SUPERNODE_LOG_LEVEL: info
+OP_SUPERNODE_METRICS_ENABLED: "true"
+OP_SUPERNODE_METRICS_ADDR: 0.0.0.0
+OP_SUPERNODE_METRICS_PORT: "7300"
+```
+
+For chains that are not in op-node's built-in network registry, replace `--vn.<chainID>.network` with `--vn.<chainID>.rollup.config=<path-to-rollup-config.json>`.
+
+## All configuration variables
+
+<Info>
+  Environment-variable names don't always derive mechanically from the CLI flag name.
+  Some env-var suffixes keep op-node's source-level spelling even when the CLI flag was renamed (for example, `--vn.<chainID>.l2` is set by `OP_SUPERNODE_VN_<chainID>_L2_ENGINE_RPC`, not `OP_SUPERNODE_VN_<chainID>_L2`).
+  The per-flag entries below show the correct env-var name alongside the CLI form.
+  When in doubt, run `op-supernode --chains=<chainIDs> --help` for the authoritative name of any flag.
+</Info>
+
+### Dependency set and storage
+
+#### chains
+
+The list of chain IDs that this supernode hosts.
+Required.
+Accepts a comma-separated list or a repeatable flag.
+Each chain ID must have a matching set of per-chain `--vn.<chainID>.*` flags that configure the chain's network identity and execution-client connection.
+
+<Tabs>
+  <Tab title="Syntax">`--chains=<value>`</Tab>
+  <Tab title="Example">`--chains=11155420,1301`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_CHAINS=`</Tab>
+</Tabs>
+
+#### data-dir
+
+Data directory for op-supernode.
+Each chain's SafeDB and P2P state is stored in a `chain-<chainID>` subdirectory under this path so the chains cannot collide.
+The default value is `./datadir`.
+
+<Tabs>
+  <Tab title="Syntax">`--data-dir=<value>`</Tab>
+  <Tab title="Example">`--data-dir=/var/lib/op-supernode`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_DATA_DIR=`</Tab>
+</Tabs>
+
+### Shared L1 access
+
+The supernode shares one L1 client and one beacon client across every chain in the dependency set.
+These are the supernode's own in-process clients (caching layers in front of remote endpoints), not the remote L1 node and beacon node themselves — the supernode connects to existing endpoints rather than running its own.
+Configure these flags at the top level only — the per-chain namespace also includes `--vn.<chainID>.l1` and `--vn.<chainID>.l1.beacon` (because the supernode mechanically clones every op-node flag into the namespace), but the supernode discards them at startup.
+
+#### l1
+
+Address of the L1 user JSON-RPC endpoint.
+Required.
+The `eth` namespace must be enabled on the endpoint.
+
+<Tabs>
+  <Tab title="Syntax">`--l1=<value>`</Tab>
+  <Tab title="Example">`--l1=https://ethereum-rpc-endpoint.example.com`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_L1_ETH_RPC=`</Tab>
+</Tabs>
+
+#### l1.beacon
+
+Address of the L1 beacon-node HTTP endpoint.
+Required for any chain that depends on blob-derived L1 data, which covers every post-Ecotone OP Stack chain.
+
+<Tabs>
+  <Tab title="Syntax">`--l1.beacon=<value>`</Tab>
+  <Tab title="Example">`--l1.beacon=https://ethereum-beacon-endpoint.example.com`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_L1_BEACON=`</Tab>
+</Tabs>
+
+#### l1.beacon-fallbacks
+
+Addresses of L1 beacon-API-compatible HTTP fallback endpoints.
+Used to fetch blob sidecars not available at the primary `--l1.beacon` endpoint, including blobs that have aged past a regular beacon node's prune window.
+The `--l1.beacon-archiver` alias points at the same flag.
+Accepts a comma-separated list or a repeatable flag.
+
+<Tabs>
+  <Tab title="Syntax">`--l1.beacon-fallbacks=<value>`</Tab>
+  <Tab title="Example">`--l1.beacon-fallbacks=https://archiver-1.example.com,https://archiver-2.example.com`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_L1_BEACON_FALLBACKS=`</Tab>
+</Tabs>
+
+#### l1.http-poll-interval
+
+Polling interval for the shared L1 HTTP RPC subscription.
+The default value is `12s`.
+This flag controls the supernode's own L1 client.
+Per-chain `--vn.<chainID>.l1.http-poll-interval` settings are ignored because the shared client owns the resource.
+
+<Tabs>
+  <Tab title="Syntax">`--l1.http-poll-interval=<value>`</Tab>
+  <Tab title="Example">`--l1.http-poll-interval=12s`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_L1_HTTP_POLL_INTERVAL=`</Tab>
+</Tabs>
+
+### Per-chain virtual-node configuration
+
+Every chain in `--chains` runs as a virtual node inside the supernode.
+The supernode reproduces the full op-node flag set under two prefixes so you can configure each chain.
+
+* **`--vn.<chainID>.<flag>`** sets `<flag>` for one specific chain.
+* **`--vn.all.<flag>`** sets `<flag>` for every chain in the dependency set.
+
+The environment-variable form follows the same prefix rule: `OP_SUPERNODE_VN_<CHAINID>_<SUFFIX>` for one chain and `OP_SUPERNODE_VN_ALL_<SUFFIX>` for every chain.
+The `<SUFFIX>` is the op-node flag's source-level environment-variable name (see the note at the top of [All configuration variables](#all-configuration-variables) for why it doesn't always match the CLI flag).
+
+<Info>
+  A few flags are owned by the supernode rather than by individual virtual nodes.
+  Setting them under `--vn.<chainID>.*` or `--vn.all.*` has no effect.
+
+  * `--l1` and `--l1.beacon`: the shared L1 plumbing replaces any per-chain L1 setting at startup.
+  * `--l1.http-poll-interval`: the shared L1 client owns the polling cadence; the supernode logs a warning if a per-chain value is set.
+  * `--log.*`: the supernode and every virtual node share one logger; top-level `--log.*` configures it. Per-chain `--vn.*.log.*` flags appear in the namespace but are silently ignored. (`--metrics.*` is different: top-level configures the supernode's own metrics service, but per-chain `--vn.*.metrics.*` configures each virtual node's own metrics, which are fanned into the same endpoint with per-chain Prometheus labels.)
+  * P2P listen ports: see the [P2P](#p2p) section.
+</Info>
+
+The flags most operators need to set per chain are listed below.
+For the full set of op-node flags available under the `--vn.*` namespace, see the [op-node configuration reference](/node-operators/reference/op-node-config) and the [consensus client configuration page](/node-operators/guides/configuration/consensus-clients).
+
+#### vn.&lt;chainID&gt;.network
+
+Names the chain's known network configuration so the supernode can load the matching rollup config from op-node's built-in registry.
+Use this for any chain registered with op-node (`op-mainnet`, `op-sepolia`, `unichain-sepolia`, etc.).
+
+<Tabs>
+  <Tab title="Syntax">`--vn.<chainID>.network=<value>`</Tab>
+  <Tab title="Example">`--vn.11155420.network=op-sepolia`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_NETWORK=`</Tab>
+</Tabs>
+
+#### vn.&lt;chainID&gt;.rollup.config
+
+Path to a rollup configuration JSON file for chains that are not in op-node's built-in network registry.
+Use this instead of `--vn.<chainID>.network` for custom devnets or any chain you have a rollup config file for.
+
+<Tabs>
+  <Tab title="Syntax">`--vn.<chainID>.rollup.config=<value>`</Tab>
+  <Tab title="Example">`--vn.420120037.rollup.config=/etc/op/rollup-config.json`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_ROLLUP_CONFIG=`</Tab>
+</Tabs>
+
+#### vn.&lt;chainID&gt;.l2
+
+Address of the engine-API endpoint for the chain's execution client.
+Each chain needs its own execution client; one execution client cannot back two chains.
+
+<Tabs>
+  <Tab title="Syntax">`--vn.<chainID>.l2=<value>`</Tab>
+  <Tab title="Example">`--vn.11155420.l2=http://op-sepolia-geth:8551`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC=`</Tab>
+</Tabs>
+
+#### vn.all.l2.jwt-secret
+
+Path to the JWT secret used to authenticate every virtual node's engine connection to its execution client.
+Set this at the `vn.all.*` level when every execution client in the dependency set shares one secret.
+Use the per-chain `--vn.<chainID>.l2.jwt-secret` form only when a chain's execution client requires its own secret.
+
+<Tabs>
+  <Tab title="Syntax">`--vn.all.l2.jwt-secret=<value>`</Tab>
+  <Tab title="Example">`--vn.all.l2.jwt-secret=/etc/op/jwt-secret.txt`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH=`</Tab>
+</Tabs>
+
+#### vn.&lt;chainID&gt;.l2.enginekind
+
+Selects the engine-client variant so the supernode can apply engine-API behavior tailored to each.
+Set to `reth` when the chain's execution client is op-reth; leave at the default for op-geth.
+Supported values are `geth` and `reth`.
+The default value is `geth`.
+
+<Tabs>
+  <Tab title="Syntax">`--vn.<chainID>.l2.enginekind=<value>`</Tab>
+  <Tab title="Example">`--vn.11155420.l2.enginekind=reth`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_KIND=`</Tab>
+</Tabs>
+
+### P2P
+
+P2P is enabled at the supernode level for every chain, or disabled for every chain.
+Per-chain enable/disable is not supported.
+
+#### disable-p2p
+
+Disables P2P for every chain.
+The default value is `false`.
+Use this in topologies where unsafe-head P2P gossip is handled by other nodes in the fleet (for example, a Light CL fleet) and the supernode only needs to derive from L1.
+
+<Tabs>
+  <Tab title="Syntax">`--disable-p2p=<value>`</Tab>
+  <Tab title="Example">`--disable-p2p=true`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_DISABLE_P2P=`</Tab>
+</Tabs>
+
+#### Per-chain listen ports
+
+When P2P is enabled, each virtual node's P2P listen port defaults to `0` (dynamic) to prevent port collisions across chains.
+Setting `--vn.all.p2p.listen.tcp` or `--vn.all.p2p.listen.udp` to a non-zero value is rejected because the same port cannot be reused across virtual nodes.
+
+To pin static ports per chain, set both the TCP (RLPx) and UDP (discovery v5) ports with the per-chain form:
+
+```bash
+--vn.11155420.p2p.listen.tcp=9222 \
+--vn.11155420.p2p.listen.udp=9222 \
+--vn.1301.p2p.listen.tcp=9223 \
+--vn.1301.p2p.listen.udp=9223
+```
+
+### Interop verification
+
+The interop activity is the part of op-supernode that decides when a chain's blocks have satisfied their cross-chain dependencies.
+For background on how the activity decides between *wait*, *advance*, *invalidate*, and *rewind*, see the [supernode explainer](/op-stack/interop/supernode#cross-chain-message-safety).
+
+#### interop.activation-timestamp
+
+Overrides the interop activation timestamp derived from the loaded rollup configs.
+The default value is `0` (use the value from the rollup config).
+Set this only when activating interop on a custom devnet whose rollup config does not yet carry the activation timestamp.
+
+<Tabs>
+  <Tab title="Syntax">`--interop.activation-timestamp=<value>`</Tab>
+  <Tab title="Example">`--interop.activation-timestamp=1735689600`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_INTEROP_ACTIVATION_TIMESTAMP=`</Tab>
+</Tabs>
+
+#### interop.log-backfill-depth
+
+Extends initiating-message log ingestion backward from the L2 tip by this duration, clamped to the interop activation timestamp.
+Validation still starts only beyond the local safe head; the backfill pre-ingests logs so they are available when validation needs them.
+Requires the interop activation timestamp to be known, either from the rollup config or via `--interop.activation-timestamp`.
+The default value is `0s` (no backfill).
+
+<Tabs>
+  <Tab title="Syntax">`--interop.log-backfill-depth=<value>`</Tab>
+  <Tab title="Example">`--interop.log-backfill-depth=168h`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_INTEROP_LOG_BACKFILL_DEPTH=`</Tab>
+</Tabs>
+
+### JSON-RPC server
+
+The supernode exposes a single JSON-RPC server that multiplexes activity methods and every chain's op-node RPC under one HTTP endpoint.
+Per-chain RPC namespaces are mounted under a `/<chainID>/` path prefix on the same server.
+For example, `POST /11155420/` reaches the OP Sepolia op-node RPC surface.
+Activity RPC methods (`superroot_atTimestamp`, `supernode_syncStatus`, `heartbeat_check`) are exposed at the root.
+For example, `POST /` with method `superroot_atTimestamp` reaches the SuperRoot activity.
+
+#### rpc.addr
+
+Address the JSON-RPC server binds to.
+The default value is `0.0.0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.addr=<value>`</Tab>
+  <Tab title="Example">`--rpc.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_RPC_ADDR=`</Tab>
+</Tabs>
+
+#### rpc.port
+
+Port the JSON-RPC server listens on.
+The default value is `8545`.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.port=<value>`</Tab>
+  <Tab title="Example">`--rpc.port=8545`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_RPC_PORT=`</Tab>
+</Tabs>
+
+#### rpc.enable-admin
+
+Enables admin-namespace RPC methods.
+The default value is `false`.
+Enable this only on endpoints that are not exposed to untrusted networks.
+
+<Tabs>
+  <Tab title="Syntax">`--rpc.enable-admin=<value>`</Tab>
+  <Tab title="Example">`--rpc.enable-admin=true`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_RPC_ENABLE_ADMIN=`</Tab>
+</Tabs>
+
+### Logging
+
+Logging is configured at the top level.
+The supernode and every virtual node share one logger; per-chain `--vn.*.log.*` flags appear in the namespace but are silently ignored.
+
+#### log.level
+
+Minimum log severity to emit.
+Valid values are `trace`, `debug`, `info`, `warn`, `error`, `crit`.
+The default value is `info`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.level=<value>`</Tab>
+  <Tab title="Example">`--log.level=info`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_LOG_LEVEL=`</Tab>
+</Tabs>
+
+#### log.format
+
+Log output format.
+Valid values are `text`, `terminal`, `logfmt`, `logfmtms`, `json`, `jsonms` (the `*ms` variants append millisecond timestamps).
+The default value is `text`.
+Set `logfmt` or `json` when ingesting logs into a structured-log pipeline; the default `text` is for hand-reading.
+
+<Tabs>
+  <Tab title="Syntax">`--log.format=<value>`</Tab>
+  <Tab title="Example">`--log.format=json`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_LOG_FORMAT=`</Tab>
+</Tabs>
+
+#### log.color
+
+Forces ANSI color codes in `text` log output regardless of whether the stream is a terminal.
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--log.color=<value>`</Tab>
+  <Tab title="Example">`--log.color=true`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_LOG_COLOR=`</Tab>
+</Tabs>
+
+### Metrics and profiling
+
+Metrics and profiling endpoints are configured at the top level.
+The metrics server fans in counters from every chain container and exposes them on one endpoint with per-chain Prometheus labels.
+
+#### metrics.enabled
+
+Enables the Prometheus metrics server.
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.enabled=<value>`</Tab>
+  <Tab title="Example">`--metrics.enabled=true`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_METRICS_ENABLED=`</Tab>
+</Tabs>
+
+#### metrics.addr
+
+Address the metrics server binds to.
+The default value is `0.0.0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.addr=<value>`</Tab>
+  <Tab title="Example">`--metrics.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_METRICS_ADDR=`</Tab>
+</Tabs>
+
+#### metrics.port
+
+Port the metrics server listens on.
+The default value is `7300`.
+
+<Tabs>
+  <Tab title="Syntax">`--metrics.port=<value>`</Tab>
+  <Tab title="Example">`--metrics.port=7300`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_METRICS_PORT=`</Tab>
+</Tabs>
+
+#### pprof.enabled
+
+Enables the pprof profiling endpoint.
+The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.enabled=<value>`</Tab>
+  <Tab title="Example">`--pprof.enabled=true`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_PPROF_ENABLED=`</Tab>
+</Tabs>
+
+#### pprof.addr
+
+Address the pprof server binds to.
+The default value is `0.0.0.0`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.addr=<value>`</Tab>
+  <Tab title="Example">`--pprof.addr=0.0.0.0`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_PPROF_ADDR=`</Tab>
+</Tabs>
+
+#### pprof.port
+
+Port the pprof server listens on.
+The default value is `6060`.
+
+<Tabs>
+  <Tab title="Syntax">`--pprof.port=<value>`</Tab>
+  <Tab title="Example">`--pprof.port=6060`</Tab>
+  <Tab title="Environment Variable">`OP_SUPERNODE_PPROF_PORT=`</Tab>
+</Tabs>
+
+## Where to go next
+
+* Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
+* Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
+* Read the [specialized op-node topology notice](/notices/specialized-node-topology) for the operator-facing pattern of running Light CL fleets that follow a supernode safe source.
+* Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messaging works at the protocol level.
+* Read the [op-node configuration reference](/node-operators/reference/op-node-config) for the full set of flags available under the `--vn.*` namespace.
+* See the [op-supernode source](https://github.com/ethereum-optimism/optimism/tree/develop/op-supernode) in the monorepo for implementation detail.

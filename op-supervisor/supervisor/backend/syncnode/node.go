@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
@@ -292,7 +293,7 @@ func (m *ManagedNode) onUpdateLocalSafeFailed(ev superevents.UpdateLocalSafeFail
 	}
 }
 
-func (m *ManagedNode) onCrossUnsafeUpdate(seal types.BlockSeal) {
+func (m *ManagedNode) onCrossUnsafeUpdate(seal messages.BlockSeal) {
 	m.log.Debug("updating cross unsafe", "crossUnsafe", seal)
 	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
 	defer cancel()
@@ -316,7 +317,7 @@ func (m *ManagedNode) onCrossSafeUpdate(pair types.DerivedBlockSealPair) {
 	}
 }
 
-func (m *ManagedNode) onFinalizedL2(seal types.BlockSeal) {
+func (m *ManagedNode) onFinalizedL2(seal messages.BlockSeal) {
 	m.log.Info("updating finalized L2", "finalized", seal)
 	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
 	defer cancel()
@@ -403,7 +404,7 @@ func (m *ManagedNode) onInvalidateLocalSafe(invalidated types.DerivedBlockRefPai
 	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
 	defer cancel()
 	// Send instruction to the node to invalidate the block, and build a replacement block.
-	if err := m.Node.InvalidateBlock(ctx, types.BlockSealFromRef(invalidated.Derived)); err != nil {
+	if err := m.Node.InvalidateBlock(ctx, messages.BlockSealFromRef(invalidated.Derived)); err != nil {
 		m.log.Warn("Node is unable to invalidate block",
 			"invalidated", invalidated.Derived, "scope", invalidated.Source, "err", err)
 	}

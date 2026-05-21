@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/urfave/cli/v2"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -214,7 +215,7 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 	if ctx.IsSet(RollupConfigSetFlag.Name) {
 		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
 			RollupConfigSetSource: &depset.JSONRollupConfigSetLoader{Path: ctx.Path(RollupConfigSetFlag.Name)},
-			DependencySetSource:   &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+			DependencySetSource:   &coredepset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
 		}
 	} else if ctx.IsSet(RollupConfigPathsFlag.Name) {
 		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
@@ -222,7 +223,7 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 				PathPattern: ctx.String(RollupConfigPathsFlag.Name),
 				L1RPCURL:    ctx.String(L1RPCFlag.Name),
 			},
-			DependencySetSource: &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+			DependencySetSource: &coredepset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
 		}
 	} else if ctx.IsSet(NetworkFlag.Name) {
 		networks := ctx.StringSlice(NetworkFlag.Name)

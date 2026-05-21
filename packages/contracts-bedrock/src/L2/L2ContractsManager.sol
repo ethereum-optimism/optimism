@@ -33,8 +33,8 @@ contract L2ContractsManager is ISemver {
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -179,34 +179,28 @@ contract L2ContractsManager is ISemver {
 
         // L2CrossDomainMessenger
         fullConfig_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).OTHER_MESSENGER()
+            otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()
         });
 
         // L2StandardBridge
         fullConfig_.standardBridge = L2ContractsManagerTypes.StandardBridgeConfig({
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            otherBridge: IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).OTHER_BRIDGE()
+            otherBridge: IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()
         });
 
         // L2ERC721Bridge
         fullConfig_.erc721Bridge = L2ContractsManagerTypes.ERC721BridgeConfig({
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).OTHER_BRIDGE()
+            otherBridge: IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()
         });
 
         // OptimismMintableERC20Factory
         fullConfig_.mintableERC20Factory = L2ContractsManagerTypes.MintableERC20FactoryConfig({
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            bridge: IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).BRIDGE()
+            bridge: IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).bridge()
         });
 
         // OptimismMintableERC721Factory
         fullConfig_.mintableERC721Factory = L2ContractsManagerTypes.MintableERC721FactoryConfig({
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            bridge: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).BRIDGE(),
-            // TODO(#19468): Remove legacy getter after Karst upgrade.
-            remoteChainID: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).REMOTE_CHAIN_ID()
+            bridge: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).bridge(),
+            remoteChainID: IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY).remoteChainID()
         });
 
         // SequencerFeeVault
@@ -224,21 +218,8 @@ contract L2ContractsManager is ISemver {
         // LiquidityController
         if (fullConfig_.isCustomGasToken) {
             ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
-
-            address _liquidityControllerOwner;
-            // X Layer removed the owner() getter from their LiquidityController fork.
-            // Fall back to ProxyAdmin.owner() so the upgrade can migrate them to the OP Stack
-            // implementation, which restores a standard Ownable owner initialized to that address.
-            // TODO(#19468): Remove the fallback after the Karst upgrade.
-            // eip150-safe
-            try liquidityController.owner() returns (address owner_) {
-                _liquidityControllerOwner = owner_;
-            } catch {
-                _liquidityControllerOwner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-            }
-
             fullConfig_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
-                owner: _liquidityControllerOwner,
+                owner: liquidityController.owner(),
                 gasPayingTokenName: liquidityController.gasPayingTokenName(),
                 gasPayingTokenSymbol: liquidityController.gasPayingTokenSymbol()
             });
@@ -397,17 +378,6 @@ contract L2ContractsManager is ISemver {
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL
         );
-        // TODO(#19468): Remove this migration step after Karst. Post-Karst, the feature
-        // mapping will already be populated from the upgrade, making this call unnecessary.
-        // After upgrading L1Block to the CGT impl, populate the feature mapping so that
-        // isCustomGasToken() continues to return true. The new impl reads from the mapping
-        // rather than the legacy storage slot.
-        if (
-            _config.isCustomGasToken
-                && !IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)
-        ) {
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
-        }
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL

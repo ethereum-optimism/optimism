@@ -1,0 +1,56 @@
+[workspace]
+resolver = "3"
+
+members = [
+    "crates/rollup-boost",
+    "crates/websocket-proxy",
+    "crates/flashblocks-rpc",
+]
+
+[workspace.dependencies]
+# `default-features = false` so consumers within the workspace (e.g.
+# `flashblocks-rpc`) don't transitively re-enable rollup-boost's
+# default features. In particular, that prevents `docker-tests` from
+# being activated via cargo's feature unification when CI runs
+# `cargo test --workspace --no-default-features`. Direct `cargo test
+# -p rollup-boost` (and upstream `make test`) still pick up the
+# crate's own defaults.
+rollup-boost = { path = "crates/rollup-boost", default-features = false }
+
+tracing = "0.1.4"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures = "0.3.31"
+thiserror = "2.0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.96"
+metrics = "0.24.0"
+metrics-derive = "0.1"
+tokio = { version = "1", features = ["full"] }
+eyre = "0.6.12"
+url = "2.2.0"
+sha2 = { version = "0.10", default-features = false }
+backoff = "0.4.0"
+
+# Reth deps
+reth-optimism-payload-builder = { path = "../op-reth/crates/payload" }
+
+# Alloy libraries
+alloy-rpc-types-engine = { version = "2.0.4", default-features = false }
+alloy-rpc-types-eth = { version = "2.0.4", default-features = false }
+alloy-primitives = { version = "1.5.6", default-features = false, features = ["rand"] }
+alloy-serde = { version = "2.0.4", default-features = false }
+alloy-eips = { version = "2.0.4", default-features = false }
+alloy-json-rpc = { version = "2.0.4", default-features = false }
+alloy-consensus = { version = "2.0.4", default-features = false }
+alloy-rpc-types = { version = "2.0.4", features = ["eth"], default-features = false }
+alloy-genesis = { version = "2.0.4", default-features = false }
+alloy-rpc-client = { version = "2.0.4", default-features = false }
+alloy-provider = { version = "2.0.4", features = ["reqwest", "debug-api"], default-features = false }
+op-alloy-network = { version = "2.0.0", path = "../op-alloy/crates/network", default-features = false }
+op-alloy-rpc-types-engine = { version = "2.0.0", path = "../op-alloy/crates/rpc-types-engine", default-features = false }
+op-alloy-consensus = { version = "2.0.0", path = "../op-alloy/crates/consensus", default-features = false }
+op-alloy-rpc-types = { version = "2.0.0", path = "../op-alloy/crates/rpc-types", default-features = false }
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["redis"] }

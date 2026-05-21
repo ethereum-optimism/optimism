@@ -81,8 +81,13 @@ var (
 	l1DeploymentsByType = make(map[AllocType]*genesis.L1Deployments)
 	// l2Allocs represents the L2 allocs, by hardfork/mode (e.g. delta, ecotone, interop, other)
 	l2AllocsByType = make(map[AllocType]genesis.L2AllocsModeMap)
-	// DeployConfig represents the deploy config used by the system.
-	deployConfigsByType = make(map[AllocType]*genesis.DeployConfig)
+	// deployConfigBytesByType stores the canonical JSON encoding of the deploy
+	// config for each alloc type. We cache the bytes rather than the parsed
+	// *genesis.DeployConfig so each caller of DeployConfig() unmarshals a
+	// completely independent value. No shared pointers or maps survive between
+	// callers, so tests cannot mutate state another test depends on, and
+	// concurrent calls cannot race on a shared json.Marshal source.
+	deployConfigBytesByType = make(map[AllocType][]byte)
 	// EthNodeVerbosity is the (legacy geth) level of verbosity to output
 	EthNodeVerbosity int = 3
 
@@ -125,14 +130,22 @@ func L2Allocs(allocType AllocType, mode genesis.L2AllocsMode) *foundry.ForgeAllo
 	return allocs.Copy()
 }
 
+// DeployConfig returns a fresh, fully-independent *genesis.DeployConfig for
+// the given alloc type. Each call unmarshals from the cached JSON bytes, so
+// the returned value shares no maps, slices or pointers with any other call.
+// Callers can freely mutate the result without affecting any other test.
 func DeployConfig(allocType AllocType) *genesis.DeployConfig {
 	mtx.RLock()
-	defer mtx.RUnlock()
-	dc, ok := deployConfigsByType[allocType]
+	raw, ok := deployConfigBytesByType[allocType]
+	mtx.RUnlock()
 	if !ok {
 		panic(fmt.Errorf("unknown deploy config type: %q", allocType))
 	}
-	return dc.Copy()
+	dc := &genesis.DeployConfig{}
+	if err := json.Unmarshal(raw, dc); err != nil {
+		panic(fmt.Errorf("failed to unmarshal cached deploy config for %q: %w", allocType, err))
+	}
+	return dc
 }
 
 func init() {
@@ -323,8 +336,14 @@ func initAllocType(root string, allocType AllocType) {
 				dc.L1BlockTime = 2
 				dc.L2BlockTime = 1
 				dc.SetContracts(l1Contracts)
+				// Serialize the deploy config once now; callers will unmarshal
+				// a fresh copy from these bytes on every DeployConfig() call.
+				dcBytes, err := json.Marshal(dc)
+				if err != nil {
+					panic(fmt.Errorf("failed to marshal deploy config: %w", err))
+				}
 				mtx.Lock()
-				deployConfigsByType[allocType] = dc
+				deployConfigBytesByType[allocType] = dcBytes
 				l1AllocsByType[allocType] = st.L1StateDump.Data
 
 				l1Deployments := genesis.CreateL1DeploymentsFromContracts(l1Contracts)

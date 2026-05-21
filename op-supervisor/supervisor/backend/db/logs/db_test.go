@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func createID(i int) eth.BlockID {
@@ -580,12 +582,12 @@ func TestAddLog(t *testing.T) {
 }
 
 func TestAddDependentLog(t *testing.T) {
-	execMsg := types.ExecutingMessage{
+	execMsg := messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(3),
 		BlockNum:  42894,
 		LogIdx:    42,
 		Timestamp: 8742482,
-		Checksum:  types.MessageChecksum(createHash(123456)),
+		Checksum:  messages.MessageChecksum(createHash(123456)),
 	}
 	t.Run("FirstEntry", func(t *testing.T) {
 		runDBTest(t,
@@ -809,26 +811,26 @@ func TestContainsOutOfRangeLogIndex(t *testing.T) {
 }
 
 func TestExecutes(t *testing.T) {
-	execMsg1 := types.ExecutingMessage{
+	execMsg1 := messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(33),
 		BlockNum:  22,
 		LogIdx:    99,
 		Timestamp: 948294,
-		Checksum:  types.MessageChecksum(createHash(332299)),
+		Checksum:  messages.MessageChecksum(createHash(332299)),
 	}
-	execMsg2 := types.ExecutingMessage{
+	execMsg2 := messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(44),
 		BlockNum:  55,
 		LogIdx:    66,
 		Timestamp: 77777,
-		Checksum:  types.MessageChecksum(createHash(445566)),
+		Checksum:  messages.MessageChecksum(createHash(445566)),
 	}
-	execMsg3 := types.ExecutingMessage{
+	execMsg3 := messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(77),
 		BlockNum:  88,
 		LogIdx:    89,
 		Timestamp: 6578567,
-		Checksum:  types.MessageChecksum(createHash(778889)),
+		Checksum:  messages.MessageChecksum(createHash(778889)),
 	}
 	t50, t51, t52, t53, t54 := uint64(500), uint64(5001), uint64(5002), uint64(5003), uint64(5004)
 	runDBTest(t,
@@ -847,9 +849,9 @@ func TestExecutes(t *testing.T) {
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			// Should find added logs
-			requireExecutingMessage(t, db, 51, 0, types.ExecutingMessage{})
+			requireExecutingMessage(t, db, 51, 0, messages.ExecutingMessage{})
 			requireExecutingMessage(t, db, 51, 1, execMsg1)
-			requireExecutingMessage(t, db, 51, 2, types.ExecutingMessage{})
+			requireExecutingMessage(t, db, 51, 2, messages.ExecutingMessage{})
 			requireExecutingMessage(t, db, 53, 0, execMsg2)
 			requireExecutingMessage(t, db, 53, 1, execMsg3)
 
@@ -922,11 +924,11 @@ func TestGetBlockInfo(t *testing.T) {
 	})
 }
 
-func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash, execMsg ...types.ExecutingMessage) {
+func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash, execMsg ...messages.ExecutingMessage) {
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	q := types.ChecksumArgs{
+	q := messages.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
@@ -938,7 +940,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 
-	var expectedExecMsg types.ExecutingMessage
+	var expectedExecMsg messages.ExecutingMessage
 	if len(execMsg) == 1 {
 		expectedExecMsg = execMsg[0]
 	}
@@ -948,7 +950,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	q := types.ChecksumArgs{
+	q := messages.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
@@ -963,7 +965,7 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, time
 func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	q := types.ChecksumArgs{
+	q := messages.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
@@ -975,13 +977,13 @@ func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timesta
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
 
-func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint32, execMsg types.ExecutingMessage) {
+func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint32, execMsg messages.ExecutingMessage) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
 	_, iter, err := db.findLogInfo(blockNum, logIdx)
 	require.NoError(t, err, "Error when searching for executing message")
 	actualExecMsg := iter.ExecMessage() // non-nil if not just an initiating message, but also an executing message
-	if execMsg == (types.ExecutingMessage{}) {
+	if execMsg == (messages.ExecutingMessage{}) {
 		require.Nil(t, actualExecMsg)
 	} else {
 		require.NotNil(t, actualExecMsg)
@@ -1028,12 +1030,12 @@ func TestRecoverOnCreate(t *testing.T) {
 	})
 
 	t.Run("NoTruncateWhenLastEntryIsExecChecksumSealed", func(t *testing.T) {
-		execMsg := types.ExecutingMessage{
+		execMsg := messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
 			LogIdx:    4,
 			Timestamp: 1288,
-			Checksum:  types.MessageChecksum(createHash(4)),
+			Checksum:  messages.MessageChecksum(createHash(4)),
 		}
 		execChainIDEvt, err := newExecChainID(execMsg)
 		require.NoError(t, err)
@@ -1111,12 +1113,12 @@ func TestRecoverOnCreate(t *testing.T) {
 	})
 
 	t.Run("TruncateWhenLastEntryInitEventWithExecChainID", func(t *testing.T) {
-		execMsg := types.ExecutingMessage{
+		execMsg := messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
 			LogIdx:    4,
 			Timestamp: 1288,
-			Checksum:  types.MessageChecksum(createHash(4)),
+			Checksum:  messages.MessageChecksum(createHash(4)),
 		}
 		execChainIDEvt, err := newExecChainID(execMsg)
 		require.NoError(t, err)
@@ -1132,12 +1134,12 @@ func TestRecoverOnCreate(t *testing.T) {
 	})
 
 	t.Run("TruncateWhenLastEntryInitEventWithExecPosition", func(t *testing.T) {
-		execMsg := types.ExecutingMessage{
+		execMsg := messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
 			LogIdx:    4,
 			Timestamp: 1288,
-			Checksum:  types.MessageChecksum(createHash(4)),
+			Checksum:  messages.MessageChecksum(createHash(4)),
 		}
 		execChainIDEvt, err := newExecChainID(execMsg)
 		require.NoError(t, err)

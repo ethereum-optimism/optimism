@@ -46,7 +46,7 @@ func TestRollupRpc(t *testing.T) {
 			cfg.DGFAddress = common.Address{0xaa}.Hex()
 			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
-			cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 			cfg.DisputeGameType = gameType
 			require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 		})
@@ -57,53 +57,29 @@ func TestRollupRpc(t *testing.T) {
 		cfg.DGFAddress = common.Address{0xaa}.Hex()
 		cfg.ProposalInterval = 20
 		cfg.RollupRpc = ""
-		cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
+		cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 		cfg.DisputeGameType = 492743
 		require.NoError(t, cfg.Check())
 	})
 }
 
-func TestSupervisorRpc(t *testing.T) {
+func TestSuperNodeRpc(t *testing.T) {
 	for _, gameType := range postInteropGameTypes {
 		t.Run("RequiredWithPostInteropGame", func(t *testing.T) {
 			cfg := validConfig()
 			cfg.DGFAddress = common.Address{0xaa}.Hex()
 			cfg.ProposalInterval = 20
 			cfg.RollupRpc = "http://localhost:8882/rollup"
-			cfg.SupervisorRpcs = nil
+			cfg.SuperNodeRpcs = nil
 			cfg.DisputeGameType = gameType
-			require.ErrorIs(t, cfg.Check(), ErrMissingSupervisorRpc)
+			require.ErrorIs(t, cfg.Check(), ErrMissingSuperNodeRpc)
 		})
 
-		t.Run("NotRequiredForOtherGameTypes", func(t *testing.T) {
-			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
-			cfg.RollupRpc = "http://localhost:8882/rollup"
-			cfg.SupervisorRpcs = nil
-			cfg.DisputeGameType = 492743
-			require.NoError(t, cfg.Check())
-		})
-	}
-}
-
-func TestDisallowRollupAndSupervisorRPC(t *testing.T) {
-	cfg := validConfig()
-	cfg.ProposalInterval = 20
-	cfg.RollupRpc = "http://localhost:8882/rollup"
-	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
-	cfg.DisputeGameType = 492743
-	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
-}
-
-func TestSuperNodeRpc(t *testing.T) {
-	for _, gameType := range postInteropGameTypes {
 		t.Run("AllowedWithPostInteropGame", func(t *testing.T) {
 			cfg := validConfig()
 			cfg.DGFAddress = common.Address{0xaa}.Hex()
 			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
-			cfg.SupervisorRpcs = nil
 			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 			cfg.DisputeGameType = gameType
 			require.NoError(t, cfg.Check())
@@ -115,7 +91,6 @@ func TestSuperNodeRpc(t *testing.T) {
 		cfg.DGFAddress = common.Address{0xaa}.Hex()
 		cfg.ProposalInterval = 20
 		cfg.RollupRpc = ""
-		cfg.SupervisorRpcs = nil
 		cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 		cfg.DisputeGameType = 492743
 		require.NoError(t, cfg.Check())
@@ -131,30 +106,9 @@ func TestDisallowRollupAndSuperNodeRPC(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
 }
 
-func TestDisallowSupervisorAndSuperNodeRPC(t *testing.T) {
-	cfg := validConfig()
-	cfg.ProposalInterval = 20
-	cfg.RollupRpc = ""
-	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
-	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
-	cfg.DisputeGameType = 492743
-	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
-}
-
-func TestDisallowAllThreeRPCSources(t *testing.T) {
-	cfg := validConfig()
-	cfg.ProposalInterval = 20
-	cfg.RollupRpc = "http://localhost:8882/rollup"
-	cfg.SupervisorRpcs = []string{"http://localhost:8882/supervisor"}
-	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
-	cfg.DisputeGameType = 492743
-	require.ErrorIs(t, cfg.Check(), ErrConflictingSource)
-}
-
 func TestRequireSomeRPCSourceForUnknownGameTypes(t *testing.T) {
 	cfg := validConfig()
 	cfg.RollupRpc = ""
-	cfg.SupervisorRpcs = nil
 	cfg.SuperNodeRpcs = nil
 	cfg.DisputeGameType = 492743
 	require.ErrorIs(t, cfg.Check(), ErrMissingSource)
@@ -164,7 +118,6 @@ func validConfig() *CLIConfig {
 	return &CLIConfig{
 		L1EthRpc:                     "http://localhost:8888/l1",
 		RollupRpc:                    "http://localhost:8888/l2",
-		SupervisorRpcs:               nil,
 		SuperNodeRpcs:                nil,
 		PollInterval:                 100,
 		AllowNonFinalized:            false,

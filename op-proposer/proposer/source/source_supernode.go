@@ -67,7 +67,7 @@ func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, e
 	close(results)
 
 	var errs []error
-	var earliestResponse eth.SuperRootAtTimestampResponse
+	var highestResponse eth.SuperRootAtTimestampResponse
 	var hasValidResponse bool
 	for result := range results {
 		if result.err != nil {
@@ -75,9 +75,10 @@ func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, e
 			errs = append(errs, result.err)
 			continue
 		}
-		// Use the response with the lowest CurrentL1 block number (most conservative)
-		if !hasValidResponse || result.resp.CurrentL1.Number < earliestResponse.CurrentL1.Number {
-			earliestResponse = result.resp
+		// Use the source with the highest L1 view so lagging supernodes do not
+		// hold back failover when another healthy source is caught up.
+		if !hasValidResponse || result.resp.CurrentL1.Number > highestResponse.CurrentL1.Number {
+			highestResponse = result.resp
 			hasValidResponse = true
 		}
 	}
@@ -87,9 +88,9 @@ func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, e
 	}
 
 	return SyncStatus{
-		CurrentL1:   earliestResponse.CurrentL1,
-		SafeL2:      earliestResponse.CurrentSafeTimestamp,
-		FinalizedL2: earliestResponse.CurrentFinalizedTimestamp,
+		CurrentL1:   highestResponse.CurrentL1,
+		SafeL2:      highestResponse.CurrentSafeTimestamp,
+		FinalizedL2: highestResponse.CurrentFinalizedTimestamp,
 	}, nil
 }
 

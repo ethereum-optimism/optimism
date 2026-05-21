@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 var errInvalidateMismatch = fmt.Errorf("cannot invalidate mismatching block")
@@ -98,8 +100,8 @@ func (db *DB) RewindAndInvalidate(inv reads.Invalidator, invalidated types.Deriv
 	defer db.rwLock.Unlock()
 
 	t := types.DerivedBlockSealPair{
-		Source:  types.BlockSealFromRef(invalidated.Source),
-		Derived: types.BlockSealFromRef(invalidated.Derived),
+		Source:  messages.BlockSealFromRef(invalidated.Source),
+		Derived: messages.BlockSealFromRef(invalidated.Derived),
 	}
 	i, link, err := db.lookupOrAfter(t.Source.Number, t.Derived.Number)
 	if err != nil {
@@ -264,12 +266,12 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 	// - we are invalidating if (invalidated != 0 && derived == invalidated)
 	// - we are replacing an invalidated entry if (invalidated != 0 && derived != invalidated)
 	link := LinkEntry{
-		source: types.BlockSeal{
+		source: messages.BlockSeal{
 			Hash:      source.Hash,
 			Number:    source.Number,
 			Timestamp: source.Time,
 		},
-		derived: types.BlockSeal{
+		derived: messages.BlockSeal{
 			Hash:      derived.Hash,
 			Number:    derived.Number,
 			Timestamp: derived.Time,

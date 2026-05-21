@@ -90,16 +90,15 @@ type CrossUpdateHandler interface {
 }
 
 type EngineController struct {
-	engine            ExecEngine // Underlying execution engine RPC
-	log               log.Logger
-	metrics           opmetrics.Metricer
-	syncCfg           *sync.Config
-	syncStatus        syncStatusEnum
-	chainSpec         *rollup.ChainSpec
-	rollupCfg         *rollup.Config
-	supervisorEnabled bool
-	elStart           time.Time
-	clock             clock.Clock
+	engine     ExecEngine // Underlying execution engine RPC
+	log        log.Logger
+	metrics    opmetrics.Metricer
+	syncCfg    *sync.Config
+	syncStatus syncStatusEnum
+	chainSpec  *rollup.ChainSpec
+	rollupCfg  *rollup.Config
+	elStart    time.Time
+	clock      clock.Clock
 
 	// L1 chain for reset functionality
 	l1 sync.L1Chain
@@ -125,6 +124,9 @@ type EngineController struct {
 	// verified by the superAuthority.
 	// Only to be used as a FinalizedHead when there is no superAuthority
 	localFinalizedHead eth.L2BlockRef
+	// Last successfully materialized superAuthority finalized head,
+	// used as a fallback when the authority or EL is temporarily unavailable.
+	superAuthorityFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
 	// This is changing in the Holocene fork.
@@ -169,7 +171,7 @@ type EngineController struct {
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, supervisorEnabled bool, l1 sync.L1Chain, emitter event.Emitter,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, l1 sync.L1Chain, emitter event.Emitter,
 	superAuthority rollup.SuperAuthority,
 ) *EngineController {
 	syncStatus := syncStatusCL
@@ -178,20 +180,19 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 
 	return &EngineController{
-		engine:            engine,
-		log:               log,
-		metrics:           m,
-		chainSpec:         rollup.NewChainSpec(rollupCfg),
-		rollupCfg:         rollupCfg,
-		supervisorEnabled: supervisorEnabled,
-		syncCfg:           syncCfg,
-		syncStatus:        syncStatus,
-		clock:             clock.SystemClock,
-		l1:                l1,
-		ctx:               ctx,
-		emitter:           emitter,
-		superAuthority:    superAuthority,
-		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		engine:         engine,
+		log:            log,
+		metrics:        m,
+		chainSpec:      rollup.NewChainSpec(rollupCfg),
+		rollupCfg:      rollupCfg,
+		syncCfg:        syncCfg,
+		syncStatus:     syncStatus,
+		clock:          clock.SystemClock,
+		l1:             l1,
+		ctx:            ctx,
+		emitter:        emitter,
+		superAuthority: superAuthority,
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
 
@@ -222,10 +223,23 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the safe head which is not known to the engine")
+			finalized := e.FinalizedHead()
+			e.log.Warn("superAuthority safe head is not known to the engine, using finalized head", "super_authority_safe", fvshid, "finalized", finalized, "err", err)
+			return finalized
+		}
+		canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
+		if err != nil {
+			finalized := e.FinalizedHead()
+			e.log.Warn("cannot verify superAuthority safe head canonicality, using finalized head", "super_authority_safe", br, "finalized", finalized, "err", err)
+			return finalized
+		}
+		if canonical.Hash != br.Hash {
+			finalized := e.FinalizedHead()
+			e.log.Warn("superAuthority safe head is not canonical, using finalized head", "super_authority_safe", br, "canonical", canonical, "finalized", finalized)
+			return finalized
 		}
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead
 	} else {
 		return e.localSafeHead
@@ -253,12 +267,32 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
 			return e.localSafeHead
 		}
+		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+			if f == e.superAuthorityFinalizedHead.ID() {
+				return e.superAuthorityFinalizedHead
+			}
+			if f.Number < e.superAuthorityFinalizedHead.Number {
+				// SuperAuthority finality is expected to be monotonic. A lower
+				// finalized head means the authority is reporting stale state.
+				e.log.Warn("superAuthority finalized head is behind cached superAuthority finalized head, using cached superAuthority finalized head", "super_authority_finalized", f, "cached_super_authority_finalized", e.superAuthorityFinalizedHead)
+				return e.superAuthorityFinalizedHead
+			}
+			if f.Number == e.superAuthorityFinalizedHead.Number {
+				panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
+			}
+		}
 		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)
 		if err != nil {
-			panic("superAuthority supplied an identifier for the finalized head which is not known to the engine")
+			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+				e.log.Warn("superAuthority finalized head is not known to the engine, using cached superAuthority finalized head", "super_authority_finalized", f, "cached_super_authority_finalized", e.superAuthorityFinalizedHead, "err", err)
+				return e.superAuthorityFinalizedHead
+			}
+			e.log.Warn("superAuthority finalized head is not known to the engine and no cached superAuthority finalized head is available", "super_authority_finalized", f, "err", err)
+			return eth.L2BlockRef{}
 		}
+		e.superAuthorityFinalizedHead = br
 		return br
-	} else if e.supervisorEnabled || e.syncCfg.FollowSourceEnabled() {
+	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
 	} else {
 		return e.localFinalizedHead
@@ -470,18 +504,35 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
-			return fmt.Errorf("failed to load finalized head: %w", err)
+			// In ELSync mode the engine has no finalized block until its initial
+			// snap-sync completes and the CL emits a finalized FCU. Treat
+			// NotFound as "no finalized block yet" and continue, mirroring the
+			// eth.Safe branch below. In CLSync mode the engine is expected to
+			// have a finalized block after the initial reset, so propagate
+			// the error as before.
+			if errors.Is(err, ethereum.NotFound) && e.syncCfg.SyncMode == sync.ELSync {
+				e.log.Debug("No finalized L2 block known yet, leaving finalized head unset")
+			} else {
+				return fmt.Errorf("failed to load finalized head: %w", err)
+			}
+		} else {
+			e.SetFinalizedHead(finalizedRef)
+			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
-		e.SetFinalizedHead(finalizedRef)
-		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 	}
 	if e.localSafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
-				// If the engine doesn't have a safe head, then we can use the finalized head
-				e.SetLocalSafeHead(finalizedRef)
-				e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				if finalizedRef == (eth.L2BlockRef{}) {
+					// Neither safe nor finalized are known yet — leave local-safe
+					// unset so the next initializeUnknowns retries.
+					e.log.Debug("No safe or finalized L2 block known yet, leaving local-safe head unset")
+				} else {
+					// If the engine doesn't have a safe head, then we can use the finalized head
+					e.SetLocalSafeHead(finalizedRef)
+					e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
+				}
 			} else {
 				return fmt.Errorf("failed to load local-safe head: %w", err)
 			}
@@ -799,8 +850,8 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 }
 
 func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
-	// pre-interop (or if supervisor disabled) everything that is local-safe is also immediately cross-safe.
-	return !e.rollupCfg.IsInterop(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
+	// pre-interop, everything that is local-safe is also immediately cross-safe.
+	return !e.rollupCfg.IsInterop(timestamp) || !e.syncCfg.FollowSourceEnabled()
 }
 
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -830,8 +881,6 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		// so this is where the batched FCU is sent — one per L1 block instead of per L2 block.
 		// tryUpdateEngine compares against lastForkchoice and is a no-op if unchanged.
 		e.tryUpdateEngine(ctx)
-	case InteropInvalidateBlockEvent:
-		e.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
 		e.onBuildStart(ctx, x)
 	case BuildStartedEvent:

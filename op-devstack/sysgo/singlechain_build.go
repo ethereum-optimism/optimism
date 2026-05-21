@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -28,7 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -40,7 +40,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
 	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -283,7 +282,6 @@ type l2CLNodeStartConfig struct {
 	NoDiscovery    bool
 	EnableReqResp  bool
 	UseReqResp     bool
-	IndexingMode   bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -306,7 +304,6 @@ func startL2CLNode(
 	cfg.NoDiscovery = startCfg.NoDiscovery
 	cfg.EnableReqRespSync = startCfg.EnableReqResp
 	cfg.UseReqRespSync = startCfg.UseReqResp
-	cfg.IndexingMode = startCfg.IndexingMode
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -360,15 +357,6 @@ func startL2CLNode(
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
 	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 
-	interopCfg := &interop.Config{}
-	if startCfg.IndexingMode {
-		interopCfg = &interop.Config{
-			RPCAddr:          "127.0.0.1",
-			RPCPort:          0,
-			RPCJwtSecretPath: l2EL.JWTPath(),
-		}
-	}
-
 	nodeCfg := &config.Config{
 		L1: &config.L1EndpointConfig{
 			L1NodeAddr:       l1EL.UserRPC(),
@@ -392,19 +380,18 @@ func startL2CLNode(
 			BeaconAddr: l1CL.beaconHTTPAddr,
 		},
 		Driver: driver.Config{
-			SequencerEnabled:   cfg.IsSequencer,
-			SequencerConfDepth: 2,
+			SequencerEnabled:    cfg.IsSequencer,
+			SequencerConfDepth:  2,
+			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
-		Rollup:            *l2Net.rollupCfg,
-		DependencySet:     startCfg.DependencySet,
-		SupervisorEnabled: cfg.IndexingMode,
-		P2PSigner:         p2pSignerSetup,
+		Rollup:        *l2Net.rollupCfg,
+		DependencySet: startCfg.DependencySet,
+		P2PSigner:     p2pSignerSetup,
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		InteropConfig:               interopCfg,
 		P2P:                         p2pConfig,
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: 0,

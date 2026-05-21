@@ -21,6 +21,7 @@ pub use handle::EngineHandle;
 #[cfg(feature = "metrics")]
 mod metrics;
 mod runner;
+mod service_guard;
 mod state;
 
 /// Default number of blocks to keep in memory before persisting.
@@ -31,6 +32,14 @@ const DEFAULT_BACKPRESSURE_THRESHOLD: u64 = 10;
 
 /// Default timeout for waiting on a persistence save/unwind operation (in seconds).
 const DEFAULT_PERSISTENCE_TIMEOUT_SECS: u64 = 60;
+
+/// How long the engine waits with a non-empty memory buffer before flushing it even if the
+/// persistence threshold has not been reached.
+///
+/// Without this, a paused chain (e.g. fault-proof tests that freeze the sequencer) would leave
+/// buffered blocks unpersisted indefinitely, breaking the proofs RPC's strict "is this block
+/// persisted?" check.
+const IDLE_FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Messages sent from [`EngineHandle`] to the engine thread.
 enum EngineAction<Block: reth_primitives_traits::Block> {
@@ -43,7 +52,7 @@ enum EngineAction<Block: reth_primitives_traits::Block> {
     /// Unwind indexed data back to a given block.
     Unwind(tasks::UnwindTask),
     /// Block the caller until any in-flight persistence completes.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     Flush(tasks::FlushTask),
     /// Update the sync catch-up target (fire-and-forget).
     SyncTo(tasks::SyncToTask),
@@ -69,7 +78,7 @@ impl<Block: reth_primitives_traits::Block> EngineAction<Block> {
             Self::IndexBlock(task) => task.execute(state),
             Self::Reorg(task) => task.execute(state),
             Self::Unwind(task) => task.execute(state),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-utils"))]
             Self::Flush(task) => task.execute(state),
             Self::SyncTo(task) => task.execute(state),
         }

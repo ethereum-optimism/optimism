@@ -89,6 +89,11 @@ type Sequencer struct {
 
 	maxSafeLag atomic.Uint64
 
+	// stalledByMaxSafeLag tracks whether the sequencer was stalled specifically
+	// by the maxSafeLag check, to avoid incorrectly resuming when nextActionOK
+	// was set to false for unrelated reasons (e.g., pipeline reset, L1-derivation backoff).
+	stalledByMaxSafeLag bool
+
 	recoverMode atomic.Bool
 
 	// active identifies whether the sequencer is running.
@@ -431,6 +436,7 @@ func (d *Sequencer) onReset(x rollup.ResetEvent) {
 		d.emitter.Emit(d.ctx, engine.BuildCancelEvent{Info: d.latest.Info})
 	}
 	d.latest = BuildingState{}
+	d.stalledByMaxSafeLag = false
 	// no action to perform until we get a reset-confirmation
 	d.nextActionOK = false
 }
@@ -441,6 +447,8 @@ func (d *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 	// assuming the execution-engine just churned through some work for the reset.
 	// This will also prevent any potential reset-loop from running too hot.
 	d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.rollupCfg.BlockTime))
+	// Note: stalledByMaxSafeLag was cleared in onReset. If the lag condition still holds,
+	// the next ForkchoiceUpdateEvent will re-evaluate and re-stall the sequencer.
 	d.log.Info("Engine reset confirmed, sequencer may continue", "next", d.nextActionOK)
 }
 
@@ -450,13 +458,6 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	if !d.active.Load() {
 		d.setLatestHead(x.UnsafeL2Head)
 		return
-	}
-	// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
-	// until the safe lag is below SequencerMaxSafeLag.
-	if maxSafeLag := d.maxSafeLag.Load(); maxSafeLag > 0 && x.SafeL2Head.Number+maxSafeLag <= x.UnsafeL2Head.Number {
-		d.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
-			"head", x.UnsafeL2Head, "safe", x.SafeL2Head, "max_lag", maxSafeLag)
-		d.nextActionOK = false
 	}
 	// Drop stale block-building job if the chain has moved past it already.
 	if d.latest != (BuildingState{}) && d.latest.Onto.Number < x.UnsafeL2Head.Number {
@@ -478,6 +479,33 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 			// otherwise start instantly
 			d.nextAction = now
 		}
+	}
+	// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
+	// until the safe lag is below SequencerMaxSafeLag.
+	// NOTE: This block must appear after the head-advancement block above. The head-advancement
+	// block unconditionally sets nextActionOK=true; the maxSafeLag check must be able to override it.
+	if maxSafeLag := d.maxSafeLag.Load(); maxSafeLag > 0 {
+		if x.SafeL2Head.Number+maxSafeLag <= x.UnsafeL2Head.Number {
+			d.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
+				"head", x.UnsafeL2Head, "safe", x.SafeL2Head, "max_lag", maxSafeLag)
+			d.nextActionOK = false
+			d.stalledByMaxSafeLag = true
+		} else if d.stalledByMaxSafeLag {
+			// Safe head has caught up after a maxSafeLag stall, resume sequencing.
+			// Only resume if we were stalled by maxSafeLag specifically, to avoid
+			// interfering with other nextActionOK=false states (reset, L1-derivation backoff, etc).
+			d.log.Info("safe head caught up, resuming sequencing",
+				"head", x.UnsafeL2Head, "safe", x.SafeL2Head, "max_lag", maxSafeLag)
+			d.stalledByMaxSafeLag = false
+			d.nextActionOK = d.active.Load()
+			d.nextAction = d.timeNow()
+		}
+	} else if d.stalledByMaxSafeLag {
+		// maxSafeLag was disabled at runtime (set to 0) while stalled; resume immediately.
+		d.log.Info("maxSafeLag disabled, resuming sequencing")
+		d.stalledByMaxSafeLag = false
+		d.nextActionOK = d.active.Load()
+		d.nextAction = d.timeNow()
 	}
 	d.setLatestHead(x.UnsafeL2Head)
 }
@@ -709,6 +737,7 @@ func (d *Sequencer) forceStart() error {
 	// clear the building state; interrupting any existing sequencing job (there should never be one)
 	d.latest = BuildingState{}
 	d.nextActionOK = true
+	d.stalledByMaxSafeLag = false
 	d.nextAction = d.timeNow()
 	d.active.Store(true)
 	d.metrics.SetSequencerState(true)
@@ -766,6 +795,7 @@ func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	d.latest = BuildingState{} // By wiping this state we cannot continue from it later.
 
 	d.nextActionOK = false
+	d.stalledByMaxSafeLag = false
 	d.active.Store(false)
 	d.metrics.SetSequencerState(false)
 	d.log.Info("Sequencer has been stopped")

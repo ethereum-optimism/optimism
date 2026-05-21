@@ -1,0 +1,43 @@
+[package]
+name = "flashblocks-websocket-proxy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+
+[dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+metrics.workspace = true
+metrics-derive.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+eyre.workspace = true
+
+metrics-exporter-prometheus = { version = "0.17.0", features = [
+    "http-listener",
+] }
+http = "1.2.0"
+axum = { version = "0.8.1", features = ["ws"] }
+dotenvy = "0.15.7"
+backoff.workspace = true
+reqwest = { version = "0.12.15", default-features = false, features = [
+    "native-tls",
+] }
+
+hostname = "0.4.0"
+redis = "0.30.0"
+uuid = { version = "1.16.0", features = ["v4"] }
+tokio-util = "0.7.12"
+brotli = "8.0.1"
+
+[lib]
+name = "websocket_proxy"
+
+[dev-dependencies]
+testcontainers.workspace = true
+testcontainers-modules.workspace = true

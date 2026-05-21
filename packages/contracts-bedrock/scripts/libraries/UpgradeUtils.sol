@@ -33,24 +33,14 @@ library UpgradeUtils {
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
     /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
-    /// @param conditionalDeployerDeployment Gas for deploying ConditionalDeployer
-    /// @param conditionalDeployerUpgrade Gas for upgrading ConditionalDeployer proxy
-    /// @param proxyAdminUpgrade Gas for upgrading ProxyAdmin implementation
     struct GasLimits {
-        // Fixed
         uint64 l2cmDeployment;
         uint64 upgradeExecution;
-        // Karst
-        uint64 conditionalDeployerDeployment;
-        uint64 conditionalDeployerUpgrade;
-        uint64 proxyAdminUpgrade;
     }
 
     /// @notice Returns the total number of transactions for the current upgrade.
     /// @dev Total count:
     ///      - IMPLEMENTATION_COUNT implementation deployments
-    ///      - [KARST] 2 ConditionalDeployer (deployment + upgrade)
-    ///      - [KARST] 1 ProxyAdmin upgrade
     ///      - 1 L2CM deployment
     ///      - 1 Upgrade Predeploys call
     function getTransactionCount() internal pure returns (uint256 txnCount_) {
@@ -59,22 +49,14 @@ library UpgradeUtils {
                 "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
             );
         }
-        txnCount_ = IMPLEMENTATION_COUNT + 5;
+        txnCount_ = IMPLEMENTATION_COUNT + 2;
     }
 
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
-        return GasLimits({
-            // Fixed
-            l2cmDeployment: 4_944_000,
-            upgradeExecution: 2_115_000,
-            // Karst
-            conditionalDeployerDeployment: 580_000,
-            conditionalDeployerUpgrade: 77_000,
-            proxyAdminUpgrade: 49_711
-        });
+        return GasLimits({ l2cmDeployment: 4_944_000, upgradeExecution: 2_115_000 });
     }
 
     /// @notice Returns the array of predeploy names to upgrade.

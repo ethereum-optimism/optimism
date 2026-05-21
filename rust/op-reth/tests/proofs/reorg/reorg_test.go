@@ -168,8 +168,7 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	}
 
 	latestBlock := sys.L2Chain.WaitForBlock()
-	sys.L2ELValidatorNode().WaitForBlockNumber(latestBlock.Number)
-	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), latestBlock.Number)
+	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), latestBlock.Number)
 
 	// verify that the L2A validator has reorged and reached the latest block
 	err := wait.For(t.Ctx(), 2*time.Second, func() (bool, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -108,6 +109,52 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
 	}
 	entry := m.entries[best]
+	return entry.l1, entry.l2, nil
+}
+
+func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	type rec struct {
+		l1Num uint64
+		l1    eth.BlockID
+		l2    eth.BlockID
+	}
+	var sorted []rec
+	for num, e := range m.entries {
+		sorted = append(sorted, rec{l1Num: num, l1: e.l1, l2: e.l2})
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].l1Num < sorted[j].l1Num })
+	first := sorted[0]
+	last := sorted[len(sorted)-1]
+	if targetL2Num > last.l2.Number {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	if targetL2Num < first.l2.Number {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadUnavailable
+	}
+	for _, r := range sorted {
+		if r.l2.Number >= targetL2Num {
+			return r.l1, r.l2, nil
+		}
+	}
+	return eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+}
+
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	var lowest uint64
+	first := true
+	for num := range m.entries {
+		if first || num < lowest {
+			lowest = num
+			first = false
+		}
+	}
+	entry := m.entries[lowest]
 	return entry.l1, entry.l2, nil
 }
 
@@ -729,89 +776,4 @@ func TestVirtualNode_SyncStatusDuringShutdown(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Start() did not return after inner.Stop() completed")
 	}
-}
-
-// TestVirtualNode_StopClearsInnerBeforeReturn proves that Stop() clears
-// v.inner synchronously before returning, so SyncStatus, SafeHeadAtL1, and
-// L1AtSafeHead return ErrVirtualNodeNotRunning even while the inner node's
-// drain is still in progress in the Start goroutine.
-func TestVirtualNode_StopClearsInnerBeforeReturn(t *testing.T) {
-	t.Parallel()
-	log := createTestLogger()
-	cfg := createTestConfig()
-	initOverload := &rollupNode.InitializationOverrides{}
-
-	mock := newMockInnerNode()
-	mock.startFunc = func(ctx context.Context) {
-		<-ctx.Done()
-	}
-	mock.stopCh = nil // blockingStopMock owns Stop sequencing
-
-	stopStarted := make(chan struct{})
-	stopRelease := make(chan struct{})
-	blocking := &blockingStopMock{
-		mockInnerNode: mock,
-		stopStarted:   stopStarted,
-		stopRelease:   stopRelease,
-	}
-
-	vn := NewVirtualNode(cfg, log, initOverload, "test")
-	vn.innerNodeFactory = func(ctx context.Context, cfg *opnodecfg.Config,
-		log gethlog.Logger, appVersion string, m *opmetrics.Metrics,
-		initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
-		return blocking, nil
-	}
-
-	startDone := make(chan error, 1)
-	go func() {
-		startDone <- vn.Start(context.Background())
-	}()
-
-	require.Eventually(t, func() bool {
-		return vn.State() == VNStateRunning
-	}, time.Second, 10*time.Millisecond)
-
-	_, err := vn.SyncStatus(context.Background())
-	require.NoError(t, err, "pre-Stop SyncStatus should succeed")
-
-	require.NoError(t, vn.Stop(context.Background()))
-
-	// Confirm the inner-node drain has started but not finished — Stop returned
-	// while blockingStopMock still holds the drain open.
-	select {
-	case <-stopStarted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("inner.Stop() was never entered after vn.Stop() returned")
-	}
-	select {
-	case <-startDone:
-		t.Fatal("Start() returned before inner.Stop() drain was released")
-	default:
-	}
-
-	// Load-bearing assertion: every read path that consults v.inner must see
-	// it cleared while the drain is still open.
-	t.Run("SyncStatus", func(t *testing.T) {
-		_, err := vn.SyncStatus(context.Background())
-		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
-	})
-	t.Run("SafeHeadAtL1", func(t *testing.T) {
-		_, _, err := vn.SafeHeadAtL1(context.Background(), 100)
-		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
-	})
-	t.Run("L1AtSafeHead", func(t *testing.T) {
-		_, err := vn.L1AtSafeHead(context.Background(), eth.BlockID{Number: 50, Hash: [32]byte{0xaa}})
-		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
-	})
-
-	close(stopRelease)
-	select {
-	case <-startDone:
-		require.Equal(t, VNStateStopped, vn.State())
-	case <-time.After(5 * time.Second):
-		t.Fatal("Start() did not return after inner.Stop() completed")
-	}
-
-	_, err = vn.SyncStatus(context.Background())
-	require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
 }

@@ -8,17 +8,19 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func FuzzRoundtripLinkEntry(f *testing.F) {
 	f.Fuzz(func(t *testing.T, invalidated bool, revision uint64, aHash []byte, aNum uint64, aTimestamp uint64, bHash []byte, bNum uint64, bTimestamp uint64) {
 		x := LinkEntry{
-			source: types.BlockSeal{
+			source: messages.BlockSeal{
 				Hash:      common.BytesToHash(aHash),
 				Number:    aNum,
 				Timestamp: aTimestamp,
 			},
-			derived: types.BlockSeal{
+			derived: messages.BlockSeal{
 				Hash:      common.BytesToHash(bHash),
 				Number:    bNum,
 				Timestamp: bTimestamp,

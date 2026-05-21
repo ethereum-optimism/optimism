@@ -72,6 +72,10 @@ func (e *WindowSyncPolicy) insertNum(num uint64) {
 	// Invariant: cache is sorted, no duplicates and size not larger than maxSize
 }
 
+func (e *WindowSyncPolicy) Reset() {
+	e.cache = nil
+}
+
 func (e *WindowSyncPolicy) ELSyncStatus(num uint64) eth.ExecutePayloadStatus {
 	e.insertNum(num)
 	if uint64(len(e.cache)) < e.cnt {

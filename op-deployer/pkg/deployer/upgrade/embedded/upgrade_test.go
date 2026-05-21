@@ -188,6 +188,108 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
+			name: "ZK_DISPUTE_GAME with zero Verifier returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.Address{}, // zero
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "Verifier must not be zero address",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero AbsolutePrestate returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.Hash{}, // zero
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "AbsolutePrestate must not be zero",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero MaxChallengeDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 0, // zero
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxChallengeDuration must be > 0",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero MaxProveDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     0, // zero
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxProveDuration must be > 0",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with nil ChallengerBond returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       nil, // nil
+				},
+			},
+			errorContains: "ChallengerBond must be set to a positive value",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero ChallengerBond returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       big.NewInt(0), // zero
+				},
+			},
+			errorContains: "ChallengerBond must be set to a positive value",
+			shouldPass:    false,
+		},
+		{
 			name: "invalid game type returns error",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,

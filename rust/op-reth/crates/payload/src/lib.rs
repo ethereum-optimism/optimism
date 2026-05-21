@@ -23,7 +23,7 @@ pub use payload::{
 mod traits;
 use reth_optimism_primitives::OpPrimitives;
 use reth_payload_primitives::{BuiltPayload, PayloadTypes};
-use reth_primitives_traits::{Block, NodePrimitives, SealedBlock};
+use reth_primitives_traits::{Block, NodePrimitives, SealedBlock, SignedTransaction};
 pub use traits::*;
 pub mod validator;
 pub use validator::OpExecutionPayloadValidator;
@@ -68,8 +68,10 @@ where
 #[non_exhaustive]
 pub struct OpPayloadTypes<N: NodePrimitives = OpPrimitives>(core::marker::PhantomData<N>);
 
-impl<N: NodePrimitives> PayloadTypes for OpPayloadTypes<N>
+impl<T, N> PayloadTypes for OpPayloadTypes<N>
 where
+    T: SignedTransaction,
+    N: NodePrimitives<Block = alloy_consensus::Block<T>>,
     OpBuiltPayload<N>: BuiltPayload,
 {
     type ExecutionData = crate::payload::OpExecData;
@@ -80,6 +82,7 @@ where
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
+        _bal: Option<alloy_primitives::Bytes>,
     ) -> Self::ExecutionData {
         crate::payload::OpExecData::from(OpExecutionData::from_block_unchecked(
             block.hash(),

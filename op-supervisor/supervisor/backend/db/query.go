@@ -7,12 +7,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
-func (db *ChainsDB) FindSealedBlock(chain eth.ChainID, number uint64) (seal types.BlockSeal, err error) {
+func (db *ChainsDB) FindSealedBlock(chain eth.ChainID, number uint64) (seal messages.BlockSeal, err error) {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
+		return messages.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.FindSealedBlock(number)
 }
@@ -45,7 +47,7 @@ func (db *ChainsDB) IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error 
 		return types.ErrUnknownChain
 	}
 	crossUnsafe := xU.Get()
-	if crossUnsafe == (types.BlockSeal{}) {
+	if crossUnsafe == (messages.BlockSeal{}) {
 		return types.ErrFuture
 	}
 	if block.Number > crossUnsafe.Number {
@@ -142,41 +144,41 @@ func (db *ChainsDB) IsFinalized(chainID eth.ChainID, block eth.BlockID) error {
 	return fmt.Errorf("cross-safe source block is not finalized: %w", types.ErrFuture)
 }
 
-func (db *ChainsDB) LocalSafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
+func (db *ChainsDB) LocalSafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (messages.BlockSeal, error) {
 	lDB, ok := db.localDBs.Get(chainID)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	derived, err := lDB.SourceToLastDerived(source)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to find derived block %s: %w", source, err)
+		return messages.BlockSeal{}, fmt.Errorf("failed to find derived block %s: %w", source, err)
 	}
 	return derived, nil
 }
 
-func (db *ChainsDB) LocalUnsafe(chainID eth.ChainID) (types.BlockSeal, error) {
+func (db *ChainsDB) LocalUnsafe(chainID eth.ChainID) (messages.BlockSeal, error) {
 	eventsDB, ok := db.logDBs.Get(chainID)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	head, ok := eventsDB.LatestSealedBlock()
 	if !ok {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	return eventsDB.FindSealedBlock(head.Number)
 }
 
-func (db *ChainsDB) CrossUnsafe(chainID eth.ChainID) (types.BlockSeal, error) {
+func (db *ChainsDB) CrossUnsafe(chainID eth.ChainID) (messages.BlockSeal, error) {
 	result, ok := db.crossUnsafe.Get(chainID)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	crossUnsafe := result.Get()
 	// Fall back to cross-safe if cross-unsafe is not known yet
-	if crossUnsafe == (types.BlockSeal{}) {
+	if crossUnsafe == (messages.BlockSeal{}) {
 		crossSafe, err := db.CrossSafe(chainID)
 		if err != nil {
-			return types.BlockSeal{}, fmt.Errorf("no cross-unsafe known for chain %s, and failed to fall back to cross-safe value: %w", chainID, err)
+			return messages.BlockSeal{}, fmt.Errorf("no cross-unsafe known for chain %s, and failed to fall back to cross-safe value: %w", chainID, err)
 		}
 		return crossSafe.Derived, nil
 	}
@@ -226,20 +228,20 @@ func (db *ChainsDB) FinalizedL1() eth.BlockRef {
 	return db.finalizedL1.Get()
 }
 
-func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
+func (db *ChainsDB) Finalized(chainID eth.ChainID) (messages.BlockSeal, error) {
 	finalizedL1 := db.finalizedL1.Get()
 	if finalizedL1 == (eth.L1BlockRef{}) {
-		return types.BlockSeal{}, fmt.Errorf("no finalized L1 signal, cannot determine L2 finality of chain %s yet: %w", chainID, types.ErrFuture)
+		return messages.BlockSeal{}, fmt.Errorf("no finalized L1 signal, cannot determine L2 finality of chain %s yet: %w", chainID, types.ErrFuture)
 	}
 
 	// compare the finalized L1 block with the last derived block in the cross DB
 	xDB, ok := db.crossDBs.Get(chainID)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	latest, err := xDB.Last()
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("could not get the latest derived pair for chain %s: %w", chainID, err)
+		return messages.BlockSeal{}, fmt.Errorf("could not get the latest derived pair for chain %s: %w", chainID, err)
 	}
 	// if the finalized L1 block is newer than the latest L1 block used to derive L2 blocks,
 	// the finality signal automatically applies to all previous blocks, including the latest derived block
@@ -255,7 +257,7 @@ func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
 	// otherwise, use the finalized L1 block to determine the final L2 block that was derived from it
 	derived, err := xDB.SourceToLastDerived(finalizedL1.ID())
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("could not find what was last derived in L2 chain %s from the finalized L1 block %s: %w", chainID, finalizedL1, err)
+		return messages.BlockSeal{}, fmt.Errorf("could not find what was last derived in L2 chain %s from the finalized L1 block %s: %w", chainID, finalizedL1, err)
 	}
 	return derived, nil
 }
@@ -284,17 +286,17 @@ func (db *ChainsDB) CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.Blo
 
 // Contains calls the underlying logDB to determine if the given log entry exists at the given location.
 // If the block-seal of the block that includes the log is known, it is returned. It is fully zeroed otherwise, if the block is in-progress.
-func (db *ChainsDB) Contains(chain eth.ChainID, q types.ContainsQuery) (includedIn types.BlockSeal, err error) {
+func (db *ChainsDB) Contains(chain eth.ChainID, q messages.ContainsQuery) (includedIn messages.BlockSeal, err error) {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
+		return messages.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.Contains(q)
 }
 
 // OpenBlock returns the Executing Messages for the block at the given number on the given chain.
 // it routes the request to the appropriate logDB.
-func (db *ChainsDB) OpenBlock(chainID eth.ChainID, blockNum uint64) (seal eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+func (db *ChainsDB) OpenBlock(chainID eth.ChainID, blockNum uint64) (seal eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 	logDB, ok := db.logDBs.Get(chainID)
 	if !ok {
 		return eth.BlockRef{}, 0, nil, types.ErrUnknownChain
@@ -304,24 +306,24 @@ func (db *ChainsDB) OpenBlock(chainID eth.ChainID, blockNum uint64) (seal eth.Bl
 
 // LocalDerivedToSource returns the block that the given block was derived from, if it exists in the local derived-from storage.
 // it routes the request to the appropriate localDB.
-func (db *ChainsDB) LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error) {
+func (db *ChainsDB) LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error) {
 	lDB, ok := db.localDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	revision, err := db.findRevision(chain, derived)
 	if err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
 	return lDB.DerivedToFirstSource(derived, revision)
 }
 
 // CrossDerivedToSource returns the block that the given block was derived from, if it exists in the cross derived-from storage.
 // it routes the request to the appropriate crossDB.
-func (db *ChainsDB) CrossDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error) {
+func (db *ChainsDB) CrossDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source messages.BlockSeal, err error) {
 	xDB, ok := db.crossDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	return xDB.DerivedToFirstSource(derived, types.RevisionAny)
 }
@@ -388,22 +390,22 @@ func (db *ChainsDB) CandidateCrossSafe(chain eth.ChainID) (result types.DerivedB
 	return candidate, nil
 }
 
-func (db *ChainsDB) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+func (db *ChainsDB) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived messages.BlockSeal, err error) {
 	xDB, ok := db.crossDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	revision, err := db.findRevision(chain, derived)
 	if err != nil {
-		return types.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
 	return xDB.PreviousDerived(derived, revision)
 }
 
-func (db *ChainsDB) PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error) {
+func (db *ChainsDB) PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource messages.BlockSeal, err error) {
 	lDB, ok := db.localDBs.Get(chain)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return messages.BlockSeal{}, types.ErrUnknownChain
 	}
 	return lDB.PreviousSource(source)
 }

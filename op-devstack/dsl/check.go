@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/sync/errgroup"
 )
@@ -27,7 +29,7 @@ func CheckAll(t devtest.T, checks ...CheckFunc) {
 }
 
 type SyncStatusProvider interface {
-	ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID
+	ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID
 	String() string
 }
 
@@ -36,11 +38,10 @@ type ChainBlockProvider interface {
 }
 
 var _ SyncStatusProvider = (*L2CLNode)(nil)
-var _ SyncStatusProvider = (*Supervisor)(nil)
 
 // LaggedFn returns a lambda that checks the baseNode head with given safety level is lagged with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel
-func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int, allowMatch bool) CheckFunc {
+func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl safety.Level, chainID eth.ChainID, attempts int, allowMatch bool) CheckFunc {
 	return func() error {
 		base := baseNode.ChainSyncStatus(chainID, lvl)
 		ref := refNode.ChainSyncStatus(chainID, lvl)
@@ -60,7 +61,9 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 				return fmt.Errorf("expected head to lag: %s", lvl)
 			}
 			logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
-			time.Sleep(2 * time.Second)
+			if err := clock.SystemClock.SleepCtx(ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
+				return err
+			}
 		}
 		logger.Info("Node lagged as expected")
 		return nil
@@ -69,7 +72,7 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 
 // MatchedFn returns a lambda that checks the baseNode head with given safety level is matched with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel
-func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
+func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, lvl safety.Level, chainID eth.ChainID, attempts int) CheckFunc {
 	return func() error {
 		base := baseNode.ChainSyncStatus(chainID, lvl)
 		ref := refNode.ChainSyncStatus(chainID, lvl)
@@ -86,6 +89,76 @@ func MatchedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context
 				logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)
 				return fmt.Errorf("expected head to match: %s", lvl)
 			})
+	}
+}
+
+// MatchedWithProgressFn returns a lambda that waits for baseNode's head at
+// matchLvl to match refNode's head at matchLvl, while requiring baseNode to
+// make progress on progressLvl. It is intended for sync checks where the
+// matchLvl head can stall behind a slow but progressing pipeline — for
+// example the CrossSafe head behind initial EL-sync, where the CL keeps
+// receiving unsafe payloads (progressLvl == LocalUnsafe) but the safe head
+// cannot advance until the EL completes its initial snap-sync.
+//
+// The check polls every 2s and succeeds as soon as the matchLvl heads match.
+// It fails when one of:
+//   - the overall maxWait elapses; or
+//   - baseNode's progressLvl head has not advanced for stallTimeout (i.e.
+//     the underlying gossip / forward sync has truly stalled).
+//
+// Using a stall detector lets the budget be generous without papering over
+// genuinely stuck systems. The first sample of progressLvl is taken on entry
+// and the stall clock resets every time the progressLvl head advances.
+func MatchedWithProgressFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.Context, matchLvl, progressLvl safety.Level, chainID eth.ChainID, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := log.With("base_id", baseNode, "ref_id", refNode, "chain", chainID, "label", matchLvl, "progress_label", progressLvl)
+		initialBase := baseNode.ChainSyncStatus(chainID, matchLvl)
+		initialRef := refNode.ChainSyncStatus(chainID, matchLvl)
+		logger.Info("Expecting node to match with reference (progress-aware)",
+			"base", initialBase.Number, "ref", initialRef.Number,
+			"max_wait", maxWait, "stall_timeout", stallTimeout)
+
+		deadline := time.Now().Add(maxWait)
+		lastProgress := baseNode.ChainSyncStatus(chainID, progressLvl)
+		lastProgressTime := time.Now()
+
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			base := baseNode.ChainSyncStatus(chainID, matchLvl)
+			ref := refNode.ChainSyncStatus(chainID, matchLvl)
+			if ref.Hash == base.Hash && ref.Number == base.Number {
+				logger.Info("Node matched", "ref", ref.Number)
+				return nil
+			}
+
+			progress := baseNode.ChainSyncStatus(chainID, progressLvl)
+			now := time.Now()
+			if progress.Number > lastProgress.Number {
+				lastProgress = progress
+				lastProgressTime = now
+			}
+			stalledFor := now.Sub(lastProgressTime)
+			logger.Info("Node sync status",
+				"base", base.Number, "ref", ref.Number,
+				"progress", progress.Number, "stalled_for", stalledFor)
+
+			if stalledFor >= stallTimeout {
+				return fmt.Errorf("expected head to match: %s: %s stalled at %d for %s",
+					matchLvl, progressLvl, progress.Number, stalledFor)
+			}
+			if now.After(deadline) {
+				return fmt.Errorf("expected head to match: %s: timeout after %s (base=%d ref=%d progress=%d)",
+					matchLvl, maxWait, base.Number, ref.Number, progress.Number)
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
+			}
+		}
 	}
 }
 
@@ -108,7 +181,7 @@ const maxInSyncGap = 5
 // Unlike MatchedFn this does not require both live heads to be equal in the
 // same polling tick. Unlike a single-snapshot approach it tolerates either side
 // reorging during the wait, since both heads are re-sampled every attempt.
-func InSyncFn(node1, node2 SyncStatusProvider, log log.Logger, ctx context.Context, lvl types.SafetyLevel, chainID eth.ChainID, attempts int) CheckFunc {
+func InSyncFn(node1, node2 SyncStatusProvider, log log.Logger, ctx context.Context, lvl safety.Level, chainID eth.ChainID, attempts int) CheckFunc {
 	return func() error {
 		logger := log.With("node1_id", node1, "node2_id", node2, "chain", chainID, "label", lvl)
 		provider1, canLookup1 := node1.(ChainBlockProvider)

@@ -21,6 +21,18 @@ library LibGameArgs {
         address challenger;
     }
 
+    /// @notice Struct representing the decoded ZK dispute game arguments.
+    struct ZKGameArgs {
+        bytes32 absolutePrestate;
+        address verifier;
+        uint64 maxChallengeDuration;
+        uint64 maxProveDuration;
+        uint256 challengerBond;
+        address anchorStateRegistry;
+        address weth;
+        uint256 l2ChainId;
+    }
+
     /// @notice Encodes the game arguments into a bytes array.
     function encode(GameArgs memory _args) internal pure returns (bytes memory) {
         if (_args.proposer == address(0) && _args.challenger == address(0)) {
@@ -100,8 +112,8 @@ library LibGameArgs {
         return _args.length == ZK_ARGS_LENGTH;
     }
 
-    /// @notice Decodes the anchorStateRegistry, weth, and l2ChainId from packed ZK game template
-    ///         args as produced by OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
+    /// @notice Decodes all fields from packed ZK game template args as produced by
+    ///         OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
     ///         Layout (abi.encodePacked, ZK_ARGS_LENGTH bytes):
     ///           [0-31]   absolutePrestate (bytes32)
     ///           [32-51]  verifier (address)
@@ -111,13 +123,40 @@ library LibGameArgs {
     ///           [100-119] anchorStateRegistry (address)
     ///           [120-139] weth (address)
     ///           [140-171] l2ChainId (uint256)
-    function decodeZK(bytes memory _args) internal pure returns (address asr_, address weth_, uint256 l2ChainId_) {
+    function decodeZK(bytes memory _args) internal pure returns (ZKGameArgs memory decoded_) {
         if (_args.length != ZK_ARGS_LENGTH) revert InvalidGameArgsLength();
+
+        bytes32 absolutePrestate;
+        address verifier;
+        uint64 maxChallengeDuration;
+        uint64 maxProveDuration;
+        uint256 challengerBond;
+        address anchorStateRegistry;
+        address weth;
+        uint256 l2ChainId;
+
         assembly {
+            // skip length prefix
             let base := add(_args, 0x20)
-            asr_ := shr(96, mload(add(base, 100)))
-            weth_ := shr(96, mload(add(base, 120)))
-            l2ChainId_ := mload(add(base, 140))
+            absolutePrestate := mload(base)
+            verifier := shr(96, mload(add(base, 32)))
+            maxChallengeDuration := shr(192, mload(add(base, 52)))
+            maxProveDuration := shr(192, mload(add(base, 60)))
+            challengerBond := mload(add(base, 68))
+            anchorStateRegistry := shr(96, mload(add(base, 100)))
+            weth := shr(96, mload(add(base, 120)))
+            l2ChainId := mload(add(base, 140))
         }
+
+        decoded_ = ZKGameArgs({
+            absolutePrestate: absolutePrestate,
+            verifier: verifier,
+            maxChallengeDuration: maxChallengeDuration,
+            maxProveDuration: maxProveDuration,
+            challengerBond: challengerBond,
+            anchorStateRegistry: anchorStateRegistry,
+            weth: weth,
+            l2ChainId: l2ChainId
+        });
     }
 }

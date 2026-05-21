@@ -2,6 +2,7 @@ package superfaultproofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"os"
@@ -25,7 +26,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -61,11 +63,11 @@ func freezeChains(chains []*chain) {
 		c.CLNode.StopSequencer()
 	}
 	for _, c := range chains {
-		c.CLNode.WaitForStall(types.LocalUnsafe)
+		c.CLNode.WaitForStall(safety.LocalUnsafe)
 	}
 	for _, c := range chains {
-		unsafeNumber := c.CLNode.HeadBlockRef(types.LocalUnsafe).Number
-		c.CLNode.Reached(types.LocalSafe, unsafeNumber, 30)
+		unsafeNumber := c.CLNode.HeadBlockRef(safety.LocalUnsafe).Number
+		c.CLNode.Reached(safety.LocalSafe, unsafeNumber, 30)
 	}
 	for _, c := range chains {
 		c.Batcher.Stop()
@@ -110,7 +112,7 @@ func advanceUnsafeToTimestamp(t devtest.T, sys *presets.SimpleInterop, chains []
 func advanceSafeToCurrentUnsafe(t devtest.T, c *chain) {
 	target := c.EL.BlockRefByLabel(eth.Unsafe).Number
 	c.Batcher.Start()
-	c.CLNode.Reached(types.LocalSafe, target, 60)
+	c.CLNode.Reached(safety.LocalSafe, target, 60)
 	c.Batcher.Stop()
 }
 
@@ -260,6 +262,22 @@ func marshalTransition(superRoot eth.SuperV1, step uint64, progress ...interopTy
 	}).Marshal()
 }
 
+// awaitFullyProcessedL1 polls the supernode until it has fully processed targetL1
+// (CurrentL1.Number > targetL1). Required before driving the challenger trace
+// provider, whose gate rejects an l1Head not strictly below the supernode's
+// in-progress L1 block.
+func awaitFullyProcessedL1(t devtest.T, queryAPI apis.SupernodeQueryAPI, targetL1 uint64) {
+	t.Require().Eventually(func() bool {
+		ctx, cancel := context.WithTimeout(t.Ctx(), dsl.DefaultTimeout)
+		defer cancel()
+		resp, err := queryAPI.SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
+		if err != nil {
+			return false
+		}
+		return resp.CurrentL1.Number > targetL1
+	}, 5*time.Minute, 1*time.Second, fmt.Sprintf("supernode did not fully process L1 block %d in time", targetL1))
+}
+
 // latestRequiredL1 returns the latest RequiredL1 across all optimistic outputs,
 // i.e. the earliest L1 block at which all chains' data is derivable.
 func latestRequiredL1(resp eth.SuperRootAtTimestampResponse) eth.BlockID {
@@ -312,6 +330,12 @@ func runKonaInteropProgram(t devtest.T, cfg vm.Config, l1Head common.Hash, agree
 
 // runChallengerProviderTest verifies the challenger trace provider agrees with the test expectations.
 func runChallengerProviderTest(t devtest.T, queryAPI apis.SupernodeQueryAPI, gameDepth challengerTypes.Depth, startTimestamp, claimTimestamp uint64, test *transitionTest) {
+	// SuperRootAtTimestamp's CurrentL1 names the block currently being processed
+	// (L1[<CurrentL1] is fully processed). The trace provider's gate requires
+	// supernode CurrentL1 > test.L1Head, so wait for the supernode to advance
+	// past test.L1Head before driving the provider.
+	awaitFullyProcessedL1(t, queryAPI, test.L1Head.Number)
+
 	prestateProvider := super.NewSuperNodePrestateProvider(queryAPI, startTimestamp)
 	traceProvider := super.NewSuperNodeTraceProvider(
 		t.Logger().New("role", "challenger-provider"),
@@ -752,7 +776,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 	//     that timestamp maps to a block at or below every chain's safe head.
 	chains[0].Batcher.Stop()
 	defer chains[0].Batcher.Start()
-	chains[0].CLNode.WaitForStall(types.LocalSafe)
+	chains[0].CLNode.WaitForStall(safety.LocalSafe)
 
 	stalledStatus, err := chains[0].Rollup.SyncStatus(t.Ctx())
 	t.Require().NoError(err)
@@ -769,7 +793,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	chains[1].Batcher.Stop()
 	defer chains[1].Batcher.Start()
-	chains[1].CLNode.WaitForStall(types.LocalSafe)
+	chains[1].CLNode.WaitForStall(safety.LocalSafe)
 
 	endTimestamp := chains[0].Cfg.TimestampForBlock(stalledSafeHead + 1)
 	agreedTimestamp := endTimestamp - 1
@@ -1126,7 +1150,7 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 	startTimestamp := endTimestamp - 1
 
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	sys.L2CLB.Reached(types.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
+	sys.L2CLB.Reached(safety.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
 	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
 
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
@@ -1351,7 +1375,7 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 
 	// Wait for cross-safe validation, which should replace the invalid block.
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	sys.L2CLB.Reached(types.CrossSafe, execBlockNum, 30)
+	sys.L2CLB.Reached(safety.CrossSafe, execBlockNum, 30)
 
 	// Verify the expired exec tx was reorged out during consolidation.
 	sys.L2ELB.AssertTxNotInBlock(execBlockNum, execTxHash)
@@ -1505,7 +1529,7 @@ func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInter
 	startTimestamp := endTimestamp - 1
 
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
-	sys.L2CLB.Reached(types.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
+	sys.L2CLB.Reached(safety.CrossSafe, bigs.Uint64Strict(execMsg.BlockNumber()), 10)
 	sys.L2ELB.AssertExecMessageNotInBlock(execMsg)
 
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
