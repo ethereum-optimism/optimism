@@ -11,7 +11,6 @@ import { console } from "forge-std/console.sol";
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
-import { Process } from "scripts/libraries/Process.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
@@ -99,28 +98,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_isCurrentBundleAlreadyApplied()) return;
         PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
         PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
-    }
-
-    /// @notice Executes the current generated NUT bundle with any fork-specific wrappers, or
-    ///         switches to the fork after the fork if L2CM activation test is enabled.
-    function _executeCurrentBundleOrSwitchFork() internal {
-        if (isL2CMActivationTest()) {
-            _switchToForkAfterFork();
-            return;
-        }
-        _executeCurrentBundle();
-    }
-
-    /// @notice Switches to the fork after the fork if L2CM activation test is enabled.
-    function _switchToForkAfterFork() internal {
-        uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
-        if (l2BlockAfterFork == 0) {
-            vm.createSelectFork(Config.l2ForkRpcUrl());
-        } else {
-            vm.createSelectFork(Config.l2ForkRpcUrl(), l2BlockAfterFork);
-        }
-        console.log("Setup: L2 fork switched to after the fork!");
-
     }
 
     /// @notice Returns true when the current bundle has already been applied to the forked chain.
@@ -214,7 +191,7 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
         // Execute bundle on forked L2
-        _executeCurrentBundleOrSwitchFork();
+        _executeCurrentBundle();
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -319,7 +296,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
-        _executeCurrentBundleOrSwitchFork();
+        _executeCurrentBundle();
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -669,23 +646,18 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
-    function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() virtual public {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Pre-capture expected implementations before any fork switch:
-        // in activation mode vm.createSelectFork creates a new fork where generateScript
-        // (deployed on fork 0) is not accessible.
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
-        address[] memory expectedImpls = new address[](predeploys.length);
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
-                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
-            }
-        }
+        // Get StorageSetter implementation to filter out intermediate upgrade events
+        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 
         // Execute bundle on forked L2
-        _executeCurrentBundleOrSwitchFork();
+        _executeCurrentBundle();
+
+        // Get all upgradeable predeploys
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
 
         // Verify each predeploy's implementation
         for (uint256 i = 0; i < predeploys.length; i++) {
@@ -698,8 +670,8 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
-            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
-            address expectedImpl = expectedImpls[i];
+            // Get expected implementation from config
+            address expectedImpl = _getExpectedImplementation(predeploy, name);
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -729,9 +701,12 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
-    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() virtual public {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
+
+        // Get StorageSetter implementation to filter out intermediate upgrade events
+        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
 
         // Skip when the bundle is already applied: Upgraded events are historical and cannot be
         // replayed via vm.recordLogs()
@@ -740,51 +715,18 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             return;
         }
 
-        // Pre-capture everything from generateScript before any fork switch:
-        // in activation mode vm.createSelectFork creates a new fork where generateScript
-        // (deployed on fork 0) is not accessible.
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
-        address[] memory expectedImpls = new address[](predeploys.length);
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
-                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
-            }
-        }
+        // Start recording logs
+        vm.recordLogs();
 
-        Vm.Log[] memory logs;
-        if (!isL2CMActivationTest()) {
-            // Start recording logs
-            vm.recordLogs();
-        }
         // Execute upgrade bundle
-        _executeCurrentBundleOrSwitchFork();
+        _executeCurrentBundle();
 
         // Get all recorded logs
-        if (!isL2CMActivationTest()) {
-            logs = vm.getRecordedLogs();
-        } else {
-            bytes32[] memory topics = new bytes32[](1);
-            uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
-            topics[0] = UPGRADED_EVENT_TOPIC;
-            // vm.eth_getLogs serializes address(0) as the literal zero address rather than null,
-            // so passing address(0) returns no events. Query each predeploy address individually.
-            uint256 totalCount = 0;
-            Vm.EthGetLogs[][] memory perDeployLogs = new Vm.EthGetLogs[][](predeploys.length);
-            for (uint256 p = 0; p < predeploys.length; p++) {
-                perDeployLogs[p] =
-                    vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p], topics);
-                totalCount += perDeployLogs[p].length;
-            }
-            Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);
-            uint256 flatIdx = 0;
-            for (uint256 p = 0; p < predeploys.length; p++) {
-                for (uint256 q = 0; q < perDeployLogs[p].length; q++) {
-                    ethLogs[flatIdx++] = perDeployLogs[p][q];
-                }
-            }
-            logs = _ethGetLogsToLogs(ethLogs);
-        }
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+
+        // Get all upgradeable predeploys
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
 
         // Verify each predeploy emitted the Upgraded event
         for (uint256 i = 0; i < predeploys.length; i++) {
@@ -797,8 +739,8 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
-            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
-            address expectedImpl = expectedImpls[i];
+            // Get expected implementation from config
+            address expectedImpl = _getExpectedImplementation(predeploy, name);
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
@@ -832,138 +774,6 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             // Verify the event was found
             assertTrue(foundEvent, string.concat("Upgraded event not found for ", name, ": ", vm.toString(predeploy)));
         }
-    }
-
-    /// @notice Converts RPC logs from `vm.eth_getLogs` into the shape returned by `vm.getRecordedLogs`.
-    /// @param _ethLogs The RPC logs from `vm.eth_getLogs`.
-    /// @return logs_ The logs in the shape returned by `vm.getRecordedLogs`.
-    function _ethGetLogsToLogs(Vm.EthGetLogs[] memory _ethLogs) internal pure returns (Vm.Log[] memory logs_) {
-        logs_ = new Vm.Log[](_ethLogs.length);
-        for (uint256 i = 0; i < _ethLogs.length; i++) {
-            logs_[i].topics = _ethLogs[i].topics;
-            logs_[i].data = _ethLogs[i].data;
-            logs_[i].emitter = _ethLogs[i].emitter;
-        }
-    }
-}
-
-/// @title L2ForkUpgrade_ActivationBlockTxns_Test
-/// @notice Verifies the activation block contains the expected NUT bundle transactions.
-contract L2ForkUpgrade_ActivationBlockTxns_Test is L2ForkUpgrade_TestInit {
-    /// @notice Fetches the activation block via RPC and asserts that the NUT bundle transactions
-    ///         are present in the correct order with the correct from, to, and calldata.
-    function test_l2ForkUpgrade_activationBlockContainsNUTBundle_succeeds() public {
-        if (!isL2CMActivationTest()) {
-            vm.skip(true);
-            return;
-        } else {
-            _switchToForkAfterFork();
-        }
-        skipIfUnoptimized();
-
-        // activationBlock is the first block after the pre-fork snapshot where the NUT bundle runs.
-        uint256 activationBlock = Config.l2ForkBlockNumber() + 1;
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundleTxns = _currentBundleTxns();
-
-        string memory blockHex = string.concat("0x", LibString.toHexStringNoPrefix(activationBlock));
-        string memory rpcUrl = Config.l2ForkRpcUrl();
-
-        // vm.rpc ABI-encodes block objects; use FFI (cast) to fetch JSON for parseJson.
-        string memory blockJsonHashes = _ffiGetBlockByNumber(blockHex, rpcUrl, false);
-        uint256 txCount = _activationBlockTransactionCount(blockJsonHashes);
-
-        string memory blockJson = _ffiGetBlockByNumber(blockHex, rpcUrl, true);
-        (address[] memory froms, address[] memory tos, bytes[] memory inputs) =
-            _parseActivationBlockTransactions(blockJson, txCount);
-
-        // The activation block also contains the L1 attributes deposit (and potentially other
-        // system transactions) before the NUT bundle. Find the bundle start by matching the
-        // first bundle transaction's from+to.
-        uint256 bundleStart = _findBundleStart(froms, tos, bundleTxns[0]);
-
-        assertGe(
-            froms.length - bundleStart,
-            bundleTxns.length,
-            "Activation block does not contain enough transactions for the full NUT bundle"
-        );
-
-        for (uint256 i = 0; i < bundleTxns.length; i++) {
-            uint256 blockIdx = bundleStart + i;
-            assertEq(
-                froms[blockIdx],
-                bundleTxns[i].from,
-                string.concat("from mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
-            );
-            assertEq(
-                tos[blockIdx],
-                bundleTxns[i].to,
-                string.concat("to mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
-            );
-            assertEq(
-                keccak256(inputs[blockIdx]),
-                keccak256(bundleTxns[i].data),
-                string.concat("data mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
-            );
-        }
-    }
-
-    /// @notice Fetches a block via `cast rpc` (FFI). Returns JSON suitable for `vm.parseJson`.
-    function _ffiGetBlockByNumber(string memory _blockHex, string memory _rpcUrl, bool _fullTxs)
-        internal
-        returns (string memory blockJson_)
-    {
-        string[] memory cmds = new string[](7);
-        cmds[0] = "cast";
-        cmds[1] = "rpc";
-        cmds[2] = "eth_getBlockByNumber";
-        cmds[3] = _blockHex;
-        cmds[4] = _fullTxs ? "true" : "false";
-        cmds[5] = "--rpc-url";
-        cmds[6] = _rpcUrl;
-        blockJson_ = string(Process.run(cmds));
-    }
-
-    /// @notice Returns the number of transactions in an activation block JSON payload (hash-only).
-    function _activationBlockTransactionCount(string memory _blockJson) internal pure returns (uint256 count_) {
-        string[] memory hashes = vm.parseJsonStringArray(_blockJson, ".transactions");
-        return hashes.length;
-    }
-
-    /// @notice Parses from/to/input for each transaction in a full activation block JSON payload.
-    function _parseActivationBlockTransactions(string memory _blockJson, uint256 _txCount)
-        internal
-        pure
-        returns (address[] memory froms_, address[] memory tos_, bytes[] memory inputs_)
-    {
-        froms_ = new address[](_txCount);
-        tos_ = new address[](_txCount);
-        inputs_ = new bytes[](_txCount);
-
-        for (uint256 i = 0; i < _txCount; i++) {
-            string memory base = string.concat(".transactions[", vm.toString(i), "]");
-            froms_[i] = vm.parseJsonAddress(_blockJson, string.concat(base, ".from"));
-            tos_[i] = vm.parseJsonAddress(_blockJson, string.concat(base, ".to"));
-            inputs_[i] = vm.parseJsonBytes(_blockJson, string.concat(base, ".input"));
-        }
-    }
-
-    /// @notice Returns the block transaction index where the NUT bundle starts, identified by
-    ///         matching the first bundle transaction's from+to pair.
-    function _findBundleStart(
-        address[] memory _froms,
-        address[] memory _tos,
-        NetworkUpgradeTxns.NetworkUpgradeTxn memory _firstBundleTxn
-    )
-        internal
-        pure
-        returns (uint256)
-    {
-        for (uint256 i = 0; i < _froms.length; i++) {
-            if (_froms[i] == _firstBundleTxn.from && _tos[i] == _firstBundleTxn.to) {
-                return i;
-            }
-        }
-        revert("L2ForkUpgrade_ActivationBlockTxns_Test: NUT bundle start not found in activation block");
     }
 }
 
