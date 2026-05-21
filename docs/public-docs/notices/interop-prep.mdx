@@ -99,7 +99,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
   Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags).
-  If you also run op-challenger for permissionless fault proofs, these ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs). Pure node operators (RPC, exchange, indexer) without op-challenger can skip that.
+  If you also run op-challenger for permissionless fault proofs, these ELs have additional historical data requirements that go beyond the 7-day baseline above — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) for the retention window and configuration. Pure node operators without op-challenger can skip that.
 
   ```bash
   # OP Sepolia execution client
