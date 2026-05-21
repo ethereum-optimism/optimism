@@ -50,7 +50,11 @@ func (b *L2Batcher) Stop() {
 
 func (b *L2Batcher) Start() {
 	err := retry.Do0(b.ctx, 3, retry.Exponential(), func() error {
-		return b.inner.ActivityAPI().StartBatcher(b.ctx)
+		err := b.inner.ActivityAPI().StartBatcher(b.ctx)
+		if err != nil && strings.Contains(err.Error(), "batcher is already running") {
+			return nil
+		}
+		return err
 	})
 	require.NoError(b.t, err, fmt.Sprintf("Expected to be able to call StartBatcher API on chain %s, but got error", b.inner.ChainID()))
 }
