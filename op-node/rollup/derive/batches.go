@@ -171,23 +171,38 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	}
 
 	isIsthmus := cfg.IsIsthmus(batch.Timestamp)
+	isSDM := cfg.IsSDM(batch.Timestamp)
 
 	// We can do this check earlier, but it's a more intensive one, so we do this last.
 	for i, txBytes := range batch.Transactions {
-		if len(txBytes) == 0 {
-			log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
-			return BatchDrop
-		}
-		if txBytes[0] == types.DepositTxType {
-			log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
-			return BatchDrop
-		}
-		if !isIsthmus && txBytes[0] == types.SetCodeTxType {
-			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", i)
-			return BatchDrop
+		if validity := checkSequencerTxData(log, i, txBytes, isIsthmus, isSDM); validity != BatchAccept {
+			return validity
 		}
 	}
 
+	return BatchAccept
+}
+
+func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus, isSDM bool) BatchValidity {
+	if len(txBytes) == 0 {
+		log.Warn("transaction data must not be empty, but found empty tx", "tx_index", txIndex)
+		return BatchDrop
+	}
+	switch txBytes[0] {
+	case types.DepositTxType:
+		log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", txIndex)
+		return BatchDrop
+	case types.SetCodeTxType:
+		if !isIsthmus {
+			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", txIndex)
+			return BatchDrop
+		}
+	case types.PostExecTxType:
+		if !isSDM {
+			log.Warn("sequencers may not embed any PostExec transactions before SDM", "tx_index", txIndex)
+			return BatchDrop
+		}
+	}
 	return BatchAccept
 }
 
