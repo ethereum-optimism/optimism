@@ -333,11 +333,17 @@ func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label
 
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
 type mockVNForInvalidation struct {
-	stopErr error
+	stopErr     error
+	resetCalled bool
+	resetErr    error
 }
 
 func (m *mockVNForInvalidation) Start(ctx context.Context) error { return nil }
 func (m *mockVNForInvalidation) Stop(ctx context.Context) error  { return m.stopErr }
+func (m *mockVNForInvalidation) ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error {
+	m.resetCalled = true
+	return m.resetErr
+}
 func (m *mockVNForInvalidation) LatestSafe(ctx context.Context) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -536,11 +542,12 @@ func TestInvalidateBlock(t *testing.T) {
 			}
 
 			// Create container with minimal config
+			mockVN := &mockVNForInvalidation{}
 			c := &simpleChainContainer{
 				denyList: dl,
 				log:      testLogger(),
 				vncfg:    &opnodecfg.Config{},
-				vn:       &mockVNForInvalidation{},
+				vn:       mockVN,
 			}
 			c.vncfg.Rollup.Genesis.L2Time = genesisTime
 			c.vncfg.Rollup.Genesis.L2.Number = tt.genesisBlock
@@ -564,8 +571,7 @@ func TestInvalidateBlock(t *testing.T) {
 			require.Equal(t, tt.expectRewind, rewound, "rewind triggered mismatch")
 
 			if tt.expectRewind {
-				require.True(t, mockEng.rewindCalled, "RewindToTimestamp should have been called")
-				require.Equal(t, tt.expectRewindTs, mockEng.rewindTimestamp, "rewind timestamp mismatch")
+				require.True(t, mockVN.resetCalled, "native engine reset should have been requested")
 			}
 
 			// Verify hash was added to denylist regardless

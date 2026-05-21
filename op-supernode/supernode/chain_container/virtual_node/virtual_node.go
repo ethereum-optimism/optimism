@@ -38,6 +38,7 @@ var (
 type VirtualNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error
 
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
 	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
@@ -51,6 +52,7 @@ type VirtualNode interface {
 type innerNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error
 	SafeDB() rollupNode.SafeDBReader
 	SyncStatus() *eth.SyncStatus
 }
@@ -190,6 +192,17 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (v *simpleVirtualNode) ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error {
+	v.mu.Lock()
+	inner := v.inner
+	running := v.state == VNStateRunning
+	v.mu.Unlock()
+	if !running || inner == nil {
+		return ErrVirtualNodeNotRunning
+	}
+	return inner.ForceEngineReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
 }
 
 // State returns the current state of the virtual node (for testing and monitoring)

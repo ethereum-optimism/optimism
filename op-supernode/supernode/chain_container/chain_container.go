@@ -644,60 +644,94 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 		return fmt.Errorf("engine not initialized")
 	}
 
-	// Pause the container to stop it restarting the vn when we kill it
-	err := c.Pause(ctx)
+	target, targetSafe, targetFinalized, err := c.nativeEngineResetTargets(ctx, timestamp)
 	if err != nil {
 		return err
 	}
-	// Always resume the container on return, even if we exit early due to context cancellation
-	// or an error mid-rewind. Without this, a cancelled ctx leaves pause=true permanently,
-	// causing the Start() loop to spin forever and block Supernode.Stop()'s wg.Wait().
-	defer c.Resume(context.Background()) //nolint:errcheck
-	c.log.Info("chain_container/RewindEngine: paused container")
 
-	// stop the vn
-	err = vn.Stop(ctx)
-	if err != nil {
-		return err
+	if err := c.forceNativeEngineReset(ctx, vn, target, targetSafe, targetFinalized); err != nil {
+		return fmt.Errorf("force native engine reset: %w", err)
 	}
-	c.log.Info("chain_container/RewindEngine: stopped vn")
-
-retryLoop:
-	for {
-		err = c.engine.RewindToTimestamp(ctx, timestamp)
-		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			c.log.Error("chain_container/RewindEngine: timeout exceeded")
-			return err
-		case isCriticalRewindError(err):
-			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
-			return err
-		case err == nil:
-			c.log.Info("chain_container/RewindEngine: executed engine rewind")
-			break retryLoop
-		default:
-			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(time.Second):
-			}
-		}
-	}
+	c.log.Info("chain_container/RewindEngine: executed native engine reset",
+		"unsafe", target,
+		"safe", targetSafe,
+		"finalized", targetFinalized,
+	)
 
 	// Notify activities about the reset
 	if c.onReset != nil {
 		c.onReset(c.chainID, timestamp, invalidatedBlock)
 	}
 
-	// resume the chain container to trigger a new vn to be started
-	err = c.Resume(ctx)
-	if err != nil {
+	return nil
+}
+
+func (c *simpleChainContainer) forceNativeEngineReset(ctx context.Context, vn virtual_node.VirtualNode, target, safe, finalized eth.L2BlockRef) error {
+	err := vn.ForceEngineReset(ctx, target, target, safe, safe, finalized)
+	if !errors.Is(err, virtual_node.ErrVirtualNodeNotRunning) {
 		return err
 	}
-	c.log.Info("chain_container/RewindEngine: resumed container")
 
-	return nil
+	c.log.Info("virtual node not running; resuming before native engine reset")
+	if err := c.Resume(ctx); err != nil {
+		return err
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-waitCtx.Done():
+			return waitCtx.Err()
+		case <-ticker.C:
+			vn := c.getVN()
+			if vn == nil {
+				continue
+			}
+			err := vn.ForceEngineReset(waitCtx, target, target, safe, safe, finalized)
+			if err == nil {
+				return nil
+			}
+			if errors.Is(err, virtual_node.ErrVirtualNodeNotRunning) {
+				continue
+			}
+			return err
+		}
+	}
+}
+
+func (c *simpleChainContainer) nativeEngineResetTargets(ctx context.Context, timestamp uint64) (target, safe, finalized eth.L2BlockRef, err error) {
+	targetNum, err := c.TimestampToBlockNumber(ctx, timestamp)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("%w: %w", engine_controller.ErrRewindTimestampToBlockConversion, err)
+	}
+	target, err = c.engine.L2BlockRefByNumber(ctx, targetNum)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("%w %d: %w", engine_controller.ErrRewindTargetBlockNotFound, timestamp, err)
+	}
+	currentSafe, err := c.engine.L2BlockRefByLabel(ctx, eth.Safe)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("%w: failed to get current safe block: %w", engine_controller.ErrRewindComputeTargetsFailed, err)
+	}
+	currentFinalized, err := c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("%w: failed to get current finalized block: %w", engine_controller.ErrRewindComputeTargetsFailed, err)
+	}
+	if target.Number < currentFinalized.Number {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, eth.L2BlockRef{}, engine_controller.ErrRewindOverFinalizedHead
+	}
+	return target, earliestL2Ref(currentSafe, target), earliestL2Ref(currentFinalized, target), nil
+}
+
+func earliestL2Ref(a, b eth.L2BlockRef) eth.L2BlockRef {
+	if a.Number < b.Number {
+		return a
+	}
+	return b
 }
 
 // PauseAndStopVN pauses the container restart loop and stops the running virtual node.

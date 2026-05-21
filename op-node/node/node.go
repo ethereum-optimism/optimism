@@ -803,6 +803,13 @@ func (n *OpNode) RuntimeConfig() runcfg.ReadonlyRuntimeConfig {
 	return n.runCfg
 }
 
+func (n *OpNode) ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error {
+	if n.l2Driver == nil {
+		return errors.New("l2 driver not initialized")
+	}
+	return n.l2Driver.ForceEngineReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+}
+
 // Stop stops the node and closes all resources.
 // If the provided ctx is expired, the node will accelerate the stop where possible, but still fully close.
 func (n *OpNode) Stop(ctx context.Context) error {

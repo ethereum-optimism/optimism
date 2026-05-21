@@ -135,6 +135,7 @@ func NewDriver(
 		drain:                drain,
 		stateReq:             make(chan chan struct{}),
 		forceReset:           make(chan chan struct{}, 10),
+		forceEngineReset:     make(chan forceEngineResetRequest, 10),
 		driverConfig:         driverCfg,
 		syncConfig:           syncCfg,
 		driverCtx:            driverCtx,
@@ -167,6 +168,11 @@ type Driver struct {
 	// It tells the caller that the reset occurred by closing the passed in channel.
 	forceReset chan chan struct{}
 
+	// Upon receiving a request in this channel, the engine is force-reset to
+	// the supplied heads from inside the driver event loop. This preserves the
+	// native EngineResetConfirmedEvent side effects, including SafeDB reset.
+	forceEngineReset chan forceEngineResetRequest
+
 	// Driver config: verifier and sequencer settings.
 	// May not be modified after starting the Driver.
 	driverConfig *Config
@@ -187,6 +193,15 @@ type Driver struct {
 	driverCancel context.CancelFunc
 
 	upstreamFollowSource UpstreamFollowSource
+}
+
+type forceEngineResetRequest struct {
+	localUnsafe eth.L2BlockRef
+	crossUnsafe eth.L2BlockRef
+	localSafe   eth.L2BlockRef
+	crossSafe   eth.L2BlockRef
+	finalized   eth.L2BlockRef
+	resp        chan error
 }
 
 // Start starts up the state loop.
@@ -346,6 +361,16 @@ func (s *Driver) eventLoop() {
 			s.SyncDeriver.Derivation.Reset()
 			s.metrics.RecordPipelineReset()
 			close(respCh)
+		case req := <-s.forceEngineReset:
+			s.log.Warn("Engine is manually force-reset",
+				"local_unsafe", req.localUnsafe,
+				"cross_unsafe", req.crossUnsafe,
+				"local_safe", req.localSafe,
+				"cross_safe", req.crossSafe,
+				"finalized", req.finalized,
+			)
+			s.SyncDeriver.Engine.ForceReset(s.driverCtx, req.localUnsafe, req.crossUnsafe, req.localSafe, req.crossSafe, req.finalized)
+			req.resp <- s.drain.Drain()
 		case <-s.drain.Await():
 			if err := s.drain.Drain(); err != nil {
 				if s.driverCtx.Err() != nil {
@@ -377,6 +402,31 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 			return ctx.Err()
 		case <-respCh:
 			return nil
+		}
+	}
+}
+
+// ForceEngineReset resets the engine controller to the supplied heads through
+// the normal op-node event path. It waits until events emitted by the reset,
+// including EngineResetConfirmedEvent, have been drained.
+func (s *Driver) ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error {
+	req := forceEngineResetRequest{
+		localUnsafe: localUnsafe,
+		crossUnsafe: crossUnsafe,
+		localSafe:   localSafe,
+		crossSafe:   crossSafe,
+		finalized:   finalized,
+		resp:        make(chan error, 1),
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.forceEngineReset <- req:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-req.resp:
+			return err
 		}
 	}
 }

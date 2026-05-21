@@ -57,6 +57,10 @@ func (m *mockInnerNode) Stop(ctx context.Context) error {
 	return m.stopErr
 }
 
+func (m *mockInnerNode) ForceEngineReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) error {
+	return nil
+}
+
 // SafeL2Timestamp implements the innerNode interface method used by VirtualNode for safety checks
 func (m *mockInnerNode) SafeL2Timestamp() (uint64, bool) {
 	return m.safeTs, m.haveSafe
