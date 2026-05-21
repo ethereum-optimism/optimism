@@ -11,12 +11,14 @@ use op_revm::{L1BlockInfo, OpSpecId};
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::{
-    ConfigureEvm, EvmEnv,
+    EvmEnv,
     execute::{BlockBuilder, BlockExecutionError, BlockValidationError},
 };
 use reth_node_api::PayloadBuilderError;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{
+    ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::OpPayloadBuilderAttributes;
 use reth_optimism_payload_builder::{
@@ -34,7 +36,11 @@ use reth_primitives_traits::{InMemorySize, SealedHeader, SignedTransaction};
 use reth_revm::{State, context::Block};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use revm::interpreter::as_u64_saturated;
-use std::{sync::Arc, time::Instant};
+use std::{
+    ops::DerefMut,
+    sync::{Arc, atomic::Ordering},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, trace};
 
@@ -42,6 +48,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
+    sdm_admin::SdmDesiredEnabledFlag,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -57,6 +64,69 @@ where
     let mut receipt = executor.receipts().last().cloned()?;
     receipt.as_receipt_mut().cumulative_gas_used = cumulative_gas_used;
     Some(receipt)
+}
+
+pub(super) struct PostExecBuilder<B> {
+    inner: B,
+}
+
+impl<B> PostExecBuilder<B> {
+    pub(super) fn new(inner: B) -> Self {
+        Self { inner }
+    }
+}
+
+impl<B> BlockBuilder for PostExecBuilder<B>
+where
+    B: BlockBuilder,
+{
+    type Primitives = B::Primitives;
+    type Executor = B::Executor;
+
+    fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
+        self.inner.apply_pre_execution_changes()
+    }
+
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl reth_evm::execute::ExecutorTx<Self::Executor>,
+        f: impl FnOnce(&<Self::Executor as AlloyBlockExecutor>::Result) -> CommitChanges,
+    ) -> Result<Option<alloy_evm::block::GasOutput>, BlockExecutionError> {
+        self.inner.execute_transaction_with_commit_condition(tx, f)
+    }
+
+    fn finish(
+        self,
+        state_provider: impl reth_provider::StateProvider,
+        state_root_precomputed: Option<(alloy_primitives::B256, reth_trie::updates::TrieUpdates)>,
+    ) -> Result<reth_evm::execute::BlockBuilderOutcome<Self::Primitives>, BlockExecutionError> {
+        self.inner.finish(state_provider, state_root_precomputed)
+    }
+
+    fn executor_mut(&mut self) -> &mut Self::Executor {
+        self.inner.executor_mut()
+    }
+
+    fn executor(&self) -> &Self::Executor {
+        self.inner.executor()
+    }
+
+    fn into_executor(self) -> Self::Executor {
+        self.inner.into_executor()
+    }
+}
+
+impl<B> PostExecBuilder<B>
+where
+    B: BlockBuilder,
+{
+    pub(super) fn state_db_mut<DB>(&mut self) -> &mut State<DB>
+    where
+        B::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
+        DB: Database,
+    {
+        self.inner.evm_mut().db_mut().deref_mut()
+    }
 }
 
 /// Container type that holds all necessities to build a new payload.
@@ -88,6 +158,9 @@ pub struct OpPayloadBuilderCtx<ExtraCtx: Debug + Default = ()> {
     pub max_gas_per_txn: Option<u64>,
     /// Rate limiting based on gas. This is an optional feature.
     pub address_gas_limiter: AddressGasLimiter,
+    /// Local operator opt-in for SDM PostExec production. ANDed with the chain-spec
+    /// Interop gate in [`Self::post_exec_mode`].
+    pub sdm_desired_enabled: SdmDesiredEnabledFlag,
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
@@ -253,23 +326,49 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
-    /// Returns a block builder for the next block in the payload.
+    /// Returns the post-exec mode for the current payload.
+    ///
+    /// Two gates must agree: the protocol gate (chain spec Interop at this block's
+    /// timestamp) and the operator gate (`sdm_desired_enabled`, mutated via
+    /// `admin_setSdmEnabled`). Either being false disables production.
+    pub fn post_exec_mode(&self) -> PostExecMode {
+        let protocol_active = self
+            .evm_config
+            .is_sdm_active_at_timestamp(self.attributes().timestamp());
+        let operator_opted_in = self.sdm_desired_enabled.load(Ordering::Acquire);
+        if protocol_active && operator_opted_in {
+            PostExecMode::Produce
+        } else {
+            PostExecMode::Disabled
+        }
+    }
+
+    /// Returns a post-exec-aware block builder for the next block in the payload.
     pub(super) fn block_builder_for_next_block<'a, DB: Database + 'a>(
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
-        impl BlockBuilder<
-            Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: AlloyBlockExecutor<
-                Transaction = OpTransactionSigned,
-                Receipt = OpReceipt,
-                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
-            >,
-        > + 'a,
+        PostExecBuilder<
+            impl BlockBuilder<
+                Primitives = reth_optimism_primitives::OpPrimitives,
+                Executor: PostExecExecutorExt
+                              + AlloyBlockExecutor<
+                    Transaction = OpTransactionSigned,
+                    Receipt = OpReceipt,
+                    Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>,
+                >,
+            > + 'a,
+        >,
         PayloadBuilderError,
     > {
         self.evm_config
-            .builder_for_next_block(db, self.parent(), self.block_env_attributes.clone())
+            .post_exec_builder_for_next_block(
+                db,
+                self.parent(),
+                self.block_env_attributes.clone(),
+                self.post_exec_mode(),
+            )
+            .map(PostExecBuilder::new)
             .map_err(PayloadBuilderError::other)
     }
 

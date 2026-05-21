@@ -2,6 +2,7 @@ use crate::{
     builders::{BuilderConfig, OpPayloadBuilderCtx, flashblocks::FlashblocksConfig},
     gas_limiter::{AddressGasLimiter, args::GasLimiterArgs},
     metrics::OpRBuilderMetrics,
+    sdm_admin::SdmDesiredEnabledFlag,
     traits::ClientBounds,
 };
 use op_revm::OpSpecId;
@@ -29,6 +30,8 @@ pub(super) struct OpPayloadSyncerCtx {
     max_gas_per_txn: Option<u64>,
     /// The metrics for the builder
     metrics: Arc<OpRBuilderMetrics>,
+    /// Operator opt-in flag for SDM PostExec production, shared with the admin RPC.
+    sdm_desired_enabled: SdmDesiredEnabledFlag,
 }
 
 impl OpPayloadSyncerCtx {
@@ -48,6 +51,7 @@ impl OpPayloadSyncerCtx {
             chain_spec,
             max_gas_per_txn: builder_config.max_gas_per_txn,
             metrics,
+            sdm_desired_enabled: builder_config.sdm_desired_enabled.clone(),
         })
     }
 
@@ -80,6 +84,7 @@ impl OpPayloadSyncerCtx {
             extra_ctx: (),
             max_gas_per_txn: self.max_gas_per_txn,
             address_gas_limiter: AddressGasLimiter::new(GasLimiterArgs::default()),
+            sdm_desired_enabled: self.sdm_desired_enabled,
         }
     }
 }
