@@ -441,6 +441,7 @@ func (i *Interop) progress() (time.Duration, error) {
 		if tipTS > lastTS {
 			behind = tipTS - lastTS
 		}
+		i.metrics.InteropVerificationBehind.Set(float64(behind))
 		i.log.Info("interop verification progress",
 			"round", round, "madeProgress", madeProgress,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
