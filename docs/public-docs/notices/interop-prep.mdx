@@ -119,6 +119,8 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
     --authrpc.jwtsecret=/etc/op/jwt-secret.txt
   ```
 
+  The example binds the engine RPC to `127.0.0.1`. If op-reth runs in a Docker container, or on a different host from the supernode, set `--authrpc.addr=0.0.0.0` (or a specific interface IP reachable from the supernode) and restrict access at the network layer.
+
   Each EL in the fleet has exactly one consensus client connected to it.
   The supernode drives its ELs via per-chain virtual nodes; each Light CL also gets its own EL.
   Set one JWT secret path for all of the supernode's virtual nodes via `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`, or override per chain with `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_AUTH` if a chain's EL needs its own secret.
