@@ -103,6 +103,7 @@ jobs:
   prepare-continuation-config:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
+    resource_class: medium.gen2
     environment:
       BASE_REVISION: devlop
     steps:

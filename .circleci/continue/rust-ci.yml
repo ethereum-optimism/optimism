@@ -901,6 +901,7 @@ jobs:
   required-rust-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
     parameters:
       always-succeed:
         description: Force always succeed (skip API gate)

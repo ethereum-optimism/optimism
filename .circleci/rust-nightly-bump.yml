@@ -7,6 +7,7 @@ jobs:
   bump-nightly:
     docker:
       - image: cimg/base:2026.03
+    resource_class: small.gen2
     steps:
       - checkout
 
