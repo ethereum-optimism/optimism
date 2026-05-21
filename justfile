@@ -283,7 +283,7 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
       PARALLEL_PACKAGES=$(echo "$ALL_PACKAGES" | tr ' ' '\n' | awk -v idx="$NODE_INDEX" -v total="$NODE_TOTAL" 'NR % total == idx' | tr '\n' ' ')
       if [ -n "$PARALLEL_PACKAGES" ]; then
           echo "Node $NODE_INDEX/$NODE_TOTAL running packages: $PARALLEL_PACKAGES"
-          ./ops/scripts/gotestsum-split.sh --format=testname \
+          ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
               --junitfile=./tmp/test-results/results-"$NODE_INDEX".xml \
               --jsonfile=./tmp/testlogs/log-"$NODE_INDEX".json \
               --rerun-fails=3 \
@@ -295,7 +295,7 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
           exit 1
       fi
   else
-      ./ops/scripts/gotestsum-split.sh --format=testname \
+      ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
           --junitfile=./tmp/test-results/results.xml \
           --jsonfile=./tmp/testlogs/log.json \
           --rerun-fails=3 \
@@ -328,7 +328,7 @@ go-tests-fraud-proofs-ci:
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
-  ./ops/scripts/gotestsum-split.sh --format=testname \
+  ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile=./tmp/test-results/results.xml \
       --jsonfile=./tmp/testlogs/log.json \
       --rerun-fails=3 \
