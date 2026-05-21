@@ -18,15 +18,6 @@ This builds both supported variants:
 - `kona-client` into `rust/kona/prestate-artifacts-cannon`
 - `kona-client-int` into `rust/kona/prestate-artifacts-cannon-interop`
 
-### Build a single reproducible prestate variant
-
-```sh
-cd rust
-just build-kona-reproducible-prestate-variant <kona-client|kona-client-int> <artifacts_output_dir>
-```
-
-The output directory is relative to `rust/kona`.
-
 ### Build reproducible prestate artifacts for custom chains
 
 To create a reproducible kona-client prestate build that supports custom or devnet chain configurations that are not in the superchain-registry:
