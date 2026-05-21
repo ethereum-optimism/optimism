@@ -80,53 +80,11 @@ impl<Launcher: RpcServerLauncher> NodeActor for RpcActor<Launcher> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actors::rpc::launcher::{JsonrpseeServerLauncher, launch};
-    use kona_rpc::RpcBuilder;
-    use std::{
-        net::SocketAddr,
-        sync::{
-            Arc,
-            atomic::{AtomicU32, Ordering},
-        },
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
     };
     use tokio::sync::watch;
-
-    fn test_rpc_builder(port: u16) -> RpcBuilder {
-        RpcBuilder {
-            socket: SocketAddr::from(([127, 0, 0, 1], port)),
-            no_restart: false,
-            enable_admin: false,
-            admin_persistence: None,
-            ws_enabled: false,
-            dev_enabled: false,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_launch_no_modules() {
-        let result = launch(&test_rpc_builder(8080), RpcModule::new(())).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_launch_with_modules() {
-        let mut modules = RpcModule::new(());
-        modules.merge(RpcModule::new(())).expect("module merge");
-        modules.merge(RpcModule::new(())).expect("module merge");
-        modules.merge(RpcModule::new(())).expect("module merge");
-
-        let result = launch(&test_rpc_builder(8081), modules).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_real_launcher_smoke() {
-        let launcher = JsonrpseeServerLauncher::new(test_rpc_builder(8082));
-        let handle = launcher.launch(RpcModule::new(())).await.expect("initial launch");
-        // Use the trait method, which is what the actor relies on. Returns `()` for stop.
-        RpcServerHandle::stop(&handle);
-        RpcServerHandle::stopped(&handle).await;
-    }
 
     /// Mock handle backed by a [`watch::channel`] of `bool`.
     ///

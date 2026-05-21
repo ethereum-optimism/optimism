@@ -77,13 +77,10 @@ impl RpcServerLauncher for JsonrpseeServerLauncher {
 
 /// Launches the jsonrpsee [`Server`].
 ///
-/// Exposed for the [`crate::RollupNode`] bootstrap path, which performs the initial server
-/// launch before constructing the [`crate::RpcActor`].
-///
 /// ## Errors
 ///
 /// - [`std::io::Error`] if the server fails to start.
-pub(crate) async fn launch(
+async fn launch(
     config: &RpcBuilder,
     module: RpcModule<()>,
 ) -> Result<ServerHandle, std::io::Error> {
