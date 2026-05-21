@@ -7,6 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // These error must be considered as ErrConflict to trigger a reorg.
@@ -21,7 +23,7 @@ var (
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
 type CycleCheckDeps interface {
 	// OpenBlock returns log data for the requested block, to be used for cycle checking.
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 }
 
 // node represents a log entry in the dependency graph.
@@ -86,11 +88,11 @@ func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet)
 // - map of chain index to map of log index to executing message (nil if doesn't exist or ignored)
 func gatherLogs(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
 	map[eth.ChainID]uint32,
-	map[eth.ChainID]map[uint32]*types.ExecutingMessage,
+	map[eth.ChainID]map[uint32]*messages.ExecutingMessage,
 	error,
 ) {
 	logCounts := make(map[eth.ChainID]uint32)
-	execMsgs := make(map[eth.ChainID]map[uint32]*types.ExecutingMessage)
+	execMsgs := make(map[eth.ChainID]map[uint32]*messages.ExecutingMessage)
 
 	for hazardChainID, hazardBlock := range hazards.Entries() {
 		bl, logCount, msgs, err := d.OpenBlock(hazardChainID, hazardBlock.Number)
@@ -114,7 +116,7 @@ func gatherLogs(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
 
 		if len(msgs) > 0 {
 			if _, exists := execMsgs[hazardChainID]; !exists {
-				execMsgs[hazardChainID] = make(map[uint32]*types.ExecutingMessage)
+				execMsgs[hazardChainID] = make(map[uint32]*messages.ExecutingMessage)
 			}
 		}
 		for logIdx, msg := range msgs {
@@ -241,7 +243,7 @@ func checkGraph(g *graph) error {
 	}
 }
 
-func blockSealMatchesRef(seal types.BlockSeal, ref eth.BlockRef) bool {
+func blockSealMatchesRef(seal messages.BlockSeal, ref eth.BlockRef) bool {
 	return seal.Number == ref.Number && seal.Hash == ref.Hash
 }
 

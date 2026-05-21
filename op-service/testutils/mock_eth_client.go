@@ -76,6 +76,42 @@ func (m *MockEthClient) ExpectInfoAndTxsByLabel(label eth.BlockLabel, info eth.B
 	m.Mock.On("InfoAndTxsByLabel", label).Once().Return(info, transactions, err)
 }
 
+func (m *MockEthClient) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	out := m.Mock.Called(hash)
+	return out.Get(0).(*types.Header), out.Error(1)
+}
+
+func (m *MockEthClient) ExpectHeaderByHash(hash common.Hash, header *types.Header, err error) {
+	m.Mock.On("HeaderByHash", hash).Once().Return(header, err)
+}
+
+func (m *MockEthClient) HeaderByNumber(ctx context.Context, number uint64) (*types.Header, error) {
+	out := m.Mock.Called(number)
+	return out.Get(0).(*types.Header), out.Error(1)
+}
+
+func (m *MockEthClient) ExpectHeaderByNumber(number uint64, header *types.Header, err error) {
+	m.Mock.On("HeaderByNumber", number).Once().Return(header, err)
+}
+
+func (m *MockEthClient) HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error) {
+	out := m.Mock.Called(label)
+	return out.Get(0).(*types.Header), out.Error(1)
+}
+
+func (m *MockEthClient) ExpectHeaderByLabel(label eth.BlockLabel, header *types.Header, err error) {
+	m.Mock.On("HeaderByLabel", label).Once().Return(header, err)
+}
+
+func (m *MockEthClient) HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error) {
+	out := m.Mock.Called(hash)
+	return out.Get(0).(*types.Header), out.Get(1).(types.Transactions), out.Error(2)
+}
+
+func (m *MockEthClient) ExpectHeaderAndTxsByHash(hash common.Hash, header *types.Header, transactions types.Transactions, err error) {
+	m.Mock.On("HeaderAndTxsByHash", hash).Once().Return(header, transactions, err)
+}
+
 func (m *MockEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	out := m.Mock.Called(hash)
 	return out.Get(0).(*eth.ExecutionPayloadEnvelope), out.Error(1)

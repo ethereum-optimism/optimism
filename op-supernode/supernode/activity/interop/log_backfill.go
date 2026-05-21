@@ -4,150 +4,179 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
-// ErrChainBehindBackfillLowerBound is returned when a chain's LocalSafeL2
-// block number is earlier than the block that TimestampToBlockNumber maps
-// T_lo to. Under a consistent SyncStatus we should always have
-// LocalSafeL2.Time >= minCrossSafeTime >= T_lo, so this indicates the
-// chain container is reporting inconsistent state (e.g. mid-rewind, a
-// fresh VN whose LocalSafe hasn't caught up to cross-safe, or a bad
-// TimestampToBlockNumber implementation). Silently skipping such a
-// chain would cause the main loop to wedge on ErrStaleLogsDB once it
-// hands off below the first sealed block of chains that did backfill,
-// so we fail the whole attempt instead. Operator remediation is to
-// clear the logs DBs and restart.
-var ErrChainBehindBackfillLowerBound = errors.New("chain localSafe is behind backfill lower bound; clear data dir")
+// advanceColdStartInit runs one best-effort pass at cold-start initialization:
+// it collects every chain's first SafeDB entry timestamp, picks
+// verificationStartTimestamp = max(activation, max_c T_c), runs backfill, and
+// signals advance=true on success. Returns advance=false when any chain's
+// SafeDB is still empty (caller backs off and retries). Errors from the
+// backfill phase are fatal.
+func (i *Interop) advanceColdStartInit() (bool, error) {
+	i.backfillAttempts.Add(1)
 
-// LogBackfillLowerBound returns T_lo = max(T_act, crossSafeTs - D_log) in unix seconds (L2).
-// crossSafeTs is the minimum cross-safe timestamp across all chains — the
-// earliest point where cross-validation will resume after startup.
-// Never ingest logs for timestamps before activation.
-func LogBackfillLowerBound(crossSafeTs, activationTimestampUnix uint64, logBackfillDepth time.Duration) uint64 {
-	if logBackfillDepth <= 0 {
-		return crossSafeTs
+	perChainTS, ready, err := i.collectFirstSafeHeadTimestamps()
+	if err != nil {
+		return false, err
 	}
-	sub := uint64(logBackfillDepth / time.Second)
-	var raw uint64
-	if crossSafeTs >= sub {
-		raw = crossSafeTs - sub
-	} else {
-		raw = 0
+	if !ready {
+		return false, nil
 	}
-	if raw < activationTimestampUnix {
-		return activationTimestampUnix
+
+	verificationStart := i.activationTimestamp
+	for _, ts := range perChainTS {
+		if ts > verificationStart {
+			verificationStart = ts
+		}
 	}
-	return raw
+	i.verificationStartTimestamp = verificationStart
+	// Flip initialized before backfill: backfill seals into logsDB, and
+	// sealBlockDataIntoLogsDB queries firstVerifiableTimestamp to validate
+	// the timestamp gap. That accessor returns ErrNotStarted while
+	// initialized is false.
+	i.initialized.Store(true)
+
+	if err := i.runColdStartBackfill(verificationStart); err != nil {
+		return false, fmt.Errorf("backfill: %w", err)
+	}
+	i.backfillCompleted.Store(true)
+	return true, nil
 }
 
-// runLogBackfill seals logs for each chain from T_lo through LocalSafe and
-// advances activationTimestamp past the backfilled range so the main loop
-// starts verification after the pre-ingested data.
-//
-// T_lo is computed from the minimum cross-safe (SafeL2) timestamp across all
-// chains, since that is the earliest point where cross-validation will resume.
-func (i *Interop) runLogBackfill() error {
+// collectFirstSafeHeadTimestamps queries every chain's SafeDB for its first
+// entry timestamp in parallel. Returns ready=false (without error) if any
+// chain has no entries yet; the caller backs off and retries. Other errors
+// are reported as-is.
+func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool, error) {
+	type res struct {
+		id  eth.ChainID
+		ts  uint64
+		err error
+	}
+	results := make(chan res, len(i.chains))
+	for _, chain := range i.chains {
+		go func(c cc.ChainContainer) {
+			ts, err := c.FirstSafeHeadTimestamp(i.ctx)
+			results <- res{id: c.ID(), ts: ts, err: err}
+		}(chain)
+	}
+	out := make(map[eth.ChainID]uint64, len(i.chains))
+	var firstErr error
+	emptyAny := false
+	for range i.chains {
+		r := <-results
+		if r.err != nil {
+			if errors.Is(r.err, cc.ErrSafeDBNotReady) {
+				emptyAny = true
+				i.log.Debug("interop cold start: chain SafeDB empty, waiting", "chain", r.id)
+				continue
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("chain %s: first safe head timestamp: %w", r.id, r.err)
+			}
+			continue
+		}
+		out[r.id] = r.ts
+	}
+	if firstErr != nil {
+		return nil, false, firstErr
+	}
+	if emptyAny {
+		return nil, false, nil
+	}
+	return out, true, nil
+}
+
+// runColdStartBackfill seals logs over the configured backfill window leading
+// up to verificationStart. The per-chain lower bound is
+// max(activationTimestamp, perChainGenesisTime, verificationStart - depth).
+// Returns nil if logBackfillDepth is zero or no chains are configured.
+func (i *Interop) runColdStartBackfill(verificationStart uint64) error {
 	if i.logBackfillDepth <= 0 {
 		return nil
 	}
 	if len(i.chains) == 0 {
 		return nil
 	}
-
-	ctx := i.ctx
-
-	// First pass: gather the minimum cross-safe timestamp across all chains.
-	// SafeL2 is the cross-safe head post-interop.
-	type chainInfo struct {
-		crossSafeTime uint64
-		localSafeNum  uint64
-		localSafeTime uint64
+	if verificationStart == 0 {
+		return fmt.Errorf("invalid verificationStartTimestamp 0 for backfill")
 	}
-	info := make(map[eth.ChainID]chainInfo, len(i.chains))
-	var minCrossSafeTime uint64
-	first := true
-	for cid, chain := range i.chains {
-		ss, err := chain.SyncStatus(ctx)
-		if err != nil {
-			return fmt.Errorf("chain %s: sync status: %w", cid, err)
-		}
-		ci := chainInfo{
-			crossSafeTime: ss.SafeL2.Time,
-			localSafeNum:  ss.LocalSafeL2.Number,
-			localSafeTime: ss.LocalSafeL2.Time,
-		}
-		info[cid] = ci
-		if first || ci.crossSafeTime < minCrossSafeTime {
-			minCrossSafeTime = ci.crossSafeTime
-			first = false
-		}
+	endTime := verificationStart - 1
+
+	depthSec := uint64(i.logBackfillDepth.Seconds())
+	var depthFloor uint64
+	if endTime >= depthSec {
+		depthFloor = endTime - depthSec
+	}
+	commonStart := max(depthFloor, i.activationTimestamp)
+	if commonStart > endTime {
+		return nil
 	}
 
-	Tlo := LogBackfillLowerBound(minCrossSafeTime, i.runtimeActivationTimestamp, i.logBackfillDepth)
-	// Debug-level because this fires on every retry while VNs are coming up.
-	// The summary "interop log backfill complete" line at the end is the
-	// user-visible signal that backfill finished.
-	i.log.Debug("log backfill: computed lower bound",
-		"minCrossSafeTime", minCrossSafeTime, "T_lo", Tlo, "depth", i.logBackfillDepth)
-
-	// Second pass: backfill each chain from T_lo to its LocalSafe. Fold
-	// localSafeTime into minLocalSafeTime only after the consistency check
-	// passes, so runtimeActivation is clamped to the earliest backfilled
-	// head — any chain that can't satisfy the round aborts before
-	// contributing, which keeps minLocalSafeTime reflective of the set of
-	// chains whose logs DB is populated up to T_lo.
-	var minLocalSafeTime uint64
-	firstLocal := true
-	for cid, chain := range i.chains {
-		ci := info[cid]
-
-		startNum, err := chain.TimestampToBlockNumber(ctx, Tlo)
-		if err != nil {
-			return fmt.Errorf("chain %s: timestamp to block number for T_lo %d: %w", cid, Tlo, err)
-		}
-		// Under a consistent SyncStatus this is unreachable: T_lo is clamped
-		// to min(crossSafe) across chains, and localSafe >= crossSafe on every
-		// chain, so localSafeNum >= TimestampToBlockNumber(T_lo). If it fires,
-		// the chain container is reporting inconsistent state and continuing
-		// would leave this chain's logs DB empty while other chains seal from
-		// T_lo forward, which wedges the main loop's first seal attempt on
-		// ErrStaleLogsDB.
-		if startNum > ci.localSafeNum {
-			return fmt.Errorf("chain %s: startNum %d > localSafeNum %d at T_lo %d (localSafeTime %d, minCrossSafeTime %d): %w",
-				cid, startNum, ci.localSafeNum, Tlo, ci.localSafeTime, minCrossSafeTime, ErrChainBehindBackfillLowerBound)
-		}
-
-		if firstLocal || ci.localSafeTime < minLocalSafeTime {
-			minLocalSafeTime = ci.localSafeTime
-			firstLocal = false
-		}
-
-		i.log.Info("log backfill: sealing logs",
-			"chain", cid, "from", startNum, "to", ci.localSafeNum)
-
-		if err := i.backfillChain(ctx, cid, chain, startNum, ci.localSafeNum); err != nil {
-			return err
-		}
+	errCh := make(chan error, len(i.chains))
+	wg := sync.WaitGroup{}
+	wg.Add(len(i.chains))
+	for _, chain := range i.chains {
+		go func(chain cc.ChainContainer) {
+			defer wg.Done()
+			chainStart := commonStart
+			genesisTime, err := chain.BlockNumberToTimestamp(i.ctx, 0)
+			if err != nil {
+				errCh <- fmt.Errorf("chain %s: genesis timestamp: %w", chain.ID(), err)
+				return
+			}
+			if genesisTime > chainStart {
+				chainStart = genesisTime
+			}
+			if chainStart > endTime {
+				return
+			}
+			startNum, err := chain.TimestampToBlockNumber(i.ctx, chainStart)
+			if err != nil {
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for start %d: %w", chain.ID(), chainStart, err)
+				return
+			}
+			endNum, err := chain.TimestampToBlockNumber(i.ctx, endTime)
+			if err != nil {
+				errCh <- fmt.Errorf("chain %s: timestamp to block number for end %d: %w", chain.ID(), endTime, err)
+				return
+			}
+			i.log.Info("log backfill: sealing logs",
+				"chain", chain.ID(), "from", startNum, "to", endNum)
+			if err := i.backfillChain(i.ctx, chain.ID(), chain, startNum, endNum); err != nil {
+				errCh <- fmt.Errorf("chain %s: backfill: %w", chain.ID(), err)
+				return
+			}
+		}(chain)
 	}
-
-	if !firstLocal && minLocalSafeTime+1 > i.runtimeActivationTimestamp {
-		i.log.Info("advancing runtime activation past backfilled range",
-			"oldActivation", i.runtimeActivationTimestamp, "newActivation", minLocalSafeTime+1)
-		i.runtimeActivationTimestamp = minLocalSafeTime + 1
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		return err
 	}
-	i.log.Info("interop log backfill complete", "runtimeActivationTimestamp", i.runtimeActivationTimestamp)
 	return nil
 }
 
+// backfillChain seals every canonical block in [startNum, endNum] into the
+// chain's logsDB. Calls reconcileLogsDBTail first to drop any tail that
+// diverged from canonical while the supernode was offline (only meaningful
+// during cold-start backfill: a verifiedDB-resume path never enters here).
 func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, startNum, endNum uint64) error {
 	db := i.logsDBs[cid]
+	if err := i.reconcileLogsDBTail(ctx, cid, chain, db); err != nil {
+		return err
+	}
 	if latest, has := db.LatestSealedBlock(); has {
 		startNum = latest.Number + 1
 	}
+	if startNum > endNum {
+		return nil
+	}
+	totalBlocks := endNum - startNum + 1
 	for num := startNum; num <= endNum; num++ {
 		out, err := chain.OutputV0AtBlockNumber(ctx, num)
 		if err != nil {
@@ -162,6 +191,63 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 		if err := i.sealBlockDataIntoLogsDB(cid, bid, blockInfo, receipts, blockInfo.Time(), true); err != nil {
 			return err
 		}
+
+		if totalBlocks > 0 {
+			progress := float64(num-startNum+1) / float64(totalBlocks)
+			i.metrics.LogBackfillProgress.WithLabelValues(cid.String()).Set(progress)
+		}
+	}
+	return nil
+}
+
+// reconcileLogsDBTail trims tail blocks whose hash no longer matches canonical,
+// so backfill resumes from a block that is still in force. Without this, an L2
+// reorg that occurs while supernode is offline leaves the tail diverged and the
+// first seal on resume loops forever on ErrParentHashMismatch.
+func (i *Interop) reconcileLogsDBTail(ctx context.Context, cid eth.ChainID, chain cc.ChainContainer, db LogsDB) error {
+	latest, has := db.LatestSealedBlock()
+	if !has {
+		return nil
+	}
+	latestOut, err := chain.OutputV0AtBlockNumber(ctx, latest.Number)
+	if err != nil {
+		return fmt.Errorf("chain %s: output at block %d during logsDB reconcile: %w", cid, latest.Number, err)
+	}
+	if latestOut.BlockHash == latest.Hash {
+		return nil
+	}
+
+	first, err := db.FirstSealedBlock()
+	if err != nil {
+		return fmt.Errorf("chain %s: first sealed block during reconcile: %w", cid, err)
+	}
+
+	for n := latest.Number; n > first.Number; {
+		n--
+		seal, err := db.FindSealedBlock(n)
+		if err != nil {
+			return fmt.Errorf("chain %s: find sealed block %d during reconcile: %w", cid, n, err)
+		}
+		out, err := chain.OutputV0AtBlockNumber(ctx, n)
+		if err != nil {
+			return fmt.Errorf("chain %s: output at block %d during reconcile: %w", cid, n, err)
+		}
+		if seal.Hash != out.BlockHash {
+			continue
+		}
+		i.log.Warn("rewinding logsDB to last canonical block",
+			"chain", cid, "rewindTo", n, "trimmedTipNumber", latest.Number,
+			"trimmedTipStored", latest.Hash, "trimmedTipCanonical", latestOut.BlockHash)
+		if err := db.Rewind(eth.BlockID{Number: n, Hash: seal.Hash}); err != nil {
+			return fmt.Errorf("chain %s: rewind logsDB during reconcile: %w", cid, err)
+		}
+		return nil
+	}
+
+	i.log.Warn("entire logsDB diverges from canonical; clearing",
+		"chain", cid, "firstSealed", first.Number, "latestSealed", latest.Number)
+	if err := db.Clear(); err != nil {
+		return fmt.Errorf("chain %s: clear logsDB during reconcile: %w", cid, err)
 	}
 	return nil
 }

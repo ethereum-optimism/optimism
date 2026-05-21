@@ -26,7 +26,6 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { ProtocolVersion, IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -312,37 +311,6 @@ library ChainAssertions {
         require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 
-    /// @notice Asserts that the ProtocolVersions is setup correctly
-    function checkProtocolVersions(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        IProtocolVersions versions = IProtocolVersions(_contracts.ProtocolVersions);
-        console.log(
-            "Running chain assertions on the ProtocolVersions %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(versions)
-        );
-        require(address(versions) != address(0), "CHECK-PV-10");
-
-        // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(versions), _isProxy: _isProxy, _slot: 0, _offset: 0 });
-
-        if (_isProxy) {
-            require(versions.owner() == _cfg.finalSystemOwner(), "CHECK-PV-20");
-            require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion(), "CHECK-PV-30");
-            require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion(), "CHECK-PV-40");
-        } else {
-            require(versions.owner() == address(0), "CHECK-PV-50");
-            require(ProtocolVersion.unwrap(versions.required()) == 0, "CHECK-PV-60");
-            require(ProtocolVersion.unwrap(versions.recommended()) == 0, "CHECK-PV-70");
-        }
-    }
-
     /// @notice Asserts that the SuperchainConfig is setup correctly
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
@@ -400,7 +368,6 @@ library ChainAssertions {
         require(impls.delayedWETHImpl == _impls.DelayedWETH, "CHECK-OPCM-120");
         require(impls.mipsImpl == address(_mips), "CHECK-OPCM-130");
         require(impls.superchainConfigImpl == _impls.SuperchainConfig, "CHECK-OPCM-140");
-        require(impls.protocolVersionsImpl == _impls.ProtocolVersions, "CHECK-OPCM-150");
 
         // Verify that initCode is correctly set into the blueprints
         IOPContractsManagerContainer.Blueprints memory blueprints = _opcm.blueprints();
@@ -486,7 +453,6 @@ library ChainAssertions {
             ETHLockbox: address(_output.ethLockboxImpl),
             SystemConfig: address(_output.systemConfigImpl),
             L1ERC721Bridge: address(_output.l1ERC721BridgeImpl),
-            ProtocolVersions: address(_output.protocolVersionsImpl),
             SuperchainConfig: address(_output.superchainConfigImpl)
         });
     }

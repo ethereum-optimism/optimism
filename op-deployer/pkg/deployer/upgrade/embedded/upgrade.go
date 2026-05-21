@@ -18,7 +18,6 @@ type GameType uint32
 const (
 	GameTypeCannon             GameType = 0
 	GameTypePermissionedCannon GameType = 1
-	GameTypeSuperCannon        GameType = 4
 	GameTypeSuperPermCannon    GameType = 5
 	GameTypeCannonKona         GameType = 8
 	GameTypeSuperCannonKona    GameType = 9
@@ -31,6 +30,9 @@ var (
 
 	// This is used to encode the permissioned dispute game config for the upgrade input
 	permEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address proposer,address challenger))", "")
+
+	// This is used to encode the ZK dispute game config for the upgrade input
+	zkEncoder = w3.MustNewFunc("dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))", "")
 
 	// This is used to encode the upgrade input for the upgrade input
 	upgradeInputEncoder = w3.MustNewFunc("dummy((address systemConfig,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(string key,bytes data)[] extraInstructions))",
@@ -66,6 +68,7 @@ type DisputeGameConfig struct {
 	GameType                      GameType                       `json:"gameType"`
 	FaultDisputeGameConfig        *FaultDisputeGameConfig        `json:"faultDisputeGameConfig,omitempty"`
 	PermissionedDisputeGameConfig *PermissionedDisputeGameConfig `json:"permissionedDisputeGameConfig,omitempty"`
+	ZKDisputeGameConfig           *ZKDisputeGameConfig           `json:"zkDisputeGameConfig,omitempty"`
 }
 
 // ExtraInstruction represents an additional upgrade instruction for the upgrade on OPCM v2.
@@ -86,6 +89,16 @@ type PermissionedDisputeGameConfig struct {
 	AbsolutePrestate common.Hash    `json:"absolutePrestate"`
 	Proposer         common.Address `json:"proposer"`
 	Challenger       common.Address `json:"challenger"`
+}
+
+// ZKDisputeGameConfig represents the configuration for a ZK dispute game.
+// It contains the absolute prestate, verifier address, challenge/prove durations, and challenger bond.
+type ZKDisputeGameConfig struct {
+	AbsolutePrestate     common.Hash    `json:"absolutePrestate"`
+	Verifier             common.Address `json:"verifier"`
+	MaxChallengeDuration uint64         `json:"maxChallengeDuration"`
+	MaxProveDuration     uint64         `json:"maxProveDuration"`
+	ChallengerBond       *big.Int       `json:"challengerBond"`
 }
 
 // EncodableUpgradeInput is an intermediate struct that matches the encoder expectation for the UpgradeInputV2 struct.
@@ -117,7 +130,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 
 		if gameConfig.Enabled {
 			switch gameConfig.GameType {
-			case GameTypeCannon, GameTypeCannonKona, GameTypeSuperCannon, GameTypeSuperCannonKona:
+			case GameTypeCannon, GameTypeCannonKona, GameTypeSuperCannonKona:
 				if gameConfig.FaultDisputeGameConfig == nil {
 					return nil, fmt.Errorf("faultDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}
@@ -134,6 +147,31 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				gameArgs, err = permEncoder.EncodeArgs(gameConfig.PermissionedDisputeGameConfig)
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode permissioned game config: %w", err)
+				}
+			case GameTypeZKDisputeGame:
+				if gameConfig.ZKDisputeGameConfig == nil {
+					return nil, fmt.Errorf("zkDisputeGameConfig is required for game type %d", gameConfig.GameType)
+				}
+				zk := gameConfig.ZKDisputeGameConfig
+				if zk.Verifier == (common.Address{}) {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.Verifier must not be zero address for game type %d", gameConfig.GameType)
+				}
+				if zk.AbsolutePrestate == (common.Hash{}) {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.AbsolutePrestate must not be zero for game type %d", gameConfig.GameType)
+				}
+				if zk.MaxChallengeDuration == 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxChallengeDuration must be > 0 for game type %d", gameConfig.GameType)
+				}
+				if zk.MaxProveDuration == 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxProveDuration must be > 0 for game type %d", gameConfig.GameType)
+				}
+				if zk.ChallengerBond == nil || zk.ChallengerBond.Sign() <= 0 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.ChallengerBond must be set to a positive value for game type %d", gameConfig.GameType)
+				}
+				// Encode the ZK dispute game args
+				gameArgs, err = zkEncoder.EncodeArgs(gameConfig.ZKDisputeGameConfig)
+				if err != nil {
+					return nil, fmt.Errorf("failed to encode ZK game config: %w", err)
 				}
 			default:
 				return nil, fmt.Errorf("invalid game type %d for opcm v2", gameConfig.GameType)

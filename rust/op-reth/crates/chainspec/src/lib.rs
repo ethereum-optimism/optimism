@@ -35,6 +35,7 @@ extern crate alloc;
 mod base;
 mod base_sepolia;
 mod basefee;
+mod bootnodes;
 
 pub mod constants;
 mod dev;
@@ -288,6 +289,15 @@ impl EthChainSpec for OpChainSpec {
     }
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
+        let chain = self.inner.chain;
+        if chain.is_optimism() {
+            let testnet = chain.named().is_some_and(|n| n.is_testnet());
+            return Some(if testnet {
+                bootnodes::op_testnet_nodes()
+            } else {
+                bootnodes::op_nodes()
+            });
+        }
         self.inner.bootnodes()
     }
 
@@ -1348,5 +1358,17 @@ mod tests {
         for eth_hf in EthereumHardfork::VARIANTS {
             assert!(!content.contains(eth_hf.name()));
         }
+    }
+
+    // Mainnets get the 11-enode pool, sepolias the 8-enode pool. OP covers
+    // the hand-coded OpChainSpec constants; Unichain covers the
+    // registry-driven path through the superchain-configs macro.
+    #[cfg(feature = "superchain-configs")]
+    #[test]
+    fn op_stack_default_bootnodes() {
+        assert_eq!(OP_MAINNET.bootnodes().expect("op-mainnet bootnodes").len(), 11);
+        assert_eq!(UNICHAIN_MAINNET.bootnodes().expect("unichain-mainnet bootnodes").len(), 11);
+        assert_eq!(OP_SEPOLIA.bootnodes().expect("op-sepolia bootnodes").len(), 8);
+        assert_eq!(UNICHAIN_SEPOLIA.bootnodes().expect("unichain-sepolia bootnodes").len(), 8);
     }
 }

@@ -126,10 +126,8 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.RunFaultProofProgramFromGenesis(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_L1Lookback(gt *testing.T) {
+func TestL1Lookback(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
@@ -160,4 +158,5 @@ func Test_ProgramAction_L1Lookback(gt *testing.T) {
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
+	matrix.Run(gt)
 }

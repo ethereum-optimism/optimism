@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
+func TestOperatorFeeConsistency(gt *testing.T) {
 	type testCase int64
 
 	const (
@@ -57,7 +57,12 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 		}
 
 		if testCfg.Custom == StateRefund {
-			testCfg.Allocs = actionsHelpers.DefaultAlloc
+			// Copy DefaultAlloc rather than using the shared pointer directly.
+			// Multiple StateRefund fork variants run in parallel; sharing the pointer
+			// causes concurrent writes to the same L2Alloc map, triggering
+			// "fatal error: concurrent map writes" (confirmed: CI job 5075301 shard 1).
+			allocsCopy := *actionsHelpers.DefaultAlloc
+			testCfg.Allocs = &allocsCopy
 			testCfg.Allocs.L2Alloc = make(map[common.Address]types.Account)
 			testCfg.Allocs.L2Alloc[testStorageUpdateContractAddress] = types.Account{
 				Code:    testStorageUpdateContractCode,

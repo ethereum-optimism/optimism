@@ -12,14 +12,14 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000013
 /// @title L1BlockNumber
-/// @notice L1BlockNumber is a legacy contract that fills the roll of the OVM_L1BlockNumber contract
+/// @notice L1BlockNumber is a legacy contract that fills the role of the OVM_L1BlockNumber contract
 ///        in the old version of the Optimism system. Only necessary for backwards compatibility.
 ///        If you want to access the L1 block number going forward, you should use the L1Block
 ///        contract instead.
 contract L1BlockNumber is ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.2
-    string public constant version = "1.1.2";
+    /// @custom:semver 1.1.3
+    string public constant version = "1.1.3";
 
     /// @notice Returns the L1 block number.
     receive() external payable {

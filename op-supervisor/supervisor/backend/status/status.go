@@ -8,10 +8,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 var (
@@ -27,10 +27,10 @@ type StatusTracker struct {
 type NodeSyncStatus struct {
 	CurrentL1   eth.L1BlockRef
 	LocalUnsafe eth.BlockRef
-	LocalSafe   types.BlockSeal
-	CrossUnsafe types.BlockSeal
-	CrossSafe   types.BlockSeal
-	Finalized   types.BlockSeal
+	LocalSafe   messages.BlockSeal
+	CrossUnsafe messages.BlockSeal
+	CrossSafe   messages.BlockSeal
+	Finalized   messages.BlockSeal
 }
 
 func NewStatusTracker(chains []eth.ChainID) *StatusTracker {

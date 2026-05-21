@@ -6,6 +6,8 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // FirstRevision is the revision that is used when the first entry is added to the DB.
@@ -55,8 +57,8 @@ func (EntryBinary) EntrySize() int {
 
 // LinkEntry is a SourceV0 or a InvalidatedFromV0 kind
 type LinkEntry struct {
-	source  types.BlockSeal
-	derived types.BlockSeal
+	source  messages.BlockSeal
+	derived messages.BlockSeal
 	// revision: every time we invalidate a block, we increment the revision, to distinguish invalidated data.
 	// The upper bit is reserved.
 	revision types.Revision

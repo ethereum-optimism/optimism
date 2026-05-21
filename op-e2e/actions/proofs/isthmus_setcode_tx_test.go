@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-func Test_ProgramAction_SetCodeTx(gt *testing.T) {
+func TestSetCodeTx(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(
@@ -145,7 +145,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 }
 
 // TestInvalidSetCodeTxBatch tests that batches that include SetCodeTxs are dropped before Isthmus
-func Test_ProgramAction_InvalidSetCodeTxBatch(gt *testing.T) {
+func TestInvalidSetCodeTxBatch(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,
@@ -193,7 +193,7 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgramFromGenesis(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_SetCodeTxWithContractCreationBitSet(gt *testing.T) {
+func TestSetCodeTxWithContractCreationBitSet(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(

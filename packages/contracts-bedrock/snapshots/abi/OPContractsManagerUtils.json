@@ -232,11 +232,6 @@
           },
           {
             "internalType": "address",
-            "name": "protocolVersionsImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "l1ERC721BridgeImpl",
             "type": "address"
           },
@@ -698,7 +693,7 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerUtils_InitializingDuringUpgrade",
+    "name": "OPContractsManagerUtils_OZv5InitializableUnsupported",
     "type": "error"
   },
   {

@@ -10,4 +10,4 @@ bind:
 
 # Update the `superchain-registry` git submodule source
 source:
-  git submodule update --remote --init --recursive
+  cd "$(git rev-parse --show-toplevel)" && git submodule update --remote --init --recursive packages/contracts-bedrock/lib/superchain-registry

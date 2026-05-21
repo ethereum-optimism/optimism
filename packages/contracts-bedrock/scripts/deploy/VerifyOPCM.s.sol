@@ -210,7 +210,6 @@ contract VerifyOPCM is Script {
         expectedGetters["implementations"] = "SKIP"; // Verified via bytecode comparison of implementation contracts
 
         // Getters verified via environment variables in _verifyOpcmImmutableVariables()
-        expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
         expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
 
         // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
@@ -219,6 +218,8 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
+        validatorGetterChecks["standardValidatorUtils"] = "SKIP";
+        validatorGetterChecks["migrationValidator"] = "SKIP";
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
 
         // OPCM V2 Specific expected getters overrides

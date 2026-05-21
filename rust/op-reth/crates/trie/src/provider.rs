@@ -19,7 +19,7 @@ use reth_revm::{
     primitives::{Address, B256, Bytes, StorageValue, alloy_primitives::BlockNumber},
 };
 use reth_trie::{
-    StateRoot, StorageRoot,
+    ExecutionWitnessMode, StateRoot, StorageRoot,
     hashed_cursor::HashedCursor,
     proof::{self, Proof},
     witness::TrieWitness,
@@ -177,7 +177,12 @@ where
             .map_err(ProviderError::from)
     }
 
-    fn witness(&self, input: TrieInput, target: HashedPostState) -> ProviderResult<Vec<Bytes>> {
+    fn witness(
+        &self,
+        input: TrieInput,
+        target: HashedPostState,
+        _mode: ExecutionWitnessMode,
+    ) -> ProviderResult<Vec<Bytes>> {
         TrieWitness::overlay_witness(self.provider.clone(), self.block_number, input, target)
             .map_err(ProviderError::from)
             .map(|hm| hm.into_values().collect())
@@ -237,8 +242,7 @@ mod tests {
     #[test]
     fn test_op_proofs_state_provider_ref_debug() {
         let latest: Box<dyn StateProvider + Send> = Box::new(NoopProvider::default());
-        let storage: crate::OpProofsStorage<InMemoryProofsStorage> =
-            InMemoryProofsStorage::new().into();
+        let storage: crate::OpProofsStorage<InMemoryProofsStorage> = InMemoryProofsStorage::new();
         // Create a provider from the store (in memory storage implements OpProofsStore)
         let provider_ro = storage.provider_ro().unwrap();
         let block_number = 42u64;
@@ -247,7 +251,7 @@ mod tests {
 
         assert_eq!(
             format!("{:?}", provider),
-            "OpProofsStateProviderRef { provider: InMemoryProofsProvider { inner: RwLock { data: InMemoryStorageInner { account_branches: {}, storage_branches: {}, hashed_accounts: {}, hashed_storages: {}, trie_updates: {}, post_states: {}, earliest_block: None, anchor_block: None } } }, block_number: 42 }"
+            "OpProofsStateProviderRef { provider: InMemoryProofsProvider { inner: RwLock { data: InMemoryStorageInner { account_branches: {}, storage_branches: {}, hashed_accounts: {}, hashed_storages: {}, trie_updates: {}, post_states: {}, earliest_block: None, latest_block: None, anchor_block: None } } }, block_number: 42 }"
         );
     }
 }

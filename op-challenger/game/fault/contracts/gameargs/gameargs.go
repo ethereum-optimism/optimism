@@ -1,8 +1,10 @@
 package gameargs
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -12,6 +14,7 @@ import (
 const (
 	PermissionlessArgsLength = 124
 	PermissionedArgsLength   = 164
+	ZKArgsLength             = 172
 )
 
 var (
@@ -44,6 +47,44 @@ func (g GameArgs) PackPermissioned() []byte {
 		g.PackPermissionless(),
 		g.Proposer[:],
 		g.Challenger[:],
+	)
+}
+
+// ZKGameArgs holds the arguments for a ZK dispute game, matching the packed layout
+// defined in LibGameArgs.sol (ZK_ARGS_LENGTH = 172 bytes).
+type ZKGameArgs struct {
+	AbsolutePrestate     common.Hash
+	Verifier             common.Address
+	MaxChallengeDuration uint64
+	MaxProveDuration     uint64
+	ChallengerBond       *big.Int
+	AnchorStateRegistry  common.Address
+	Weth                 common.Address
+	L2ChainID            *big.Int
+}
+
+// Pack encodes the ZK game args using abi.encodePacked layout (172 bytes).
+// Layout: absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) +
+// maxProveDuration(8) + challengerBond(32) + anchorStateRegistry(20) +
+// weth(20) + l2ChainId(32)
+func (z ZKGameArgs) Pack() []byte {
+	dur1 := make([]byte, 8)
+	binary.BigEndian.PutUint64(dur1, z.MaxChallengeDuration)
+	dur2 := make([]byte, 8)
+	binary.BigEndian.PutUint64(dur2, z.MaxProveDuration)
+	bond := make([]byte, 32)
+	z.ChallengerBond.FillBytes(bond)
+	chainID := make([]byte, 32)
+	z.L2ChainID.FillBytes(chainID)
+	return slices.Concat(
+		z.AbsolutePrestate[:],
+		z.Verifier[:],
+		dur1,
+		dur2,
+		bond,
+		z.AnchorStateRegistry[:],
+		z.Weth[:],
+		chainID,
 	)
 }
 

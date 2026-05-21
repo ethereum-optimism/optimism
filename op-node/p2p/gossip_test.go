@@ -3,6 +3,7 @@ package p2p
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
@@ -100,6 +101,46 @@ func TestVerifyBlockSignature(t *testing.T) {
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
+
+	// Grace period tests: when the signer rotates, blocks from the previous signer
+	// should still be accepted during the grace period.
+	newSecrets, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	thirdSecrets, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	secretsAddr := crypto.PubkeyToAddress(secrets.PublicKey)
+	newAddr := crypto.PubkeyToAddress(newSecrets.PublicKey)
+
+	gracePeriodTests := []struct {
+		name        string
+		current     common.Address
+		prev        common.Address
+		signWith    *ecdsa.PrivateKey
+		wantResult  pubsub.ValidationResult
+		wantConfirm bool
+	}{
+		{"PreviousSignerAccepted", newAddr, secretsAddr, secrets, pubsub.ValidationAccept, false},
+		{"NewSignerConfirms", newAddr, secretsAddr, newSecrets, pubsub.ValidationAccept, true},
+		{"GracePeriodExpired", newAddr, common.Address{}, secrets, pubsub.ValidationReject, false},
+		{"ThirdPartySignerRejected", newAddr, secretsAddr, thirdSecrets, pubsub.ValidationReject, false},
+		{"ValidNoGracePeriod", secretsAddr, common.Address{}, secrets, pubsub.ValidationAccept, true},
+	}
+
+	for _, tc := range gracePeriodTests {
+		t.Run(tc.name, func(t *testing.T) {
+			runCfg := &testutils.MockRuntimeConfig{
+				P2PSeqAddress:     tc.current,
+				PrevP2PSeqAddress: tc.prev,
+			}
+			signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(tc.signWith)}
+			sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+			require.NoError(t, err)
+			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+			require.Equal(t, tc.wantResult, result)
+			require.Equal(t, tc.wantConfirm, runCfg.Confirmed)
+		})
+	}
 }
 
 type MarshalSSZ interface {

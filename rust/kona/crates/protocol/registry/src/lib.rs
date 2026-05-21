@@ -9,9 +9,14 @@
 
 extern crate alloc;
 
+use alloc::vec::Vec;
+
 pub use alloy_primitives::map::HashMap;
 use kona_genesis::L1ChainConfig;
-pub use kona_genesis::{Chain, ChainConfig, ChainList, RollupConfig};
+pub use kona_genesis::{
+    Chain, ChainConfig, ChainDependency, ChainList, DependencySet, MESSAGE_EXPIRY_WINDOW,
+    RollupConfig,
+};
 
 pub mod superchain;
 pub use superchain::Registry;
@@ -39,6 +44,28 @@ lazy_static::lazy_static! {
     /// L1 chain configurations exported from the registry
     /// Note: the l1 chain configurations are not exported from the superchain registry but rather from a genesis dump file.
     pub static ref L1_CONFIGS: HashMap<u64, L1ChainConfig> = _INIT.l1_configs.clone();
+
+    /// All interop dependency sets embedded into this binary, keyed by L2 chain id.
+    /// Each chain that belongs to an interop cluster maps to that cluster's
+    /// [`DependencySet`]; chains in disjoint clusters map to **different** values.
+    /// Cross-cluster proofs must be rejected by the consumer (see `BootInfo::load`).
+    pub static ref DEPENDENCY_SETS: HashMap<u64, DependencySet> = {
+        let raw = include_str!("../etc/depsets.json");
+        let depsets: Vec<DependencySet> = serde_json::from_str(raw)
+            .expect("parse embedded etc/depsets.json");
+        let mut by_chain: HashMap<u64, DependencySet> = HashMap::default();
+        for ds in depsets {
+            for chain_id in ds.dependencies.keys().copied() {
+                if let Some(existing) = by_chain.insert(chain_id, ds.clone()) {
+                    assert_eq!(
+                        existing, ds,
+                        "embedded depsets contain overlapping clusters; build script bug"
+                    );
+                }
+            }
+        }
+        by_chain
+    };
 }
 
 /// Returns a [`RollupConfig`] by its identifier.
@@ -60,20 +87,13 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{
-        BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP,
-    };
+    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
 
     #[test]
     fn test_hardcoded_rollup_configs() {
-        let test_cases = [
-            (10, test_utils::OP_MAINNET_CONFIG),
-            (8453, test_utils::BASE_MAINNET_CONFIG),
-            (11155420, test_utils::OP_SEPOLIA_CONFIG),
-            (84532, test_utils::BASE_SEPOLIA_CONFIG),
-        ]
-        .to_vec();
+        let test_cases =
+            [(10, test_utils::OP_MAINNET_CONFIG), (11155420, test_utils::OP_SEPOLIA_CONFIG)]
+                .to_vec();
 
         for (chain_id, expected) in test_cases {
             let derived = super::ROLLUP_CONFIGS.get(&chain_id).unwrap();
@@ -83,11 +103,11 @@ mod tests {
 
     #[test]
     fn test_chain_by_ident() {
-        const ALLOY_BASE: AlloyChain = AlloyChain::base_mainnet();
+        const ALLOY_OP: AlloyChain = AlloyChain::optimism_mainnet();
 
-        let chain_by_ident = CHAINS.get_chain_by_ident("mainnet/base").unwrap();
-        let chain_by_alloy_ident = CHAINS.get_chain_by_alloy_ident(&ALLOY_BASE).unwrap();
-        let chain_by_id = CHAINS.get_chain_by_id(8453).unwrap();
+        let chain_by_ident = CHAINS.get_chain_by_ident("mainnet/op").unwrap();
+        let chain_by_alloy_ident = CHAINS.get_chain_by_alloy_ident(&ALLOY_OP).unwrap();
+        let chain_by_id = CHAINS.get_chain_by_id(10).unwrap();
 
         assert_eq!(chain_by_ident, chain_by_id);
         assert_eq!(chain_by_alloy_ident, chain_by_id);
@@ -95,11 +115,11 @@ mod tests {
 
     #[test]
     fn test_rollup_config_by_ident() {
-        const ALLOY_BASE: AlloyChain = AlloyChain::base_mainnet();
+        const ALLOY_OP: AlloyChain = AlloyChain::optimism_mainnet();
 
-        let rollup_config_by_ident = scr_rollup_config_by_ident("mainnet/base").unwrap();
-        let rollup_config_by_alloy_ident = scr_rollup_config_by_alloy_ident(&ALLOY_BASE).unwrap();
-        let rollup_config_by_id = ROLLUP_CONFIGS.get(&8453).unwrap();
+        let rollup_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
+        let rollup_config_by_alloy_ident = scr_rollup_config_by_alloy_ident(&ALLOY_OP).unwrap();
+        let rollup_config_by_id = ROLLUP_CONFIGS.get(&10).unwrap();
 
         assert_eq!(rollup_config_by_ident, rollup_config_by_id);
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
@@ -107,18 +127,6 @@ mod tests {
 
     #[test]
     fn test_jovian_timestamps() {
-        let base_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/base").unwrap();
-        assert_eq!(
-            base_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(BASE_MAINNET_JOVIAN_TIMESTAMP)
-        );
-
-        let base_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/base").unwrap();
-        assert_eq!(
-            base_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(BASE_SEPOLIA_JOVIAN_TIMESTAMP)
-        );
-
         let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
         assert_eq!(
             op_mainnet_config_by_ident.hardforks.jovian_time,
@@ -190,6 +198,63 @@ mod tests {
         assert!(
             ROLLUP_CONFIGS.contains_key(&test2_chain_id),
             "rollup config missing for {test2_chain_id}"
+        );
+
+        let depset = DEPENDENCY_SETS
+            .get(&test1_chain_id)
+            .expect("test1 chain id present in embedded depsets");
+        assert!(depset.dependencies.contains_key(&test1_chain_id));
+        assert!(depset.dependencies.contains_key(&test2_chain_id));
+        // Both chain ids must map to the SAME depset value (cluster identity).
+        assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
+    }
+
+    /// Pins the registry-derived interop cluster against the committed
+    /// `etc/depsets.json` snapshot. The snapshot is regenerated from
+    /// `packages/contracts-bedrock/lib/superchain-registry` via
+    /// `KONA_BIND=true cargo build -p kona-registry`.
+    ///
+    /// Today the registry defines a single `[interop]` cluster — `rehearsal-0-bn`
+    /// (chain ids 420120009, 420120010). If the rehearsal TOMLs change upstream,
+    /// regenerate the snapshot and update the expected set below.
+    #[test]
+    fn embedded_depset_for_rehearsal_0_bn_cluster() {
+        const REHEARSAL_0: u64 = 420120009;
+        const REHEARSAL_1: u64 = 420120010;
+
+        let depset = DEPENDENCY_SETS.get(&REHEARSAL_0).unwrap_or_else(|| {
+            panic!(
+                "rehearsal-0-bn-0 (chain id {REHEARSAL_0}) missing from embedded DEPENDENCY_SETS",
+            )
+        });
+
+        // Both peers must resolve to the SAME cluster value (cluster identity).
+        assert_eq!(
+            DEPENDENCY_SETS.get(&REHEARSAL_0),
+            DEPENDENCY_SETS.get(&REHEARSAL_1),
+            "rehearsal-0-bn peers must map to the same DependencySet",
+        );
+
+        // The cluster's dependency map must contain exactly the two rehearsal chain ids.
+        let expected: alloc::collections::BTreeSet<u64> =
+            [REHEARSAL_0, REHEARSAL_1].into_iter().collect();
+        let actual: alloc::collections::BTreeSet<u64> =
+            depset.dependencies.keys().copied().collect();
+        assert_eq!(
+            actual, expected,
+            "rehearsal-0-bn cluster membership mismatch (got {actual:?}, want {expected:?})",
+        );
+
+        // Registry-derived clusters never carry an expiry-window override (the chain
+        // TOML schema has no field for it; see `aggregate_clusters`).
+        assert!(
+            depset.override_message_expiry_window.is_none(),
+            "registry-derived depset must not carry an expiry-window override",
+        );
+        assert_eq!(
+            depset.get_message_expiry_window(),
+            MESSAGE_EXPIRY_WINDOW,
+            "registry-derived depset must use the default message expiry window",
         );
     }
 }

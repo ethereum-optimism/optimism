@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 var (
@@ -85,7 +87,7 @@ type logContext struct {
 	// executing message that might exist for the current log event.
 	// Might be incomplete; if !logDone while we already processed the initiating event,
 	// then we know an executing message is still coming.
-	execMsg *types.ExecutingMessage
+	execMsg *messages.ExecutingMessage
 
 	need EntryTypeFlag
 
@@ -137,7 +139,7 @@ func (l *logContext) InitMessage() (hash common.Hash, logIndex uint32, ok bool) 
 }
 
 // ExecMessage returns the current executing message, if any is available.
-func (l *logContext) ExecMessage() *types.ExecutingMessage {
+func (l *logContext) ExecMessage() *messages.ExecutingMessage {
 	if l.hasCompleteBlock() && l.hasReadableLog() && l.execMsg != nil {
 		return l.execMsg
 	}
@@ -214,13 +216,13 @@ func (l *logContext) processEntry(entry Entry) error {
 		if err != nil {
 			return err
 		}
-		l.execMsg = &types.ExecutingMessage{
+		l.execMsg = &messages.ExecutingMessage{
 			ChainID: idEntry.chainID,
 			// not known yet
 			BlockNum:  0,
 			LogIdx:    0,
 			Timestamp: 0,
-			Checksum:  types.MessageChecksum{},
+			Checksum:  messages.MessageChecksum{},
 		}
 		l.need.Remove(FlagExecChainID)
 		l.need.Add(FlagExecPosition)
@@ -426,7 +428,7 @@ func (l *logContext) SealBlock(parent common.Hash, upd eth.BlockID, timestamp ui
 
 // ApplyLog applies a log on top of the current state.
 // The parent-block that the log comes after must be applied with ApplyBlock first.
-func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash common.Hash, execMsg *types.ExecutingMessage) error {
+func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash common.Hash, execMsg *messages.ExecutingMessage) error {
 	if parentBlock == (eth.BlockID{}) {
 		return fmt.Errorf("genesis does not have logs: %w", types.ErrOutOfOrder)
 	}

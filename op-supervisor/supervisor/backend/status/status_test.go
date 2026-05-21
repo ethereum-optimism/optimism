@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -64,14 +65,14 @@ func TestUpdateCrossSafe(t *testing.T) {
 	chains := []eth.ChainID{chain1, chain2}
 	tracker := NewStatusTracker(chains)
 	chain1Safe := types.DerivedBlockSealPair{
-		Derived: types.BlockSeal{
+		Derived: messages.BlockSeal{
 			Number:    204,
 			Hash:      common.Hash{0xaa},
 			Timestamp: 204000,
 		},
 	}
 	chain2Safe := types.DerivedBlockSealPair{
-		Derived: types.BlockSeal{
+		Derived: messages.BlockSeal{
 			Number:    20,
 			Hash:      common.Hash{0xaa},
 			Timestamp: 228000,
@@ -97,12 +98,12 @@ func TestUpdateFinalized(t *testing.T) {
 	chain2 := eth.ChainIDFromUInt64(2)
 	chains := []eth.ChainID{chain1, chain2}
 	tracker := NewStatusTracker(chains)
-	chain1Finalized := types.BlockSeal{
+	chain1Finalized := messages.BlockSeal{
 		Number:    204,
 		Hash:      common.Hash{0xaa},
 		Timestamp: 204000,
 	}
-	chain2Finalized := types.BlockSeal{
+	chain2Finalized := messages.BlockSeal{
 		Number:    20,
 		Hash:      common.Hash{0xaa},
 		Timestamp: 228000,

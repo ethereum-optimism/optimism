@@ -27,7 +27,7 @@ type CLIConfig struct {
 	RawCtx                     *cli.Context
 	InteropActivationTimestamp *uint64
 	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
-	// backward from the tip before interop message validation runs. Zero disables.
+	// backward from the tip before interop message validation runs. Set to zero to disable.
 	InteropLogBackfillDepth time.Duration
 }
 

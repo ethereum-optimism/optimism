@@ -7,8 +7,8 @@ import (
 	"os"
 	"slices"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"

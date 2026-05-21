@@ -35,6 +35,12 @@ FROM dep-setup-stage AS app-local-setup-stage
 # Copy in the local workspace repository
 COPY . /workspace
 
+# Pull in the NUT bundle JSONs from an additional named build context. The
+# kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR looking for an
+# op-core/ sibling; placing the bundles at /workspace/op-core/nuts/bundles
+# satisfies that walk without widening the primary rust/ context.
+COPY --from=nuts-bundles / /workspace/op-core/nuts/bundles
+
 ################################
 #   Remote Repo Setup Stage    #
 ################################
@@ -44,11 +50,13 @@ SHELL ["/bin/bash", "-c"]
 ARG TAG
 ARG REPOSITORY
 
-# Clone kona at the specified tag
+# Clone kona at the specified tag. op-core is preserved alongside rust so the
+# kona-hardforks build.rs ancestor walk finds the NUT bundles.
 RUN git clone https://github.com/${REPOSITORY} repo && \
   cd repo && \
   git checkout "${TAG}" && \
-  mv rust /workspace
+  mv rust /workspace && \
+  mv op-core /workspace/op-core
 
 ################################
 #       App Build Stage        #

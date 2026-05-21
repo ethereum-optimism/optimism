@@ -1,9 +1,9 @@
 package helpers
 
 import (
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -29,7 +29,6 @@ type FixtureInputs struct {
 	L1Head         common.Hash                       `toml:"l1-head"`
 	AgreedPrestate []byte                            `toml:"agreed-prestate"`
 	DependencySet  *depset.StaticConfigDependencySet `toml:"dependency-set"`
-	InteropEnabled bool                              `toml:"use-interop"`
 
 	L2Sources []*FaultProofProgramL2Source
 

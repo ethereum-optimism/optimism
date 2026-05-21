@@ -69,7 +69,6 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
     batch_inbox_address: address!("ff00000000000000000000000000000000000010"),
     deposit_contract_address: address!("beb5fc579115071764c7423a4f12edde41f106ed"),
     l1_system_config_address: address!("229047fed2591dbec1ef1118d64f7af3db9eb290"),
-    protocol_versions_address: address!("8062abc286f5e7d9428a0ccb9abd71e50d93b935"),
     superchain_config_address: Some(address!("95703e0982140D16f8ebA6d158FccEde42f04a4C")),
     da_challenge_address: None,
     blobs_enabled_l1_timestamp: None,

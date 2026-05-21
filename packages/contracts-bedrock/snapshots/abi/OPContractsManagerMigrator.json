@@ -107,6 +107,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_CustomGasTokenNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InteropNotEnabled",
     "type": "error"
   },
@@ -117,12 +122,22 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_NoChains",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ProxyAdminOwnerMismatch",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_SystemPaused",
     "type": "error"
   }
 ]

@@ -11,9 +11,9 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ type EndpointProvider interface {
 	L2NodeEndpoints() []endpoint.RPC
 	RollupEndpoint(name string) endpoint.RPC
 	L1BeaconEndpoint() endpoint.RestHTTP
-	SupervisorEndpoint() endpoint.RPC
+	SupernodeEndpoint() endpoint.RPC
 	IsSupersystem() bool
 }
 
@@ -154,13 +154,6 @@ func WithCannonKona(t *testing.T, system System) Option {
 	}
 }
 
-func WithSuperCannon(t *testing.T, system System) Option {
-	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		handleOptError(t, shared.WithSuperCannonGameType())(c)
-	}
-}
-
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
@@ -204,7 +197,7 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 		for _, l2Node := range sys.L2NodeEndpoints() {
 			l2Endpoints = append(l2Endpoints, l2Node.RPC())
 		}
-		cfg = config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, sys.SupervisorEndpoint().RPC(), l2Endpoints, t.TempDir())
+		cfg = config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, sys.SupernodeEndpoint().RPC(), l2Endpoints, t.TempDir())
 	} else {
 		cfg = config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
 	}

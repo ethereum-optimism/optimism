@@ -4,8 +4,19 @@
 
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use url::Url;
+
+/// Storage schema version for the proofs-history database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub enum ProofsStorageVersion {
+    /// V1 storage schema (original single-table-per-domain layout). Default.
+    #[default]
+    V1,
+    /// V2 storage schema with changeset and history-bitmap tables, enabling
+    /// history-aware reads at any block number within the proof window.
+    V2,
+}
 
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
@@ -37,6 +48,12 @@ pub struct RollupArgs {
     /// Enable transaction conditional support on sequencer
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
+
+    /// Enable experimental SDM support for integration tests.
+    ///
+    /// SDM is not scheduled for Jovian or Karst; leave this disabled for production networks.
+    #[arg(long = "rollup.sdm-enabled", default_value = "false")]
+    pub sdm_enabled: bool,
 
     /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
     #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
@@ -105,25 +122,6 @@ pub struct RollupArgs {
     )]
     pub proofs_history_window: u64,
 
-    /// Interval between proof-storage prune runs. Accepts human-friendly durations
-    /// like "100s", "5m", "1h". Defaults to 15s.
-    ///
-    /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
-    ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
-    /// - Longer intervals prune larger batches less often, which reduces how often pruning runs,
-    ///   but each run can take longer and block writes for longer.
-    ///
-    /// A shorter interval is preferred so that prune
-    /// runs stay small and don’t stall writes for too long.
-    ///
-    /// CLI: `--proofs-history.prune-interval 10m`
-    #[arg(
-        long = "proofs-history.prune-interval",
-        value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
-        default_value = "15s",
-        value_parser = humantime::parse_duration
-    )]
-    pub proofs_history_prune_interval: Duration,
     /// Verification interval: perform full block execution every N blocks for data integrity.
     /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
     /// - 1: Always verify (always execute blocks, slowest)
@@ -139,6 +137,19 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Storage schema version for proofs history. Defaults to v1.
+    ///
+    /// Use `v2` to enable the changeset + history-bitmap schema, which supports
+    /// history-aware reads at any block number within the proof window.
+    ///
+    /// CLI: `--proofs-history.storage-version v2`
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        default_value = "v1"
+    )]
+    pub proofs_history_storage_version: ProofsStorageVersion,
 }
 
 impl Default for RollupArgs {
@@ -149,6 +160,7 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
+            sdm_enabled: false,
             supervisor_http: None,
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),
@@ -159,8 +171,8 @@ impl Default for RollupArgs {
             proofs_history: false,
             proofs_history_storage_path: None,
             proofs_history_window: 1_296_000,
-            proofs_history_prune_interval: Duration::from_secs(15),
             proofs_history_verification_interval: 0,
+            proofs_history_storage_version: ProofsStorageVersion::V1,
         }
     }
 }

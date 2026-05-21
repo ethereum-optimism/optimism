@@ -49,7 +49,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	t.Logf("Transaction included in block: %d", bigs.Uint64Strict(receipt.BlockNumber))
 
-	sys.L2ELValidatorNode().WaitForBlockNumber(bigs.Uint64Strict(receipt.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), bigs.Uint64Strict(receipt.BlockNumber))
 	l2RethClient := opRethELNode.Escape().L2EthClient()
 
 	// Get the block to inspect the state changes

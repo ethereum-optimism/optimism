@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -24,7 +25,6 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 func TestOutputAtBlock(t *testing.T) {
@@ -343,4 +343,22 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 
 func (m *mockSafeDBReader) ExpectSafeHeadAtL1(l1BlockNum uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	m.Mock.On("SafeHeadAtL1", l1BlockNum).Return(l1, safeHead, &err)
+}
+
+func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("L1AtSafeHead", targetL2Num)
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectL1AtSafeHead(targetL2Num uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("L1AtSafeHead", targetL2Num).Return(l1, safeHead, &err)
+}
+
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("FirstEntry")
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectFirstEntry(l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("FirstEntry").Return(l1, safeHead, &err)
 }

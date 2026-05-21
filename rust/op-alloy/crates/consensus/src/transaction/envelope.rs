@@ -49,7 +49,7 @@ pub enum OpTxEnvelope {
 
 /// Represents an Optimism transaction envelope.
 ///
-/// Compared to Ethereum it can tell whether the transaction is a deposit or post-exec synthetic
+/// Compared to Ethereum it can tell whether the transaction is a deposit or post-exec
 /// transaction.
 pub trait OpTransaction {
     /// Returns `true` if the transaction is a deposit.
@@ -522,7 +522,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
-            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // Post-exec transactions are system transactions. They use a
             // canonical zero-address signer rather than a cryptographic signature.
             Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };
@@ -550,7 +550,7 @@ impl alloy_consensus::transaction::SignerRecoverable for OpTxEnvelope {
             // Optimism's Deposit transaction does not have a signature. Directly return the
             // `from` address.
             Self::Deposit(tx) => return Ok(tx.from),
-            // Post-exec transactions are unsigned synthetic system transactions. They use a
+            // Post-exec transactions are unsigned system transactions. They use a
             // canonical zero-address signer rather than a cryptographic signature.
             Self::PostExec(tx) => return Ok(tx.inner().signer_address()),
         };

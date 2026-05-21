@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type SyncNodeCollection interface {
@@ -24,7 +26,7 @@ type SyncNodeSetup interface {
 }
 
 type SyncSource interface {
-	Contains(ctx context.Context, query types.ContainsQuery) (includedIn types.BlockSeal, err error)
+	Contains(ctx context.Context, query messages.ContainsQuery) (includedIn messages.BlockSeal, err error)
 	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 	ChainID(ctx context.Context) (eth.ChainID, error)
@@ -44,7 +46,7 @@ type SyncControl interface {
 	UpdateCrossSafe(ctx context.Context, derived eth.BlockID, source eth.BlockID) error
 	UpdateFinalized(ctx context.Context, id eth.BlockID) error
 
-	InvalidateBlock(ctx context.Context, seal types.BlockSeal) error
+	InvalidateBlock(ctx context.Context, seal messages.BlockSeal) error
 
 	Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error
 	ResetPreInterop(ctx context.Context) error

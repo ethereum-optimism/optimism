@@ -151,7 +151,7 @@ func TestInsertUnsafePayload_ELSync_offsetDerived(t *testing.T) {
 			mockEngine := &testutils.MockEngine{}
 			tt.stub(mockEngine)
 			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
-				&sync.Config{SyncMode: sync.ELSync, OffsetELSafe: tt.offset}, false, &testutils.MockL1Source{}, discardEmitter{}, nil)
+				&sync.Config{SyncMode: sync.ELSync, OffsetELSafe: tt.offset}, &testutils.MockL1Source{}, discardEmitter{}, nil)
 			ec.SyncDeriver = noopSyncDeriver{}
 
 			err := ec.InsertUnsafePayload(context.Background(), payload, refA3)

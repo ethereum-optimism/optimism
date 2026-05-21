@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // These constants should be in sync with op-program/chainconfig/chaincfg.go.

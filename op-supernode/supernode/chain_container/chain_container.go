@@ -12,6 +12,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -30,6 +32,19 @@ import (
 
 const virtualNodeVersion = "0.1.0"
 
+// ErrHistoryUnavailable is the permanent counterpart of ethereum.NotFound:
+// SafeDB on this node cannot and will not contain the requested history
+// (e.g. snap/CL-sync bootstrap gap). Interop halts on this rather than
+// retrying; recovery requires operator intervention.
+var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node")
+
+// ErrSafeDBNotReady is returned by FirstSafeHeadTimestamp when SafeDB does not
+// yet have a stable first entry: either it has no entries at all, or the
+// deriver has not advanced past the first entry's L1 (so SafeHeadUpdated may
+// still overwrite the L2 value at that L1 key). This is a transient condition
+// during cold start; callers should back off and retry.
+var ErrSafeDBNotReady = errors.New("safedb not ready: no stable first entry yet")
+
 type ChainContainer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -37,22 +52,24 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 
 	ID() eth.ChainID
+	ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error)
 	LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// TimestampToBlockNumber maps an L2 unix timestamp to the L2 block number (rollup derivation).
 	TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error)
+	BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error)
+	// FirstSafeHeadTimestamp returns the L2 block timestamp of the first
+	// entry in this chain's SafeDB. Returns ErrSafeDBNotReady when the chain
+	// has not yet derived a stable first safe head.
+	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
-	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
+	// block at the given hash. Post-Isthmus the root is derived from the
+	// header alone; pre-Isthmus it falls back to eth_getProof on state at
+	// that block. Returns ethereum.NotFound if the EL no longer has the
+	// block at that hash on its canonical chain.
+	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
-	// RewindEngine rewinds the engine to the highest block with timestamp less than or equal to the given timestamp.
-	// invalidatedBlock is the block that triggered the rewind and is passed to reset callbacks.
-	// WARNING: this is a dangerous stateful operation and is intended to be called only
-	// by interop transition application. Other callers should not use it until the
-	// interface is refactored to make that ownership explicit.
-	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-	// smaller interop-owned interface.
-	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
 	RegisterVerifier(v activity.VerificationActivity)
 	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
 	// This allows callers to determine the minimum L1 block that all verifiers have processed.
@@ -62,16 +79,6 @@ type ChainContainer interface {
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
 	// BlockTime returns the block time in seconds for this chain.
 	BlockTime() uint64
-	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
-	// currently uses that block at the specified height.
-	// output is the marshaled eth.Output preimage for optimistic root computation.
-	// WARNING: this is a dangerous stateful operation and is intended to be called only
-	// by interop transition application. Other callers should not use it until the
-	// interface is refactored to make that ownership explicit.
-	// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-	// smaller interop-owned interface.
-	// Returns true if a rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
 	// PruneDeniedAtOrAfterTimestamp removes deny-list entries with DecisionTimestamp >= timestamp.
 	// Returns map of removed hashes by height.
 	PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error)
@@ -91,6 +98,26 @@ type ChainContainer interface {
 	SetResetCallback(cb ResetCallback)
 }
 
+// WARNING: InteropChain exposes the reorg-triggering operations (RewindEngine,
+// InvalidateBlock) that bypass the interop WAL model when invoked outside of
+// interop transition application. ONLY the interop activity should accept or
+// hold a value of this interface. Every other caller must take the narrower
+// ChainContainer above so the misuse is caught at compile time.
+type InteropChain interface {
+	ChainContainer
+	// HasDeniedAtOrAfterTimestamp returns true if any deny-list entry has
+	// DecisionTimestamp >= timestamp, without mutating the deny list.
+	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
+	// RewindEngine rewinds the engine to the highest block with timestamp less than
+	// or equal to the given timestamp. invalidatedBlock is the block that triggered
+	// the rewind and is passed to reset callbacks.
+	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
+	// chain currently uses that block at the specified height. Returns true if a
+	// rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+}
+
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
 // ResetCallback is called when the chain container resets due to an invalidated block.
@@ -99,6 +126,12 @@ type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOver
 type ResetCallback func(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef)
 
 type simpleChainContainer struct {
+	// vnMu protects vn. The chain container restart loop writes vn concurrently
+	// with activity goroutines (e.g. Interop.checkChainsReady) reading it, so an
+	// unsynchronized access produces a torn interface read: non-nil type with
+	// nil data pointer, which slips past a plain `vn == nil` check and panics
+	// on the next method dispatch.
+	vnMu               sync.RWMutex
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
@@ -117,11 +150,9 @@ type simpleChainContainer struct {
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
+	metrics            *resources.SupernodeMetrics
 
-	// verifiersMu guards writes and reads of the verifiers slice. Concurrent
-	// readers (VerifiedAt, VerifierCurrentL1s) can race with the test-only
-	// ReplaceVerifier path used by RestartInteropActivity, which swaps a
-	// verifier while the chain container is still running.
+	// verifiersMu guards writes and reads of the verifiers slice.
 	verifiersMu sync.RWMutex
 	verifiers   []activity.VerificationActivity
 	onReset     ResetCallback // Called when chain resets to notify activities
@@ -129,6 +160,7 @@ type simpleChainContainer struct {
 
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
+var _ InteropChain = (*simpleChainContainer)(nil)
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
 
 func NewChainContainer(
@@ -140,7 +172,11 @@ func NewChainContainer(
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler),
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
-) ChainContainer {
+	metrics *resources.SupernodeMetrics,
+) InteropChain {
+	if metrics == nil {
+		metrics = resources.NewSupernodeMetrics()
+	}
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
 		cfg:                cfg,
@@ -153,6 +189,7 @@ func NewChainContainer(
 		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
+		metrics:            metrics,
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
@@ -196,23 +233,6 @@ func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity)
 	c.verifiers = append(c.verifiers, v)
 }
 
-// ReplaceVerifier swaps a previously-registered verifier for a new one by
-// pointer identity. Returns true if a replacement occurred. Intended for
-// integration-test orchestration that restarts a single activity while the
-// chain container keeps running. Not part of the ChainContainer interface
-// because production code has no reason to replace verifiers.
-func (c *simpleChainContainer) ReplaceVerifier(old, new activity.VerificationActivity) bool {
-	c.verifiersMu.Lock()
-	defer c.verifiersMu.Unlock()
-	for i, v := range c.verifiers {
-		if v == old {
-			c.verifiers[i] = new
-			return true
-		}
-	}
-	return false
-}
-
 func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
 	c.verifiersMu.RLock()
 	defer c.verifiersMu.RUnlock()
@@ -227,6 +247,22 @@ func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
 func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
+}
+
+// getVN returns a consistent snapshot of c.vn. Always read c.vn through this
+// helper; a bare read races with the restart loop's assignment.
+func (c *simpleChainContainer) getVN() virtual_node.VirtualNode {
+	c.vnMu.RLock()
+	defer c.vnMu.RUnlock()
+	return c.vn
+}
+
+// setVN writes c.vn under the lock. Used by the restart loop when it installs
+// a new virtual node on each iteration.
+func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
+	c.vnMu.Lock()
+	defer c.vnMu.Unlock()
+	c.vn = vn
 }
 
 func (c *simpleChainContainer) subPath(path string) string {
@@ -263,7 +299,11 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			c.initOverload.SuperAuthority = c
 		}
 		// Pass in the chain container as a SuperAuthority
-		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
+		vn := c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion, c)
+		if vn == nil {
+			return virtual_node.ErrVirtualNodeNotRunning
+		}
+		c.setVN(vn)
 		if c.pause.Load() {
 			// Check for stop/cancellation even while paused, so teardown doesn't hang.
 			// Without this, a stuck pause (e.g. from RewindEngine exiting before Resume)
@@ -281,19 +321,19 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 
 		// start the virtual node
-		err := c.vn.Start(ctx)
+		err := vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited with error", "vn_id", c.vn, "error", err)
+			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
 		} else {
-			c.log.Info("virtual node exited", "vn_id", c.vn)
+			c.log.Info("virtual node exited", "vn_id", vn)
 		}
 
 		// always stop the virtual node after it exits
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if stopErr := c.vn.Stop(stopCtx); stopErr != nil {
+		if stopErr := vn.Stop(stopCtx); stopErr != nil {
 			c.log.Error("error stopping virtual node", "error", stopErr)
 		} else {
-			c.log.Info("virtual node stopped", "vn_id", c.vn)
+			c.log.Info("virtual node stopped", "vn_id", vn)
 		}
 
 		cancel()
@@ -307,6 +347,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			c.log.Info("chain container stop requested, stopping restart loop")
 			break
 		}
+
+		c.metrics.VNRestarts.WithLabelValues(c.chainID.String()).Inc()
 	}
 	c.log.Info("chain container exiting")
 	return nil
@@ -322,8 +364,8 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 		c.rollupClient.Close()
 	}
 
-	if c.vn != nil {
-		if err := c.vn.Stop(stopCtx); err != nil {
+	if vn := c.getVN(); vn != nil {
+		if err := vn.Stop(stopCtx); err != nil {
 			c.log.Error("error stopping virtual node", "error", err)
 		}
 	}
@@ -358,6 +400,13 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
+func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+}
+
 func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
 	if c.vncfg == nil {
 		return 0, fmt.Errorf("rollup config not available")
@@ -366,7 +415,43 @@ func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts ui
 }
 
 func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
-	return c.blockNumberToTimestamp(blocknum)
+	if c.vncfg == nil {
+		return 0, fmt.Errorf("rollup config not available")
+	}
+	if blocknum < c.vncfg.Rollup.Genesis.L2.Number {
+		return 0, fmt.Errorf("block number %d before genesis %d", blocknum, c.vncfg.Rollup.Genesis.L2.Number)
+	}
+	return c.vncfg.Rollup.TimestampForBlock(blocknum), nil
+}
+
+// FirstSafeHeadTimestamp returns the timestamp of SafeDB's first entry, but
+// only once the deriver has moved past that entry's L1. SafeHeadUpdated
+// overwrites entries at the same L1 key, so until then the L2 value is still
+// in flight and snapshots can go stale. Sample SyncStatus before
+// FirstSafeHeadEntry so firstEntry.L1 < capturedCurrentL1 implies the writes
+// at that L1 had already completed.
+func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	vn := c.getVN()
+	if vn == nil {
+		return 0, virtual_node.ErrVirtualNodeNotRunning
+	}
+	status, err := vn.SyncStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("sync status: %w", err)
+	}
+	l1, l2, err := vn.FirstSafeHeadEntry(ctx)
+	if err != nil {
+		if errors.Is(err, safedb.ErrNotFound) {
+			return 0, ErrSafeDBNotReady
+		}
+		return 0, fmt.Errorf("first safedb entry: %w", err)
+	}
+	if status.CurrentL1.Number <= l1.Number {
+		c.log.Debug("first SafeDB entry not yet stable: deriver still on its L1",
+			"first_l1", l1.Number, "current_l1", status.CurrentL1.Number)
+		return 0, ErrSafeDBNotReady
+	}
+	return c.BlockNumberToTimestamp(ctx, l2.Number)
 }
 
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
@@ -397,25 +482,25 @@ func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 
 // SyncStatus returns the in-process op-node sync status for this chain.
 func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		if c.log != nil {
 			c.log.Warn("SyncStatus: virtual node not initialized")
 		}
 		return nil, virtual_node.ErrVirtualNodeNotRunning
 	}
-	st, err := c.vn.SyncStatus(ctx)
+	st, err := vn.SyncStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return st, nil
 }
 
-// OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
-func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if c.engine == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
 	}
-	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	out, err := c.engine.OutputV0ByBlockHash(ctx, blockHash)
 	if err != nil {
 		return eth.Bytes32{}, err
 	}
@@ -424,7 +509,8 @@ func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2
 
 // safeDBAtL2 delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
 func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
 	status, err := c.SyncStatus(ctx)
@@ -433,9 +519,13 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	}
 	currentL1 := status.CurrentL1
 	c.log.Debug("safeDBAtL2", "l2", l2, "currentL1", currentL1, "err", err)
-	l1, err := c.vn.L1AtSafeHead(ctx, l2)
+	l1, err := vn.L1AtSafeHead(ctx, l2)
 	if err != nil {
-		// Map L1AtSafeHeadNotFound to ethereum.NotFound so callers treat chain lag as "not ready"
+		// Permanent history gap -> ErrHistoryUnavailable (interop halts).
+		// Transient lag -> ethereum.NotFound (callers back off and retry).
+		if errors.Is(err, virtual_node.ErrL1AtSafeHeadUnavailable) {
+			return eth.BlockID{}, fmt.Errorf("L1 at safe head unavailable for L2 %s: %w", l2, ErrHistoryUnavailable)
+		}
 		if errors.Is(err, virtual_node.ErrL1AtSafeHeadNotFound) {
 			return eth.BlockID{}, fmt.Errorf("L1 at safe head not available for L2 %s: %w", l2, ethereum.NotFound)
 		}
@@ -444,48 +534,24 @@ func (c *simpleChainContainer) safeDBAtL2(ctx context.Context, l2 eth.BlockID) (
 	return l1, nil
 }
 
-// VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
-// Must return ethereum.NotFound if there is no safe block at the specified timestamp.
-func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
-	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
-	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
-	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
-		return eth.BlockID{}, eth.BlockID{}, err
-	}
-
-	c.verifiersMu.RLock()
-	verifiers := append([]activity.VerificationActivity(nil), c.verifiers...)
-	c.verifiersMu.RUnlock()
-	for _, verifier := range verifiers {
-		verified, err := verifier.VerifiedAtTimestamp(ts)
-		if err != nil {
-			c.log.Error("error checking if data could be verified at this L1", "error", err)
-			return eth.BlockID{}, eth.BlockID{}, err
-		}
-		if !verified {
-			c.log.Error("verifier does not have data at this timestamp. cannot supply block at this timestamp as verified", "verifier", verifier.Name())
-			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("verifier %s does not have data at this timestamp: %w", verifier.Name(), ethereum.NotFound)
-		}
-	}
-
-	return l2Block.ID(), l1Block, nil
-}
-
 // OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
 func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
 	l2Block, err := c.LocalSafeBlockAtTimestamp(ctx, ts)
 	if err != nil {
-		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l2 block at timestamp is not local safe yet", "timestamp", ts, "err", err)
+		} else {
+			c.log.Error("error determining l2 block at given timestamp", "timestamp", ts, "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 	l1Block, err := c.safeDBAtL2(ctx, l2Block.ID())
 	if err != nil {
-		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Debug("l1 block at which l2 block became safe is not available yet", "l2", l2Block.ID(), "err", err)
+		} else {
+			c.log.Error("error determining l1 block number at which l2 block became safe", "l2", l2Block.ID(), "err", err)
+		}
 		return eth.BlockID{}, eth.BlockID{}, err
 	}
 
@@ -562,17 +628,16 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
 }
 
-// WARNING: this should only be called by the interop activity.
-// Other callers risk triggering chain rewinds outside the interop WAL model.
-// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-// smaller interop-owned interface.
+// RewindEngine is part of the InteropChain interface — callers must hold that
+// wider interface (only interop transition application does) to invoke it.
 func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
 	if !c.resetting.CompareAndSwap(false, true) {
 		return fmt.Errorf("reset already in progress")
 	}
 	defer c.resetting.Store(false)
 
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
 	if c.engine == nil {
@@ -591,7 +656,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 	c.log.Info("chain_container/RewindEngine: paused container")
 
 	// stop the vn
-	err = c.vn.Stop(ctx)
+	err = vn.Stop(ctx)
 	if err != nil {
 		return err
 	}
@@ -643,10 +708,11 @@ func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
 	if err := c.Pause(ctx); err != nil {
 		return err
 	}
-	if c.vn == nil {
+	vn := c.getVN()
+	if vn == nil {
 		return nil
 	}
-	return c.vn.Stop(ctx)
+	return vn.Stop(ctx)
 }
 
 // SetResetCallback sets a callback that is invoked when the chain resets.
@@ -654,15 +720,4 @@ func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
 // Calling this while InvalidateBlock may be running is unsafe.
 func (c *simpleChainContainer) SetResetCallback(cb ResetCallback) {
 	c.onReset = cb
-}
-
-// blockNumberToTimestamp converts a block number to its timestamp using rollup config.
-func (c *simpleChainContainer) blockNumberToTimestamp(blockNum uint64) (uint64, error) {
-	if c.vncfg == nil {
-		return 0, fmt.Errorf("rollup config not available")
-	}
-	if blockNum < c.vncfg.Rollup.Genesis.L2.Number {
-		return 0, fmt.Errorf("block number %d before genesis %d", blockNum, c.vncfg.Rollup.Genesis.L2.Number)
-	}
-	return c.vncfg.Rollup.TimestampForBlock(blockNum), nil
 }

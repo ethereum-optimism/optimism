@@ -4,14 +4,14 @@ use crate::{
     BlockStateDiff, OpProofsStorageResult, OpProofsStore,
     api::{
         InitialStateAnchor, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        OperationDurations, WriteCounts,
+        ProofWindowRange, WriteCounts,
     },
     cursor,
 };
-use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
+use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, U256, map::HashMap};
 use derive_more::Constructor;
-use metrics::{Counter, Gauge, Histogram};
+use metrics::{Gauge, Histogram};
 use reth_db::DatabaseError;
 use reth_metrics::Metrics;
 use reth_primitives_traits::Account;
@@ -28,8 +28,8 @@ use std::{
 };
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
 
-/// Alias for [`OpProofsStorageWithMetrics`].
-pub type OpProofsStorage<S> = OpProofsStorageWithMetrics<S>;
+/// Alias for [`OpProofsStoreWithMetrics`].
+pub type OpProofsStorage<S> = OpProofsStoreWithMetrics<S>;
 
 /// Alias for [`TrieCursor`](cursor::OpProofsTrieCursor) with metrics layer.
 pub type OpProofsTrieCursor<C> = cursor::OpProofsTrieCursor<OpProofsTrieCursorWithMetrics<C>>;
@@ -87,13 +87,23 @@ impl StorageOperation {
     }
 }
 
+/// Metrics tracking the range of blocks available for proof generation.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_trie.proof_window")]
+pub struct ProofWindowMetrics {
+    /// Earliest block number available in the proof window.
+    pub earliest: Gauge,
+    /// Latest block number available in the proof window.
+    pub latest: Gauge,
+}
+
 /// Metrics for storage operations.
 #[derive(Debug)]
 pub struct StorageMetrics {
     /// Cache of operation metrics handles, keyed by (operation, context)
     operations: HashMap<StorageOperation, OperationMetrics>,
-    /// Block-level metrics
-    block_metrics: BlockMetrics,
+    /// Proof window metrics
+    pub proof_window: ProofWindowMetrics,
 }
 
 impl StorageMetrics {
@@ -101,7 +111,7 @@ impl StorageMetrics {
     pub fn new() -> Self {
         Self {
             operations: Self::generate_operation_handles(),
-            block_metrics: BlockMetrics::new_with_labels(&[] as &[(&str, &str)]),
+            proof_window: ProofWindowMetrics::new_with_labels(&[] as &[(&str, &str)]),
         }
     }
 
@@ -137,11 +147,6 @@ impl StorageMetrics {
         }
 
         result
-    }
-
-    /// Get block metrics for recording high-level timing.
-    pub const fn block_metrics(&self) -> &BlockMetrics {
-        &self.block_metrics
     }
 
     /// Record a pre-measured duration for an operation.
@@ -198,52 +203,6 @@ impl OperationMetrics {
         {
             self.duration_seconds.record_many(duration / count, count as usize);
         }
-    }
-}
-
-/// High-level block processing metrics.
-#[derive(Metrics, Clone)]
-#[metrics(scope = "optimism_trie.block")]
-pub struct BlockMetrics {
-    /// Total time to process a block (end-to-end) in seconds
-    pub total_duration_seconds: Histogram,
-    /// Time spent executing the block (EVM) in seconds
-    pub execution_duration_seconds: Histogram,
-    /// Time spent calculating state root in seconds
-    pub state_root_duration_seconds: Histogram,
-    /// Time spent writing trie updates to storage in seconds
-    pub write_duration_seconds: Histogram,
-    /// Number of trie updates written
-    pub account_trie_updates_written_total: Counter,
-    /// Number of storage trie updates written
-    pub storage_trie_updates_written_total: Counter,
-    /// Number of hashed accounts written
-    pub hashed_accounts_written_total: Counter,
-    /// Number of hashed storages written
-    pub hashed_storages_written_total: Counter,
-    /// Earliest block number that the proofs storage has stored.
-    pub earliest_number: Gauge,
-    /// Latest block number that the proofs storage has stored.
-    pub latest_number: Gauge,
-}
-
-impl BlockMetrics {
-    /// Record operation durations for the processing of a block.
-    pub fn record_operation_durations(&self, durations: &OperationDurations) {
-        self.total_duration_seconds.record(durations.total_duration_seconds);
-        self.execution_duration_seconds.record(durations.execution_duration_seconds);
-        self.state_root_duration_seconds.record(durations.state_root_duration_seconds);
-        self.write_duration_seconds.record(durations.write_duration_seconds);
-    }
-
-    /// Increment write counts of historical trie updates for a single block.
-    pub fn increment_write_counts(&self, counts: &WriteCounts) {
-        self.account_trie_updates_written_total
-            .increment(counts.account_trie_updates_written_total);
-        self.storage_trie_updates_written_total
-            .increment(counts.storage_trie_updates_written_total);
-        self.hashed_accounts_written_total.increment(counts.hashed_accounts_written_total);
-        self.hashed_storages_written_total.increment(counts.hashed_storages_written_total);
     }
 }
 
@@ -336,12 +295,12 @@ impl<C: HashedStorageCursor> HashedStorageCursor for OpProofsHashedCursorWithMet
 
 /// Wrapper around [`OpProofsStore`] type that records metrics for all operations.
 #[derive(Debug, Clone)]
-pub struct OpProofsStorageWithMetrics<S> {
+pub struct OpProofsStoreWithMetrics<S> {
     storage: S,
     metrics: Arc<StorageMetrics>,
 }
 
-impl<S> OpProofsStorageWithMetrics<S> {
+impl<S> OpProofsStoreWithMetrics<S> {
     /// Initializes new [`StorageMetrics`] and wraps given storage instance.
     pub fn new(storage: S) -> Self {
         Self { storage, metrics: Arc::new(StorageMetrics::default()) }
@@ -358,7 +317,7 @@ impl<S> OpProofsStorageWithMetrics<S> {
     }
 }
 
-impl<S> OpProofsStore for OpProofsStorageWithMetrics<S>
+impl<S> OpProofsStore for OpProofsStoreWithMetrics<S>
 where
     S: OpProofsStore,
 {
@@ -419,20 +378,24 @@ impl<P: OpProofsProviderRO> OpProofsProviderRO for OpProofsProviderROWithMetrics
         Self: 'tx;
 
     #[inline]
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_earliest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.block_metrics.earliest_number.set(number as f64);
-        }
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_earliest_block()?;
+        self.metrics.proof_window.earliest.set(result.number as f64);
         Ok(result)
     }
 
     #[inline]
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_latest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.block_metrics.latest_number.set(number as f64);
-        }
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_latest_block()?;
+        self.metrics.proof_window.latest.set(result.number as f64);
+        Ok(result)
+    }
+
+    #[inline]
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        let result = self.provider.get_proof_window()?;
+        self.metrics.proof_window.earliest.set(result.earliest.number as f64);
+        self.metrics.proof_window.latest.set(result.latest.number as f64);
         Ok(result)
     }
 
@@ -506,20 +469,24 @@ impl<P: OpProofsProviderRw> OpProofsProviderRO for OpProofsProviderRwWithMetrics
         Self: 'tx;
 
     #[inline]
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_earliest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.block_metrics.earliest_number.set(number as f64);
-        }
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_earliest_block()?;
+        self.metrics.proof_window.earliest.set(result.number as f64);
         Ok(result)
     }
 
     #[inline]
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.provider.get_latest_block_number()?;
-        if let Some((number, _)) = result {
-            self.metrics.block_metrics.latest_number.set(number as f64);
-        }
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        let result = self.provider.get_latest_block()?;
+        self.metrics.proof_window.latest.set(result.number as f64);
+        Ok(result)
+    }
+
+    #[inline]
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        let result = self.provider.get_proof_window()?;
+        self.metrics.proof_window.earliest.set(result.earliest.number as f64);
+        self.metrics.proof_window.latest.set(result.latest.number as f64);
         Ok(result)
     }
 
@@ -575,7 +542,7 @@ impl<P: OpProofsProviderRw> OpProofsProviderRw for OpProofsProviderRwWithMetrics
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
         let result = self.provider.store_trie_updates(block_ref, block_state_diff)?;
-        self.metrics.block_metrics.latest_number.set(block_ref.block.number as f64);
+        self.metrics.proof_window.latest.set(block_ref.block.number as f64);
         Ok(result)
     }
 
@@ -586,7 +553,7 @@ impl<P: OpProofsProviderRw> OpProofsProviderRw for OpProofsProviderRwWithMetrics
     ) -> OpProofsStorageResult<WriteCounts> {
         let result = self.provider.store_trie_updates_batch(updates.clone())?;
         if let Some((latest_block_ref, _)) = updates.last() {
-            self.metrics.block_metrics.latest_number.set(latest_block_ref.block.number as f64);
+            self.metrics.proof_window.latest.set(latest_block_ref.block.number as f64);
         }
         Ok(result)
     }
@@ -596,7 +563,7 @@ impl<P: OpProofsProviderRw> OpProofsProviderRw for OpProofsProviderRwWithMetrics
         &self,
         new_earliest_block_ref: BlockWithParent,
     ) -> OpProofsStorageResult<WriteCounts> {
-        self.metrics.block_metrics.earliest_number.set(new_earliest_block_ref.block.number as f64);
+        self.metrics.proof_window.earliest.set(new_earliest_block_ref.block.number as f64);
         self.provider.prune_earliest_state(new_earliest_block_ref)
     }
 
@@ -612,16 +579,6 @@ impl<P: OpProofsProviderRw> OpProofsProviderRw for OpProofsProviderRwWithMetrics
         blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
         self.provider.replace_updates(latest_common_block, blocks_to_add)
-    }
-
-    #[inline]
-    fn set_earliest_block_number(
-        &self,
-        block_number: u64,
-        hash: B256,
-    ) -> OpProofsStorageResult<()> {
-        self.metrics.block_metrics.earliest_number.set(block_number as f64);
-        self.provider.set_earliest_block_number(block_number, hash)
     }
 
     #[inline]
@@ -657,6 +614,8 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
         let start = Instant::now();
         let result = self.provider.store_account_branches(account_nodes);
         let duration = start.elapsed();
+
+        // Record per-item duration
         if count > 0 {
             self.metrics.record_duration_per_item(
                 StorageOperation::StoreAccountBranch,
@@ -664,6 +623,7 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
                 count,
             );
         }
+
         result
     }
 
@@ -677,6 +637,8 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
         let start = Instant::now();
         let result = self.provider.store_storage_branches(hashed_address, storage_nodes);
         let duration = start.elapsed();
+
+        // Record per-item duration
         if count > 0 {
             self.metrics.record_duration_per_item(
                 StorageOperation::StoreStorageBranch,
@@ -684,6 +646,7 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
                 count,
             );
         }
+
         result
     }
 
@@ -696,6 +659,8 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
         let start = Instant::now();
         let result = self.provider.store_hashed_accounts(accounts);
         let duration = start.elapsed();
+
+        // Record per-item duration
         if count > 0 {
             self.metrics.record_duration_per_item(
                 StorageOperation::StoreHashedAccount,
@@ -703,6 +668,7 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
                 count,
             );
         }
+
         result
     }
 
@@ -716,6 +682,8 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
         let start = Instant::now();
         let result = self.provider.store_hashed_storages(hashed_address, storages);
         let duration = start.elapsed();
+
+        // Record per-item duration
         if count > 0 {
             self.metrics.record_duration_per_item(
                 StorageOperation::StoreHashedStorage,
@@ -723,13 +691,14 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
                 count,
             );
         }
+
         result
     }
 
     #[inline]
     fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
         let block = self.provider.commit_initial_state()?;
-        self.metrics.block_metrics.earliest_number.set(block.number as f64);
+        self.metrics.proof_window.earliest.set(block.number as f64);
         Ok(block)
     }
 
@@ -739,7 +708,7 @@ impl<P: OpProofsInitProvider> OpProofsInitProvider for OpProofsInitProviderWithM
     }
 }
 
-impl<S> From<S> for OpProofsStorageWithMetrics<S>
+impl<S> From<S> for OpProofsStoreWithMetrics<S>
 where
     S: OpProofsStore + Clone + 'static,
 {

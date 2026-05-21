@@ -37,7 +37,8 @@ pub use block::{BlockInfo, FromBlockError, L2BlockInfo};
 
 mod frame;
 pub use frame::{
-    DERIVATION_VERSION_0, FRAME_OVERHEAD, Frame, FrameDecodingError, FrameParseError, MAX_FRAME_LEN,
+    BASE_FRAME_LEN, DERIVATION_VERSION_0, FRAME_OVERHEAD, Frame, FrameDecodingError,
+    FrameParseError, MAX_FRAME_LEN,
 };
 
 mod utils;

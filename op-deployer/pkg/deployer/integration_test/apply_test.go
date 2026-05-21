@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -86,17 +85,14 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
-			L1RPCUrl:                   l1RPC,
-			PrivateKey:                 pkHex,
-			Logger:                     lgr,
-			ArtifactsLocator:           loc,
-			CacheDir:                   testCacheDir,
-			SuperchainProxyAdminOwner:  superchainPAO,
-			ProtocolVersionsOwner:      common.Address{'P', 'V', 'O'},
-			Guardian:                   common.Address{'G'},
-			Paused:                     false,
-			RecommendedProtocolVersion: params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
-			RequiredProtocolVersion:    params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
+			L1RPCUrl:                  l1RPC,
+			PrivateKey:                pkHex,
+			Logger:                    lgr,
+			ArtifactsLocator:          loc,
+			CacheDir:                  testCacheDir,
+			SuperchainProxyAdminOwner: superchainPAO,
+			Guardian:                  common.Address{'G'},
+			Paused:                    false,
 		})
 		require.NoError(t, err)
 
@@ -112,7 +108,6 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
 			L1ProxyAdminOwner:               superchainPAO,
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
@@ -198,7 +193,6 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-		ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 		L1ProxyAdminOwner:               superchainProxyAdminOwner,
 		SuperchainProxyAdmin:            superchainProxyAdmin,
 		CacheDir:                        testCacheDir,
@@ -943,11 +937,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperCannon,
-							},
-							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperPermCannon,
 							},
 							{
@@ -982,29 +971,27 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				// Structure breakdown:
 				// - Tuple offset (0x20)
 				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
-				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x640)
-				// - DisputeGameConfigs[]: 7 configs
+				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x580)
+				// - DisputeGameConfigs[]: 6 configs
 				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
 				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
 				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
-				//   [3] SuperCannon: enabled=false, initBond=0, gameType=4, gameArgs=empty
-				//   [4] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
-				//   [5] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
-				//   [6] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
+				//   [3] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
+				//   [4] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
+				//   [5] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
 					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
 					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-					"0000000000000000000000000000000000000000000000000000000000000640" + // offset to extraInstructions
-					"0000000000000000000000000000000000000000000000000000000000000007" + // disputeGameConfigs.length (7)
-					"00000000000000000000000000000000000000000000000000000000000000e0" + // offset to disputeGameConfigs[0]
-					"00000000000000000000000000000000000000000000000000000000000001a0" + // offset to disputeGameConfigs[1]
-					"00000000000000000000000000000000000000000000000000000000000002a0" + // offset to disputeGameConfigs[2]
-					"0000000000000000000000000000000000000000000000000000000000000340" + // offset to disputeGameConfigs[3]
-					"00000000000000000000000000000000000000000000000000000000000003e0" + // offset to disputeGameConfigs[4]
-					"0000000000000000000000000000000000000000000000000000000000000480" + // offset to disputeGameConfigs[5]
-					"0000000000000000000000000000000000000000000000000000000000000520" + // offset to disputeGameConfigs[6]
+					"0000000000000000000000000000000000000000000000000000000000000580" + // offset to extraInstructions
+					"0000000000000000000000000000000000000000000000000000000000000006" + // disputeGameConfigs.length (6)
+					"00000000000000000000000000000000000000000000000000000000000000c0" + // offset to disputeGameConfigs[0]
+					"0000000000000000000000000000000000000000000000000000000000000180" + // offset to disputeGameConfigs[1]
+					"0000000000000000000000000000000000000000000000000000000000000280" + // offset to disputeGameConfigs[2]
+					"0000000000000000000000000000000000000000000000000000000000000320" + // offset to disputeGameConfigs[3]
+					"00000000000000000000000000000000000000000000000000000000000003c0" + // offset to disputeGameConfigs[4]
+					"0000000000000000000000000000000000000000000000000000000000000460" + // offset to disputeGameConfigs[5]
 					// DisputeGameConfigs[0] - Cannon
 					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
 					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
@@ -1027,25 +1014,19 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[3] - SuperCannon (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000004" + // gameType=4 (SuperCannon)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[4] - SuperPermCannon (disabled)
+					// DisputeGameConfigs[3] - SuperPermCannon (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=5 (SuperPermCannon)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[5] - SuperCannonKona (disabled)
+					// DisputeGameConfigs[4] - SuperCannonKona (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[6] - ZKDisputeGame (disabled)
+					// DisputeGameConfigs[5] - ZKDisputeGame (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
 					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (ZKDisputeGame)
@@ -1131,7 +1112,6 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 	addrs := []addrTuple{
 		{"SuperchainProxyAdminImpl", st.SuperchainDeployment.SuperchainProxyAdminImpl},
 		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxy},
-		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxy},
 		{"OpcmV2Impl", st.ImplementationsDeployment.OpcmV2Impl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
@@ -1139,7 +1119,6 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 
 	if includeSuperchainImpls {
 		addrs = append(addrs, addrTuple{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImpl})
-		addrs = append(addrs, addrTuple{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImpl})
 	}
 
 	for _, addr := range addrs {

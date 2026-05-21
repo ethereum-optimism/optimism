@@ -230,25 +230,6 @@ func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 	}
 }
 
-func WithCannonKonaGameTypeAdded() Option {
-	return option{
-		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
-		},
-	}
-}
-
-func WithChallengerCannonKonaEnabled() Option {
-	return option{
-		kinds: optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-		},
-	}
-}
-
 func WithTimeTravelEnabled() Option {
 	return option{
 		kinds: optionKindTimeTravel,
@@ -308,6 +289,12 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
 	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
 }
 
+// WithUniformL2BlockTimes configures the same L2 block time (in seconds) on
+// every configured L2 chain via the deployer.
+func WithUniformL2BlockTimes(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithUniformL2BlockTimes(seconds))
+}
+
 // WithInteropLogBackfillDepth configures the supernode to pre-ingest
 // initiating-message logs backward from the tip by the given duration at
 // startup. Zero disables backfill (the default).
@@ -320,6 +307,38 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 		kinds: kinds,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.InteropLogBackfillDepth = d
+		},
+	}
+}
+
+// WithoutHonestProposer skips starting op-proposer.
+func WithoutHonestProposer() Option {
+	return option{
+		kinds: optionKindSkipHonestProposer,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestProposer = true
+		},
+	}
+}
+
+// WithPreGenesisSuperGame seeds one invalid super dispute game before the
+// rollup start block so tests can exercise supernode/challenger behaviour
+// when a game's L1 head predates rollup genesis. The claimed outputs follow
+// the preset chain order (`l2a`, `l2b` for two-chain presets).
+func WithPreGenesisSuperGame(claimedOutputs ...eth.Bytes32) Option {
+	var kinds optionKinds
+	if len(claimedOutputs) > 0 {
+		kinds = optionKindPreGenesisSuperGame
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if len(claimedOutputs) == 0 {
+				return
+			}
+			cfg.PreGenesisSuperGame = &sysgo.PreGenesisSuperGameConfig{
+				ClaimedOutputs: append([]eth.Bytes32(nil), claimedOutputs...),
+			}
 		},
 	}
 }

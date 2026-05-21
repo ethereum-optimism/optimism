@@ -7,13 +7,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/filter"
+	filterflags "github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 // InteropFilter wraps an in-process op-interop-filter service for devstack.
-// Follows the same pattern as OpSupervisor (supervisor_op.go).
 type InteropFilter struct {
 	mu      sync.Mutex
 	name    string
@@ -106,6 +106,8 @@ func startInteropFilter(
 		MessageExpiryWindow: 7 * 24 * 3600, // 7 days in seconds
 		PollInterval:        500 * time.Millisecond,
 		ValidationInterval:  200 * time.Millisecond,
+		RPCConcurrency:      filterflags.DefaultRPCConcurrency,
+		FetchConcurrency:    filterflags.DefaultFetchConcurrency,
 		RPCAddr:             "127.0.0.1",
 		RPCPort:             0, // Auto-assign
 		Version:             "devstack",

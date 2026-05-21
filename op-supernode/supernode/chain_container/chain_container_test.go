@@ -3,6 +3,7 @@ package chain_container
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -19,10 +21,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,6 +49,19 @@ type mockVirtualNode struct {
 	safeHeadL1  eth.BlockID
 	safeHeadL2  eth.BlockID
 	safeHeadErr error
+
+	// syncStatusOverride lets tests return a fully-formed eth.SyncStatus
+	// (e.g. populated LocalSafeL2.Time / LocalFinalizedL2 / FinalizedL1)
+	// instead of the synthesised default built from safeHeadL1/safeHeadL2.
+	// When nil, the default synthesis below is used.
+	syncStatusOverride func() (*eth.SyncStatus, error)
+
+	// Decouples FirstSafeHeadEntry's result from safeHeadL1/L2 (read by
+	// SyncStatus, SafeHeadAtL1, etc.).
+	firstSafeHeadEntryOverride func() (eth.BlockID, eth.BlockID, error)
+
+	// Order in which mock methods were invoked.
+	methodCalls []string
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -102,6 +119,17 @@ func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) 
 	return m.safeHeadL1, m.safeHeadErr
 }
 
+// FirstSafeHeadEntry implements virtual_node.VirtualNode FirstSafeHeadEntry
+func (m *mockVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "FirstSafeHeadEntry")
+	m.mu.Unlock()
+	if m.firstSafeHeadEntryOverride != nil {
+		return m.firstSafeHeadEntryOverride()
+	}
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
 // LastL1 implements virtual_node.VirtualNode LastL1
 func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
@@ -109,6 +137,12 @@ func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 
 // SyncStatus implements virtual_node.VirtualNode SyncStatus
 func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "SyncStatus")
+	m.mu.Unlock()
+	if m.syncStatusOverride != nil {
+		return m.syncStatusOverride()
+	}
 	if m.safeHeadErr != nil {
 		return nil, m.safeHeadErr
 	}
@@ -139,7 +173,15 @@ func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint6
 	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
 
+func (m *mockEngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+	return nil, nil
+}
+
+func (m *mockEngineController) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
 	return nil, nil
 }
 
@@ -152,35 +194,6 @@ func (m *mockEngineController) Close() error {
 }
 
 var _ engine_controller.EngineController = (*mockEngineController)(nil)
-
-// mockVerificationActivity is a mock implementation of activity.VerificationActivity
-type mockVerificationActivity struct {
-	name                      string
-	currentL1Result           eth.BlockID
-	verifiedAtTimestampResult bool
-	verifiedAtTimestampErr    error
-}
-
-func (m *mockVerificationActivity) Name() string {
-	return m.name
-}
-
-func (m *mockVerificationActivity) CurrentL1() eth.BlockID {
-	return m.currentL1Result
-}
-
-func (m *mockVerificationActivity) VerifiedAtTimestamp(ts uint64) (bool, error) {
-	return m.verifiedAtTimestampResult, m.verifiedAtTimestampErr
-}
-
-func (m *mockVerificationActivity) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
-	return eth.BlockID{}, 0
-}
-func (m *mockVerificationActivity) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
-}
-func (m *mockVerificationActivity) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
-	return eth.BlockID{}, 0
-}
 
 // Test helpers
 func createTestVNConfig() *opnodecfg.Config {
@@ -235,7 +248,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 
 	t.Run("creates container with correct config", func(t *testing.T) {
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		require.NotNil(t, container)
 
@@ -255,7 +268,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: dataDir,
 		}
-		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -272,7 +285,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 				ListenPort: 9545,
 			},
 		}
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -282,7 +295,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 
 	t.Run("appVersion set correctly", func(t *testing.T) {
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -294,7 +307,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: dataDir,
 		}
-		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -319,7 +332,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			container := NewChainContainer(tc.chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+			container := NewChainContainer(tc.chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 			impl, ok := container.(*simpleChainContainer)
 			require.True(t, ok)
 
@@ -341,7 +354,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Start respects stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -368,7 +381,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Stop sets stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -383,7 +396,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("signals stopped channel on exit", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -413,7 +426,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("context cancellation stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -454,7 +467,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Stop flag stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -501,7 +514,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("Pause sets pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -515,7 +528,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("Resume clears pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -531,7 +544,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("paused container doesn't start VN, resumed does", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -781,7 +794,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Run("Start creates and starts virtual node", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -812,7 +825,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Run("auto-restart virtual node on exit", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -846,10 +859,43 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
+	t.Run("restart increments VNRestarts metric", func(t *testing.T) {
+		log := createTestLogger(t)
+		cfg := createTestCLIConfig(t.TempDir())
+		metrics := resources.NewSupernodeMetrics()
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, metrics)
+		impl, ok := container.(*simpleChainContainer)
+		require.True(t, ok)
+
+		restartCount := 0
+		mockVN := &mockVirtualNode{startSignal: make(chan struct{})}
+		mockVN.startFunc = func(ctx context.Context) error {
+			restartCount++
+			if restartCount < 3 {
+				return nil
+			}
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+			return mockVN
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		go func() { _ = container.Start(ctx) }()
+
+		require.Eventually(t, func() bool { return restartCount >= 3 }, 1*time.Second, 10*time.Millisecond)
+		// The first start is not a restart; restarts 2 and 3 should be counted.
+		var dto dto.Metric
+		require.NoError(t, metrics.VNRestarts.WithLabelValues(chainID.String()).Write(&dto))
+		require.Equal(t, float64(2), dto.GetCounter().GetValue())
+	})
+
 	t.Run("Stop calls virtual node Stop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -895,7 +941,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -920,57 +966,6 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	})
 }
 
-// TestChainContainer_VerifiedAt tests the VerifiedAt method
-func TestChainContainer_VerifiedAt(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	vncfg := createTestVNConfig()
-	log := createTestLogger(t)
-	cfg := createTestCLIConfig(t.TempDir())
-	initOverload := &rollupNode.InitializationOverrides{}
-
-	t.Run("returns error when verification activity reports not verified", func(t *testing.T) {
-		// Create a mock verification activity that returns verified=false
-		mockVerifier := &mockVerificationActivity{
-			name:                      "test-verifier",
-			verifiedAtTimestampResult: false, // not verified
-			verifiedAtTimestampErr:    nil,
-		}
-
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
-		impl, ok := container.(*simpleChainContainer)
-		require.True(t, ok)
-
-		container.RegisterVerifier(mockVerifier)
-
-		// Set up mock engine controller
-		mockEngine := &mockEngineController{
-			l2BlockRefByNumberResult: eth.L2BlockRef{
-				Hash:   [32]byte{1},
-				Number: 100,
-			},
-			l2BlockRefByNumberErr: nil,
-		}
-		impl.engine = mockEngine
-
-		// Set up mock virtual node for safeDBAtL2
-		mockVN := newMockVirtualNode()
-		mockVN.safeHeadL1 = eth.BlockID{Hash: [32]byte{2}, Number: 50}
-		mockVN.safeHeadErr = nil
-		impl.vn = mockVN
-
-		ctx := context.Background()
-		l2, l1, err := container.VerifiedAt(ctx, 1000)
-
-		// Should return an error when verification fails
-		require.Error(t, err)
-		require.ErrorIs(t, err, ethereum.NotFound)
-		require.Equal(t, eth.BlockID{}, l2)
-		require.Equal(t, eth.BlockID{}, l1)
-	})
-}
-
 // TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound tests that
 // ErrL1AtSafeHeadNotFound from the virtual node is mapped to ethereum.NotFound
 // by OptimisticAt (via safeDBAtL2), so callers treat chain lag as "not ready".
@@ -981,11 +976,11 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	vncfg := createTestVNConfig()
 	vncfg.Rollup.Genesis.L2Time = 1000
 	vncfg.Rollup.BlockTime = 2
-	log := createTestLogger(t)
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1016,6 +1011,50 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ethereum.NotFound),
 		"ErrL1AtSafeHeadNotFound should be mapped to ethereum.NotFound, got: %v", err)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l1 block number at which l2 block became safe"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l1 block at which l2 block became safe is not available yet"),
+	))
+}
+
+func TestChainContainer_OptimisticAt_LocalSafeTipNotFoundLogsDebug(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log, logs := testlog.CaptureLogger(t, gethlog.LevelDebug)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	impl.engine = &mockEngineController{}
+	impl.vn = &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+	}
+
+	_, _, err := container.OptimisticAt(context.Background(), 2000)
+
+	require.ErrorIs(t, err, ethereum.NotFound)
+	require.Nil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelError),
+		testlog.NewMessageFilter("error determining l2 block at given timestamp"),
+	))
+	require.NotNil(t, logs.FindLog(
+		testlog.NewLevelFilter(slog.LevelDebug),
+		testlog.NewMessageFilter("l2 block at timestamp is not local safe yet"),
+	))
 }
 
 // mockVNForL1AtSafeHeadError is a VN mock that returns valid SyncStatus
@@ -1033,11 +1072,60 @@ func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNu
 func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, m.l1AtSafeHeadErr
 }
+func (m *mockVNForL1AtSafeHeadError) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
 func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return m.syncStatusResult, nil
 }
 
 var _ virtual_node.VirtualNode = (*mockVNForL1AtSafeHeadError)(nil)
+
+// ErrL1AtSafeHeadUnavailable from the VN must map to ErrHistoryUnavailable
+// (and NOT to ethereum.NotFound) so interop halts instead of treating it as
+// transient chain lag.
+func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadUnavailable(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	mockEngine := &mockEngineController{
+		l2BlockRefByNumberResult: eth.L2BlockRef{
+			Hash:   common.Hash{0x01},
+			Number: 5,
+			Time:   1010,
+		},
+	}
+	impl.engine = mockEngine
+
+	mockVN := &mockVNForL1AtSafeHeadError{
+		syncStatusResult: &eth.SyncStatus{
+			CurrentL1:   eth.L1BlockRef{Hash: common.Hash{0x10}, Number: 50},
+			LocalSafeL2: eth.L2BlockRef{Hash: common.Hash{0x20}, Number: 100},
+		},
+		l1AtSafeHeadErr: virtual_node.ErrL1AtSafeHeadUnavailable,
+	}
+	impl.vn = mockVN
+
+	ctx := context.Background()
+	_, _, err := container.OptimisticAt(ctx, 1010)
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrHistoryUnavailable),
+		"ErrL1AtSafeHeadUnavailable should be mapped to ErrHistoryUnavailable, got: %v", err)
+	require.False(t, errors.Is(err, ethereum.NotFound),
+		"ErrL1AtSafeHeadUnavailable must NOT be mapped to ethereum.NotFound — that would make it look transient. got: %v", err)
+}
 
 // TestChainContainer_LocalSafeBlockAtTimestamp tests the LocalSafeBlockAtTimestamp method
 func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
@@ -1122,7 +1210,7 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 		vncfg.Rollup.Genesis.L2Time = tc.genesisTime
 		vncfg.Rollup.BlockTime = tc.blockTime
 
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -1280,7 +1368,7 @@ func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil)
+	container := NewChainContainer(chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil, nil)
 
 	status, err := container.SyncStatus(context.Background())
 	require.Nil(t, status)
@@ -1300,7 +1388,7 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	vncfg.Rollup.Genesis.L2.Number = 100
 	vncfg.Rollup.BlockTime = 2
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1311,4 +1399,153 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	_, err = impl.BlockNumberToTimestamp(context.Background(), 99)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "before genesis 100")
+}
+
+// Returns ErrSafeDBNotReady until the deriver's currentL1 has moved past
+// firstEntry.L1; only then is the entry's L2 final.
+func TestChainContainer_FirstSafeHeadTimestamp_StableSnapshot(t *testing.T) {
+	t.Parallel()
+
+	const blockTime = 2
+	const genesisL2Time = 1000
+
+	type tc struct {
+		name       string
+		firstEntry func() (eth.BlockID, eth.BlockID, error)
+		syncStatus func() (*eth.SyncStatus, error)
+		wantErr    error
+		wantTS     uint64
+	}
+	for _, c := range []tc{
+		{
+			name: "empty SafeDB -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver still on firstEntry's L1 -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 4}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver below firstEntry's L1 (impossible but defensive) -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 3}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver past firstEntry's L1 -> returns timestamp",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantTS: genesisL2Time + 23*blockTime,
+		},
+		{
+			name: "SyncStatus error propagates",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return nil, errors.New("rpc down")
+			},
+			wantErr: nil, // checked via Contains below
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			vncfg := createTestVNConfig()
+			vncfg.Rollup.Genesis.L2Time = genesisL2Time
+			vncfg.Rollup.BlockTime = blockTime
+			log := createTestLogger(t)
+
+			mockVN := newMockVirtualNode()
+			mockVN.firstSafeHeadEntryOverride = c.firstEntry
+			mockVN.syncStatusOverride = c.syncStatus
+
+			impl := &simpleChainContainer{
+				chainID: eth.ChainIDFromUInt64(420),
+				log:     log,
+				vncfg:   vncfg,
+				vn:      mockVN,
+			}
+
+			ts, err := impl.FirstSafeHeadTimestamp(context.Background())
+			if c.wantErr != nil {
+				require.ErrorIs(t, err, c.wantErr)
+				require.Zero(t, ts)
+				return
+			}
+			if c.name == "SyncStatus error propagates" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "sync status")
+				require.Contains(t, err.Error(), "rpc down")
+				require.Zero(t, ts)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, c.wantTS, ts)
+		})
+	}
+}
+
+// SyncStatus must be sampled before FirstSafeHeadEntry; the reverse order
+// admits a race where the deriver finishes firstEntry.L1 between reads.
+func TestChainContainer_FirstSafeHeadTimestamp_SamplesSyncStatusFirst(t *testing.T) {
+	t.Parallel()
+
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+
+	mockVN := newMockVirtualNode()
+	mockVN.firstSafeHeadEntryOverride = func() (eth.BlockID, eth.BlockID, error) {
+		return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+	}
+	mockVN.syncStatusOverride = func() (*eth.SyncStatus, error) {
+		return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+	}
+
+	impl := &simpleChainContainer{
+		chainID: eth.ChainIDFromUInt64(420),
+		log:     log,
+		vncfg:   vncfg,
+		vn:      mockVN,
+	}
+
+	_, err := impl.FirstSafeHeadTimestamp(context.Background())
+	require.NoError(t, err)
+
+	mockVN.mu.Lock()
+	defer mockVN.mu.Unlock()
+	require.GreaterOrEqual(t, len(mockVN.methodCalls), 2)
+	syncIdx, firstIdx := -1, -1
+	for i, name := range mockVN.methodCalls {
+		if name == "SyncStatus" && syncIdx == -1 {
+			syncIdx = i
+		}
+		if name == "FirstSafeHeadEntry" && firstIdx == -1 {
+			firstIdx = i
+		}
+	}
+	require.NotEqual(t, -1, syncIdx, "SyncStatus should have been called")
+	require.NotEqual(t, -1, firstIdx, "FirstSafeHeadEntry should have been called")
+	require.Less(t, syncIdx, firstIdx,
+		"SyncStatus must be sampled before FirstSafeHeadEntry — the reverse order admits a race; methodCalls=%v", mockVN.methodCalls)
 }

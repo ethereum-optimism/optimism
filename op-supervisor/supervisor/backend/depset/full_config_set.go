@@ -5,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type FullConfigSet interface {
 	RollupConfigSet
-	DependencySet
+	coredepset.DependencySet
 }
 
 type FullConfigSetMerged struct {
 	RollupConfigSet
-	DependencySet
+	coredepset.DependencySet
 }
 
 func (f FullConfigSetMerged) HasChain(chainID eth.ChainID) bool {
@@ -34,7 +35,7 @@ func (f FullConfigSetMerged) LoadFullConfigSet(_ context.Context) (FullConfigSet
 
 // NewFullConfigSetMerged creates a new FullConfigSetMerged from a RollupConfigSet and a DependencySet.
 // It checks that the two sets contain the same chains.
-func NewFullConfigSetMerged(rollupConfigSet RollupConfigSet, dependencySet DependencySet) (FullConfigSetMerged, error) {
+func NewFullConfigSetMerged(rollupConfigSet RollupConfigSet, dependencySet coredepset.DependencySet) (FullConfigSetMerged, error) {
 	f := FullConfigSetMerged{
 		RollupConfigSet: rollupConfigSet,
 		DependencySet:   dependencySet,
@@ -79,7 +80,7 @@ type FullConfigSetSource interface {
 
 type FullConfigSetSourceMerged struct {
 	RollupConfigSetSource
-	DependencySetSource
+	coredepset.DependencySetSource
 }
 
 func (l *FullConfigSetSourceMerged) LoadFullConfigSet(ctx context.Context) (FullConfigSet, error) {

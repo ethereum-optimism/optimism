@@ -1,6 +1,6 @@
 # Development Workflow
 
-Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md). For end-to-end testing, see [acceptance-tests.md](acceptance-tests.md).
+Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md). For running acceptance tests, see [acceptance-tests.md](acceptance-tests.md); for writing new ones, see [writing-acceptance-tests.md](writing-acceptance-tests.md).
 
 ## Tool Versions
 

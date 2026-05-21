@@ -8,7 +8,7 @@ Pull requests:
 
 User docs:
 
-- [How to run a node](https://docs.optimism.io/builders/node-operators/rollup-node)
+- [How to run a node](https://docs.optimism.io/node-operators/tutorials/run-node-from-source)
 
 Specs:
 
@@ -249,6 +249,17 @@ While recover mode is enabled, the tx pool is disabled and the l1 origin is prog
 by verifiers under autoderivation. To enable the quickest recovery, the batcher should be configured for singular (not span) batches.
 After some time, the l1 origin of the l2 safe head will once again catch up close to the l1 head. Then, the recover mode should be disabled and the chain is
 back in a normal state.
+
+### Unsafe Block Signer Rotation
+
+Unsafe blocks gossiped over P2P are signed by the chain's *unsafe block signer* key,
+whose address lives in the `SystemConfig` L1 contract.
+
+When the op-node detects that this address has changed (via the periodic runtime-config
+reload), it enters a grace period of `DefaultSignerGracePeriod` (3 hours; see
+`op-node/node/runcfg/runtime_config.go`) during which blocks signed by either the new
+*or* the previous signer are accepted. The grace period ends early as soon as a block
+from the new signer is verified, and after it elapses only the new signer is accepted.
 
 ## Testing
 

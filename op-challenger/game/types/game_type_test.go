@@ -29,6 +29,12 @@ func TestGameTypeFromStringForAllSupportedGameTypes(t *testing.T) {
 	}
 }
 
+func TestSupportedGameTypeFromString_RejectsSuperCannon(t *testing.T) {
+	result, err := SupportedGameTypeFromString("super-cannon")
+	require.ErrorIs(t, err, ErrUnknownGameType)
+	require.Equal(t, UnknownGameType, result)
+}
+
 func TestKnownStringForAllSupportedGameTypes(t *testing.T) {
 	for _, gameType := range SupportedGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {

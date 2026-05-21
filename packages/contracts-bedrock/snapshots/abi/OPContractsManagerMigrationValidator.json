@@ -1,0 +1,264 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract IDisputeGameFactory",
+            "name": "dgf",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonKonaPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.MigrationValidationInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "_allowFailure",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "disputeGameFactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IStandardValidatorUtils",
+            "name": "standardValidatorUtils",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_impls",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",
+        "name": "_cfg",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateMigration",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract IDisputeGameFactory",
+            "name": "dgf",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ISystemConfig[]",
+            "name": "chainSystemConfigs",
+            "type": "address[]"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonKonaPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.MigrationValidationInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "_allowFailure",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerStandardValidator.ValidationOverrides",
+        "name": "_overrides",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "disputeGameFactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superFaultDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IStandardValidatorUtils",
+            "name": "standardValidatorUtils",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedImplementations",
+        "name": "_impls",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",
+        "name": "_cfg",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateMigrationWithOverrides",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
+  }
+]

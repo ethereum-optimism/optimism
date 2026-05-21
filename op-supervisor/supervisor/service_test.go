@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
@@ -21,11 +22,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestSupervisorService(t *testing.T) {
-	depSet, err := depset.NewStaticConfigDependencySet(make(map[eth.ChainID]*depset.StaticConfigDependency))
+	depSet, err := coredepset.NewStaticConfigDependencySet(make(map[eth.ChainID]*coredepset.StaticConfigDependency))
 	require.NoError(t, err)
 	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), depset.StaticTimestamp(0))
 	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
@@ -71,7 +74,7 @@ func TestSupervisorService(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		err = cl.CallContext(ctx, nil, "supervisor_checkAccessList",
-			[]common.Hash{}, types.CrossUnsafe, types.ExecutingDescriptor{
+			[]common.Hash{}, safety.CrossUnsafe, messages.ExecutingDescriptor{
 				Timestamp: 1234568, ChainID: eth.ChainIDFromUInt64(123)})
 		cancel()
 		require.NoError(t, err)

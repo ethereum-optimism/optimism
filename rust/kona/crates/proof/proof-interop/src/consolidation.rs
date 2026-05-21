@@ -3,18 +3,22 @@
 use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState};
 use alloc::{collections::BTreeSet, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::OpTxEnv;
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpAlloyReceiptBuilder, OpTxEnv},
+};
 use alloy_primitives::Sealable;
 use alloy_rpc_types_engine::PayloadAttributes;
 use core::fmt::Debug;
 use kona_executor::{Eip1559ValidationError, ExecutorError, StatelessL2Builder};
+use kona_genesis::RollupConfig;
 use kona_interop::{MessageGraph, MessageGraphError};
 use kona_mpt::OrderedListWalker;
 use kona_preimage::CommsClient;
 use kona_proof::{errors::OracleProviderError, l2::OracleL2ChainProvider};
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
-use op_alloy_consensus::{OpTxEnvelope, OpTxType};
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope, OpTxType};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
@@ -49,6 +53,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Debug + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     /// Creates a new [`SuperchainConsolidator`] with the given providers and [Header]s.
     ///
@@ -81,8 +91,13 @@ where
                     info!(target: "superchain_consolidator", "Superchain consolidation complete");
                     return Ok(());
                 }
-                Err(ConsolidationError::MessageGraph(MessageGraphError::InvalidMessages(_))) => {
-                    // If invalid messages are still present in the graph, continue the loop.
+                Err(ConsolidationError::MessageGraph(
+                    MessageGraphError::InvalidMessages(_) |
+                    MessageGraphError::CyclicDependency { .. },
+                )) => {
+                    // If invalid messages or cyclic dependencies are found, continue the loop.
+                    // The affected chains have been replaced with deposit-only blocks by
+                    // consolidate_once, so the next iteration will exclude them.
                 }
                 Err(e) => {
                     error!(target: "superchain_consolidator", "Error consolidating superchain: {:?}", e);
@@ -118,16 +133,25 @@ where
             &heads_to_check,
             &self.interop_provider,
             &self.boot_info.rollup_configs,
+            &self.boot_info.dependency_set,
             self.boot_info.dependency_set.get_message_expiry_window(),
         )
         .await?;
 
-        // Attempt to resolve the message graph. If there were any invalid messages found, we must
-        // initiate a re-execution of the original block, with only deposit transactions.
-        if let Err(MessageGraphError::InvalidMessages(invalid_chains)) = graph.resolve().await {
-            self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
-                .await?;
-            return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+        // Attempt to resolve the message graph. If there were any invalid messages or cyclic
+        // dependencies found, re-execute the affected chains with deposit-only transactions.
+        match graph.resolve().await {
+            Err(MessageGraphError::InvalidMessages(invalid_chains)) => {
+                self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
+                    .await?;
+                return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+            }
+            Err(MessageGraphError::CyclicDependency { chain_ids }) => {
+                self.re_execute_deposit_only(&chain_ids).await?;
+                return Err(MessageGraphError::CyclicDependency { chain_ids }.into());
+            }
+            Err(e) => return Err(e.into()),
+            Ok(()) => {}
         }
 
         Ok(())
@@ -198,6 +222,7 @@ where
                     suggested_fee_recipient: header.beneficiary,
                     withdrawals: Default::default(),
                     parent_beacon_block_root: header.parent_beacon_block_root,
+                    slot_number: Default::default(),
                 },
                 transactions: Some(transactions),
                 no_tx_pool: Some(true),

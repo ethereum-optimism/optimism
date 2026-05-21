@@ -3,13 +3,13 @@ package virtual_node
 import (
 	"context"
 	"errors"
-	"math"
 	"sync"
 	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
@@ -42,6 +42,9 @@ type VirtualNode interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
 	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
 	L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error)
+	// FirstSafeHeadEntry returns the lowest recorded (L1, L2 safe head) pair from SafeDB.
+	// Returns safedb.ErrNotFound when SafeDB has no entries yet.
+	FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 }
 
@@ -211,10 +214,28 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 	return db.SafeHeadAtL1(ctx, l1BlockNum)
 }
 
-var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
+func (v *simpleVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	db := inner.SafeDB()
+	if db == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	return db.FirstEntry(ctx)
+}
 
-// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became local safe,
-// using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
+// Re-exported from safedb for callers that still reference these via virtual_node.
+var (
+	ErrL1AtSafeHeadNotFound    = safedb.ErrL1AtSafeHeadNotFound
+	ErrL1AtSafeHeadUnavailable = safedb.ErrL1AtSafeHeadUnavailable
+)
+
+// L1AtSafeHead returns the earliest L1 block at which the provided L2 block
+// became local-safe, delegating the lookup to SafeDB.
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
 	inner := v.inner
@@ -227,55 +248,22 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 		return eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
 
-	// Special case: genesis L2 block is trivially safe at genesis L1
-	// Note: We use L1 block 0 (not cfg.Genesis.L1) because contracts may have been deployed
-	// earlier than cfg.Genesis.L1, allowing dispute games with L1 heads prior to cfg.Genesis.L1
+	// Genesis L2 is trivially safe at L1 block 0. Use 0 rather than
+	// cfg.Genesis.L1 because contracts may pre-date cfg.Genesis.L1, allowing
+	// dispute games anchored to earlier L1 heads.
 	if target == v.cfg.Rollup.Genesis.L2 {
-		// Return L1 block 0 (L1 genesis)
-		l1Genesis := eth.BlockID{Number: 0} // Hash not necessary
-		return l1Genesis, nil
+		return eth.BlockID{Number: 0}, nil
 	}
 
-	// Get the latest entry to start the walkback
-	latestL1, latestL2, err := db.SafeHeadAtL1(ctx, math.MaxUint64-1)
+	l1, _, err := db.L1AtSafeHead(ctx, target.Number)
 	if err != nil {
-		v.log.Debug("L1AtSafeHead: latest lookup failed", "err", err)
+		v.log.Debug("L1AtSafeHead: lookup failed",
+			"target_l2_num", target.Number, "target_l2_hash", target.Hash, "err", err)
 		return eth.BlockID{}, err
 	}
-	v.log.Debug("L1AtSafeHead: latest bounds", "latest_l1", latestL1.Number, "latest_l2_num", latestL2.Number, "latest_l2_hash", latestL2.Hash)
-	if latestL2.Number < target.Number {
-		v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number, "target", target.Number)
-		return eth.BlockID{}, ErrL1AtSafeHeadNotFound
-	}
-	v.log.Debug("L1AtSafeHead: target within latest", "latest_l2", latestL2.Number, "target", target.Number)
-	// Walk back until the cursor would drop below the target
-	cursor := latestL1
-	genesisL1 := v.cfg.Rollup.Genesis.L1.Number
-	steps := 0
-	for {
-		steps++
-		if cursor.Number <= 0 || cursor.Number <= genesisL1 {
-			// if we made it all the way back to genesis, it is likely the SafeDB is not stable enough for use
-			// safer to simply return an error for now.
-			v.log.Warn("L1AtSafeHead: reached genesis bound", "genesis_l1", genesisL1, "earliest_l1", cursor.Number)
-			return eth.BlockID{}, ErrL1AtSafeHeadNotFound
-		}
-		prev := cursor.Number - 1
-		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
-		if err != nil {
-			v.log.Error("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "target", target.Number, "err", err)
-			return eth.BlockID{}, err
-		}
-		if l2Prev.Number >= target.Number {
-			// Still meets or exceeds target; continue walking back
-			cursor = l1Prev
-			continue
-		}
-		// Dropped below target; current cursor is the first that meets/exceeds
-		break
-	}
-	v.log.Debug("L1AtSafeHead: result", "l1", cursor, "steps", steps)
-	return cursor, nil
+	v.log.Debug("L1AtSafeHead: result",
+		"target_l2_num", target.Number, "target_l2_hash", target.Hash, "l1", l1)
+	return l1, nil
 }
 
 func (v *simpleVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {

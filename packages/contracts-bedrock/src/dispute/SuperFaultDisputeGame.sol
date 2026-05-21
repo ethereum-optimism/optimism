@@ -67,7 +67,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 /// @title SuperFaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface for interop.
 contract SuperFaultDisputeGame is Clone, ISemver {
-    /// @dev Error to prevent initialization a dispute game with an actually valid, invalid state
+    /// @dev Error to prevent initializing a dispute game with the reserved invalid root claim.
     error SuperFaultDisputeGameInvalidRootClaim();
     /// @dev Error to prevent passing a chainId to this dispute game
     error NoChainIdNeeded();
@@ -146,9 +146,9 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.7.1
+    /// @custom:semver 0.7.2
     function version() public pure virtual returns (string memory) {
-        return "0.7.1";
+        return "0.7.2";
     }
 
     /// @notice The starting timestamp of the game
@@ -711,7 +711,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     ///         subgame.
     /// @dev This function must be called bottom-up in the DAG
     ///      A subgame is a tree of claims that has a maximum depth of 1.
-    ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
+    ///      A subgame root claim is valid if, and only if, all of its child claims are invalid.
     ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
     /// @param _claimIndex The index of the subgame root claim to resolve.
     /// @param _numToResolve The number of subgames to resolve in this call. If the input is `0`, and this is the first
@@ -776,7 +776,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
             // The left-most correct counter is preferred in bond payouts in order to discourage attackers
             // from countering invalid subgame roots via an invalid defense position. As such positions
             // cannot be correctly countered.
-            // Note that correctly positioned defense, but invalid claimes can still be successfully countered.
+            // Note that correctly positioned defense, but invalid claims can still be successfully countered.
             if (claim.counteredBy == address(0) && checkpoint.leftmostPosition.raw() > claim.position.raw()) {
                 checkpoint.counteredBy = claim.claimant;
                 checkpoint.leftmostPosition = claim.position;

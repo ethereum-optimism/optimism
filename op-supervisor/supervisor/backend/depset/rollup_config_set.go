@@ -3,9 +3,10 @@ package depset
 import (
 	"context"
 
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type RollupConfigSetSource interface {
@@ -28,21 +29,7 @@ type RollupConfigSet interface {
 	// guarantee of existence isn't provided by the caller context.
 	Genesis(chainID eth.ChainID) Genesis
 
-	ActivationConfig
-}
-
-type ActivationConfig interface {
-	// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
-	// It panics if the chain is not part of the rollup config set.
-	// Use HasChain first to check if the chain is part of the rollup config set if
-	// guarantee of existence isn't provided by the caller context.
-	IsInterop(chainID eth.ChainID, ts uint64) bool
-
-	// IsInteropActivationBlock returns true if the given timestamp is for an Interop activation block.
-	// It panics if the chain is not part of the rollup config set.
-	// Use HasChain first to check if the chain is part of the rollup config set if
-	// guarantee of existence isn't provided by the caller context.
-	IsInteropActivationBlock(chainID eth.ChainID, ts uint64) bool
+	coredepset.ActivationConfig
 }
 
 type StaticRollupConfigSet map[eth.ChainID]*StaticRollupConfig
@@ -65,9 +52,9 @@ type StaticRollupConfig struct {
 // It's a trimmed down version of [rollup.Genesis].
 type Genesis struct {
 	// The L1 block that the rollup starts *after* (no derived transactions)
-	L1 types.BlockSeal `json:"l1"`
+	L1 messages.BlockSeal `json:"l1"`
 	// The L2 block the rollup starts from (no transactions, pre-configured state, no parent)
-	L2 types.BlockSeal `json:"l2"`
+	L2 messages.BlockSeal `json:"l2"`
 }
 
 func (c *StaticRollupConfigSet) LoadRollupConfigSet(ctx context.Context) (RollupConfigSet, error) {
@@ -81,12 +68,12 @@ var (
 
 func GenesisFromRollupGenesis(genesis *rollup.Genesis, l1Time uint64) Genesis {
 	return Genesis{
-		L1: types.BlockSeal{
+		L1: messages.BlockSeal{
 			Hash:      genesis.L1.Hash,
 			Number:    genesis.L1.Number,
 			Timestamp: l1Time,
 		},
-		L2: types.BlockSeal{
+		L2: messages.BlockSeal{
 			Hash:      genesis.L2.Hash,
 			Number:    genesis.L2.Number,
 			Timestamp: genesis.L2Time,

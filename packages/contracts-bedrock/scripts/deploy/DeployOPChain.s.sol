@@ -13,6 +13,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -125,10 +126,10 @@ contract DeployOPChain is Script {
             challenger: _input.challenger
         });
 
-        // Build dispute game configs - OPCMV2 requires all 7 game type configs.
+        // Build dispute game configs - OPCMV2 requires all 6 game type configs.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](7);
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // Config 0: CANNON (disabled for initial deployment — no prestate exists)
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -161,16 +162,8 @@ contract DeployOPChain is Script {
             gameArgs: bytes("")
         });
 
-        // Config 3: SUPER_CANNON (disabled for initial deployment — no prestate exists)
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: bytes("")
-        });
-
-        // Config 4: SUPER_PERMISSIONED_CANNON — enabled only in super-root mode.
-        disputeGameConfigs[4] = isSuperRoot
+        // Config 3: SUPER_PERMISSIONED_CANNON — enabled only in super-root mode.
+        disputeGameConfigs[3] = isSuperRoot
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: DEFAULT_INIT_BOND,
@@ -184,16 +177,16 @@ contract DeployOPChain is Script {
                 gameArgs: bytes("")
             });
 
-        // Config 5: SUPER_CANNON_KONA (disabled for initial deployment)
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        // Config 4: SUPER_CANNON_KONA (disabled for initial deployment)
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
             gameArgs: bytes("")
         });
 
-        // Config 6: ZK_DISPUTE_GAME (disabled for initial deployment)
-        disputeGameConfigs[6] = IOPContractsManagerUtils.DisputeGameConfig({
+        // Config 5: ZK_DISPUTE_GAME (disabled for initial deployment)
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.ZK_DISPUTE_GAME,
@@ -213,7 +206,7 @@ contract DeployOPChain is Script {
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
             l2ChainId: _input.l2ChainId,
-            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            resourceConfig: _resourceConfigForGasLimit(_input.gasLimit),
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken
         });
@@ -248,6 +241,42 @@ contract DeployOPChain is Script {
             delayedWETHPermissionedGameProxy: _chainContracts.delayedWETH,
             delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(_chainContracts.delayedWETH))
         });
+    }
+
+    /// @notice Derives a ResourceConfig sized to fit the requested L2 gas limit.
+    ///
+    ///         For gasLimit >= the default's reserved gas (maxResourceLimit + systemTxMaxGas),
+    ///         returns DEFAULT_RESOURCE_CONFIG unchanged. Every existing production chain takes
+    ///         this branch.
+    ///
+    ///         For smaller gasLimits, shrinks maxResourceLimit to fit while preserving
+    ///         systemTxMaxGas and the EIP-1559 parameters, so the L1 attributes deposit
+    ///         reservation stays constant and deposit throughput scales with chain size.
+    ///         maxResourceLimit is rounded down to a multiple of elasticityMultiplier to
+    ///         satisfy SystemConfig._setResourceConfig's precision-loss check.
+    /// @param _gasLimit The requested L2 gas limit.
+    /// @return cfg_ A ResourceConfig that satisfies maxResourceLimit + systemTxMaxGas <= _gasLimit.
+    function _resourceConfigForGasLimit(uint64 _gasLimit)
+        internal
+        pure
+        returns (IResourceMetering.ResourceConfig memory cfg_)
+    {
+        cfg_ = Constants.DEFAULT_RESOURCE_CONFIG();
+        uint64 reserved = uint64(cfg_.maxResourceLimit) + uint64(cfg_.systemTxMaxGas);
+        if (_gasLimit >= reserved) {
+            return cfg_;
+        }
+
+        require(_gasLimit > uint64(cfg_.systemTxMaxGas), "DeployOPChain: gasLimit must exceed systemTxMaxGas");
+        // Branch is only reached for _gasLimit < reserved (~21M for the current default), well
+        // within uint32, so the downcast on assignment cannot truncate.
+        uint64 available = _gasLimit - uint64(cfg_.systemTxMaxGas);
+        uint64 mult = uint64(cfg_.elasticityMultiplier);
+
+        // Satisfy the SystemConfig._setResourceConfig requirement that the maxResourceLimit is
+        // a multiple of the elasticityMultiplier.
+        cfg_.maxResourceLimit = uint32((available / mult) * mult);
+        require(cfg_.maxResourceLimit > 0, "DeployOPChain: gasLimit too small for any deposit budget");
     }
 
     // -------- Validations --------
@@ -322,7 +351,6 @@ contract DeployOPChain is Script {
             ETHLockbox: address(_o.ethLockboxProxy),
             SystemConfig: address(_o.systemConfigProxy),
             L1ERC721Bridge: address(_o.l1ERC721BridgeProxy),
-            ProtocolVersions: address(0),
             SuperchainConfig: address(_i.superchainConfig)
         });
 
@@ -447,7 +475,7 @@ contract DeployOPChain is Script {
         // support deploying straight to permissioned games, and the starting root does not
         // matter for that, as long as it is non-zero, since no games will be played. We do not
         // deploy the permissionless game (and therefore do not set a starting root for it here)
-        // because to to update to the permissionless game, we will need to update its starting
+        // because updating to the permissionless game will require updating its starting
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
         // You can `console.logBytes(abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT()))` to get the bytes that

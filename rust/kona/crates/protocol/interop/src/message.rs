@@ -114,6 +114,8 @@ pub struct EnrichedExecutingMessage {
     pub executing_chain_id: u64,
     /// The timestamp of the block that the executing message was included in.
     pub executing_timestamp: u64,
+    /// The global log index of this executing message within its block.
+    pub executing_log_index: u32,
 }
 
 impl EnrichedExecutingMessage {
@@ -122,8 +124,9 @@ impl EnrichedExecutingMessage {
         inner: ExecutingMessage,
         executing_chain_id: u64,
         executing_timestamp: u64,
+        executing_log_index: u32,
     ) -> Self {
-        Self { inner, executing_chain_id, executing_timestamp }
+        Self { inner, executing_chain_id, executing_timestamp, executing_log_index }
     }
 }
 

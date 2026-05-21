@@ -212,6 +212,28 @@ mod tests {
                     (OpSpecId::FJORD, true),
                     (OpSpecId::HOLOCENE, true),
                     (OpSpecId::ISTHMUS, true),
+                    (OpSpecId::JOVIAN, true),
+                ],
+            ),
+            (
+                OpSpecId::KARST,
+                vec![
+                    (SpecId::OSAKA, true),
+                    (SpecId::PRAGUE, true),
+                    (SpecId::SHANGHAI, true),
+                    (SpecId::CANCUN, true),
+                    (SpecId::MERGE, true),
+                ],
+                vec![
+                    (OpSpecId::BEDROCK, true),
+                    (OpSpecId::REGOLITH, true),
+                    (OpSpecId::CANYON, true),
+                    (OpSpecId::ECOTONE, true),
+                    (OpSpecId::FJORD, true),
+                    (OpSpecId::HOLOCENE, true),
+                    (OpSpecId::ISTHMUS, true),
+                    (OpSpecId::JOVIAN, true),
+                    (OpSpecId::KARST, true),
                 ],
             ),
         ];

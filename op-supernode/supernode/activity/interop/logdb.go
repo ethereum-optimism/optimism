@@ -10,11 +10,10 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
@@ -23,61 +22,42 @@ type LogsDB interface {
 	// LatestSealedBlock returns the latest sealed block ID, or false if no blocks are sealed.
 	LatestSealedBlock() (eth.BlockID, bool)
 	// FirstSealedBlock returns the first block seal in the DB.
-	FirstSealedBlock() (types.BlockSeal, error)
+	FirstSealedBlock() (messages.BlockSeal, error)
 	// FindSealedBlock returns the block seal for the given block number.
-	FindSealedBlock(number uint64) (types.BlockSeal, error)
+	FindSealedBlock(number uint64) (messages.BlockSeal, error)
 	// OpenBlock returns the block reference, log count, and executing messages for a block.
-	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 	// Contains checks if an initiating message exists in the database.
 	// Returns the block seal if found, or an error (ErrConflict if not found, ErrFuture if not yet indexed).
-	Contains(query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	// AddLog adds a log entry to the database.
-	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
 	// SealBlock seals a block in the database.
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 	// Rewind removes all blocks after newHead from the database.
-	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
+	Rewind(newHead eth.BlockID) error
 	// Clear removes all data from the database.
-	Clear(inv reads.Invalidator) error
+	Clear() error
 	// Close closes the database.
 	Close() error
 }
 
-// Compile-time check that *logs.DB implements LogsDB.
-var _ LogsDB = (*logs.DB)(nil)
+// Compile-time check that *raftwallogdb.DB implements LogsDB.
+var _ LogsDB = (*raftwallogdb.DB)(nil)
 
-// noopLogsDBMetrics implements the logs.Metrics interface with no-op methods.
-type noopLogsDBMetrics struct{}
-
-func (n *noopLogsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
-func (n *noopLogsDBMetrics) RecordDBSearchEntriesRead(count int64)       {}
-
-// noopInvalidator implements reads.Invalidator as a no-op.
-// Used for rewind operations where we don't need cache invalidation.
-// noopInvalidator is a stub needed to use the logs.DB.Rewind method.
-// read-handle invalidation is not currently used
-type noopInvalidator struct{}
-
-func (n *noopInvalidator) TryInvalidate(rule reads.InvalidationRule) (release func(), err error) {
-	return func() {}, nil
-}
-
-var _ reads.Invalidator = (*noopInvalidator)(nil)
-
-// openLogsDB opens a logs.DB for the given chain in the data directory.
+// openLogsDB opens a raft-wal-backed LogsDB for the given chain in the data directory.
 func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB, error) {
 	chainDir := filepath.Join(dataDir, fmt.Sprintf("chain-%s", chainID))
 	if err := os.MkdirAll(chainDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create chain directory: %w", err)
 	}
 
-	dbPath := filepath.Join(chainDir, "logs.db")
-	db, err := logs.NewFromFile(logger, &noopLogsDBMetrics{}, chainID, dbPath, true)
+	db, err := raftwallogdb.Open(chainDir, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open logs DB for chain %s: %w", chainID, err)
 	}
 
-	logger.Info("Initialized logs DB", "chain", chainID, "path", dbPath)
+	logger.Info("Initialized logs DB", "chain", chainID, "path", chainDir)
 	return db, nil
 }
 
@@ -170,10 +150,13 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 	latestBlock, hasBlocks := db.LatestSealedBlock()
 
 	if !hasBlocks {
-		// The main loop starts at runtimeActivationTimestamp (which may have been
-		// advanced past the protocol activation by backfill). If the DB is empty,
+		// The main loop starts at firstVerifiableTimestamp. If the DB is empty,
 		// this is the only timestamp the main loop would legitimately seal first.
-		if ts == i.runtimeActivationTimestamp {
+		firstVerifiable, err := i.firstVerifiableTimestamp()
+		if err != nil {
+			return eth.BlockID{}, hasBlocks, err
+		}
+		if ts == firstVerifiable {
 			return eth.BlockID{}, hasBlocks, nil
 		}
 		// Backfill's first block is TargetBlockNumber(T_lo), which floors the
@@ -204,8 +187,8 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 		return eth.BlockID{}, hasBlocks, fmt.Errorf("chain %s: failed to find sealed block %d: %w", chainID, latestBlock.Number, err)
 	}
 
-	// if the last sealed block is already after the timestamp in question, return success
-	if seal.Timestamp > ts {
+	// if the last sealed block is already at or after the timestamp in question, return success
+	if seal.Timestamp >= ts {
 		return latestBlock, hasBlocks, nil
 	}
 

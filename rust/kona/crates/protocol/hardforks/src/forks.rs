@@ -91,7 +91,7 @@ mod tests {
         assert_eq!(jovian_upgrade_tx.collect::<Vec<_>>().len(), 5);
 
         let karst_upgrade_tx = Hardforks::KARST.txs();
-        assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 0);
+        assert_eq!(karst_upgrade_tx.collect::<Vec<_>>().len(), 31);
 
         let interop_upgrade_tx = Hardforks::INTEROP.txs();
         assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 7);

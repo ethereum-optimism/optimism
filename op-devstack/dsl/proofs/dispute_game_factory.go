@@ -22,7 +22,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -168,10 +169,36 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
+func (f *DisputeGameFactory) SuperGameAtIndex(idx int64) *SuperFaultDisputeGame {
+	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
+	gameType := gameTypes.GameType(gameInfo.GameType)
+	f.require.Truef(
+		gameType == gameTypes.SuperPermissionedGameType ||
+			gameType == gameTypes.SuperCannonKonaGameType,
+		"game at index %d is not a supported super game: %v",
+		idx,
+		gameType,
+	)
+	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
+	return NewSuperFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
+}
+
 func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
+}
+
+func (f *DisputeGameFactory) VerifyGameImplPresent(gameType gameTypes.GameType) {
+	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
+	f.require.NotEqualf(common.Address{}, implAddr,
+		"expected DisputeGameFactory to have an implementation for %s (%d)", gameType, uint32(gameType))
+}
+
+func (f *DisputeGameFactory) VerifyGameImplAbsent(gameType gameTypes.GameType) {
+	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
+	f.require.Equalf(common.Address{}, implAddr,
+		"expected DisputeGameFactory to have no implementation for %s (%d), got %s", gameType, uint32(gameType), implAddr)
 }
 
 func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
@@ -366,9 +393,7 @@ func (f *DisputeGameFactory) honestSuperCannonTrace(
 		vmConfig,
 		serverExecutor,
 		prestateProvider,
-		nil, // supervisor client
 		f.superNode.QueryAPI(),
-		true,
 		vmPrestatePath,
 		path.Join(f.challengerCfg.Datadir, "test-prestates"),
 		l1Head.ID(),
@@ -407,7 +432,7 @@ func (f *DisputeGameFactory) startOutputRootGameOfType(
 func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.l2CL, "L2 CL is required create output games")
 	if !cfg.allowFuture {
-		f.l2CL.Reached(safetyTypes.LocalSafe, blockNum, 30)
+		f.l2CL.Reached(safety.LocalSafe, blockNum, 30)
 	}
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], blockNum)
@@ -465,6 +490,10 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 	superRootResp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), endTimestamp)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
 	l1Head := superRootResp.CurrentL1
+	// SuperRootAtTimestamp's CurrentL1 names the block currently being processed.
+	// The trace provider's gate requires supernode CurrentL1 > l1Head, so wait
+	// until the supernode advances past this block before invoking it.
+	f.superNode.AwaitFullyProcessedL1(l1Head.Number)
 
 	prestateProvider := super.NewSuperNodePrestateProvider(f.superNode.QueryAPI(), startTimestamp)
 	traceProvider := super.NewSuperNodeTraceProvider(
@@ -559,9 +588,5 @@ type ethClientHeaderProvider struct {
 }
 
 func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
-	info, err := p.client.InfoByNumber(ctx, bigs.Uint64Strict(blockNum))
-	if err != nil {
-		return nil, err
-	}
-	return info.Header(), nil
+	return p.client.HeaderByNumber(ctx, bigs.Uint64Strict(blockNum))
 }

@@ -356,6 +356,7 @@ where
                     &bundle,
                     &state_provider,
                     state_root,
+                    None,
                 ))
                 .map_err(RethError::other)?;
             let block = RecoveredBlock::new_unhashed(block, senders);
@@ -435,10 +436,7 @@ where
             ExecutedBlock::new(
                 block.into(),
                 execution_outcome,
-                ComputedTrieData::without_trie_input(
-                    Arc::new(hashed_state.into_sorted()),
-                    Arc::default(),
-                ),
+                ComputedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
             ),
         );
         let pending_flashblock = PendingFlashBlock::new(

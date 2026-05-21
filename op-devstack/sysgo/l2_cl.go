@@ -6,13 +6,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L2CLNode interface {
 	stack.Lifecycle
 	UserRPC() string
-	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
 }
 
 type L2CLConfig struct {
@@ -24,8 +22,7 @@ type L2CLConfig struct {
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string
 
-	IsSequencer  bool
-	IndexingMode bool
+	IsSequencer bool
 
 	// EnableReqRespSync is the flag to enable/disable req-resp sync.
 	EnableReqRespSync bool
@@ -40,17 +37,15 @@ type L2CLConfig struct {
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
+
+	// SequencerMaxSafeLag caps the gap between unsafe and safe L2 heads;
+	// the sequencer stalls block production when the gap is exceeded. 0 disables.
+	SequencerMaxSafeLag uint64
 }
 
 func L2CLSequencer() L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.IsSequencer = true
-	})
-}
-
-func L2CLIndexing() L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.IndexingMode = true
 	})
 }
 
@@ -60,13 +55,20 @@ func L2CLFollowSource(source string) L2CLOption {
 	})
 }
 
+// L2CLSequencerMaxSafeLag sets the sequencer max-safe-lag. The sequencer stalls
+// block production when the unsafe/safe gap exceeds this value. 0 disables.
+func L2CLSequencerMaxSafeLag(maxSafeLag uint64) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SequencerMaxSafeLag = maxSafeLag
+	})
+}
+
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
 		SequencerSyncMode: nodeSync.CLSync,
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",
 		IsSequencer:       false,
-		IndexingMode:      false,
 		EnableReqRespSync: true,
 		UseReqRespSync:    false,
 		NoDiscovery:       false,

@@ -56,8 +56,19 @@ func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 
 	targetBlocks := uint64(5)
 
-	for i := 0; i < 30; i++ {
-		time.Sleep(time.Second * 2)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	deadline := time.NewTimer(time.Minute)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			require.Failf("local finality did not advance", "Expected unsafe >= %d and safe >= %d", targetBlocks, targetBlocks-2)
+		case <-t.Ctx().Done():
+			require.NoError(t.Ctx().Err())
+		}
 
 		status := sys.L2CL.SyncStatus()
 		require.NotNil(status)
@@ -72,13 +83,9 @@ func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 		// - UnsafeL2 should advance (sequencer producing blocks)
 		// - SafeL2 should advance (after batches submitted to L1)
 
-		if status.UnsafeL2.Number >= targetBlocks &&
-			status.SafeL2.Number >= targetBlocks-2 {
+		if status.UnsafeL2.Number >= targetBlocks && status.SafeL2.Number >= targetBlocks-2 {
 			logger.Info("local finality working without supervisor!")
 			return
 		}
 	}
-
-	gt.Errorf("Expected unsafe >= %d and safe >= %d", targetBlocks, targetBlocks-2)
-	gt.FailNow()
 }

@@ -6,7 +6,7 @@ PYTHON := env('PYTHON', 'python3')
 
 TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 
-TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-supervisor/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/interop ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
+TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-core/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-supervisor/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
 
 FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 
@@ -17,6 +17,13 @@ ALL_TEST_PACKAGES := TEST_PKGS + " " + RPC_TEST_PKGS + " " + FRAUD_PROOF_TEST_PK
 # Lists all available targets.
 help:
   @just --list
+
+# Builds op-core/superchain/superchain-configs.zip from the pinned commit in
+# op-core/superchain/superchain-registry-commit.txt. The zip is gitignored;
+# this recipe is the way to (re)materialise it for builds and tests. Skips work
+# if the existing zip already pins the same commit.
+sync-superchain:
+  bash op-core/superchain/sync-superchain.sh
 
 # Builds Go components and contracts-bedrock.
 build: build-go build-contracts
@@ -33,12 +40,12 @@ build-customlint:
   cd linter && just build
 
 # Lints Go code with specific linters.
-lint-go: build-customlint
+lint-go: build-customlint sync-superchain
   ./linter/bin/op-golangci-lint run ./...
   go mod tidy -diff
 
 # Lints Go code with specific linters and fixes reported issues.
-lint-go-fix: build-customlint
+lint-go-fix: build-customlint sync-superchain
   ./linter/bin/op-golangci-lint run ./... --fix
 
 # Checks that op-geth version in go.mod is valid.
@@ -187,7 +194,7 @@ cannon-prestates: cannon op-program
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.
-mod-tidy:
+mod-tidy: sync-superchain
   GOPRIVATE="github.com/ethereum-optimism" go mod tidy
 
 # Removes all generated files under bin/.
@@ -232,7 +239,7 @@ make-pre-test:
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
+go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -243,7 +250,7 @@ go-tests: op-program-client op-program-host cannon build-contracts cannon-presta
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test
+go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -254,7 +261,7 @@ go-tests-short: op-program-client op-program-host cannon build-contracts cannon-
 
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
-_go-tests-ci-internal go_test_flags="":
+_go-tests-ci-internal go_test_flags="": sync-superchain
   set -euo pipefail
   (cd cannon && just cannon elf)
   echo "Setting up test directories..."
@@ -266,8 +273,7 @@ _go-tests-ci-internal go_test_flags="":
   export ENABLE_ANVIL=true
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
-  export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io"
-  export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
+  source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ALL_PACKAGES="{{ALL_TEST_PACKAGES}}"
@@ -306,10 +312,6 @@ go-tests-short-ci:
 go-tests-ci:
   just _go-tests-ci-internal ""
 
-# Runs action tests for kona with gotestsum for CI.
-go-tests-ci-kona-action:
-  just _go-tests-ci-internal "-count=1 -timeout 60m -run Test_ProgramAction"
-
 # Runs fraud proofs Go tests with gotestsum for CI.
 [script('bash')]
 go-tests-fraud-proofs-ci:
@@ -323,8 +325,7 @@ go-tests-fraud-proofs-ci:
   export ENABLE_ANVIL=true
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
-  export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io"
-  export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
+  source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
   ./ops/scripts/gotestsum-split.sh --format=testname \
@@ -344,7 +345,7 @@ update-op-geth:
 
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
-  cd rust && cargo build --release --bin kona-node --bin kona-host
+  cd rust && cargo build --release --bin kona-node --bin kona-host --bin op-reth
   cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
   cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 

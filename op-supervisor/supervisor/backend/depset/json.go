@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -16,33 +15,9 @@ import (
 )
 
 var (
-	_ DependencySetSource   = (*JSONDependencySetLoader)(nil)
 	_ RollupConfigSetSource = (*JSONRollupConfigSetLoader)(nil)
 	_ RollupConfigSetSource = (*JSONRollupConfigsLoader)(nil)
 )
-
-// JSONDependencySetLoader loads a dependency set from a file-path.
-type JSONDependencySetLoader struct {
-	Path string
-}
-
-func (j *JSONDependencySetLoader) LoadDependencySet() (DependencySet, error) {
-	f, err := os.Open(j.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open dependency set: %w", err)
-	}
-	defer f.Close()
-	return ParseJSONDependencySet(f)
-}
-
-func ParseJSONDependencySet(f io.Reader) (DependencySet, error) {
-	dec := json.NewDecoder(f)
-	var out StaticConfigDependencySet
-	if err := dec.Decode(&out); err != nil {
-		return nil, fmt.Errorf("failed to decode dependency set: %w", err)
-	}
-	return &out, nil
-}
 
 type JSONRollupConfigSetLoader struct {
 	Path string

@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestDecodeExecutingMessageLog(t *testing.T) {
@@ -48,8 +48,8 @@ func TestDecodeExecutingMessageLog(t *testing.T) {
 
 	originAddr := common.HexToAddress("0x5fbdb2315678afecb367f032d93f642f64180aa3")
 	payloadHash := common.HexToHash("0xc3f57e1f0dd62a4f77787d834029bfeaab8894022c47edbe13b044fb658c9190")
-	logHash := types.PayloadHashToLogHash(payloadHash, originAddr)
-	args := types.ChecksumArgs{
+	logHash := messages.PayloadHashToLogHash(payloadHash, originAddr)
+	args := messages.ChecksumArgs{
 		BlockNumber: uint64(4509),
 		LogIndex:    uint32(0),
 		Timestamp:   uint64(1730467171),

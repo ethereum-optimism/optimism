@@ -7,7 +7,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type RPCSyncNode struct {
@@ -134,7 +135,7 @@ func (rs *RPCSyncNode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	return rs.cl.CallContext(ctx, nil, "interop_updateFinalized", id)
 }
 
-func (rs *RPCSyncNode) InvalidateBlock(ctx context.Context, seal types.BlockSeal) error {
+func (rs *RPCSyncNode) InvalidateBlock(ctx context.Context, seal messages.BlockSeal) error {
 	return rs.cl.CallContext(ctx, nil, "interop_invalidateBlock", seal)
 }
 
@@ -157,7 +158,9 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	)
 	err := rs.cl.CallContext(ctx, &out, "interop_anchorPoint")
 	// Translate an interop-inactive error into a ErrFuture.
-	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == indexing.InteropInactiveRPCErrCode {
+	// -39003 is the RPC error code op-node previously used to signal interop-inactive.
+	// op-node no longer serves this endpoint; op-supervisor is slated for removal.
+	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == -39003 {
 		return types.DerivedBlockRefPair{}, types.ErrFuture
 	}
 	return out, err
@@ -170,25 +173,25 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 // logIdx is the index of the log in the array of all logs in the block.
 // This can be used to check the validity of cross-chain interop events.
 // The block-seal of the blockNum block that the log was included in is returned.
-func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) (types.BlockSeal, error) {
+func (rs *RPCSyncNode) Contains(ctx context.Context, query messages.ContainsQuery) (messages.BlockSeal, error) {
 	chainID, err := rs.ChainID(ctx)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to get chain ID for verifying access with RPC: %w", err)
+		return messages.BlockSeal{}, fmt.Errorf("failed to get chain ID for verifying access with RPC: %w", err)
 	}
 
 	l2BlockRef, err := rs.L2BlockRefByNumber(ctx, query.BlockNum)
 	if err != nil {
-		return types.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, types.ErrFuture
 	}
 	blockRef := l2BlockRef.BlockRef()
 
 	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
 	if err != nil {
-		return types.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, types.ErrConflict
 	}
 
 	logHash := processors.LogToLogHash(log)
-	entryChecksum := types.ChecksumArgs{
+	entryChecksum := messages.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,
 		Timestamp:   blockRef.Time,
@@ -196,10 +199,10 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) 
 		LogHash:     logHash,
 	}.Checksum()
 	if entryChecksum != query.Checksum {
-		return types.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, types.ErrConflict
 	}
 
-	return types.BlockSeal{
+	return messages.BlockSeal{
 		Hash:      blockRef.Hash,
 		Number:    blockRef.Number,
 		Timestamp: blockRef.Time,

@@ -95,6 +95,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
         validatorGetterChecks[_getter] = _check;
     }
+
+    function isReady() public view returns (bool) {
+        return ready;
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -190,6 +194,20 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                 harness.runSingle(ref.name, ref.addr, true);
             }
         }
+    }
+
+    /// @notice Tests that runSingle lazily initializes script state on a fresh instance.
+    function test_runSingle_withoutExplicitSetUp_succeeds() public {
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
+
+        VerifyOPCM_Harness freshHarness = new VerifyOPCM_Harness();
+        assertFalse(freshHarness.isReady(), "fresh harness should start uninitialized");
+
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        freshHarness.runSingle("PreimageOracle", address(mipsImpl.oracle()), true);
+
+        assertTrue(freshHarness.isReady(), "runSingle should initialize script state");
     }
 
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {

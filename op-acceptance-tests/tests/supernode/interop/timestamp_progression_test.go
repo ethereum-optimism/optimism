@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 // TestSupernodeInteropVerifiedAt tests that the VerifiedAt endpoint returns
@@ -103,7 +104,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 	stableFor := 0
 	start := time.Now()
 	for stableFor < 10 {
-		time.Sleep(time.Second)
+		t.Require().NoError(clock.SystemClock.SleepCtx(ctx, time.Second)) // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
 		current := sys.L2BCL.SyncStatus()
 		if current.LocalSafeL2.Number == lastSafe {
 			stableFor++
@@ -146,7 +147,7 @@ func TestSupernodeInteropChainLag(gt *testing.T) {
 			break
 		}
 
-		time.Sleep(time.Second)
+		t.Require().NoError(clock.SystemClock.SleepCtx(ctx, time.Second)) // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
 
 		// Check the state
 		newStatusA := sys.L2ACL.SyncStatus()

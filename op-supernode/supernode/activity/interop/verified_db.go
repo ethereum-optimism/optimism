@@ -1,12 +1,12 @@
 package interop
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -42,10 +42,11 @@ type PendingInvalidation struct {
 
 // VerifiedDB provides persistence for verified timestamps using bbolt.
 type VerifiedDB struct {
-	db            *bolt.DB
-	mu            sync.RWMutex
-	lastTimestamp uint64
-	initialized   bool
+	db             *bolt.DB
+	mu             sync.RWMutex
+	firstTimestamp uint64
+	lastTimestamp  uint64
+	initialized    bool
 }
 
 // OpenVerifiedDB opens or creates a VerifiedDB at the given data directory.
@@ -73,17 +74,18 @@ func OpenVerifiedDB(dataDir string) (*VerifiedDB, error) {
 		db: db,
 	}
 
-	// Initialize the last timestamp from the database
-	if err := vdb.initLastTimestamp(); err != nil {
+	// Initialize the timestamp bounds from the database
+	if err := vdb.initTimestampBounds(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to initialize last timestamp: %w", err)
+		return nil, fmt.Errorf("failed to initialize timestamp bounds: %w", err)
 	}
 
 	return vdb, nil
 }
 
-// initLastTimestamp scans the database to find the highest committed timestamp.
-func (v *VerifiedDB) initLastTimestamp() error {
+// initTimestampBounds scans the database to find the lowest and highest committed timestamp.
+func (v *VerifiedDB) initTimestampBounds() error {
+	v.firstTimestamp = 0
 	v.lastTimestamp = 0
 	v.initialized = false
 	return v.db.View(func(tx *bolt.Tx) error {
@@ -93,9 +95,11 @@ func (v *VerifiedDB) initLastTimestamp() error {
 		}
 
 		c := b.Cursor()
-		key, _ := c.Last()
-		if len(key) == u64Len {
-			v.lastTimestamp = binary.BigEndian.Uint64(key)
+		firstKey, _ := c.First()
+		lastKey, _ := c.Last()
+		if len(firstKey) == u64Len && len(lastKey) == u64Len {
+			v.firstTimestamp = binary.BigEndian.Uint64(firstKey)
+			v.lastTimestamp = binary.BigEndian.Uint64(lastKey)
 			v.initialized = true
 		}
 
@@ -119,38 +123,40 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 
 	ts := result.Timestamp
 
-	// Serialize the result up front so replay of an already-applied transition can
-	// be treated as success when the stored value is identical.
-	value, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("failed to marshal verified result: %w", err)
-	}
-
 	// Check for sequential commitment
 	if v.initialized {
 		if ts != v.lastTimestamp+1 {
 			if ts <= v.lastTimestamp {
+				// Idempotent replay: crash recovery may call Commit again after the
+				// bbolt write succeeded but before ClearPendingTransition. Compare the
+				// deserialized VerifiedResult rather than raw bytes so byte-level
+				// drift in encoding/json across Go versions does not turn a legitimate
+				// replay into a hard ErrAlreadyCommitted.
 				key := timestampToKey(ts)
-				var existing []byte
+				var existing VerifiedResult
 				err := v.db.View(func(tx *bolt.Tx) error {
 					b := tx.Bucket(bucketName)
 					val := b.Get(key)
 					if val == nil {
 						return ErrNotFound
 					}
-					existing = append(existing[:0], val...)
-					return nil
+					return json.Unmarshal(val, &existing)
 				})
 				if err != nil {
 					return fmt.Errorf("failed to read existing verified result at %d: %w", ts, err)
 				}
-				if bytes.Equal(existing, value) {
+				if reflect.DeepEqual(existing, result) {
 					return nil
 				}
 				return fmt.Errorf("%w: %d", ErrAlreadyCommitted, ts)
 			}
 			return fmt.Errorf("%w: expected %d, got %d", ErrNonSequential, v.lastTimestamp+1, ts)
 		}
+	}
+
+	value, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal verified result: %w", err)
 	}
 
 	// Store in database
@@ -164,6 +170,9 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 	}
 
 	// Update state
+	if !v.initialized {
+		v.firstTimestamp = ts
+	}
 	v.lastTimestamp = ts
 	v.initialized = true
 
@@ -224,6 +233,14 @@ func (v *VerifiedDB) Has(ts uint64) (bool, error) {
 	return found, nil
 }
 
+// FirstTimestamp returns the first committed timestamp.
+// Returns 0 and false if no timestamps have been committed.
+func (v *VerifiedDB) FirstTimestamp() (uint64, bool) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.firstTimestamp, v.initialized
+}
+
 // LastTimestamp returns the most recently committed timestamp.
 // Returns 0 and false if no timestamps have been committed.
 func (v *VerifiedDB) LastTimestamp() (uint64, bool) {
@@ -239,6 +256,9 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 	defer v.mu.Unlock()
 
 	var deleted bool
+	var nextFirstTimestamp uint64
+	var nextLastTimestamp uint64
+	var nextInitialized bool
 
 	err := v.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
@@ -252,17 +272,23 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 			}
 			deleted = true
 		}
+		firstKey, _ := c.First()
+		lastKey, _ := c.Last()
+		if len(firstKey) == u64Len && len(lastKey) == u64Len {
+			nextFirstTimestamp = binary.BigEndian.Uint64(firstKey)
+			nextLastTimestamp = binary.BigEndian.Uint64(lastKey)
+			nextInitialized = true
+		}
 		return nil
 	})
 	if err != nil {
 		return false, fmt.Errorf("failed to rewind verifiedDB: %w", err)
 	}
 
-	// Update state
 	if deleted {
-		if err := v.initLastTimestamp(); err != nil {
-			return deleted, fmt.Errorf("failed to reinitialize lastTimestamp after rewind: %w", err)
-		}
+		v.firstTimestamp = nextFirstTimestamp
+		v.lastTimestamp = nextLastTimestamp
+		v.initialized = nextInitialized
 	}
 
 	return deleted, nil

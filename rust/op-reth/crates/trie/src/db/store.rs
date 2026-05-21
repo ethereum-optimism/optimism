@@ -5,7 +5,7 @@ use crate::{
     OpProofsStorageResult,
     api::{
         InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
-        OpProofsProviderRw, OpProofsStore, WriteCounts,
+        OpProofsProviderRw, OpProofsStore, ProofWindowRange, WriteCounts,
     },
     db::{
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
@@ -34,11 +34,6 @@ use reth_trie_common::{
     updates::{StorageTrieUpdates, TrieUpdates},
 };
 use std::{fmt::Debug, ops::RangeBounds, path::Path, sync::Arc};
-
-struct ProofWindowValue {
-    earliest: NumHash,
-    latest: NumHash,
-}
 
 /// Preprocessed prune plan for a target block number
 #[derive(Debug, Clone)]
@@ -88,32 +83,23 @@ impl<TX> MdbxProofsProvider<TX> {
 }
 
 impl<TX: DbTx> MdbxProofsProvider<TX> {
-    fn get_block_number_hash_inner(
-        &self,
-        key: ProofWindowKey,
-    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_block_number_hash_inner(&self, key: ProofWindowKey) -> OpProofsStorageResult<NumHash> {
         let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        let value = cursor.seek_exact(key)?;
-        Ok(value.map(|(_, val)| (val.number(), *val.hash())))
-    }
-
-    fn get_latest_block_number_hash_inner(&self) -> OpProofsStorageResult<(u64, B256)> {
-        if let Some(block) = self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)? {
-            return Ok(block);
-        }
-        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.ok_or(NoBlocksFound)
+        cursor
+            .seek_exact(key)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(NoBlocksFound)
     }
 
     /// Phase 1 of pruning: Calculate survivors.
     /// Scans change sets to find the LATEST update for every key in the range.
     fn calculate_prune_plan(&self, target_block: u64) -> OpProofsStorageResult<Option<PrunePlan>> {
-        let Some((earliest, _)) =
-            self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?
-        else {
-            return Err(NoBlocksFound);
-        };
+        let earliest = self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.number;
         if earliest >= target_block {
-            return Ok(None);
+            return Err(OpProofsStorageError::PruneBeyondEarliest {
+                target_block_number: target_block,
+                earliest_block_number: earliest,
+            });
         }
 
         let mut acc_candidates: HashMap<StoredNibbles, u64> = HashMap::default();
@@ -530,7 +516,7 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     ) -> OpProofsStorageResult<WriteCounts> {
         let block_number = block_ref.block.number;
 
-        let (_num, latest_block_hash) = self.get_latest_block_number_hash_inner()?;
+        let latest_block_hash = self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)?.hash;
 
         if latest_block_hash != block_ref.parent {
             return Err(OpProofsStorageError::OutOfOrder {
@@ -554,22 +540,6 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
             hashed_accounts_written_total: change_set.hashed_account_keys.len() as u64,
             hashed_storages_written_total: change_set.hashed_storage_keys.len() as u64,
         })
-    }
-
-    fn get_proof_window_inner(&self) -> OpProofsStorageResult<ProofWindowValue> {
-        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-
-        let earliest = match cursor.seek_exact(ProofWindowKey::EarliestBlock)? {
-            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
-            None => return Err(NoBlocksFound),
-        };
-
-        let latest = match cursor.seek_exact(ProofWindowKey::LatestBlock)? {
-            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
-            None => earliest,
-        };
-
-        Ok(ProofWindowValue { earliest, latest })
     }
 
     fn get_initial_state_anchor_inner(&self) -> OpProofsStorageResult<Option<BlockNumHash>> {
@@ -611,21 +581,25 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         Self: 'tx,
         TX: 'tx;
 
-    fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        let value = cursor.seek_exact(ProofWindowKey::EarliestBlock)?;
-        Ok(value.map(|(_, val)| (val.number(), *val.hash())))
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)
     }
 
-    fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        self.get_block_number_hash_inner(ProofWindowKey::LatestBlock)
+    }
+
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
         let mut cursor = self.tx.cursor_read::<ProofWindow>()?;
-        // Try latest first
-        if let Some((_, val)) = cursor.seek_exact(ProofWindowKey::LatestBlock)? {
-            return Ok(Some((val.number(), *val.hash())));
-        }
-        // Fallback to earliest if latest not set (or database empty-ish)
-        let earliest = cursor.seek_exact(ProofWindowKey::EarliestBlock)?;
-        Ok(earliest.map(|(_, val)| (val.number(), *val.hash())))
+        let earliest = cursor
+            .seek_exact(ProofWindowKey::EarliestBlock)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(NoBlocksFound)?;
+        let latest = cursor
+            .seek_exact(ProofWindowKey::LatestBlock)?
+            .map(|(_, val)| NumHash::new(val.number(), *val.hash()))
+            .ok_or(NoBlocksFound)?;
+        Ok(ProofWindowRange { earliest, latest })
     }
 
     fn storage_trie_cursor<'tx>(
@@ -834,7 +808,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
     fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
         let history_to_delete = self.collect_history_ranged(to.block.number..)?;
 
-        let proof_window = self.get_proof_window_inner()?;
+        let proof_window = self.get_proof_window()?;
 
         if to.block.number > proof_window.latest.number {
             return Ok(());
@@ -861,6 +835,18 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
         latest_common_block: BlockNumHash,
         mut blocks_to_add: Vec<(BlockWithParent, BlockStateDiff)>,
     ) -> OpProofsStorageResult<()> {
+        let proof_window = self.get_proof_window()?;
+
+        if latest_common_block.number <= proof_window.earliest.number ||
+            latest_common_block.number > proof_window.latest.number
+        {
+            return Err(OpProofsStorageError::ReorgBaseOutOfWindow {
+                block_number: latest_common_block.number,
+                earliest_block_number: proof_window.earliest.number,
+                latest_block_number: proof_window.latest.number,
+            });
+        }
+
         blocks_to_add.sort_unstable_by_key(|(bwp, _)| bwp.block.number);
 
         let history_to_delete = self.collect_history_ranged(latest_common_block.number + 1..)?;
@@ -872,14 +858,6 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
             self.store_trie_updates_append_only_inner(block_with_parent, diff)?;
         }
         Ok(())
-    }
-
-    fn set_earliest_block_number(
-        &self,
-        block_number: u64,
-        hash: B256,
-    ) -> OpProofsStorageResult<()> {
-        self.set_earliest_block_number_inner(block_number, hash)
     }
 
     fn commit(self) -> OpProofsStorageResult<()> {
@@ -896,15 +874,15 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
             return Ok(InitialStateAnchor::default());
         };
 
-        let completed = self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock)?.is_some();
+        let status = match self.get_block_number_hash_inner(ProofWindowKey::EarliestBlock) {
+            Ok(_) => InitialStateStatus::Completed,
+            Err(NoBlocksFound) => InitialStateStatus::InProgress,
+            Err(err) => return Err(err),
+        };
 
         Ok(InitialStateAnchor {
             block: Some(block),
-            status: if completed {
-                InitialStateStatus::Completed
-            } else {
-                InitialStateStatus::InProgress
-            },
+            status,
             latest_account_trie_key: self.get_latest_key_inner::<AccountTrieHistory>()?,
             latest_storage_trie_key: self.get_latest_key_inner::<StorageTrieHistory>()?,
             latest_hashed_account_key: self.get_latest_key_inner::<HashedAccountHistory>()?,
@@ -975,6 +953,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
     fn commit_initial_state(&self) -> OpProofsStorageResult<BlockNumHash> {
         let anchor = self.get_initial_state_anchor_inner()?.ok_or(NoBlocksFound)?;
         self.set_earliest_block_number_inner(anchor.number, anchor.hash)?;
+        self.set_latest_block_number_inner(anchor.number, anchor.hash)?;
         Ok(anchor)
     }
 
@@ -1068,15 +1047,20 @@ impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
 
                 Ok::<(), eyre::Report>(())
             })
-            .map_err(|error| error!(%error, "Failed to read db table stats"));
+            .map_err(|error| {
+                error!(target: "trie::db::metrics", %error, "Failed to read db table stats")
+            });
 
-        if let Ok(freelist) =
-            self.env.freelist().map_err(|error| error!(%error, "Failed to read db.freelist"))
-        {
+        if let Ok(freelist) = self.env.freelist().map_err(
+            |error| error!(target: "trie::db::metrics", %error, "Failed to read db.freelist"),
+        ) {
             metrics.push(("optimism_proof_storage.freelist", freelist as f64, vec![]));
         }
 
-        if let Ok(stat) = self.env.stat().map_err(|error| error!(%error, "Failed to read db.stat"))
+        if let Ok(stat) = self
+            .env
+            .stat()
+            .map_err(|error| error!(target: "trie::db::metrics", %error, "Failed to read db.stat"))
         {
             metrics.push(("optimism_proof_storage.page_size", stat.page_size() as f64, vec![]));
         }
@@ -1167,22 +1151,16 @@ mod tests {
             Ok(counts)
         }
 
+        /// Test-only: set both earliest and latest to the same `(block_number, hash)`.
         fn set_earliest_block_number(
             &self,
             block_number: u64,
             hash: B256,
         ) -> OpProofsStorageResult<()> {
             let provider = self.provider_rw()?;
-            provider.set_earliest_block_number(block_number, hash)?;
+            provider.set_earliest_block_number_inner(block_number, hash)?;
+            provider.set_latest_block_number_inner(block_number, hash)?;
             OpProofsProviderRw::commit(provider)
-        }
-
-        fn set_earliest_block_number_hash(
-            &self,
-            block_number: u64,
-            hash: B256,
-        ) -> OpProofsStorageResult<()> {
-            self.set_earliest_block_number(block_number, hash)
         }
 
         fn prune_earliest_state(
@@ -1200,14 +1178,14 @@ mod tests {
             provider.fetch_trie_updates(block_number)
         }
 
-        fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
             let provider = self.provider_ro()?;
-            provider.get_earliest_block_number()
+            provider.get_earliest_block()
         }
 
-        fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
             let provider = self.provider_ro()?;
-            provider.get_latest_block_number()
+            provider.get_latest_block()
         }
 
         fn replace_updates(
@@ -1835,8 +1813,8 @@ mod tests {
         let res = store.store_trie_updates(bad_block, diff);
         assert!(matches!(res, Err(OpProofsStorageError::OutOfOrder { .. })));
         // verify nothing written: proof window still unchanged
-        let latest = store.get_latest_block_number().expect("get latest");
-        assert_eq!(latest.unwrap().1, existing_block.block.hash);
+        let latest = store.get_latest_block().expect("get latest");
+        assert_eq!(latest.hash, existing_block.block.hash);
     }
 
     #[test]
@@ -2310,8 +2288,8 @@ mod tests {
         assert!(pruning_cur.seek_exact(block.block.number).unwrap().is_none());
 
         // Verify earliest block was updated
-        let earliest = store.get_earliest_block_number().unwrap();
-        assert_eq!(earliest, Some((2, next_block.block.hash)));
+        let earliest = store.get_earliest_block().unwrap();
+        assert_eq!(earliest, NumHash::new(2, next_block.block.hash));
     }
 
     #[test]
@@ -2407,13 +2385,17 @@ mod tests {
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
         store.set_earliest_block_number(1, B256::random()).unwrap();
 
-        // Attempt to prune with a new earliest block that is not newer
+        // Attempt to prune with a block at or before earliest — should error
         let block_1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
         let block_0 = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::random()));
-        store.prune_earliest_state(block_1).unwrap();
-        store.prune_earliest_state(block_0).unwrap();
-
-        // Nothing should have been pruned, this call should not panic or error
+        assert!(matches!(
+            store.prune_earliest_state(block_1),
+            Err(OpProofsStorageError::PruneBeyondEarliest { .. })
+        ));
+        assert!(matches!(
+            store.prune_earliest_state(block_0),
+            Err(OpProofsStorageError::PruneBeyondEarliest { .. })
+        ));
     }
 
     #[test]
@@ -2482,8 +2464,8 @@ mod tests {
         assert!(pruning_cur.seek_exact(2).unwrap().is_none());
 
         // Verify earliest block was updated
-        let earliest = store.get_earliest_block_number().unwrap();
-        assert_eq!(earliest, Some((3, block_3.block.hash)));
+        let earliest = store.get_earliest_block().unwrap();
+        assert_eq!(earliest, NumHash::new(3, block_3.block.hash));
     }
 
     #[test]
@@ -2847,8 +2829,8 @@ mod tests {
         // Prune empty
         store.prune_earliest_state(target).unwrap();
 
-        let earliest = store.get_earliest_block_number().unwrap();
-        assert_eq!(earliest, Some((5, target.block.hash)));
+        let earliest = store.get_earliest_block().unwrap();
+        assert_eq!(earliest, NumHash::new(5, target.block.hash));
     }
 
     #[test]
@@ -3195,35 +3177,29 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
 
-        // Test initial state (no values set)
-        let initial_value = store.get_earliest_block_number().expect("get earliest");
-        assert_eq!(initial_value, None);
+        // Empty proof window: both endpoints surface NoBlocksFound.
+        assert!(matches!(store.get_earliest_block(), Err(NoBlocksFound)));
+        assert!(matches!(store.get_latest_block(), Err(NoBlocksFound)));
 
-        // Test setting the value
+        // Set both anchors via the test helper.
         let block_number = 42u64;
         let hash = B256::random();
         store.set_earliest_block_number(block_number, hash).expect("set earliest");
 
-        // Verify value was stored correctly
-        let retrieved = store.get_earliest_block_number().expect("get earliest");
-        assert_eq!(retrieved, Some((block_number, hash)));
+        let retrieved = store.get_earliest_block().expect("get earliest");
+        assert_eq!(retrieved, NumHash::new(block_number, hash));
 
-        // Test updating with new values
+        // Update both anchors to a new value.
         let new_block_number = 100u64;
         let new_hash = B256::random();
         store.set_earliest_block_number(new_block_number, new_hash).expect("update earliest");
 
-        // Verify update worked
-        let updated = store.get_earliest_block_number().expect("get updated earliest");
-        assert_eq!(updated, Some((new_block_number, new_hash)));
+        let updated = store.get_earliest_block().expect("get updated earliest");
+        assert_eq!(updated, NumHash::new(new_block_number, new_hash));
 
-        // Verify that latest_block falls back to earliest when not set
-        let latest = store.get_latest_block_number().expect("get latest");
-        assert_eq!(
-            latest,
-            Some((new_block_number, new_hash)),
-            "Latest block should fall back to earliest when not explicitly set"
-        );
+        // The test helper bootstraps both anchors, so latest matches the new earliest.
+        let latest = store.get_latest_block().expect("get latest");
+        assert_eq!(latest, NumHash::new(new_block_number, new_hash));
     }
 
     #[test]
@@ -3318,6 +3294,164 @@ mod tests {
     }
 
     #[test]
+    fn replace_updates_rejects_lca_below_earliest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::from([0xCC; 32]);
+        let make_diff = |nonce: u64| {
+            let mut ps = HashedPostState::default();
+            ps.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            BlockStateDiff {
+                sorted_trie_updates: TrieUpdatesSorted::default(),
+                sorted_post_state: ps.into_sorted(),
+            }
+        };
+
+        // Window: earliest=5, latest=8
+        let b5 = BlockWithParent::new(B256::ZERO, NumHash::new(5, B256::random()));
+        let b6 = BlockWithParent::new(b5.block.hash, NumHash::new(6, B256::random()));
+        let b7 = BlockWithParent::new(b6.block.hash, NumHash::new(7, B256::random()));
+        let b8 = BlockWithParent::new(b7.block.hash, NumHash::new(8, B256::random()));
+
+        store.set_earliest_block_number(5, b5.block.hash).expect("set earliest");
+        store.store_trie_updates(b6, make_diff(60)).expect("store b6");
+        store.store_trie_updates(b7, make_diff(70)).expect("store b7");
+        store.store_trie_updates(b8, make_diff(80)).expect("store b8");
+
+        // LCA at block 3, which is below earliest (5)
+        let result = store.replace_updates(BlockNumHash::new(3, B256::random()), vec![]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                OpProofsStorageError::ReorgBaseOutOfWindow {
+                    block_number: 3,
+                    earliest_block_number: 5,
+                    latest_block_number: 8,
+                }
+            ),
+            "expected ReorgBaseOutOfWindow, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn replace_updates_rejects_lca_above_latest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::from([0xDD; 32]);
+        let make_diff = |nonce: u64| {
+            let mut ps = HashedPostState::default();
+            ps.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            BlockStateDiff {
+                sorted_trie_updates: TrieUpdatesSorted::default(),
+                sorted_post_state: ps.into_sorted(),
+            }
+        };
+
+        // Window: earliest=1, latest=3
+        let b1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store.set_earliest_block_number(1, b1.block.hash).expect("set earliest");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
+
+        // LCA at block 10, which is above latest (3)
+        let result = store.replace_updates(BlockNumHash::new(10, B256::random()), vec![]);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(
+                err,
+                OpProofsStorageError::ReorgBaseOutOfWindow {
+                    block_number: 10,
+                    earliest_block_number: 1,
+                    latest_block_number: 3,
+                }
+            ),
+            "expected ReorgBaseOutOfWindow, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn replace_updates_rejects_lca_at_earliest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let make_diff = || BlockStateDiff {
+            sorted_trie_updates: TrieUpdatesSorted::default(),
+            sorted_post_state: HashedPostState::default().into_sorted(),
+        };
+
+        // Window: earliest=1, latest=3
+        let b1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store.set_earliest_block_number(1, b1.block.hash).expect("set earliest");
+        store.store_trie_updates(b2, make_diff()).expect("store b2");
+        store.store_trie_updates(b3, make_diff()).expect("store b3");
+
+        // LCA at earliest boundary — should be rejected, no valid anchor
+        let b2p = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+
+        let err = store
+            .replace_updates(BlockNumHash::new(1, b1.block.hash), vec![(b2p, make_diff())])
+            .expect_err("replace_updates at earliest should fail");
+
+        assert!(
+            matches!(err, OpProofsStorageError::ReorgBaseOutOfWindow { .. }),
+            "expected ReorgBaseOutOfWindow, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn replace_updates_accepts_lca_at_latest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::from([0xFF; 32]);
+        let make_diff = |nonce: u64| {
+            let mut ps = HashedPostState::default();
+            ps.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            BlockStateDiff {
+                sorted_trie_updates: TrieUpdatesSorted::default(),
+                sorted_post_state: ps.into_sorted(),
+            }
+        };
+
+        // Window: earliest=1, latest=3
+        let b1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store.set_earliest_block_number(1, b1.block.hash).expect("set earliest");
+        store.store_trie_updates(b2, make_diff(20)).expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).expect("store b3");
+
+        // LCA at latest boundary — should succeed, appending after block 3
+        let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
+
+        store
+            .replace_updates(BlockNumHash::new(3, b3.block.hash), vec![(b4, make_diff(400))])
+            .expect("replace_updates at latest should succeed");
+
+        // Verify: blocks 1-3 unchanged, block 4 added
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+        let v2 = cur.seek_by_key_subkey(addr, 2).expect("seek").expect("exists");
+        assert_eq!(v2.value.0.unwrap().nonce, 20, "block 2 should be unchanged");
+        let v3 = cur.seek_by_key_subkey(addr, 3).expect("seek").expect("exists");
+        assert_eq!(v3.value.0.unwrap().nonce, 30, "block 3 should be unchanged");
+        let v4 = cur.seek_by_key_subkey(addr, 4).expect("seek").expect("exists");
+        assert_eq!(v4.value.0.unwrap().nonce, 400, "block 4 should be appended");
+    }
+
+    #[test]
     fn test_unwind_history_basic() {
         let dir = TempDir::new().unwrap();
         let store = MdbxProofsStorage::new(dir.path()).expect("env");
@@ -3339,7 +3473,7 @@ mod tests {
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
         let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.number, b0.hash).expect("set earliest");
         store.store_trie_updates(b1, make_diff(10)).expect("store b1");
         store.store_trie_updates(b2, make_diff(20)).expect("store b2");
         store.store_trie_updates(b3, make_diff(30)).expect("store b3");
@@ -3387,7 +3521,7 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b1.block.number, b1.block.hash).expect("set earliest");
+        store.set_earliest_block_number(b1.block.number, b1.block.hash).expect("set earliest");
         store.store_trie_updates(b2, make_diff(20)).expect("store b2");
         store.store_trie_updates(b3, make_diff(30)).expect("store b3");
 
@@ -3424,7 +3558,7 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.block.number, b0.block.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.block.number, b0.block.hash).expect("set earliest");
         store.store_trie_updates(b1, make_diff(10, 100)).expect("store b1");
         store.store_trie_updates(b2, make_diff(20, 200)).expect("store b2");
         store.store_trie_updates(b3, make_diff(30, 300)).expect("store b3");
@@ -3487,7 +3621,7 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.number, b0.hash).expect("set earliest");
         store.store_trie_updates(b1, make_diff(path1, node1)).expect("store b1");
         store.store_trie_updates(b2, make_diff(path2, node2.clone())).expect("store b2");
         store.store_trie_updates(b3, make_diff(path1, node2)).expect("store b3");
@@ -3535,7 +3669,7 @@ mod tests {
 
         // Block 0: Set earliest block
         let b0 = NumHash::new(0, B256::random());
-        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.number, b0.hash).expect("set earliest");
 
         // Block 1: Insert multiple types of data
         let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
@@ -3675,7 +3809,7 @@ mod tests {
         let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
         let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.number, b0.hash).expect("set earliest");
         store.store_trie_updates(b1, make_diff(10)).expect("store b1");
         store.store_trie_updates(b2, make_diff(20)).expect("store b2");
         store.store_trie_updates(b3, make_diff(30)).expect("store b3");
@@ -3718,7 +3852,7 @@ mod tests {
         let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
         let b5 = BlockWithParent::new(b4.block.hash, NumHash::new(5, B256::random()));
 
-        store.set_earliest_block_number_hash(b0.number, b0.hash).expect("set earliest");
+        store.set_earliest_block_number(b0.number, b0.hash).expect("set earliest");
         store.store_trie_updates(b1, make_diff(10)).expect("store b1");
         store.store_trie_updates(b2, make_diff(20)).expect("store b2");
         store.store_trie_updates(b3, make_diff(30)).expect("store b3");

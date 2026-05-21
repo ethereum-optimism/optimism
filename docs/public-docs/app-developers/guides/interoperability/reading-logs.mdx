@@ -82,13 +82,11 @@ sequenceDiagram
     participant DeFi as DeFi Application
     participant Verifier as AttestationVerifier
     participant CrossL2 as CrossL2Inbox
-    participant OP as OP-Supervisor Service
-    
+
     User->>DeFi: Request access using attestation
     DeFi->>Verifier: verifyAttestation(id, attestationEvent)
     Verifier->>CrossL2: validateMessage(id, keccak256(attestationEvent))
-    CrossL2->>OP: Check if log exists
-    OP-->>CrossL2: Confirm log validity
+    Note over CrossL2: Check the log exists on the source chain.
     CrossL2-->>Verifier: Return validation result
     Verifier-->>DeFi: Return verification status
     DeFi-->>User: Grant access based on attestation
@@ -100,15 +98,13 @@ sequenceDiagram
 
 3.  The attestation verifier calls `validateMessage()` on the `CrossL2Inbox` contract, passing the attestation identifier and a hash of the event data.
 
-4.  The [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol) contract interacts with the [`OP-Supervisor`](/chain-operators/reference/components/op-supervisor) service to check if the specified log exists on the source chain.
+4.  The [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol) contract checks whether the specified log exists on the source chain.
 
-5.  The `OP-Supervisor` confirms the validity of the log to the `CrossL2Inbox` contract.
+5.  The `CrossL2Inbox` returns the validation result to the attestation verifier.
 
-6.  The `CrossL2Inbox` returns the validation result to the attestation verifier.
+6.  The attestation verifier returns the verification status to the DeFi application.
 
-7.  The attestation verifier returns the verification status to the DeFi application.
-
-8.  If validation is successful, the DeFi application grants the user access based on the verified attestation.
+7.  If validation is successful, the DeFi application grants the user access based on the verified attestation.
 
 The primary benefit of this approach is that it allows your contract to verify attestations that already exist on another chain without requiring those attestations to have been explicitly sent as cross-chain messages.
 
@@ -178,9 +174,8 @@ flowchart LR
     
     subgraph "CrossL2Inbox (Pull Model)"
         G[Source Contract] -->|emit event| H[Event Log]
-        H -.->|monitored by| I[OP-Supervisor]
         J[Destination Contract] -->|validateMessage| K[CrossL2Inbox]
-        K <--->|verify log| I
+        K -.->|verify log exists on source chain| H
     end
 ```
 
@@ -202,13 +197,11 @@ This diagram compares the two approaches for cross-chain communication:
 
 1.  A source contract emits an event to the event log.
 
-2.  The `OP-Supervisor` service monitors events across chains.
+2.  A destination contract calls `validateMessage()` on the `CrossL2Inbox`.
 
-3.  A destination contract calls `validateMessage()` on the `CrossL2Inbox`.
+3.  The `CrossL2Inbox` verifies that the log exists on the source chain.
 
-4.  The `CrossL2Inbox` verifies the log's existence by communicating with the `OP-Supervisor`.
-
-5.  The destination contract receives verification and proceeds with its logic.
+4.  The destination contract receives verification and proceeds with its logic.
 
 ## Next steps
 

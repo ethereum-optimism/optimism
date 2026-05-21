@@ -34,7 +34,7 @@ use tracing::trace;
 pub const DEFAULT_SUPERVISOR_URL: &str = "http://localhost:1337/";
 
 /// The default request timeout to use
-pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Implementation of the supervisor trait for the interop.
 #[derive(Debug, Clone)]
@@ -62,7 +62,7 @@ impl SupervisorClient {
         self.inner.safety
     }
 
-    /// Executes a `supervisor_checkAccessList` with the configured safety level.
+    /// Executes an `interop_checkAccessList` with the configured safety level.
     pub fn check_access_list<'a>(
         &self,
         inbox_entries: &'a [B256],
@@ -270,7 +270,7 @@ impl SupervisorClientBuilder {
     }
 }
 
-/// A Request future that issues a `supervisor_checkAccessList` request.
+/// A Request future that issues an `interop_checkAccessList` request.
 #[derive(Debug, Clone)]
 pub struct CheckAccessListRequest<'a> {
     client: ReqwestClient,
@@ -307,7 +307,7 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
             let result = tokio::time::timeout(
                 timeout,
                 client.request(
-                    "supervisor_checkAccessList",
+                    "interop_checkAccessList",
                     (inbox_entries, safety, executing_descriptor),
                 ),
             )

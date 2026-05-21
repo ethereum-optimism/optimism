@@ -104,7 +104,10 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
 	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
 	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
+	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
 	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
+	st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
+	st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
 
 	return nil
 }

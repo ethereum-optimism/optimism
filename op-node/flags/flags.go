@@ -109,6 +109,14 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
 		Category: L1RPCCategory,
 	}
+	BeaconSlotDurationOverride = &cli.Uint64Flag{
+		Name:     "l1.beacon.slot-duration-override",
+		Usage:    "Duration in seconds of an L1 slot. When set (non-zero), bypasses the beacon /eth/v1/config/spec fetch and uses this value as SECONDS_PER_SLOT. Useful for devnets where the beacon spec endpoint is unavailable (e.g. anvil).",
+		Required: false,
+		Value:    0,
+		EnvVars:  prefixEnvVars("L1_BEACON_SLOT_DURATION_OVERRIDE"),
+		Category: L1RPCCategory,
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:     "syncmode",
 		Usage:    fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
@@ -343,18 +351,6 @@ var (
 		Category: OperationsCategory,
 		Hidden:   true,
 	}
-	RollupHalt = &cli.StringFlag{
-		Name:     "rollup.halt",
-		Usage:    "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
-		EnvVars:  prefixEnvVars("ROLLUP_HALT"),
-		Category: RollupCategory,
-	}
-	RollupLoadProtocolVersions = &cli.BoolFlag{
-		Name:     "rollup.load-protocol-versions",
-		Usage:    "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
-		EnvVars:  prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
-		Category: RollupCategory,
-	}
 	SafeDBPath = &cli.StringFlag{
 		Name:     "safedb.path",
 		Usage:    "File path used to persist safe head update data. Disabled if not set.",
@@ -418,33 +414,6 @@ var (
 		Category: SequencerCategory,
 	}
 	/* Interop flags, experimental. */
-	InteropRPCAddr = &cli.StringFlag{
-		Name: "interop.rpc.addr",
-		Usage: "Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node." +
-			"Applies only to Interop-enabled networks. Optional, disabled if left empty. " +
-			"Do not enable if you do not run a supervisor service.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
-		Value:    "",
-		Category: InteropCategory,
-	}
-	InteropRPCPort = &cli.IntFlag{
-		Name: "interop.rpc.port",
-		Usage: "Interop RPC listening port, to serve supervisor syncing." +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_PORT"),
-		Value:    9645, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: InteropCategory,
-	}
-	InteropJWTSecret = &cli.StringFlag{
-		Name: "interop.jwt-secret",
-		Usage: "Interop RPC server authentication. Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty. " +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:     prefixEnvVars("INTEROP_JWT_SECRET"),
-		Value:       "",
-		Destination: new(string),
-		Category:    InteropCategory,
-	}
 	InteropDependencySet = &cli.PathFlag{
 		Name:      "interop.dependency-set",
 		Usage:     "Dependency-set configuration, point at JSON file.",
@@ -484,6 +453,7 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
+	BeaconSlotDurationOverride,
 	SyncModeFlag,
 	SyncModeReqRespFlag,
 	SyncModeOffsetELSafeFlag,
@@ -511,8 +481,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
-	RollupHalt,
-	RollupLoadProtocolVersions,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
@@ -521,9 +489,6 @@ var optionalFlags = []cli.Flag{
 	L2EngineKind,
 	L2EngineRpcTimeout,
 	L2FollowSource,
-	InteropRPCAddr,
-	InteropRPCPort,
-	InteropJWTSecret,
 	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,

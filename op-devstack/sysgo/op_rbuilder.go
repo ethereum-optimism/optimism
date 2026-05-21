@@ -410,7 +410,7 @@ func (b *OPRBuilderNode) Start() {
 	b.sub = NewSubProcess(b.p, stdOut, stdErr)
 
 	execPath, err := rustbin.Spec{
-		SrcDir:  "op-rbuilder",
+		SrcDir:  "rust/op-rbuilder",
 		Package: "op-rbuilder",
 		Binary:  "op-rbuilder",
 	}.EnsureExists(b.p.Ctx(), b.p.Logger())
