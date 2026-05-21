@@ -222,10 +222,7 @@ where
         // Clamp `sync_target` to the post-unwind tip. Without this, a stale target left over
         // from before a deep FCU rewind keeps `needs_sync()` perpetually true and spins the
         // runner on `BlockNotFound` for blocks the provider no longer has.
-        let new_tip = to.block.number.saturating_sub(1);
-        if self.sync_target > new_tip {
-            self.sync_target = new_tip;
-        }
+        self.sync_target = self.sync_target.min(to.block.number.saturating_sub(1));
         #[cfg(feature = "metrics")]
         self.metrics.unwind_duration_seconds.record(start.elapsed());
         Ok(())
