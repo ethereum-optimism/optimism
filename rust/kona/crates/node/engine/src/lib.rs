@@ -51,7 +51,8 @@ pub use attributes::{AttributesMatch, AttributesMismatch};
 
 mod client;
 pub use client::{
-    EngineClient, EngineClientBuilder, EngineClientError, HyperAuthClient, OpEngineClient,
+    EngineClient, EngineClientBuilder, EngineClientError, EngineRpcClient, HyperAuthClient,
+    OpEngineClient,
 };
 
 mod versions;

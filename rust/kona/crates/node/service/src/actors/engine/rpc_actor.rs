@@ -1,16 +1,20 @@
 use crate::{EngineError, EngineRpcRequest, NodeActor};
 use async_trait::async_trait;
-use kona_engine::{EngineClient, EngineState};
+use kona_engine::{EngineRpcClient, EngineState};
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
 /// Handles [`EngineRpcRequest`]s by reading engine state and queue length via watches and
-/// dispatching the request through an [`EngineClient`].
+/// dispatching the request through an [`EngineRpcClient`].
+///
+/// The client type is constrained to [`EngineRpcClient`] — a read-only subset of
+/// [`kona_engine::EngineClient`] — so this actor cannot reach into Engine API mutation methods
+/// even by accident.
 #[derive(Debug)]
-pub struct EngineRpcActor<EngineClient_: EngineClient> {
-    /// An [`EngineClient`] used for handling engine queries.
-    engine_client: Arc<EngineClient_>,
+pub struct EngineRpcActor<EngineRpcClient_: EngineRpcClient> {
+    /// An [`EngineRpcClient`] used for handling engine queries.
+    engine_rpc_client: Arc<EngineRpcClient_>,
     /// The [`RollupConfig`] used to handle queries.
     rollup_config: Arc<RollupConfig>,
     /// Receiver for [`EngineState`] updates.
@@ -21,17 +25,17 @@ pub struct EngineRpcActor<EngineClient_: EngineClient> {
     inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
 }
 
-impl<EngineClient_: EngineClient> EngineRpcActor<EngineClient_> {
+impl<EngineRpcClient_: EngineRpcClient> EngineRpcActor<EngineRpcClient_> {
     /// Constructs a new [`EngineRpcActor`].
     pub const fn new(
-        engine_client: Arc<EngineClient_>,
+        engine_rpc_client: Arc<EngineRpcClient_>,
         rollup_config: Arc<RollupConfig>,
         engine_state_receiver: watch::Receiver<EngineState>,
         engine_queue_length_receiver: watch::Receiver<usize>,
         inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
     ) -> Self {
         Self {
-            engine_client,
+            engine_rpc_client,
             rollup_config,
             engine_state_receiver,
             engine_queue_length_receiver,
@@ -47,7 +51,7 @@ impl<EngineClient_: EngineClient> EngineRpcActor<EngineClient_> {
             .handle(
                 &self.engine_state_receiver,
                 &self.engine_queue_length_receiver,
-                &self.engine_client,
+                &self.engine_rpc_client,
                 &self.rollup_config,
             )
             .await
@@ -60,9 +64,9 @@ impl<EngineClient_: EngineClient> EngineRpcActor<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_> NodeActor for EngineRpcActor<EngineClient_>
+impl<EngineRpcClient_> NodeActor for EngineRpcActor<EngineRpcClient_>
 where
-    EngineClient_: EngineClient + 'static,
+    EngineRpcClient_: EngineRpcClient + 'static,
 {
     type Error = EngineError;
 
