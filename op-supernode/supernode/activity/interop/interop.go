@@ -195,6 +195,9 @@ type Interop struct {
 	// tests to gate on cold-start init finishing.
 	backfillCompleted atomic.Bool
 
+	// verifyRounds counts verification loop iterations for periodic progress logging.
+	verifyRounds atomic.Int32
+
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
@@ -413,6 +416,7 @@ func (i *Interop) logColdStartProgress(attempts int32) {
 // the round was a no-op, (errorBackoffPeriod, nil) on a recoverable error,
 // or a non-nil error to terminate the loop.
 func (i *Interop) progress() (time.Duration, error) {
+	round := i.verifyRounds.Add(1)
 	madeProgress, err := i.progressAndRecord()
 	if err != nil {
 		if errors.Is(err, cc.ErrHistoryUnavailable) {
@@ -424,6 +428,22 @@ func (i *Interop) progress() (time.Duration, error) {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 		i.log.Error("failed to progress and record interop", "err", err)
 		return errorBackoffPeriod, nil
+	}
+	if round%30 == 0 {
+		lastTS, _ := i.verifiedDB.LastTimestamp()
+		var tipTS uint64
+		for _, chain := range i.chains {
+			if status, err := chain.SyncStatus(i.ctx); err == nil && status.UnsafeL2.Time > tipTS {
+				tipTS = status.UnsafeL2.Time
+			}
+		}
+		var behind uint64
+		if tipTS > lastTS {
+			behind = tipTS - lastTS
+		}
+		i.log.Info("interop verification progress",
+			"round", round, "madeProgress", madeProgress,
+			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
 	}
 	if !madeProgress {
 		return backoffPeriod, nil
