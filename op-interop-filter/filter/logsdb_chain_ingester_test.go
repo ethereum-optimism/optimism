@@ -319,7 +319,7 @@ func TestLogsDBChainIngester_IngestBlockRange_FetchFailureReturnsFailingBlock(t 
 	require.Equal(t, uint64(101), latestBlock.Number)
 }
 
-func TestLogsDBChainIngester_RecordIngestionProgressCountsCompletedBlock(t *testing.T) {
+func TestLogsDBChainIngester_RecordIngestionProgressDuringBackfill(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	recorder := &backfillProgressMetrics{Metricer: metrics.NoopMetrics}
 
@@ -331,13 +331,17 @@ func TestLogsDBChainIngester_RecordIngestionProgressCountsCompletedBlock(t *test
 	})
 	ingester.metrics = recorder
 	ingester.startTimestamp = 400
-	ingester.backfillDuration = 0
-	ingester.earliestIngestedBlock.Store(100)
-	ingester.earliestIngestedBlockSet.Store(true)
+	ingester.backfillDuration = 200 * time.Second // backfill starts at timestamp 200 → block 100
 
-	ingester.recordIngestionProgress(200, 200)
+	// Ingestion is at block 150 out of head=200 (startingBlock=100)
+	// Progress = (150-100)/(200-100) = 50/100 = 0.5
+	ingester.recordIngestionProgress(150, 200)
 
 	require.Equal(t, uint64(901), recorder.chainID)
+	require.Equal(t, 0.5, recorder.progress)
+
+	// At head: progress should be 1.0
+	ingester.recordIngestionProgress(200, 200)
 	require.Equal(t, 1.0, recorder.progress)
 }
 

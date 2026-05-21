@@ -830,15 +830,22 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 }
 
 func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
-	startingBlock := c.calculateStartingBlock()
-	if blockNum <= startingBlock {
-		earliest := c.earliestIngestedBlock.Load()
-		progress := float64(blockNum-earliest+1) / float64(startingBlock-earliest+1)
+	chainIDUint64, _ := c.chainID.Uint64()
+	if !c.Ready() {
+		startingBlock := c.calculateStartingBlock()
+		total := head - startingBlock
+		if total == 0 {
+			total = 1
+		}
+		done := blockNum - startingBlock
+		progress := float64(done) / float64(total)
+		if progress > 1.0 {
+			progress = 1.0
+		}
 		c.log.Info("Ingestion progress",
 			"block", blockNum,
-			"target", startingBlock,
+			"target", head,
 			"progress", fmt.Sprintf("%.0f%%", progress*100))
-		chainIDUint64, _ := c.chainID.Uint64()
 		c.metrics.RecordBackfillProgress(chainIDUint64, progress)
 	} else {
 		c.log.Debug("Ingestion progress", "block", blockNum, "head", head)
