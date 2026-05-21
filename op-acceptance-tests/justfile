@@ -73,15 +73,17 @@ acceptance-test:
         CPU_COUNT=1
     fi
 
-    # Cap concurrent test packages: each package spins a full devstack
-    # (L1 geth + op-node + op-reth/op-geth + batcher + proposer + challenger).
-    # Unbounded -p saturated CPU+RAM and caused mass "context deadline exceeded"
-    # failures across the runner. See ethereum-optimism/optimism#20966.
-    DEFAULT_JOBS=3
-    DEFAULT_TEST_PARALLEL="$(( CPU_COUNT / 2 ))"
-    if [[ "$DEFAULT_TEST_PARALLEL" -lt 1 ]]; then
-        DEFAULT_TEST_PARALLEL=1
-    fi
+    # Each acceptance test package spins a full devstack (L1 geth + op-node +
+    # op-reth/op-geth + batcher + proposer + challenger). Unbounded -p (defaulted
+    # to CPU_COUNT ~= 20) saturated CPU+RAM and caused mass "context deadline
+    # exceeded" failures across the runner — see ethereum-optimism/optimism#20966.
+    #
+    # Only ~13 of 177 acceptance tests use t.Parallel(), so -parallel is nearly
+    # a no-op and the total concurrency budget is dominated by -p. Bound them
+    # explicitly: max ~8 concurrent devstacks (well below the crash threshold)
+    # with intra-package parallelism kept low for the few tests that opt in.
+    DEFAULT_JOBS=8
+    DEFAULT_TEST_PARALLEL=2
 
     JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
     TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
