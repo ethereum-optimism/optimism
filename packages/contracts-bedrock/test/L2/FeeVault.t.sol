@@ -28,6 +28,11 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
     uint256 minWithdrawalAmount;
     Types.WithdrawalNetwork withdrawalNetwork;
 
+    event RecipientUpdated(address oldRecipient, address newRecipient);
+    event WithdrawalNetworkUpdated(
+        Types.WithdrawalNetwork oldWithdrawalNetwork, Types.WithdrawalNetwork newWithdrawalNetwork
+    );
+
     /// @notice Helper function to set up L2 withdrawal configuration.
     function _setupL2Withdrawal() internal {
         // Set the withdrawal network to L2
@@ -303,6 +308,67 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         IFeeVault(payable(address(feeVault))).setWithdrawalNetwork(newNetwork);
 
         // Verify the value and boolean flag were NOT changed
+        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(initialNetwork));
+    }
+
+    /// @notice Tests that the owner can update the recipient and withdrawal network together.
+    function testFuzz_setWithdrawalRoute_succeeds(address _newRecipient, uint8 _networkValue) external {
+        vm.assume(_newRecipient != address(0));
+        _networkValue = uint8(bound(_networkValue, 0, 1));
+        Types.WithdrawalNetwork newNetwork = Types.WithdrawalNetwork(_networkValue);
+
+        address oldRecipient = feeVault.recipient();
+        Types.WithdrawalNetwork oldNetwork = feeVault.withdrawalNetwork();
+        address owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+
+        vm.expectEmit(address(feeVault));
+        emit RecipientUpdated(oldRecipient, _newRecipient);
+        vm.expectEmit(address(feeVault));
+        emit WithdrawalNetworkUpdated(oldNetwork, newNetwork);
+
+        vm.prank(owner);
+        IFeeVault(payable(address(feeVault))).setWithdrawalRoute(_newRecipient, newNetwork);
+
+        assertEq(feeVault.recipient(), _newRecipient);
+        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(newNetwork));
+    }
+
+    /// @notice Tests that the owner cannot set a zero recipient in the withdrawal route.
+    function test_setWithdrawalRoute_zeroRecipient_reverts() external {
+        address owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        address initialRecipient = feeVault.recipient();
+        Types.WithdrawalNetwork initialNetwork = feeVault.withdrawalNetwork();
+
+        vm.prank(owner);
+        vm.expectRevert("FeeVault: zero recipient");
+        IFeeVault(payable(address(feeVault))).setWithdrawalRoute(address(0), Types.WithdrawalNetwork.L2);
+
+        assertEq(feeVault.recipient(), initialRecipient);
+        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(initialNetwork));
+    }
+
+    /// @notice Tests that non-owner cannot update the recipient and withdrawal network together.
+    function testFuzz_setWithdrawalRoute_onlyOwner_reverts(
+        address _caller,
+        address _newRecipient,
+        uint8 _networkValue
+    )
+        external
+    {
+        address owner = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        vm.assume(_caller != owner);
+
+        _networkValue = uint8(bound(_networkValue, 0, 1));
+        Types.WithdrawalNetwork newNetwork = Types.WithdrawalNetwork(_networkValue);
+
+        address initialRecipient = feeVault.recipient();
+        Types.WithdrawalNetwork initialNetwork = feeVault.withdrawalNetwork();
+
+        vm.prank(_caller);
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        IFeeVault(payable(address(feeVault))).setWithdrawalRoute(_newRecipient, newNetwork);
+
+        assertEq(feeVault.recipient(), initialRecipient);
         assertEq(uint8(feeVault.withdrawalNetwork()), uint8(initialNetwork));
     }
 }
