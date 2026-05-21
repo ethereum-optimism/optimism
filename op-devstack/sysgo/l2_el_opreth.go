@@ -198,6 +198,18 @@ func (n *OpReth) Stop() {
 	n.sub = nil
 }
 
+func (n *OpReth) Crash() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-reth already stopped")
+		return
+	}
+	err := n.sub.Kill()
+	n.p.Require().NoError(err, "Must kill")
+	n.sub = nil
+}
+
 func (n *OpReth) UserRPC() string {
 	return n.userRPC
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,83 @@ func TestReorgInvalidExecMsgs(gt *testing.T) {
 	})
 }
 
+func TestReorgInvalidExecMsgOpRethCrashRestart(gt *testing.T) {
+	testReorgInvalidExecMsgWithHook(gt,
+		func(msg *messages.Message) {
+			msg.Identifier.LogIndex = 1024
+		},
+		func(t devtest.T, sys *presets.TwoL2SupernodeInterop, original eth.L2BlockRef) {
+			if _, ok := sys.L2ELA.Escape().(interface{ Crash() }); !ok {
+				t.Skipf("L2A EL %s does not support forced crash control", sys.L2ELA.String())
+			}
+
+			ctx := t.Ctx()
+			l := sys.Log
+
+			var replacement eth.L2BlockRef
+			require.Eventually(t, func() bool {
+				ref, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, original.Number)
+				if err != nil {
+					l.Info("waiting for replacement divergence block", "number", original.Number, "err", err)
+					return false
+				}
+				if ref.Hash == original.Hash {
+					l.Info("waiting for divergence block to be replaced", "number", original.Number, "hash", ref.Hash)
+					return false
+				}
+				t.Require().Equal(original.ParentHash, ref.ParentHash, "replacement block has unexpected parent")
+				replacement = ref
+				return true
+			}, 2*time.Minute, 200*time.Millisecond, "expected replacement block at divergence height %d", original.Number)
+
+			l.Info("crashing op-reth after replacement ancestor import",
+				"number", replacement.Number,
+				"replacement", replacement.Hash,
+				"original", original.Hash)
+			sys.L2ELA.Crash()
+			sys.L2ELA.Start()
+
+			require.Eventually(t, func() bool {
+				ref, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, replacement.Number)
+				if err != nil {
+					l.Info("waiting for replacement block after restart", "number", replacement.Number, "err", err)
+					return false
+				}
+				return ref.Hash == replacement.Hash
+			}, 2*time.Minute, 200*time.Millisecond, "replacement block should remain available after op-reth restart")
+
+			targetChild := replacement.Number + 1
+			require.Eventually(t, func() bool {
+				child, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, targetChild)
+				if err != nil {
+					l.Info("waiting for replacement child after restart", "number", targetChild, "err", err)
+					return false
+				}
+				if child.ParentHash != replacement.Hash {
+					l.Info("replacement child not derived yet",
+						"number", child.Number,
+						"hash", child.Hash,
+						"parent", child.ParentHash,
+						"want_parent", replacement.Hash)
+					return false
+				}
+
+				var rawHeader hexutil.Bytes
+				err = sys.L2ELA.Escape().L2EthClient().RPC().CallContext(ctx, &rawHeader, "debug_getRawHeader", child.Hash)
+				if err != nil {
+					l.Info("debug_getRawHeader missing replacement child", "hash", child.Hash, "err", err)
+					return false
+				}
+				return len(rawHeader) > 0
+			}, 3*time.Minute, 500*time.Millisecond, "replacement child should be available by number and raw header after restart")
+		})
+}
+
 func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Message)) {
+	testReorgInvalidExecMsgWithHook(gt, txModifierFn, nil)
+}
+
+func testReorgInvalidExecMsgWithHook(gt *testing.T, txModifierFn func(msg *messages.Message), afterReorgStarted func(devtest.T, *presets.TwoL2SupernodeInterop, eth.L2BlockRef)) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
@@ -219,12 +296,17 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Mess
 	// start batcher on chain A
 	sys.L2BatcherA.Start()
 
-	// wait for reorg on chain A
-	sys.L2ELA.ReorgExact(eth.L2BlockRef{
+	originalRef_A := eth.L2BlockRef{
 		Number:     divergenceBlockNumber_A,
 		Hash:       originalHash_A,
 		ParentHash: originalParentHash_A,
-	}, 30)
+	}
+	if afterReorgStarted != nil {
+		afterReorgStarted(t, sys, originalRef_A)
+	}
+
+	// wait for reorg on chain A
+	sys.L2ELA.ReorgExact(originalRef_A, 30)
 
 	// Wait for the supernode to validate the replacement block's timestamp.
 	divergenceTimestamp_A := sys.L2A.TimestampForBlockNum(divergenceBlockNumber_A)

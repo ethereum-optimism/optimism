@@ -105,3 +105,38 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 	sp.cmd = nil
 	return nil
 }
+
+// Kill forcefully terminates the subprocess and waits for stdio to flush.
+func (sp *SubProcess) Kill() error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.cmd == nil {
+		return nil // already stopped
+	}
+
+	if sp.cmd.ProcessState == nil {
+		sp.p.Logger().Info("Killing subprocess")
+		if err := sp.cmd.Process.Kill(); err != nil {
+			return err
+		}
+	}
+
+	waitErr := sp.cmd.Wait()
+	var exitErr *exec.ExitError
+	if waitErr != nil && !errors.As(waitErr, &exitErr) {
+		sp.p.Logger().Warn("Sub-process exited with error", "err", waitErr)
+	} else {
+		sp.p.Logger().Info("Sub-process killed")
+	}
+
+	if sp.stdOutProc != nil {
+		_ = sp.stdOutProc.Close()
+		sp.stdOutProc = nil
+	}
+	if sp.stdErrProc != nil {
+		_ = sp.stdErrProc.Close()
+		sp.stdErrProc = nil
+	}
+	sp.cmd = nil
+	return nil
+}
