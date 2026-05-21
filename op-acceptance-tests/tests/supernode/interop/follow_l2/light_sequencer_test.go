@@ -6,7 +6,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
@@ -33,17 +35,29 @@ func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
 	t.Require().Equal(cfgA.Genesis.L2Time, cfgB.Genesis.L2Time, "target block number assumes matching genesis timestamps")
 	t.Require().Equal(cfgA.BlockTime, cfgB.BlockTime, "target block number assumes matching L2 block times")
 
-	logger.Info("Wait for light CL sequencers to produce unsafe blocks")
-	initialUnsafeA := sys.L2ACL.HeadBlockRef(types.LocalUnsafe)
-	initialUnsafeB := sys.L2BCL.HeadBlockRef(types.LocalUnsafe)
-	targetNumber := initialUnsafeA.Number
-	if initialUnsafeB.Number > targetNumber {
-		targetNumber = initialUnsafeB.Number
+	logger.Info("Send transactions to light CL sequencers and wait for them to be mined")
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	aliceRecipient := sys.Wallet.NewEOA(sys.L2ELA)
+	bobRecipient := sys.Wallet.NewEOA(sys.L2ELB)
+	txA := txplan.NewPlannedTx(alice.PlanTransfer(aliceRecipient.Address(), eth.OneWei))
+	txB := txplan.NewPlannedTx(bob.PlanTransfer(bobRecipient.Address(), eth.OneWei))
+	_, err = txA.Submitted.Eval(t.Ctx())
+	t.Require().NoError(err, "send tx to chain A light sequencer")
+	_, err = txB.Submitted.Eval(t.Ctx())
+	t.Require().NoError(err, "send tx to chain B light sequencer")
+	receiptA, err := txA.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "wait for chain A sequencer tx to be mined")
+	receiptB, err := txB.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "wait for chain B sequencer tx to be mined")
+
+	targetNumber := receiptA.BlockNumber.Uint64()
+	if receiptB.BlockNumber.Uint64() > targetNumber {
+		targetNumber = receiptB.BlockNumber.Uint64()
 	}
-	targetNumber += 3
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(types.LocalUnsafe, targetNumber, 20),
-		sys.L2BCL.ReachedFn(types.LocalUnsafe, targetNumber, 20),
+		sys.L2ACL.ReachedFn(safety.LocalUnsafe, targetNumber, 20),
+		sys.L2BCL.ReachedFn(safety.LocalUnsafe, targetNumber, 20),
 	)
 
 	targetA := sys.L2ELA.BlockRefByNumber(targetNumber)
@@ -55,10 +69,10 @@ func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
 		"chainB_target", targetB,
 	)
 	dsl.CheckAll(t,
-		sys.L2ASupernodeCL.ReachedRefFn(types.LocalSafe, targetA.ID(), 60),
-		sys.L2BSupernodeCL.ReachedRefFn(types.LocalSafe, targetB.ID(), 60),
-		sys.L2ASupernodeCL.ReachedRefFn(types.CrossSafe, targetA.ID(), 60),
-		sys.L2BSupernodeCL.ReachedRefFn(types.CrossSafe, targetB.ID(), 60),
+		sys.L2ASupernodeCL.ReachedRefFn(safety.LocalSafe, targetA.ID(), 60),
+		sys.L2BSupernodeCL.ReachedRefFn(safety.LocalSafe, targetB.ID(), 60),
+		sys.L2ASupernodeCL.ReachedRefFn(safety.CrossSafe, targetA.ID(), 60),
+		sys.L2BSupernodeCL.ReachedRefFn(safety.CrossSafe, targetB.ID(), 60),
 	)
 
 	logger.Info("Wait for supernode to validate light-sequenced timestamps",
