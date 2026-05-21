@@ -11,6 +11,7 @@ import { console } from "forge-std/console.sol";
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { Process } from "scripts/libraries/Process.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
@@ -104,16 +105,22 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     ///         switches to the fork after the fork if L2CM activation test is enabled.
     function _executeCurrentBundleOrSwitchFork() internal {
         if (isL2CMActivationTest()) {
-            uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
-            if (l2BlockAfterFork == 0) {
-                vm.createSelectFork(Config.l2ForkRpcUrl());
-            } else {
-                vm.createSelectFork(Config.l2ForkRpcUrl(), l2BlockAfterFork);
-            }
-            console.log("Setup: L2 fork switched to after the fork!");
+            _switchToForkAfterFork();
             return;
         }
         _executeCurrentBundle();
+    }
+
+    /// @notice Switches to the fork after the fork if L2CM activation test is enabled.
+    function _switchToForkAfterFork() internal {
+        uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
+        if (l2BlockAfterFork == 0) {
+            vm.createSelectFork(Config.l2ForkRpcUrl());
+        } else {
+            vm.createSelectFork(Config.l2ForkRpcUrl(), l2BlockAfterFork);
+        }
+        console.log("Setup: L2 fork switched to after the fork!");
+
     }
 
     /// @notice Returns true when the current bundle has already been applied to the forked chain.
@@ -666,11 +673,19 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
+        // Pre-capture expected implementations before any fork switch:
+        // in activation mode vm.createSelectFork creates a new fork where generateScript
+        // (deployed on fork 0) is not accessible.
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        address[] memory expectedImpls = new address[](predeploys.length);
+        for (uint256 i = 0; i < predeploys.length; i++) {
+            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
+                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
+            }
+        }
+
         // Execute bundle on forked L2
         _executeCurrentBundleOrSwitchFork();
-
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
 
         // Verify each predeploy's implementation
         for (uint256 i = 0; i < predeploys.length; i++) {
@@ -683,8 +698,8 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
-            // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
+            address expectedImpl = expectedImpls[i];
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -725,8 +740,17 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             return;
         }
 
-        // Get StorageSetter implementation to filter out intermediate upgrade events
+        // Pre-capture everything from generateScript before any fork switch:
+        // in activation mode vm.createSelectFork creates a new fork where generateScript
+        // (deployed on fork 0) is not accessible.
         (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        address[] memory expectedImpls = new address[](predeploys.length);
+        for (uint256 i = 0; i < predeploys.length; i++) {
+            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
+                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
+            }
+        }
 
         Vm.Log[] memory logs;
         if (!isL2CMActivationTest()) {
@@ -743,17 +767,24 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             bytes32[] memory topics = new bytes32[](1);
             uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
             topics[0] = UPGRADED_EVENT_TOPIC;
-            Vm.EthGetLogs[] memory ethLogs = vm.eth_getLogs(
-                activationBlockNumber,
-                activationBlockNumber,
-                address(0),
-                topics
-            );
+            // vm.eth_getLogs serializes address(0) as the literal zero address rather than null,
+            // so passing address(0) returns no events. Query each predeploy address individually.
+            uint256 totalCount = 0;
+            Vm.EthGetLogs[][] memory perDeployLogs = new Vm.EthGetLogs[][](predeploys.length);
+            for (uint256 p = 0; p < predeploys.length; p++) {
+                perDeployLogs[p] =
+                    vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p], topics);
+                totalCount += perDeployLogs[p].length;
+            }
+            Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);
+            uint256 flatIdx = 0;
+            for (uint256 p = 0; p < predeploys.length; p++) {
+                for (uint256 q = 0; q < perDeployLogs[p].length; q++) {
+                    ethLogs[flatIdx++] = perDeployLogs[p][q];
+                }
+            }
             logs = _ethGetLogsToLogs(ethLogs);
         }
-
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
 
         // Verify each predeploy emitted the Upgraded event
         for (uint256 i = 0; i < predeploys.length; i++) {
@@ -766,8 +797,8 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
-            // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
+            address expectedImpl = expectedImpls[i];
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
@@ -825,6 +856,8 @@ contract L2ForkUpgrade_ActivationBlockTxns_Test is L2ForkUpgrade_TestInit {
         if (!isL2CMActivationTest()) {
             vm.skip(true);
             return;
+        } else {
+            _switchToForkAfterFork();
         }
         skipIfUnoptimized();
 
@@ -832,17 +865,16 @@ contract L2ForkUpgrade_ActivationBlockTxns_Test is L2ForkUpgrade_TestInit {
         uint256 activationBlock = Config.l2ForkBlockNumber() + 1;
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundleTxns = _currentBundleTxns();
 
-        // setUp already selected the L2 fork, so vm.rpc uses L2_FORK_RPC_URL.
-        string memory blockJson = string(
-            vm.rpc(
-                "eth_getBlockByNumber",
-                string.concat('["0x', LibString.toHexStringNoPrefix(activationBlock), '", true]')
-            )
-        );
+        string memory blockHex = string.concat("0x", LibString.toHexStringNoPrefix(activationBlock));
+        string memory rpcUrl = Config.l2ForkRpcUrl();
 
-        address[] memory froms = vm.parseJsonAddressArray(blockJson, ".transactions[*].from");
-        address[] memory tos = vm.parseJsonAddressArray(blockJson, ".transactions[*].to");
-        bytes[] memory inputs = vm.parseJsonBytesArray(blockJson, ".transactions[*].input");
+        // vm.rpc ABI-encodes block objects; use FFI (cast) to fetch JSON for parseJson.
+        string memory blockJsonHashes = _ffiGetBlockByNumber(blockHex, rpcUrl, false);
+        uint256 txCount = _activationBlockTransactionCount(blockJsonHashes);
+
+        string memory blockJson = _ffiGetBlockByNumber(blockHex, rpcUrl, true);
+        (address[] memory froms, address[] memory tos, bytes[] memory inputs) =
+            _parseActivationBlockTransactions(blockJson, txCount);
 
         // The activation block also contains the L1 attributes deposit (and potentially other
         // system transactions) before the NUT bundle. Find the bundle start by matching the
@@ -872,6 +904,46 @@ contract L2ForkUpgrade_ActivationBlockTxns_Test is L2ForkUpgrade_TestInit {
                 keccak256(bundleTxns[i].data),
                 string.concat("data mismatch at bundle index ", vm.toString(i), ": ", bundleTxns[i].intent)
             );
+        }
+    }
+
+    /// @notice Fetches a block via `cast rpc` (FFI). Returns JSON suitable for `vm.parseJson`.
+    function _ffiGetBlockByNumber(string memory _blockHex, string memory _rpcUrl, bool _fullTxs)
+        internal
+        returns (string memory blockJson_)
+    {
+        string[] memory cmds = new string[](7);
+        cmds[0] = "cast";
+        cmds[1] = "rpc";
+        cmds[2] = "eth_getBlockByNumber";
+        cmds[3] = _blockHex;
+        cmds[4] = _fullTxs ? "true" : "false";
+        cmds[5] = "--rpc-url";
+        cmds[6] = _rpcUrl;
+        blockJson_ = string(Process.run(cmds));
+    }
+
+    /// @notice Returns the number of transactions in an activation block JSON payload (hash-only).
+    function _activationBlockTransactionCount(string memory _blockJson) internal pure returns (uint256 count_) {
+        string[] memory hashes = vm.parseJsonStringArray(_blockJson, ".transactions");
+        return hashes.length;
+    }
+
+    /// @notice Parses from/to/input for each transaction in a full activation block JSON payload.
+    function _parseActivationBlockTransactions(string memory _blockJson, uint256 _txCount)
+        internal
+        pure
+        returns (address[] memory froms_, address[] memory tos_, bytes[] memory inputs_)
+    {
+        froms_ = new address[](_txCount);
+        tos_ = new address[](_txCount);
+        inputs_ = new bytes[](_txCount);
+
+        for (uint256 i = 0; i < _txCount; i++) {
+            string memory base = string.concat(".transactions[", vm.toString(i), "]");
+            froms_[i] = vm.parseJsonAddress(_blockJson, string.concat(base, ".from"));
+            tos_[i] = vm.parseJsonAddress(_blockJson, string.concat(base, ".to"));
+            inputs_[i] = vm.parseJsonBytes(_blockJson, string.concat(base, ".input"));
         }
     }
 
