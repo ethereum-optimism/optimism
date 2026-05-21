@@ -6,13 +6,8 @@ test: (go_test "./...")
 # Generate mocks
 generate-mocks: (go_generate "./...")
 
-# Pin GOMAXPROCS to match the CI runner's vCPU budget. CircleCI Gen2 images
-# expose the full host core count to Go, so the fuzz harness spawns more
-# workers than the cgroup can schedule, which collapses throughput and
-# trips the Go fuzz coordinator-worker liveness heartbeats.
 [private]
-service_fuzz_task FUZZ TIME='60s':
-    GOMAXPROCS=8 go test -v -fuzztime {{TIME}} -fuzz {{FUZZ}} -run NOTAREALTEST ./eth
+service_fuzz_task FUZZ TIME='60s': (go_fuzz FUZZ TIME "./eth")
 
 # Run fuzzing tests
 fuzz:
