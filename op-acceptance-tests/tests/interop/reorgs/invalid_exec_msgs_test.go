@@ -70,12 +70,12 @@ func TestReorgInvalidExecMsgOpRethCrashRestart(gt *testing.T) {
 					l.Info("waiting for divergence block to be replaced", "number", original.Number, "hash", ref.Hash)
 					return false
 				}
-				t.Require().Equal(original.ParentHash, ref.ParentHash, "replacement block has unexpected parent")
 				replacement = ref
 				return true
 			}, 2*time.Minute, 200*time.Millisecond, "expected replacement block at divergence height %d", original.Number)
+			require.Equal(t, original.ParentHash, replacement.ParentHash, "replacement block has unexpected parent")
 
-			l.Info("crashing op-reth after replacement ancestor import",
+			l.Info("crashing op-reth after replacement divergence block import",
 				"number", replacement.Number,
 				"replacement", replacement.Hash,
 				"original", original.Hash)
