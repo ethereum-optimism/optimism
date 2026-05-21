@@ -26,11 +26,11 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
     /// A channel to receive the unsafe block signer address.
-    signer: mpsc::Receiver<Address>,
-    /// Handler for p2p RPC Requests.
-    p2p_rpc: mpsc::Receiver<P2pRpcRequest>,
-    /// A channel to receive admin rpc requests.
-    admin_rpc: mpsc::Receiver<NetworkAdminQuery>,
+    unsafe_block_signer_rx: mpsc::Receiver<Address>,
+    /// A channel to receive p2p RPC requests.
+    p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
+    /// A channel to receive admin RPC queries.
+    admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
     /// A channel to receive unsafe blocks and send them through the gossip layer.
     publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A client to use to interact with the engine actor.
@@ -52,17 +52,17 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         handler: NetworkHandler,
-        signer: mpsc::Receiver<Address>,
-        p2p_rpc: mpsc::Receiver<P2pRpcRequest>,
-        admin_rpc: mpsc::Receiver<NetworkAdminQuery>,
+        unsafe_block_signer_rx: mpsc::Receiver<Address>,
+        p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
+        admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
         publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     ) -> Self {
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
         Self {
             handler,
-            signer,
-            p2p_rpc,
-            admin_rpc,
+            unsafe_block_signer_rx,
+            p2p_rpc_rx,
+            admin_query_rx,
             publish_rx,
             engine_client,
             unsafe_block_tx,
@@ -117,15 +117,15 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            signer = self.signer.recv() => {
-                let Some(signer) = signer else {
+            unsafe_block_signer = self.unsafe_block_signer_rx.recv() => {
+                let Some(unsafe_block_signer) = unsafe_block_signer else {
                     warn!(
                         target: "network",
                         "Found no unsafe block signer on receive"
                     );
                     return Err(NetworkActorError::ChannelClosed);
                 };
-                if self.handler.unsafe_block_signer_sender.send(signer).is_err() {
+                if self.handler.unsafe_block_signer_sender.send(unsafe_block_signer).is_err() {
                     warn!(
                         target: "network",
                         "Failed to send unsafe block signer to network handler",
@@ -188,14 +188,14 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 self.handler.handle_peer_monitoring().await;
                 Ok(())
             }
-            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_rpc.recv(), if !self.admin_rpc.is_closed() => {
+            Some(NetworkAdminQuery::PostUnsafePayload { payload }) = self.admin_query_rx.recv(), if !self.admin_query_rx.is_closed() => {
                 debug!(target: "node::p2p", "Broadcasting unsafe payload from admin api");
                 if self.unsafe_block_tx.send(payload).is_err() {
                     warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
                 }
                 Ok(())
             }
-            Some(req) = self.p2p_rpc.recv(), if !self.p2p_rpc.is_closed() => {
+            Some(req) = self.p2p_rpc_rx.recv(), if !self.p2p_rpc_rx.is_closed() => {
                 req.handle(&mut self.handler.gossip, &self.handler.discovery);
                 Ok(())
             }
