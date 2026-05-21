@@ -239,6 +239,7 @@ where
         &builder_ctx,
         &mut info,
         true,
+        None,
     )
     .wrap_err("failed to build flashblock")?;
 
