@@ -33,7 +33,8 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         super.setUp();
     }
 
-    /// @notice Verify betanet fork upgrade tests switch to the block after the activation block.
+    /// @notice instead of executing the bundle on the fork, it overrides the execution
+    ///         by going to a block after the activation block.
     function _executeCurrentBundle() internal virtual override {
         uint256 l2BlockAfterFork = Config.l2BlockAfterFork();
         if (l2BlockAfterFork == 0) {
