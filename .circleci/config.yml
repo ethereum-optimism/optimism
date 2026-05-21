@@ -56,9 +56,6 @@ parameters:
   heavy_fuzz_dispatch:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
   rust_ci_dispatch:
     type: boolean
     default: false
@@ -156,7 +153,6 @@ jobs:
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
             c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
-            c-ai_contracts_test_dispatch: << pipeline.parameters.ai_contracts_test_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
@@ -218,7 +214,6 @@ jobs:
                   build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
                   build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
                   build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
-                  build_mon_thu)    run ai_contracts_test ;;
                 esac
                 ;;
 
@@ -309,7 +304,6 @@ jobs:
                 if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
                 if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
                 if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
-                if is_true ai_contracts_test_dispatch; then run ai_contracts_test; fi
                 if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
                 if is_true rust_ci_dispatch;          then run rust_ci; fi
                 if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
