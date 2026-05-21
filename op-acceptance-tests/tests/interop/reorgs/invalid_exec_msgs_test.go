@@ -118,11 +118,18 @@ func failAfterSustainedTinyProofWindowStall(
 			lastSupernode = chainStatus
 		}
 
-		if elErr == nil && statusErr == nil && chainStatusOK && chainStatus.SafeL2.Number > original.Number {
+		if elErr == nil && unsafe.Number > original.Number {
 			require.Failf(t,
 				"unexpected recovery",
-				"op-reth RPC recovered and supernode chain A safe advanced past reorg point: original=%s el_unsafe=%s supernode_safe=%s supernode_unsafe=%s",
-				original, unsafe, chainStatus.SafeL2, chainStatus.UnsafeL2)
+				"chain A op-reth RPC recovered and EL unsafe advanced past reorg point: original=%s el_unsafe=%s supernode_status=%v",
+				original, unsafe, supernodeChainStatusOrErr(status, chainID, statusErr))
+		}
+		if statusErr == nil && chainStatusOK &&
+			(chainStatus.LocalSafeL2.Number > original.Number || chainStatus.SafeL2.Number > original.Number) {
+			require.Failf(t,
+				"unexpected supernode recovery",
+				"supernode chain A advanced past reorg point: original=%s local_safe=%s cross_safe=%s unsafe=%s el_unsafe=%v",
+				original, chainStatus.LocalSafeL2, chainStatus.SafeL2, chainStatus.UnsafeL2, blockRefOrErr(unsafe, elErr))
 		}
 
 		if lastLog.IsZero() || time.Since(lastLog) >= 5*time.Second {
@@ -145,7 +152,7 @@ func failAfterSustainedTinyProofWindowStall(
 
 	require.Failf(t,
 		"repro observed",
-		"op-reth exited during proofs-history reorg unwind and supernode did not recover for %s: original=%s baseline_supernode_status=%v last_el_unsafe=%v last_supernode_status=%v",
+		"op-reth exited during proofs-history reorg unwind, chain A EL did not advance, and supernode did not advance chain A safe past the reorg point for %s: original=%s baseline_supernode_status=%v last_el_unsafe=%v last_supernode_status=%v",
 		duration, original, supernodeChainStatusOrErr(baseline, chainID, baselineErr), lastEL, lastSupernode)
 }
 
