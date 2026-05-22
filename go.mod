@@ -40,7 +40,6 @@ require (
 	github.com/libp2p/go-libp2p v0.36.2
 	github.com/libp2p/go-libp2p-mplex v0.9.0
 	github.com/libp2p/go-libp2p-pubsub v0.12.0
-	github.com/libp2p/go-libp2p-testing v0.12.0
 	github.com/lmittmann/w3 v0.20.7
 	github.com/mattn/go-isatty v0.0.20
 	github.com/minio/minio-go/v7 v7.0.85
