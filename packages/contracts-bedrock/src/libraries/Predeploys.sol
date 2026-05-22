@@ -504,7 +504,7 @@ library Predeploys {
             proxy: CONDITIONAL_DEPLOYER,
             name: "ConditionalDeployer",
             artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deployGasLimit: 116_400,
+            deployGasLimit: 600_000,
             devFeatureGate: DevFeatures.L2CM,
             isCustomGasToken: false,
             isInterop: false,

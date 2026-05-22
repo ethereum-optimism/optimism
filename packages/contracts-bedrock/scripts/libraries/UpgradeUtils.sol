@@ -33,7 +33,7 @@ library UpgradeUtils {
     /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
-        return GasLimits({ l2cmDeployment: 8_700_000, upgradeExecution: 2_317_896 });
+        return GasLimits({ l2cmDeployment: 8_700_000, upgradeExecution: 3_500_000 });
     }
 
     /// @notice Computes the intrinsic gas cost for a NUT bundle transaction.
